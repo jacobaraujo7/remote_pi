@@ -26,6 +26,7 @@ export default function DocsPage() {
     <DocsShell
       title="Remote Pi docs"
       lastUpdated="2026-05-22"
+      sidebar={<DocsToc />}
       intro={
         <p>
           Extend the{" "}
@@ -39,28 +40,6 @@ export default function DocsPage() {
         </p>
       }
     >
-      <nav
-        aria-label="Table of contents"
-        className="rounded-2xl border border-border-soft bg-surface p-5 text-sm"
-      >
-        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-muted">
-          On this page
-        </p>
-        <ul className="grid gap-1 sm:grid-cols-2">
-          <li><a href="#quick-start" className="text-fg hover:text-accent">Quick start</a></li>
-          <li><a href="#what-it-does" className="text-fg hover:text-accent">What it does</a></li>
-          <li><a href="#install" className="text-fg hover:text-accent">Install</a></li>
-          <li><a href="#using-remote-pi" className="text-fg hover:text-accent">Using <InlineCode>/remote-pi</InlineCode></a></li>
-          <li><a href="#pairing" className="text-fg hover:text-accent">Pairing a mobile device</a></li>
-          <li><a href="#relay" className="text-fg hover:text-accent">The relay</a></li>
-          <li><a href="#agent-network" className="text-fg hover:text-accent">Agent network</a></li>
-          <li><a href="#commands" className="text-fg hover:text-accent">Command reference</a></li>
-          <li><a href="#config" className="text-fg hover:text-accent">Configuration files</a></li>
-          <li><a href="#troubleshooting" className="text-fg hover:text-accent">Troubleshooting</a></li>
-          <li><a href="#links" className="text-fg hover:text-accent">Links</a></li>
-        </ul>
-      </nav>
-
       <DocsSection id="quick-start" title="Quick start">
         <p>Install the extension (one-time):</p>
         <CodeBlock code="pi install npm:remote-pi" label="On your Pi" language="bash" />
@@ -73,7 +52,7 @@ export default function DocsPage() {
           starts the relay automatically — no extra typing.
         </p>
 
-        <DocsSubsection title="Try the agent network in 30 seconds">
+        <DocsSubsection id="agent-network-30s" title="Try the agent network in 30 seconds">
           <p>
             Open <strong className="text-fg">two</strong> Pi terminals in the
             same directory and run <InlineCode>/remote-pi</InlineCode> in each.
@@ -122,7 +101,7 @@ export default function DocsPage() {
           either, or both.
         </p>
 
-        <DocsSubsection title="1) Agent network (local, same machine)">
+        <DocsSubsection id="agent-network-layer" title="1) Agent network (local, same machine)">
           <p>
             Several Pi instances running side-by-side in different terminals can
             discover each other and exchange messages. Each instance is a peer
@@ -149,7 +128,7 @@ export default function DocsPage() {
           </p>
         </DocsSubsection>
 
-        <DocsSubsection title="2) Mobile app (over the relay)">
+        <DocsSubsection id="mobile-app-layer" title="2) Mobile app (over the relay)">
           <p>
             The companion mobile app lets you send prompts to Pi and read its
             responses from your phone. The phone and the Pi process find each
@@ -306,7 +285,7 @@ export default function DocsPage() {
         </p>
         <p>You have two options.</p>
 
-        <DocsSubsection title="Option A — Use the community relay">
+        <DocsSubsection id="community-relay" title="Option A — Use the community relay">
           <p>
             <InlineCode>https://relay-rp1.jacobmoura.work</InlineCode> (default).
             Zero setup. Good for trying things out or for casual use.
@@ -327,7 +306,7 @@ export default function DocsPage() {
           </ul>
         </DocsSubsection>
 
-        <DocsSubsection title="Option B — Self-host (recommended for privacy)">
+        <DocsSubsection id="self-host" title="Option B — Self-host (recommended for privacy)">
           <p>
             Run the relay yourself in Docker and put it behind a VPN like{" "}
             <a className="text-accent underline" href="https://tailscale.com" target="_blank" rel="noopener noreferrer">Tailscale</a>,{" "}
@@ -361,7 +340,7 @@ export default function DocsPage() {
           </p>
         </DocsSubsection>
 
-        <DocsSubsection title="Pointing Pi at your own relay">
+        <DocsSubsection id="point-pi" title="Pointing Pi at your own relay">
           <p>Once your relay is reachable, tell the extension:</p>
           <CodeBlock
             code="/remote-pi relay url wss://relay.yourdomain.tld"
@@ -559,7 +538,7 @@ agent_request({
       </DocsSection>
 
       <DocsSection id="troubleshooting" title="Troubleshooting">
-        <DocsSubsection title="Footer says 🟡 relay waiting for pairing even though I paired a device">
+        <DocsSubsection id="footer-stuck" title="Footer says 🟡 relay waiting for pairing even though I paired a device">
           <p>
             The icon reflects whether <em>any</em> device has been paired on
             this machine, not whether one is connected right now. If you really
@@ -568,14 +547,14 @@ agent_request({
             report a bug if it recurs).
           </p>
         </DocsSubsection>
-        <DocsSubsection title="Mobile app times out connecting">
+        <DocsSubsection id="timeout-mobile" title="Mobile app times out connecting">
           <p>
             Verify the same relay URL is configured on both sides. If you
             self-host behind a VPN, your phone must also be on the VPN
             (Tailscale on iOS/Android works fine).
           </p>
         </DocsSubsection>
-        <DocsSubsection title="agent_request keeps timing out">
+        <DocsSubsection id="timeout-request" title="agent_request keeps timing out">
           <p>
             Default timeout is 30 s. For tasks that legitimately take longer,
             the receiver should reply with <InlineCode>agent_send</InlineCode>{" "}
@@ -584,7 +563,7 @@ agent_request({
             automatically.
           </p>
         </DocsSubsection>
-        <DocsSubsection title="Multiple terminals in the same directory">
+        <DocsSubsection id="multi-terminal" title="Multiple terminals in the same directory">
           <p>
             Supported. They share the same agent-network session (UDS broker)
             and the relay handles each Pi process independently. If the relay
@@ -630,5 +609,72 @@ agent_request({
         <p className="text-sm">License: MIT.</p>
       </DocsSection>
     </DocsShell>
+  );
+}
+
+function DocsToc() {
+  return (
+    <nav aria-label="Table of contents" className="text-sm">
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.2em] text-muted">
+        On this page
+      </p>
+      <ul className="flex flex-col gap-0.5">
+        <TocItem href="#quick-start" label="Quick start">
+          <TocItem href="#agent-network-30s" label="Agent network in 30s" sub />
+        </TocItem>
+        <TocItem href="#what-it-does" label="What it does">
+          <TocItem href="#agent-network-layer" label="Agent network layer" sub />
+          <TocItem href="#mobile-app-layer" label="Mobile app layer" sub />
+        </TocItem>
+        <TocItem href="#install" label="Install" />
+        <TocItem href="#using-remote-pi" label={<>Using <InlineCode>/remote-pi</InlineCode></>} />
+        <TocItem href="#pairing" label="Pairing a mobile device" />
+        <TocItem href="#relay" label="The relay">
+          <TocItem href="#community-relay" label="Community relay" sub />
+          <TocItem href="#self-host" label="Self-host" sub />
+          <TocItem href="#point-pi" label="Point Pi at your relay" sub />
+        </TocItem>
+        <TocItem href="#agent-network" label="Agent network deep dive" />
+        <TocItem href="#commands" label="Command reference" />
+        <TocItem href="#config" label="Configuration files" />
+        <TocItem href="#troubleshooting" label="Troubleshooting">
+          <TocItem href="#footer-stuck" label="Stuck on pairing" sub />
+          <TocItem href="#timeout-mobile" label="Mobile times out" sub />
+          <TocItem href="#timeout-request" label="agent_request timeout" sub />
+          <TocItem href="#multi-terminal" label="Multiple terminals" sub />
+        </TocItem>
+        <TocItem href="#links" label="Links" />
+      </ul>
+    </nav>
+  );
+}
+
+function TocItem({
+  href,
+  label,
+  sub,
+  children,
+}: {
+  href: string;
+  label: React.ReactNode;
+  sub?: boolean;
+  children?: React.ReactNode;
+}) {
+  return (
+    <li>
+      <a
+        href={href}
+        className={
+          sub
+            ? "block rounded py-1 pl-3 text-[13px] text-muted transition-colors hover:text-fg"
+            : "block rounded py-1 font-medium text-fg transition-colors hover:text-accent"
+        }
+      >
+        {label}
+      </a>
+      {children ? (
+        <ul className="ml-2 border-l border-border-soft/70 pl-1">{children}</ul>
+      ) : null}
+    </li>
   );
 }

@@ -96,13 +96,10 @@ messages between them. Pairing is one-time and per device, via QR code.
 Encryption uses Curve25519 key agreement + ChaCha20-Poly1305 (libsodium).
 The relay sees only ciphertext.
 
-App downloads:
+**Get the app** — all current download options (Google Play, App Store, and
+direct builds while public releases roll out):
 
-- **Google Play** — *coming soon*
-- **App Store** — *coming soon*
-
-Until the public releases land, follow
-[the repo](https://github.com/jacobaraujo7/remote_pi) for build/beta info.
+<https://remote-pi.jacobmoura.work/#get-the-app>
 
 ---
 
