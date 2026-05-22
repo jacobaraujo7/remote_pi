@@ -124,7 +124,7 @@ class ChatPage extends StatelessWidget {
                       final label = isWorking
                           ? 'working…'
                           : isReconnecting
-                              ? 'reconectando…'
+                              ? 'reconnecting…'
                               : isOnline
                                   ? 'online'
                                   : 'offline';

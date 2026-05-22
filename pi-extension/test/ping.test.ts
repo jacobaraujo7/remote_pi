@@ -106,12 +106,14 @@ function decodeSentCt(raw: string): { peer: string; inner: Record<string, unknow
  * `pair_request` via the relay mock.
  */
 async function pairUp(): Promise<void> {
-  // Register the "remote-pi start" handler by calling the extension factory
+  // Use the new canonical `remote-pi relay start` command (plano 19). The
+  // legacy `remote-pi start` alias would also auto-join a local UDS session
+  // — undesired in this relay-focused test.
   let startHandler: ((args: string, ctx: ReturnType<typeof makeMockCtx>) => Promise<void>) | undefined;
   const pi = {
     on: () => undefined,
     registerCommand(name: string, opts: { handler: typeof startHandler }) {
-      if (name === "remote-pi start") startHandler = opts.handler;
+      if (name === "remote-pi relay start") startHandler = opts.handler;
     },
     registerTool: () => undefined,
     registerShortcut: () => undefined,
@@ -123,7 +125,7 @@ async function pairUp(): Promise<void> {
   } as unknown as ExtensionAPI;
   (extension as ExtensionFactory)(pi);
 
-  if (!startHandler) throw new Error("remote-pi start handler not registered");
+  if (!startHandler) throw new Error("remote-pi relay start handler not registered");
   await startHandler("", makeMockCtx());
   expect(_getState()).toBe("started");
 

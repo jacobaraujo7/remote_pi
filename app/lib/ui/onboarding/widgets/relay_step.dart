@@ -36,7 +36,7 @@ class RelayStep extends StatelessWidget {
         children: [
           const SizedBox(height: 24),
           const Text(
-            'Escolha o servidor relay',
+            'Choose the relay server',
             style: TextStyle(
               fontFamily: kMono,
               fontSize: 16,
@@ -46,13 +46,13 @@ class RelayStep extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           const Text(
-            'O relay encaminha as mensagens entre o app e o Pi.',
+            'The relay forwards messages between the app and the Pi.',
             style: TextStyle(fontFamily: kMono, fontSize: 11, color: kMuted),
           ),
           const SizedBox(height: 24),
           _RelayCard(
-            title: 'Relay da comunidade',
-            badge: 'recomendado',
+            title: 'Community relay',
+            badge: 'recommended',
             description: kDefaultRelayUrl,
             selected: state.relayChoice == RelayChoice.community,
             onTap: () => onChoice(RelayChoice.community),
@@ -80,7 +80,7 @@ class RelayStep extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'Voltar',
+                  'Back',
                   style: TextStyle(fontFamily: kMono, fontSize: 13),
                 ),
               ),
@@ -98,7 +98,7 @@ class RelayStep extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    'Continuar',
+                    'Continue',
                     style: TextStyle(
                       fontFamily: kMono,
                       fontSize: 14,
@@ -248,7 +248,7 @@ class _CustomRelayCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 const Text(
-                  'Usar meu próprio servidor',
+                  'Use my own server',
                   style: TextStyle(
                     fontFamily: kMono,
                     fontSize: 13,
@@ -275,7 +275,7 @@ class _CustomRelayCard extends StatelessWidget {
                   ),
                   decoration: InputDecoration(
                     isDense: true,
-                    hintText: 'wss://meurelay.exemplo.com',
+                    hintText: 'wss://my-relay.example.com',
                     hintStyle:
                         const TextStyle(fontFamily: kMono, color: kMuted),
                     errorText: error,

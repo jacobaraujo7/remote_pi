@@ -63,7 +63,7 @@ class SettingsViewModel extends ViewModel<SettingsState> {
       return null;
     }
     if (!isValidRelayUrl(trimmed)) {
-      return 'URL deve começar com ws:// ou wss://';
+      return 'URL must start with ws:// or wss://';
     }
     await _prefs.setRelayUrl(trimmed);
     return null;

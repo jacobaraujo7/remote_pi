@@ -61,7 +61,7 @@ class _PairStepState extends State<PairStep> {
         children: [
           const SizedBox(height: 24),
           const Text(
-            'Conecte ao seu dispositivo',
+            'Connect to your device',
             style: TextStyle(
               fontFamily: kMono,
               fontSize: 16,
@@ -71,7 +71,7 @@ class _PairStepState extends State<PairStep> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'No seu computador (Mac, Linux ou Windows), abra o Pi e rode:',
+            'On your computer (Mac, Linux, or Windows), open Pi and run:',
             style: TextStyle(fontFamily: kMono, fontSize: 11, color: kMuted),
           ),
           const SizedBox(height: 6),
@@ -93,7 +93,7 @@ class _PairStepState extends State<PairStep> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Escaneie o QR code que aparecerá:',
+            'Scan the QR code that appears:',
             style: TextStyle(fontFamily: kMono, fontSize: 11, color: kMuted),
           ),
           const SizedBox(height: 12),
@@ -116,7 +116,7 @@ class _PairStepState extends State<PairStep> {
               ),
             ),
             child: const Text(
-              'Voltar',
+              'Back',
               style: TextStyle(fontFamily: kMono, fontSize: 13),
             ),
           ),
@@ -146,14 +146,14 @@ class _PairStepState extends State<PairStep> {
     if (state is PairingConnecting) {
       return _StatusOverlay(
         icon: Icons.sync_rounded,
-        message: 'Pareando…',
+        message: 'Pairing…',
       );
     }
     if (state is PairingError) {
       return _StatusOverlay(
         icon: Icons.error_outline_rounded,
         message: state.message,
-        actionLabel: state.canRetry ? 'Tentar novamente' : null,
+        actionLabel: state.canRetry ? 'Try again' : null,
         onAction: state.canRetry
             ? () {
                 _scannerActive = true;
@@ -166,7 +166,7 @@ class _PairStepState extends State<PairStep> {
     if (state is PairingPaired) {
       return _StatusOverlay(
         icon: Icons.check_circle_outline_rounded,
-        message: 'Pareado!',
+        message: 'Paired!',
       );
     }
     return const SizedBox.shrink();

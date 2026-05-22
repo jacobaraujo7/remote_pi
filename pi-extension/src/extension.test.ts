@@ -200,23 +200,35 @@ describe("extension default export", () => {
     expect(typeof extension).toBe("function");
   });
 
-  test("registers all 8 commands", () => {
+  test("registers all 20 commands (plano 21: + setup)", () => {
     const { pi, registeredCommands } = makeMockPi();
     (extension as ExtensionFactory)(pi);
     expect(registeredCommands).toContain("remote-pi");
-    expect(registeredCommands).toContain("remote-pi start");
+    expect(registeredCommands).toContain("remote-pi setup");
+    expect(registeredCommands).toContain("remote-pi join");
+    expect(registeredCommands).toContain("remote-pi leave");
+    expect(registeredCommands).toContain("remote-pi rename");
+    expect(registeredCommands).toContain("remote-pi sessions");
+    expect(registeredCommands).toContain("remote-pi relay");
+    expect(registeredCommands).toContain("remote-pi relay start");
+    expect(registeredCommands).toContain("remote-pi relay stop");
+    expect(registeredCommands).toContain("remote-pi relay status");
+    expect(registeredCommands).toContain("remote-pi relay url");
     expect(registeredCommands).toContain("remote-pi pair");
-    expect(registeredCommands).toContain("remote-pi stop");
-    expect(registeredCommands).toContain("remote-pi list");
+    expect(registeredCommands).toContain("remote-pi devices");
     expect(registeredCommands).toContain("remote-pi revoke");
     expect(registeredCommands).toContain("remote-pi set-relay");
     expect(registeredCommands).toContain("remote-pi config");
+    expect(registeredCommands).toContain("remote-pi start");
+    expect(registeredCommands).toContain("remote-pi stop");
+    expect(registeredCommands).toContain("remote-pi list");
+    expect(registeredCommands).toContain("remote-pi add-relay");
   });
 
-  test("registers exactly 8 commands", () => {
+  test("registers exactly 20 commands", () => {
     const { pi, registeredCommands } = makeMockPi();
     (extension as ExtensionFactory)(pi);
-    expect(registeredCommands).toHaveLength(8);
+    expect(registeredCommands).toHaveLength(20);
   });
 });
 
@@ -662,7 +674,9 @@ describe("/remote-pi revoke", () => {
     const ACTIVE_PEER = "iamthe_activeone";
     _knownPeers.push({ name: "Idle Peer", remote_epk: "idle_idle", paired_at: "now" });
 
-    const start = captureHandler("remote-pi start");
+    // Use the canonical command (post-plano-19); legacy `remote-pi list` works
+    // too but emits a deprecation notify as its first call.
+    const start = captureHandler("remote-pi relay start");
     await start("", makeMockCtx());
 
     relayRef.current!.emit("message", JSON.stringify({
@@ -673,9 +687,9 @@ describe("/remote-pi revoke", () => {
     }));
     await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
 
-    const list = captureHandler("remote-pi list");
+    const devices = captureHandler("remote-pi devices");
     const ctx = makeMockCtx();
-    await list("", ctx);
+    await devices("", ctx);
 
     const text = (ctx.ui.notify.mock.calls[0]![0]) as string;
     expect(text).toContain("iamthe_a — Active Phone (active)");

@@ -197,18 +197,19 @@ Também `ctx.ui.setTitle()` espelhando estado pra aba do terminal.
 
 ---
 
-## Decisões abertas (resolver antes de executar)
+## Decisões abertas (FECHADAS 2026-05-21 — exec começou)
 
-| # | Decisão | Sugestão |
+| # | Decisão | Resolução |
 |---|---|---|
-| Q1 | Toggle no `/remote-pi join`? | NÃO. Toggle só em `relay`. `join`/`leave` explícitos pra evitar `leave` por acidente |
-| Q2 | Default name = `basename(cwd)`? | SIM |
-| Q3 | Colisão de nome → auto-suffix `#N`? | SIM, broker decide |
-| Q4 | Pareamento mobile = 1 sessão (Opção A original) ou multi-sessão? | Mantém A (já decidido em `00-decisions.md`) |
-| Q5 | Relay config = global ou per-session? | GLOBAL (uma URL pra instalação inteira) |
-| Q6 | Sessão sem relay é caso válido? | SIM (modo agent-network puro, sem mobile) |
-| Q7 | Migração `~/.pi/remote/` → `~/.pi/remote-pi/`? | ~~One-shot na primeira execução, cria sessão "default" e move peers existentes~~ **FECHADA 2026-05-21: NÃO migrar**. Mantém `~/.pi/remote/`. Sessões/broker viram subdirs (`~/.pi/remote/sessions/`, `~/.pi/remote/skills/`). Zero risco de perda de dados existente |
-| Q8 | Skill ships junto da extensão ou instala em `~/.pi/skills/`? | Embedded na extension, copiada pra `~/.pi/skills/` no install |
+| Q1 | Toggle no `/remote-pi join`? | **NÃO**. Toggle só em `relay`. `join`/`leave` explícitos pra evitar `leave` por acidente |
+| Q2 | Default name = `basename(cwd)`? | **SIM** |
+| Q3 | Colisão de nome → auto-suffix `#N`? | **SIM**, broker decide |
+| Q4 | Pareamento mobile = 1 sessão (Opção A original) ou multi-sessão? | **Mantém A** (já decidido em `00-decisions.md`) |
+| Q5 | Relay config = global ou per-session? | **GLOBAL** (uma URL pra instalação inteira) |
+| Q6 | Sessão sem relay é caso válido? | **SIM** (modo agent-network puro, sem mobile) |
+| Q7 | Migração `~/.pi/remote/` → `~/.pi/remote-pi/`? | ~~One-shot~~ **NÃO migrar**. Mantém `~/.pi/remote/`. Sessões/broker viram subdirs (`~/.pi/remote/sessions/`, `~/.pi/remote/skills/`). Zero risco de perda de dados existente |
+| Q8 | Skill ships junto da extensão ou instala em `~/.pi/skills/`? | **Embedded na extension**, exposta via `pi.on("resources_discover")` apontando pra `pi-extension/skills/` |
+| Posicionamento (A/B/C) | Reposicionar README pra "mobile + mesh"? | **Adiado** — decidir só após dogfood real do agent-network |
 
 ---
 

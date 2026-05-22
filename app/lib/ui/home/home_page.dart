@@ -303,7 +303,7 @@ class HomePage extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.edit_outlined, color: kAccent),
                 title: const Text(
-                  'Trocar nome da sessão',
+                  'Rename session',
                   style: TextStyle(color: kText),
                 ),
                 onTap: () {
@@ -318,12 +318,12 @@ class HomePage extends StatelessWidget {
                 ),
                 enabled: !isLive,
                 title: Text(
-                  'Excluir sessão (apenas local)',
+                  'Delete session (local only)',
                   style: TextStyle(color: isLive ? kMuted : kText),
                 ),
                 subtitle: isLive
                     ? const Text(
-                        'Só disponível quando a sala está offline',
+                        'Only available when the room is offline',
                         style: TextStyle(color: kMuted, fontSize: 11),
                       )
                     : null,
@@ -348,14 +348,14 @@ class HomePage extends StatelessWidget {
       context: context,
       builder: (dCtx) => AlertDialog(
         backgroundColor: kBg,
-        title: const Text('Trocar nome da sessão',
-            style: TextStyle(color: kText)),
+        title:
+            const Text('Rename session', style: TextStyle(color: kText)),
         content: TextField(
           controller: controller,
           autofocus: true,
           style: const TextStyle(color: kText, fontFamily: kMono),
           decoration: InputDecoration(
-            hintText: it.room.cwd ?? 'Sessão',
+            hintText: it.room.cwd ?? 'Session',
             hintStyle: const TextStyle(color: kMuted),
             enabledBorder:
                 const OutlineInputBorder(borderSide: BorderSide(color: kBorder)),
@@ -366,11 +366,11 @@ class HomePage extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dCtx).pop(null),
-            child: const Text('Cancelar', style: TextStyle(color: kMuted)),
+            child: const Text('Cancel', style: TextStyle(color: kMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.of(dCtx).pop(controller.text.trim()),
-            child: const Text('Salvar', style: TextStyle(color: kAccent)),
+            child: const Text('Save', style: TextStyle(color: kAccent)),
           ),
         ],
       ),
@@ -385,21 +385,21 @@ class HomePage extends StatelessWidget {
       context: context,
       builder: (dCtx) => AlertDialog(
         backgroundColor: kBg,
-        title: const Text('Excluir sessão?', style: TextStyle(color: kText)),
+        title: const Text('Delete session?', style: TextStyle(color: kText)),
         content: const Text(
-          'Remove apenas localmente. Se a sessão voltar online no Pi, '
-          'ela reaparece na lista.',
+          'Removes locally only. If the session comes back online on '
+          'the Pi, it reappears in the list.',
           style: TextStyle(color: kMuted, fontSize: 12),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dCtx).pop(false),
-            child: const Text('Cancelar', style: TextStyle(color: kMuted)),
+            child: const Text('Cancel', style: TextStyle(color: kMuted)),
           ),
           TextButton(
             onPressed: () => Navigator.of(dCtx).pop(true),
             child:
-                const Text('Excluir', style: TextStyle(color: Colors.redAccent)),
+                const Text('Delete', style: TextStyle(color: Colors.redAccent)),
           ),
         ],
       ),
@@ -460,7 +460,7 @@ class _LonelyEmptyState extends StatelessWidget {
               const Icon(Icons.bedtime_outlined, color: kMuted, size: 56),
               const SizedBox(height: 18),
               const Text(
-                'Nada aqui…',
+                'Nothing here…',
                 style: TextStyle(
                   fontFamily: kMono,
                   color: kMuted2,
@@ -470,7 +470,7 @@ class _LonelyEmptyState extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'Quando algum Pi pareado abrir uma sessão, ela aparece aqui.',
+                'When a paired Pi opens a session, it shows up here.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: kMono,

@@ -129,6 +129,12 @@ class ConnectionManager extends Service {
 
   Timer? _retryTimer;
   Timer? _pingTimer;
+  // Plan-18 follow-up — watchdog timer that periodically checks for
+  // "stuck offline" state (active peer set but status not online and
+  // no retry / connect in flight). When detected, forces a fresh
+  // _scheduleRetry. Belt-and-suspenders against any code path that
+  // accidentally drops the retry chain.
+  Timer? _watchdogTimer;
   CancelToken? _connectCancel;
   StreamSubscription<ServerMessage>? _channelSub;
   StreamSubscription<ControlInbound>? _controlSub;
@@ -136,12 +142,39 @@ class ConnectionManager extends Service {
   List<String> _subscribedEpks = const [];
   int _missedPings = 0;
   int _retryAttempt = 0;
+  // Tracks the last-running connect token so the watchdog can tell
+  // whether a connect is in flight (without poking at the live token).
+  bool _connectInFlight = false;
 
   ConnectionManager({
     required ConnectionFactory factory,
     required PairingStorage storage,
   }) : _factory = factory,
-       _storage = storage;
+       _storage = storage {
+    _startWatchdog();
+  }
+
+  /// Plan-18 follow-up — periodically checks for stuck offline state
+  /// and forces a reconnect attempt. Runs every 15s. Cheap; only
+  /// fires the actual `_scheduleRetry` when the conditions match.
+  void _startWatchdog() {
+    _watchdogTimer?.cancel();
+    _watchdogTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+      final peer = _activePeer;
+      if (peer == null) return;
+      if (_status is StatusOnline) return;
+      if (_connectInFlight) return;
+      if (_retryTimer != null) return;
+      // We SHOULD be reconnecting but nothing's scheduled and no
+      // attempt is in flight. Kick the retry chain.
+      debugPrint(
+        '[conn] watchdog: stuck status=${_status.runtimeType} '
+        'peer=${peer.remoteEpk.substring(0, 8)} '
+        '_retryTimer=null _connectInFlight=false → forcing _scheduleRetry',
+      );
+      _scheduleRetry(peer);
+    });
+  }
 
   ConnectionStatus get status => _status;
   Stream<ConnectionStatus> get statusStream => _statusController.stream;
@@ -409,6 +442,8 @@ class ConnectionManager extends Service {
   void dispose() {
     _cancelRetry();
     _cancelPing();
+    _watchdogTimer?.cancel();
+    _watchdogTimer = null;
     _channelSub?.cancel();
     _channelSub = null;
     _controlSub?.cancel();
@@ -430,6 +465,7 @@ class ConnectionManager extends Service {
 
     final token = CancelToken();
     _connectCancel = token;
+    _connectInFlight = true;
     _activePeer = peer;
     // Plan 17 fix — set the destination room from the persisted
     // PeerRecord BEFORE emitting StatusOnline so the very first send
@@ -469,8 +505,13 @@ class ConnectionManager extends Service {
       _watchControl(ch);
       _replaySubscriptions();
       debugPrint('[conn] online (waiting for first inbound to reset backoff)');
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[conn] _connect failed: $e (cancelled=${token.isCancelled})');
       if (!token.isCancelled) _scheduleRetry(peer);
+    } finally {
+      // Only clear the flight flag if THIS call is still the active
+      // attempt — a newer _connect may have superseded us.
+      if (identical(_connectCancel, token)) _connectInFlight = false;
     }
   }
 
@@ -847,9 +888,18 @@ class ConnectionManager extends Service {
 
   void _scheduleRetry(PeerRecord peer) {
     final delay = _backoffFor(_retryAttempt);
+    debugPrint(
+      '[conn] scheduleRetry attempt=$_retryAttempt delay=${delay.inSeconds}s '
+      'peer=${peer.remoteEpk.substring(0, 8)}',
+    );
     _emit(StatusRetrying(nextRetry: delay, attempt: _retryAttempt));
+    // Cancel any previous timer before scheduling — prevents the
+    // "two timers firing back-to-back" footgun.
+    _retryTimer?.cancel();
     _retryTimer = Timer(delay, () {
+      _retryTimer = null;
       _retryAttempt++;
+      debugPrint('[conn] retry tick fired → _connect(attempt=$_retryAttempt)');
       _connect(peer);
     });
   }
@@ -857,39 +907,70 @@ class ConnectionManager extends Service {
   void _startPing(PeerRecord peer, IChannel ch) {
     _pingTimer = Timer.periodic(const Duration(seconds: 25), (_) async {
       if (_status is! StatusOnline) return;
-      // Count this tick as a missed ping up-front. Inbound traffic
-      // (ANY server message, including the Pong) on the watch
-      // listener resets `_missedPings` to 0, so a healthy Pi never
-      // lets the counter accumulate.
+      // Plan-18 follow-up — DECOUPLED Pi-liveness from WS-liveness.
       //
-      // Plan-18 follow-up — threshold is 3 misses (~75s window).
-      // Was 2 (~50s) which was too aggressive: a brief network
-      // hiccup or a slow Pi response would trip the channel-lost
-      // path and the relay icon would flip to "Offline" while the
-      // connection was actually fine. 75s gives one extra tick for
-      // any in-flight Pong to land.
+      // Before: 3 missed Pongs from the Pi triggered `_onChannelLost`,
+      // which tore down the WS to the relay. The relay only frees
+      // the slot when its own `sink.send` returns an error (which
+      // can take MINUTES on certain network failures — half-open
+      // TCP), so every reconnect attempt during that window hit
+      // `room_already_open` and the app sat permanently offline.
+      // [ORCH:19-heartbeat-investigate] reported this.
+      //
+      // After: the WS↔relay keep-alive is now exclusively handled
+      // by RFC 6455 Ping/Pong (IOWebSocketChannel.pingInterval).
+      // Protocol Ping/Pong here is a Pi-LIVENESS probe — when it
+      // fails, we mark the active room as offline locally so Home /
+      // chat reflect it; the WS stays online for presence updates
+      // and other rooms. A real WS failure surfaces via the catch
+      // below (ping SEND fails) or via the channel listener's
+      // onError / onDone, both of which still trigger
+      // `_onChannelLost`.
       _missedPings++;
       debugPrint(
-        '[conn] heartbeat tick: missedPings=$_missedPings/3 '
-        'room=$_activeRoomId',
+        '[conn] heartbeat tick: missedPings=$_missedPings room=$_activeRoomId',
       );
-      if (_missedPings >= 3) {
+      if (_missedPings == 3) {
         debugPrint(
-          '[conn] heartbeat: $_missedPings consecutive misses → '
-          'declaring channel lost (no Pong from Pi for ~75s)',
+          '[conn] heartbeat: Pi unresponsive in room=$_activeRoomId '
+          '— marking room offline (WS↔relay stays up)',
         );
-        _cancelPing();
-        _onChannelLost(peer, ch);
-        return;
+        _markActiveRoomOffline();
+        // No `return` — keep firing pings. When Pi comes back, the
+        // inbound Pong (or any other frame) resets _missedPings via
+        // _watchChannel, and `room_announced` repopulates
+        // _liveRoomIds → tile + AppBar flip back to green
+        // automatically.
       }
       try {
         final id = _newId();
         await ch.send(Ping(id: id));
         debugPrint('[conn] heartbeat: ping sent id=$id room=$_activeRoomId');
       } catch (e) {
-        debugPrint('[conn] heartbeat: ping SEND failed: $e');
+        debugPrint(
+          '[conn] heartbeat: ping SEND failed: $e — '
+          'WS is dead, declaring channel lost',
+        );
+        _cancelPing();
+        _onChannelLost(peer, ch);
       }
     });
+  }
+
+  /// Plan-18 follow-up — when the Pi stops responding to protocol
+  /// Pings, mark its current cwd-room as offline locally so the UI
+  /// reflects the degraded state. The WS↔relay stays up.
+  void _markActiveRoomOffline() {
+    final activeEpk = _activePeer?.remoteEpk;
+    if (activeEpk == null) return;
+    final key = toStandardB64(activeEpk);
+    final live = _liveRoomIds[key];
+    if (live == null || !live.contains(_activeRoomId)) return;
+    live.remove(_activeRoomId);
+    if (live.isEmpty) _liveRoomIds.remove(key);
+    if (!_roomsController.isClosed) {
+      _roomsController.add(_roomsSnapshot());
+    }
   }
 
   void _cancelRetry() {

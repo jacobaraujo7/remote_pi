@@ -1,7 +1,7 @@
 {
-  "name": "pi-extension",
+  "name": "remote-pi",
   "version": "0.1.0",
-  "description": "Remote Pi — extensão para o Pi coding agent com slash command /remote-pi",
+  "description": "Mobile remote control and local agent mesh for the Pi coding agent. Pair your phone via QR over a relay, watch tool calls in real time, run multi-Pi sessions over a local Unix Domain Socket broker, and let agents talk to each other through structured request/reply.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -10,21 +10,46 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "pi": "tsc && REMOTE_PI_RELAY=ws://192.168.31.240:3000 pi --no-extensions -e $(pwd)/dist/index.js"
+    "pi": "tsc && REMOTE_PI_RELAY=ws://192.168.31.240:3000 pi --no-extensions -e $(pwd)/dist/index.js",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
   },
   "keywords": [
     "pi",
+    "pi-package",
+    "pi-extension",
+    "pi-coding-agent",
     "remote-control",
-    "coding-agent"
+    "mobile",
+    "coding-agent",
+    "agent-mesh",
+    "agent-network",
+    "uds",
+    "broker",
+    "qr-pairing",
+    "websocket"
   ],
-  "author": "",
-  "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "^11.1.2",
-      "onFail": "download"
-    }
+  "pi": {
+    "extensions": ["./dist"]
+  },
+  "author": "Jacob Moura <jacobmoura7@github>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jacobmoura7/remote-pi.git",
+    "directory": "pi-extension"
+  },
+  "homepage": "https://github.com/jacobmoura7/remote-pi#readme",
+  "bugs": {
+    "url": "https://github.com/jacobmoura7/remote-pi/issues"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -46,6 +71,7 @@
     "@noble/ed25519": "^3.1.0",
     "keytar": "^7.9.0",
     "qrcode-terminal": "^0.12.0",
+    "typebox": "^1.1.38",
     "ws": "^8.20.1"
   }
 }

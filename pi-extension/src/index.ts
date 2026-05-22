@@ -54,6 +54,28 @@ import type {
 import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
 import { PlainPeerChannel } from "./transport/peer_channel.js";
 import { roomIdForCwd } from "./rooms.js";
+import { SessionPeer } from "./session/peer.js";
+import { registerAgentTools } from "./session/tools.js";
+import {
+  ensureGlobalDirs,
+  listSessions,
+  sessionAuditPath,
+  sessionHasSock,
+  sessionSockPath,
+  skillsDir,
+} from "./session/global_config.js";
+import {
+  defaultAgentName,
+  effectiveAutoStartRelay,
+  loadLocalConfig,
+  localConfigExists,
+  saveLocalConfig,
+} from "./session/local_config.js";
+import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
+import { updateFooter, type FooterState } from "./ui/footer.js";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { mkdirSync, copyFileSync, existsSync, unlinkSync } from "node:fs";
 import {
   kDefaultRelayUrl,
   resolveRelayUrl,
@@ -71,13 +93,75 @@ let _relayUrl: string | null = null;  // URL used by current _relay connection
 let _peerChannel: PlainPeerChannel | null = null;
 let _appPeerId: string | null = null;  // active app peer ID (Ed25519 pk base64 std)
 let _peerShort = "";
+
 let _myRoomId: string | null = null;   // this Pi's room id (derived from cwd)
 let _myRoomMeta: { name: string; cwd: string; model?: string } | null = null;
 let _currentModel: string | undefined = undefined;  // last-known model name
 
+// ── Agent-network session (plano 19) ──────────────────────────────────────────
+let _sessionPeer: SessionPeer | null = null;
+let _sessionName: string | null = null;
+let _sessionPeerCount = 0;
+
+// Cached state of global pairings (`peers.json`). Pairing is per-machine, so a
+// device paired in any Pi process is paired everywhere. Refreshed on boot,
+// after addPeer (handle_pair_request), and after removePeer (revoke).
+let _hasGlobalPairings = false;
+
+/** Reads peers.json and updates the global-pairings cache + footer. Fire and
+ *  forget; failures keep the previous cached value. */
+function _refreshPairingsCache(): void {
+  void listPeers()
+    .then((peers) => {
+      _hasGlobalPairings = peers.length > 0;
+      _refreshFooter();
+    })
+    .catch(() => { /* keep prior cached value */ });
+}
+
+/** Re-queries the broker for the authoritative peer list. The broker's map is
+ *  the source of truth — incremental +1/-1 counters drift after failover, lost
+ *  `peer_left` broadcasts (e.g., leader leaves), or any dropped event. Called
+ *  on every `peer_joined`/`peer_left` and once on join. Fire-and-forget. */
+function _refreshSessionPeerCount(
+  peer: SessionPeer,
+  ctx?: Pick<ExtensionContext, "ui"> | null,
+): void {
+  void peer.request("broker", { type: "list_peers" }, 2000)
+    .then((reply) => {
+      const peers = (reply.body as { peers?: string[] } | null)?.peers;
+      if (Array.isArray(peers)) {
+        _sessionPeerCount = peers.length;
+        _refreshFooter(ctx);
+      }
+    })
+    .catch(() => { /* older broker without list_peers — keep prior count */ });
+}
+
 /** Friendly model name for room_meta (plano 18). undefined when SDK has none yet. */
 function _currentModelName(): string | undefined {
   return _currentModel;
+}
+
+/** Refreshes the Pi TUI footer slots from current module state. Safe no-op when ctx lacks ui. */
+function _refreshFooter(ctx?: { ui?: { setStatus?: unknown; setTitle?: unknown } } | null): void {
+  const target = ctx ?? _lastCtx;
+  const ui = target?.ui as (
+    { setStatus?: (k: string, v: string | undefined) => void; setTitle?: (t: string) => void } | undefined
+  );
+  if (!ui || typeof ui.setStatus !== "function" || typeof ui.setTitle !== "function") return;
+  const state: FooterState = {
+    session: _sessionName ?? undefined,
+    peerCount: _sessionPeerCount,
+    relayOn: _state !== "idle",
+    devicePaired: _state === "paired" ? _peerShort : undefined,
+    hasPairings: _hasGlobalPairings,
+    agentName: _sessionPeer?.name(),
+  };
+  updateFooter(
+    { ui: { setStatus: ui.setStatus.bind(ui), setTitle: ui.setTitle.bind(ui) } },
+    state,
+  );
 }
 
 // Epoch ms when the state machine entered 'started' (last /remote-pi start).
@@ -211,6 +295,7 @@ function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
   // restart resets these (init-time values).
 
   _state = "idle";
+  _refreshFooter();
 }
 
 /**
@@ -236,6 +321,7 @@ function _onRelayClose(): void {
 
   _relay = null;  // _relayUrl preserved for retry
   _state = "started";
+  _refreshFooter();
 
   _scheduleReconnect();
 }
@@ -312,6 +398,7 @@ export function _onPeerDisconnect(): void {
   _currentTurnId = null;
 
   _state = "started";
+  _refreshFooter();
   _lastCtx?.ui.notify("[remote-pi] App disconnected, listening for reconnect", "info");
 
   // Re-install auto-listener so reconnect works
@@ -346,6 +433,7 @@ function _promoteToPaired(
   _appPeerId = appPeerId;
   _peerShort = peerShort;
   _state = "paired";
+  _refreshFooter();
 
   _lastCtx?.ui.notify(
     `[remote-pi] state: paired (peer=${peerShort}, name=${peerName})`,
@@ -461,6 +549,7 @@ async function _handlePairRequest(
       remote_epk: appPeerId,
       paired_at: new Date().toISOString(),
     });
+    _refreshPairingsCache();
   } catch (err) {
     sendError("internal_error", `Failed to persist peer: ${String(err)}`);
     return;
@@ -495,6 +584,24 @@ const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   _pi = pi;
   console.error(`[remote-pi] session sync limit: ${_getSyncLimit()}`);
+
+  // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
+  // agent-network skill on first load. resources_discover lets Pi find it.
+  try {
+    ensureGlobalDirs();
+    _deployAgentNetworkSkill();
+  } catch { /* best-effort init */ }
+
+  // Seed the global-pairings cache from peers.json so the footer can show
+  // 🟢/🟡 correctly the moment the relay is up (no race with first refresh).
+  _refreshPairingsCache();
+
+  pi.on("resources_discover", () => ({ skillPaths: [skillsDir()] }));
+
+  // Plano 20: agent_send + agent_request tools so the LLM can drive the
+  // session network natively. Getter captures `_sessionPeer` live so the
+  // tool always sees the current state.
+  registerAgentTools(pi, () => _sessionPeer);
 
   // Tool calls execute without prompting the remote user. The Pi SDK has no
   // native `requiresApproval` per tool, and a hardcoded gate (Bash/Edit/Write)
@@ -588,50 +695,105 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _currentTurnId = null;
   });
 
-  // ── Commands ──────────────────────────────────────────────────────────────
+  // ── Commands (plano 19 taxonomy) ──────────────────────────────────────────
   pi.registerCommand("remote-pi", {
-    description: "Show remote-pi status",
+    description: "Connect (join session + start relay), or run setup on first use",
     getArgumentCompletions: async (prefix) => {
-      // Support "revoke <shortid-prefix>" inline completion at the dispatcher
-      // (fallback for SDKs that don't dispatch nested-command completions).
       if (prefix.startsWith("revoke ") || prefix === "revoke") {
         const shortPrefix = prefix === "revoke" ? "" : prefix.slice("revoke ".length);
         return _shortidCompletions(shortPrefix, "revoke ");
       }
-      return ["start", "pair", "stop", "list", "revoke", "set-relay", "config"]
+      return [
+        "join", "leave", "rename", "sessions", "setup",
+        "relay", "pair", "devices", "revoke",
+        "set-relay", "config",
+        // legacy aliases (still autocomplete-visible during the deprecation window)
+        "start", "stop", "list", "add-relay",
+      ]
         .filter((o) => o.startsWith(prefix))
         .map((o) => ({ value: o, label: o }));
     },
     handler: async (args, ctx) => {
       _lastCtx = ctx;
       const sub = args.trim();
-      if      (sub === "start")             { await _cmdStart(ctx); }
+      if      (sub === "")                  { await _cmdStatus(ctx); }
+      else if (sub === "setup")             { await _cmdSetup(ctx); }
+      else if (sub === "join" || sub.startsWith("join ")) { await _cmdJoin(sub.slice("join".length).trim(), ctx); }
+      else if (sub === "leave")             { await _cmdLeave(ctx); }
+      else if (sub.startsWith("rename"))    { await _cmdRename(sub.slice("rename".length).trim(), ctx); }
+      else if (sub === "sessions")          { _cmdSessions(ctx); }
+      else if (sub === "relay")             { await _cmdRelayToggle(ctx); }
+      else if (sub === "relay start")       { await _cmdStart(ctx); }
+      else if (sub === "relay stop")        { await _cmdStop(ctx); }
+      else if (sub === "relay status")      { _cmdRelayStatus(ctx); }
+      else if (sub.startsWith("relay url")) { _cmdSetRelay(sub.slice("relay url".length).trim(), ctx); }
       else if (sub === "pair")              { await _cmdPair(ctx); }
-      else if (sub === "stop")              { await _cmdStop(ctx); }
-      else if (sub === "list")              { await _cmdList(ctx); }
-      else if (sub === "config")            { _cmdConfig(ctx); }
+      else if (sub === "devices")           { await _cmdList(ctx); }
       else if (sub.startsWith("revoke"))    { await _cmdRevoke(sub.slice("revoke".length).trim(), ctx); }
       else if (sub.startsWith("set-relay")) { _cmdSetRelay(sub.slice("set-relay".length).trim(), ctx); }
-      else                                  { _cmdStatus(ctx); }
+      else if (sub === "config")            { _cmdConfig(ctx); }
+      // ── Legacy aliases (deprecated, 1-release window) ─────────────────────
+      else if (sub === "start") {
+        ctx.ui.notify("[remote-pi] '/remote-pi start' deprecated — use '/remote-pi relay start' (auto-joining default session)", "warning");
+        await _cmdJoin("", ctx);
+        await _cmdStart(ctx);
+      }
+      else if (sub === "stop") {
+        ctx.ui.notify("[remote-pi] '/remote-pi stop' deprecated — use '/remote-pi leave' + '/remote-pi relay stop'", "warning");
+        await _cmdLeave(ctx);
+        await _cmdStop(ctx);
+      }
+      else if (sub === "list") {
+        ctx.ui.notify("[remote-pi] '/remote-pi list' deprecated — use '/remote-pi devices'", "warning");
+        await _cmdList(ctx);
+      }
+      else if (sub.startsWith("add-relay")) {
+        ctx.ui.notify("[remote-pi] '/remote-pi add-relay' deprecated — use '/remote-pi relay url <...>'", "warning");
+        _cmdSetRelay(sub.slice("add-relay".length).trim(), ctx);
+      }
+      else { await _cmdStatus(ctx); }
     },
   });
 
-  pi.registerCommand("remote-pi start",  { description: "Connect to relay (idle → started)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStart(ctx); } });
-  pi.registerCommand("remote-pi pair",   { description: "Show QR for new peer (started, async → paired)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdPair(ctx); } });
-  pi.registerCommand("remote-pi stop",   { description: "Disconnect (any → idle)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStop(ctx); } });
-  pi.registerCommand("remote-pi list",   { description: "List paired remote devices", handler: async (_, ctx) => _cmdList(ctx) });
+  // Nested registrations (full taxonomy)
+  pi.registerCommand("remote-pi setup",    { description: "Run the setup wizard and update local config", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdSetup(ctx); } });
+  pi.registerCommand("remote-pi join",     { description: "Join (or create) a local agent session", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdJoin(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi leave",    { description: "Leave the current agent session", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdLeave(ctx); } });
+  pi.registerCommand("remote-pi rename",   { description: "Rename this agent in the current session", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRename(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi sessions", { description: "List local agent sessions", handler: async (_, ctx) => { _lastCtx = ctx; _cmdSessions(ctx); } });
+  pi.registerCommand("remote-pi relay",    { description: "Toggle the relay connection on/off", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdRelayToggle(ctx); } });
+  pi.registerCommand("remote-pi relay start",  { description: "Connect to the relay", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStart(ctx); } });
+  pi.registerCommand("remote-pi relay stop",   { description: "Disconnect from the relay", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStop(ctx); } });
+  pi.registerCommand("remote-pi relay status", { description: "Show current relay status", handler: async (_, ctx) => { _lastCtx = ctx; _cmdRelayStatus(ctx); } });
+  pi.registerCommand("remote-pi relay url",    { description: "Set relay URL (alias of /remote-pi set-relay)", handler: async (args, ctx) => { _lastCtx = ctx; _cmdSetRelay(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi pair",     { description: "Show a QR code to pair a new mobile device", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdPair(ctx); } });
+  pi.registerCommand("remote-pi devices",  { description: "List paired mobile devices", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdList(ctx); } });
   pi.registerCommand("remote-pi revoke", {
-    description: "Revoke a paired device by shortid",
+    description: "Revoke a paired device by its shortid",
     getArgumentCompletions: async (prefix) => _shortidCompletions(prefix),
     handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRevoke(args.trim(), ctx); },
   });
-  pi.registerCommand("remote-pi set-relay", {
-    description: "Set custom relay URL (persisted in ~/.pi/remote/config.json)",
-    handler: async (args, ctx) => { _lastCtx = ctx; _cmdSetRelay(args.trim(), ctx); },
+  pi.registerCommand("remote-pi set-relay", { description: "Persist a new relay URL to user config", handler: async (args, ctx) => { _lastCtx = ctx; _cmdSetRelay(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi config",    { description: "Show the effective relay URL and its source", handler: async (_, ctx) => { _lastCtx = ctx; _cmdConfig(ctx); } });
+
+  // Legacy aliases (deprecated, 1-release deprecation window).
+  const legacyWarn = (ctx: ExtensionCommandContext, old: string, neu: string) =>
+    ctx.ui.notify(`[remote-pi] '${old}' deprecated — use '${neu}'`, "warning");
+  pi.registerCommand("remote-pi start", {
+    description: "[DEPRECATED] alias of /remote-pi relay start (also auto-joins the default session)",
+    handler: async (_, ctx) => { _lastCtx = ctx; legacyWarn(ctx, "/remote-pi start", "/remote-pi relay start"); await _cmdJoin("", ctx); await _cmdStart(ctx); },
   });
-  pi.registerCommand("remote-pi config", {
-    description: "Show effective relay URL and source",
-    handler: async (_, ctx) => { _lastCtx = ctx; _cmdConfig(ctx); },
+  pi.registerCommand("remote-pi stop", {
+    description: "[DEPRECATED] alias of /remote-pi leave + /remote-pi relay stop",
+    handler: async (_, ctx) => { _lastCtx = ctx; legacyWarn(ctx, "/remote-pi stop", "/remote-pi leave + /remote-pi relay stop"); await _cmdLeave(ctx); await _cmdStop(ctx); },
+  });
+  pi.registerCommand("remote-pi list", {
+    description: "[DEPRECATED] alias of /remote-pi devices",
+    handler: async (_, ctx) => { _lastCtx = ctx; legacyWarn(ctx, "/remote-pi list", "/remote-pi devices"); await _cmdList(ctx); },
+  });
+  pi.registerCommand("remote-pi add-relay", {
+    description: "[DEPRECATED] alias of /remote-pi relay url",
+    handler: async (args, ctx) => { _lastCtx = ctx; legacyWarn(ctx, "/remote-pi add-relay", "/remote-pi relay url"); _cmdSetRelay(args.trim(), ctx); },
   });
 };
 
@@ -639,13 +801,80 @@ export default extension;
 
 // ── Command implementations ───────────────────────────────────────────────────
 
-function _cmdStatus(ctx: Pick<ExtensionContext, "ui">): void {
+function _showStatus(ctx: Pick<ExtensionContext, "ui">): void {
   const relayUrl = _relayUrl ?? resolveRelayUrl().url;
+  const sessionPart = _sessionName ? `session=${_sessionName} (${_sessionPeerCount}) · ` : "";
   let msg: string;
-  if      (_state === "idle")   msg = `[remote-pi] state: idle — relay=${relayUrl}. Run /remote-pi start to connect.`;
-  else if (_state === "started") msg = `[remote-pi] state: started (peer=${_peerShort || "?"}, relay=${relayUrl}) — run /remote-pi pair to show QR`;
-  else                          msg = `[remote-pi] state: paired (peer=${_peerShort}, relay=${relayUrl}) — connected and ready`;
+  if      (_state === "idle")   msg = `[remote-pi] ${sessionPart}relay=idle (${relayUrl}). Run /remote-pi relay start to connect.`;
+  else if (_state === "started") msg = `[remote-pi] ${sessionPart}relay=started (peer=${_peerShort || "?"}, ${relayUrl}) — run /remote-pi pair to show QR`;
+  else                           msg = `[remote-pi] ${sessionPart}relay=paired (peer=${_peerShort}, ${relayUrl}) — connected and ready`;
   ctx.ui.notify(msg, "info");
+}
+
+async function _cmdStatus(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+
+  // First-time wizard: no local config in this cwd → run interactive setup.
+  if (!localConfigExists(cwd)) {
+    const ui = ctx.ui as unknown as WizardUI;
+    if (typeof ui.select !== "function") {
+      _showStatus(ctx);
+      return;
+    }
+    const baseDefault = defaultAgentName(cwd);
+    const newConfig = await runSetupWizard(ui, {
+      agent_name: baseDefault,
+      session_name: baseDefault,
+      auto_start_relay: true,
+    });
+    if (!newConfig) {
+      ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
+      return;
+    }
+    saveLocalConfig(cwd, newConfig);
+    ctx.ui.notify(
+      `[remote-pi] Config saved to ${cwd}/.pi/remote-pi/config.json`,
+      "info",
+    );
+    await _cmdJoin(newConfig.session_name ?? baseDefault, ctx);
+    if (effectiveAutoStartRelay(newConfig)) await _cmdStart(ctx);
+    _showStatus(ctx);
+    return;
+  }
+
+  // Returning user with config: auto-start if requested + currently inactive.
+  const config = loadLocalConfig(cwd);
+  if (effectiveAutoStartRelay(config) && !_sessionPeer) {
+    const sessionName = config.session_name ?? defaultAgentName(cwd);
+    await _cmdJoin(sessionName, ctx);
+    if (_state === "idle") await _cmdStart(ctx);
+  }
+  _showStatus(ctx);
+}
+
+async function _cmdSetup(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  const ui = ctx.ui as unknown as WizardUI;
+  if (typeof ui.select !== "function") {
+    ctx.ui.notify("[remote-pi] Setup requires an interactive UI.", "warning");
+    return;
+  }
+  const current = loadLocalConfig(cwd);
+  const baseDefault = defaultAgentName(cwd);
+  const newConfig = await runSetupWizard(ui, {
+    agent_name: current.agent_name ?? baseDefault,
+    session_name: current.session_name ?? baseDefault,
+    auto_start_relay: effectiveAutoStartRelay(current),
+  });
+  if (!newConfig) {
+    ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
+    return;
+  }
+  saveLocalConfig(cwd, newConfig);
+  ctx.ui.notify(
+    "[remote-pi] Config updated. Run /remote-pi to apply now (join + relay).",
+    "info",
+  );
 }
 
 async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
@@ -716,6 +945,7 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   relay.on("close", _onRelayClose);
 
   _stopAutoListener = _installAutoListener(relay);
+  _refreshFooter(ctx);
 
   ctx.ui.notify(`[remote-pi] state: started (peer=${myShort}) — Connected to relay ${relayUrl}`, "info");
 }
@@ -798,6 +1028,7 @@ async function _cmdRevoke(arg: string, ctx: Pick<ExtensionContext, "ui">): Promi
 
   const peer = matches[0]!;
   await removePeer(peer.remote_epk);
+  _refreshPairingsCache();
 
   if (_state === "paired" && _appPeerId === peer.remote_epk) {
     _goIdle("session_replaced");
@@ -849,6 +1080,175 @@ function _cmdConfig(ctx: Pick<ExtensionContext, "ui">): void {
     `[remote-pi] Relay: ${url}\n  Source: ${source}`,
     "info",
   );
+}
+
+// ── Agent-network commands (plano 19) ─────────────────────────────────────────
+
+function _resolveExtensionDir(): string {
+  // dist/index.js → dist; skills sit at <extensionRoot>/skills/. When we run
+  // from src/ via tsx (dev), index.ts is in src/ and skills/ is sibling. We
+  // detect by checking both locations.
+  const here = fileURLToPath(import.meta.url);
+  // dist/index.js or src/index.ts → parent = <dist or src>; sibling = ../skills
+  const parent = here.replace(/\/[^/]+$/, "");
+  const candidateA = join(parent, "..", "skills"); // dist → ../skills
+  const candidateB = join(parent, "skills");        // src → skills
+  if (existsSync(candidateA)) return parent.replace(/\/dist$/, "");
+  if (existsSync(candidateB)) return parent;
+  return parent;
+}
+
+function _deployAgentNetworkSkill(): void {
+  // Pi SDK spec (core/skills.js): every skill must live at
+  //   <skillsRoot>/<skill-name>/SKILL.md
+  // The skill `name:` frontmatter must equal the parent directory name. We
+  // ship the source pre-arranged that way so deploy is a straight copy into
+  // ~/.pi/remote/skills/agent-network/SKILL.md.
+  const root = _resolveExtensionDir();
+  const src1 = join(root, "skills", "agent-network", "SKILL.md");
+  const src2 = join(root, "..", "skills", "agent-network", "SKILL.md");
+  const src = existsSync(src1) ? src1 : (existsSync(src2) ? src2 : null);
+  if (!src) return;
+  const dstDir = join(skillsDir(), "agent-network");
+  const dst = join(dstDir, "SKILL.md");
+  try {
+    mkdirSync(dstDir, { recursive: true });
+    copyFileSync(src, dst);
+    // Cleanup legacy deploy at ~/.pi/remote/skills/agent-network.md (flat
+    // layout, fails the Pi SDK's name-vs-parent-dir validation).
+    const legacy = join(skillsDir(), "agent-network.md");
+    if (existsSync(legacy)) {
+      try { unlinkSync(legacy); } catch { /* ignored */ }
+    }
+  } catch { /* best-effort */ }
+}
+
+async function _cmdJoin(arg: string, ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  const local = loadLocalConfig(cwd);
+  const sessionName = (arg || local.session_name || defaultAgentName(cwd)).trim();
+  const agentName = local.agent_name || defaultAgentName(cwd);
+
+  if (_sessionPeer) {
+    ctx.ui.notify(`[remote-pi] Already joined "${_sessionName}". Leave first.`, "warning");
+    return;
+  }
+
+  ensureGlobalDirs();
+  mkdirSync(join(skillsDir(), "..", "sessions", sessionName), { recursive: true });
+
+  const sock = sessionSockPath(sessionName);
+  const audit = sessionAuditPath(sessionName);
+  const peer = new SessionPeer({ sockPath: sock, name: agentName, auditPath: audit });
+
+  peer.onMessage((env) => {
+    const body = env.body as { type?: string } | null;
+    // Broker system events: re-query broker for authoritative count.
+    // Incremental ±1 drifts when peer_left is missed (leader leaves cleanly,
+    // failover, etc.) — querying list_peers makes the count self-healing.
+    if (body && (body.type === "peer_joined" || body.type === "peer_left")) {
+      _refreshSessionPeerCount(peer, ctx);
+      return;
+    }
+    if (env.from === "broker") return;  // other broker control messages — ignore
+
+    // Anything else is a real agent-to-agent message. SessionPeer already
+    // correlated replies (env.re matched a pending request) before reaching
+    // here — what arrives now is unsolicited and needs the LLM to react.
+    // Inject as a user message so the model sees it as a turn input. Include
+    // the `id` so the LLM can echo it via `agent_send(..., re=<id>)` when
+    // replying (otherwise the sender's agent_request times out).
+    if (!_pi) return;
+    const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
+    const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
+    const footer = env.re
+      ? "(This is a reply to a previous message of yours.)"
+      : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
+    _pi.sendUserMessage(`${header}\n${bodyText}\n\n${footer}`);
+  });
+
+  // After failover (leader died, we re-elected): the new broker's peers map
+  // starts fresh, but our cached `_sessionPeerCount` is stale. Re-seed it so
+  // surviving peers don't carry the pre-failover count forever.
+  peer.onReconnect(() => {
+    _refreshSessionPeerCount(peer, ctx);
+  });
+
+  try {
+    const assigned = await peer.start();
+    _sessionPeer = peer;
+    _sessionName = sessionName;
+    _sessionPeerCount = 1;  // optimistic — overwritten by list_peers below
+    // Broker broadcasts `peer_joined` only to existing peers when a new one
+    // arrives — the newcomer doesn't get retroactive joined events. Ask the
+    // broker for the live peer list to seed the count correctly on join.
+    _refreshSessionPeerCount(peer, ctx);
+    saveLocalConfig(cwd, { agent_name: assigned, session_name: sessionName });
+    ctx.ui.notify(
+      `[remote-pi] Joined session "${sessionName}" as "${assigned}" (${peer.currentRole()})`,
+      "info",
+    );
+    _refreshFooter(ctx);
+  } catch (err) {
+    ctx.ui.notify(`[remote-pi] join failed: ${String(err)}`, "error");
+  }
+}
+
+async function _cmdLeave(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+  if (!_sessionPeer) {
+    ctx.ui.notify("[remote-pi] Not in any session.", "info");
+    return;
+  }
+  await _sessionPeer.leave();
+  const name = _sessionName;
+  _sessionPeer = null;
+  _sessionName = null;
+  _sessionPeerCount = 0;
+  ctx.ui.notify(`[remote-pi] Left session "${name}".`, "info");
+  _refreshFooter(ctx);
+}
+
+async function _cmdRename(arg: string, ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const newName = arg.trim();
+  if (!newName) {
+    ctx.ui.notify("[remote-pi] Usage: /remote-pi rename <new-name>", "warning");
+    return;
+  }
+  if (!_sessionPeer) {
+    ctx.ui.notify("[remote-pi] Not in any session. Run /remote-pi join first.", "warning");
+    return;
+  }
+  try {
+    const assigned = await _sessionPeer.rename(newName);
+    const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+    saveLocalConfig(cwd, { agent_name: assigned });
+    ctx.ui.notify(`[remote-pi] Renamed to "${assigned}".`, "info");
+  } catch (err) {
+    ctx.ui.notify(`[remote-pi] rename failed: ${String(err)}`, "error");
+  }
+}
+
+function _cmdSessions(ctx: Pick<ExtensionContext, "ui">): void {
+  const sessions = listSessions();
+  if (sessions.length === 0) {
+    ctx.ui.notify("[remote-pi] No sessions found.", "info");
+    return;
+  }
+  const lines = sessions.map((s) => {
+    const live = sessionHasSock(s) ? "🟢" : "⚪";
+    const me = s === _sessionName ? " (current)" : "";
+    return `  ${live} ${s}${me}`;
+  });
+  ctx.ui.notify(`[remote-pi] Sessions:\n${lines.join("\n")}`, "info");
+}
+
+async function _cmdRelayToggle(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  if (_state === "idle") await _cmdStart(ctx);
+  else await _cmdStop(ctx);
+}
+
+function _cmdRelayStatus(ctx: Pick<ExtensionContext, "ui">): void {
+  _showStatus(ctx);
 }
 
 // ── routeClientMessage ────────────────────────────────────────────────────────

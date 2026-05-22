@@ -83,7 +83,7 @@ class _AddPairingButton extends StatelessWidget {
         ),
         icon: const Icon(Icons.qr_code_scanner, size: 18),
         label: const Text(
-          'Adicionar novo pareamento',
+          'Add new pairing',
           style: TextStyle(fontFamily: kMono, fontSize: 13),
         ),
       ),
@@ -124,7 +124,7 @@ class _RelaySectionState extends State<_RelaySection> {
       messenger.showSnackBar(
         const SnackBar(
           content: Text(
-            'Relay atualizado',
+            'Relay updated',
             style: TextStyle(fontFamily: kMono),
           ),
           duration: Duration(seconds: 2),
@@ -175,7 +175,7 @@ class _RelaySectionState extends State<_RelaySection> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Atual: ${vm.effectiveRelayUrl}',
+                'Current: ${vm.effectiveRelayUrl}',
                 style: const TextStyle(
                   fontFamily: kMono,
                   fontSize: 11,
@@ -197,7 +197,7 @@ class _RelaySectionState extends State<_RelaySection> {
                     ),
                   ),
                   child: const Text(
-                    'Salvar',
+                    'Save',
                     style: TextStyle(fontFamily: kMono, fontSize: 13),
                   ),
                 ),

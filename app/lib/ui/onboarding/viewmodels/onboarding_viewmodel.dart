@@ -28,7 +28,7 @@ class OnboardingViewModel extends ViewModel<OnboardingState> {
         if (s.relayChoice == RelayChoice.custom) {
           if (!isValidRelayUrl(s.customRelayUrl)) {
             emit(s.copyWith(
-              customRelayError: 'URL deve começar com ws:// ou wss://',
+              customRelayError: 'URL must start with ws:// or wss://',
             ));
             return;
           }
@@ -78,7 +78,7 @@ class OnboardingViewModel extends ViewModel<OnboardingState> {
     if (s is! OnboardingInProgress) return;
     String? error;
     if (url.isNotEmpty && !isValidRelayUrl(url)) {
-      error = 'URL deve começar com ws:// ou wss://';
+      error = 'URL must start with ws:// or wss://';
     }
     emit(s.copyWith(
       customRelayUrl: url,

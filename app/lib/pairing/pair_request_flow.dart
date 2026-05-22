@@ -63,10 +63,10 @@ Future<PeerRecord> performPairing({
   if (qr.relayUrl != null && qr.relayUrl != currentRelayUrl) {
     throw PairingError(
       code: 'relay_mismatch',
-      message: 'QR aponta para "${qr.relayUrl}", '
-          'mas o app está configurado para "$currentRelayUrl". '
-          'Atualize o relay nas configurações ou peça ao Pi para gerar '
-          'um QR novo.',
+      message: 'QR points to "${qr.relayUrl}", '
+          'but the app is configured for "$currentRelayUrl". '
+          'Update the relay in settings or ask the Pi to generate '
+          'a new QR.',
     );
   }
 

@@ -30,7 +30,7 @@ class WelcomeStep extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'Controle seu agent Pi de qualquer lugar',
+            'Control your Pi agent from anywhere',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: kMono,
@@ -40,9 +40,9 @@ class WelcomeStep extends StatelessWidget {
           ),
           const SizedBox(height: 28),
           const Text(
-            'Pareie este aplicativo com o Pi rodando no seu computador '
-            '(Mac, Linux ou Windows) para conversar com ele mesmo quando '
-            'estiver fora de casa.',
+            'Pair this app with the Pi running on your computer '
+            '(Mac, Linux, or Windows) so you can chat with it even '
+            'when you\'re away from home.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontFamily: kMono,
@@ -63,7 +63,7 @@ class WelcomeStep extends StatelessWidget {
               ),
             ),
             child: const Text(
-              'Começar',
+              'Get started',
               style: TextStyle(
                 fontFamily: kMono,
                 fontSize: 14,
