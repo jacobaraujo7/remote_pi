@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Background sólido preto -->
+  <rect width="1024" height="1024" fill="#000000"/>
+
+  <!-- Símbolo π (geometric, sem dependência de fonte) -->
+  <!-- Centralizado no canvas, dentro da safe zone Android (~66% do canvas) -->
+  <g fill="#FFFFFF">
+    <!-- Barra horizontal superior -->
+    <rect x="290" y="368" width="444" height="68" rx="10"/>
+    <!-- Perna esquerda -->
+    <rect x="345" y="436" width="68" height="320" rx="10"/>
+    <!-- Perna direita -->
+    <rect x="611" y="436" width="68" height="320" rx="10"/>
+    <!-- Curvinha sutil no pé direito (extension à direita) -->
+    <path d="M 679 720 Q 712 740 720 700 L 720 712 Q 720 756 668 756 L 668 736 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Bolinha azul característica, posicionada no canto superior direito -->
+  <circle cx="780" cy="332" r="58" fill="#4FC3F7"/>
+</svg>

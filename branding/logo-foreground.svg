@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Apenas o símbolo (sem background). Pronto pra Android adaptive icon foreground. -->
+  <!-- Conteúdo cabe na safe zone Android (~66% central = ~676px) -->
+
+  <!-- Símbolo π -->
+  <g fill="#FFFFFF">
+    <rect x="290" y="368" width="444" height="68" rx="10"/>
+    <rect x="345" y="436" width="68" height="320" rx="10"/>
+    <rect x="611" y="436" width="68" height="320" rx="10"/>
+    <path d="M 679 720 Q 712 740 720 700 L 720 712 Q 720 756 668 756 L 668 736 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- Bolinha azul característica -->
+  <circle cx="780" cy="332" r="58" fill="#4FC3F7"/>
+</svg>
