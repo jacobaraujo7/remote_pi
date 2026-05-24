@@ -98,9 +98,15 @@ export class SelfRevoke {
    *  sweep, used to detect changes without re-firing `onMembersChanged`
    *  on every poll. Keyed by `pcPubkey`. */
   private prevSiblings = new Map<string, SiblingInfo>();
-  /** Latest member set per owner, captured during `_checkOwner` so the
-   *  sweep can compute the union after touching every owner. */
-  private readonly membersByOwner = new Map<string, SiblingInfo[]>();
+  /** Latest member raw data per owner, captured during `_checkOwner`.
+   *  Stored as `(pcPubkey, nickname?)` (NOT pre-resolved label) so
+   *  `_computeSiblingUnion` can pick the best nickname across owners
+   *  — nickname always wins over fallback, regardless of owner iteration
+   *  order. See `siblings.ts::discoverSiblings` for the same rule. */
+  private readonly membersByOwner = new Map<
+    string,
+    { pcPubkey: string; nickname?: string }[]
+  >();
   private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(opts: SelfRevokeOptions) {
@@ -170,13 +176,26 @@ export class SelfRevoke {
 
   private _computeSiblingUnion(): Map<string, SiblingInfo> {
     const myB64 = Buffer.from(this.myPubkey).toString("base64");
-    const out = new Map<string, SiblingInfo>();
+    // pcPubkey → first nickname seen across owners (undefined when no
+    // owner has labeled this Pi yet).
+    const nicknames = new Map<string, string | undefined>();
     for (const members of this.membersByOwner.values()) {
       for (const m of members) {
         if (m.pcPubkey === myB64) continue;
-        if (out.has(m.pcPubkey)) continue;
-        out.set(m.pcPubkey, m);
+        if (nicknames.get(m.pcPubkey)) continue;  // existing nickname wins
+        if (m.nickname) {
+          nicknames.set(m.pcPubkey, m.nickname);
+        } else if (!nicknames.has(m.pcPubkey)) {
+          nicknames.set(m.pcPubkey, undefined);
+        }
       }
+    }
+    const out = new Map<string, SiblingInfo>();
+    for (const [pcPubkey, nickname] of nicknames) {
+      out.set(pcPubkey, {
+        pcPubkey,
+        pcLabel: nickname ?? pcPubkey.slice(0, FALLBACK_LABEL_LEN),
+      });
     }
     return out;
   }
@@ -223,15 +242,16 @@ export class SelfRevoke {
     }
     this.lastSeenVersion.set(ownerEpk, header.version);
 
-    // Plan/25 Wave D: capture the full member list for this owner so the
-    // sweep can derive the sibling union after touching every owner.
-    // pc_label follows the same priority as `siblings.ts::discoverSiblings`:
-    // member.nickname → fallback to base64-prefix-8.
+    // Plan/25 Wave D: capture raw nickname (NOT pre-resolved label) per
+    // owner. `_computeSiblingUnion` picks the best label across owners
+    // — nickname always beats fallback. Pre-resolving here was the bug
+    // that produced different pc_labels on different Pis when Owner A
+    // labeled but Owner B didn't.
     this.membersByOwner.set(
       ownerEpk,
       header.members.map((m) => ({
         pcPubkey: m.remoteEpk,
-        pcLabel: m.nickname ?? m.remoteEpk.slice(0, FALLBACK_LABEL_LEN),
+        ...(m.nickname ? { nickname: m.nickname } : {}),
       })),
     );
 
