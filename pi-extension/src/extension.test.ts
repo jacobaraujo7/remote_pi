@@ -6,7 +6,9 @@
  */
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { EventEmitter } from "node:events";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 
@@ -2308,17 +2310,80 @@ describe("model meta", () => {
     expect(capturedOpts[0]!.roomMeta?.cwd).toBe("/tmp/remote-pi-model-test");
   });
 
-  test("hello omits `model` when ctx.model is undefined (SDK didn't load any)", async () => {
+  test("hello carries `model` from getModel() when ctx.model is absent (daemon path)", async () => {
     const capturedOpts: Array<{ roomMeta?: { model?: string } }> = [];
     _defaultConnectImpl = async (opts?: unknown) => {
       capturedOpts.push(opts as { roomMeta?: { model?: string } });
     };
 
     captureHandler("remote-pi");
-    await _connectForTest(makeMockCtx("/tmp/remote-pi-no-model"));
+    // A headless daemon never fires model_select and has no `ctx.model`, but
+    // its session resolved a default model that getModel() exposes — the fix
+    // seeds room_meta from there so the app no longer shows "unknown".
+    const ctx = {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-daemon-model",
+      abort: vi.fn(),
+      getModel: () => ({ id: "claude-opus-4-8", name: "claude-opus-4.8" }),
+    } as unknown as ReturnType<typeof makeMockCtx>;
+    await _connectForTest(ctx);
 
     expect(capturedOpts).toHaveLength(1);
-    expect(capturedOpts[0]!.roomMeta?.model).toBeUndefined();
+    expect(capturedOpts[0]!.roomMeta?.model).toBe("claude-opus-4.8");
+  });
+
+  test("hello omits `model` when ctx has none AND no default is configured", async () => {
+    // Isolate from the machine's global settings (PI_CODING_AGENT_DIR → a
+    // non-existent dir) so the settings fallback finds no default model; the
+    // /tmp cwd has no project .pi/settings.json either.
+    const prevAgentDir = process.env["PI_CODING_AGENT_DIR"];
+    process.env["PI_CODING_AGENT_DIR"] = "/tmp/pi-no-such-agent-dir-omit";
+    try {
+      const capturedOpts: Array<{ roomMeta?: { model?: string } }> = [];
+      _defaultConnectImpl = async (opts?: unknown) => {
+        capturedOpts.push(opts as { roomMeta?: { model?: string } });
+      };
+
+      captureHandler("remote-pi");
+      await _connectForTest(makeMockCtx("/tmp/remote-pi-no-model"));
+
+      expect(capturedOpts).toHaveLength(1);
+      expect(capturedOpts[0]!.roomMeta?.model).toBeUndefined();
+    } finally {
+      if (prevAgentDir === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+      else process.env["PI_CODING_AGENT_DIR"] = prevAgentDir;
+    }
+  });
+
+  test("hello carries `model` from configured default settings (idle daemon path)", async () => {
+    // A headless daemon has no ctx.model/getModel at connect (the SDK resolves
+    // the session model lazily at the first turn). The fix reads the configured
+    // default from <cwd>/.pi/settings.json — the model the daemon WILL use.
+    const cwd = mkdtempSync(join(tmpdir(), "pi-daemon-cfg-"));
+    mkdirSync(join(cwd, ".pi"), { recursive: true });
+    writeFileSync(
+      join(cwd, ".pi", "settings.json"),
+      JSON.stringify({ defaultProvider: "acme", defaultModel: "acme-model-zzz" }),
+    );
+    const prevAgentDir = process.env["PI_CODING_AGENT_DIR"];
+    process.env["PI_CODING_AGENT_DIR"] = "/tmp/pi-no-such-agent-dir-daemon";
+    try {
+      const capturedOpts: Array<{ roomMeta?: { model?: string } }> = [];
+      _defaultConnectImpl = async (opts?: unknown) => {
+        capturedOpts.push(opts as { roomMeta?: { model?: string } });
+      };
+
+      captureHandler("remote-pi");
+      await _connectForTest(makeMockCtx(cwd));  // ctx has no model/getModel
+
+      expect(capturedOpts).toHaveLength(1);
+      // The test registry won't know "acme-model-zzz" → falls back to the id.
+      expect(capturedOpts[0]!.roomMeta?.model).toBe("acme-model-zzz");
+    } finally {
+      if (prevAgentDir === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+      else process.env["PI_CODING_AGENT_DIR"] = prevAgentDir;
+      rmSync(cwd, { recursive: true, force: true });
+    }
   });
 
   test("pi.on('model_select') fires room_meta_update via relay.sendControl", async () => {

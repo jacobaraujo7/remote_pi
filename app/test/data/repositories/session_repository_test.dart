@@ -70,14 +70,26 @@ Future<({SessionRepository repo, ConnectionManager cm, _FakeChannel ch})>
     echoTimeout: echoTimeout,
   );
   final epk = epkOverride ?? 'epk_${++_epkCounter}';
+  // Settle the initial Hive hydrate BEFORE handing the repo to the test.
+  // adopt → StatusOnline drives `_onlineActivated`, which `await`s
+  // `setActivePeer` (an async box read) before arming the sync timer, so
+  // exactly two state emits follow: (A) the connection update, then
+  // (B) the hydrate's cache emit. We gate on the 2nd emit.
+  //
+  // Why this matters: a fixed delay was racy. The box read could resolve
+  // AFTER a test injected `session_history`, and the stale (empty) cache
+  // then clobbered the just-applied history — the bubble vanished and
+  // `.single` threw "No element". In production this can't happen: a sync
+  // round-trip to the Pi dwarfs a local box read, so the hydrate always
+  // lands first. Gating on emit (B) reproduces that ordering deterministically.
+  final hydrated = repo.sessionStream.take(2).last;
   cm.adopt(ch, PeerRecord(
     remoteEpk: epk,
     sessionName: 'Pi',
     relayUrl: 'ws://localhost',
     pairedAt: '2026-01-01T00:00:00Z',
   ));
-  // Let the status event + setActivePeer's Hive load complete.
-  await Future<void>.delayed(const Duration(milliseconds: 5));
+  await hydrated;
   return (repo: repo, cm: cm, ch: ch);
 }
 
@@ -1374,6 +1386,31 @@ void main() {
           UserMsgStatus.confirmed,
           reason: 'history-resolved pending must not flip to failed',
         );
+
+        s.repo.dispose();
+      },
+    );
+
+    test(
+      'clearActiveSession empties the thread and wipes the persisted cache '
+      '(Plan/28 session_new reset)',
+      () async {
+        final store = SessionHistoryStore();
+        final s = await _setup(store: store, epkOverride: 'epk_clear');
+        await s.repo.sendMessage('to be cleared');
+        // Let the fire-and-forget persist settle before we wipe, so the
+        // store assertion isn't racing the snapshot write.
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(s.repo.current.messages, isNotEmpty);
+
+        await s.repo.clearActiveSession();
+
+        // In-memory state emptied + streaming cleared.
+        expect(s.repo.current.messages, isEmpty);
+        expect(s.repo.current.streaming, isNull);
+        // Persisted cache hard-wiped → a cold restart shows nothing.
+        final cached = await store.loadFor('epk_clear');
+        expect(cached.messages, isEmpty);
 
         s.repo.dispose();
       },

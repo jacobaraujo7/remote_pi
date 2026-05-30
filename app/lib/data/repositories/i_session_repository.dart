@@ -37,6 +37,14 @@ abstract class ISessionRepository extends Repository {
   Future<void> sendMessage(String text);
   Future<void> cancel(String targetId);
   Future<void> approveTool(String toolCallId, ApproveDecision decision);
+
+  /// Plan/28 — a `session_new` was acknowledged by the Pi. Drop the local
+  /// mirror of the active (peer, room) so the chat reflects the fresh
+  /// session immediately, and hard-wipe its Hive cache so a cold restart
+  /// doesn't resurrect the old thread. Note: this only resets THIS device's
+  /// view — until the Pi clears its own event buffer, a later `session_sync`
+  /// can still backfill the stale history (see the repo impl note).
+  Future<void> clearActiveSession();
   @override
   void dispose();
 

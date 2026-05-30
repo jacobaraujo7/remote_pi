@@ -30,6 +30,7 @@ export type ControlRequest =
   | { op: "list" }
   | { op: "status" }
   | { op: "start_all" }
+  | { op: "start"; id: string }
   | { op: "stop_all" }
   | { op: "restart_all" }
   | { op: "send"; id: string; text: string }
@@ -49,6 +50,7 @@ export interface ControlReplyShapes {
   list: { daemons: DaemonInfo[] };
   status: { daemons: DaemonInfo[] };
   start_all: { started: string[]; already_running: string[] };
+  start: { id: string; state: DaemonState; started: boolean };
   stop_all: { stopped: string[]; already_stopped: string[] };
   restart_all: { restarted: string[] };
   send: { id: string; delivered: boolean };

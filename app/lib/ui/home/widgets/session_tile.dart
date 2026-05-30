@@ -22,6 +22,10 @@ class SessionTile extends StatelessWidget {
   final bool isWorking;
   final RoomInfo? room;
   final VoidCallback onOpen;
+  /// Plan/tablet — `true` when this is the session shown in the tablet's
+  /// detail pane. Paints the accent left-bar + faint fill from the mock.
+  /// Always `false` on phone (no persistent selection there).
+  final bool isSelected;
   /// Plan-17 follow-up — long-press context menu. Caller wires the
   /// dialog (rename + delete-offline). Optional; when null the tile
   /// only responds to tap.
@@ -35,6 +39,7 @@ class SessionTile extends StatelessWidget {
     this.room,
     this.isReconnecting = false,
     this.isWorking = false,
+    this.isSelected = false,
     this.onLongPress,
   });
 
@@ -45,22 +50,35 @@ class SessionTile extends StatelessWidget {
       child: InkWell(
         onTap: onOpen,
         onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _Avatar(name: _avatarName()),
-              const SizedBox(width: 14),
-              Expanded(
-                child: _TitleBlock(peer: peer, room: room),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: isSelected ? kAccent.withValues(alpha: 0.06) : kBg,
+            border: Border(
+              left: BorderSide(
+                color: isSelected ? kAccent : Colors.transparent,
+                width: 3,
               ),
-              _PresenceDot(
-                isLive: isLive,
-                isReconnecting: isReconnecting,
-                isWorking: isWorking,
-              ),
-            ],
+            ),
+          ),
+          child: Padding(
+            // Trim the left inset by the 3px accent bar so content stays
+            // aligned whether selected or not.
+            padding: EdgeInsets.fromLTRB(isSelected ? 15 : 18, 14, 18, 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                _Avatar(name: _avatarName()),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _TitleBlock(peer: peer, room: room),
+                ),
+                _PresenceDot(
+                  isLive: isLive,
+                  isReconnecting: isReconnecting,
+                  isWorking: isWorking,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -124,31 +142,23 @@ class _TitleBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = room;
     // Title preference: explicit room.name → cwd basename → peer
-    // nickname → session name.
-    String title;
-    String? subtitle;
+    // nickname → session name. The cwd path line was dropped on purpose
+    // — the tile now shows just title + subtitle (model / paired date).
+    final String title;
     if (r != null) {
       if (r.name != null && r.name!.isNotEmpty) {
         title = r.name!;
-        subtitle = r.cwd;
       } else if (r.cwd != null && r.cwd!.isNotEmpty) {
-        final segs =
-            r.cwd!.split('/').where((s) => s.isNotEmpty).toList();
+        final segs = r.cwd!.split('/').where((s) => s.isNotEmpty).toList();
         title = segs.isNotEmpty ? segs.last : r.cwd!;
-        subtitle = r.cwd;
       } else if (peer.nickname?.isNotEmpty == true) {
         title = peer.nickname!;
-        subtitle = peer.sessionName;
       } else {
         title = peer.sessionName;
       }
     } else {
-      if (peer.nickname?.isNotEmpty == true) {
-        title = peer.nickname!;
-        subtitle = peer.sessionName;
-      } else {
-        title = peer.sessionName;
-      }
+      title =
+          peer.nickname?.isNotEmpty == true ? peer.nickname! : peer.sessionName;
     }
 
     return Column(
@@ -165,21 +175,10 @@ class _TitleBlock extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: kMuted2, fontSize: 12),
-          ),
-        ],
-        const SizedBox(height: 4),
-        // Plan 18 — model line. If the Pi-extension surfaced its
-        // model in `room_announced` / `room_meta_updated`, render
-        // that (truncated for layout). Otherwise fall back to the
-        // legacy "Last paired" timestamp so the row stays at the
-        // same height regardless.
+        const SizedBox(height: 3),
+        // Subtitle = the Pi-extension's model (when surfaced via
+        // `room_announced` / `room_meta_updated`), else the legacy
+        // "Last paired" timestamp so the row keeps a stable height.
         Builder(builder: (_) {
           final model = room?.model;
           final hasModel = model != null && model.isNotEmpty;

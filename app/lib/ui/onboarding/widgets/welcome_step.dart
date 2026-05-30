@@ -1,5 +1,6 @@
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Onboarding step 1 — welcome. Static, no animations (per plan 14 D2 —
 /// "Welcome conservador (sem animações)").
@@ -15,7 +16,7 @@ class WelcomeStep extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(Icons.terminal, color: kAccent, size: 64),
+          const Icon(LucideIcons.terminal, color: kAccent, size: 64),
           const SizedBox(height: 32),
           const Text(
             'Remote Pi',

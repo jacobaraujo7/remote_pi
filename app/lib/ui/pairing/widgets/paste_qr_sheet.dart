@@ -1,6 +1,7 @@
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Show a bottom sheet that lets the user paste the QR code payload as
 /// text — useful when the device's camera can't read the on-screen QR
@@ -186,7 +187,7 @@ class _PasteQrSheetBodyState extends State<_PasteQrSheetBody> {
                   child: OutlinedButton.icon(
                     onPressed: _pasteFromClipboard,
                     icon: const Icon(
-                      Icons.content_paste_rounded,
+                      LucideIcons.clipboardPaste,
                       size: 16,
                       color: kAccent,
                     ),

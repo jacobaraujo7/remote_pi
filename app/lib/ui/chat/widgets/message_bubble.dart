@@ -1,6 +1,7 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 // ---------------------------------------------------------------------------
 // UserBubble — right-aligned dark card
@@ -70,7 +71,7 @@ class UserBubble extends StatelessWidget {
                       ),
                     ] else ...[
                       const Icon(
-                        Icons.error_outline,
+                        LucideIcons.circleAlert,
                         size: 12,
                         color: Colors.redAccent,
                       ),

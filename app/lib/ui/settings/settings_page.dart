@@ -7,10 +7,16 @@ import 'package:app/ui/settings/viewmodels/settings_viewmodel.dart';
 import 'package:app/ui/settings/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 class SettingsPage extends StatelessWidget {
-  const SettingsPage({super.key});
+  /// Plan/tablet — `true` when presented as a modal bottom sheet (tablet)
+  /// rather than a pushed full-screen route (phone). Swaps the back arrow
+  /// for a close (X), since the sheet is dismissed, not popped to a parent.
+  final bool embedded;
+
+  const SettingsPage({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -22,8 +28,14 @@ class SettingsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: kBg,
         title: const Text('Settings'),
+        automaticallyImplyLeading: false,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: kText),
+          icon: Icon(
+            embedded ? LucideIcons.x : LucideIcons.chevronLeft,
+            size: embedded ? 22 : 18,
+            color: kText,
+          ),
+          tooltip: embedded ? 'Close' : 'Back',
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/home'),
         ),
@@ -81,7 +93,7 @@ class _AddPairingButton extends StatelessWidget {
           ),
           minimumSize: const Size.fromHeight(0),
         ),
-        icon: const Icon(Icons.qr_code_scanner, size: 18),
+        icon: const Icon(LucideIcons.scanQrCode, size: 18),
         label: const Text(
           'Add new pairing',
           style: TextStyle(fontFamily: kMono, fontSize: 13),
@@ -279,7 +291,7 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.devices_other, color: kMuted, size: 40),
+          const Icon(LucideIcons.monitorSmartphone, color: kMuted, size: 40),
           const SizedBox(height: 12),
           const Text(
             'No pairings yet',
@@ -297,7 +309,7 @@ class _EmptyState extends StatelessWidget {
               backgroundColor: kAccent,
               foregroundColor: Colors.black,
             ),
-            icon: const Icon(Icons.qr_code_scanner, size: 18),
+            icon: const Icon(LucideIcons.scanQrCode, size: 18),
             label: const Text('Scan QR'),
           ),
         ],

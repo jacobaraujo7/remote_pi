@@ -1,3 +1,4 @@
+import 'package:app/routing/adaptive.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/onboarding/states/onboarding_state.dart';
 import 'package:app/ui/onboarding/viewmodels/onboarding_viewmodel.dart';
@@ -51,38 +52,42 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
     return Scaffold(
       backgroundColor: kBg,
+      // Plan/tablet — cap + centre the stepper on wide screens so the
+      // phone-oriented column doesn't stretch edge-to-edge on iPad.
       body: SafeArea(
-        child: Column(
-          children: [
-            _StepIndicator(step: s.step),
-            Expanded(
-              child: PageView(
-                controller: _pageController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                  WelcomeStep(onNext: vm.next),
-                  RelayStep(
-                    state: s,
-                    onChoice: vm.setRelayChoice,
-                    onCustomUrl: vm.setCustomRelayUrl,
-                    onBack: vm.back,
-                    onNext: vm.next,
-                  ),
-                  PairStep(
-                    onPaired: () {
-                      // ignore: unawaited_futures
-                      vm.completePairing();
-                    },
-                    onBack: vm.back,
-                    onSkip: () {
-                      // ignore: unawaited_futures
-                      vm.skipPairing();
-                    },
-                  ),
-                ],
+        child: ResponsiveCenter(
+          child: Column(
+            children: [
+              _StepIndicator(step: s.step),
+              Expanded(
+                child: PageView(
+                  controller: _pageController,
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    WelcomeStep(onNext: vm.next),
+                    RelayStep(
+                      state: s,
+                      onChoice: vm.setRelayChoice,
+                      onCustomUrl: vm.setCustomRelayUrl,
+                      onBack: vm.back,
+                      onNext: vm.next,
+                    ),
+                    PairStep(
+                      onPaired: () {
+                        // ignore: unawaited_futures
+                        vm.completePairing();
+                      },
+                      onBack: vm.back,
+                      onSkip: () {
+                        // ignore: unawaited_futures
+                        vm.skipPairing();
+                      },
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -4,8 +4,11 @@ import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/pairing/owner_identity_bridge.dart';
 import 'package:app/pairing/storage.dart';
+import 'package:app/routing/adaptive.dart';
+import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/chat/chat_page.dart';
 import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
+import 'package:app/ui/chat/widgets/detail_placeholder.dart';
 import 'package:app/ui/home/home_page.dart';
 import 'package:app/ui/home/viewmodels/home_viewmodel.dart';
 import 'package:app/ui/onboarding/onboarding_page.dart';
@@ -215,11 +218,60 @@ GoRouter buildRouter(
         builder: (ctx, st) => const SyncRequiredPage(),
       ),
 
-      // Home — list of paired sessions, entry point post-boot
-      GoRoute(
-        path: '/home',
-        builder: (ctx, st) =>
-            ViewmodelProvider<HomeViewModel>(child: const HomePage()),
+      // Plan/tablet — adaptive master-detail shell.
+      //
+      // Two branches, each with its own Navigator: branch 0 = Home
+      // (master list), branch 1 = the chat detail. `navigatorContainerBuilder`
+      // lays them out by available width:
+      //   • wide (≥ kTabletBreakpoint) → master + detail side by side
+      //   • narrow                     → only the active branch (phone)
+      //
+      // On phone the detail branch is never activated — tapping a session
+      // does a full-screen root `push('/chat')` instead (see Home._open),
+      // which preserves native back/swipe. The detail branch only renders
+      // on tablet, where it reacts to [SessionSelection].
+      StatefulShellRoute(
+        builder: (ctx, st, navShell) => navShell,
+        navigatorContainerBuilder: (ctx, navShell, children) {
+          // Two panes only when wide AND Home actually has something to
+          // list. On zero-state (no Pi / empty) we collapse to the single
+          // active branch (the master, full-width + centered) so the user
+          // doesn't see a cramped 360 column next to a big empty
+          // placeholder.
+          final twoPane =
+              isWideLayout(ctx) && !ctx.watch<ShellLayout>().isZeroState;
+          if (!twoPane) {
+            return children[navShell.currentIndex];
+          }
+          return Row(
+            children: [
+              SizedBox(width: 360, child: children[0]),
+              const VerticalDivider(width: 1, thickness: 1, color: kBorder),
+              Expanded(child: children[1]),
+            ],
+          );
+        },
+        branches: [
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/home',
+                builder: (ctx, st) =>
+                    ViewmodelProvider<HomeViewModel>(child: const HomePage()),
+              ),
+            ],
+          ),
+          // `preload: true` so the detail branch is built up-front and
+          // renders in the tablet's right pane at launch (showing the
+          // placeholder) without first navigating into it. On phone the
+          // branch is built but never displayed.
+          StatefulShellBranch(
+            preload: true,
+            routes: [
+              GoRoute(path: '/session', builder: (ctx, st) => _detailPane()),
+            ],
+          ),
+        ],
       ),
 
       // QR pairing flow
@@ -244,7 +296,10 @@ GoRouter buildRouter(
         ),
       ),
 
-      // Chat screen (entered by tapping a session in /home).
+      // Chat screen — PHONE full-screen path (root navigator, above the
+      // shell), so it keeps native back/swipe. On tablet the chat lives
+      // in the detail branch instead (see _detailPane). Entered by
+      // tapping a session in /home.
       // Plan/24-fix-title: Home passes the already-known peer label
       // (nickname / sessionName) via `extra` so the AppBar renders
       // the right title from frame 1 instead of waiting for the
@@ -273,6 +328,24 @@ GoRouter buildRouter(
             ViewmodelProvider<SettingsViewModel>(child: const SettingsPage()),
       ),
     ],
+  );
+}
+
+/// Detail pane for the tablet's right side. Reacts to [SessionSelection]:
+/// shows the placeholder until a session is picked, then the chat — keyed
+/// by (epk, room) so switching sessions tears down the old ChatViewModel
+/// and builds a fresh one, which re-binds to the now-selected peer (the
+/// VM reads `Preferences.selectedPeerEpk`, already set by Home._open).
+Widget _detailPane() {
+  return Consumer<SessionSelection>(
+    builder: (ctx, sel, _) {
+      final cur = sel.current;
+      if (cur == null) return const DetailPlaceholder();
+      return ViewmodelProvider<ChatViewModel>(
+        key: ValueKey('chat-${cur.epk}-${cur.roomId}'),
+        child: ChatPage(initialTitle: cur.title, showBack: false),
+      );
+    },
   );
 }
 

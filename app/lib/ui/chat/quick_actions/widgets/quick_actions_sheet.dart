@@ -6,7 +6,9 @@ import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/chat/quick_actions/states/quick_actions_state.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
 import 'package:app/ui/chat/quick_actions/widgets/model_picker_sheet.dart';
+import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 /// Plan/28 Wave C — entry point for the Quick Actions sheet from the
@@ -14,8 +16,14 @@ import 'package:provider/provider.dart';
 /// this sheet (and any sub-sheets it pushes) and wires the SnackBar
 /// error stream from the chat scaffold's messenger so failures stay
 /// visible after the sheet is dismissed.
+///
+/// Both the messenger and the `session_new` reset callback are captured
+/// from the *page* context here, before the sheet pushes its own route —
+/// the modal's builder context lives above the chat page's providers, so
+/// `context.read<ChatViewModel>()` inside the sheet would not resolve.
 Future<void> showQuickActionsSheet(BuildContext context) {
   final messenger = ScaffoldMessenger.of(context);
+  final chat = context.read<ChatViewModel>();
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: kBg,
@@ -28,21 +36,37 @@ Future<void> showQuickActionsSheet(BuildContext context) {
     builder: (ctx) {
       return ChangeNotifierProvider<QuickActionsViewModel>(
         create: (_) => injector.get<QuickActionsViewModel>(),
-        child: _QuickActionsBody(messenger: messenger),
+        child: QuickActionsSheetBody(
+          messenger: messenger,
+          onSessionReset: chat.clearActiveSession,
+        ),
       );
     },
   );
 }
 
-class _QuickActionsBody extends StatefulWidget {
+/// Body of the Quick Actions sheet. Public so widget tests can drive the
+/// real action handlers (close-on-success, toasts, session reset) with a
+/// fake ViewModel instead of the replica harness they used before.
+class QuickActionsSheetBody extends StatefulWidget {
   final ScaffoldMessengerState messenger;
-  const _QuickActionsBody({required this.messenger});
+
+  /// Invoked after the Pi acks a `session_new`, to wipe the local chat
+  /// mirror. Optional so tests can omit it; in the app it is wired to
+  /// [ChatViewModel.clearActiveSession].
+  final Future<void> Function()? onSessionReset;
+
+  const QuickActionsSheetBody({
+    super.key,
+    required this.messenger,
+    this.onSessionReset,
+  });
 
   @override
-  State<_QuickActionsBody> createState() => _QuickActionsBodyState();
+  State<QuickActionsSheetBody> createState() => _QuickActionsSheetBodyState();
 }
 
-class _QuickActionsBodyState extends State<_QuickActionsBody> {
+class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
   StreamSubscription<String>? _errorSub;
 
   @override
@@ -56,17 +80,24 @@ class _QuickActionsBodyState extends State<_QuickActionsBody> {
     });
   }
 
-  void _showError(String message) {
+  void _showError(String message) => _toast(message, Colors.redAccent);
+
+  void _showSuccess(String message) => _toast(message, kAccent);
+
+  /// Toasts go through the chat scaffold's messenger (captured before the
+  /// sheet opened) so success/failure feedback survives the sheet being
+  /// popped on success.
+  void _toast(String message, Color color) {
     widget.messenger.showSnackBar(
       SnackBar(
         backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
         content: Text(
           message,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: kMono,
             fontSize: 12,
-            color: Colors.redAccent,
+            color: color,
           ),
         ),
         duration: const Duration(seconds: 3),
@@ -103,7 +134,7 @@ class _QuickActionsBodyState extends State<_QuickActionsBody> {
             const _Divider(),
             _ActionTile(
               key: const Key('qa-compact'),
-              icon: Icons.compress_rounded,
+              icon: LucideIcons.shrink,
               label: 'Compact context',
               subtitle: 'Summarize old turns to free room.',
               busy: busyAction == ActionName.sessionCompact,
@@ -112,7 +143,7 @@ class _QuickActionsBodyState extends State<_QuickActionsBody> {
             const _Divider(),
             _ActionTile(
               key: const Key('qa-new-session'),
-              icon: Icons.auto_awesome_rounded,
+              icon: LucideIcons.sparkles,
               label: 'New session',
               subtitle: 'Clears the conversation on the Pi.',
               busy: busyAction == ActionName.sessionNew,
@@ -141,7 +172,15 @@ class _QuickActionsBodyState extends State<_QuickActionsBody> {
   Future<void> _onCompact(QuickActionsViewModel vm) async {
     try {
       await vm.compact();
-    } catch (_) {/* surfaced via vm.errors */}
+    } catch (_) {
+      // Failure already surfaced as an error toast via `vm.errors`; leave
+      // the sheet open so the user can retry.
+      return;
+    }
+    // action_ok — close the sheet and confirm with a toast.
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    _showSuccess('Context compacted');
   }
 
   Future<void> _onNewSession(QuickActionsViewModel vm) async {
@@ -187,7 +226,17 @@ class _QuickActionsBodyState extends State<_QuickActionsBody> {
     if (confirm != true) return;
     try {
       await vm.newSession();
-    } catch (_) {/* surfaced via vm.errors */}
+    } catch (_) {
+      // Failure already surfaced as an error toast via `vm.errors`; leave
+      // the sheet open so the user can retry.
+      return;
+    }
+    // action_ok — wipe the local chat mirror so the UI reflects the fresh
+    // session, then close the sheet and confirm with a toast.
+    await widget.onSessionReset?.call();
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    _showSuccess('New session started');
   }
 
   Future<void> _onThinking(
@@ -344,7 +393,7 @@ class _ModelRow extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         child: Row(
           children: [
-            const Icon(Icons.memory_rounded, color: kAccent, size: 18),
+            const Icon(LucideIcons.memoryStick, color: kAccent, size: 18),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -380,7 +429,7 @@ class _ModelRow extends StatelessWidget {
                 ),
               )
             else
-              const Icon(Icons.chevron_right, color: kMuted, size: 18),
+              const Icon(LucideIcons.chevronRight, color: kMuted, size: 18),
           ],
         ),
       ),
@@ -407,7 +456,7 @@ class _ThinkingRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.psychology_alt_rounded,
+              const Icon(LucideIcons.brain,
                   color: kAccent, size: 18),
               const SizedBox(width: 14),
               const Text(

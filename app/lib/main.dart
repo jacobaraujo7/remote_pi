@@ -5,6 +5,7 @@ import 'package:app/data/repositories/session_history_store.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/pairing/owner_identity_bridge.dart';
 import 'package:app/pairing/storage.dart';
+import 'package:app/routing/adaptive.dart';
 import 'package:app/routing/app_router.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -69,8 +70,23 @@ class _RemotePiAppState extends State<RemotePiApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<Preferences>.value(
-      value: injector.get<Preferences>(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<Preferences>.value(
+          value: injector.get<Preferences>(),
+        ),
+        // App-global UI selection — read by the Home list (highlight) and
+        // the tablet detail pane. Lives above the router so every route
+        // (both shell branches) resolves the same instance.
+        ChangeNotifierProvider<SessionSelection>.value(
+          value: injector.get<SessionSelection>(),
+        ),
+        // Shell layout state — lets the adaptive shell collapse the split
+        // into a single centered pane on zero-state Home (no Pi / empty).
+        ChangeNotifierProvider<ShellLayout>.value(
+          value: injector.get<ShellLayout>(),
+        ),
+      ],
       child: MaterialApp.router(
         title: 'Remote Pi',
         theme: buildAppTheme(),

@@ -1,12 +1,15 @@
 import 'package:app/data/transport/epk_encoding.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart' show RoomInfo;
+import 'package:app/routing/adaptive.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/home/states/home_state.dart';
+import 'package:app/ui/settings/settings_sheet.dart';
 import 'package:app/ui/home/viewmodels/home_viewmodel.dart';
 import 'package:app/ui/home/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 /// Plan-18 follow-up — iOS-style large title that collapses into a
@@ -21,6 +24,20 @@ class HomePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final vm = context.watch<HomeViewModel>();
     final state = vm.state;
+
+    // Plan/tablet — tell the adaptive shell whether Home has anything to
+    // list. On a zero-state (no Pi paired / empty list) the shell drops
+    // the two-pane split and shows this page full-width + centered. Done
+    // post-frame so we never notify mid-build.
+    final isZeroState = switch (state) {
+      HomeLoading() => false,
+      HomeNoPeer() => true,
+      HomeList() => state.items(normalizeEpk: toStandardB64).isEmpty,
+    };
+    final shell = context.read<ShellLayout>();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      shell.setZeroState(isZeroState);
+    });
 
     return Scaffold(
       backgroundColor: kBg,
@@ -72,8 +89,10 @@ class HomePage extends StatelessWidget {
       actions: [
         IconButton(
           tooltip: 'Settings',
-          icon: const Icon(Icons.settings_outlined, color: kMuted2),
-          onPressed: () => context.push('/settings'),
+          icon: const Icon(LucideIcons.settings, color: kMuted2),
+          // Tablet → bottom sheet (keeps the chat in context); phone →
+          // full-screen push. See openSettings.
+          onPressed: () => openSettings(context),
         ),
         const SizedBox(width: 4),
       ],
@@ -285,6 +304,14 @@ class HomePage extends StatelessWidget {
     final isLive = vm.isRoomLive(it.peer.remoteEpk, it.room.roomId);
     final isReconnecting = !vm.isRelayConnected;
     final isWorking = vm.isRoomWorking(it.peer.remoteEpk, it.room.roomId);
+    // Plan/tablet — highlight the open session, but only in the two-pane
+    // layout (on phone the list is covered by the pushed chat, so a
+    // persistent highlight would be meaningless).
+    final isSelected = isWideLayout(context) &&
+        context.watch<SessionSelection>().matches(
+              it.peer.remoteEpk,
+              it.room.roomId,
+            );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -293,6 +320,7 @@ class HomePage extends StatelessWidget {
           isLive: isLive,
           isReconnecting: isReconnecting,
           isWorking: isWorking,
+          isSelected: isSelected,
           room: it.room,
           onOpen: () =>
               _open(context, vm, it.peer, it.room),
@@ -323,7 +351,7 @@ class HomePage extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.edit_outlined, color: kAccent),
+                leading: const Icon(LucideIcons.pencil, color: kAccent),
                 title: const Text(
                   'Rename session',
                   style: TextStyle(color: kText),
@@ -335,7 +363,7 @@ class HomePage extends StatelessWidget {
               ),
               ListTile(
                 leading: Icon(
-                  Icons.delete_outline,
+                  LucideIcons.trash2,
                   color: isLive ? kMuted : Colors.redAccent,
                 ),
                 enabled: !isLive,
@@ -436,19 +464,30 @@ class HomePage extends StatelessWidget {
     PeerRecord peer,
     RoomInfo room,
   ) async {
+    // Sets prefs (selectedPeerEpk + room) + switchRoom so a fresh
+    // ChatViewModel binds to this session.
     await vm.openSession(peer.remoteEpk, roomId: room.roomId);
     if (!context.mounted) return;
-    // Plan/24-fix-title: hand Chat the peer label we already know
-    // here, so its AppBar doesn't show '—' / 'Remote Pi' until the
-    // ChatViewModel finishes loading the PeerRecord + the first
-    // room_meta_updated arrives. Prefer room.name (per-cwd title)
-    // when available so the AppBar can show "remote_pi/site" instead
-    // of "Mac do Jacob" right away.
-    final roomCwdTail = room.cwd
-        ?.split('/')
-        .where((s) => s.isNotEmpty)
-        .lastOrNull;
-    final title = (room.name?.isNotEmpty ?? false)
+    final title = _titleFor(peer, room);
+    // Mark the UI selection — drives the tablet detail pane AND the
+    // highlighted tile. Set AFTER openSession so the detail's fresh
+    // ChatViewModel reads the already-updated prefs.
+    context.read<SessionSelection>().select(peer.remoteEpk, room.roomId, title);
+    // Phone: full-screen chat (root push → native back/swipe). Tablet:
+    // the detail pane reacts to the selection above — no nav needed.
+    if (!isWideLayout(context)) {
+      context.push('/chat', extra: {'title': title});
+    }
+  }
+
+  /// Plan/24-fix-title: the peer/room label we already know here, so the
+  /// Chat AppBar doesn't show '—' / 'Remote Pi' until the ChatViewModel
+  /// loads the PeerRecord + the first room_meta_updated arrives. Prefers
+  /// room.name (per-cwd title) → cwd tail → nickname → sessionName.
+  static String _titleFor(PeerRecord peer, RoomInfo room) {
+    final roomCwdTail =
+        room.cwd?.split('/').where((s) => s.isNotEmpty).lastOrNull;
+    return (room.name?.isNotEmpty ?? false)
         ? room.name!
         : (roomCwdTail != null && roomCwdTail.isNotEmpty)
             ? roomCwdTail
@@ -457,7 +496,6 @@ class HomePage extends StatelessWidget {
                 : peer.sessionName.isNotEmpty
                     ? peer.sessionName
                     : peer.remoteEpk.substring(0, 8);
-    context.push('/chat', extra: {'title': title});
   }
 }
 
@@ -469,36 +507,39 @@ class _LonelyEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Opacity(
-        opacity: 0.35,
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.bedtime_outlined, color: kMuted, size: 56),
-              const SizedBox(height: 18),
-              const Text(
-                'Nothing here…',
-                style: TextStyle(
-                  fontFamily: kMono,
-                  color: kMuted2,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+        child: Opacity(
+          opacity: 0.35,
+          child: Padding(
+            padding: const EdgeInsets.all(32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(LucideIcons.moon, color: kMuted, size: 56),
+                const SizedBox(height: 18),
+                const Text(
+                  'Nothing here…',
+                  style: TextStyle(
+                    fontFamily: kMono,
+                    color: kMuted2,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'When a paired Pi opens a session, it shows up here.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: kMono,
-                  color: kMuted,
-                  fontSize: 11,
-                  height: 1.4,
+                const SizedBox(height: 6),
+                const Text(
+                  'When a paired Pi opens a session, it shows up here.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: kMono,
+                    color: kMuted,
+                    fontSize: 11,
+                    height: 1.4,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -512,33 +553,36 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.qr_code_scanner, color: kMuted, size: 48),
-            const SizedBox(height: 16),
-            const Text(
-              'No pairings yet',
-              style: TextStyle(color: kMuted2, fontSize: 14),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Scan a QR from your Mac to start.',
-              style: TextStyle(color: kMuted, fontSize: 12),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () => context.push('/pair'),
-              style: FilledButton.styleFrom(
-                backgroundColor: kAccent,
-                foregroundColor: Colors.black,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: kMaxContentWidth),
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(LucideIcons.scanQrCode, color: kMuted, size: 48),
+              const SizedBox(height: 16),
+              const Text(
+                'No pairings yet',
+                style: TextStyle(color: kMuted2, fontSize: 14),
               ),
-              icon: const Icon(Icons.qr_code_scanner, size: 18),
-              label: const Text('Scan QR'),
-            ),
-          ],
+              const SizedBox(height: 6),
+              const Text(
+                'Scan a QR from your Mac to start.',
+                style: TextStyle(color: kMuted, fontSize: 12),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: () => context.push('/pair'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: kAccent,
+                  foregroundColor: Colors.black,
+                ),
+                icon: const Icon(LucideIcons.scanQrCode, size: 18),
+                label: const Text('Scan QR'),
+              ),
+            ],
+          ),
         ),
       ),
     );

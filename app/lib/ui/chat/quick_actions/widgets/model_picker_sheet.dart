@@ -3,6 +3,7 @@ import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 /// Plan/28 Wave C — Model sub-picker pushed from the Quick Actions sheet.
@@ -153,7 +154,7 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back, size: 18, color: kMuted),
+            icon: const Icon(LucideIcons.arrowLeft, size: 18, color: kMuted),
             onPressed: () => Navigator.of(context).pop(),
             tooltip: 'Back',
           ),
@@ -171,7 +172,7 @@ class _Header extends StatelessWidget {
           ),
           IconButton(
             key: const Key('model-picker-refresh'),
-            icon: const Icon(Icons.refresh_rounded, size: 18, color: kMuted),
+            icon: const Icon(LucideIcons.refreshCw, size: 18, color: kMuted),
             onPressed: onRefresh,
             tooltip: 'Refresh',
           ),
@@ -344,7 +345,7 @@ class _ModelTile extends StatelessWidget {
               ),
             ),
             if (current)
-              const Icon(Icons.check_rounded, color: kAccent, size: 18),
+              const Icon(LucideIcons.check, color: kAccent, size: 18),
           ],
         ),
       ),

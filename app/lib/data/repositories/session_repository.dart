@@ -339,6 +339,33 @@ class SessionRepository extends Repository implements ISessionRepository {
   }
 
   @override
+  Future<void> clearActiveSession() async {
+    // Plan/28 — `session_new` was acked by the Pi. Reset the local mirror
+    // so the chat shows the fresh (empty) thread immediately.
+    //
+    // Echo timers for any still-pending UserMsg are now meaningless (the
+    // thread they belonged to is gone), so cancel them to avoid a stray
+    // `pending → failed` flip after the wipe.
+    _clearAllPending();
+    // Drop the high-water marks: the next session_sync should be treated
+    // as a fresh session, not a delta against the old thread.
+    _lastSyncedTs = null;
+    _lastSessionStartedAt = null;
+    _emit(_state.copyWith(messages: const [], clearStreaming: true));
+    final epk = _activeEpk;
+    if (epk != null) {
+      // Hard-wipe the persisted cache (partitioned + legacy box) so a
+      // cold restart doesn't resurrect the old thread.
+      //
+      // NB: this is THIS device's view only. The Pi-extension keeps its
+      // own event buffer that `session_new` does NOT clear today, so a
+      // later session_sync can still backfill the old history. The
+      // durable fix lives in pi-extension (see result file verdict).
+      await _store.clearFor(epk, roomId: _activeRoomId);
+    }
+  }
+
+  @override
   Future<void> approveTool(
     String toolCallId,
     ApproveDecision decision,

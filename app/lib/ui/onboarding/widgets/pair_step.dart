@@ -3,6 +3,7 @@ import 'package:app/ui/pairing/states/pairing_state.dart';
 import 'package:app/ui/pairing/viewmodels/pairing_viewmodel.dart';
 import 'package:app/ui/pairing/widgets/paste_qr_sheet.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
@@ -127,7 +128,7 @@ class _PairStepState extends State<PairStep> {
           if (state is PairingScanning || state is PairingIdle)
             TextButton.icon(
               onPressed: () => _openPasteSheet(vm),
-              icon: const Icon(Icons.content_paste_rounded,
+              icon: const Icon(LucideIcons.clipboardPaste,
                   size: 16, color: kAccent),
               label: const Text(
                 "Can't scan? Paste code instead",
@@ -208,13 +209,13 @@ class _PairStepState extends State<PairStep> {
     }
     if (state is PairingConnecting) {
       return _StatusOverlay(
-        icon: Icons.sync_rounded,
+        icon: LucideIcons.refreshCw,
         message: 'Pairing…',
       );
     }
     if (state is PairingError) {
       return _StatusOverlay(
-        icon: Icons.error_outline_rounded,
+        icon: LucideIcons.circleAlert,
         message: state.message,
         actionLabel: state.canRetry ? 'Try again' : null,
         onAction: state.canRetry
@@ -228,7 +229,7 @@ class _PairStepState extends State<PairStep> {
     }
     if (state is PairingPaired) {
       return _StatusOverlay(
-        icon: Icons.check_circle_outline_rounded,
+        icon: LucideIcons.circleCheck,
         message: 'Paired!',
       );
     }

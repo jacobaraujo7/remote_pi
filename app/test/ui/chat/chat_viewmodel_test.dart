@@ -51,6 +51,13 @@ class _FakeRepo implements ISessionRepository {
 
   @override Future<void> cancel(String targetId) async {}
 
+  int clearActiveSessionCalls = 0;
+  @override
+  Future<void> clearActiveSession() async {
+    clearActiveSessionCalls++;
+    _push(const SessionState());
+  }
+
   @override
   Future<void> approveTool(String toolCallId, ApproveDecision decision) async {
     final updated = _state.messages.map((m) {
@@ -360,6 +367,24 @@ void main() {
       expect(s.repo.current.messages, isNotEmpty);
       expect(s.repo.current.messages.first, isA<UserMsg>());
       expect((s.repo.current.messages.first as UserMsg).text, 'test message');
+      s.vm.dispose();
+      s.repo.dispose();
+    });
+
+    test('clearActiveSession delegates to repo and empties the thread',
+        () async {
+      final s = await _build();
+      final ch = _FakeChannel();
+      s.repo.push(SessionState(
+        connection: StatusOnline(ch),
+        messages: const [UserMsg(id: 'u1', text: 'old turn')],
+      ));
+      expect(s.repo.current.messages, isNotEmpty);
+
+      await s.vm.clearActiveSession();
+
+      expect(s.repo.clearActiveSessionCalls, 1);
+      expect(s.repo.current.messages, isEmpty);
       s.vm.dispose();
       s.repo.dispose();
     });

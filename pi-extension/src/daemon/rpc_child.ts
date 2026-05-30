@@ -45,6 +45,12 @@ export class RpcChild extends EventEmitter {
   private _state: DaemonState = "stopped";
   private _startedAt: number | null = null;
   private _restartCount = 0;
+  /** True while a deliberate `stop()` is in flight. The process dies by
+   *  signal (SIGTERM/SIGKILL), which would otherwise look like a crash and
+   *  trip the supervisor's auto-restart — re-spawning a daemon the operator
+   *  just stopped/removed. Gating `isCrash` on this makes a deliberate stop a
+   *  clean exit (no restart). Reset on every `spawn()`. */
+  private _stopping = false;
   /** Accumulates partial stdout lines while waiting for `\n`. */
   private stdoutBuf = "";
 
@@ -65,6 +71,7 @@ export class RpcChild extends EventEmitter {
    */
   spawn(): void {
     if (this.child) return;
+    this._stopping = false;  // fresh start — a later signal IS a real crash
     this._state = "starting";
 
     const piBin = this.opts.piBin ?? "pi";
@@ -131,6 +138,7 @@ export class RpcChild extends EventEmitter {
    */
   async stop(timeoutMs = 5000): Promise<void> {
     if (!this.child) return;
+    this._stopping = true;  // deliberate — the upcoming signal-exit is NOT a crash
     const child = this.child;
     return new Promise<void>((resolve) => {
       const onExit = () => { resolve(); };
@@ -155,7 +163,9 @@ export class RpcChild extends EventEmitter {
   }
 
   private _onExit(code: number | null, signal: NodeJS.Signals | null): void {
-    const isCrash = code !== 0 || signal !== null;
+    // A deliberate stop() kills by signal — not a crash, so the supervisor
+    // must NOT auto-restart it. Only an UNexpected exit counts as a crash.
+    const isCrash = !this._stopping && (code !== 0 || signal !== null);
     this._state = isCrash ? "crashed" : "stopped";
     this.child = null;
     this._startedAt = null;

@@ -114,12 +114,24 @@ Quando NÃO usar o wrapper:
 ### Aguardar o worker terminar (polling do result file)
 
 **Forma preferida** — dispatch com `--wait` faz polling do
-`.orchestration/results/<task-id>.md` até detectar mtime nova:
+`.orchestration/results/<task-id>.md` até detectar mtime nova. **Sempre rode o
+dispatch em background** (ferramenta Bash com `run_in_background: true`), pra o
+comando aparecer no footer do Claude Code e **NÃO travar a conversa** — você é
+notificado quando o result file é gravado e segue conversando enquanto isso:
 
 ```bash
+# rode via Bash com run_in_background: true
 scripts/cmux-dispatch.sh --wait Extension 25-wave-x "..."
-# bloqueia aqui; retorna quando o agente grava o result file
+# não bloqueia o turno: roda destacado, footer mostra progresso,
+# notificação de conclusão chega quando o agente grava o result file
 ```
+
+> **Por que background, nunca foreground**: `--wait` em foreground segura o
+> turno inteiro (até o timeout, default 1800s) e a conversa fica refém do
+> worker. Com `run_in_background: true` o polling roda destacado — você dispara
+> N tarefas em paralelo, todas aparecem no footer, e cada notificação de
+> conclusão te traz de volta pra ler o result. Foreground só se for tarefa
+> única, rápida, que você quer bloquear de propósito (raro).
 
 Como funciona: o script captura `stat -c %Y` do arquivo ANTES do
 dispatch (0 se não existe) e poll a cada 2s até `cur_mtime > before_mtime`
@@ -199,6 +211,29 @@ worktrees `✳ <task>...`) não são tocadas.
 **Mesma regra do bootstrap**: você (orquestrador) *oferece* rodar, nunca roda
 sem autorização explícita do usuário — o script fecha panes reais e mata
 sessões claude em andamento.
+
+### Limpar contexto dos 4 panes (iniciar feature nova)
+
+Pra começar uma feature nova sem arrastar o contexto da anterior, **não recrie
+os panes** — basta mandar `/clear` pra cada agente. `/clear` zera a conversa do
+claude mas mantém o processo vivo na mesma pasta, mesmo modelo, mesma `.claude/`.
+Mais leve que close+bootstrap; oposto de `claude --resume` (que carregaria o
+contexto velho).
+
+```bash
+scripts/cmux-clear-agents.sh                  # limpa os 4
+scripts/cmux-clear-agents.sh Extension Site   # limpa só esses
+```
+
+`/clear` é comando **solo** (built-in do claude), não dispatch orquestrado —
+por isso o script **não** usa o marker `[ORCH:]`; manda o texto literal +
+Enter separado, igual ao caminho solo. Idempotente: títulos ausentes geram
+aviso, não erro.
+
+> **Só rode com os agentes ociosos.** Se um agente está no meio de uma task, o
+> `/clear` vira texto no buffer ou interrompe o trabalho — espere o result file
+> (ou use `--wait` no dispatch) antes de limpar. Mesma regra de cortesia do
+> bootstrap/close: **ofereça**, não rode sem o ok do usuário.
 
 ### Reativar uma sessão que caiu sem recriar o pane
 

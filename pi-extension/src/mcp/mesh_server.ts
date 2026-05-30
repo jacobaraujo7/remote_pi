@@ -22,6 +22,7 @@ import { z } from "zod";
 import { MeshNode } from "../session/mesh_node.js";
 import { loadLocalConfig, defaultAgentName } from "../session/local_config.js";
 import { resolveRelayUrl } from "../config.js";
+import { acquireCwdLock } from "../session/cwd_lock.js";
 
 // ── Args / config ─────────────────────────────────────────────────────────────
 
@@ -158,6 +159,23 @@ function isoNow(): string {
 }
 
 async function main(): Promise<void> {
+  // Per-cwd singleton — same kernel-enforced UDS lock the Pi extension's
+  // `/remote-pi` takes (see cwd_lock.ts). At most one remote-pi agent (Pi OR
+  // Claude) may own a folder. Without this, a second MCP in the same cwd joins
+  // the global broker under the same cwd-derived name and the broker
+  // disambiguates it to `Name#2` — an unresponsive ghost peer. We acquire the
+  // lock BEFORE touching the mesh and hard-fail if refused: the process exits
+  // before connecting the stdio transport, so Claude Code surfaces this MCP as
+  // failed (the session keeps working, just without mesh tools).
+  const lock = await acquireCwdLock(_cwd);
+  if (!lock.ok) {
+    process.stderr.write(
+      `[remote-pi-mesh] folder already owned by another remote-pi agent ` +
+      `(lock: ${lock.lockPath}). Refusing to start a duplicate mesh peer.\n`,
+    );
+    process.exit(1);
+  }
+
   // Subscribe BEFORE connecting so we don't miss early envelopes. The
   // SessionPeer swallows broker ACKs / system events itself, so handlers
   // only see real peer messages (and replies, which carry `re`).
@@ -195,6 +213,7 @@ async function main(): Promise<void> {
   const shutdown = (): void => {
     if (shuttingDown) return;
     shuttingDown = true;
+    try { lock.release(); } catch { /* OS frees the UDS lock on exit anyway */ }
     void Promise.resolve(mesh.close())
       .catch(() => { /* best-effort */ })
       .finally(() => process.exit(0));

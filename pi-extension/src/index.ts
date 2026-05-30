@@ -37,6 +37,7 @@ import type {
   ExtensionContext,
   ExtensionFactory,
 } from "@mariozechner/pi-coding-agent";
+import { SettingsManager } from "@mariozechner/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
 import { buildQRUri, qrSession, renderQRAscii } from "./pairing/qr.js";
 import {
@@ -196,6 +197,23 @@ function _refreshSessionPeerCount(
 /** Friendly model name for room_meta (plano 18). undefined when SDK has none yet. */
 function _currentModelName(): string | undefined {
   return _currentModel;
+}
+
+/**
+ * Cache the active model name and fan it out to subscribed apps via a
+ * `room_meta_update`. The relay push is a no-op when the room isn't up yet —
+ * the next `room_meta` hello carries the cached value instead. Shared by the
+ * `model_select` event and the connect/turn-start seeding, so a daemon that
+ * just runs its DEFAULT model still reports it: `model_select` only fires on an
+ * explicit set/cycle (never on settings load), so default-model daemons would
+ * otherwise never surface their model.
+ */
+function _setCurrentModel(name: string): void {
+  _currentModel = name;
+  if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, model: name };
+  if (_relay && _myRoomId) {
+    _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { model: name } });
+  }
 }
 
 // ── Cross-PC mesh wiring (plan/25 Wave B/C) ───────────────────────────────────
@@ -866,8 +884,19 @@ async function _handlePairRequest(
 
 // ── Extension factory (default export) ───────────────────────────────────────
 
-// Stores most recent command context so the auto-listener can use ui.notify
+// Stores most recent command context so the auto-listener can use ui.notify.
+// NOTE: this is a CAPTURED command ctx — the SDK marks it stale after a
+// session replacement (newSession/fork/switch/reload). We re-capture it via
+// `withSession` when WE drive a newSession (see the session_new dispatch).
 let _lastCtx: Pick<ExtensionContext, "ui" | "abort" | "cwd"> | null = null;
+// Freshest base ExtensionContext, re-captured on EVERY `session_start`
+// (startup/new/fork/reload/resume). The session_start ctx is always bound to
+// the CURRENT session, so compact (a base-ctx method) routed through here
+// never hits a stale ctx — regardless of who triggered the replacement (an
+// app Quick Action OR a `/new` typed in the Pi TUI). It carries only base-ctx
+// methods (no newSession — that's command-ctx only), so command ops keep using
+// `_lastCtx`.
+let _lastEventCtx: Pick<ExtensionContext, "compact"> | null = null;
 const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 
 const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
@@ -917,17 +946,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     const m = event?.model as { name?: string; id?: string } | undefined;
     const modelName = m?.name ?? m?.id;
     if (!modelName) return;
-    _currentModel = modelName;
-    // Keep the cached room_meta fresh so a future reconnect carries the
-    // current model in its hello (otherwise the post-reconnect hello would
-    // ship the stale model that was active at _cmdStart time).
-    if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, model: modelName };
-    if (!_relay || !_myRoomId) return;
-    _relay.sendControl({
-      type: "room_meta_update",
-      room_id: _myRoomId,
-      meta: { model: modelName },
-    });
+    // Cache + fan out. Keeps the cached room_meta fresh so a future reconnect
+    // carries the current model in its hello, and pushes a room_meta_update to
+    // apps already subscribed.
+    _setCurrentModel(modelName);
   });
 
   // Plan/28 Wave D.1: mirror model's room_meta_update path for thinking
@@ -1006,7 +1028,17 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // mid-turn (and `received` once idle). Fire-and-forget — if the broker
   // can't be reached, the worst case is a bad ACK answer; recovery is the
   // next turn boundary. Skip silently when no mesh session is joined.
-  pi.on("turn_start", () => {
+  pi.on("turn_start", (_event, ctx) => {
+    // Late model hydration: if the model was still unknown at connect (resolved
+    // lazily by the SDK), grab it on the first turn and fan it out — so a daemon
+    // whose model only materialises at turn 1 still reports it to the app.
+    if (!_currentModel) {
+      try {
+        const m = (ctx as Partial<ExtensionContext> & { getModel?: () => { name?: string; id?: string } | undefined }).getModel?.();
+        const name = m?.name ?? m?.id;
+        if (name) _setCurrentModel(name);
+      } catch { /* defensive — never block a turn on a model lookup */ }
+    }
     if (!_meshNode) return;
     void _meshNode.send("broker", { type: "turn_state", busy: true })
       .catch(() => { /* best-effort */ });
@@ -1015,6 +1047,15 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (!_meshNode) return;
     void _meshNode.send("broker", { type: "turn_state", busy: false })
       .catch(() => { /* best-effort */ });
+  });
+
+  // Re-capture the freshest base ctx on every session replacement so compact
+  // never operates on a stale captured ctx — this is the fix for the
+  // "stale after session replacement" crash when the app taps Compact after a
+  // New session. Fires on startup/new/fork/reload/resume; the ctx is always
+  // bound to the current session.
+  pi.on("session_start", (_event, ctx) => {
+    _lastEventCtx = ctx;
   });
 
   // ── Commands ──────────────────────────────────────────────────────────────
@@ -1059,8 +1100,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       else if (sub.startsWith("revoke"))         { await _cmdRevoke(sub.slice("revoke".length).trim(), ctx); }
       else if (sub.startsWith("set-relay"))      { _cmdSetRelay(sub.slice("set-relay".length).trim(), ctx); }
       else if (sub === "peers")                  { await _cmdPeers(ctx); }
-      else if (sub.startsWith("create"))         { _cmdCreate(sub.slice("create".length).trim(), ctx); }
-      else if (sub.startsWith("remove"))         { _cmdRemove(sub.slice("remove".length).trim(), ctx); }
+      else if (sub.startsWith("create"))         { await _cmdCreate(sub.slice("create".length).trim(), ctx); }
+      else if (sub.startsWith("remove"))         { await _cmdRemove(sub.slice("remove".length).trim(), ctx); }
       else if (sub === "daemons")                { await _cmdDaemonsList(ctx); }
       else if (sub === "daemon start")           { await _cmdDaemonStart(ctx); }
       else if (sub === "daemon stop")            { await _cmdDaemonStop(ctx); }
@@ -1097,12 +1138,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // Daemon registry (plan/26 Wave 1) — create + remove. start/stop/send/
   // status/install/uninstall come in later waves with the supervisor.
   pi.registerCommand("remote-pi create", {
-    description: "Register a folder as a daemon (will be supervised once `install` runs)",
-    handler: async (args, ctx) => { _lastCtx = ctx; _cmdCreate(args.trim(), ctx); },
+    description: "Register a folder as a daemon and start it (when the supervisor is running)",
+    handler: async (args, ctx) => { _lastCtx = ctx; await _cmdCreate(args.trim(), ctx); },
   });
   pi.registerCommand("remote-pi remove", {
-    description: "Unregister a daemon by id (local config is preserved)",
-    handler: async (args, ctx) => { _lastCtx = ctx; _cmdRemove(args.trim(), ctx); },
+    description: "Stop + unregister a daemon by id (local config is preserved)",
+    handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRemove(args.trim(), ctx); },
   });
 
   // Fleet ops via the supervisor (plan/26 W2). `/remote-pi stop` stays as
@@ -1237,17 +1278,14 @@ async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
       return;
     }
     const baseDefault = defaultAgentName(cwd);
-    const wizardResult = await runSetupWizard(ui, {
+    const newConfig = await runSetupWizard(ui, {
       agent_name: baseDefault,
       use_relay: true,
-      enable_daemon: false,
     });
-    if (!wizardResult) {
+    if (!newConfig) {
       ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
       return;
     }
-    // `enable_daemon` is wizard-only state, not part of LocalConfig.
-    const { enable_daemon, ...newConfig } = wizardResult;
     saveLocalConfig(cwd, newConfig);
     ctx.ui.notify(
       `[remote-pi] Config saved to ${cwd}/.pi/remote-pi/config.json`,
@@ -1255,7 +1293,6 @@ async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     );
     await _cmdJoin(ctx);
     if (effectiveAutoStartRelay(newConfig)) await _cmdStart(ctx);
-    if (enable_daemon) _cmdInstall(ctx, { linkCli: true });
     _cmdStatus(ctx);
     return;
   }
@@ -1282,25 +1319,19 @@ async function _cmdSetup(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   }
   const current = loadLocalConfig(cwd);
   const baseDefault = defaultAgentName(cwd);
-  const wizardResult = await runSetupWizard(ui, {
+  const newConfig = await runSetupWizard(ui, {
     agent_name: current.agent_name ?? baseDefault,
     use_relay: effectiveAutoStartRelay(current),
-    // No way to introspect launchd/systemd here without shelling out;
-    // default the wizard to "off" — re-running setup is for changing
-    // your mind, not for re-confirming current OS state.
-    enable_daemon: false,
   });
-  if (!wizardResult) {
+  if (!newConfig) {
     ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
     return;
   }
-  const { enable_daemon, ...newConfig } = wizardResult;
   saveLocalConfig(cwd, newConfig);
   ctx.ui.notify(
     "[remote-pi] Config updated. Run /remote-pi to apply now.",
     "info",
   );
-  if (enable_daemon) _cmdInstall(ctx, { linkCli: true });
 }
 
 async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
@@ -1323,12 +1354,41 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   // session_name aligned so the app shows consistent labels.
   const sessionName = _displayName(cwd);
 
-  // Initial model from ctx (ExtensionContext.model is the SDK's current
-  // selection — set by user settings or last-used). May be undefined on
-  // first boot before any model_select; that's fine, room_meta omits the
-  // field then.
-  const ctxModelName = (ctx as Partial<ExtensionContext> & { model?: { name?: string; id?: string } }).model;
-  if (ctxModelName) _currentModel = ctxModelName.name ?? ctxModelName.id ?? undefined;
+  // Seed the current model from the SDK's resolved selection so room_meta
+  // carries it on connect. `model_select` only fires on an explicit set/cycle
+  // (NOT on settings load), so a headless daemon that just runs its default
+  // model never emits it — without this its room_meta would omit the model and
+  // the app shows "unknown". `getModel()` returns the session's resolved model
+  // in every mode (interactive + RPC daemon); turn_start hydrates it later if
+  // the SDK resolves the model lazily.
+  if (!_currentModel) {
+    try {
+      const c = ctx as Partial<ExtensionContext> & {
+        model?: { name?: string; id?: string };
+        getModel?: () => { name?: string; id?: string } | undefined;
+      };
+      // Prefer the live getModel() / ctx.model — populated for an interactive
+      // Pi. For a HEADLESS DAEMON both are undefined at connect: the SDK only
+      // resolves `this.model` lazily at the first turn, and `model_select`
+      // never fires for a default-model session. So fall back to the CONFIGURED
+      // default (defaultProvider/defaultModel in <cwd>/.pi/settings.json) — the
+      // model the daemon will actually use. Without this an idle daemon (never
+      // prompted → no turn) would never report its model and the app shows
+      // "unknown". turn_start still hydrates a later override.
+      const live = c.getModel?.() ?? c.model;
+      if (live) {
+        _currentModel = live.name ?? live.id ?? undefined;
+      } else {
+        const sm = SettingsManager.create(cwd);
+        const provider = sm.getDefaultProvider();
+        const modelId = sm.getDefaultModel();
+        if (modelId) {
+          const found = provider ? ensureModelRegistry().find(provider, modelId) : undefined;
+          _currentModel = found?.name ?? modelId;
+        }
+      }
+    } catch { /* defensive — never block start on a model lookup */ }
+  }
 
   // Plan/28 Wave D.1: seed thinking from the SDK's current level so the
   // first room_meta hello already carries it. `pi.getThinkingLevel()` is
@@ -1680,7 +1740,7 @@ function _cmdSetRelay(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
  *     on an existing daemon is idempotent at this layer; the registry
  *     itself rejects duplicate cwds.
  */
-function _cmdCreate(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
+async function _cmdCreate(arg: string, ctx: Pick<ExtensionContext, "ui">): Promise<void> {
   // Parse `[cwd] [--name "value with spaces" | --name word]` in any order.
   // The first non-flag token is the cwd; the rest of the line after
   // `--name` (quoted or unquoted) is the display name.
@@ -1720,6 +1780,26 @@ function _cmdCreate(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
     `[remote-pi] Daemon registered: id=${result.id} name="${finalName}" cwd=${result.cwd}`,
     "info",
   );
+
+  // Auto-start: register alone used to leave the daemon idle until the next
+  // supervisor restart (the reported bug — `create` didn't run anything). Ask
+  // the supervisor to spawn THIS daemon now. Config was just written above, so
+  // the child boots with it. When the supervisor is offline we keep the
+  // registration and tell the user it'll boot on the next supervisor start.
+  try {
+    await callSupervisor({ op: "start", id: result.id });
+    ctx.ui.notify(`[remote-pi] Daemon started: id=${result.id}`, "info");
+  } catch (err) {
+    if (err instanceof SupervisorOfflineError) {
+      ctx.ui.notify(
+        `[remote-pi] Registered, but the supervisor is offline — not running yet. ` +
+        `Run \`remote-pi install\` (or start \`pi-supervisord\`); it auto-starts on the next supervisor boot.`,
+        "warning",
+      );
+      return;
+    }
+    ctx.ui.notify(`[remote-pi] Registered, but auto-start failed: ${String(err)}`, "error");
+  }
 }
 
 /**
@@ -1730,7 +1810,7 @@ function _cmdCreate(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
  * stays on disk — re-creating later with the same cwd is a no-op
  * because the existing config wins.
  */
-function _cmdRemove(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
+async function _cmdRemove(arg: string, ctx: Pick<ExtensionContext, "ui">): Promise<void> {
   const id = arg.trim();
   if (!id) {
     ctx.ui.notify(
@@ -1738,6 +1818,32 @@ function _cmdRemove(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
       "warning",
     );
     return;
+  }
+
+  // Prefer the supervisor's `unregister`: it STOPS the running child (SIGTERM →
+  // SIGKILL) BEFORE deleting the registry entry. Removing only the registry
+  // (the old behaviour) left an orphaned `pi --mode rpc` process running with
+  // nothing left to manage it — the reported bug. Fall back to a registry-only
+  // removal when the supervisor is offline (no managed process to stop anyway).
+  try {
+    const data = await callSupervisor({ op: "unregister", id });
+    if (!data.removed) {
+      const known = listDaemons().map((d) => d.id).join(", ") || "(none)";
+      ctx.ui.notify(`[remote-pi] No daemon with id "${id}". Known ids: ${known}`, "warning");
+      return;
+    }
+    ctx.ui.notify(
+      `[remote-pi] Daemon removed + process stopped: id=${id} cwd=${data.cwd}. ` +
+      `Local config at ${data.cwd}/.pi/remote-pi/config.json was kept.`,
+      "info",
+    );
+    return;
+  } catch (err) {
+    if (!(err instanceof SupervisorOfflineError)) {
+      ctx.ui.notify(`[remote-pi] remove failed: ${String(err)}`, "error");
+      return;
+    }
+    // Supervisor offline — fall through to registry-only removal below.
   }
 
   let result: { removed: boolean; cwd?: string };
@@ -1749,19 +1855,15 @@ function _cmdRemove(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
   }
 
   if (!result.removed) {
-    // Surface the registered ids for a quick visual diff.
     const known = listDaemons().map((d) => d.id).join(", ") || "(none)";
-    ctx.ui.notify(
-      `[remote-pi] No daemon with id "${id}". Known ids: ${known}`,
-      "warning",
-    );
+    ctx.ui.notify(`[remote-pi] No daemon with id "${id}". Known ids: ${known}`, "warning");
     return;
   }
 
   ctx.ui.notify(
-    `[remote-pi] Daemon removed: id=${id} cwd=${result.cwd}. ` +
-    `Local config at ${result.cwd}/.pi/remote-pi/config.json was kept.`,
-    "info",
+    `[remote-pi] Daemon removed from registry: id=${id} cwd=${result.cwd}. ` +
+    `Supervisor was offline, so any running process was NOT stopped. Local config kept.`,
+    "warning",
   );
 }
 
@@ -2018,6 +2120,90 @@ function _deployAgentNetworkSkill(): void {
 }
 
 /**
+ * Inject text into the agent as a user message, waking a turn. The Pi SDK's
+ * `ExtensionAPI.sendUserMessage` is fire-and-forget (returns `void`) and
+ * "always triggers a turn" — the SDK runtime owns any *async* turn failure
+ * (no model/API key, expired auth, provider error), which surfaces in the
+ * agent's own output, not back to us. Two gaps this helper closes, both of
+ * which previously failed silently:
+ *
+ *   1. `_pi` not bound yet (activation race / mesh joined before the session
+ *      attached): the old code did `if (!_pi) return`, dropping the message
+ *      with no trace. We log it (the daemon forwards child stderr to its log
+ *      with a cwd prefix, so it's visible in `journalctl`).
+ *   2. A *synchronous* throw from `sendUserMessage` (e.g. malformed content):
+ *      the old fire-and-forget call let it propagate out of the `onMessage`
+ *      callback, which could wedge the read loop and blackout every later
+ *      message. We catch + surface it instead.
+ *
+ * NOTE: this does NOT make a wake that fails *inside* the SDK observable —
+ * that requires a fix in the Pi runtime (no extension-level error event
+ * exists for it). See `.orchestration/results/mesh-liveness-stale-peer.md`.
+ */
+function _wakeAgent(text: string, label: string): void {
+  if (!_pi) {
+    console.error(`[remote-pi] ${label}: agent session not bound yet — message dropped`);
+    return;
+  }
+  try {
+    _pi.sendUserMessage(text);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
+    _lastCtx?.ui.notify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
+  }
+}
+
+/**
+ * Deliver an inbound agent-network (mesh) message to the agent + the app.
+ *
+ * Display: the app renders it in the TOOL timeline (a matched
+ * tool_request/tool_result "agent-network" pair) — NOT as the user's own
+ * message, which is what `sendUserMessage` used to produce (the reported bug).
+ *
+ * Wake: we inject a CUSTOM message (role:"custom"), not a user message. The
+ * SDK's `convertToLlm` maps custom → a user-role LLM message, so the agent
+ * still sees + replies to it, but `message_end` does NOT buffer role:"custom",
+ * so it never replays as `user_input` on session_sync. `triggerTurn` runs the
+ * turn; `id` lets the LLM echo it via `agent_send(..., re=<id>)`.
+ */
+function _deliverMeshMessageToAgent(
+  env: { id: string; from: string; re: string | null; body: unknown },
+): void {
+  const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
+  const toolCallId = `mesh_${env.id}`;
+  _broadcastToActive({
+    type: "tool_request",
+    tool_call_id: toolCallId,
+    tool: "agent-network",
+    args: env.re
+      ? { from: env.from, re: env.re, message: bodyText }
+      : { from: env.from, message: bodyText },
+  });
+  _broadcastToActive({ type: "tool_result", tool_call_id: toolCallId, result: { from: env.from, message: bodyText } });
+
+  const label = `agent-network message from "${env.from}"`;
+  if (!_pi) {
+    console.error(`[remote-pi] ${label}: agent session not bound yet — message dropped`);
+    return;
+  }
+  const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
+  const footer = env.re
+    ? "(This is a reply to a previous message of yours.)"
+    : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
+  try {
+    _pi.sendMessage(
+      { customType: "remote-pi:mesh-message", content: `${header}\n${bodyText}\n\n${footer}`, display: true },
+      { triggerTurn: true },
+    );
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
+    _lastCtx?.ui.notify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
+  }
+}
+
+/**
  * Joins the fixed local UDS mesh ("local" session — see LOCAL_SESSION_NAME).
  * Called by `_cmdRoot` on first run and on subsequent runs when the relay
  * is up and the user hasn't explicitly stopped. The session name is no
@@ -2067,19 +2253,10 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     }
     if (env.from === "broker") return;  // other broker control messages — ignore
 
-    // Anything else is a real agent-to-agent message. SessionPeer already
-    // correlated replies (env.re matched a pending request) before reaching
-    // here — what arrives now is unsolicited and needs the LLM to react.
-    // Inject as a user message so the model sees it as a turn input. Include
-    // the `id` so the LLM can echo it via `agent_send(..., re=<id>)` when
-    // replying (otherwise the sender's agent_request times out).
-    if (!_pi) return;
-    const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
-    const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
-    const footer = env.re
-      ? "(This is a reply to a previous message of yours.)"
-      : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
-    _pi.sendUserMessage(`${header}\n${bodyText}\n\n${footer}`);
+    // Real agent-to-agent message (SessionPeer already correlated replies via
+    // env.re before this point). Show it in the app's TOOL timeline and wake
+    // the agent as a CUSTOM message — never as the user's own message.
+    _deliverMeshMessageToAgent(env);
   });
 
   // After failover (leader died, we re-elected): the new broker's peers map
@@ -2157,7 +2334,7 @@ export function _routeClientMessageFrom(
       // a later `session_sync` returns it in the history events.
       _broadcastToActive({ type: "user_message", id: msg.id, text: msg.text });
       _currentTurnId = msg.id;
-      _pi.sendUserMessage(msg.text);
+      _wakeAgent(msg.text, `app user_message id=${msg.id}`);
       break;
     }
     case "approve_tool":
@@ -2185,10 +2362,35 @@ export function _routeClientMessageFrom(
     // `ActionCtx` — fields that aren't present at runtime are surfaced
     // as `action_error` by the handlers, not as a TypeError.
     case "session_compact":
-      handleSessionCompact(_lastCtx as ActionCtx | null, sender, msg);
+      // Route through _lastEventCtx (refreshed on every session_start), NOT the
+      // capturable-stale _lastCtx — compact must never hit a ctx left stale by
+      // a prior New session. compact() is a base-ctx method, so the
+      // session_start ctx suffices. Fall back to _lastCtx defensively if no
+      // session_start has landed yet (keeps the pre-replacement happy path).
+      handleSessionCompact((_lastEventCtx ?? _lastCtx) as ActionCtx | null, sender, msg);
       break;
     case "session_new":
-      void handleSessionNew(_lastCtx as ActionCtx | null, sender, msg);
+      void handleSessionNew(
+        _lastCtx as ActionCtx | null,
+        sender,
+        msg,
+        (freshCtx) => {
+          // newSession just made the captured _lastCtx STALE (the SDK throws
+          // if it's reused). Re-capture the fresh command-capable ctx the SDK
+          // passes to withSession so later command ops (another New session,
+          // list_models) run on the current session, not the stale one. The
+          // runtime object also carries ui/abort/cwd, so storing it in the
+          // narrowly-typed _lastCtx slot is sound (mirrors the read-site casts).
+          _lastCtx = freshCtx as unknown as typeof _lastCtx;
+        },
+      ).then((created) => {
+        // Pi-side reset is durable only here: handleSessionNew swaps the SDK
+        // session, but the app's session_sync log (_messageBuffer) and the
+        // session clock (_sessionStartedAt) live in this module. Reset them +
+        // fan out an empty history so every owner drops the stale conversation
+        // — not just the sender, who also clears locally on action_ok.
+        if (created) _resetSessionForNew(msg.id);
+      });
       break;
     case "model_set":
       void handleModelSet(_pi, ensureModelRegistry(), sender, msg);
@@ -2257,6 +2459,34 @@ function _handleSessionSync(
     events: slice,
     eos: true,
     truncated,
+  });
+}
+
+/**
+ * Resets the Pi-side session view after a SUCCESSFUL `session_new`. The app's
+ * New Session clears its local store on `action_ok`, but that alone isn't
+ * durable: `_messageBuffer` (which answers `session_sync`) is append-only and
+ * `_sessionStartedAt` is stamped once, so a later reconnect/restart would
+ * replay the OLD history. We clear the buffer, restamp the clock, and
+ * broadcast an EMPTY `session_history` — the exact shape `_handleSessionSync`
+ * sends, just with `events: []` — so every attached owner drops the stale
+ * conversation. The app's `_applyHistory` substitutes its cache wholesale, so
+ * no new app-side code is needed.
+ *
+ * Unlike a per-request session_history reply (which must go to the sender
+ * channel only — see `_broadcastToActive`), this is an intentional fan-out:
+ * a new session is global state, so every owner must see the reset.
+ */
+function _resetSessionForNew(inReplyTo: string): void {
+  _messageBuffer = [];
+  _sessionStartedAt = Date.now();
+  _broadcastToActive({
+    type: "session_history",
+    in_reply_to: inReplyTo,
+    session_started_at: _sessionStartedAt,
+    events: [],
+    eos: true,
+    truncated: false,
   });
 }
 
@@ -2394,12 +2624,12 @@ if (_isDirectRun()) {
     // parser (shared with the slash-command path) sees the same shape
     // as it would from a Pi interactive prompt.
     const joined = cliArgs.map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
-    _cmdCreate(joined, {
+    await _cmdCreate(joined, {
       ui: { notify: (msg: string) => console.log(msg) } as unknown as ExtensionContext["ui"],
     });
   } else if (subcmd === "remove") {
     const id = (cliArgs[0] ?? "").trim();
-    _cmdRemove(id, {
+    await _cmdRemove(id, {
       ui: { notify: (msg: string) => console.log(msg) } as unknown as ExtensionContext["ui"],
     });
   } else if (subcmd === "daemons") {

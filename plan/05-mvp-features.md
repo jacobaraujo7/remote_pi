@@ -451,7 +451,7 @@ mas não bloqueia o canal (outras mensagens continuam fluindo).
 - [x] Wiring runtime (Relay): `TcpListener::bind("0.0.0.0:3000")` + `tokio-tungstenite accept_async` + auth loop usando `auth/challenge.rs` + peer registry `HashMap<peer_id, Sender>` + roteamento por outer envelope + graceful shutdown
 - [x] Wiring runtime (pi-extension slash): `/remote-pi`, `/remote-pi list`, `/remote-pi revoke` registrados como slash commands via ExtensionFactory; event wiring usa `pi.on("tool_call"|"message_update"|"tool_execution_end"|"agent_end")` em vez do `beforeToolCall` (limitação do SDK documentada)
 - [x] Wiring runtime (pi-extension PeerChannel real): `src/transport/{relay_client,peer_channel}.ts` — WS auth Ed25519 + ChaCha20-Poly1305 IETF encrypt/decrypt + outer envelope + `runHandshakeResponder` plugado no cmdPair (stub removido)
-- [x] Default URL/porta alinhado nos 3 lados: `ws://localhost:3000` (env `REMOTE_PI_RELAY` no app/extension, `REMOTEPI_RELAY_PORT` no relay)
+- [x] Default URL/porta alinhado nos 3 lados: `http://localhost:3000` (env `REMOTE_PI_RELAY` no app/extension, `REMOTEPI_RELAY_PORT` no relay)
 - [ ] Roundtrip do passo 10 passa em simulador (manual: precisa relay rodando + Pi local + device/simulador)
 - [ ] Banner offline aparece em <5s após Pi fechar (depende do roundtrip)
 - [ ] Reconnect automático funciona após app fechar e reabrir (depende do roundtrip)

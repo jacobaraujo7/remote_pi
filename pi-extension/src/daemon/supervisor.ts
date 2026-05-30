@@ -184,6 +184,7 @@ export class Supervisor {
       case "list":         return { ok: true, data: { daemons: this._listInfo() } };
       case "status":       return { ok: true, data: { daemons: this._listInfo() } };
       case "start_all":    return this._opStartAll();
+      case "start":        return this._opStart(req.id);
       case "stop_all":     return this._opStopAll();
       case "restart_all":  return this._opRestartAll();
       case "send":         return this._opSend(req.id, req.text);
@@ -232,6 +233,22 @@ export class Supervisor {
       started.push(entry.id);
     }
     return { ok: true, data: { started, already_running: already } };
+  }
+
+  /** Spawn a single registered daemon by id. Idempotent: a daemon already
+   *  running returns `started: false`. Unknown id → ok:false. This is what
+   *  `/remote-pi create` calls so a freshly-registered folder boots its Pi
+   *  immediately instead of waiting for the next supervisor restart. */
+  private _opStart(id: string): ControlReply<unknown> {
+    const entry = listDaemons().find((d) => d.id === id);
+    if (!entry) return { ok: false, error: `no daemon with id ${id}` };
+    const slot = this.children.get(id);
+    if (slot && slot.child.state === "running") {
+      return { ok: true, data: { id, state: slot.child.state, started: false } };
+    }
+    this._spawnEntry(entry.id, entry.cwd);
+    const state = this.children.get(id)?.child.state ?? "starting";
+    return { ok: true, data: { id, state, started: true } };
   }
 
   private async _opStopAll(): Promise<ControlReply<unknown>> {

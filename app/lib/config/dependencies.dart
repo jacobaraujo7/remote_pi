@@ -17,6 +17,7 @@ import 'package:app/pairing/owner_identity_bridge.dart';
 import 'package:app/pairing/pair_request_flow.dart';
 import 'package:app/pairing/qr_scanner.dart';
 import 'package:app/pairing/storage.dart';
+import 'package:app/routing/adaptive.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
 import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
 import 'package:app/ui/core/viewmodel/viewmodel.dart';
@@ -111,6 +112,15 @@ Future<void> setupDependencies() async {
   _injector.addViewModel<QuickActionsViewModel>(
     () => QuickActionsViewModel(_injector.get<IActionsRepository>()),
   );
+
+  // Plan/tablet — app-global UI selection (which session the tablet's
+  // detail pane shows + which list tile is highlighted). Starts null so
+  // the app opens with no chat pre-selected.
+  _injector.addInstance<SessionSelection>(SessionSelection());
+
+  // Plan/tablet — shell layout state (zero-state collapse). Set by Home so
+  // the adaptive shell drops the split when there's nothing to list.
+  _injector.addInstance<ShellLayout>(ShellLayout());
 
   _injector.commit();
 }

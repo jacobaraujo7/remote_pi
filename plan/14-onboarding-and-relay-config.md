@@ -21,7 +21,7 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
 
 | Decisão | Valor / razão |
 |---|---|
-| **Default público hardcoded** | `kDefaultRelayUrl = 'wss://relay.remote-pi.dev'` em ambos lados. Plano 07 (relay deploy) ativa essa URL |
+| **Default público hardcoded** | `kDefaultRelayUrl = 'https://relay-rp1.jacobmoura.work'` em ambos lados. Plano 07 (relay deploy) ativa essa URL |
 | **Pi-ext config order** | `env REMOTE_PI_RELAY` > `~/.pi/remote/config.json` > `kDefaultRelayUrl` |
 | **App config order** | `Preferences.relayUrl` > `kDefaultRelayUrl` |
 | **QR sem `r`** | Pi-ext sempre gera QR sem campo `r`. App usa Settings/Preferences |
@@ -46,10 +46,10 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
   function resolveRelayUrl(): { url: string; source: 'env' | 'config' | 'default' }
   ```
 - `src/index.ts`:
-  - `DEFAULT_RELAY_URL` vira `kDefaultRelayUrl = 'wss://relay.remote-pi.dev'` (constante)
+  - `DEFAULT_RELAY_URL` vira `kDefaultRelayUrl = 'https://relay-rp1.jacobmoura.work'` (constante)
   - Resolução de relay usa `resolveRelayUrl()` em `_cmdStart`
   - Novo comando: `/remote-pi set-relay <url>`
-    - Valida URL (deve começar com `ws://` ou `wss://`, hostname não vazio)
+    - Valida URL (deve começar com `http://` ou `https://`, hostname não vazio)
     - Chama `saveConfig({ relay: url })`
     - Notifica: "Relay updated: <url>"
   - Novo comando: `/remote-pi config`
@@ -99,7 +99,7 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
   ```
 - `lib/ui/settings/`:
   - `SettingsPage` ganha seção "Relay" no topo
-  - TextField + placeholder "Default Relay (wss://relay.remote-pi.dev)"
+  - TextField + placeholder "Default Relay (https://relay-rp1.jacobmoura.work)"
   - Botão "Salvar" → valida URL → `prefs.setRelayUrl(url)`. Vazio = volta pro default
 - `lib/ui/home/`:
   - `HomeNoPeer` ganha botão "Scan QR" mais visível → navega pra `/pair` (não `/onboarding`)
@@ -141,7 +141,7 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
 
 #### W1.A — pi-extension
 - [ ] `src/config.ts` (NOVO): load/save/resolve config
-- [ ] `kDefaultRelayUrl = 'wss://relay.remote-pi.dev'` constante
+- [ ] `kDefaultRelayUrl = 'https://relay-rp1.jacobmoura.work'` constante
 - [ ] `/remote-pi set-relay <url>` com validação
 - [ ] `/remote-pi config` mostra source
 - [ ] `_cmdStart` usa `resolveRelayUrl()`
@@ -180,7 +180,7 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
 
 #### Cenário 2 — Onboarding com relay custom
 - [ ] Fresh install, step 2: tap card "Meu servidor"
-- [ ] TextField aparece → digita "ws://192.168.1.50:3000" → "Continuar"
+- [ ] TextField aparece → digita "http://192.168.1.50:3000" → "Continuar"
 - [ ] Step 3: scaneia QR → /home
 
 #### Cenário 3 — Boot com peer revogado (onboarded antes)
@@ -190,22 +190,22 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
 
 #### Cenário 4 — Pi-ext config
 - [ ] `pi -e ...` → `/remote-pi config` mostra default
-- [ ] `/remote-pi set-relay wss://meu.relay.com` → salva
-- [ ] `/remote-pi config` mostra "Relay: wss://meu.relay.com (source: config)"
+- [ ] `/remote-pi set-relay https://meu.relay.com` → salva
+- [ ] `/remote-pi config` mostra "Relay: https://meu.relay.com (source: config)"
 - [ ] Reiniciar Pi → `set-relay` persistiu
 
 #### Cenário 5 — QR sem `r` end-to-end
 - [ ] Pi config diferente do app:
-  - Pi: `wss://relay-a.com`
-  - App prefs: `wss://relay-b.com`
+  - Pi: `https://relay-a.com`
+  - App prefs: `https://relay-b.com`
 - [ ] `/remote-pi pair` → QR gerado SEM `r`
 - [ ] App escaneia → usa relay-b (do prefs)
 - [ ] Mas Pi está em relay-a → pareamento falha (timeout)
 - [ ] **Esperado**: app mostra erro claro "Pi não respondeu — verifique se está no mesmo relay"
 
 #### Cenário 6 — QR legacy com `r` divergente
-- [ ] QR antigo (testar via build script) com `r=wss://relay-a.com`
-- [ ] App prefs: `wss://relay-b.com`
+- [ ] QR antigo (testar via build script) com `r=https://relay-a.com`
+- [ ] App prefs: `https://relay-b.com`
 - [ ] App escaneia → detecta conflito → modal "Pi está em <a>, diferente do seu (<b>). Trocar?"
 - [ ] Tap "Trocar" → atualiza prefs.relayUrl → pareia com relay-a
 
@@ -236,9 +236,9 @@ lados + criar onboarding stepper de 3 passos pro primeiro uso.
 
 | Risco | Mitigação |
 |---|---|
-| Default `wss://relay.remote-pi.dev` não existe ainda (plano 07 deploy) | Pra dev, user sempre sobrepõe via env ou Settings. Constante documenta intent; commit do plano 07 ativa URL real |
+| Default `https://relay-rp1.jacobmoura.work` não existe ainda (plano 07 deploy) | Pra dev, user sempre sobrepõe via env ou Settings. Constante documenta intent; commit do plano 07 ativa URL real |
 | User configura relay errado e fica preso sem conseguir parear | Settings sempre editável; reset pra default = TextField vazio |
-| Onboarding step 2 com URL inválida confunde user | Validação inline com mensagem clara ("URL deve começar com ws:// ou wss://") |
+| Onboarding step 2 com URL inválida confunde user | Validação inline com mensagem clara ("URL deve começar com http:// ou https://") |
 | Migração de install legacy (sem onboardingCompleted) abre onboarding em quem já usava | Marker silencioso: `if peers.isNotEmpty && !onboardingCompleted → setOnboardingCompleted(true)` no boot |
 | QR antigo (com `r`) gera conflito desnecessário | Modal explica + 1 tap pra resolver. Sem regressão |
 | Pareamento perde info de "qual cwd" — `n` ainda no QR mas legacy peers podem perder | `n` mantido no QR (não foi removido). Só `r` saiu |

@@ -93,6 +93,25 @@ describe("Supervisor — control UDS surface", () => {
     if (!r.ok) expect(r.error).toMatch(/already registered/i);
   });
 
+  test("start spawns a single registered daemon by id", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "pi-sv-start-"));
+    const reg = await ask({ op: "register", cwd: tmp }) as ControlReply<{ id: string }>;
+    expect(reg.ok).toBe(true);
+    const id = reg.ok ? reg.data!.id : "";
+    const r = await ask({ op: "start", id }) as ControlReply<{ id: string; started: boolean }>;
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data!.id).toBe(id);
+      expect(r.data!.started).toBe(true);
+    }
+  });
+
+  test("start of unknown id returns ok:false", async () => {
+    const r = await ask({ op: "start", id: "ffffffff" });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/no daemon/i);
+  });
+
   test("send to unknown daemon returns ok:false with clear error", async () => {
     const r = await ask({ op: "send", id: "ffffffff", text: "hi" });
     expect(r).toMatchObject({ ok: false });

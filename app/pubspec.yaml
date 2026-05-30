@@ -32,6 +32,7 @@ dependencies:
     sdk: flutter
 
   cupertino_icons: ^1.0.8
+  lucide_icons_flutter: ^3.1.14+2
   cryptography: ^2.7.0
   mobile_scanner: ^5.0.0
   flutter_secure_storage: ^9.0.0

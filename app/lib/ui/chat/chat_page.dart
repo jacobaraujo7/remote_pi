@@ -12,6 +12,7 @@ import 'package:app/ui/chat/widgets/streaming_bubble.dart';
 import 'package:app/ui/chat/widgets/tool_request_card.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
 
 class ChatPage extends StatelessWidget {
@@ -22,7 +23,13 @@ class ChatPage extends StatelessWidget {
   /// is loaded by the ViewModel and the first `room_meta_updated`
   /// arrives.
   final String? initialTitle;
-  const ChatPage({super.key, this.initialTitle});
+
+  /// Plan/tablet — `false` when the chat is embedded as the tablet's
+  /// detail pane (no navigation stack to pop back to). Hides the back
+  /// arrow; defaults to `true` for the phone full-screen route.
+  final bool showBack;
+
+  const ChatPage({super.key, this.initialTitle, this.showBack = true});
 
   @override
   Widget build(BuildContext context) {
@@ -84,12 +91,16 @@ class ChatPage extends StatelessWidget {
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, size: 18, color: kText),
-            tooltip: 'Back',
-            onPressed: () =>
-                context.canPop() ? context.pop() : context.go('/home'),
-          ),
+          if (showBack)
+            IconButton(
+              icon:
+                  const Icon(LucideIcons.chevronLeft, size: 18, color: kText),
+              tooltip: 'Back',
+              onPressed: () =>
+                  context.canPop() ? context.pop() : context.go('/home'),
+            )
+          else
+            const SizedBox(width: 16),
           Expanded(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -168,6 +179,69 @@ class ChatPage extends StatelessWidget {
               ],
             ),
           ),
+          if (peer != null)
+            IconButton(
+              icon: const Icon(LucideIcons.info, size: 18, color: kMuted2),
+              tooltip: 'Session info',
+              onPressed: () =>
+                  _showSessionInfo(context, peer, room, roomName),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Session details dialog — surfaced from the AppBar info action.
+  /// Shows the human name, the Pi-side path (cwd), the owning device,
+  /// plus model/room/paired-date when known.
+  static Future<void> _showSessionInfo(
+    BuildContext context,
+    PeerRecord peer,
+    RoomInfo? room,
+    String name,
+  ) {
+    final owner = (peer.nickname?.isNotEmpty ?? false)
+        ? peer.nickname!
+        : peer.sessionName.isNotEmpty
+            ? peer.sessionName
+            : peer.remoteEpk.substring(0, 8);
+    final model = room?.model;
+    final paired = peer.pairedAt.contains('T')
+        ? peer.pairedAt.split('T').first
+        : peer.pairedAt;
+    return showDialog<void>(
+      context: context,
+      builder: (dCtx) => AlertDialog(
+        backgroundColor: kBg,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: const BorderSide(color: kBorder),
+        ),
+        title: const Text(
+          'Session info',
+          style: TextStyle(fontFamily: kMono, fontSize: 15, color: kText),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _InfoRow(label: 'Name', value: name),
+            _InfoRow(label: 'Path', value: room?.cwd ?? '—'),
+            _InfoRow(label: 'Owner', value: owner),
+            if (model != null && model.isNotEmpty)
+              _InfoRow(label: 'Model', value: model),
+            _InfoRow(label: 'Room', value: room?.roomId ?? '—'),
+            _InfoRow(label: 'Paired', value: paired),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dCtx).pop(),
+            child: const Text(
+              'Close',
+              style: TextStyle(fontFamily: kMono, color: kAccent),
+            ),
+          ),
         ],
       ),
     );
@@ -222,15 +296,15 @@ class ChatPage extends StatelessWidget {
       // a minimal empty state without an action. User navigates back
       // and uses Home / Settings → pairing.
       ChatNoPeer() => const _EmptyState(
-        icon: Icons.chat_bubble_outline,
+        icon: LucideIcons.messageCircle,
         message: 'No active device',
       ),
       ChatConnecting() => const _EmptyState(
-        icon: Icons.sync_rounded,
+        icon: LucideIcons.refreshCw,
         message: 'Connecting…',
       ),
       ChatFatalError(:final message) => _EmptyState(
-        icon: Icons.error_outline_rounded,
+        icon: LucideIcons.circleAlert,
         message: message,
         actionLabel: 'Re-pair',
         onAction: () => context.go('/pair'),
@@ -424,7 +498,7 @@ class _RevokedBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Icon(Icons.link_off_rounded, color: Colors.white, size: 15),
+          const Icon(LucideIcons.unlink, color: Colors.white, size: 15),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -446,6 +520,44 @@ class _RevokedBanner extends StatelessWidget {
                 fontWeight: FontWeight.w600,
                 decoration: TextDecoration.underline,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One labelled key/value row in the session-info dialog. The value is
+/// selectable so the user can copy the path / device name.
+class _InfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  const _InfoRow({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(
+              fontFamily: kMono,
+              fontSize: 10,
+              color: kMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 2),
+          SelectableText(
+            value,
+            style: const TextStyle(
+              fontFamily: kMono,
+              fontSize: 13,
+              color: kText,
             ),
           ),
         ],

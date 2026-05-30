@@ -35,13 +35,14 @@ Ordem de resolução (precedência):
 1. `process.env.REMOTE_PI_RELAY` — escape hatch pra CI/ops
 2. `~/.pi/remote/config.json` (`{ "relay": "..." }`) — persistido via
    `/remote-pi set-relay <url>`
-3. `kDefaultRelayUrl` (`wss://relay.remote-pi.dev`) — produção
+3. `kDefaultRelayUrl` (`https://relay-rp1.jacobmoura.work`) — produção
 
 Slash commands:
 
-- `/remote-pi set-relay <ws://… | wss://…>` — grava URL em
-  `~/.pi/remote/config.json`. Validação rejeita `http://`, `https://`,
-  string vazia e URLs malformadas.
+- `/remote-pi set-relay <http://… | https://…>` — grava URL em
+  `~/.pi/remote/config.json`. Validação rejeita `ws://`, `wss://`,
+  string vazia e URLs malformadas (a extensão converte http(s)→ws(s)
+  internamente ao abrir o WebSocket).
 - `/remote-pi config` — mostra a URL efetiva atual + de qual fonte vem
   (`env`/`config`/`default`).
 

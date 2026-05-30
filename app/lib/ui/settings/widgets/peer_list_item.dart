@@ -1,6 +1,7 @@
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// One row in the paired-peers list (Settings).
 ///
@@ -49,7 +50,7 @@ class PeerListItem extends StatelessWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.delete_outline, color: Colors.white, size: 18),
+            Icon(LucideIcons.trash2, color: Colors.white, size: 18),
             SizedBox(width: 6),
             Text(
               'Revoke',
@@ -118,7 +119,7 @@ class PeerListItem extends StatelessWidget {
             ),
             IconButton(
               tooltip: 'Edit nickname',
-              icon: const Icon(Icons.edit_outlined, size: 18),
+              icon: const Icon(LucideIcons.pencil, size: 18),
               color: kMuted2,
               onPressed: onEditNickname,
             ),

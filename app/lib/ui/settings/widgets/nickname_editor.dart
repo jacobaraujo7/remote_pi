@@ -1,5 +1,6 @@
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Bottom sheet to edit (or clear) a peer's local nickname.
 ///
@@ -121,7 +122,7 @@ class _NicknameEditorSheetState extends State<_NicknameEditorSheet> {
             TextButton.icon(
               onPressed: _remove,
               style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
-              icon: const Icon(Icons.delete_outline, size: 16),
+              icon: const Icon(LucideIcons.trash2, size: 16),
               label: const Text('Remove nickname'),
             ),
             const SizedBox(height: 4),

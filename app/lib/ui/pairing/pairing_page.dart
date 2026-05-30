@@ -7,6 +7,7 @@ import 'package:app/ui/pairing/widgets/nickname_sheet.dart';
 import 'package:app/ui/pairing/widgets/paste_qr_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 
@@ -154,7 +155,7 @@ class _PairingPageState extends State<PairingPage> {
             right: 32,
             child: OutlinedButton.icon(
               onPressed: _openPasteSheet,
-              icon: const Icon(Icons.content_paste_rounded,
+              icon: const Icon(LucideIcons.clipboardPaste,
                   size: 16, color: kAccent),
               label: const Text(
                 "Can't scan? Paste code instead",
@@ -257,7 +258,7 @@ class _ErrorView extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(
-              Icons.error_outline_rounded,
+              LucideIcons.circleAlert,
               color: Colors.redAccent,
               size: 48,
             ),

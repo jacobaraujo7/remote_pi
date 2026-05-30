@@ -5,6 +5,7 @@ import 'package:app/pairing/owner_identity_bridge.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Plan 23 — first-launch gate when the platform's key-sync surface
 /// (iCloud Keychain on iOS, Google Backup / Block Store on Android) is
@@ -55,7 +56,7 @@ class _SyncRequiredPageState extends State<SyncRequiredPage> {
             children: [
               const SizedBox(height: 24),
               Icon(
-                isIOS ? Icons.cloud_off : Icons.backup_outlined,
+                isIOS ? LucideIcons.cloudOff : LucideIcons.cloudUpload,
                 color: kAccent,
                 size: 44,
               ),

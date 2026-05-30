@@ -127,7 +127,7 @@ URI scheme: `remotepi://pair?...`
 Campos (query string, URL-encoded):
 - `t` — token efêmero (16 bytes, base64url). Single-use. Válido por 60s.
 - `pk` — pubkey de longo prazo do Mac (Curve25519, 32 bytes, base64url)
-- `r` — URL do relay (ex: `wss://relay.remote-pi.dev`)
+- `r` — URL do relay (ex: `https://relay-rp1.jacobmoura.work`)
 - `n` — nome legível da sessão (ex: `remote_pi/feature/protocol`). UTF-8, max 80 chars.
 
 QR rotaciona a cada 60s no terminal do Pi. Cada QR aceita 1 scan.

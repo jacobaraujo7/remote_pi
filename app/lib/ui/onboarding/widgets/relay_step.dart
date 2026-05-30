@@ -2,6 +2,7 @@ import 'package:app/data/transport/relay_config.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/onboarding/states/onboarding_state.dart';
 import 'package:flutter/material.dart';
+import 'package:lucide_icons_flutter/lucide_icons.dart';
 
 /// Empty custom URL is allowed — onboarding treats it as "use default
 /// community relay" (saves null in Preferences, falls back to
@@ -160,7 +161,7 @@ class _RelayCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                  selected ? LucideIcons.circleDot : LucideIcons.circle,
                   size: 16,
                   color: selected ? kAccent : kMuted,
                 ),
@@ -251,7 +252,7 @@ class _CustomRelayCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  selected ? Icons.radio_button_checked : Icons.radio_button_off,
+                  selected ? LucideIcons.circleDot : LucideIcons.circle,
                   size: 16,
                   color: selected ? kAccent : kMuted,
                 ),

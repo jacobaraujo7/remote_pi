@@ -182,6 +182,13 @@ class ChatViewModel extends ViewModel<ChatState> {
   Future<void> approveTool(String toolCallId, ApproveDecision decision) =>
       _repo.approveTool(toolCallId, decision);
 
+  /// Plan/28 — invoked by the Quick Actions sheet once the Pi acks a
+  /// `session_new`. Clears the local mirror so the chat reflects the
+  /// fresh session without waiting for a round-trip. The cleared state
+  /// flows back through `_repo.sessionStream` → `_onSession`, so the UI
+  /// updates the same way any other state change does.
+  Future<void> clearActiveSession() => _repo.clearActiveSession();
+
   /// Called from the offline (bye) banner. Clears the sticky `bye` flag
   /// and asks the repo to open the session again.
   Future<void> reconnect() async {

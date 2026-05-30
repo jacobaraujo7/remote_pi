@@ -103,19 +103,21 @@ describe("handleSessionCompact", () => {
 // ── session_new ────────────────────────────────────────────────────────────
 
 describe("handleSessionNew", () => {
-  test("happy path → action_ok", async () => {
+  test("happy path → action_ok + returns true (drives Pi-side reset)", async () => {
     const ctx: ActionCtx = { newSession: async () => ({ cancelled: false }) };
     const sender = makeSender();
-    await handleSessionNew(ctx, sender, { type: "session_new", id: "r2" });
+    const created = await handleSessionNew(ctx, sender, { type: "session_new", id: "r2" });
+    expect(created).toBe(true);
     expect(sender.sent).toEqual([
       { type: "action_ok", in_reply_to: "r2", action: "session_new" },
     ]);
   });
 
-  test("cancelled by extension hook → action_error", async () => {
+  test("cancelled by extension hook → action_error + returns false (no reset)", async () => {
     const ctx: ActionCtx = { newSession: async () => ({ cancelled: true }) };
     const sender = makeSender();
-    await handleSessionNew(ctx, sender, { type: "session_new", id: "r2" });
+    const created = await handleSessionNew(ctx, sender, { type: "session_new", id: "r2" });
+    expect(created).toBe(false);
     expect(sender.sent[0]).toMatchObject({
       type: "action_error",
       action: "session_new",
@@ -123,13 +125,40 @@ describe("handleSessionNew", () => {
     });
   });
 
-  test("ctx without newSession → action_error", async () => {
+  test("ctx without newSession → action_error + returns false (no reset)", async () => {
     const sender = makeSender();
-    await handleSessionNew({}, sender, { type: "session_new", id: "r2" });
+    const created = await handleSessionNew({}, sender, { type: "session_new", id: "r2" });
+    expect(created).toBe(false);
     expect(sender.sent[0]).toMatchObject({
       type: "action_error",
       error: expect.stringContaining("newSession unavailable"),
     });
+  });
+
+  test("re-captures the fresh withSession ctx via onReplaced (avoids stale ctx)", async () => {
+    // Simulate the SDK invoking withSession with a fresh, command-capable ctx
+    // bound to the replacement session — exactly what makes the captured ctx
+    // stale. handleSessionNew must forward that fresh ctx to onReplaced.
+    const freshCtx: ActionCtx = {
+      compact: () => undefined,
+      newSession: async () => ({ cancelled: false }),
+    };
+    const ctx: ActionCtx = {
+      newSession: async (opts) => {
+        await opts?.withSession?.(freshCtx);
+        return { cancelled: false };
+      },
+    };
+    const sender = makeSender();
+    let recaptured: ActionCtx | null = null;
+    const created = await handleSessionNew(
+      ctx,
+      sender,
+      { type: "session_new", id: "r2" },
+      (c) => { recaptured = c; },
+    );
+    expect(created).toBe(true);
+    expect(recaptured).toBe(freshCtx);
   });
 });
 

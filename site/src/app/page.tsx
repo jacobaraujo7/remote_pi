@@ -72,9 +72,9 @@ export default function Home() {
               Pair your phones, drive the mesh.
             </h2>
             <p className="mx-auto max-w-xl text-pretty text-base leading-relaxed text-muted">
-              Your phone is the authenticator and the remote control. Public
-              store releases are on the way; in the meantime, grab the latest
-              Android APK straight from GitHub Releases.
+              Your phone is the authenticator and the remote control. Get it
+              now on the App Store and Google Play, or grab the latest Android
+              APK straight from GitHub Releases.
             </p>
           </div>
           <DownloadButtons />

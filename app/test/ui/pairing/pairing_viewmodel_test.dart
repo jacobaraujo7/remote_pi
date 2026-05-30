@@ -180,6 +180,7 @@ class _FakeSessionRepo implements ISessionRepository {
   @override Future<void> sendMessage(String t) async {}
   @override Future<void> cancel(String id) async {}
   @override Future<void> approveTool(String id, ApproveDecision d) async {}
+  @override Future<void> clearActiveSession() async {}
   @override void dispose() {}
   @override Future<void> disconnect() async => disconnectCalls++;
 

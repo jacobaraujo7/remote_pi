@@ -78,7 +78,15 @@ export interface ActionPi {
  */
 export interface ActionCtx {
   compact?: (options?: object) => void;
-  newSession?: () => Promise<{ cancelled: boolean }>;
+  /**
+   * Starts a new session. `withSession` is the SDK's blessed hook for
+   * post-replacement work: it receives a FRESH, command-capable ctx bound to
+   * the new session. The SDK marks any ctx captured BEFORE this call stale, so
+   * callers must re-capture via `withSession` rather than reuse the old ctx.
+   */
+  newSession?: (options?: {
+    withSession?: (ctx: ActionCtx) => Promise<void>;
+  }) => Promise<{ cancelled: boolean }>;
   getModel?: () => Model<any> | undefined;
 }
 
@@ -141,12 +149,14 @@ async function runAsync(
   msg: { id: string },
   action: ActionName,
   body: () => Promise<void>,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await body();
     ok(sender, msg, action);
+    return true;
   } catch (e) {
     fail(sender, msg, action, e);
+    return false;
   }
 }
 
@@ -173,10 +183,22 @@ export async function handleSessionNew(
   ctx: ActionCtx | null,
   sender: ActionReplySender,
   msg: SessionNewMsg,
-): Promise<void> {
-  await runAsync(sender, msg, "session_new", async () => {
+  onReplaced?: (freshCtx: ActionCtx) => void,
+): Promise<boolean> {
+  // Returns true only when a fresh session was actually created. index.ts
+  // keys the Pi-side reset (clear _messageBuffer, restamp _sessionStartedAt,
+  // fan out an empty session_history) off this signal — a `cancelled`/errored
+  // new-session must NOT reset, so we return runAsync's success boolean.
+  return runAsync(sender, msg, "session_new", async () => {
     if (!ctx?.newSession) throw new Error("newSession unavailable (no command ctx yet)");
-    const result = await ctx.newSession();
+    // newSession marks the caller's captured ctx (index.ts's `_lastCtx`) STALE
+    // — reusing it later throws "stale after session replacement" (the
+    // compact-after-New-session crash). `withSession` hands back a fresh,
+    // command-capable ctx bound to the new session; forward it via onReplaced
+    // so the caller re-captures and keeps later actions off the stale ctx.
+    const result = await ctx.newSession({
+      withSession: async (freshCtx) => { onReplaced?.(freshCtx); },
+    });
     // `cancelled: true` happens when the SDK's hook chain vetoes the new
     // session (e.g. an extension's `session_before_switch` returned a
     // refusal). Surface as a typed error rather than silent success.
