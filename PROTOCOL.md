@@ -236,6 +236,42 @@ Detalhes em `plan/28-pi-commands.md`.
 
 ---
 
+## Imagens (plan/30)
+
+`user_message` aceita um anexo de imagem inline (uma por mensagem hoje),
+opcional e retrocompatível — mensagem só-texto não muda no fio.
+
+### Wire
+ClientMessage `user_message` ganha `images?`:
+
+```jsonc
+{ "type": "user_message", "id": "msg-1", "text": "o que é isto?",
+  "images": [{ "data": "<base64>", "mime": "image/jpeg" }] }
+```
+
+`WireImage = { data: string /* base64 */, mime: string }`. O echo ServerMessage
+`user_message` (broadcast a todos os owners) também carrega `images`, pra cada
+device renderizar o mesmo balão.
+
+### Mapeamento pro modelo
+O Pi monta o content multimodal do SDK na ordem **imagem(ns) → texto**:
+`[{ type:"image", data, mimeType: mime }, { type:"text", text }]` →
+`sendUserMessage(content)`. `mime` (wire) vira `mimeType` (SDK). Sem `images` →
+`sendUserMessage(text)` (string), idêntico ao anterior.
+
+### Capacidade do modelo
+`WireModel` (em `models_list` / `current`) ganha `vision: boolean`, derivado de
+`Model.input.includes("image")`. O app desabilita o anexo quando o modelo ativo
+tem `vision:false`.
+
+### Transporte
+A imagem vai **inline** na `user_message` (base64), dentro do `ct` opaco que já
+existe — **relay inalterado** (forward opaco). Custo: double-base64 (~+77%),
+aceito nesta fatia por usar imagem comprimida (~150–400 KB). Histórico/
+`session_sync` trafega os bytes (decisão #8). Canal binário fica pra Trilha 2.
+
+---
+
 ## Pareamento
 
 QR code mostra Pi-pubkey + room hint + token de uso único.
