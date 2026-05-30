@@ -98,6 +98,7 @@ void main() {
         unawaited(() async {
           final raw = await pi.receive();
           final req = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
+          expect(req['capabilities'], contains('signed_inner_v1'));
           await pi.send(Uint8List.fromList(utf8.encode(jsonEncode({
             'type': 'pair_ok',
             'in_reply_to': req['id'],
@@ -230,5 +231,81 @@ void main() {
             reason: 'when QR lacks r=, persist currentRelayUrl');
       },
     );
+
+    test('rejects downgrade when QR requires signed_inner_v1 but pair_ok omits it', () async {
+      final q1 = _Q();
+      final q2 = _Q();
+      final pi = _MemTransport(send: q1, recv: q2);
+      final app = _MemTransport(send: q2, recv: q1);
+      final qr = QrPairPayload(
+        token: 'AAAAAAAAAAAAAAAAAAAAAA',
+        epk: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        sessionName: 'Pi',
+        roomId: 'room-from-qr',
+        signedInnerRequired: true,
+      );
+
+      unawaited(() async {
+        final raw = await pi.receive();
+        final req = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
+        await pi.send(Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'pair_ok',
+          'in_reply_to': req['id'],
+          'session_name': 'Pi',
+          'session_started_at': 1700000000000,
+          'room_id': 'room-from-qr',
+        }))));
+      }());
+
+      await expectLater(
+        performPairing(
+          qr: qr,
+          transport: app,
+          storage: _FakeStorage(),
+          deviceName: 'phone',
+          currentRelayUrl: 'wss://relay.example',
+        ),
+        throwsA(isA<PairingError>().having((e) => e.code, 'code', 'capability_downgrade')),
+      );
+    });
+
+    test('persists signed_inner_v1 only when pair_ok negotiates it', () async {
+      final q1 = _Q();
+      final q2 = _Q();
+      final pi = _MemTransport(send: q1, recv: q2);
+      final app = _MemTransport(send: q2, recv: q1);
+      final storage = _FakeStorage();
+      final qr = QrPairPayload(
+        token: 'AAAAAAAAAAAAAAAAAAAAAA',
+        epk: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        sessionName: 'Pi',
+        roomId: 'room-from-qr',
+      );
+
+      unawaited(() async {
+        final raw = await pi.receive();
+        final req = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
+        expect(req['capabilities'], contains('signed_inner_v1'));
+        await pi.send(Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'pair_ok',
+          'in_reply_to': req['id'],
+          'session_name': 'Pi',
+          'session_started_at': 1700000000000,
+          'room_id': 'room-from-qr',
+          'capabilities': ['signed_inner_v1'],
+        }))));
+      }());
+
+      final result = await performPairing(
+        qr: qr,
+        transport: app,
+        storage: storage,
+        deviceName: 'phone',
+        currentRelayUrl: 'wss://relay.example',
+      );
+
+      expect(result.peer.supportsSignedInnerV1, isTrue);
+      expect(storage.saved.single.supportsSignedInnerV1, isTrue);
+    });
   });
 }

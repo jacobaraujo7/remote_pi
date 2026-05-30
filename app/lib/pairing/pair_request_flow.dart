@@ -108,6 +108,7 @@ Future<PairingResult> performPairing({
     'id': id,
     'token': qr.token,
     'device_name': deviceName,
+    'capabilities': ['signed_inner_v1'],
   };
   await transport.send(Uint8List.fromList(utf8.encode(jsonEncode(req))));
 
@@ -133,6 +134,16 @@ Future<PairingResult> performPairing({
     final piRoomId = piEchoedRoom
         ? pairOk.roomId
         : (qr.roomId ?? 'main');
+    // signed_inner_v1 starts after pair_ok. The pair_ok itself is bootstrap
+    // traffic so old Pis/apps can still pair; only persist strict mode when
+    // the Pi explicitly echoes the capability.
+    if (qr.signedInnerRequired && !pairOk.supportsSignedInnerV1) {
+      throw PairingError(
+        code: 'capability_downgrade',
+        message: 'Signed inner-message support was advertised in the QR but not confirmed by the Pi.',
+      );
+    }
+
     final peer = PeerRecord(
       remoteEpk: qr.epk,
       sessionName: pairOk.sessionName,
@@ -145,6 +156,7 @@ Future<PairingResult> performPairing({
       // Plan/27 Wave A — null when pi-extension hasn't been upgraded
       // yet to publish `harness` in pair_ok.
       harness: pairOk.harness,
+      supportsSignedInnerV1: pairOk.supportsSignedInnerV1,
     );
     await storage.savePeer(peer);
     return PairingResult(peer: peer, hostnameHint: pairOk.hostname);

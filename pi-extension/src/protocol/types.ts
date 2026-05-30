@@ -5,7 +5,7 @@ export type PairErrorCode =
   | "internal_error";
 
 export type ClientMessage =
-  | { type: "pair_request"; id: string; token: string; device_name: string }
+  | { type: "pair_request"; id: string; token: string; device_name: string; capabilities?: string[] }
   | { type: "user_message"; id: string; text: string }
   | { type: "approve_tool"; id: string; tool_call_id: string; decision: "allow" | "deny" }
   | { type: "cancel"; id: string; target_id: string }
@@ -81,6 +81,7 @@ export type ServerMessage =
        * same project folder.
        */
       hostname?: string;
+      capabilities?: string[];
     }
   | { type: "pair_error"; in_reply_to: string; code: PairErrorCode; message: string }
   | { type: "user_input"; id: string; text: string }

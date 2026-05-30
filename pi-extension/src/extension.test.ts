@@ -42,7 +42,7 @@ vi.mock("./transport/relay_client.js", () => ({
 
 // ── Mock storage ──────────────────────────────────────────────────────────────
 
-type StoredPeer = { name: string; remote_epk: string; paired_at: string };
+type StoredPeer = { name: string; remote_epk: string; paired_at: string; supports_signed_inner_v1?: boolean };
 const _knownPeers: StoredPeer[] = [];
 const _addedPeers: StoredPeer[] = [];
 const _removedPeers: string[] = [];
@@ -337,7 +337,35 @@ describe("state machine + pair_request flow", () => {
     expect(_addedPeers[0]).toMatchObject({
       name: "iPhone do Jacob",
       remote_epk: APP_PEER_ID,
+      supports_signed_inner_v1: false,
     });
+  });
+
+  test("signed-inner capability is persisted and echoed only when requested", async () => {
+    const { generateEd25519Keypair } = await import("./pairing/crypto.js");
+    const APP_PEER_ID = Buffer.from(generateEd25519Keypair().publicKey).toString("base64");
+
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx());
+
+    relayRef.current!.emit("message", makeInnerLine(APP_PEER_ID, {
+      type: "pair_request",
+      id: "req-cap",
+      token: "test-token",
+      device_name: "Capable Phone",
+      capabilities: ["signed_inner_v1"],
+    }));
+
+    await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
+
+    expect(_addedPeers[0]).toMatchObject({
+      name: "Capable Phone",
+      remote_epk: APP_PEER_ID,
+      supports_signed_inner_v1: true,
+    });
+    const sent = relayRef.current!.send.mock.calls.map((c) => c[0] as string);
+    const pairOks = sent.map(decodeSentCt).filter((d) => d.inner.type === "pair_ok");
+    expect(pairOks[0]!.inner["capabilities"]).toEqual(["signed_inner_v1"]);
   });
 
   test("expired token → pair_error{token_expired} + state stays started", async () => {
@@ -457,6 +485,62 @@ describe("state machine + pair_request flow", () => {
     }));
 
     await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
+  });
+
+  test("known signed-inner peer reconnect routes only after verification", async () => {
+    const { generateEd25519Keypair } = await import("./pairing/crypto.js");
+    const { signInnerV1 } = await import("./protocol/signed_inner.js");
+    const { roomIdForCwd } = await import("./rooms.js");
+    const app = generateEd25519Keypair();
+    const APP_PEER_ID = Buffer.from(app.publicKey).toString("base64");
+    const piPk = Buffer.from(new Uint8Array(32)).toString("base64");
+    _knownPeers.push({
+      name: "Signed App",
+      remote_epk: APP_PEER_ID,
+      paired_at: new Date().toISOString(),
+      supports_signed_inner_v1: true,
+    });
+
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx());
+
+    relayRef.current!.emit("message", makeInnerLine(APP_PEER_ID, signInnerV1({
+      payload: { type: "ping", id: "signed-ping" },
+      sender: app,
+      recipientPk: piPk,
+      roomId: roomIdForCwd("/home/user/projects/remote_pi"),
+    })));
+
+    await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
+    const sent = relayRef.current!.send.mock.calls.map((c) => c[0] as string);
+    const signedReplies = sent.map(decodeSentCt).filter((d) => d.inner.type === "signed_inner_v1");
+    expect(signedReplies).toHaveLength(1);
+    expect(signedReplies[0]!.inner["payload_type"]).toBe("pong");
+    expect((signedReplies[0]!.inner["payload"] as Record<string, unknown>)["in_reply_to"]).toBe("signed-ping");
+  });
+
+  test("known signed-inner peer reconnect rejects unsigned first message", async () => {
+    const { generateEd25519Keypair } = await import("./pairing/crypto.js");
+    const app = generateEd25519Keypair();
+    const APP_PEER_ID = Buffer.from(app.publicKey).toString("base64");
+    _knownPeers.push({
+      name: "Signed App",
+      remote_epk: APP_PEER_ID,
+      paired_at: new Date().toISOString(),
+      supports_signed_inner_v1: true,
+    });
+
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx());
+
+    relayRef.current!.emit("message", makeInnerLine(APP_PEER_ID, {
+      type: "ping",
+      id: "unsigned-ping",
+    }));
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(_getState()).toBe("paired");
+    expect(relayRef.current!.send.mock.calls).toHaveLength(0);
   });
 
   test("unknown peer non-pair message → state stays started, no peer added", async () => {
