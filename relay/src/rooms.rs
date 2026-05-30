@@ -19,6 +19,12 @@ pub struct RoomMeta {
     /// never interprets it. None = not reported yet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<String>,
+    /// Whether this room currently has an in-flight agent turn (plano 32).
+    /// A plain bool with the same merge-patch semantics as `thinking`: a
+    /// `room_meta_update` that omits `working` leaves it unchanged — it never
+    /// auto-clears. Defaults to `false` until the Pi reports otherwise, and is
+    /// always serialized so subscribers can rely on its presence.
+    pub working: bool,
     pub started_at: i64,
 }
 
@@ -34,6 +40,10 @@ pub struct RoomMeta {
 pub struct RoomMetaPatch {
     pub model: Option<Option<String>>,
     pub thinking: Option<Option<String>>,
+    /// `working` is a non-nullable bool, so the patch is a single `Option`:
+    /// `None` = field absent (leave current), `Some(b)` = set to `b`. There is
+    /// no "clear to null" — `false` *is* the cleared state.
+    pub working: Option<bool>,
 }
 
 impl RoomMetaPatch {
@@ -41,7 +51,7 @@ impl RoomMetaPatch {
     /// otherwise). Used by the registry to skip work when callers send empty
     /// `meta: {}`.
     pub fn is_empty(&self) -> bool {
-        self.model.is_none() && self.thinking.is_none()
+        self.model.is_none() && self.thinking.is_none() && self.working.is_none()
     }
 }
 

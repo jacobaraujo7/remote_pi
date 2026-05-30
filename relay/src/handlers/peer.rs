@@ -106,6 +106,10 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
             .and_then(|m| m.get("thinking"))
             .and_then(|v| v.as_str())
             .map(String::from);
+        let working = room_meta_val
+            .and_then(|m| m.get("working"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let started_at = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
@@ -116,6 +120,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
             cwd,
             model,
             thinking,
+            working,
             started_at,
         }
     };
@@ -250,14 +255,16 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     }
                                 }
 
-                                // ── room meta update (plano 18 + 28) ──
-                                // `meta.model` and `meta.thinking` are
-                                // patched independently: a field absent from
-                                // `meta` is *left alone* on the room (not
-                                // cleared). A field explicitly set to `null`
-                                // clears it. Mirrors the JSON Merge Patch
-                                // shape clients already produce for thinking
-                                // and model selection.
+                                // ── room meta update (plano 18 + 28 + 32) ──
+                                // `meta.model`, `meta.thinking` and
+                                // `meta.working` are patched independently: a
+                                // field absent from `meta` is *left alone* on
+                                // the room (not cleared). For the nullable
+                                // string fields, an explicit `null` clears
+                                // them. `working` is a plain bool, so it only
+                                // ever toggles — a non-bool/absent value leaves
+                                // it untouched. Mirrors the JSON Merge Patch
+                                // shape clients already produce.
                                 "room_meta_update" => {
                                     let target_room = frame
                                         .get("room_id")
@@ -273,9 +280,13 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     let thinking_patch = meta_obj
                                         .and_then(|m| m.get("thinking"))
                                         .map(|v| v.as_str().map(String::from));
+                                    let working_patch = meta_obj
+                                        .and_then(|m| m.get("working"))
+                                        .and_then(|v| v.as_bool());
                                     let patch = RoomMetaPatch {
                                         model: model_patch,
                                         thinking: thinking_patch,
+                                        working: working_patch,
                                     };
                                     if !registry
                                         .update_room_meta(&peer_id, &target_room, patch)

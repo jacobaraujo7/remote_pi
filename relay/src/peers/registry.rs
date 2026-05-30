@@ -274,9 +274,10 @@ impl PeerRegistry {
     /// Patch semantics: only fields explicitly present in `patch` are written
     /// (see [`RoomMetaPatch`]). The broadcast carries the **post-patch**
     /// full state of the mutable fields — subscribers replace their cached
-    /// `meta` wholesale instead of merging field-by-field. Fields that are
-    /// still `None` after the patch are omitted from `meta` (matching the
-    /// `skip_serializing_if` convention used for `RoomMeta` itself).
+    /// `meta` wholesale instead of merging field-by-field. Nullable fields
+    /// that are still `None` after the patch are omitted from `meta` (matching
+    /// the `skip_serializing_if` convention used for `RoomMeta` itself); the
+    /// non-nullable `working` bool is always present in the broadcast.
     ///
     /// An empty patch (no fields present) still returns `true` if the
     /// `(peer, room)` pair exists, but skips the broadcast — nothing changed.
@@ -286,7 +287,7 @@ impl PeerRegistry {
         room_id: &str,
         patch: RoomMetaPatch,
     ) -> bool {
-        let (current_model, current_thinking) = {
+        let (current_model, current_thinking, current_working) = {
             let mut lock = self.senders.lock().unwrap();
             let key = (peer_id.to_string(), room_id.to_string());
             match lock.get_mut(&key) {
@@ -298,11 +299,18 @@ impl PeerRegistry {
                         if let Some(ref t) = patch.thinking {
                             meta.thinking = t.clone();
                         }
+                        if let Some(w) = patch.working {
+                            meta.working = w;
+                        }
                     }
                     // All conns at this key carry the same post-patch state
                     // now; read the first as the canonical snapshot.
                     let head = v.first().expect("v is non-empty");
-                    (head.1.model.clone(), head.1.thinking.clone())
+                    (
+                        head.1.model.clone(),
+                        head.1.thinking.clone(),
+                        head.1.working,
+                    )
                 }
                 _ => return false,
             }
@@ -322,6 +330,12 @@ impl PeerRegistry {
             if let Some(t) = &current_thinking {
                 meta_obj.insert("thinking".to_string(), serde_json::Value::String(t.clone()));
             }
+            // `working` is always present (non-nullable bool), so it always
+            // rides along in the broadcast — subscribers can rely on it.
+            meta_obj.insert(
+                "working".to_string(),
+                serde_json::Value::Bool(current_working),
+            );
             let msg = serde_json::json!({
                 "type": "room_meta_updated",
                 "peer": peer_id,
@@ -385,6 +399,7 @@ mod tests {
             cwd: None,
             model: None,
             thinking: None,
+            working: false,
             started_at: 0,
         }
     }
@@ -574,5 +589,131 @@ mod tests {
         let [emitted, suppressed, ..] = metrics.snapshot();
         assert_eq!(emitted, 1, "snapshot: {:?}", metrics.snapshot());
         assert_eq!(suppressed, 1, "snapshot: {:?}", metrics.snapshot());
+    }
+
+    /// Helper: a Pi with one `main` room plus an `app` subscribed to that
+    /// peer's room events. Returns the registry, the shared `rooms` handle,
+    /// the peer ids, and the app's receiver (drained of any backfill).
+    async fn meta_fixture() -> (PeerRegistry, String, mpsc::UnboundedReceiver<Message>) {
+        let presence = Arc::new(PresenceManager::new());
+        let rooms = Arc::new(RoomManager::new());
+        let metrics = Arc::new(FirehoseMetrics::new());
+        let reg = PeerRegistry::new(presence, rooms.clone(), metrics);
+
+        let pi = "pi".to_string();
+        let app = "app".to_string();
+
+        // Pi registers first, *before* the app subscribes — so the app gets no
+        // `room_announced` backfill and its channel only carries the
+        // `room_meta_updated` pushes the tests assert on.
+        let (tx_pi, _rx_pi) = mpsc::unbounded_channel::<Message>();
+        let _ = reg.register(pi.clone(), make_meta("main"), tx_pi).await;
+
+        let (tx_app, rx_app) = mpsc::unbounded_channel::<Message>();
+        let _ = reg.register(app.clone(), make_meta("main"), tx_app).await;
+        rooms.subscribe(app.clone(), vec![pi.clone()]).await;
+
+        (reg, pi, rx_app)
+    }
+
+    fn recv_meta(rx: &mut mpsc::UnboundedReceiver<Message>) -> serde_json::Value {
+        let msg = rx
+            .try_recv()
+            .expect("subscriber must receive room_meta_updated");
+        let v: serde_json::Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+        assert_eq!(v["type"], "room_meta_updated");
+        v
+    }
+
+    /// `working: true` patch broadcasts the post-patch state to subscribers.
+    #[tokio::test]
+    async fn working_true_patch_broadcasts_true() {
+        let (reg, pi, mut rx_app) = meta_fixture().await;
+
+        let patch = RoomMetaPatch {
+            working: Some(true),
+            ..Default::default()
+        };
+        assert!(reg.update_room_meta(&pi, "main", patch).await);
+
+        let v = recv_meta(&mut rx_app);
+        assert_eq!(v["peer"], pi);
+        assert_eq!(v["room_id"], "main");
+        assert_eq!(v["meta"]["working"], true);
+    }
+
+    /// `working: false` patch is a real (non-empty) patch and broadcasts
+    /// `working: false` — flipping a previously-true room back off.
+    #[tokio::test]
+    async fn working_false_patch_broadcasts_false() {
+        let (reg, pi, mut rx_app) = meta_fixture().await;
+
+        // Turn it on, then off.
+        let _ = reg
+            .update_room_meta(
+                &pi,
+                "main",
+                RoomMetaPatch {
+                    working: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await;
+        let _ = recv_meta(&mut rx_app); // drain the `true` broadcast
+
+        assert!(
+            reg.update_room_meta(
+                &pi,
+                "main",
+                RoomMetaPatch {
+                    working: Some(false),
+                    ..Default::default()
+                },
+            )
+            .await
+        );
+
+        let v = recv_meta(&mut rx_app);
+        assert_eq!(v["meta"]["working"], false);
+    }
+
+    /// A patch that omits `working` (e.g. a model-only update) must NOT zero a
+    /// previously-set `working: true` — merge-patch absence leaves it intact,
+    /// and the broadcast re-carries the preserved value.
+    #[tokio::test]
+    async fn working_absent_patch_does_not_zero() {
+        let (reg, pi, mut rx_app) = meta_fixture().await;
+
+        let _ = reg
+            .update_room_meta(
+                &pi,
+                "main",
+                RoomMetaPatch {
+                    working: Some(true),
+                    ..Default::default()
+                },
+            )
+            .await;
+        let _ = recv_meta(&mut rx_app); // drain the `true` broadcast
+
+        // Model-only patch: `working` is absent → must be left untouched.
+        assert!(
+            reg.update_room_meta(
+                &pi,
+                "main",
+                RoomMetaPatch {
+                    model: Some(Some("opus".into())),
+                    ..Default::default()
+                },
+            )
+            .await
+        );
+
+        let v = recv_meta(&mut rx_app);
+        assert_eq!(v["meta"]["model"], "opus");
+        assert_eq!(
+            v["meta"]["working"], true,
+            "absent `working` in a patch must not clear it"
+        );
     }
 }

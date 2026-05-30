@@ -675,6 +675,230 @@ async fn room_announced_and_rooms_check_include_thinking_from_hello() {
     assert_eq!(rooms[0]["model"], "claude-sonnet-4-6");
 }
 
+/// Plan 32 (Part B Wave 1): `room_meta_update` with `meta.working` propagates
+/// to subscribers, toggling both `true` and `false` through the broadcast.
+#[tokio::test]
+async fn room_meta_update_propagates_working() {
+    let port = start_relay().await;
+    let sk_pi = random_key();
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+    let peer_pi = B64.encode(sk_pi.verifying_key().to_bytes());
+
+    let (mut ws_pi, _) = connect_and_auth_with_key(port, &sk_pi).await; // room "main"
+    let (mut ws_app, _) = connect_and_auth(port).await;
+
+    ws_app
+        .send(Message::text(
+            json!({"type": "subscribe_rooms", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+
+    // Pi flips working on.
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"working": true},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let m1 = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for working=true")
+        .unwrap()
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_str(m1.to_text().unwrap()).unwrap();
+    assert_eq!(v1["type"], "room_meta_updated", "got: {v1}");
+    assert_eq!(v1["peer"], peer_pi);
+    assert_eq!(v1["room_id"], "main");
+    assert_eq!(
+        v1["meta"]["working"], true,
+        "working=true must round-trip: {v1}"
+    );
+
+    // Pi flips working back off.
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"working": false},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let m2 = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for working=false")
+        .unwrap()
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_str(m2.to_text().unwrap()).unwrap();
+    assert_eq!(
+        v2["meta"]["working"], false,
+        "working=false must round-trip: {v2}"
+    );
+}
+
+/// Plan 32 (Part B Wave 1): a `room_meta_update` carrying only `model` must
+/// NOT clear a previously-set `working: true`. Merge-patch semantics: absent
+/// fields are preserved (working never auto-zeroes).
+#[tokio::test]
+async fn room_meta_update_with_only_model_preserves_working() {
+    let port = start_relay().await;
+    let sk_pi = random_key();
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+    let peer_pi = B64.encode(sk_pi.verifying_key().to_bytes());
+
+    let (mut ws_pi, _) = connect_and_auth_with_key(port, &sk_pi).await;
+    let (mut ws_app, _) = connect_and_auth(port).await;
+
+    ws_app
+        .send(Message::text(
+            json!({"type": "subscribe_rooms", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+
+    // Step 1 — set working only.
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"working": true},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let first = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out on first room_meta_updated")
+        .unwrap()
+        .unwrap();
+    let v1: serde_json::Value = serde_json::from_str(first.to_text().unwrap()).unwrap();
+    assert_eq!(v1["meta"]["working"], true);
+
+    // Step 2 — set model only. `working` must survive the model-only patch.
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"model": "claude-opus-4-7"},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let second = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out on second room_meta_updated")
+        .unwrap()
+        .unwrap();
+    let v2: serde_json::Value = serde_json::from_str(second.to_text().unwrap()).unwrap();
+    assert_eq!(v2["meta"]["model"], "claude-opus-4-7");
+    assert_eq!(
+        v2["meta"]["working"], true,
+        "working must be preserved when patch only carries model: {v2}"
+    );
+}
+
+/// Plan 32 (Part B Wave 1): `room_meta.working` from the hello frame is
+/// included in `room_announced` (flat, top-level, matching the `model`/
+/// `thinking` shape) and in `rooms_check` snapshots.
+#[tokio::test]
+async fn room_announced_and_rooms_check_include_working_from_hello() {
+    let port = start_relay().await;
+    let sk_pi = random_key();
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+    use ed25519_dalek::Signer;
+    let peer_pi = B64.encode(sk_pi.verifying_key().to_bytes());
+
+    // App subscribes first so it catches room_announced.
+    let (mut ws_app, _) = connect_and_auth(port).await;
+    ws_app
+        .send(Message::text(
+            json!({"type": "subscribe_rooms", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+
+    // Pi connects already working.
+    let url = format!("ws://127.0.0.1:{port}");
+    let (mut ws_pi, _) = tokio_tungstenite::connect_async(&url).await.unwrap();
+    let vk = sk_pi.verifying_key();
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "hello",
+                "pubkey": B64.encode(vk.to_bytes()),
+                "room_id": "main",
+                "room_meta": {
+                    "name": "busy-room",
+                    "working": true,
+                },
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let challenge_msg = ws_pi.next().await.unwrap().unwrap();
+    let cj: serde_json::Value = serde_json::from_str(challenge_msg.to_text().unwrap()).unwrap();
+    let nonce_arr: [u8; 32] = B64
+        .decode(cj["nonce"].as_str().unwrap())
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let sig = sk_pi.sign(&nonce_arr);
+    ws_pi
+        .send(Message::text(
+            json!({"type": "auth", "sig": B64.encode(sig.to_bytes())}).to_string(),
+        ))
+        .await
+        .unwrap();
+    tokio::time::sleep(tokio::time::Duration::from_millis(30)).await;
+
+    let msg = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for room_announced")
+        .unwrap()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+    assert_eq!(v["type"], "room_announced", "got: {v}");
+    assert_eq!(v["working"], true, "working flat on room_announced: {v}");
+    assert_eq!(v["name"], "busy-room");
+
+    // rooms_check should also carry working on the per-room object.
+    ws_app
+        .send(Message::text(
+            json!({"type": "rooms_check", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    let snap = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out on rooms snapshot")
+        .unwrap()
+        .unwrap();
+    let s: serde_json::Value = serde_json::from_str(snap.to_text().unwrap()).unwrap();
+    assert_eq!(s["type"], "rooms");
+    let rooms = s["rooms"].as_array().unwrap();
+    assert_eq!(rooms.len(), 1);
+    assert_eq!(
+        rooms[0]["working"], true,
+        "working flat on rooms snapshot: {s}"
+    );
+}
+
 /// rooms_check after room_meta_update reflects the updated model.
 #[tokio::test]
 async fn rooms_check_reflects_updated_model() {
