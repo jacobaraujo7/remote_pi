@@ -100,6 +100,10 @@ class PeerRecord {
   /// fall back to [PiHarness.piCodingAgentUnknown] so the UI never
   /// renders an empty subtitle.
   final PiHarness? harness;
+  /// Owner signing public key proven during pair_request_v2.
+  final String? ownerPk;
+  /// Relay-authenticated app peer key bound into pair_request_v2.
+  final String? appPeerPk;
 
   const PeerRecord({
     required this.remoteEpk,
@@ -109,6 +113,8 @@ class PeerRecord {
     this.nickname,
     this.roomId,
     this.harness,
+    this.ownerPk,
+    this.appPeerPk,
   });
 
   Map<String, dynamic> toJson() => {
@@ -119,6 +125,8 @@ class PeerRecord {
     'nickname': nickname,
     'room_id': roomId,
     if (harness != null) 'harness': harness!.toJson(),
+    if (ownerPk != null) 'owner_pk': ownerPk,
+    if (appPeerPk != null) 'app_peer_pk': appPeerPk,
   };
 
   factory PeerRecord.fromJson(Map<String, dynamic> j) {
@@ -139,6 +147,8 @@ class PeerRecord {
       harness: harnessJson is Map<String, dynamic>
           ? PiHarness.fromJson(harnessJson)
           : null,
+      ownerPk: j['owner_pk'] as String?,
+      appPeerPk: j['app_peer_pk'] as String?,
     );
   }
 
@@ -148,6 +158,8 @@ class PeerRecord {
     Object? nickname = _unset,
     Object? roomId = _unset,
     Object? harness = _unset,
+    Object? ownerPk = _unset,
+    Object? appPeerPk = _unset,
   }) => PeerRecord(
     remoteEpk: remoteEpk,
     sessionName: sessionName ?? this.sessionName,
@@ -162,6 +174,12 @@ class PeerRecord {
     harness: identical(harness, _unset)
         ? this.harness
         : harness as PiHarness?,
+    ownerPk: identical(ownerPk, _unset)
+        ? this.ownerPk
+        : ownerPk as String?,
+    appPeerPk: identical(appPeerPk, _unset)
+        ? this.appPeerPk
+        : appPeerPk as String?,
   );
 
   @override
@@ -173,7 +191,9 @@ class PeerRecord {
       other.pairedAt == pairedAt &&
       other.nickname == nickname &&
       other.roomId == roomId &&
-      other.harness == harness;
+      other.harness == harness &&
+      other.ownerPk == ownerPk &&
+      other.appPeerPk == appPeerPk;
 
   @override
   int get hashCode => Object.hash(
@@ -184,6 +204,8 @@ class PeerRecord {
         nickname,
         roomId,
         harness,
+        ownerPk,
+        appPeerPk,
       );
 }
 

@@ -5,6 +5,7 @@ const TOKEN_TTL_MS = 60_000;
 
 interface ActiveToken {
   token: string;
+  pairNonce: string;
   expiresAt: number;
   consumed: boolean;
 }
@@ -20,13 +21,28 @@ export class QRSession {
 
   /**
    * Issues a new active token, invalidating any previous one.
-   * Returns the token and its expiry timestamp.
+   * Returns the token, pair nonce, and expiry timestamp.
    */
-  issueToken(): { token: string; expiresAt: number } {
+  issueToken(): { token: string; pairNonce: string; expiresAt: number } {
     const token = this.generateToken();
+    const pairNonce = randomBytes(16).toString("base64url");
     const expiresAt = Date.now() + TOKEN_TTL_MS;
-    this.active = { token, expiresAt, consumed: false };
-    return { token, expiresAt };
+    this.active = { token, pairNonce, expiresAt, consumed: false };
+    return { token, pairNonce, expiresAt };
+  }
+
+  /** Checks a token without consuming it; used before v2 signature verification. */
+  checkToken(token: string):
+    | { status: "ok"; pairNonce: string; expiresAt: number }
+    | { status: "expired" | "consumed" | "unknown" } {
+    if (!this.active || this.active.token !== token) return { status: "unknown" };
+    if (this.active.consumed) return { status: "consumed" };
+    if (Date.now() > this.active.expiresAt) return { status: "expired" };
+    return {
+      status: "ok",
+      pairNonce: this.active.pairNonce,
+      expiresAt: this.active.expiresAt,
+    };
   }
 
   /** Validates and atomically consumes a token. */
@@ -60,6 +76,8 @@ export function buildQRUri(
    * cai em room=main e o relay drops com "dest not found").
    */
   roomId?: string,
+  pairNonce?: string,
+  expiresAt?: number,
 ): string {
   // `r` (relay URL) removed in plano 14 — relay now comes from app config /
   // pi-ext env|config|default chain. Keeps QR ~30-50 chars shorter.
@@ -75,6 +93,8 @@ export function buildQRUri(
     n: sessionName.slice(0, 80),
   });
   if (roomId) params.set("rm", roomId);
+  if (pairNonce) params.set("pn", pairNonce);
+  if (expiresAt !== undefined) params.set("exp", String(expiresAt));
   return `remotepi://pair?${params.toString()}`;
 }
 
@@ -121,8 +141,8 @@ export function startQRRotation(
 
   const rotate = () => {
     if (stopped) return;
-    const { token, expiresAt } = qrSession.issueToken();
-    const uri = buildQRUri(token, longtermEdPk, sessionName, roomId);
+    const { token, pairNonce, expiresAt } = qrSession.issueToken();
+    const uri = buildQRUri(token, longtermEdPk, sessionName, roomId, pairNonce, expiresAt);
     displayQR(uri);
     console.log(
       `⏱  Renews at ${new Date(expiresAt).toLocaleTimeString()} — waiting for scan…`,

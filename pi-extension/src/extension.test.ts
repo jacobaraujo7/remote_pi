@@ -9,6 +9,7 @@ import { EventEmitter } from "node:events";
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
+import { roomIdForCwd } from "./rooms.js";
 
 // ── Mock RelayClient ──────────────────────────────────────────────────────────
 
@@ -40,9 +41,31 @@ vi.mock("./transport/relay_client.js", () => ({
   RoomAlreadyOpenError: MockRoomAlreadyOpenError,
 }));
 
+vi.mock("./pairing/signed_pairing.js", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("./pairing/signed_pairing.js")>();
+  return {
+    ...orig,
+    verifyPairRequestV2Signature: vi.fn().mockImplementation((req: { app_peer_pk?: string; sig?: string }, relayPeer: string) => {
+      if (req.app_peer_pk !== relayPeer) {
+        return { ok: false, code: "app_peer_mismatch", message: "app_peer_pk does not match relay-authenticated peer" };
+      }
+      if (req.sig === "bad-signature") {
+        return { ok: false, code: "signature_invalid", message: "Invalid pair_request_v2 signature" };
+      }
+      return { ok: true };
+    }),
+  };
+});
+
 // ── Mock storage ──────────────────────────────────────────────────────────────
 
-type StoredPeer = { name: string; remote_epk: string; paired_at: string };
+type StoredPeer = {
+  name: string;
+  remote_epk: string;
+  paired_at: string;
+  owner_pk?: string;
+  app_peer_pk?: string;
+};
 const _knownPeers: StoredPeer[] = [];
 const _addedPeers: StoredPeer[] = [];
 const _removedPeers: string[] = [];
@@ -103,7 +126,7 @@ vi.mock("./config.js", async (importOriginal) => {
   };
 });
 
-// ── Mock qrSession.consumeToken control ───────────────────────────────────────
+// ── Mock qrSession token control ──────────────────────────────────────────────
 
 let _tokenStatus: "ok" | "expired" | "consumed" | "unknown" = "ok";
 const _consumeCalls: string[] = [];
@@ -116,7 +139,12 @@ vi.mock("./pairing/qr.js", async (importOriginal) => {
     qrSession: {
       issueToken: vi.fn().mockReturnValue({
         token: "test-token",
-        expiresAt: Date.now() + 60_000,
+        pairNonce: "test-pair-nonce",
+        expiresAt: 1_700_000_060_000,
+      }),
+      checkToken: vi.fn().mockImplementation((token: string) => {
+        if (_tokenStatus !== "ok") return { status: _tokenStatus };
+        return { status: "ok", pairNonce: "test-pair-nonce", expiresAt: 1_700_000_060_000 };
       }),
       consumeToken: vi.fn().mockImplementation((token: string) => {
         _consumeCalls.push(token);
@@ -141,6 +169,7 @@ const {
   _getMessageBufferForTest,
   _setCurrentModelForTest,
   _connectForTest,
+  _stopForTest,
   _hasActivePeerForTest,
   _getActivePeerCountForTest,
 } = await import("./index.js");
@@ -184,7 +213,21 @@ function captureHandler(commandName: string): CmdHandler {
 }
 
 function makeInnerLine(peer: string, inner: object): string {
-  const ct = Buffer.from(JSON.stringify(inner)).toString("base64");
+  const record = inner as Record<string, unknown>;
+  const wire = record["type"] === "pair_request"
+    ? {
+        ...record,
+        type: "pair_request_v2",
+        owner_pk: record["owner_pk"] ?? peer,
+        app_peer_pk: record["app_peer_pk"] ?? peer,
+        pi_pk: record["pi_pk"] ?? Buffer.from(new Uint8Array(32)).toString("base64"),
+        room_id: record["room_id"] ?? roomIdForCwd("/home/user/projects/remote_pi"),
+        pair_nonce: record["pair_nonce"] ?? "test-pair-nonce",
+        expires_at: record["expires_at"] ?? 1_700_000_060_000,
+        sig: record["sig"] ?? "test-signature",
+      }
+    : record;
+  const ct = Buffer.from(JSON.stringify(wire)).toString("base64");
   return JSON.stringify({ peer, ct });
 }
 
@@ -262,8 +305,14 @@ describe("state machine + pair_request flow", () => {
     _consumeCalls.length = 0;
     _tokenStatus = "ok";
     relayRef.current = null;
-    // Restore default consumeToken behavior — earlier tests can override it.
+    // Restore default token behavior — earlier tests can override it.
     const qr = await import("./pairing/qr.js");
+    (qr.qrSession.checkToken as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (token: string) => {
+        if (_tokenStatus !== "ok") return { status: _tokenStatus };
+        return { status: "ok", pairNonce: "test-pair-nonce", expiresAt: 1_700_000_060_000 };
+      },
+    );
     (qr.qrSession.consumeToken as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (token: string) => {
         _consumeCalls.push(token);
@@ -337,7 +386,81 @@ describe("state machine + pair_request flow", () => {
     expect(_addedPeers[0]).toMatchObject({
       name: "iPhone do Jacob",
       remote_epk: APP_PEER_ID,
+      owner_pk: APP_PEER_ID,
+      app_peer_pk: APP_PEER_ID,
     });
+  });
+
+  test("legacy unsigned pair_request is rejected", async () => {
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx());
+
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "legacy-peer",
+      ct: Buffer.from(JSON.stringify({
+        type: "pair_request",
+        id: "req-legacy",
+        token: "test-token",
+        device_name: "Old App",
+      })).toString("base64"),
+    }));
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(_getState()).toBe("started");
+    expect(_addedPeers).toHaveLength(0);
+    const sent = relayRef.current!.send.mock.calls.map((c) => c[0] as string);
+    const errs = sent.map(decodeSentCt).filter((d) => d.inner.type === "pair_error");
+    expect(errs).toHaveLength(1);
+    expect(errs[0]!.inner).toMatchObject({
+      type: "pair_error",
+      in_reply_to: "req-legacy",
+      code: "pair_unsupported",
+    });
+  });
+
+  test("pair_request_v2 QR-binding mismatches fail before token consumption", async () => {
+    const cases: Array<{ name: string; patch: Record<string, unknown> }> = [
+      { name: "pi_pk", patch: { pi_pk: Buffer.from(new Uint8Array(32).fill(9)).toString("base64") } },
+      { name: "room_id", patch: { room_id: "wrong-room" } },
+      { name: "pair_nonce", patch: { pair_nonce: "wrong-nonce" } },
+      { name: "expires_at", patch: { expires_at: 1_700_000_999_000 } },
+      { name: "app_peer_pk", patch: { app_peer_pk: "different-app-peer" } },
+      { name: "sig", patch: { sig: "bad-signature" } },
+    ];
+
+    for (const c of cases) {
+      await _stopForTest(makeMockCtx());
+      vi.clearAllMocks();
+      _addedPeers.length = 0;
+      _consumeCalls.length = 0;
+      _tokenStatus = "ok";
+      relayRef.current = null;
+
+      captureHandler("remote-pi");
+      await _connectForTest(makeMockCtx());
+
+      relayRef.current!.emit("message", makeInnerLine(`bad-${c.name}`, {
+        type: "pair_request",
+        id: `req-bad-${c.name}`,
+        token: "test-token",
+        device_name: "Bad Phone",
+        ...c.patch,
+      }));
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(_getState(), c.name).toBe("started");
+      expect(_addedPeers, c.name).toHaveLength(0);
+      expect(_consumeCalls, c.name).toHaveLength(0);
+      const sent = relayRef.current!.send.mock.calls.map((call) => call[0] as string);
+      const errs = sent.map(decodeSentCt).filter((d) => d.inner.type === "pair_error");
+      expect(errs, c.name).toHaveLength(1);
+      expect(errs[0]!.inner).toMatchObject({
+        type: "pair_error",
+        in_reply_to: `req-bad-${c.name}`,
+        code: "pair_invalid",
+      });
+    }
   });
 
   test("expired token → pair_error{token_expired} + state stays started", async () => {
@@ -685,11 +808,8 @@ describe("/remote-pi revoke", () => {
     captureHandler("remote-pi");
     await _connectForTest(makeMockCtx());
 
-    relayRef.current!.emit("message", JSON.stringify({
-      peer: ACTIVE_PEER,
-      ct: Buffer.from(JSON.stringify({
-        type: "pair_request", id: "req-1", token: "test-token", device_name: "Active Phone",
-      })).toString("base64"),
+    relayRef.current!.emit("message", makeInnerLine(ACTIVE_PEER, {
+      type: "pair_request", id: "req-1", token: "test-token", device_name: "Active Phone",
     }));
     await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
 
@@ -715,11 +835,8 @@ describe("/remote-pi revoke", () => {
 
     await _connectForTest(makeMockCtx());
 
-    relayRef.current!.emit("message", JSON.stringify({
-      peer: ACTIVE_PEER,
-      ct: Buffer.from(JSON.stringify({
-        type: "pair_request", id: "req-1", token: "test-token", device_name: "Active Phone",
-      })).toString("base64"),
+    relayRef.current!.emit("message", makeInnerLine(ACTIVE_PEER, {
+      type: "pair_request", id: "req-1", token: "test-token", device_name: "Active Phone",
     }));
     await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
 
@@ -763,11 +880,8 @@ function captureEventHandler(eventName: string): EventHandler {
 async function _pairForTest(appPeerId: string): Promise<void> {
   captureHandler("remote-pi");
   await _connectForTest(makeMockCtx());
-  relayRef.current!.emit("message", JSON.stringify({
-    peer: appPeerId,
-    ct: Buffer.from(JSON.stringify({
-      type: "pair_request", id: "req-1", token: "test-token", device_name: "Phone",
-    })).toString("base64"),
+  relayRef.current!.emit("message", makeInnerLine(appPeerId, {
+    type: "pair_request", id: "req-1", token: "test-token", device_name: "Phone",
   }));
   await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
 }
@@ -775,11 +889,8 @@ async function _pairForTest(appPeerId: string): Promise<void> {
 /** Adds a second pair_request from a new peer to an already-running Pi.
  *  Used by multi-channel tests to verify the catch-22 is gone. */
 async function _pairAdditionalForTest(appPeerId: string, deviceName: string): Promise<void> {
-  relayRef.current!.emit("message", JSON.stringify({
-    peer: appPeerId,
-    ct: Buffer.from(JSON.stringify({
-      type: "pair_request", id: `req-${appPeerId.slice(0, 6)}`, token: "test-token", device_name: deviceName,
-    })).toString("base64"),
+  relayRef.current!.emit("message", makeInnerLine(appPeerId, {
+    type: "pair_request", id: `req-${appPeerId.slice(0, 6)}`, token: "test-token", device_name: deviceName,
   }));
   await vi.waitFor(
     () => expect(_hasActivePeerForTest(appPeerId)).toBe(true),
@@ -1476,7 +1587,17 @@ describe("rooms wiring", () => {
     relayRef.current!.emit("message", JSON.stringify({
       peer: "peer-room-test",
       ct: Buffer.from(JSON.stringify({
-        type: "pair_request", id: "req-1", token: "test-token", device_name: "Phone",
+        type: "pair_request_v2",
+        id: "req-1",
+        token: "test-token",
+        device_name: "Phone",
+        owner_pk: "peer-room-test",
+        app_peer_pk: "peer-room-test",
+        pi_pk: Buffer.from(new Uint8Array(32)).toString("base64"),
+        room_id: roomIdForCwd("/tmp/remote-pi-room-test"),
+        pair_nonce: "test-pair-nonce",
+        expires_at: 1_700_000_060_000,
+        sig: "test-signature",
       })).toString("base64"),
     }));
     await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });

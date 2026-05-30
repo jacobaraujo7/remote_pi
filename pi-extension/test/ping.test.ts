@@ -7,6 +7,7 @@
  */
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { EventEmitter } from "node:events";
+import { roomIdForCwd } from "../src/rooms.js";
 
 // ── Mock RelayClient ──────────────────────────────────────────────────────────
 
@@ -53,6 +54,14 @@ vi.mock("../src/config.js", async (importOriginal) => {
   };
 });
 
+vi.mock("../src/pairing/signed_pairing.js", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("../src/pairing/signed_pairing.js")>();
+  return {
+    ...orig,
+    verifyPairRequestV2Signature: vi.fn().mockReturnValue({ ok: true }),
+  };
+});
+
 // ── Mock qr ───────────────────────────────────────────────────────────────────
 
 vi.mock("../src/pairing/qr.js", async (importOriginal) => {
@@ -61,7 +70,8 @@ vi.mock("../src/pairing/qr.js", async (importOriginal) => {
     ...orig,
     displayQR: vi.fn(),
     qrSession: {
-      issueToken: vi.fn().mockReturnValue({ token: "test-token", expiresAt: Date.now() + 60_000 }),
+      issueToken: vi.fn().mockReturnValue({ token: "test-token", pairNonce: "test-pair-nonce", expiresAt: 1_700_000_060_000 }),
+      checkToken: vi.fn().mockReturnValue({ status: "ok", pairNonce: "test-pair-nonce", expiresAt: 1_700_000_060_000 }),
       consumeToken: vi.fn().mockReturnValue("ok"),
       clear: vi.fn(),
       generateToken: vi.fn().mockReturnValue("test-token"),
@@ -93,7 +103,21 @@ function makeMockCtx() {
 }
 
 function makeInnerLine(peer: string, inner: object): string {
-  const ct = Buffer.from(JSON.stringify(inner)).toString("base64");
+  const record = inner as Record<string, unknown>;
+  const wire = record["type"] === "pair_request"
+    ? {
+        ...record,
+        type: "pair_request_v2",
+        owner_pk: peer,
+        app_peer_pk: peer,
+        pi_pk: Buffer.from(new Uint8Array(32)).toString("base64"),
+        room_id: roomIdForCwd("/tmp/test"),
+        pair_nonce: "test-pair-nonce",
+        expires_at: 1_700_000_060_000,
+        sig: "test-signature",
+      }
+    : record;
+  const ct = Buffer.from(JSON.stringify(wire)).toString("base64");
   return JSON.stringify({ peer, ct });
 }
 

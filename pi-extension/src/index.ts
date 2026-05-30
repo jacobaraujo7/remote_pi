@@ -39,6 +39,7 @@ import type {
 } from "@mariozechner/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
 import { buildQRUri, qrSession, renderQRAscii } from "./pairing/qr.js";
+import { verifyPairRequestV2Signature } from "./pairing/signed_pairing.js";
 import {
   addPeer,
   getOrCreateEd25519Keypair,
@@ -782,8 +783,13 @@ function _installAutoListener(relay: RelayClient): () => void {
 
     const appPeerId = outer.peer;
 
+    if (inner.type === "pair_request_v2") {
+      await _handlePairRequestV2(relay, appPeerId, inner);
+      return;
+    }
+
     if (inner.type === "pair_request") {
-      await _handlePairRequest(relay, appPeerId, inner);
+      _sendPairError(relay, appPeerId, inner.id, "pair_unsupported", "This Pi requires signed pair_request_v2. Update the Remote Pi app and re-scan QR.");
       return;
     }
 
@@ -841,31 +847,67 @@ const _HARNESS = {
 } as const;
 const _HOSTNAME = hostname();
 
-async function _handlePairRequest(
+function _sendPairInner(relay: RelayClient, appPeerId: string, msg: ServerMessage): void {
+  const ct = Buffer.from(JSON.stringify(msg)).toString("base64");
+  relay.send(JSON.stringify({ peer: appPeerId, ct }));
+}
+
+function _sendPairError(
   relay: RelayClient,
   appPeerId: string,
-  inner: Extract<ClientMessage, { type: "pair_request" }>,
+  inReplyTo: string,
+  code: PairErrorCode,
+  message: string,
+): void {
+  _sendPairInner(relay, appPeerId, { type: "pair_error", in_reply_to: inReplyTo, code, message });
+}
+
+async function _handlePairRequestV2(
+  relay: RelayClient,
+  appPeerId: string,
+  inner: Extract<ClientMessage, { type: "pair_request_v2" }>,
 ): Promise<void> {
-  const sendInner = (msg: ServerMessage) => {
-    const ct = Buffer.from(JSON.stringify(msg)).toString("base64");
-    relay.send(JSON.stringify({ peer: appPeerId, ct }));
-  };
-
-  const sendError = (code: PairErrorCode, message: string) => {
-    sendInner({ type: "pair_error", in_reply_to: inner.id, code, message });
-  };
-
-  const status = qrSession.consumeToken(inner.token);
-  if (status !== "ok") {
+  const tokenCheck = qrSession.checkToken(inner.token);
+  if (tokenCheck.status !== "ok") {
     const code: PairErrorCode =
-      status === "expired"  ? "token_expired"
-      : status === "consumed" ? "token_consumed"
+      tokenCheck.status === "expired"  ? "token_expired"
+      : tokenCheck.status === "consumed" ? "token_consumed"
       : "token_unknown";
     const msg =
       code === "token_expired"  ? "Ephemeral token expired. Generate a new QR with /remote-pi pair."
       : code === "token_consumed" ? "Token already consumed by another pair_request."
       : "Token was not issued by this Pi.";
-    sendError(code, msg);
+    _sendPairError(relay, appPeerId, inner.id, code, msg);
+    return;
+  }
+
+  const cwd = _lastCtx && "cwd" in _lastCtx
+    ? (_lastCtx as ExtensionCommandContext).cwd
+    : process.cwd();
+  const expectedPiPk = _cachedEd25519
+    ? Buffer.from(_cachedEd25519.publicKey).toString("base64")
+    : "";
+  const expectedRoomId = _myRoomId ?? roomIdForCwd(cwd);
+
+  if (
+    inner.pi_pk !== expectedPiPk ||
+    inner.room_id !== expectedRoomId ||
+    inner.pair_nonce !== tokenCheck.pairNonce ||
+    inner.expires_at !== tokenCheck.expiresAt
+  ) {
+    _sendPairError(relay, appPeerId, inner.id, "pair_invalid", "Pair request does not match the active QR session.");
+    return;
+  }
+
+  const sigCheck = verifyPairRequestV2Signature(inner, appPeerId);
+  if (!sigCheck.ok) {
+    _sendPairError(relay, appPeerId, inner.id, "pair_invalid", sigCheck.message);
+    return;
+  }
+
+  const consumeStatus = qrSession.consumeToken(inner.token);
+  if (consumeStatus !== "ok") {
+    _sendPairError(relay, appPeerId, inner.id, "token_consumed", "Token already consumed by another pair_request.");
     return;
   }
 
@@ -874,16 +916,15 @@ async function _handlePairRequest(
       name: inner.device_name,
       remote_epk: appPeerId,
       paired_at: new Date().toISOString(),
+      owner_pk: inner.owner_pk,
+      app_peer_pk: inner.app_peer_pk,
     });
     _refreshPairingsCache();
   } catch (err) {
-    sendError("internal_error", `Failed to persist peer: ${String(err)}`);
+    _sendPairError(relay, appPeerId, inner.id, "internal_error", `Failed to persist peer: ${String(err)}`);
     return;
   }
 
-  const cwd = _lastCtx && "cwd" in _lastCtx
-    ? (_lastCtx as ExtensionCommandContext).cwd
-    : process.cwd();
   // Prefer the user-configured agent_name (with broker suffix when on the
   // mesh) over the legacy parent/folder path — matches what the user sees
   // in the terminal title and in /remote-pi status.
@@ -891,16 +932,14 @@ async function _handlePairRequest(
 
   _attachOwner(relay, appPeerId, inner.device_name);
 
-  sendInner({
+  _sendPairInner(relay, appPeerId, {
     type: "pair_ok",
     in_reply_to: inner.id,
     session_name: sessionName,
     session_started_at: _sessionStartedAt ?? Date.now(),
     // App uses this to address subsequent inner messages to the right room
-    // when this Pi runs alongside others with the same epk. Defensive fallback
-    // to roomIdForCwd(cwd) covers the edge case where pair_request lands
-    // before _cmdStart could set _myRoomId (shouldn't happen in practice).
-    room_id: _myRoomId ?? roomIdForCwd(cwd),
+    // when this Pi runs alongside others with the same epk.
+    room_id: expectedRoomId,
     // Plan/27 Wave A — surface the host coding-agent identity + machine
     // hostname so the app can render a meaningful device row (and tell
     // two PCs apart even when nicknames collide).
@@ -1515,9 +1554,9 @@ async function _cmdPair(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   // raw path snippet).
   const sessionName = _displayName(cwd);
 
-  const { token, expiresAt } = qrSession.issueToken();
+  const { token, pairNonce, expiresAt } = qrSession.issueToken();
   const roomId = _myRoomId ?? roomIdForCwd(cwd);
-  const qrUri = buildQRUri(token, edKp.publicKey, sessionName, roomId);
+  const qrUri = buildQRUri(token, edKp.publicKey, sessionName, roomId, pairNonce, expiresAt);
   // Render both the QR ASCII and the copy-paste URI inside the Pi TUI's
   // chat panel via `pi.sendMessage` — the same channel the SDK uses for
   // agent responses + tool results. `process.stderr.write` (the old QR

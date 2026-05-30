@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:app/pairing/pair_request_flow.dart';
 import 'package:app/pairing/qr_scanner.dart';
 import 'package:app/pairing/storage.dart';
+import 'package:cryptography/cryptography.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _Q {
@@ -230,5 +231,89 @@ void main() {
             reason: 'when QR lacks r=, persist currentRelayUrl');
       },
     );
+
+    test('signed QR without Owner key throws owner_identity_required before sending', () async {
+      final q1 = _Q();
+      final q2 = _Q();
+      final app = _MemTransport(send: q2, recv: q1);
+      final qr = QrPairPayload(
+        token: 'AAAAAAAAAAAAAAAAAAAAAA',
+        epk: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        sessionName: 'Pi',
+        roomId: 'room-from-qr',
+        pairNonce: 'AQEBAQEBAQEBAQEBAQEBAQ',
+        expiresAt: 1700000000000,
+      );
+
+      await expectLater(
+        performPairing(
+          qr: qr,
+          transport: app,
+          storage: _FakeStorage(),
+          deviceName: 'phone',
+          currentRelayUrl: 'wss://relay.example',
+        ),
+        throwsA(
+          isA<PairingError>().having(
+            (e) => e.code,
+            'code',
+            'owner_identity_required',
+          ),
+        ),
+      );
+      expect(q2._buf, isEmpty);
+    });
+
+    test('signed QR sends pair_request_v2 and persists owner/app peer keys', () async {
+      final q1 = _Q();
+      final q2 = _Q();
+      final pi = _MemTransport(send: q1, recv: q2);
+      final app = _MemTransport(send: q2, recv: q1);
+      final storage = _FakeStorage();
+      final ownerKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[31] = 9);
+      final ownerPk = base64.encode((await ownerKey.extractPublicKey()).bytes);
+      final qr = QrPairPayload(
+        token: 'AAAAAAAAAAAAAAAAAAAAAA',
+        epk: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA',
+        sessionName: 'Pi',
+        roomId: 'room-from-qr',
+        pairNonce: 'AQEBAQEBAQEBAQEBAQEBAQ',
+        expiresAt: 1700000000000,
+      );
+
+      unawaited(() async {
+        final raw = await pi.receive();
+        final req = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;
+        expect(req['type'], 'pair_request_v2');
+        expect(req['owner_pk'], ownerPk);
+        expect(req['app_peer_pk'], ownerPk);
+        expect(req['pi_pk'], base64.encode(qr.epkBytes));
+        expect(req['room_id'], 'room-from-qr');
+        expect(req['pair_nonce'], 'AQEBAQEBAQEBAQEBAQEBAQ');
+        expect(req['expires_at'], 1700000000000);
+        expect(req['sig'], isA<String>());
+        await pi.send(Uint8List.fromList(utf8.encode(jsonEncode({
+          'type': 'pair_ok',
+          'in_reply_to': req['id'],
+          'session_name': 'Pi',
+          'session_started_at': 1700000000000,
+          'room_id': 'room-from-qr',
+        }))));
+      }());
+
+      final result = await performPairing(
+        qr: qr,
+        transport: app,
+        storage: storage,
+        deviceName: 'phone',
+        ownerKey: ownerKey,
+        currentRelayUrl: 'wss://relay.example',
+      );
+
+      expect(result.peer.ownerPk, ownerPk);
+      expect(result.peer.appPeerPk, ownerPk);
+      expect(storage.saved.single.ownerPk, ownerPk);
+      expect(storage.saved.single.appPeerPk, ownerPk);
+    });
   });
 }

@@ -14,8 +14,10 @@ import 'dart:typed_data';
 import 'package:app/data/transport/relay_config.dart';
 import 'package:app/protocol/protocol.dart' show PairOk;
 import 'package:app/protocol/uuid7.dart';
+import 'package:cryptography/cryptography.dart';
 
 import 'qr_scanner.dart';
+import 'signed_pairing.dart';
 import 'storage.dart';
 
 // ---------------------------------------------------------------------------
@@ -66,6 +68,9 @@ Future<PairingResult> performPairing({
   required PeerTransport transport,
   required PairingStorage storage,
   required String deviceName,
+  /// Owner key used to sign pair_request_v2. Required for QR codes that
+  /// carry signed-pairing fields; omitted only for legacy tests/old Pis.
+  SimpleKeyPair? ownerKey,
   /// Effective relay URL the app is currently connected to. Used to
   /// detect mismatch vs `qr.relayUrl` for legacy QRs. Passed in by
   /// the caller (PairingViewModel reads it from Preferences).
@@ -103,12 +108,37 @@ Future<PairingResult> performPairing({
   }
 
   final id = uuid7();
-  final req = {
-    'type': 'pair_request',
-    'id': id,
-    'token': qr.token,
-    'device_name': deviceName,
-  };
+  final Map<String, dynamic> req;
+  String? ownerPk;
+  String? appPeerPk;
+  if (qr.supportsSignedPairing) {
+    final key = ownerKey;
+    if (key == null) {
+      throw const PairingError(
+        code: 'owner_identity_required',
+        message: 'Signed pairing requires the synced Owner identity.',
+      );
+    }
+    req = await buildSignedPairRequestV2(
+      id: id,
+      token: qr.token,
+      deviceName: deviceName,
+      ownerKey: key,
+      piPk: base64.encode(qr.epkBytes),
+      roomId: pairingRoomId,
+      pairNonce: qr.pairNonce!,
+      expiresAt: qr.expiresAt!,
+    );
+    ownerPk = req['owner_pk'] as String;
+    appPeerPk = req['app_peer_pk'] as String;
+  } else {
+    req = {
+      'type': 'pair_request',
+      'id': id,
+      'token': qr.token,
+      'device_name': deviceName,
+    };
+  }
   await transport.send(Uint8List.fromList(utf8.encode(jsonEncode(req))));
 
   final raw = await transport.receive();
@@ -145,6 +175,8 @@ Future<PairingResult> performPairing({
       // Plan/27 Wave A — null when pi-extension hasn't been upgraded
       // yet to publish `harness` in pair_ok.
       harness: pairOk.harness,
+      ownerPk: ownerPk,
+      appPeerPk: appPeerPk,
     );
     await storage.savePeer(peer);
     return PairingResult(peer: peer, hostnameHint: pairOk.hostname);
@@ -172,12 +204,14 @@ Future<PairingResult> performPairingWithRelay(
   required PeerTransport transport,
   required PairingStorage storage,
   required String deviceName,
+  SimpleKeyPair? ownerKey,
 }) =>
     performPairing(
       qr: qr,
       transport: transport,
       storage: storage,
       deviceName: deviceName,
+      ownerKey: ownerKey,
       currentRelayUrl: currentRelayUrl,
     );
 

@@ -17,6 +17,8 @@ import 'dart:convert';
 //         "dest (peer, room) not found"). Optional; legacy QRs without
 //         `rm` make the app fall back to `'main'` during pair_request
 //         and rely on subscribe_rooms-based discovery afterwards.
+//   pn  — pair nonce for signed pair_request_v2.
+//   exp — token/session expiry timestamp in milliseconds since epoch.
 
 class QrPairPayload {
   final String token;
@@ -30,6 +32,12 @@ class QrPairPayload {
   /// right Pi-WS. `null` for pre-plan-17 QRs — caller must fall back to
   /// `'main'` and discover the real room id via subscribe_rooms.
   final String? roomId;
+  /// Pair nonce for pair_request_v2. Null for legacy QRs.
+  final String? pairNonce;
+  /// Expiry timestamp in milliseconds since epoch for pair_request_v2.
+  final int? expiresAt;
+
+  bool get supportsSignedPairing => pairNonce != null && expiresAt != null;
 
   const QrPairPayload({
     required this.token,
@@ -37,6 +45,8 @@ class QrPairPayload {
     required this.sessionName,
     this.relayUrl,
     this.roomId,
+    this.pairNonce,
+    this.expiresAt,
   });
 
   static QrPairPayload? tryParse(String raw) {
@@ -48,6 +58,8 @@ class QrPairPayload {
       final r = uri.queryParameters['r']; // legacy/optional
       final n = uri.queryParameters['n'];
       final rm = uri.queryParameters['rm']; // plan 17 — Pi-side room
+      final pn = uri.queryParameters['pn']; // signed pairing nonce
+      final expRaw = uri.queryParameters['exp']; // signed pairing expiry ms
       // r is no longer required — plan 14 dropped it from the canonical
       // contract. Legacy QRs continue to include it; we capture it for
       // mismatch detection but don't reject when absent.
@@ -56,12 +68,21 @@ class QrPairPayload {
       if (t == null || epk == null || n == null) return null;
       if (base64Url.decode(_pad(t)).length != 16) return null;
       if (base64Url.decode(_pad(epk)).length != 32) return null;
+      int? expiresAt;
+      if (expRaw != null && expRaw.isNotEmpty) {
+        expiresAt = int.tryParse(expRaw);
+        if (expiresAt == null || expiresAt <= 0) return null;
+      }
+      if ((pn == null) != (expiresAt == null)) return null;
+      if (pn != null && base64Url.decode(_pad(pn)).length != 16) return null;
       return QrPairPayload(
         token: t,
         epk: epk,
         sessionName: n,
         relayUrl: (r != null && r.isNotEmpty) ? r : null,
         roomId: (rm != null && rm.isNotEmpty) ? rm : null,
+        pairNonce: (pn != null && pn.isNotEmpty) ? pn : null,
+        expiresAt: expiresAt,
       );
     } catch (_) {
       return null;
