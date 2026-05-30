@@ -1,8 +1,8 @@
-import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Server } from "node:net";
 import { roomIdForCwd } from "../rooms.js";
+import { ensurePrivateDirSync } from "../secure_fs.js";
 import { removeStaleSock, tryBind, tryConnect } from "./leader_election.js";
 
 /**
@@ -67,7 +67,7 @@ export function lockPathForCwd(cwd: string): string {
  */
 export async function acquireCwdLock(cwd: string): Promise<CwdLockResult> {
   const lockPath = lockPathForCwd(cwd);
-  mkdirSync(dirname(lockPath), { recursive: true });
+  ensurePrivateDirSync(dirname(lockPath));
 
   // First attempt: bind directly.
   let server: Server | null = await tryBind(lockPath);

@@ -67,6 +67,7 @@ import { handleListCommands } from "./commands/list_commands.js";
 import { discoverSelfLabel, discoverSiblings, fallbackLabel } from "./mesh/siblings.js";
 import {
   ensureGlobalDirs,
+  ensureSessionDir,
   LOCAL_SESSION_NAME,
   sessionAuditPath,
   sessionSockPath,
@@ -2053,7 +2054,7 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   }
 
   ensureGlobalDirs();
-  mkdirSync(join(skillsDir(), "..", "sessions", sessionName), { recursive: true });
+  ensureSessionDir(sessionName);
 
   const sock = sessionSockPath(sessionName);
   const audit = sessionAuditPath(sessionName);

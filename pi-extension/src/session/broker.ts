@@ -1,7 +1,6 @@
 import type { Server, Socket } from "node:net";
-import { appendFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
-import { type Envelope, parse, serialize, uuidv7, EnvelopeError } from "./envelope.js";
+import { appendPrivateFile } from "../secure_fs.js";
+import { EnvelopeError, type Envelope, parse, serialize, uuidv7 } from "./envelope.js";
 
 /**
  * Broker hosted by the session leader. Accepts UDS connections, maintains a
@@ -437,8 +436,7 @@ export class Broker {
       via,
     }) + "\n";
     try {
-      await mkdir(dirname(this.auditPath), { recursive: true });
-      await appendFile(this.auditPath, line, "utf8");
+      await appendPrivateFile(this.auditPath, line);
     } catch { /* audit best-effort */ }
   }
 }

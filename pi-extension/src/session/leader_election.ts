@@ -1,6 +1,7 @@
 import { Server, Socket, createConnection, createServer } from "node:net";
 import { existsSync, lstatSync, unlinkSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
+import { PRIVATE_FILE_MODE, chmodPrivatePathSync } from "../secure_fs.js";
 
 const MAX_ATTEMPTS = 20;
 const BASE_BACKOFF_MS = 30;
@@ -89,7 +90,10 @@ function _tryBind(sockPath: string): Promise<Server | null> {
       resolve(val);
     };
     server.once("error", () => settle(null));
-    server.listen(sockPath, () => settle(server));
+    server.listen(sockPath, () => {
+      chmodPrivatePathSync(sockPath, PRIVATE_FILE_MODE);
+      settle(server);
+    });
   });
 }
 

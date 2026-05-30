@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { ensurePrivateDirSync } from "../secure_fs.js";
 
 const HOME_PI_REMOTE = join(homedir(), ".pi", "remote");
 const SESSIONS_DIR = join(HOME_PI_REMOTE, "sessions");
@@ -18,8 +19,13 @@ export const LOCAL_SESSION_NAME = "local";
 
 /** Ensures the new subdirs exist inside the existing ~/.pi/remote/. */
 export function ensureGlobalDirs(): void {
-  mkdirSync(SESSIONS_DIR, { recursive: true });
-  mkdirSync(SKILLS_DIR, { recursive: true });
+  ensurePrivateDirSync(HOME_PI_REMOTE);
+  ensurePrivateDirSync(SESSIONS_DIR);
+  ensurePrivateDirSync(SKILLS_DIR);
+}
+
+export function ensureSessionDir(name: string): void {
+  ensurePrivateDirSync(dirname(sessionSockPath(name)));
 }
 
 /** Path to the UDS socket for a named session. */

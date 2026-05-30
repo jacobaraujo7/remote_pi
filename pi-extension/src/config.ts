@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { writePrivateFileAtomicSync } from "./secure_fs.js";
 
 const CONFIG_DIR = path.join(os.homedir(), ".pi", "remote");
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
@@ -28,10 +29,9 @@ export function loadConfig(): RemotePiConfig {
 }
 
 export function saveConfig(patch: Partial<RemotePiConfig>): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
   const current = loadConfig();
   const next = { ...current, ...patch };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2));
+  writePrivateFileAtomicSync(CONFIG_FILE, JSON.stringify(next, null, 2) + "\n");
 }
 
 export type RelayResolution = { url: string; source: "env" | "config" | "default" };
