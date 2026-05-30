@@ -163,6 +163,23 @@ void main() {
       expect(restored.harness!.version, '0.4.2');
     });
 
+    test('owner/app peer keys round-trip through toJson/fromJson', () {
+      const record = PeerRecord(
+        remoteEpk: 'pk1',
+        sessionName: 'name',
+        relayUrl: 'ws://x',
+        pairedAt: '2026-01-01T00:00:00Z',
+        ownerPk: 'owner-key',
+        appPeerPk: 'app-peer-key',
+      );
+      final json = record.toJson();
+      expect(json['owner_pk'], 'owner-key');
+      expect(json['app_peer_pk'], 'app-peer-key');
+      final restored = PeerRecord.fromJson(json);
+      expect(restored.ownerPk, 'owner-key');
+      expect(restored.appPeerPk, 'app-peer-key');
+    });
+
     test('legacy record without harness field → fromJson keeps null', () {
       final restored = PeerRecord.fromJson({
         'remote_epk': 'pk1',

@@ -2,10 +2,25 @@ export type PairErrorCode =
   | "token_expired"
   | "token_consumed"
   | "token_unknown"
+  | "pair_invalid"
+  | "pair_unsupported"
   | "internal_error";
 
 export type ClientMessage =
   | { type: "pair_request"; id: string; token: string; device_name: string }
+  | {
+      type: "pair_request_v2";
+      id: string;
+      token: string;
+      device_name: string;
+      owner_pk: string;
+      app_peer_pk: string;
+      pi_pk: string;
+      room_id: string;
+      pair_nonce: string;
+      expires_at: number;
+      sig: string;
+    }
   | { type: "user_message"; id: string; text: string }
   | { type: "approve_tool"; id: string; tool_call_id: string; decision: "allow" | "deny" }
   | { type: "cancel"; id: string; target_id: string }

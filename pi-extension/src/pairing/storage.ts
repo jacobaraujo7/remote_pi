@@ -180,8 +180,12 @@ export async function getOrCreateEd25519Keypair(): Promise<Ed25519Keypair> {
 
 export interface PeerRecord {
   name: string;
-  remote_epk: string; // base64 standard, 32B Ed25519
+  remote_epk: string; // relay-authenticated app peer key, base64 standard, 32B Ed25519
   paired_at: string;  // ISO-8601
+  /** Owner signing public key proven by pair_request_v2. */
+  owner_pk?: string;
+  /** Relay-authenticated app peer key bound into pair_request_v2. */
+  app_peer_pk?: string;
 }
 
 export async function listPeers(): Promise<PeerRecord[]> {
@@ -207,17 +211,16 @@ export async function addPeer(record: PeerRecord): Promise<void> {
 }
 
 /**
- * Returns the set of distinct `remote_epk` values in peers.json.
+ * Returns the set of distinct Owner signing public keys in peers.json.
  *
- * In the current pairing model (plan/23 + plan/24), each `remote_epk` is the
- * Owner's Ed25519 pubkey — and we treat each as a distinct Owner the Pi has
- * been paired with. Used by the mesh self-revoke poller (plan/24 Wave 3) to
- * know which Owners' mesh blobs to fetch.
+ * New pair_request_v2 records store `owner_pk` separately from the
+ * relay-authenticated app peer key. Legacy records used `remote_epk` for the
+ * Owner key, so keep that fallback for backward compatibility.
  */
 export async function listOwnerPubkeys(): Promise<string[]> {
   const peers = await listPeers();
   const seen = new Set<string>();
-  for (const p of peers) seen.add(p.remote_epk);
+  for (const p of peers) seen.add(p.owner_pk ?? p.remote_epk);
   return [...seen];
 }
 

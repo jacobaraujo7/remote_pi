@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, statSync } from "node:fs";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -16,7 +16,9 @@ vi.mock("node:os", async (importOriginal) => {
 // Re-import after the mock is installed.
 const storage = await import("./storage.js");
 const {
+  addPeer,
   getOrCreateEd25519Keypair,
+  listOwnerPubkeys,
   _setKeyStoreBackendForTest,
   _unlinkIdentityFileForTest,
   _IDENTITY_FILE_FOR_TEST,
@@ -71,6 +73,7 @@ beforeEach(async () => {
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   await _unlinkIdentityFileForTest();
+  rmSync(join(_tmpHome, ".pi", "remote", "peers.json"), { force: true });
 });
 
 afterEach(() => {
@@ -215,4 +218,25 @@ describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
     );
   });
 
+});
+
+// ── peers.json ───────────────────────────────────────────────────────────────
+
+describe("peers.json owner key helpers", () => {
+  test("listOwnerPubkeys prefers pair_request_v2 owner_pk and falls back for legacy peers", async () => {
+    await addPeer({
+      name: "Signed Phone",
+      remote_epk: "app-peer-key",
+      paired_at: "2026-05-29T00:00:00.000Z",
+      owner_pk: "owner-signing-key",
+      app_peer_pk: "app-peer-key",
+    });
+    await addPeer({
+      name: "Legacy Phone",
+      remote_epk: "legacy-owner-key",
+      paired_at: "2026-05-29T00:00:01.000Z",
+    });
+
+    expect(await listOwnerPubkeys()).toEqual(["owner-signing-key", "legacy-owner-key"]);
+  });
 });

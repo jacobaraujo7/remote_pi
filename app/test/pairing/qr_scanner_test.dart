@@ -86,5 +86,30 @@ void main() {
       expect(qr, isNotNull);
       expect(qr!.roomId, isNull);
     });
+
+    test('parses signed-pairing nonce and expiry', () {
+      final raw = 'remotepi://pair?t=$goodToken&epk=$goodEpk&'
+          'rm=abc123def456&pn=AQEBAQEBAQEBAQEBAQEBAQ&exp=1700000000000&n=$sessionName';
+      final qr = QrPairPayload.tryParse(raw);
+      expect(qr, isNotNull);
+      expect(qr!.supportsSignedPairing, isTrue);
+      expect(qr.pairNonce, 'AQEBAQEBAQEBAQEBAQEBAQ');
+      expect(qr.expiresAt, 1700000000000);
+    });
+
+    test('rejects partial or malformed signed-pairing fields', () {
+      expect(
+        QrPairPayload.tryParse(
+          'remotepi://pair?t=$goodToken&epk=$goodEpk&pn=AQEBAQEBAQEBAQEBAQEBAQ&n=$sessionName',
+        ),
+        isNull,
+      );
+      expect(
+        QrPairPayload.tryParse(
+          'remotepi://pair?t=$goodToken&epk=$goodEpk&pn=bad&exp=1700000000000&n=$sessionName',
+        ),
+        isNull,
+      );
+    });
   });
 }

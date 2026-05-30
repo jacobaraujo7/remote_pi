@@ -69,6 +69,7 @@ class PairingViewModel extends ViewModel<PairingState> {
         transport: transport,
         storage: _storage,
         deviceName: _deviceName(),
+        ownerKey: ownerKey,
         currentRelayUrl: resolveRelayUrl(_prefs),
       ).timeout(
         const Duration(seconds: 30),
