@@ -92,6 +92,7 @@ state at the next mutation.
 
 | Variable | Default | Description |
 |---|---|---|
+| `REMOTEPI_RELAY_BIND_ADDR` | `0.0.0.0` | IP address to bind. Use `127.0.0.1` behind a local reverse proxy, a Tailscale/WireGuard interface IP for private-network-only exposure, or `0.0.0.0` for the existing all-interface behavior |
 | `REMOTEPI_RELAY_PORT` | `3000` | TCP port that serves the WebSocket upgrade, `/health`, and `/mesh/*` (all on the same port) |
 | `REMOTEPI_MESH_DB_PATH` | `/data/mesh.db` in Docker · `data/mesh.db` (cwd-relative) for bare-metal builds | Path to the SQLite database that stores signed membership versions. The parent directory is created automatically on first boot. The Docker image presets this to `/data/mesh.db` and declares `/data` as a volume — see the volume note above |
 | `RUST_LOG` | _(none)_ | Log level filter — e.g. `info`, `debug`, `warn` |
@@ -103,6 +104,7 @@ docker run -d \
   --name remote-pi-relay \
   -p 8080:8080 \
   -v remote-pi-data:/data \
+  -e REMOTEPI_RELAY_BIND_ADDR=127.0.0.1 \
   -e REMOTEPI_RELAY_PORT=8080 \
   -e RUST_LOG=info \
   --restart unless-stopped \
@@ -157,7 +159,7 @@ cargo build --release
 ```
 
 ```bash
-REMOTEPI_RELAY_PORT=8080 RUST_LOG=info ./target/release/relay
+REMOTEPI_RELAY_BIND_ADDR=127.0.0.1 REMOTEPI_RELAY_PORT=8080 RUST_LOG=info ./target/release/relay
 ```
 
 ## Running tests

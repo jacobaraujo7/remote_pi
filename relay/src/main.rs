@@ -9,10 +9,7 @@ use tracing::info;
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let port: u16 = std::env::var("REMOTEPI_RELAY_PORT")
-        .ok()
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(3000);
+    let addr = relay::config::relay_socket_addr_from_env()?;
 
     // Default puts the SQLite file (and any transient -journal) under data/,
     // so bare-metal `cargo run` doesn't litter the project root.
@@ -57,8 +54,7 @@ async fn main() -> anyhow::Result<()> {
     };
     let app = relay::build_router(state);
 
-    let addr = format!("0.0.0.0:{port}");
-    let listener = TcpListener::bind(&addr)
+    let listener = TcpListener::bind(addr)
         .await
         .with_context(|| format!("failed to bind {addr}"))?;
 
