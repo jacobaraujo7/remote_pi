@@ -223,6 +223,37 @@ void main() {
     s.sync.dispose();
   });
 
+  test(
+    'sequential: text → tool → text renders in chronological order',
+    () async {
+      final s = await setup();
+      s.ch.push(UserInput(id: 'u1', text: 'go'));
+      await _settle();
+      s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'let me check'));
+      await _settle(); // 16ms flush settles into the streaming buffer
+      s.ch.push(ToolRequest(toolCallId: 'tc1', tool: 'Read', args: {}));
+      await _settle();
+      s.ch.push(ToolResult(toolCallId: 'tc1', result: {'ok': true}));
+      await _settle();
+      s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'all done'));
+      await _settle();
+      s.ch.push(AgentDone(inReplyTo: 'u1'));
+      await _settle();
+
+      final m = messages(s.epk);
+      expect(
+        m.map((r) => r.role),
+        [MsgRole.user, MsgRole.assistant, MsgRole.tool, MsgRole.assistant],
+        reason: 'pre-tool text, then tool, then post-tool text — in order',
+      );
+      expect(m[1].text, 'let me check');
+      expect(m[2].tool?.tool, 'Read');
+      expect(m[3].text, 'all done');
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
   test('clearActiveSession wipes the rows + index', () async {
     final s = await setup();
     s.ch.push(UserInput(id: 'u1', text: 'hi'));

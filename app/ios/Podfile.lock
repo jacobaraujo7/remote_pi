@@ -94,6 +94,8 @@ PODS:
     - CwlCatchException
     - Flutter
     - FlutterMacOS
+  - url_launcher_ios (0.0.1):
+    - Flutter
 
 DEPENDENCIES:
   - app_settings (from `.symlinks/plugins/app_settings/ios`)
@@ -104,6 +106,7 @@ DEPENDENCIES:
   - mobile_scanner (from `.symlinks/plugins/mobile_scanner/ios`)
   - remote_pi_identity (from `.symlinks/plugins/remote_pi_identity/ios`)
   - speech_to_text (from `.symlinks/plugins/speech_to_text/darwin`)
+  - url_launcher_ios (from `.symlinks/plugins/url_launcher_ios/ios`)
 
 SPEC REPOS:
   trunk:
@@ -143,6 +146,8 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/remote_pi_identity/ios"
   speech_to_text:
     :path: ".symlinks/plugins/speech_to_text/darwin"
+  url_launcher_ios:
+    :path: ".symlinks/plugins/url_launcher_ios/ios"
 
 SPEC CHECKSUMS:
   app_settings: 5127ae0678de1dcc19f2293271c51d37c89428b2
@@ -171,6 +176,7 @@ SPEC CHECKSUMS:
   SDWebImage: e9fc87c1aab89a8ab1bbd74eba378c6f53be8abf
   SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   speech_to_text: 3b313d98516d3d0406cea424782ec25470c59d19
+  url_launcher_ios: 7a95fa5b60cc718a708b8f2966718e93db0cef1b
 
 PODFILE CHECKSUM: 00c3ea47ead7b791dddb519dfe955a9e7f49fe00
 

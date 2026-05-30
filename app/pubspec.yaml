@@ -70,6 +70,12 @@ dependencies:
   image_picker: ^1.1.0
   flutter_image_compress: ^2.3.0
 
+  # Plan 32b — render the agent's Markdown replies (GFM + code blocks),
+  # optimized for LLM output. `url_launcher` opens links tapped in the
+  # rendered markdown in the system browser.
+  gpt_markdown: ^1.1.7
+  url_launcher: ^6.3.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

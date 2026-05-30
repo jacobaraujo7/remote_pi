@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:app/config/dependencies.dart';
 import 'package:app/protocol/protocol.dart';
+import 'package:app/routing/adaptive.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/chat/quick_actions/states/quick_actions_state.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
+import 'package:app/ui/chat/quick_actions/widgets/dismiss_on_session_change.dart';
 import 'package:app/ui/chat/quick_actions/widgets/model_picker_sheet.dart';
 import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +26,9 @@ import 'package:provider/provider.dart';
 Future<void> showQuickActionsSheet(BuildContext context) {
   final messenger = ScaffoldMessenger.of(context);
   final chat = context.read<ChatViewModel>();
+  // Captured to auto-close the sheet if the tablet's selected session changes
+  // out from under it (the sheet lives on the detail-pane navigator).
+  final selection = context.read<SessionSelection>();
   return showModalBottomSheet<void>(
     context: context,
     backgroundColor: kBg,
@@ -34,11 +39,14 @@ Future<void> showQuickActionsSheet(BuildContext context) {
       borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
     ),
     builder: (ctx) {
-      return ChangeNotifierProvider<QuickActionsViewModel>(
-        create: (_) => injector.get<QuickActionsViewModel>(),
-        child: QuickActionsSheetBody(
-          messenger: messenger,
-          onSessionReset: chat.clearActiveSession,
+      return DismissOnSessionChange(
+        selection: selection,
+        child: ChangeNotifierProvider<QuickActionsViewModel>(
+          create: (_) => injector.get<QuickActionsViewModel>(),
+          child: QuickActionsSheetBody(
+            messenger: messenger,
+            onSessionReset: chat.clearActiveSession,
+          ),
         ),
       );
     },
@@ -94,11 +102,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
         behavior: SnackBarBehavior.floating,
         content: Text(
           message,
-          style: TextStyle(
-            fontFamily: kMono,
-            fontSize: 12,
-            color: color,
-          ),
+          style: TextStyle(fontFamily: kMono, fontSize: 12, color: color),
         ),
         duration: const Duration(seconds: 3),
       ),
@@ -115,8 +119,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
   Widget build(BuildContext context) {
     final vm = context.watch<QuickActionsViewModel>();
     final state = vm.state;
-    final busyAction =
-        state is QuickActionsBusy ? state.action : null;
+    final busyAction = state is QuickActionsBusy ? state.action : null;
 
     return SafeArea(
       top: false,
@@ -151,8 +154,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
             ),
             const _Divider(),
             _ModelRow(
-              currentLabel:
-                  vm.currentModel?.name ?? vm.currentModelName,
+              currentLabel: vm.currentModel?.name ?? vm.currentModelName,
               busy: busyAction == ActionName.modelSet,
               onTap: () => _openModelPicker(vm),
             ),
@@ -215,10 +217,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
               foregroundColor: Colors.black,
             ),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text(
-              'Start new',
-              style: TextStyle(fontFamily: kMono),
-            ),
+            child: const Text('Start new', style: TextStyle(fontFamily: kMono)),
           ),
         ],
       ),
@@ -245,7 +244,9 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
   ) async {
     try {
       await vm.setThinking(level);
-    } catch (_) {/* surfaced via vm.errors */}
+    } catch (_) {
+      /* surfaced via vm.errors */
+    }
   }
 
   Future<void> _openModelPicker(QuickActionsViewModel vm) async {
@@ -298,11 +299,8 @@ class _SheetTitle extends StatelessWidget {
 class _Divider extends StatelessWidget {
   const _Divider();
   @override
-  Widget build(BuildContext context) => const Divider(
-        color: kBorder,
-        height: 1,
-        thickness: 1,
-      );
+  Widget build(BuildContext context) =>
+      const Divider(color: kBorder, height: 1, thickness: 1);
 }
 
 class _ActionTile extends StatelessWidget {
@@ -456,8 +454,7 @@ class _ThinkingRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(LucideIcons.brain,
-                  color: kAccent, size: 18),
+              const Icon(LucideIcons.brain, color: kAccent, size: 18),
               const SizedBox(width: 14),
               const Text(
                 'Thinking',
@@ -480,11 +477,7 @@ class _ThinkingRow extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          _ThinkingSegmented(
-            current: current,
-            disabled: busy,
-            onPick: onPick,
-          ),
+          _ThinkingSegmented(current: current, disabled: busy, onPick: onPick),
         ],
       ),
     );
@@ -558,7 +551,9 @@ class _SegButton extends StatelessWidget {
         duration: const Duration(milliseconds: 120),
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? kAccent.withValues(alpha: 0.15) : Colors.transparent,
+          color: selected
+              ? kAccent.withValues(alpha: 0.15)
+              : Colors.transparent,
         ),
         child: Center(
           child: Text(
@@ -569,8 +564,8 @@ class _SegButton extends StatelessWidget {
               color: disabled
                   ? kMuted.withValues(alpha: 0.5)
                   : selected
-                      ? kAccent
-                      : kText,
+                  ? kAccent
+                  : kText,
             ),
           ),
         ),

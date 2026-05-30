@@ -161,9 +161,9 @@ class ConnectionManager extends Service {
     required ConnectionFactory factory,
     required PairingStorage storage,
     Duration emitDebounce = const Duration(milliseconds: 50),
-  })  : _factory = factory,
-        _storage = storage,
-        _emitDebounce = emitDebounce {
+  }) : _factory = factory,
+       _storage = storage,
+       _emitDebounce = emitDebounce {
     _startWatchdog();
   }
 
@@ -245,7 +245,14 @@ class ConnectionManager extends Service {
     final cur = _status;
     if (cur is StatusOnline) {
       _propagateActiveRoom(roomId, cur.channel);
-    } else {
+    }
+    // Re-emit the rooms snapshot so derived per-active-room state
+    // (ActionsRepository.activeRoomMeta → the Quick Actions sheet's current
+    // model/thinking) recomputes for the NEW room. Switching cwd-rooms on the
+    // same Mac doesn't change status/rooms otherwise, so without this the
+    // sheet kept showing the previous chat's model.
+    if (!_roomsController.isClosed) {
+      _roomsController.add(_roomsSnapshot());
     }
   }
 
@@ -397,7 +404,9 @@ class ConnectionManager extends Service {
       final old = (_status as StatusOnline).channel;
       // ignore: unawaited_futures
       Future(() async {
-        try { await old.close(); } catch (_) {}
+        try {
+          await old.close();
+        } catch (_) {}
       });
     }
     _retryAttempt = 0;
@@ -565,14 +574,14 @@ class ConnectionManager extends Service {
           }
         }
       case RoomAnnounced(
-          :final peer,
-          :final roomId,
-          :final name,
-          :final cwd,
-          :final startedAt,
-          :final model,
-          :final thinking,
-        ):
+        :final peer,
+        :final roomId,
+        :final name,
+        :final cwd,
+        :final startedAt,
+        :final model,
+        :final thinking,
+      ):
         final key = toStandardB64(peer);
         final list = _roomsByPeer[key] ?? <RoomInfo>[];
         // Preserve any localName the user already set for this room
@@ -598,10 +607,8 @@ class ConnectionManager extends Service {
           model: model,
           thinking: thinking ?? preservedThinking,
         );
-        final liveAlready =
-            _liveRoomIds[key]?.contains(roomId) ?? false;
-        final identicalEntry =
-            existingIdx >= 0 && list[existingIdx] == next;
+        final liveAlready = _liveRoomIds[key]?.contains(roomId) ?? false;
+        final identicalEntry = existingIdx >= 0 && list[existingIdx] == next;
         if (identicalEntry && liveAlready) {
           // No-op announce — relay re-broadcast. Skip to keep the UI
           // quiet.
@@ -632,13 +639,13 @@ class ConnectionManager extends Service {
         }
         if (removed) roomsDirty = true;
       case RoomMetaUpdated(
-          :final peer,
-          :final roomId,
-          :final model,
-          :final thinking,
-          :final hasModel,
-          :final hasThinking,
-        ):
+        :final peer,
+        :final roomId,
+        :final model,
+        :final thinking,
+        :final hasModel,
+        :final hasThinking,
+      ):
         final key = toStandardB64(peer);
         final list = _roomsByPeer[key];
         if (list == null) break;
@@ -656,10 +663,7 @@ class ConnectionManager extends Service {
         if (current.model == nextModel && current.thinking == nextThinking) {
           break; // dedup: nothing actually changed
         }
-        list[idx] = current.copyWith(
-          model: nextModel,
-          thinking: nextThinking,
-        );
+        list[idx] = current.copyWith(model: nextModel, thinking: nextThinking);
         roomsDirty = true;
         // ignore: unawaited_futures
         _persistRoomsForPeer(key);
@@ -687,8 +691,10 @@ class ConnectionManager extends Service {
         }
         final newList = byId.values.toList();
         final newLive = rooms.map((r) => r.roomId).toSet();
-        final liveChanged =
-            !_setEquals(newLive, _liveRoomIds[key] ?? const <String>{});
+        final liveChanged = !_setEquals(
+          newLive,
+          _liveRoomIds[key] ?? const <String>{},
+        );
         final listChanged = !_roomListEquals(newList, existing);
         if (!liveChanged && !listChanged) {
           // Relay re-emitted a snapshot identical to what we already
@@ -773,10 +779,8 @@ class ConnectionManager extends Service {
   }
 
   Map<String, List<RoomInfo>> _roomsSnapshot() => Map.unmodifiable(
-        _roomsByPeer.map(
-          (k, v) => MapEntry(k, List<RoomInfo>.unmodifiable(v)),
-        ),
-      );
+    _roomsByPeer.map((k, v) => MapEntry(k, List<RoomInfo>.unmodifiable(v))),
+  );
 
   /// Returns `true` if `roomId` is currently announced live for the
   /// peer (the relay's last `room_announced` / `rooms` push included
@@ -808,13 +812,15 @@ class ConnectionManager extends Service {
       if (cached.isEmpty) continue;
       final key = toStandardB64(p.remoteEpk);
       _roomsByPeer[key] = cached
-          .map((c) => RoomInfo(
-                roomId: c.roomId,
-                name: c.localName ?? c.name,
-                cwd: c.cwd,
-                startedAt: c.startedAt,
-                model: c.model,
-              ))
+          .map(
+            (c) => RoomInfo(
+              roomId: c.roomId,
+              name: c.localName ?? c.name,
+              cwd: c.cwd,
+              startedAt: c.startedAt,
+              model: c.model,
+            ),
+          )
           .toList();
       // Note: nothing in _liveRoomIds yet — those rooms are "offline"
       // until the relay announces them again.
@@ -845,14 +851,16 @@ class ConnectionManager extends Service {
           p.roomId: p.localName!,
     };
     final persisted = list
-        .map((r) => PersistedRoom(
-              roomId: r.roomId,
-              name: r.name,
-              cwd: r.cwd,
-              startedAt: r.startedAt,
-              localName: localById[r.roomId],
-              model: r.model,
-            ))
+        .map(
+          (r) => PersistedRoom(
+            roomId: r.roomId,
+            name: r.name,
+            cwd: r.cwd,
+            startedAt: r.startedAt,
+            localName: localById[r.roomId],
+            model: r.model,
+          ),
+        )
         .toList();
     await _storage.saveRooms(match.remoteEpk, persisted);
   }
@@ -860,11 +868,7 @@ class ConnectionManager extends Service {
   /// Plan-17 follow-up — long-press menu support. Override the
   /// display name of a single room locally (Pi never sees this).
   /// Reflects immediately in the rooms snapshot.
-  Future<void> setRoomLocalName(
-    String epk,
-    String roomId,
-    String? name,
-  ) async {
+  Future<void> setRoomLocalName(String epk, String roomId, String? name) async {
     final key = toStandardB64(epk);
     final list = _roomsByPeer[key];
     if (list == null) return;
@@ -881,9 +885,7 @@ class ConnectionManager extends Service {
     // Persist with localName so it survives cold start.
     final cached = await _storage.loadRooms(epk);
     final updated = cached
-        .map((c) => c.roomId == roomId
-            ? c.copyWith(localName: name)
-            : c)
+        .map((c) => c.roomId == roomId ? c.copyWith(localName: name) : c)
         .toList();
     await _storage.saveRooms(epk, updated);
     if (!_roomsController.isClosed) {
@@ -934,9 +936,10 @@ class ConnectionManager extends Service {
     final updated = active.copyWith(roomId: discoveredRoom);
     _activePeer = updated;
     // ignore: unawaited_futures
-    _storage.savePeer(updated).then((_) {
-    }).catchError((Object e, StackTrace _) {
-    });
+    _storage
+        .savePeer(updated)
+        .then((_) {})
+        .catchError((Object e, StackTrace _) {});
   }
 
   /// On (re)connect, re-send the last subscribe_presence so the relay
@@ -962,10 +965,8 @@ class ConnectionManager extends Service {
         // Real inbound — the Pi is alive and reachable. Safe to reset
         // both the ping miss counter and the retry backoff.
         final wasMissed = _missedPings;
-        if (wasMissed > 0) {
-        }
-        if (_retryAttempt != 0) {
-        }
+        if (wasMissed > 0) {}
+        if (_retryAttempt != 0) {}
         _missedPings = 0;
         _retryAttempt = 0;
       },

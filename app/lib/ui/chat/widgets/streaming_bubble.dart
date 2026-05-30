@@ -1,5 +1,6 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/ui/app_theme.dart';
+import 'package:app/ui/chat/widgets/agent_markdown.dart';
 import 'package:flutter/material.dart';
 
 // StreamingBubble — shows the assistant's growing response + blinking cursor.
@@ -34,19 +35,21 @@ class _StreamingBubbleState extends State<StreamingBubble>
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            if (widget.streaming.buffer.isNotEmpty)
-              Flexible(child: Text(widget.streaming.buffer, style: kMonoStyle)),
-            _BlinkingCursor(controller: _blink),
-          ],
-        ),
+    final hasText = widget.streaming.buffer.isNotEmpty;
+    // Full content width (matches AssistantBubble). Cursor lives on its OWN
+    // line directly below the response (never inline beside wrapped text,
+    // which made it float toward the middle). No text yet → just the cursor.
+    return SizedBox(
+      width: double.infinity,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Render partial markdown live (gpt_markdown tolerates incomplete
+          // syntax); not selectable while it's still changing.
+          if (hasText) AgentMarkdown(widget.streaming.buffer),
+          _BlinkingCursor(controller: _blink),
+        ],
       ),
     );
   }

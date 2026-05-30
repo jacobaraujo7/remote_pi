@@ -61,5 +61,11 @@
         <intent>
             <action android:name="android.speech.RecognitionService"/>
         </intent>
+        <!-- Plan 32b — url_launcher opening https links from rendered
+             markdown (Android 11+ package visibility). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
     </queries>
 </manifest>

@@ -1,5 +1,6 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/ui/app_theme.dart';
+import 'package:app/ui/chat/widgets/agent_markdown.dart';
 import 'package:app/ui/chat/widgets/image_bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -111,36 +112,13 @@ class AssistantBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 340),
-        child: _renderText(message.text),
-      ),
+    // Plan/32b — agent output is rendered as Markdown (GFM + code blocks),
+    // spanning the FULL content width (the message list already pads 16px on
+    // each side) — unlike the user's right-aligned chat bubble, which stays
+    // capped. Selectable so prose/code can be copied.
+    return SizedBox(
+      width: double.infinity,
+      child: AgentMarkdown(message.text, selectable: true),
     );
-  }
-
-  Widget _renderText(String text) {
-    // Simple highlight: file paths wrapped in backticks or containing /
-    // are colored kHighlight. No full markdown in MVP.
-    return Text.rich(_parseSpans(text), style: kMonoStyle);
-  }
-
-  TextSpan _parseSpans(String text) {
-    // Minimal inline highlight for file paths (word containing /)
-    final spans = <InlineSpan>[];
-    final words = text.split(' ');
-    for (var i = 0; i < words.length; i++) {
-      final w = words[i];
-      final isPath =
-          w.contains('/') || w.contains('.ts') || w.contains('.dart');
-      spans.add(
-        TextSpan(
-          text: i < words.length - 1 ? '$w ' : w,
-          style: isPath ? kMonoStyle.copyWith(color: kHighlight) : null,
-        ),
-      );
-    }
-    return TextSpan(children: spans);
   }
 }

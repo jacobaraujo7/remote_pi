@@ -247,31 +247,10 @@ class SyncService extends Service {
         _flushTimer = Timer(const Duration(milliseconds: 16), _flushChunks);
         _setWorking(true, replyTo: inReplyTo);
 
-      case AgentDone(:final inReplyTo):
-        _flushTimer?.cancel();
-        _flushTimer = null;
-        final pendingDelta = _chunkBuffer.toString();
-        _chunkBuffer.clear();
-        _chunkReplyTo = '';
-        final fullText = (_streaming?.buffer ?? '') + pendingDelta;
-        _emitStreaming(null);
-        if (fullText.isNotEmpty) {
-          // ignore: discarded_futures
-          _upsert(
-            MsgRole.assistant,
-            inReplyTo,
-            (seq, existing) =>
-                (existing ??
-                        MessageRecord(
-                          id: inReplyTo,
-                          seq: seq,
-                          role: MsgRole.assistant,
-                          ts: DateTime.now(),
-                        ))
-                    .copyWith(text: fullText),
-          );
-        }
-        _setWorking(false, preview: fullText);
+      case AgentDone():
+        // Finalize whatever text accumulated since the last tool boundary.
+        final text = _finalizeSegment();
+        _setWorking(false, preview: text.isEmpty ? null : text);
 
       case AgentMessage(:final inReplyTo, :final text):
         // ignore: discarded_futures
@@ -319,6 +298,10 @@ class SyncService extends Service {
         }
 
       case ToolRequest(:final toolCallId, :final tool, :final args):
+        // Sequential ordering: close the current text segment as its own row
+        // BEFORE the tool, so "narration → command → narration" renders in
+        // order instead of all text landing after the commands.
+        _finalizeSegment();
         // ignore: discarded_futures
         _upsert(
           MsgRole.tool,
@@ -666,6 +649,45 @@ class SyncService extends Service {
     } else {
       _emitStreaming(StreamingMessage(inReplyTo: _chunkReplyTo, buffer: delta));
     }
+  }
+
+  /// Persist the accumulated streaming text as a standalone assistant row
+  /// (unique id, in chronological seq order) and clear the live cursor.
+  /// Called at every tool boundary AND on agent_done so text/tool/text
+  /// renders sequentially. No-op (just clears the cursor) when there's no
+  /// text — so a tool-only or empty turn never leaves a blank bubble.
+  /// Returns the finalized text (empty if none).
+  String _finalizeSegment() {
+    // Drain any coalesced delta still sitting in the 16ms buffer.
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_chunkBuffer.isNotEmpty) {
+      final delta = _chunkBuffer.toString();
+      _chunkBuffer.clear();
+      final cur = _streaming;
+      _streaming = (cur != null && cur.inReplyTo == _chunkReplyTo)
+          ? cur.appendDelta(delta)
+          : StreamingMessage(inReplyTo: _chunkReplyTo, buffer: delta);
+    }
+    final text = _streaming?.buffer ?? '';
+    if (text.isNotEmpty) {
+      final id = 'agent_${uuid7()}';
+      // ignore: discarded_futures
+      _upsert(
+        MsgRole.assistant,
+        id,
+        (seq, _) => MessageRecord(
+          id: id,
+          seq: seq,
+          role: MsgRole.assistant,
+          text: text,
+          ts: DateTime.now(),
+        ),
+      );
+    }
+    _chunkReplyTo = '';
+    _emitStreaming(null);
+    return text;
   }
 
   void _emitStreaming(StreamingMessage? s) {

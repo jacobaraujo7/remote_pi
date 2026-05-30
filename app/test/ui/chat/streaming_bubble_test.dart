@@ -2,6 +2,7 @@
 // blinking cursor (no text), so the cursor shows during the pre-chunk gap.
 
 import 'package:app/domain/session_state.dart';
+import 'package:app/ui/chat/widgets/agent_markdown.dart';
 import 'package:app/ui/chat/widgets/streaming_bubble.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,10 +21,19 @@ void main() {
     expect(find.byType(Text), findsNothing);
   });
 
-  testWidgets('non-empty buffer shows the text + the cursor', (tester) async {
-    await pump(tester, const StreamingMessage(inReplyTo: 'x', buffer: 'hi'));
+  testWidgets('cursor sits one line BELOW the response (not inline)', (
+    tester,
+  ) async {
+    await pump(
+      tester,
+      const StreamingMessage(inReplyTo: 'x', buffer: 'a long enough reply'),
+    );
     await tester.pump();
-    expect(find.text('hi'), findsOneWidget);
-    expect(find.byKey(const Key('streaming-cursor')), findsOneWidget);
+    expect(find.byType(AgentMarkdown), findsOneWidget);
+    final md = tester.getRect(find.byType(AgentMarkdown));
+    final cursor = tester.getRect(find.byKey(const Key('streaming-cursor')));
+    // Below the rendered markdown, and left-aligned — never floating aside.
+    expect(cursor.top, greaterThanOrEqualTo(md.bottom - 0.5));
+    expect(cursor.left, closeTo(md.left, 1));
   });
 }
