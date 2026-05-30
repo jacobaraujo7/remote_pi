@@ -1,6 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { isAbsolute, join, resolve as resolvePath } from "node:path";
+import { writePrivateFileAtomicSync } from "../secure_fs.js";
 import { daemonIdForCwd } from "./id.js";
 
 /**
@@ -80,8 +81,7 @@ export function loadRegistry(): DaemonRegistry {
 }
 
 export function saveRegistry(reg: DaemonRegistry): void {
-  mkdirSync(dirname(registryPathInternal()), { recursive: true });
-  writeFileSync(registryPathInternal(), JSON.stringify(reg, null, 2) + "\n");
+  writePrivateFileAtomicSync(registryPathInternal(), JSON.stringify(reg, null, 2) + "\n");
 }
 
 /**

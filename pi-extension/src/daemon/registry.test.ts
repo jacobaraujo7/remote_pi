@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -80,9 +80,13 @@ describe("loadRegistry / saveRegistry", () => {
     expect(loadRegistry()).toEqual({ daemons: [{ cwd: "/tmp/a" }, { cwd: "/tmp/b" }] });
   });
 
-  test("creates parent dirs on save", () => {
+  test("creates parent dirs as 0700 and registry file as 0600 on POSIX", () => {
     saveRegistry({ daemons: [] });
     expect(existsSync(registryPath())).toBe(true);
+    if (process.platform !== "win32") {
+      expect(statSync(join(testHome, ".pi", "remote")).mode & 0o777).toBe(0o700);
+      expect(statSync(registryPath()).mode & 0o777).toBe(0o600);
+    }
   });
 
   test("malformed JSON tolerated (returns empty)", () => {

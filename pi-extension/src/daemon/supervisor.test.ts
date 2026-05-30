@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { createConnection } from "node:net";
 import { join } from "node:path";
@@ -70,6 +70,12 @@ afterEach(async () => {
 });
 
 describe("Supervisor — control UDS surface", () => {
+  test("supervisor socket parent is 0700 and socket is 0600 on POSIX", () => {
+    if (process.platform === "win32") return;
+    expect(statSync(join(testHome, ".pi", "remote")).mode & 0o777).toBe(0o700);
+    expect(statSync(getSupervisorSockPath()).mode & 0o777).toBe(0o600);
+  });
+
   test("list returns empty daemons array when registry is empty", async () => {
     const r = await ask({ op: "list" });
     expect(r).toMatchObject({ ok: true, data: { daemons: [] } });

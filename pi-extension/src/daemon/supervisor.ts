@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, unlinkSync } from "node:fs";
+import { existsSync, unlinkSync } from "node:fs";
 import { createServer, type Server, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { PRIVATE_FILE_MODE, chmodPrivatePathSync, ensurePrivateDirSync } from "../secure_fs.js";
 import { addDaemon, listDaemons, removeDaemon } from "./registry.js";
 import { daemonIdForCwd } from "./id.js";
 import { loadLocalConfig, defaultAgentName } from "../session/local_config.js";
@@ -101,7 +102,7 @@ export class Supervisor {
   // ── UDS binding ──────────────────────────────────────────────────────────
 
   private _mkdirParent(): void {
-    mkdirSync(dirname(supervisorSockPath()), { recursive: true });
+    ensurePrivateDirSync(dirname(supervisorSockPath()));
   }
 
   private async _bindUds(): Promise<void> {
@@ -115,7 +116,10 @@ export class Supervisor {
     const server = createServer((socket) => this._onConnection(socket));
     await new Promise<void>((resolve, reject) => {
       server.once("error", reject);
-      server.listen(path, () => resolve());
+      server.listen(path, () => {
+        chmodPrivatePathSync(path, PRIVATE_FILE_MODE);
+        resolve();
+      });
     });
     this.server = server;
   }

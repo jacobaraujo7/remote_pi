@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { mkdtempSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, mkdtempSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { joinOrLead } from "./leader_election.js";
@@ -26,6 +26,7 @@ describe("joinOrLead", () => {
     const sock = tmpSock();
     const r1 = await joinOrLead(sock);
     expect(r1.role).toBe("leader");
+    if (process.platform !== "win32") expect(statSync(sock).mode & 0o777).toBe(0o600);
 
     const r2 = await joinOrLead(sock);
     expect(r2.role).toBe("follower");

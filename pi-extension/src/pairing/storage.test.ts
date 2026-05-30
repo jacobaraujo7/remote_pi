@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -17,9 +16,13 @@ vi.mock("node:os", async (importOriginal) => {
 const storage = await import("./storage.js");
 const {
   getOrCreateEd25519Keypair,
+  addPeer,
+  listPeers,
+  removePeer,
   _setKeyStoreBackendForTest,
   _unlinkIdentityFileForTest,
   _IDENTITY_FILE_FOR_TEST,
+  _PEERS_FILE_FOR_TEST,
 } = storage;
 import type { KeyStoreBackend } from "./storage.js";
 
@@ -71,6 +74,7 @@ beforeEach(async () => {
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
   await _unlinkIdentityFileForTest();
+  rmSync(_PEERS_FILE_FOR_TEST, { force: true });
 });
 
 afterEach(() => {
@@ -214,5 +218,32 @@ describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
       Buffer.from(second.publicKey).toString("base64"),
     );
   });
+});
 
+describe("peers.json storage", () => {
+  test("addPeer creates peers.json as 0600 and parent dir as 0700 on POSIX", async () => {
+    await addPeer({ name: "phone", remote_epk: "peer-a", paired_at: "2026-05-29T00:00:00.000Z" });
+
+    expect(await listPeers()).toEqual([
+      { name: "phone", remote_epk: "peer-a", paired_at: "2026-05-29T00:00:00.000Z" },
+    ]);
+
+    if (process.platform !== "win32") {
+      expect(statSync(join(_tmpHome, ".pi", "remote")).mode & 0o777).toBe(0o700);
+      expect(statSync(_PEERS_FILE_FOR_TEST).mode & 0o777).toBe(0o600);
+    }
+  });
+
+  test("removePeer rewrites peers.json atomically and keeps 0600 on POSIX", async () => {
+    await addPeer({ name: "phone", remote_epk: "peer-a", paired_at: "2026-05-29T00:00:00.000Z" });
+    await addPeer({ name: "tablet", remote_epk: "peer-b", paired_at: "2026-05-29T00:00:01.000Z" });
+
+    await expect(removePeer("peer-a")).resolves.toBe(true);
+    expect(await listPeers()).toEqual([
+      { name: "tablet", remote_epk: "peer-b", paired_at: "2026-05-29T00:00:01.000Z" },
+    ]);
+    if (process.platform !== "win32") {
+      expect(statSync(_PEERS_FILE_FOR_TEST).mode & 0o777).toBe(0o600);
+    }
+  });
 });

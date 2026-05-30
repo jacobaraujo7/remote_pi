@@ -1,7 +1,8 @@
-import { mkdir, readFile, writeFile, chmod, unlink } from "node:fs/promises";
+import { readFile, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { AsyncEntry } from "@napi-rs/keyring";
+import { writePrivateFile, writePrivateFileAtomic } from "../secure_fs.js";
 import { generateEd25519Keypair, type Ed25519Keypair } from "./crypto.js";
 
 /**
@@ -115,12 +116,7 @@ async function _readKeypairFromFile(): Promise<Ed25519Keypair | null> {
 }
 
 async function _writeKeypairToFile(kp: Ed25519Keypair): Promise<void> {
-  await mkdir(PI_DIR, { recursive: true, mode: 0o700 });
-  // Best-effort tighten of the dir in case it pre-existed with looser
-  // permissions (mkdir's mode is only applied to NEW dirs).
-  try { await chmod(PI_DIR, 0o700); } catch { /* not fatal */ }
-  await writeFile(IDENTITY_FILE, _serialize(kp), { mode: 0o600 });
-  try { await chmod(IDENTITY_FILE, 0o600); } catch { /* not fatal */ }
+  await writePrivateFile(IDENTITY_FILE, _serialize(kp));
 }
 
 // ── Public API ──────────────────────────────────────────────────────────────
@@ -202,8 +198,7 @@ export async function addPeer(record: PeerRecord): Promise<void> {
   } else {
     peers.push(record);
   }
-  await mkdir(dirname(PEERS_PATH), { recursive: true });
-  await writeFile(PEERS_PATH, JSON.stringify({ peers }, null, 2));
+  await writePrivateFileAtomic(PEERS_PATH, JSON.stringify({ peers }, null, 2) + "\n");
 }
 
 /**
@@ -225,8 +220,7 @@ export async function removePeer(remoteEpk: string): Promise<boolean> {
   const peers = await listPeers();
   const filtered = peers.filter((p) => p.remote_epk !== remoteEpk);
   if (filtered.length === peers.length) return false;
-  await mkdir(dirname(PEERS_PATH), { recursive: true });
-  await writeFile(PEERS_PATH, JSON.stringify({ peers: filtered }, null, 2));
+  await writePrivateFileAtomic(PEERS_PATH, JSON.stringify({ peers: filtered }, null, 2) + "\n");
   return true;
 }
 
@@ -234,6 +228,8 @@ export async function removePeer(remoteEpk: string): Promise<boolean> {
 
 /** Test-only: expose the identity-file path so tests can clean it. */
 export const _IDENTITY_FILE_FOR_TEST = IDENTITY_FILE;
+/** Test-only: expose the peers-file path for mode/atomic-write checks. */
+export const _PEERS_FILE_FOR_TEST = PEERS_PATH;
 /** Test-only: expose unlink for cleanup. */
 export const _unlinkIdentityFileForTest = async (): Promise<void> => {
   try { await unlink(IDENTITY_FILE); } catch { /* fine if missing */ }
