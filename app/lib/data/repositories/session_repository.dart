@@ -10,6 +10,7 @@
 
 import 'dart:async';
 
+import 'package:app/data/log_safety.dart';
 import 'package:app/data/repositories/i_session_repository.dart';
 import 'package:app/data/repositories/session_history_store.dart';
 import 'package:app/data/transport/channel.dart';
@@ -262,17 +263,14 @@ class SessionRepository extends Repository implements ISessionRepository {
       // The only outbound log we keep (alongside its echo counterpart
       // in `case UserInput`). Together they form the canonical send→
       // confirm cycle for the optimistic UI.
-      debugPrint('[msg-send] id=${msg.id} text=${_preview(text)}');
+      debugPrint('[msg-send] id=${msg.id} ${logTextStats(text)}');
       await ch.send(msg);
     } else {
       debugPrint(
-        '[msg-send] id=${msg.id} text=${_preview(text)} (channel offline → held pending)',
+        '[msg-send] id=${msg.id} ${logTextStats(text)} (channel offline → held pending)',
       );
     }
   }
-
-  static String _preview(String s) =>
-      s.length <= 60 ? s : '${s.substring(0, 60)}…';
 
   /// Schedule the `pending → failed` transition for [id] if Pi's
   /// rebroadcast doesn't arrive within [_echoTimeout].

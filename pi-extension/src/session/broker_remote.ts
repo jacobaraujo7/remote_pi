@@ -1,4 +1,5 @@
 import type { Broker, RemoteInjectStatus, RemoteRouter } from "./broker.js";
+import { safeLogString, shortId } from "../log_safety.js";
 import { type Envelope, envelope, uuidv7 } from "./envelope.js";
 import type { PiForwardClient } from "../transport/pi_forward_client.js";
 
@@ -311,7 +312,7 @@ export class BrokerRemote implements RemoteRouter {
     const claimedLabel = this.siblingByPubkey.get(fromPc);
     if (!claimedLabel) {
       this.log(
-        `[broker_remote] drop: from_pc ${fromPc.slice(0, 12)}… not in sibling cache`,
+        `[broker_remote] drop: from_pc ${shortId(fromPc, 12)} not in sibling cache`,
       );
       return;
     }
@@ -319,8 +320,8 @@ export class BrokerRemote implements RemoteRouter {
       const fromPrefix = env.from.split(":", 1)[0];
       if (fromPrefix !== claimedLabel) {
         this.log(
-          `[broker_remote] drop: envelope.from "${env.from}" prefix ` +
-          `mismatches sibling label "${claimedLabel}"`,
+          `[broker_remote] drop: envelope.from "${safeLogString(env.from)}" prefix ` +
+          `mismatches sibling label "${safeLogString(claimedLabel)}"`,
         );
         return;
       }
@@ -376,8 +377,8 @@ export class BrokerRemote implements RemoteRouter {
     } else if (toParsed) {
       // `to` carries a third-party prefix — not for us. Drop.
       this.log(
-        `[broker_remote] drop: envelope.to "${env.to}" not addressed to ` +
-        `selfPcLabel "${this.selfPcLabel}"`,
+        `[broker_remote] drop: envelope.to "${safeLogString(env.to)}" not addressed to ` +
+        `selfPcLabel "${safeLogString(this.selfPcLabel)}"`,
       );
       return;
     }
