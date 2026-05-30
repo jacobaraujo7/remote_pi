@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 // QR URI format:
-//   remotepi://pair?t=<base64url>&epk=<base64url>&n=<name>[&r=<url>][&rm=<roomId>]
+//   remotepi://pair?t=<base64url>&epk=<base64url>&n=<name>[&r=<url>][&rm=<roomId>][&si=1]
 //
 // Fields:
 //   t   — token efêmero (16 bytes, base64url), single-use, valid 60s
@@ -17,6 +17,8 @@ import 'dart:convert';
 //         "dest (peer, room) not found"). Optional; legacy QRs without
 //         `rm` make the app fall back to `'main'` during pair_request
 //         and rely on subscribe_rooms-based discovery afterwards.
+//   si  — when "1", the Pi supports and requires signed_inner_v1 after
+//         pairing; app rejects pair_ok if the relay strips negotiation.
 
 class QrPairPayload {
   final String token;
@@ -30,6 +32,7 @@ class QrPairPayload {
   /// right Pi-WS. `null` for pre-plan-17 QRs — caller must fall back to
   /// `'main'` and discover the real room id via subscribe_rooms.
   final String? roomId;
+  final bool signedInnerRequired;
 
   const QrPairPayload({
     required this.token,
@@ -37,6 +40,7 @@ class QrPairPayload {
     required this.sessionName,
     this.relayUrl,
     this.roomId,
+    this.signedInnerRequired = false,
   });
 
   static QrPairPayload? tryParse(String raw) {
@@ -48,6 +52,7 @@ class QrPairPayload {
       final r = uri.queryParameters['r']; // legacy/optional
       final n = uri.queryParameters['n'];
       final rm = uri.queryParameters['rm']; // plan 17 — Pi-side room
+      final si = uri.queryParameters['si'];
       // r is no longer required — plan 14 dropped it from the canonical
       // contract. Legacy QRs continue to include it; we capture it for
       // mismatch detection but don't reject when absent.
@@ -62,6 +67,7 @@ class QrPairPayload {
         sessionName: n,
         relayUrl: (r != null && r.isNotEmpty) ? r : null,
         roomId: (rm != null && rm.isNotEmpty) ? rm : null,
+        signedInnerRequired: si == '1',
       );
     } catch (_) {
       return null;

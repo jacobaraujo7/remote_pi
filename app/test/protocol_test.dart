@@ -145,6 +145,19 @@ void main() {
       expect(msg.harness!.version, '0.4.2');
     });
 
+    test('PairOk.fromJson decodes signed-inner capability', () {
+      final msg = PairOk.fromJson({
+        'type': 'pair_ok',
+        'in_reply_to': 'req-1',
+        'session_name': 'remote_pi · main',
+        'session_started_at': 1700000000000,
+        'room_id': 'room-xyz',
+        'capabilities': ['signed_inner_v1'],
+      });
+      expect(msg.capabilities, ['signed_inner_v1']);
+      expect(msg.supportsSignedInnerV1, isTrue);
+    });
+
     test('PairOk.fromJson tolerates missing harness/hostname (legacy Pi)', () {
       final msg = PairOk.fromJson({
         'type': 'pair_ok',

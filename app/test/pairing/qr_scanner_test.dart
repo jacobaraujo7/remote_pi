@@ -86,5 +86,20 @@ void main() {
       expect(qr, isNotNull);
       expect(qr!.roomId, isNull);
     });
+
+    test('si=1 marks signed inner support as required by this QR', () {
+      final raw = 'remotepi://pair?t=$goodToken&epk=$goodEpk&'
+          'rm=abc123def456&si=1&n=$sessionName';
+      final qr = QrPairPayload.tryParse(raw);
+      expect(qr, isNotNull);
+      expect(qr!.signedInnerRequired, isTrue);
+    });
+
+    test('QR without si leaves signed inner optional for legacy compatibility', () {
+      final raw = 'remotepi://pair?t=$goodToken&epk=$goodEpk&n=$sessionName';
+      final qr = QrPairPayload.tryParse(raw);
+      expect(qr, isNotNull);
+      expect(qr!.signedInnerRequired, isFalse);
+    });
   });
 }

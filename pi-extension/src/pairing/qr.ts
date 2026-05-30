@@ -75,6 +75,10 @@ export function buildQRUri(
     n: sessionName.slice(0, 80),
   });
   if (roomId) params.set("rm", roomId);
+  // Capability advertised in QR so a relay cannot silently strip the
+  // pair_request capability and downgrade a new app/Pi pair to unsigned
+  // inner traffic. Legacy QRs omit this and remain compatible.
+  params.set("si", "1");
   return `remotepi://pair?${params.toString()}`;
 }
 

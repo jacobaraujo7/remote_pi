@@ -78,7 +78,13 @@ class PairingViewModel extends ViewModel<PairingState> {
         ),
       );
 
-      final channel = PlainPeerChannel(transport: transport);
+      final channel = PlainPeerChannel(
+        transport: transport,
+        signingKey: result.peer.supportsSignedInnerV1 ? ownerKey : null,
+        expectedRemotePubkey: result.peer.supportsSignedInnerV1 ? result.peer.remoteEpk : null,
+        roomId: result.peer.supportsSignedInnerV1 ? result.peer.roomId : null,
+        requireSigned: result.peer.supportsSignedInnerV1,
+      );
       _liveChannel = channel;
       _transport = null; // channel now owns the transport
 

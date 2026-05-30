@@ -101,11 +101,29 @@ void main() {
       expect(json['relay_url'], 'ws://localhost');
       expect(json['paired_at'], '2026-01-01T00:00:00Z');
       expect(json['nickname'], isNull);
+      expect(json.containsKey('supports_signed_inner_v1'), isFalse);
 
       final restored = PeerRecord.fromJson(json);
       expect(restored.remoteEpk, 'pk_ed25519');
       expect(restored.sessionName, 'test');
       expect(restored.nickname, isNull);
+      expect(restored.supportsSignedInnerV1, isFalse);
+    });
+
+    test('signed-inner capability round-trips only when true', () {
+      const record = PeerRecord(
+        remoteEpk: 'pk1',
+        sessionName: 'name',
+        relayUrl: 'ws://x',
+        pairedAt: '2026-01-01T00:00:00Z',
+        supportsSignedInnerV1: true,
+      );
+
+      final json = record.toJson();
+      expect(json['supports_signed_inner_v1'], isTrue);
+      final restored = PeerRecord.fromJson(json);
+      expect(restored.supportsSignedInnerV1, isTrue);
+      expect(restored.copyWith(supportsSignedInnerV1: false).supportsSignedInnerV1, isFalse);
     });
 
     test('nickname round-trips through toJson/fromJson', () {

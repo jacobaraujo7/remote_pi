@@ -182,6 +182,7 @@ export interface PeerRecord {
   name: string;
   remote_epk: string; // base64 standard, 32B Ed25519
   paired_at: string;  // ISO-8601
+  supports_signed_inner_v1?: boolean;
 }
 
 export async function listPeers(): Promise<PeerRecord[]> {

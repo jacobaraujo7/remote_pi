@@ -161,7 +161,13 @@ Future<IChannel> _productionConnectionFactory(
     throw _CancelledError();
   }
 
-  return PlainPeerChannel(transport: transport);
+  return PlainPeerChannel(
+    transport: transport,
+    signingKey: peer.supportsSignedInnerV1 ? ownerKey : null,
+    expectedRemotePubkey: peer.supportsSignedInnerV1 ? peer.remoteEpk : null,
+    roomId: peer.supportsSignedInnerV1 ? peer.roomId : null,
+    requireSigned: peer.supportsSignedInnerV1,
+  );
 }
 
 // ---------------------------------------------------------------------------

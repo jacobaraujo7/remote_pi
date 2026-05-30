@@ -100,6 +100,9 @@ class PeerRecord {
   /// fall back to [PiHarness.piCodingAgentUnknown] so the UI never
   /// renders an empty subtitle.
   final PiHarness? harness;
+  /// True only when pairing negotiated signed_inner_v1 support on both ends.
+  /// Missing on legacy records, so default false preserves compatibility.
+  final bool supportsSignedInnerV1;
 
   const PeerRecord({
     required this.remoteEpk,
@@ -109,6 +112,7 @@ class PeerRecord {
     this.nickname,
     this.roomId,
     this.harness,
+    this.supportsSignedInnerV1 = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -119,6 +123,7 @@ class PeerRecord {
     'nickname': nickname,
     'room_id': roomId,
     if (harness != null) 'harness': harness!.toJson(),
+    if (supportsSignedInnerV1) 'supports_signed_inner_v1': true,
   };
 
   factory PeerRecord.fromJson(Map<String, dynamic> j) {
@@ -139,6 +144,7 @@ class PeerRecord {
       harness: harnessJson is Map<String, dynamic>
           ? PiHarness.fromJson(harnessJson)
           : null,
+      supportsSignedInnerV1: j['supports_signed_inner_v1'] == true,
     );
   }
 
@@ -148,6 +154,7 @@ class PeerRecord {
     Object? nickname = _unset,
     Object? roomId = _unset,
     Object? harness = _unset,
+    bool? supportsSignedInnerV1,
   }) => PeerRecord(
     remoteEpk: remoteEpk,
     sessionName: sessionName ?? this.sessionName,
@@ -162,6 +169,7 @@ class PeerRecord {
     harness: identical(harness, _unset)
         ? this.harness
         : harness as PiHarness?,
+    supportsSignedInnerV1: supportsSignedInnerV1 ?? this.supportsSignedInnerV1,
   );
 
   @override
@@ -173,7 +181,8 @@ class PeerRecord {
       other.pairedAt == pairedAt &&
       other.nickname == nickname &&
       other.roomId == roomId &&
-      other.harness == harness;
+      other.harness == harness &&
+      other.supportsSignedInnerV1 == supportsSignedInnerV1;
 
   @override
   int get hashCode => Object.hash(
@@ -184,6 +193,7 @@ class PeerRecord {
         nickname,
         roomId,
         harness,
+        supportsSignedInnerV1,
       );
 }
 
