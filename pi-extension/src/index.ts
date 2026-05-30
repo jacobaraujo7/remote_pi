@@ -325,6 +325,12 @@ export function _setCurrentModelForTest(name: string | undefined): void {
   _currentModel = name;
 }
 
+/** Test-only: override the bound AgentSession so a spy can capture the
+ *  content handed to `sendUserMessage` (plan/30 multimodal ingest). */
+export function _setPiForTest(pi: unknown): void {
+  _pi = pi as typeof _pi;
+}
+
 // Per-turn messaging state
 let _currentTurnId: string | null = null;
 
@@ -2140,13 +2146,16 @@ function _deployAgentNetworkSkill(): void {
  * that requires a fix in the Pi runtime (no extension-level error event
  * exists for it). See `.orchestration/results/mesh-liveness-stale-peer.md`.
  */
-function _wakeAgent(text: string, label: string): void {
+function _wakeAgent(
+  content: Parameters<ExtensionAPI["sendUserMessage"]>[0],
+  label: string,
+): void {
   if (!_pi) {
     console.error(`[remote-pi] ${label}: agent session not bound yet — message dropped`);
     return;
   }
   try {
-    _pi.sendUserMessage(text);
+    _pi.sendUserMessage(content);
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
@@ -2332,9 +2341,25 @@ export function _routeClientMessageFrom(
       // The user_message is also recorded in _messageBuffer indirectly
       // via `pi.on("message_end")` after the SDK persists the turn — so
       // a later `session_sync` returns it in the history events.
-      _broadcastToActive({ type: "user_message", id: msg.id, text: msg.text });
+      // Plan/30: echo any inline images too so every owner renders the same
+      // image bubble. No-image path is byte-identical to before (no `images`
+      // key on the wire).
+      const echo: ServerMessage = msg.images && msg.images.length > 0
+        ? { type: "user_message", id: msg.id, text: msg.text, images: msg.images }
+        : { type: "user_message", id: msg.id, text: msg.text };
+      _broadcastToActive(echo);
       _currentTurnId = msg.id;
-      _wakeAgent(msg.text, `app user_message id=${msg.id}`);
+      if (msg.images && msg.images.length > 0) {
+        // Plan/30 multimodal: image(s) first, then the caption text — the shape
+        // the SDK's sendUserMessage(content[]) hands straight to the model.
+        const content: Parameters<ExtensionAPI["sendUserMessage"]>[0] = [
+          ...msg.images.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mime })),
+          { type: "text" as const, text: msg.text },
+        ];
+        _wakeAgent(content, `app user_message id=${msg.id} (+${msg.images.length} image)`);
+      } else {
+        _wakeAgent(msg.text, `app user_message id=${msg.id}`);
+      }
       break;
     }
     case "approve_tool":

@@ -253,6 +253,7 @@ describe("handleListModels", () => {
         provider: "anthropic",
         reasoning: true,
         context_window: 200_000,
+        vision: false,
       },
     ]);
     expect(reply.current).toEqual(reply.models[0]);
@@ -295,6 +296,18 @@ describe("wireFromModel", () => {
       provider: "anthropic",
       reasoning: true,
       context_window: 200_000,
+      vision: false,  // sampleModel has no `input` → text-only
     });
+  });
+
+  // Plan/30: `vision` reflects whether the model's `input` includes "image".
+  test("vision=true when model.input includes \"image\"", () => {
+    const visionModel: SdkModelLike = { ...sampleModel, input: ["text", "image"] };
+    expect(wireFromModel(visionModel).vision).toBe(true);
+  });
+
+  test("vision=false when model.input is text-only", () => {
+    const textOnly: SdkModelLike = { ...sampleModel, input: ["text"] };
+    expect(wireFromModel(textOnly).vision).toBe(false);
   });
 });

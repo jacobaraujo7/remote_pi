@@ -41,6 +41,10 @@ export interface SdkModelLike {
   provider: string;
   reasoning: boolean;
   contextWindow: number;
+  /** Plan/30: accepted input modalities. The SDK's `Model.input` is
+   *  `("text" | "image")[]`; we read `includes("image")` for the `vision`
+   *  flag. Optional here so tests can omit it (treated as text-only). */
+  input?: ("text" | "image")[];
 }
 // `Model` is the alias used throughout the file. Real SDK models structurally
 // satisfy this — `pi.setModel(model)` accepts them because TypeScript
@@ -109,6 +113,10 @@ export function wireFromModel(model: Model<any>): WireModel {
     provider: model.provider,
     reasoning: model.reasoning,
     context_window: model.contextWindow,
+    // Plan/30: vision = model accepts image input. `Model.input` is
+    // `("text" | "image")[]` at runtime (confirmed against pi-ai). `?.` guards
+    // a fake/partial model in tests → treated as text-only.
+    vision: model.input?.includes("image") ?? false,
   };
 }
 

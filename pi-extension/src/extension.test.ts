@@ -142,6 +142,7 @@ const {
   _hasPendingReconnect,
   _getMessageBufferForTest,
   _setCurrentModelForTest,
+  _setPiForTest,
   _connectForTest,
   _hasActivePeerForTest,
   _getActivePeerCountForTest,
@@ -943,6 +944,58 @@ describe("multi-channel broadcast (W2D)", () => {
     // Both owners received the echo (sender included).
     const recipients = new Set(echoes.map((d) => d.peer));
     expect(recipients).toEqual(new Set(["ownerA__1234567890", "ownerB__abcdefghij"]));
+  });
+
+  test("plan/30: user_message with an image → sendUserMessage gets ImageContent+TextContent; echo carries images", async () => {
+    await _pairForTest("ownerA__1234567890");
+    // Override _pi with a spy to capture the multimodal content sent to the SDK.
+    const sentToAgent: unknown[] = [];
+    _setPiForTest({
+      sendUserMessage: (c: unknown) => { sentToAgent.push(c); },
+      sendMessage: () => undefined,
+    });
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "ownerA__1234567890",
+      ct: Buffer.from(JSON.stringify({
+        type: "user_message", id: "msg-img", text: "what is this?",
+        images: [{ data: "QUJD", mime: "image/jpeg" }],
+      })).toString("base64"),
+    }));
+    await new Promise<void>((r) => setImmediate(r));
+
+    // (a) the agent received image-first, then the caption text.
+    expect(sentToAgent).toHaveLength(1);
+    expect(sentToAgent[0]).toEqual([
+      { type: "image", data: "QUJD", mimeType: "image/jpeg" },
+      { type: "text", text: "what is this?" },
+    ]);
+    // The echo carries `images` so other owners render the bubble.
+    const sent = relayRef.current!.send.mock.calls.slice(sendsBefore)
+      .map((c) => c[0] as string).map(decodeSentCt);
+    const echo = sent.find((d) => d.inner.type === "user_message");
+    expect(echo?.inner).toMatchObject({
+      type: "user_message", id: "msg-img", text: "what is this?",
+      images: [{ data: "QUJD", mime: "image/jpeg" }],
+    });
+  });
+
+  test("plan/30: user_message without images → no `images` key on the echo (text path unchanged)", async () => {
+    await _pairForTest("ownerA__1234567890");
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "ownerA__1234567890",
+      ct: Buffer.from(JSON.stringify({
+        type: "user_message", id: "msg-txt", text: "hi",
+      })).toString("base64"),
+    }));
+    await new Promise<void>((r) => setImmediate(r));
+    const sent = relayRef.current!.send.mock.calls.slice(sendsBefore)
+      .map((c) => c[0] as string).map(decodeSentCt);
+    const echo = sent.find((d) => d.inner.type === "user_message");
+    expect(echo?.inner).toMatchObject({ type: "user_message", id: "msg-txt", text: "hi" });
+    expect(echo?.inner).not.toHaveProperty("images");
   });
 
   test("rebroadcast happens BEFORE the agent processes the message", async () => {

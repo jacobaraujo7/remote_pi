@@ -6,7 +6,9 @@ export type PairErrorCode =
 
 export type ClientMessage =
   | { type: "pair_request"; id: string; token: string; device_name: string }
-  | { type: "user_message"; id: string; text: string }
+  // Plan/30: optional `images` carry inline base64 attachments (one today).
+  // Omitted entirely on text-only messages — the no-image path is unchanged.
+  | { type: "user_message"; id: string; text: string; images?: WireImage[] }
   | { type: "approve_tool"; id: string; tool_call_id: string; decision: "allow" | "deny" }
   | { type: "cancel"; id: string; target_id: string }
   | { type: "ping"; id: string }
@@ -20,6 +22,20 @@ export type ClientMessage =
   | { type: "model_set"; id: string; provider: string; model_id: string }
   | { type: "thinking_set"; id: string; level: ThinkingLevel }
   | { type: "list_models"; id: string };
+
+/**
+ * Plan/30 — one inline image attachment on a `user_message`. Mirrors the
+ * SDK's `ImageContent` ({@link https }) split across the wire: `data` is the
+ * base64-encoded (compressed) image bytes, `mime` its content type
+ * (e.g. `"image/jpeg"`). The Pi maps `{ data, mime }` → the SDK's
+ * `{ type:"image", data, mimeType }` before handing it to the model.
+ */
+export interface WireImage {
+  /** Base64-encoded image bytes (compressed app-side). */
+  data: string;
+  /** MIME type, e.g. `"image/jpeg"`. Maps to the SDK's `mimeType`. */
+  mime: string;
+}
 
 export type Usage = { input_tokens: number; output_tokens: number };
 
@@ -92,7 +108,8 @@ export type ServerMessage =
   // Field shape mirrors the inbound ClientMessage `user_message` exactly,
   // and `id` is the sender-provided id — Pi never re-generates it (lets
   // future dedup logic use id as a stable key). See plan/24 W2D fix.
-  | { type: "user_message"; id: string; text: string }
+  // Plan/30: `images` echoed back so every owner renders the same image bubble.
+  | { type: "user_message"; id: string; text: string; images?: WireImage[] }
   | { type: "agent_chunk"; in_reply_to: string; delta: string }
   | { type: "agent_done"; in_reply_to: string; usage?: Usage }
   | { type: "agent_message"; in_reply_to: string; text: string; usage?: Usage }
@@ -168,6 +185,10 @@ export interface WireModel {
   reasoning: boolean;
   /** Context window in tokens, for display in the picker subtitle. */
   context_window: number;
+  /** Plan/30: true when the model accepts image input (SDK `Model.input`
+   *  includes `"image"`). The app uses it to enable/disable the attach
+   *  button — a text-only model greys out image attachments. */
+  vision: boolean;
 }
 
 export type ByeReason = "peer_stop" | "session_replaced" | "shutdown";
