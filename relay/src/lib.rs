@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod handlers;
+pub mod log_safety;
 pub mod mesh;
 pub mod metrics;
 pub mod peers;

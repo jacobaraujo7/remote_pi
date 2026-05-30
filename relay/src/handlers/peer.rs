@@ -15,6 +15,7 @@ use crate::AppState;
 use crate::auth::challenge::{
     HELLO_TIMEOUT_MS, challenge_line, gen_nonce, parse_hello, verify_auth,
 };
+use crate::log_safety::{safe_frame_type, short_id};
 use crate::protocol::outer::{OuterEnvelope, parse_line};
 use crate::rooms::RoomMeta;
 
@@ -81,7 +82,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
     }
 
     let peer_id = B64.encode(vk.to_bytes());
-    let peer_short = peer_id[peer_id.len().saturating_sub(8)..].to_string();
+    let peer_short = short_id(&peer_id);
 
     // Extract room_id and room_meta from hello (auth handled separately above).
     let room_meta = {
@@ -292,7 +293,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                 _ => {
                                     warn!(
                                         peer = %peer_short,
-                                        frame_type = %t,
+                                        frame_type = %safe_frame_type(t),
                                         "unknown control frame type, dropping"
                                     );
                                 }
@@ -309,8 +310,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                 let ct_len = env.ct.len();
                                 let dest_peer = env.peer;
                                 let dest_room = env.room;
-                                let dest_tail =
-                                    dest_peer[dest_peer.len().saturating_sub(8)..].to_string();
+                                let dest_tail = short_id(&dest_peer);
                                 // Rewrite: recipient sees sender's peer_id + sender's room_id.
                                 let rewritten = OuterEnvelope {
                                     peer: peer_id.clone(),
