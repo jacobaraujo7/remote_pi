@@ -362,10 +362,12 @@ class PairRequest extends ClientMessage {
   final String id;
   final String token;
   final String deviceName;
+  final List<String> capabilities;
   PairRequest({
     required this.id,
     required this.token,
     required this.deviceName,
+    this.capabilities = const [],
   });
 
   @override
@@ -374,6 +376,7 @@ class PairRequest extends ClientMessage {
     'id': id,
     'token': token,
     'device_name': deviceName,
+    if (capabilities.isNotEmpty) 'capabilities': capabilities,
   };
 }
 

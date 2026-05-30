@@ -48,7 +48,8 @@ Future<void> main() async {
           'text': 'hello',
           'nested': {'b': 2, 'a': 1},
         },
-        'sig': 'GxWRHj92N2l5IW1ApzmyE+5cfeWJAoLRoaqRhC5M40aV1rW13GYQ4pLI0ZMcIvbgOsfQwvwpMyQ4F/A972LxCA==',
+        'sig':
+            'GxWRHj92N2l5IW1ApzmyE+5cfeWJAoLRoaqRhC5M40aV1rW13GYQ4pLI0ZMcIvbgOsfQwvwpMyQ4F/A972LxCA==',
       };
 
       expect(
@@ -76,65 +77,114 @@ Future<void> main() async {
       );
     });
 
-    test('signs and verifies payload and rejects replay/tamper/wrong room', () async {
-      final sender = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 1);
-      final recipient = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 2);
-      final recipientPk = base64.encode((await recipient.extractPublicKey()).bytes);
-      final senderPk = base64.encode((await sender.extractPublicKey()).bytes);
-      final frame = await signInnerV1(
-        payload: {'type': 'ping', 'id': 'p1'},
-        senderKey: sender,
-        recipientPk: recipientPk,
-        roomId: 'room-1',
-        now: 1700000000000,
-        msgId: 'msg-1',
-      );
+    test(
+      'signs and verifies payload and rejects invalid signed frames',
+      () async {
+        final sender = await Ed25519().newKeyPairFromSeed(
+          Uint8List(32)..[0] = 1,
+        );
+        final recipient = await Ed25519().newKeyPairFromSeed(
+          Uint8List(32)..[0] = 2,
+        );
+        final other = await Ed25519().newKeyPairFromSeed(
+          Uint8List(32)..[0] = 3,
+        );
+        final recipientPk = base64.encode(
+          (await recipient.extractPublicKey()).bytes,
+        );
+        final senderPk = base64.encode((await sender.extractPublicKey()).bytes);
+        final otherPk = base64.encode((await other.extractPublicKey()).bytes);
+        final frame = await signInnerV1(
+          payload: {'type': 'ping', 'id': 'p1'},
+          senderKey: sender,
+          recipientPk: recipientPk,
+          roomId: 'room-1',
+          now: 1700000000000,
+          msgId: 'msg-1',
+        );
 
-      final replay = SignedInnerReplayCache();
-      expect(
-        await verifyInnerV1(
-          frame: frame,
-          expectedSenderPk: senderPk,
-          expectedRecipientPk: recipientPk,
-          expectedRoomId: 'room-1',
-          replay: replay,
-          now: 1700000000100,
-        ),
-        {'type': 'ping', 'id': 'p1'},
-      );
-      expect(
-        await verifyInnerV1(
-          frame: frame,
-          expectedSenderPk: senderPk,
-          expectedRecipientPk: recipientPk,
-          expectedRoomId: 'room-1',
-          replay: replay,
-          now: 1700000000100,
-        ),
-        isNull,
-      );
-      expect(
-        await verifyInnerV1(
-          frame: {...frame, 'payload': {'type': 'ping', 'id': 'p2'}},
-          expectedSenderPk: senderPk,
-          expectedRecipientPk: recipientPk,
-          expectedRoomId: 'room-1',
-          replay: SignedInnerReplayCache(),
-          now: 1700000000100,
-        ),
-        isNull,
-      );
-      expect(
-        await verifyInnerV1(
-          frame: frame,
-          expectedSenderPk: senderPk,
-          expectedRecipientPk: recipientPk,
-          expectedRoomId: 'room-2',
-          replay: SignedInnerReplayCache(),
-          now: 1700000000100,
-        ),
-        isNull,
-      );
-    });
+        final replay = SignedInnerReplayCache();
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-1',
+            replay: replay,
+            now: 1700000000100,
+          ),
+          {'type': 'ping', 'id': 'p1'},
+        );
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-1',
+            replay: replay,
+            now: 1700000000100,
+          ),
+          isNull,
+        );
+        expect(
+          await verifyInnerV1(
+            frame: {
+              ...frame,
+              'payload': {'type': 'ping', 'id': 'p2'},
+            },
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-1',
+            replay: SignedInnerReplayCache(),
+            now: 1700000000100,
+          ),
+          isNull,
+        );
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: otherPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-1',
+            replay: SignedInnerReplayCache(),
+            now: 1700000000100,
+          ),
+          isNull,
+        );
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: otherPk,
+            expectedRoomId: 'room-1',
+            replay: SignedInnerReplayCache(),
+            now: 1700000000100,
+          ),
+          isNull,
+        );
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-2',
+            replay: SignedInnerReplayCache(),
+            now: 1700000000100,
+          ),
+          isNull,
+        );
+        expect(
+          await verifyInnerV1(
+            frame: frame,
+            expectedSenderPk: senderPk,
+            expectedRecipientPk: recipientPk,
+            expectedRoomId: 'room-1',
+            replay: SignedInnerReplayCache(),
+            now: 1700001000000,
+          ),
+          isNull,
+        );
+      },
+    );
   });
 }

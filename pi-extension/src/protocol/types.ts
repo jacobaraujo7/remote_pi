@@ -2,6 +2,7 @@ export type PairErrorCode =
   | "token_expired"
   | "token_consumed"
   | "token_unknown"
+  | "capability_downgrade"
   | "internal_error";
 
 export type ClientMessage =

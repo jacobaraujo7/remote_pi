@@ -63,6 +63,7 @@ vi.mock("../src/pairing/qr.js", async (importOriginal) => {
     qrSession: {
       issueToken: vi.fn().mockReturnValue({ token: "test-token", expiresAt: Date.now() + 60_000 }),
       consumeToken: vi.fn().mockReturnValue("ok"),
+      requiresSignedInner: vi.fn().mockReturnValue(false),
       clear: vi.fn(),
       generateToken: vi.fn().mockReturnValue("test-token"),
     },

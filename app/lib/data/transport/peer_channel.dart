@@ -8,6 +8,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 
 import 'package:app/data/transport/channel.dart';
@@ -27,6 +28,16 @@ class PeerChannelError implements Exception {
 }
 
 class PlainPeerChannel implements IChannel, IControlLink {
+  static final _sharedReplayCaches = <String, SignedInnerReplayCache>{};
+
+  static SignedInnerReplayCache _sharedReplayCache({
+    required String expectedRemotePubkey,
+    required String roomId,
+  }) => _sharedReplayCaches.putIfAbsent(
+    '$expectedRemotePubkey\u0000$roomId',
+    SignedInnerReplayCache.new,
+  );
+
   final PeerTransport _transport;
 
   final _controller = StreamController<ServerMessage>.broadcast();
@@ -34,6 +45,7 @@ class PlainPeerChannel implements IChannel, IControlLink {
   final String? _expectedRemotePubkey;
   final bool _requireSigned;
   final SignedInnerReplayCache _replayCache;
+  final _signedDropLogAt = <String, DateTime>{};
   String? _activeRoomId;
   bool _started = false;
   bool _closed = false;
@@ -45,14 +57,25 @@ class PlainPeerChannel implements IChannel, IControlLink {
     String? roomId,
     bool requireSigned = true,
     SignedInnerReplayCache? replayCache,
-  })  : _transport = transport,
-        _signingKey = signingKey,
-        _expectedRemotePubkey = expectedRemotePubkey == null
-            ? null
-            : toStandardB64(expectedRemotePubkey),
-        _activeRoomId = roomId,
-        _requireSigned = requireSigned,
-        _replayCache = replayCache ?? SignedInnerReplayCache();
+  }) : _transport = transport,
+       _signingKey = signingKey,
+       _expectedRemotePubkey = expectedRemotePubkey == null
+           ? null
+           : toStandardB64(expectedRemotePubkey),
+       _activeRoomId = roomId,
+       _requireSigned = requireSigned,
+       _replayCache =
+           replayCache ??
+           (expectedRemotePubkey != null && roomId != null
+               ? _sharedReplayCache(
+                   expectedRemotePubkey: toStandardB64(expectedRemotePubkey),
+                   roomId: roomId,
+                 )
+               : SignedInnerReplayCache()) {
+    if (roomId != null) {
+      _propagateActiveRoom(roomId);
+    }
+  }
 
   // ---- IControlLink — forwards to the underlying transport when it
   //      supports raw control frames (production: WsTransport). For
@@ -76,12 +99,29 @@ class PlainPeerChannel implements IChannel, IControlLink {
   /// No-op when the transport doesn't support it (in-memory test fakes).
   void setActiveRoom(String roomId) {
     _activeRoomId = roomId;
+    _propagateActiveRoom(roomId);
+  }
+
+  void _propagateActiveRoom(String roomId) {
     final t = _transport;
     try {
       (t as dynamic).setActiveRoom(roomId);
     } catch (_) {
       // Non-WS transports don't track rooms — fine to ignore.
     }
+  }
+
+  void _logSignedDrop(String reason) {
+    final now = DateTime.now();
+    final last = _signedDropLogAt[reason];
+    if (last != null && now.difference(last) < const Duration(seconds: 30)) {
+      return;
+    }
+    _signedDropLogAt[reason] = now;
+    developer.log(
+      'signed_inner_v1 drop: reason=$reason',
+      name: 'remote_pi.peer_channel',
+    );
   }
 
   @override
@@ -98,15 +138,30 @@ class PlainPeerChannel implements IChannel, IControlLink {
     final payload = msg.toJson();
     final signingKey = _signingKey;
     final expectedRemote = _expectedRemotePubkey;
-    final roomId = _activeRoomId;
-    final Object wire = signingKey != null && expectedRemote != null && roomId != null
-        ? await signInnerV1(
-            payload: payload,
-            senderKey: signingKey,
-            recipientPk: expectedRemote,
-            roomId: roomId,
-          )
-        : payload;
+    Object wire = payload;
+    String? signedRoomId;
+
+    if (signingKey != null && expectedRemote != null) {
+      while (true) {
+        final roomId = _activeRoomId;
+        if (roomId == null) break;
+        final signed = await signInnerV1(
+          payload: payload,
+          senderKey: signingKey,
+          recipientPk: expectedRemote,
+          roomId: roomId,
+        );
+        if (_activeRoomId == roomId) {
+          wire = signed;
+          signedRoomId = roomId;
+          break;
+        }
+      }
+    }
+
+    if (signedRoomId != null) {
+      _propagateActiveRoom(signedRoomId);
+    }
     final bytes = Uint8List.fromList(utf8.encode(jsonEncode(wire)));
     await _transport.send(bytes);
   }
@@ -138,8 +193,12 @@ class PlainPeerChannel implements IChannel, IControlLink {
         final signingKey = _signingKey;
         final expectedRemote = _expectedRemotePubkey;
         final roomId = _activeRoomId;
-        if (signingKey == null || expectedRemote == null || roomId == null) return;
-        final localPk = base64.encode((await signingKey.extractPublicKey()).bytes);
+        if (signingKey == null || expectedRemote == null || roomId == null) {
+          return;
+        }
+        final localPk = base64.encode(
+          (await signingKey.extractPublicKey()).bytes,
+        );
         final verified = await verifyInnerV1(
           frame: decoded,
           expectedSenderPk: expectedRemote,
@@ -147,9 +206,13 @@ class PlainPeerChannel implements IChannel, IControlLink {
           expectedRoomId: roomId,
           replay: _replayCache,
         );
-        if (verified == null) return;
+        if (verified == null) {
+          _logSignedDrop('verify_failed');
+          return;
+        }
         payload = verified;
       } else if (_signingKey != null && _requireSigned) {
+        _logSignedDrop('unsigned_required');
         return;
       }
       final msg = ServerMessage.fromJson(payload);
@@ -158,7 +221,10 @@ class PlainPeerChannel implements IChannel, IControlLink {
       // Forward-compat: surface unknown server types as ErrorMessage.
       if (!_controller.isClosed) {
         _controller.add(
-          ErrorMessage(code: 'unsupported_type', message: 'unknown server type'),
+          ErrorMessage(
+            code: 'unsupported_type',
+            message: 'unknown server type',
+          ),
         );
       }
     } catch (_) {

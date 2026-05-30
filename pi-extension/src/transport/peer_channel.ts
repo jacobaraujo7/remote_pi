@@ -53,6 +53,7 @@ export interface SignedInnerOptions {
 export class PlainPeerChannel implements PeerChannel {
   private readonly _unsubscribe: () => void;
   private readonly _signed?: Required<SignedInnerOptions>;
+  private readonly _signedDropLogAt = new Map<string, number>();
 
   constructor(
     private readonly relay: RelayClient,
@@ -102,6 +103,14 @@ export class PlainPeerChannel implements PeerChannel {
     this.relay.send(JSON.stringify(outer));
   }
 
+  private _logSignedDrop(reason: string): void {
+    const now = Date.now();
+    const last = this._signedDropLogAt.get(reason) ?? 0;
+    if (now - last < 30_000) return;
+    this._signedDropLogAt.set(reason, now);
+    console.warn(`[remote-pi] signed_inner_v1 drop: reason=${reason} peer=${this.remotePeerId.slice(0, 8)}`);
+  }
+
   /** Routes an already-received relay line through this channel's verifier. */
   acceptRelayLine(line: string): void {
     this._onLine(line);
@@ -148,7 +157,10 @@ export class PlainPeerChannel implements PeerChannel {
     }
 
     if (isSignedInnerV1(msg)) {
-      if (!this._signed) return;
+      if (!this._signed) {
+        this._logSignedDrop("unexpected_signed");
+        return;
+      }
       const localPk = Buffer.from(this._signed.localKeypair.publicKey).toString("base64");
       let verified: ReturnType<typeof verifyInnerV1>;
       try {
@@ -160,14 +172,21 @@ export class PlainPeerChannel implements PeerChannel {
           replay: this._signed.replayCache,
         });
       } catch {
+        this._logSignedDrop("malformed");
         return;
       }
-      if (!verified.ok) return;
+      if (!verified.ok) {
+        this._logSignedDrop(verified.code);
+        return;
+      }
       this.onMessage(verified.payload as ClientMessage);
       return;
     }
 
-    if (this._signed?.requireSigned) return;
+    if (this._signed?.requireSigned) {
+      this._logSignedDrop("unsigned_required");
+      return;
+    }
     this.onMessage(msg as ClientMessage);
   }
 }

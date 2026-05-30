@@ -60,6 +60,57 @@ describe("signed_inner_v1", () => {
     })).toMatchObject({ ok: true, payload: { type: "user_message", id: "u-vector" } });
   });
 
+  test("canonicalization follows JSON semantics for undefined and sparse arrays", () => {
+    const unsigned = {
+      type: "signed_inner_v1" as const,
+      sender_pk: "sender",
+      recipient_pk: "recipient",
+      room_id: "room-1",
+      msg_id: "msg-1",
+      issued_at: 1,
+      payload_type: "tool_result",
+      payload: {
+        type: "tool_result",
+        keep: true,
+        omitted: undefined,
+        values: Object.assign(["a", undefined, "c"], { 4: "e" }),
+      } as Record<string, unknown>,
+    };
+
+    expect(canonicalSignedInnerV1(unsigned)).toBe(
+      '{"type":"signed_inner_v1","sender_pk":"sender","recipient_pk":"recipient",' +
+      '"room_id":"room-1","msg_id":"msg-1","issued_at":1,"payload_type":"tool_result",' +
+      '"payload":{"keep":true,"type":"tool_result","values":["a",null,"c",null,"e"]}}',
+    );
+  });
+
+  test("signed frames with JSON-normalized payloads verify after wire round-trip", () => {
+    const sender = generateEd25519Keypair();
+    const recipient = generateEd25519Keypair();
+    const recipientPk = Buffer.from(recipient.publicKey).toString("base64");
+    const frame = signInnerV1({
+      sender,
+      recipientPk,
+      roomId: "room-1",
+      now: 1_700_000_000_000,
+      msgId: "msg-json",
+      payload: {
+        type: "tool_result",
+        result: { omitted: undefined, values: Object.assign(["a"], { 2: "c" }) },
+      } as Record<string, unknown>,
+    });
+    const roundTripped = JSON.parse(JSON.stringify(frame)) as typeof frame;
+
+    expect(verifyInnerV1({
+      frame: roundTripped,
+      expectedSenderPk: frame.sender_pk,
+      expectedRecipientPk: recipientPk,
+      expectedRoomId: "room-1",
+      replay: new SignedInnerReplayCache(),
+      now: 1_700_000_000_100,
+    })).toMatchObject({ ok: true, payload: { type: "tool_result" } });
+  });
+
   test("canonical payload is deterministic and excludes sig", () => {
     const unsigned = {
       type: "signed_inner_v1" as const,

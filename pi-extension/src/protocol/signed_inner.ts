@@ -46,10 +46,32 @@ export class SignedInnerReplayCache {
 }
 
 function stableJson(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+  if (value === null) return "null";
+  const valueType = typeof value;
+  if (valueType !== "object") {
+    if (valueType === "undefined" || valueType === "function" || valueType === "symbol") return "null";
+    return JSON.stringify(value) ?? "null";
+  }
+  if (Array.isArray(value)) {
+    const items: string[] = [];
+    for (let i = 0; i < value.length; i += 1) {
+      const entry = Object.prototype.hasOwnProperty.call(value, i) ? value[i] : undefined;
+      const entryType = typeof entry;
+      items.push(
+        entryType === "undefined" || entryType === "function" || entryType === "symbol"
+          ? "null"
+          : stableJson(entry),
+      );
+    }
+    return `[${items.join(",")}]`;
+  }
   const obj = value as Record<string, unknown>;
-  return `{${Object.keys(obj).sort().map((key) => `${JSON.stringify(key)}:${stableJson(obj[key])}`).join(",")}}`;
+  return `{${Object.keys(obj).sort().flatMap((key) => {
+    const entry = obj[key];
+    const entryType = typeof entry;
+    if (entryType === "undefined" || entryType === "function" || entryType === "symbol") return [];
+    return [`${JSON.stringify(key)}:${stableJson(entry)}`];
+  }).join(",")}}`;
 }
 
 export function canonicalSignedInnerV1(frame: Omit<SignedInnerV1, "sig">): string {

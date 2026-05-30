@@ -12,7 +12,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:app/data/transport/relay_config.dart';
-import 'package:app/protocol/protocol.dart' show PairOk;
+import 'package:app/protocol/protocol.dart' show PairOk, PairRequest;
 import 'package:app/protocol/uuid7.dart';
 
 import 'qr_scanner.dart';
@@ -103,14 +103,13 @@ Future<PairingResult> performPairing({
   }
 
   final id = uuid7();
-  final req = {
-    'type': 'pair_request',
-    'id': id,
-    'token': qr.token,
-    'device_name': deviceName,
-    'capabilities': ['signed_inner_v1'],
-  };
-  await transport.send(Uint8List.fromList(utf8.encode(jsonEncode(req))));
+  final req = PairRequest(
+    id: id,
+    token: qr.token,
+    deviceName: deviceName,
+    capabilities: const ['signed_inner_v1'],
+  );
+  await transport.send(Uint8List.fromList(utf8.encode(jsonEncode(req.toJson()))));
 
   final raw = await transport.receive();
   final inner = jsonDecode(utf8.decode(raw)) as Map<String, dynamic>;

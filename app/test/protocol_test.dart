@@ -260,12 +260,14 @@ void main() {
         id: '018f9c3a-0000-7000-9a3b-1c2d3e4f5a01',
         token: 'qBcD3fG4h5J6k7L8m9N0pQ',
         deviceName: 'iPhone do Jacob',
+        capabilities: const ['signed_inner_v1'],
       );
       final decoded =
           jsonDecode(encodeClient(msg).trim()) as Map<String, dynamic>;
       expect(decoded['type'], 'pair_request');
       expect(decoded['device_name'], 'iPhone do Jacob');
       expect(decoded['token'], 'qBcD3fG4h5J6k7L8m9N0pQ');
+      expect(decoded['capabilities'], ['signed_inner_v1']);
     });
   });
 

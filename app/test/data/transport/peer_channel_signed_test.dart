@@ -33,7 +33,12 @@ class _Q {
 class _T implements PeerTransport {
   final _Q sent;
   final _Q recv;
+  String activeRoom = 'main';
   _T({required this.sent, required this.recv});
+
+  void setActiveRoom(String roomId) {
+    activeRoom = roomId;
+  }
 
   @override
   Future<void> send(Uint8List data) async => sent.add(data);
@@ -47,6 +52,24 @@ class _T implements PeerTransport {
 
 Future<void> main() async {
   group('PlainPeerChannel signed_inner_v1', () {
+    test('propagates initial room into transport', () async {
+      final appKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 9);
+      final piKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 10);
+      final piPk = base64.encode((await piKey.extractPublicKey()).bytes);
+      final transport = _T(sent: _Q(), recv: _Q());
+
+      final channel = PlainPeerChannel(
+        transport: transport,
+        signingKey: appKey,
+        expectedRemotePubkey: piPk,
+        roomId: 'room-ctor',
+        requireSigned: true,
+      );
+
+      expect(transport.activeRoom, 'room-ctor');
+      await channel.close();
+    });
+
     test('wraps outbound ClientMessage when negotiated', () async {
       final appKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 1);
       final piKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 2);
@@ -63,7 +86,8 @@ Future<void> main() async {
 
       await channel.send(Ping(id: 'p1'));
 
-      final frame = jsonDecode(utf8.decode(await sent.next())) as Map<String, dynamic>;
+      final frame =
+          jsonDecode(utf8.decode(await sent.next())) as Map<String, dynamic>;
       expect(frame['type'], 'signed_inner_v1');
       expect(frame['recipient_pk'], piPk);
       expect(frame['room_id'], 'room-1');
@@ -71,46 +95,80 @@ Future<void> main() async {
       expect(frame['payload'], {'type': 'ping', 'id': 'p1'});
     });
 
-    test('unwraps signed inbound and drops unsigned/replayed frames in strict mode', () async {
-      final appKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 3);
-      final piKey = await Ed25519().newKeyPairFromSeed(Uint8List(32)..[0] = 4);
-      final appPk = base64.encode((await appKey.extractPublicKey()).bytes);
-      final piPk = base64.encode((await piKey.extractPublicKey()).bytes);
-      final sent = _Q();
-      final recv = _Q();
-      final channel = PlainPeerChannel(
-        transport: _T(sent: sent, recv: recv),
-        signingKey: appKey,
-        expectedRemotePubkey: piPk,
-        roomId: 'room-1',
-        requireSigned: true,
-      );
-      final messages = <ServerMessage>[];
-      final sub = channel.serverMessages.listen(messages.add);
+    test(
+      'unwraps signed inbound and drops unsigned/replayed frames in strict mode',
+      () async {
+        final appKey = await Ed25519().newKeyPairFromSeed(
+          Uint8List(32)..[0] = 3,
+        );
+        final piKey = await Ed25519().newKeyPairFromSeed(
+          Uint8List(32)..[0] = 4,
+        );
+        final appPk = base64.encode((await appKey.extractPublicKey()).bytes);
+        final piPk = base64.encode((await piKey.extractPublicKey()).bytes);
+        final sent = _Q();
+        final recv = _Q();
+        final channel = PlainPeerChannel(
+          transport: _T(sent: sent, recv: recv),
+          signingKey: appKey,
+          expectedRemotePubkey: piPk,
+          roomId: 'room-1',
+          requireSigned: true,
+        );
+        final messages = <ServerMessage>[];
+        Completer<ServerMessage>? nextMessage;
+        final sub = channel.serverMessages.listen((msg) {
+          messages.add(msg);
+          nextMessage?.complete(msg);
+          nextMessage = null;
+        });
+        Future<ServerMessage> waitNextMessage() {
+          final c = Completer<ServerMessage>();
+          nextMessage = c;
+          return c.future.timeout(const Duration(seconds: 1));
+        }
 
-      recv.add(Uint8List.fromList(utf8.encode(jsonEncode({'type': 'pong', 'in_reply_to': 'unsigned'}))));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(messages, isEmpty);
+        final signed = await signInnerV1(
+          payload: {'type': 'pong', 'in_reply_to': 'p1'},
+          senderKey: piKey,
+          recipientPk: appPk,
+          roomId: 'room-1',
+          now: DateTime.now().millisecondsSinceEpoch,
+          msgId: 'msg-1',
+        );
+        final first = waitNextMessage();
+        recv.add(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode({'type': 'pong', 'in_reply_to': 'unsigned'}),
+            ),
+          ),
+        );
+        recv.add(Uint8List.fromList(utf8.encode(jsonEncode(signed))));
+        final firstMsg = await first;
+        expect(firstMsg, isA<Pong>());
+        expect((firstMsg as Pong).inReplyTo, 'p1');
+        expect(messages, hasLength(1), reason: 'unsigned frame is dropped');
 
-      final signed = await signInnerV1(
-        payload: {'type': 'pong', 'in_reply_to': 'p1'},
-        senderKey: piKey,
-        recipientPk: appPk,
-        roomId: 'room-1',
-        now: DateTime.now().millisecondsSinceEpoch,
-        msgId: 'msg-1',
-      );
-      recv.add(Uint8List.fromList(utf8.encode(jsonEncode(signed))));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(messages.single, isA<Pong>());
-      expect((messages.single as Pong).inReplyTo, 'p1');
+        final signed2 = await signInnerV1(
+          payload: {'type': 'pong', 'in_reply_to': 'p2'},
+          senderKey: piKey,
+          recipientPk: appPk,
+          roomId: 'room-1',
+          now: DateTime.now().millisecondsSinceEpoch,
+          msgId: 'msg-2',
+        );
+        final second = waitNextMessage();
+        recv.add(Uint8List.fromList(utf8.encode(jsonEncode(signed))));
+        recv.add(Uint8List.fromList(utf8.encode(jsonEncode(signed2))));
+        final secondMsg = await second;
+        expect(secondMsg, isA<Pong>());
+        expect((secondMsg as Pong).inReplyTo, 'p2');
+        expect(messages, hasLength(2), reason: 'replay is dropped');
 
-      recv.add(Uint8List.fromList(utf8.encode(jsonEncode(signed))));
-      await Future<void>.delayed(const Duration(milliseconds: 20));
-      expect(messages, hasLength(1), reason: 'replay is dropped');
-
-      await sub.cancel();
-      await channel.close();
-    });
+        await sub.cancel();
+        await channel.close();
+      },
+    );
   });
 }
