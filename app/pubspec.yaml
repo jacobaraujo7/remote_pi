@@ -54,6 +54,7 @@ dependencies:
 
   # Plan 24 — HTTP client for the mesh_versions endpoint on the relay.
   dio: ^5.7.0
+  google_fonts: ^6.3.2
 
 dev_dependencies:
   flutter_test:

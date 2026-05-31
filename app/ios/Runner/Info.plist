@@ -2,26 +2,6 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSCameraUsageDescription</key>
-	<string>Camera is used to scan the QR code shown on your Mac terminal.</string>
-	<!-- Public relays must use TLS (https/wss). NSAllowsLocalNetworking permits
-	     cleartext (http/ws) only to local/private-network self-hosted relays,
-	     which is the supported use case. Arbitrary public cleartext is blocked,
-	     so no App Review justification is required. -->
-	<key>NSAppTransportSecurity</key>
-	<dict>
-		<key>NSAllowsLocalNetworking</key>
-		<true/>
-	</dict>
-	<!-- Required for iOS 14+ to connect to devices on the local network (LAN relay). -->
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Remote Pi connects to a relay on your local network to communicate with your Mac.</string>
-	<!-- App uses only standard TLS transport + Ed25519 signatures (digital
-	     signature is exempt). Qualifies for the standard export-compliance
-	     exemption; set to false so uploads don't require manual compliance
-	     answers in App Store Connect. -->
-	<key>ITSAppUsesNonExemptEncryption</key>
-	<false/>
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>
@@ -44,8 +24,19 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>Camera is used to scan the QR code shown on your Mac terminal.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Remote Pi connects to a relay on your local network to communicate with your Mac.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

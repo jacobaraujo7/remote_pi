@@ -24,7 +24,8 @@ class ToolRequestCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isRunning = tool.status == ToolEventStatus.pending ||
+    final isRunning =
+        tool.status == ToolEventStatus.pending ||
         tool.status == ToolEventStatus.allowed;
     final opacity = isRunning ? 1.0 : 0.65;
 
@@ -48,18 +49,18 @@ class ToolRequestCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildHeader(),
+            _buildHeader(context),
             const SizedBox(height: 10),
-            _buildCodeBlock(),
+            _buildCodeBlock(context),
             const SizedBox(height: 8),
-            _buildOutcome(),
+            _buildOutcome(context),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(BuildContext context) {
     final statusLabel = switch (tool.status) {
       ToolEventStatus.pending => 'RUNNING',
       ToolEventStatus.allowed => 'RUNNING',
@@ -77,28 +78,20 @@ class ToolRequestCard extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           tool.tool.toUpperCase(),
-          style: const TextStyle(
-            fontFamily: kMono,
-            fontSize: 11.5,
-            color: kAccent,
-            letterSpacing: 0.6,
-          ),
+          style: (Theme.of(context).textTheme.bodySmall ?? const TextStyle())
+              .copyWith(fontSize: 11.5, color: kAccent, letterSpacing: 0.6),
         ),
         const Spacer(),
         Text(
           statusLabel,
-          style: const TextStyle(
-            fontFamily: kMono,
-            fontSize: 10,
-            color: kMuted,
-            letterSpacing: 0.4,
-          ),
+          style: (Theme.of(context).textTheme.bodySmall ?? const TextStyle())
+              .copyWith(fontSize: 10, color: kMuted, letterSpacing: 0.4),
         ),
       ],
     );
   }
 
-  Widget _buildCodeBlock() {
+  Widget _buildCodeBlock(BuildContext context) {
     final commandText = _formatArgs(tool.tool, tool.args);
     return Container(
       decoration: BoxDecoration(
@@ -110,16 +103,24 @@ class ToolRequestCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(r'$ ', style: kMonoStyle.copyWith(color: kMuted)),
+          Text(
+            r'$ ',
+            style: (Theme.of(context).textTheme.bodySmall ?? kMonoStyle)
+                .copyWith(color: kMuted, fontSize: 12.5),
+          ),
           Expanded(
-            child: Text(commandText, style: kMonoStyle),
+            child: Text(
+              commandText,
+              style: (Theme.of(context).textTheme.bodySmall ?? kMonoStyle)
+                  .copyWith(color: const Color(0xFFE6E6E6), fontSize: 12.5),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildOutcome() {
+  Widget _buildOutcome(BuildContext context) {
     final text = switch (tool.status) {
       ToolEventStatus.pending || ToolEventStatus.allowed => '⏳ Running…',
       ToolEventStatus.completed => '✓ Done',
@@ -132,11 +133,8 @@ class ToolRequestCard extends StatelessWidget {
     };
     return Text(
       text,
-      style: TextStyle(
-        fontFamily: kMono,
-        fontSize: 12,
-        color: color,
-      ),
+      style: (Theme.of(context).textTheme.bodySmall ?? const TextStyle())
+          .copyWith(fontSize: 12, color: color),
     );
   }
 
@@ -146,9 +144,7 @@ class ToolRequestCard extends StatelessWidget {
       return switch (tool) {
         'Bash' => (args['command'] as String?) ?? '',
         'Edit' || 'Write' => (args['file_path'] as String?) ?? '',
-        _ => args.entries
-            .map((e) => '${e.key}=${e.value}')
-            .join(' '),
+        _ => args.entries.map((e) => '${e.key}=${e.value}').join(' '),
       };
     }
     return args.toString();

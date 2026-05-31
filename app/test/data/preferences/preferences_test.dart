@@ -1,4 +1,5 @@
 import 'package:app/data/preferences/preferences.dart';
+import 'package:app/domain/app_font_choice.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -86,16 +87,17 @@ void main() {
       expect(notifs, 2);
     });
 
-    test('relayUrl defaults to null and round-trips via setRelayUrl',
-        () async {
+    test('relayUrl defaults to null and round-trips via setRelayUrl', () async {
       final store = _FakeSecureStorage();
       final p = Preferences(store);
       expect(p.relayUrl, isNull);
 
       await p.setRelayUrl('wss://custom.example.com');
       expect(p.relayUrl, 'wss://custom.example.com');
-      expect(await store.read(key: 'prefs.relay_url'),
-          'wss://custom.example.com');
+      expect(
+        await store.read(key: 'prefs.relay_url'),
+        'wss://custom.example.com',
+      );
 
       // Reload from cold start → value survives.
       final p2 = Preferences(store);
@@ -113,29 +115,22 @@ void main() {
       expect(p.relayUrl, isNull);
     });
 
-    test(
-      'onboardingCompleted defaults to false and round-trips via '
-      'setOnboardingCompleted',
-      () async {
-        final store = _FakeSecureStorage();
-        final p = Preferences(store);
-        expect(p.onboardingCompleted, isFalse);
+    test('onboardingCompleted defaults to false and round-trips via '
+        'setOnboardingCompleted', () async {
+      final store = _FakeSecureStorage();
+      final p = Preferences(store);
+      expect(p.onboardingCompleted, isFalse);
 
-        await p.setOnboardingCompleted(true);
-        expect(p.onboardingCompleted, isTrue);
-        expect(
-          await store.read(key: 'prefs.onboarding_completed'),
-          'true',
-        );
+      await p.setOnboardingCompleted(true);
+      expect(p.onboardingCompleted, isTrue);
+      expect(await store.read(key: 'prefs.onboarding_completed'), 'true');
 
-        final p2 = Preferences(store);
-        await p2.load();
-        expect(p2.onboardingCompleted, isTrue);
-      },
-    );
+      final p2 = Preferences(store);
+      await p2.load();
+      expect(p2.onboardingCompleted, isTrue);
+    });
 
-    test('selectedRoom round-trips epk + roomId composite (plan 17)',
-        () async {
+    test('selectedRoom round-trips epk + roomId composite (plan 17)', () async {
       final store = _FakeSecureStorage();
       final p = Preferences(store);
       await p.setSelectedRoom(epk: 'abc123', roomId: 'room-xyz');
@@ -150,22 +145,16 @@ void main() {
       expect(p2.selectedRoomId, 'room-xyz');
     });
 
-    test(
-      'backward-compat: legacy value (no `:room` suffix) returns epk '
-      'and null roomId so caller defaults to "main"',
-      () async {
-        final store = _FakeSecureStorage();
-        // Pre-populate with legacy format (just the epk, no suffix).
-        await store.write(
-          key: 'prefs.selected_peer_epk',
-          value: 'legacy_epk',
-        );
-        final p = Preferences(store);
-        await p.load();
-        expect(p.selectedPeerEpk, 'legacy_epk');
-        expect(p.selectedRoomId, isNull);
-      },
-    );
+    test('backward-compat: legacy value (no `:room` suffix) returns epk '
+        'and null roomId so caller defaults to "main"', () async {
+      final store = _FakeSecureStorage();
+      // Pre-populate with legacy format (just the epk, no suffix).
+      await store.write(key: 'prefs.selected_peer_epk', value: 'legacy_epk');
+      final p = Preferences(store);
+      await p.load();
+      expect(p.selectedPeerEpk, 'legacy_epk');
+      expect(p.selectedRoomId, isNull);
+    });
 
     test('setSelectedRoom with null epk clears the selection', () async {
       final store = _FakeSecureStorage();
@@ -176,5 +165,27 @@ void main() {
       expect(p.selectedPeerEpk, isNull);
       expect(p.selectedRoomRaw, isNull);
     });
+
+    test(
+      'appFont round-trips and falls back when storage is invalid',
+      () async {
+        final store = _FakeSecureStorage();
+        final p = Preferences(store);
+        expect(p.appFont, AppFontChoice.mono);
+
+        await p.setAppFont(AppFontChoice.serif);
+        expect(p.appFont, AppFontChoice.serif);
+        expect(await store.read(key: 'prefs.app_font'), 'serif');
+
+        final p2 = Preferences(store);
+        await p2.load();
+        expect(p2.appFont, AppFontChoice.serif);
+
+        await store.write(key: 'prefs.app_font', value: 'bad_value');
+        final p3 = Preferences(store);
+        await p3.load();
+        expect(p3.appFont, AppFontChoice.mono);
+      },
+    );
   });
 }

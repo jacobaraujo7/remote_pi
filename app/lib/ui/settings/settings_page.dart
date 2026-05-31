@@ -1,5 +1,6 @@
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/relay_config.dart';
+import 'package:app/domain/app_font_choice.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/app_theme.dart';
 import 'package:app/ui/settings/states/settings_state.dart';
@@ -135,10 +136,7 @@ class _RelaySectionState extends State<_RelaySection> {
     if (err == null) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text(
-            'Relay updated',
-            style: TextStyle(fontFamily: kMono),
-          ),
+          content: Text('Relay updated', style: TextStyle(fontFamily: kMono)),
           duration: Duration(seconds: 2),
         ),
       );
@@ -167,8 +165,11 @@ class _RelaySectionState extends State<_RelaySection> {
                 decoration: InputDecoration(
                   isDense: true,
                   hintText: 'Default Relay ($kDefaultRelayUrl)',
-                  hintStyle:
-                      const TextStyle(fontFamily: kMono, color: kMuted, fontSize: 12),
+                  hintStyle: const TextStyle(
+                    fontFamily: kMono,
+                    color: kMuted,
+                    fontSize: 12,
+                  ),
                   helperText:
                       'http(s) only — the app converts to WebSocket '
                       'internally.',
@@ -184,7 +185,9 @@ class _RelaySectionState extends State<_RelaySection> {
                     color: Colors.redAccent,
                   ),
                   contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 10),
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
                   enabledBorder: const OutlineInputBorder(
                     borderSide: BorderSide(color: kBorder),
                   ),
@@ -211,7 +214,9 @@ class _RelaySectionState extends State<_RelaySection> {
                     backgroundColor: kAccent,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
+                      horizontal: 18,
+                      vertical: 10,
+                    ),
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(Radius.circular(6)),
                     ),
@@ -253,6 +258,45 @@ class _DisplaySection extends StatelessWidget {
           ),
           value: prefs.hideToolCalls,
           onChanged: (v) => prefs.setHideToolCalls(v),
+        ),
+        const Divider(color: kBorder, height: 1),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 8, 18, 0),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  'Font',
+                  style: TextStyle(color: kText, fontSize: 14),
+                ),
+              ),
+              DropdownButton<AppFontChoice>(
+                value: prefs.appFont,
+                dropdownColor: kSurface,
+                style: const TextStyle(color: kText, fontSize: 13),
+                items: AppFontChoice.values
+                    .map(
+                      (font) => DropdownMenuItem<AppFontChoice>(
+                        value: font,
+                        child: Text(switch (font) {
+                          AppFontChoice.systemDefault => 'System default',
+                          AppFontChoice.robotoMono => 'Roboto Mono',
+                          AppFontChoice.jetBrainsMono => 'JetBrains Mono',
+                          AppFontChoice.sans => 'Sans',
+                          AppFontChoice.serif => 'Serif',
+                          AppFontChoice.mono => 'Monospace',
+                        }),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (v) {
+                  if (v != null) {
+                    prefs.setAppFont(v);
+                  }
+                },
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
       ],
