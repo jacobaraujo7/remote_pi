@@ -157,7 +157,24 @@ app_router.dart:311-316).
    não no mount (se isso elimina o load no mount).
 
 **Ganho**: sem flicker, sem load async no mount pro subtítulo, sem micro-gestão
-de estado da AppBar.
+de estado da AppBar. **Status**: ✅ feito (`32g`) — 417 testes.
+
+### Fade na troca de chat (tablet detail pane)
+
+**Mecanismo atual**: `_detailPane()` (em refactor → `_DetailPane` widget) monta o
+`MultiProvider` keyed por `ValueKey('chat-$epk-$room')` → troca de sessão =
+**destroy/recreate**. Estado **não** se perde (SSOT re-lê o box); o transiente é
+re-mount + re-apply de histórico + reset de scroll.
+
+**Fix (barato, recomendado)**: envolver o filho keyed num `AnimatedSwitcher`
+(~150–200ms, `FadeTransition`) → cross-fade old→new quando a ValueKey muda. Sem
+mudar a arquitetura. Encaixa direto no `_DetailPane` widget que já está sendo
+extraído.
+
+**Keep-alive (`IndexedStack`)** — opção futura mais pesada: mantém N `ChatPage`s
+montados (troca instantânea + scroll preservado), mas exige **gate singleton-sync**
+(só a sessão ativa reflete streaming/working do `SyncService`). Só se o fade não
+bastar — estado já persiste via SSOT, então é otimização, não correção.
 
 ---
 
