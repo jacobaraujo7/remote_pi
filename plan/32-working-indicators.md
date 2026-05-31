@@ -166,10 +166,23 @@ de estado da AppBar. **Status**: ✅ feito (`32g`) — 417 testes.
 **destroy/recreate**. Estado **não** se perde (SSOT re-lê o box); o transiente é
 re-mount + re-apply de histórico + reset de scroll.
 
-**Fix (barato, recomendado)**: envolver o filho keyed num `AnimatedSwitcher`
-(~150–200ms, `FadeTransition`) → cross-fade old→new quando a ValueKey muda. Sem
-mudar a arquitetura. Encaixa direto no `_DetailPane` widget que já está sendo
-extraído.
+**Armadilha**: `AnimatedSwitcher` ingênuo troca na seleção → o novo pane monta
+**vazio/`ChatConnecting`** e o fade cai numa tela em loading (pop-in feio). A
+segunda sessão **sempre** passa por load async (activate `_loadIndex` +
+bootstrap da conexão; box local é rápido, `session_sync` é o lento).
+
+**Fix (cross-fade gated por `ChatReady`)**: `_DetailPane` vira **StatefulWidget**
+e **segura o pane de saída até o de entrada ficar pronto**:
+1. Na troca, monta a `ChatPage` nova mas **mantém a antiga renderizada**.
+2. Observa o `ChatViewModel` novo; quando atinge **`ChatReady`** (com conteúdo) →
+   `AnimatedSwitcher` (~150–200ms, `FadeTransition`) faz o cross-fade old→new.
+3. O fade **sempre cai num frame com conteúdo**, nunca no loading/vazio.
+- Com SSOT o box local entrega `ChatReady`-com-cache quase imediato (o
+  `session_sync` reconcilia em background, idempotente pós-`32e`) → o "segurar"
+  é curto; o gate só garante **zero flash** quando o load demora.
+- **Fallback**: se o novo não chegar em `ChatReady` em ~Xms (offline/lento),
+  mostra assim mesmo (não trava no chat antigo). Custo: 2 `ChatViewModel`s vivos
+  por um instante na transição (transiente).
 
 **Keep-alive (`IndexedStack`)** — opção futura mais pesada: mantém N `ChatPage`s
 montados (troca instantânea + scroll preservado), mas exige **gate singleton-sync**
