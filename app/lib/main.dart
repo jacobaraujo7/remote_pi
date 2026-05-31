@@ -87,11 +87,16 @@ class _RemotePiAppState extends State<RemotePiApp> with WidgetsBindingObserver {
           value: injector.get<ShellLayout>(),
         ),
       ],
-      child: MaterialApp.router(
-        title: 'Remote Pi',
-        theme: buildAppTheme(),
-        routerConfig: _router,
-        debugShowCheckedModeBanner: false,
+      child: Builder(
+        builder: (context) {
+          final prefs = context.watch<Preferences>();
+          return MaterialApp.router(
+            title: 'Remote Pi',
+            theme: buildAppTheme(font: prefs.appFont),
+            routerConfig: _router,
+            debugShowCheckedModeBanner: false,
+          );
+        },
       ),
     );
   }

@@ -1,4 +1,6 @@
+import 'package:app/domain/app_font_choice.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 // Design tokens from app/wareframe/screens.jsx
 // All widgets MUST use these constants for visual consistency.
@@ -11,7 +13,7 @@ const kMuted = Color(0xFF6B6B6B);
 const kMuted2 = Color(0xFF8A8A8A);
 const kAccent = Color(0xFF00D4FF);
 const kHighlight = Color(0xFF9FE6FF); // code/file paths in agent messages
-const kSuccess = Color(0xFF6CD28A);  // ✓ in tool results
+const kSuccess = Color(0xFF6CD28A); // ✓ in tool results
 const kCodeBg = Color(0xFF050505);
 const kUserBubble = Color(0xFF1A1A1A);
 const kModelBadgeBg = Color(0xFF161616);
@@ -40,8 +42,41 @@ const kSansBody = TextStyle(
   letterSpacing: -0.1,
 );
 
+TextStyle _applyFontChoice(AppFontChoice font, TextStyle base) {
+  switch (font) {
+    case AppFontChoice.systemDefault:
+      return base.copyWith(fontFamily: null);
+    case AppFontChoice.robotoMono:
+      return GoogleFonts.robotoMono(textStyle: base);
+    case AppFontChoice.jetBrainsMono:
+      return GoogleFonts.jetBrainsMono(textStyle: base);
+    case AppFontChoice.sans:
+      return base.copyWith(fontFamily: 'Arial');
+    case AppFontChoice.serif:
+      return base.copyWith(fontFamily: 'Times New Roman');
+    case AppFontChoice.mono:
+      return base.copyWith(fontFamily: 'Courier');
+  }
+}
+
 // Shared ThemeData — used in MaterialApp
-ThemeData buildAppTheme() {
+ThemeData buildAppTheme({AppFontChoice font = AppFontChoice.mono}) {
+  final titleStyle = _applyFontChoice(
+    font,
+    const TextStyle(
+      fontSize: 17,
+      fontWeight: FontWeight.w600,
+      color: kText,
+      letterSpacing: -0.2,
+    ),
+  );
+  final bodyMedium = _applyFontChoice(font, kSansBody);
+  final bodySmall = _applyFontChoice(font, kMonoSmall);
+  final hint = _applyFontChoice(
+    font,
+    const TextStyle(color: kMuted, fontFamily: kMono, fontSize: 13),
+  );
+
   return ThemeData(
     brightness: Brightness.dark,
     scaffoldBackgroundColor: kBg,
@@ -52,22 +87,14 @@ ThemeData buildAppTheme() {
       secondary: kMuted,
       onSecondary: kText,
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: kBg,
       foregroundColor: kText,
       elevation: 0,
-      titleTextStyle: TextStyle(
-        fontSize: 17,
-        fontWeight: FontWeight.w600,
-        color: kText,
-        letterSpacing: -0.2,
-      ),
+      titleTextStyle: titleStyle,
     ),
     dividerColor: kBorder,
-    textTheme: const TextTheme(
-      bodyMedium: kSansBody,
-      bodySmall: kMonoSmall,
-    ),
+    textTheme: TextTheme(bodyMedium: bodyMedium, bodySmall: bodySmall),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: const Color(0xFF0E0E0E),
@@ -83,7 +110,7 @@ ThemeData buildAppTheme() {
         borderRadius: BorderRadius.circular(19),
         borderSide: const BorderSide(color: kAccent, width: 1.2),
       ),
-      hintStyle: const TextStyle(color: kMuted, fontFamily: kMono, fontSize: 13),
+      hintStyle: hint,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     ),
   );

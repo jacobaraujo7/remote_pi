@@ -1,3 +1,4 @@
+import 'package:app/domain/app_font_choice.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -13,14 +14,16 @@ class Preferences extends ChangeNotifier {
   String? _selectedPeerEpk;
   String? _relayUrl;
   bool _onboardingCompleted = false;
+  AppFontChoice _appFont = AppFontChoice.mono;
 
   Preferences([FlutterSecureStorage? store])
-      : _store = store ?? const FlutterSecureStorage();
+    : _store = store ?? const FlutterSecureStorage();
 
   static const _kHideToolCallsKey = 'prefs.hide_tool_calls';
   static const _kSelectedPeerEpkKey = 'prefs.selected_peer_epk';
   static const _kRelayUrlKey = 'prefs.relay_url';
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
+  static const _kAppFontKey = 'prefs.app_font';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -67,6 +70,9 @@ class Preferences extends ChangeNotifier {
   /// once. Drives `/boot` redirect: false → `/onboarding`, true → `/home`.
   bool get onboardingCompleted => _onboardingCompleted;
 
+  /// Selected typography profile used by the global theme.
+  AppFontChoice get appFont => _appFont;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -99,16 +105,21 @@ class Preferences extends ChangeNotifier {
       changed = true;
     }
 
+    final appFont = AppFontChoice.fromStorage(
+      await _store.read(key: _kAppFontKey),
+    );
+    if (appFont != _appFont) {
+      _appFont = appFont;
+      changed = true;
+    }
+
     if (changed) notifyListeners();
   }
 
   Future<void> setHideToolCalls(bool value) async {
     if (_hideToolCalls == value) return;
     _hideToolCalls = value;
-    await _store.write(
-      key: _kHideToolCallsKey,
-      value: value.toString(),
-    );
+    await _store.write(key: _kHideToolCallsKey, value: value.toString());
     notifyListeners();
   }
 
@@ -131,9 +142,7 @@ class Preferences extends ChangeNotifier {
     if (epk == null || epk.isEmpty) {
       return setSelectedPeerEpk(null);
     }
-    final composite = (roomId == null || roomId.isEmpty)
-        ? epk
-        : '$epk:$roomId';
+    final composite = (roomId == null || roomId.isEmpty) ? epk : '$epk:$roomId';
     return setSelectedPeerEpk(composite);
   }
 
@@ -155,10 +164,14 @@ class Preferences extends ChangeNotifier {
   Future<void> setOnboardingCompleted(bool value) async {
     if (_onboardingCompleted == value) return;
     _onboardingCompleted = value;
-    await _store.write(
-      key: _kOnboardingCompletedKey,
-      value: value.toString(),
-    );
+    await _store.write(key: _kOnboardingCompletedKey, value: value.toString());
+    notifyListeners();
+  }
+
+  Future<void> setAppFont(AppFontChoice value) async {
+    if (_appFont == value) return;
+    _appFont = value;
+    await _store.write(key: _kAppFontKey, value: value.storageKey);
     notifyListeners();
   }
 }
