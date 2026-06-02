@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { afterEach, beforeEach, describe, expect, test } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { acquireCwdLock, lockPathForCwd } from "./cwd_lock.js";
@@ -9,6 +9,20 @@ import { acquireCwdLock, lockPathForCwd } from "./cwd_lock.js";
 function tmpCwd(): string {
   return mkdtempSync(join(tmpdir(), "pi-cwdlock-"));
 }
+
+/** Redirect the lock dir away from the developer's real `~/.pi/remote/locks`
+ *  so running the suite never binds sockets in the live mesh's directory. */
+let testHome: string;
+
+beforeEach(() => {
+  testHome = mkdtempSync(join(tmpdir(), "pi-cwdlock-home-"));
+  process.env["REMOTE_PI_HOME"] = testHome;
+});
+
+afterEach(() => {
+  delete process.env["REMOTE_PI_HOME"];
+  try { rmSync(testHome, { recursive: true, force: true }); } catch { /* best-effort */ }
+});
 
 describe("acquireCwdLock", () => {
   test("first call acquires; second call (same cwd) is refused", async () => {

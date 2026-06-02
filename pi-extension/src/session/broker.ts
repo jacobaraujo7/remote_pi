@@ -11,26 +11,25 @@ import { type Envelope, parse, serialize, uuidv7, EnvelopeError } from "./envelo
  * Auto-suffix on name collision: when a peer registers a name already taken,
  * the broker assigns `<name>#N` and returns it in the register ack.
  *
- * ## ACK protocol (plan/25 Wave 0)
+ * ## ACK protocol (plan/25 Wave 0; reliable delivery per plan/34)
  *
  * For **unicast non-broker** envelopes the broker synchronously emits an ACK
- * envelope back to the sender after deciding delivery:
+ * envelope back to the sender once it has delivered:
  *
- *   - target idle  → mark target busy, deliver envelope, ACK `received`
- *   - target busy  → drop envelope, ACK `busy`
+ *   - target online → deliver envelope, ACK `received`
+ *   - no such peer  → silent drop (sender times out)
  *
- * "Busy" tracking is driven by control envelopes `{type:"turn_state", busy}`
- * the peer wrappers send on `turn_start`/`turn_end`. The broker also flips a
- * peer to busy at the moment it delivers an envelope to it — this is the
- * "received = commitment" rule: delivery itself is the promise the peer will
- * handle the message in its upcoming turn. The wrapper's own turn_end clears
- * it again. Atomicity between busy-check and busy-set is guaranteed by Node's
- * single-threaded event loop — the block in `_route` does no `await` between
- * the two.
+ * plan/34 removed the busy-drop: a message that arrives while the target is
+ * mid-turn is **always delivered**, never dropped. The Pi harness
+ * (`sendMessage(triggerTurn:true)`) enqueues mid-turn messages and processes
+ * them in the upcoming turn, so the broker needs no busy gate or mailbox.
+ * Consequently `busy` is no longer a possible ACK status for unicast new
+ * work — the sender always gets `received`. (Turn-lifecycle / working
+ * indicators live in `index.ts` via room_meta over the relay, not here.)
  *
  * Broadcast/multicast/broker-addressed envelopes are not ACKed (no single
  * authoritative recipient or no semantic match). The audit log carries the
- * ACK status (`received | busy | dropped | none`) per envelope.
+ * ACK status (`received | denied | none`) per envelope.
  */
 export interface BrokerOptions {
   server: Server;
@@ -61,8 +60,9 @@ export interface RemoteRouter {
 }
 
 /** Local outcome of a cross-PC envelope injection. broker_remote uses this
- *  to construct the ACK envelope it sends back via the relay. */
-export type RemoteInjectStatus = "received" | "busy" | "denied";
+ *  to construct the ACK envelope it sends back via the relay. plan/34: `busy`
+ *  is gone — injection always delivers when the peer exists. */
+export type RemoteInjectStatus = "received" | "denied";
 
 interface PeerConn {
   name: string;
@@ -72,11 +72,11 @@ interface PeerConn {
 
 const BROKER_NAME = "broker";
 
-type AckStatus = "received" | "busy" | "denied";
+type AckStatus = "received" | "denied";
 
 interface AckBody {
   type: "ack";
-  status: AckStatus;
+  status: "received" | "denied";
   target: string;
 }
 
@@ -98,9 +98,6 @@ interface SystemBody {
 
 export class Broker {
   private readonly peers = new Map<string, PeerConn>();
-  /** Peers whose wrapper has signaled they are mid-turn, or to whom the
-   *  broker has just delivered an envelope (received = commitment). */
-  private readonly busyPeers = new Set<string>();
   private readonly auditPath?: string;
   private readonly onRouted?: BrokerOptions["onRouted"];
   private readonly server: Server;
@@ -127,10 +124,9 @@ export class Broker {
    *
    * Returns the ACK status so the caller (broker_remote) can pack and
    * forward an ACK envelope back across the relay:
-   *   - `received` — target was idle (or `env.re != null`, see Wave 0
-   *     bypass rule), envelope delivered, broker marked target busy if
-   *     this is new work
-   *   - `busy` — target mid-turn, envelope dropped
+   *   - `received` — target exists, envelope delivered (plan/34: always
+   *     delivered when the peer is online — the Pi harness enqueues mid-turn
+   *     messages, so there is no busy-drop)
    *   - `denied` — no such local peer (or write failed) — caller maps to
    *     transport_error or denied ACK as it sees fit
    */
@@ -143,21 +139,12 @@ export class Broker {
     const peer = this.peers.get(targetName);
     if (!peer) return "denied";
 
-    // Replies (re != null) bypass the busy gate (plan/25 Wave 0 rule —
-    // replies resolve pending state, not new LLM turns).
-    const isReply = env.re !== null;
-    if (!isReply && this.busyPeers.has(targetName)) {
-      void this._appendAudit(env, [], "busy", "relay");
-      return "busy";
-    }
-
     const line = serialize(env);
     try {
       peer.socket.write(line);
     } catch {
       return "denied";
     }
-    if (!isReply) this.busyPeers.add(targetName);
     void this._appendAudit(env, [targetName], "received", "relay");
     this.onRouted?.(env, [targetName]);
     return "received";
@@ -171,7 +158,6 @@ export class Broker {
   async close(): Promise<void> {
     for (const p of this.peers.values()) p.socket.destroy();
     this.peers.clear();
-    this.busyPeers.clear();
     await new Promise<void>((resolve) => this.server.close(() => resolve()));
   }
 
@@ -259,7 +245,6 @@ export class Broker {
   private _onClose(conn: PeerConn): void {
     if (!conn.name) return;
     this.peers.delete(conn.name);
-    this.busyPeers.delete(conn.name);
     this._broadcastSystem({ type: "peer_left", name: conn.name }, conn.name);
   }
 
@@ -285,40 +270,20 @@ export class Broker {
     const delivered: string[] = [];
     const line = serialize(env);
     const isUnicast = typeof env.to === "string" && env.to !== "broadcast";
-    // Replies (envelope.re != null) are answers the recipient was already
-    // expecting — they resolve pending state at the application layer rather
-    // than starting a new LLM turn. Always deliverable; never trigger the
-    // busy-on-delivery flip. New work (re == null) keeps the original
-    // "received = commitment" semantics.
-    const isReply = env.re !== null;
 
-    // Synchronous block — Node's single-threaded loop gives atomicity between
-    // busy-check and busy-mark (no await between them). Multiple deliveries in
-    // the same `for` iteration may interleave with another peer's writes only
-    // at await points; the busy-set transition itself is atomic.
+    // plan/34: reliable delivery — always write to the target's socket. The
+    // Pi harness enqueues messages that arrive mid-turn, so there is no
+    // busy-drop and `busy` is no longer a possible ACK status. Unicast sends
+    // to an online peer always ACK `received`.
     let ackStatus: AckStatus | "none" = "none";
     for (const targetName of targets) {
       const peer = this.peers.get(targetName);
       if (!peer) continue;  // unknown peer: silent drop (sender times out)
 
-      if (isUnicast && !isReply && this.busyPeers.has(targetName)) {
-        // New work for a busy peer → drop + ACK busy. Audit logged below
-        // captures the rejection via `ackStatus = "busy"` + delivered=[].
-        ackStatus = "busy";
-        this._sendAckToSender(env, "busy", targetName);
-        continue;
-      }
-
       try {
         peer.socket.write(line);
         delivered.push(targetName);
         if (isUnicast) {
-          if (!isReply) {
-            // "received = commitment" for new work: peer now owns this
-            // envelope and will process it in its upcoming turn. Wrapper's
-            // turn_end clears the busy flag.
-            this.busyPeers.add(targetName);
-          }
           ackStatus = "received";
           this._sendAckToSender(env, "received", targetName);
         }
@@ -369,7 +334,7 @@ export class Broker {
   }
 
   private _handleBrokerMessage(env: Envelope): void {
-    const body = env.body as { type?: string; busy?: unknown; peers?: unknown } | null;
+    const body = env.body as { type?: string; peers?: unknown } | null;
     if (!body || typeof body !== "object") return;
     if (body.type === "list_peers") {
       const remote = this.remoteRouter ? this.remoteRouter.listRemotePeers() : [];
@@ -387,14 +352,9 @@ export class Broker {
       }
       return;
     }
-    if (body.type === "turn_state" && typeof body.busy === "boolean") {
-      // Peer wrapper notifies its own turn lifecycle. We use `env.from`
-      // (forced to conn.name by `_handleLine`) so a peer can never set
-      // someone else's busy state.
-      if (body.busy) this.busyPeers.add(env.from);
-      else this.busyPeers.delete(env.from);
-      return;
-    }
+    // plan/34: `turn_state` is no longer consumed — the broker doesn't gate
+    // delivery on busy state. The Pi extension still publishes working state
+    // as room_meta over the relay (index.ts), independent of the broker.
   }
 
   private _broadcastSystem(body: SystemBody, excludeName: string): void {

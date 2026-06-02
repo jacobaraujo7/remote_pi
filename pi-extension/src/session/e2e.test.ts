@@ -157,14 +157,14 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
     await orq.leave(); await backend.leave();
   });
 
-  test("sendWithAck to busy peer → status=busy, envelope dropped", async () => {
+  test("plan/34: send to mid-turn peer is delivered, not dropped → status=received", async () => {
     const sock = tmpSock();
     const orq = await makePeer(sock, "orq");
     const backend = await makePeer(sock, "backend");
 
-    // backend signals it is mid-turn
+    // Even if backend announces it is mid-turn (legacy turn_state — now a
+    // no-op at the broker), the message must still be delivered.
     await backend.send("broker", { type: "turn_state", busy: true });
-    // allow the control message to be processed by the broker
     await new Promise((r) => setTimeout(r, 50));
 
     const backendInbox: Envelope[] = [];
@@ -177,41 +177,40 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
 
     const ack = await orq.sendWithAck("backend", { task: "ping-while-busy" });
 
-    expect(ack.status).toBe("busy");
+    expect(ack.status).toBe("received");
     expect(ack.target).toBe("backend");
-    // Envelope was dropped — backend never received it.
-    expect(backendInbox.length).toBe(0);
 
-    // Now backend signals turn_end → next sendWithAck should be received
-    await backend.send("broker", { type: "turn_state", busy: false });
+    // The envelope reached the peer — reliable delivery, no drop.
     await new Promise((r) => setTimeout(r, 50));
-
-    const ack2 = await orq.sendWithAck("backend", { task: "ping-after-busy" });
-    expect(ack2.status).toBe("received");
+    expect(backendInbox.length).toBe(1);
 
     await orq.leave(); await backend.leave();
   });
 
-  test("delivery flips peer to busy (received = commitment)", async () => {
+  test("plan/34: back-to-back new-work sends both deliver (no busy-on-delivery)", async () => {
     const sock = tmpSock();
     const orq = await makePeer(sock, "orq");
     const backend = await makePeer(sock, "backend");
 
-    // First send: backend idle → received
+    const backendInbox: Envelope[] = [];
+    backend.onMessage((env) => {
+      const body = env.body as { type?: string } | null;
+      if (env.from === "broker") return;
+      if (body && (body.type === "peer_joined" || body.type === "peer_left")) return;
+      backendInbox.push(env);
+    });
+
+    // First send → received.
     const ack1 = await orq.sendWithAck("backend", { task: "t1" });
     expect(ack1.status).toBe("received");
 
-    // Second send (no turn_state from backend yet): broker has marked it
-    // busy on delivery, so this should be busy.
+    // Second send, before any turn_end: previously this returned `busy`
+    // (received = commitment). plan/34 removed that — it must also deliver.
     const ack2 = await orq.sendWithAck("backend", { task: "t2" });
-    expect(ack2.status).toBe("busy");
+    expect(ack2.status).toBe("received");
 
-    // Backend "finishes its turn" → broker clears busy → next send received
-    await backend.send("broker", { type: "turn_state", busy: false });
     await new Promise((r) => setTimeout(r, 50));
-
-    const ack3 = await orq.sendWithAck("backend", { task: "t3" });
-    expect(ack3.status).toBe("received");
+    expect(backendInbox.length).toBe(2);
 
     await orq.leave(); await backend.leave();
   });
@@ -295,34 +294,34 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
     await orq.leave();
   });
 
-  test("injectFromRemote: replies (re != null) bypass busy gate", async () => {
+  test("plan/34: injectFromRemote delivers new work and replies alike (no busy)", async () => {
     const sock = tmpSock();
     const orq = await makePeer(sock, "orq");
     const backend = await makePeer(sock, "backend");
 
-    // Mark backend busy via turn_state
+    // Even if backend announced mid-turn (now a no-op at the broker), cross-PC
+    // injection must deliver.
     await backend.send("broker", { type: "turn_state", busy: true });
     await new Promise((r) => setTimeout(r, 50));
 
-    // Reach the leader's broker directly. The leader hosts the Broker
-    // — find which peer that is and pull the instance.
     const leader = orq.currentRole() === "leader" ? orq : backend;
     const broker = leader.localBroker()!;
     expect(broker).toBeTruthy();
 
-    // Inject a NEW work envelope (re=null) — should be 'busy'
-    const newWork = {
-      from: "casa:sess-3", to: "backend", id: "01976000-0000-7000-8000-000000000001",
-      re: null, body: { task: "do thing" },
-    };
-    expect(broker.injectFromRemote(newWork)).toBe("busy");
-
-    // Inject a REPLY (re set) — should bypass and reach the peer
     const backendInbox: Envelope[] = [];
     backend.onMessage((env) => {
       if (env.from === "broker") return;
       backendInbox.push(env);
     });
+
+    // New work (re=null) — delivered, not dropped.
+    const newWork = {
+      from: "casa:sess-3", to: "backend", id: "01976000-0000-7000-8000-000000000001",
+      re: null, body: { task: "do thing" },
+    };
+    expect(broker.injectFromRemote(newWork)).toBe("received");
+
+    // A reply (re set) — same outcome.
     const reply = {
       from: "casa:sess-3", to: "backend", id: "01976000-0000-7000-8000-000000000002",
       re: "01976000-0000-7000-8000-000000000003", body: { answer: 42 },
@@ -330,8 +329,7 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
     expect(broker.injectFromRemote(reply)).toBe("received");
 
     await new Promise((r) => setTimeout(r, 50));
-    expect(backendInbox.length).toBe(1);
-    expect((backendInbox[0]!.body as { answer: number }).answer).toBe(42);
+    expect(backendInbox.length).toBe(2);
 
     await orq.leave(); await backend.leave();
   });

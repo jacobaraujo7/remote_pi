@@ -20,13 +20,20 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { z } from "zod";
 import { MeshNode } from "../session/mesh_node.js";
-import { loadLocalConfig, defaultAgentName } from "../session/local_config.js";
+import { loadLocalConfig, defaultAgentName, localConfigExists } from "../session/local_config.js";
 import { resolveRelayUrl } from "../config.js";
-import { acquireCwdLock } from "../session/cwd_lock.js";
+import { acquireCwdLock, type AcquiredLock } from "../session/cwd_lock.js";
 
 // ── Args / config ─────────────────────────────────────────────────────────────
 
 const _argv = process.argv.slice(2);
+// This agent's folder = the dir the `claude` session was launched in, which
+// Claude sets as this subprocess's `process.cwd()`. We deliberately do NOT use
+// CLAUDE_PROJECT_DIR: that's the git repo root, which would collapse every
+// monorepo subproject (app/, relay/, …) into one identity + one lock. The
+// `remote-pi claude` launcher therefore registers us WITHOUT a baked `--cwd`,
+// so one shared local-scope entry self-identifies per session. `--cwd` and
+// REMOTE_PI_MCP_CWD remain as explicit overrides (tests / manual launches).
 let _cwd = process.env["REMOTE_PI_MCP_CWD"] ?? process.cwd();
 let _nameOverride = process.env["REMOTE_PI_MCP_NAME"];
 let _bridgeEnabled = true;
@@ -58,6 +65,27 @@ const inbox: IncomingMsg[] = [];
 
 const { url: relayUrl } = resolveRelayUrl();
 
+// Diagnostics go to STDERR — stdout is the JSON-RPC channel, so writing there
+// would corrupt the MCP protocol. Claude Code captures an MCP server's stderr
+// into its mcp-logs, which is where these land for debugging.
+function logErr(msg: string): void {
+  process.stderr.write(`[remote-pi-mesh ${isoNow()}] ${msg}\n`);
+}
+
+// Survive stray async failures. This process runs background work (relay WS
+// churn, UDS failover, the MCP SDK) whose errors previously had NO global
+// handler — a single unhandled rejection or exception silently killed this
+// stdio subprocess, and Claude surfaced the MCP as "disconnected" with no
+// trace. None of that background work is fatal to serving tools over stdio, so
+// log loudly and keep running instead of dying. (We intentionally do NOT
+// process.exit here: the tools stay available even if the mesh is degraded.)
+process.on("unhandledRejection", (reason) => {
+  logErr(`unhandledRejection: ${reason instanceof Error ? (reason.stack ?? reason.message) : String(reason)}`);
+});
+process.on("uncaughtException", (err) => {
+  logErr(`uncaughtException: ${err.stack ?? err.message}`);
+});
+
 const mesh = new MeshNode({
   sockPath: BROKER_SOCK,
   name: AGENT_NAME,
@@ -66,15 +94,20 @@ const mesh = new MeshNode({
   // daemon already hosting the broker for this cwd). As a follower the
   // bridge stays dormant and cross-PC rides the existing leader.
   ...(_bridgeEnabled ? { bridge: { relayUrl, cwd: _cwd } } : {}),
-  log: (_msg: string): void => { /* silent: stdio is the MCP channel */ },
+  // Silent: stdout is the MCP JSON-RPC channel and stderr noise isn't wanted.
+  // Real failures still surface via the global handlers / fail-loud below.
+  log: () => { /* no-op */ },
 });
 
 let meshReady = false;
+// When the mesh isn't joined, this explains why (folder busy / connecting), so
+// the tools return something actionable instead of a generic "not connected".
+let degradedReason = "connecting to the mesh…";
 
 // ── MCP server setup ──────────────────────────────────────────────────────────
 
 const mcp = new McpServer(
-  { name: "remote-pi-mesh", version: "0.2.1" },
+  { name: "remote-pi-mesh", version: "0.4.2" },
   {
     capabilities: { experimental: { "claude/channel": {} } },
     instructions: [
@@ -83,14 +116,14 @@ const mcp = new McpServer(
       "Use list_peers to discover available agents.",
       "Use agent_send to send messages — use the exact peer name returned by list_peers.",
       'Use "broadcast" as the target to send to all peers at once.',
-      "Follow the 'agent-network' skill for the full protocol (ACK statuses, replies via re, cross-PC <pc>:<peer> addressing).",
+      "Follow the agent-network protocol (in your system prompt) for the full details (ACK statuses, replies via re, cross-PC <pc>:<peer> addressing).",
     ].join("\n"),
   },
 );
 
 function notReady() {
   return {
-    content: [{ type: "text" as const, text: "Not connected to the mesh. Is remote-pi running in this folder?" }],
+    content: [{ type: "text" as const, text: `Mesh not available yet — ${degradedReason}` }],
     isError: true,
   };
 }
@@ -128,7 +161,16 @@ mcp.registerTool("agent_send", {
     const ack = await mesh.sendWithAck(to, body, re ?? null);
     const note =
       ack.status === "received" ? `Delivered to ${ack.target ?? to}` :
-      ack.status === "busy" ? `${to} is busy (mid-turn) — message dropped, retry later` :
+      // plan/34 removed busy-drop: the current broker NEVER returns `busy`. So
+      // if we still see it, the broker LEADER in this mesh is an out-of-date
+      // process (e.g. a long-running Pi/agent that leads the local broker and
+      // predates the new build) — and that old code DROPPED this message. Be
+      // honest: this was NOT delivered. Fix = restart the leader agent.
+      ack.status === "busy" ?
+        `NOT delivered — "${to}" came back BUSY, which only happens when an ` +
+        `OUT-OF-DATE broker leader dropped the message (busy was removed in the ` +
+        `current version). Restart the agent that leads the local broker (the ` +
+        `oldest Pi/remote-pi process) so it picks up the new build, then resend.` :
       ack.status === "denied" ? `${to} denied the message` :
       `No ACK from ${to} (timeout) — peer may be offline`;
     return {
@@ -158,28 +200,37 @@ function isoNow(): string {
   return new Date().toISOString();
 }
 
-async function main(): Promise<void> {
-  // Per-cwd singleton — same kernel-enforced UDS lock the Pi extension's
-  // `/remote-pi` takes (see cwd_lock.ts). At most one remote-pi agent (Pi OR
-  // Claude) may own a folder. Without this, a second MCP in the same cwd joins
-  // the global broker under the same cwd-derived name and the broker
-  // disambiguates it to `Name#2` — an unresponsive ghost peer. We acquire the
-  // lock BEFORE touching the mesh and hard-fail if refused: the process exits
-  // before connecting the stdio transport, so Claude Code surfaces this MCP as
-  // failed (the session keeps working, just without mesh tools).
-  const lock = await acquireCwdLock(_cwd);
-  if (!lock.ok) {
-    process.stderr.write(
-      `[remote-pi-mesh] folder already owned by another remote-pi agent ` +
-      `(lock: ${lock.lockPath}). Refusing to start a duplicate mesh peer.\n`,
-    );
-    process.exit(1);
-  }
+// Background lock+join state. The cwd lock enforces the per-folder singleton
+// (at most one remote-pi agent — Pi OR Claude — per folder; a second peer with
+// the same cwd-derived name would be a ghost).
+//
+// We retry only briefly — just enough to ride out a restart RACE (the previous
+// MCP for this folder is still tearing down when Claude respawns us). After a
+// short grace we FAIL LOUD (exit non-zero) rather than degrade forever: a
+// silent connected-but-idle MCP hides the real problem (you launched claude in
+// the wrong folder, or this folder already has a live agent — a duplicate
+// session). Failing makes Claude show the MCP as errored so you actually see it.
+const JOIN_RETRY_MS = 2_000;
+const MAX_JOIN_ATTEMPTS = 4;  // ~6–8s grace for a restart race, then fail loud
+let _lock: AcquiredLock | null = null;
+let _lockRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let _lockAttempt = 0;
+let _joined = false;
+let _shuttingDown = false;
 
+async function main(): Promise<void> {
   // Subscribe BEFORE connecting so we don't miss early envelopes. The
   // SessionPeer swallows broker ACKs / system events itself, so handlers
   // only see real peer messages (and replies, which carry `re`).
   mesh.onMessage((env) => {
+    // plan/34 (passive presence): broker control/system envelopes
+    // (`peer_joined` / `peer_left` / `list_peers_reply`) are presence signals,
+    // NOT agent messages. Never push them to the inbox or the claude/channel —
+    // otherwise a peer joining/leaving would wake this agent's turn. Discovery
+    // is pull-based via `list_peers`. (Real broker ACKs and `re` replies are
+    // already swallowed upstream by SessionPeer.)
+    if (env.from === "broker" || env.from.endsWith(":broker")) return;
+
     const msg: IncomingMsg = {
       from: env.from,
       body: env.body,
@@ -196,34 +247,107 @@ async function main(): Promise<void> {
     }).catch(() => { /* channels not enabled — get_messages polling covers it */ });
   });
 
-  try {
-    await mesh.connect();
-    meshReady = true;
-  } catch (e) {
-    process.stderr.write(`[remote-pi-mesh] mesh offline: ${String(e)}\n`);
-  }
-
-  // Exit cleanly when Claude Code disconnects. The MeshNode keeps a UDS
-  // socket (and, when leader, a relay WS) open, so without this the process
-  // would linger forever after Claude exits — orphaning the mesh peer (it
-  // keeps showing "online" with nothing actually attached). We leave the
-  // mesh, then exit. Triggered by either the MCP transport closing or stdin
-  // hitting EOF (whichever the host does first).
-  let shuttingDown = false;
-  const shutdown = (): void => {
-    if (shuttingDown) return;
-    shuttingDown = true;
-    try { lock.release(); } catch { /* OS frees the UDS lock on exit anyway */ }
-    void Promise.resolve(mesh.close())
-      .catch(() => { /* best-effort */ })
-      .finally(() => process.exit(0));
-  };
-
+  // Connect the stdio transport FIRST and unconditionally, so Claude Code
+  // always sees this server as connected and the tools stay reachable — even
+  // before (or entirely without) a mesh join. The mesh join is layered on
+  // best-effort below; a busy folder no longer kills the MCP.
   const transport = new StdioServerTransport();
   transport.onclose = shutdown;
   process.stdin.on("end", shutdown);
   process.stdin.on("close", shutdown);
   await mcp.connect(transport);
+
+  // Only join the mesh if this folder is an actual remote-pi agent — i.e. it
+  // has a local config (written by the `remote-pi claude` wizard) or an
+  // explicit name override. `-s local` MCP registrations are inherited by
+  // EVERY claude session in the git repo, so without this gate a plain claude
+  // opened in any subfolder would auto-grab that folder's lock and join as a
+  // stray agent — colliding with the real agent. No config ⇒ stay connected
+  // but idle (tools report why); don't lock, don't join, don't retry.
+  if (localConfigExists(_cwd) || _nameOverride !== undefined) {
+    // Kick off the lock+join in the background. Never awaited — the MCP is
+    // already serving; mesh availability arrives (and recovers) asynchronously.
+    void tryJoinMesh();
+  } else {
+    degradedReason =
+      `this folder is not a remote-pi agent (no config). Run "remote-pi claude" ` +
+      `here to make it one. Mesh tools are idle.`;
+  }
+}
+
+/** Acquire the per-cwd lock, then join the mesh. Retries briefly to absorb a
+ *  restart race; if the lock or join still fails after MAX_JOIN_ATTEMPTS, FAIL
+ *  LOUD (exit) so the failure is visible instead of silently degrading. */
+async function tryJoinMesh(): Promise<void> {
+  if (_joined || _shuttingDown) return;
+
+  const res = await acquireCwdLock(_cwd);
+  if (!res.ok) {
+    _lockAttempt++;
+    if (_lockAttempt >= MAX_JOIN_ATTEMPTS) {
+      _failLoud(`folder already served by another remote-pi agent (lock: ${res.lockPath})`);
+    }
+    degradedReason = `folder busy (lock ${res.lockPath}); attempt ${_lockAttempt}/${MAX_JOIN_ATTEMPTS}`;
+    _scheduleJoinRetry(JOIN_RETRY_MS);
+    return;
+  }
+  _lock = res;
+
+  try {
+    await mesh.connect();
+    meshReady = true;
+    _joined = true;
+    _lockAttempt = 0;
+  } catch (e) {
+    // Got the lock but the broker join failed (e.g. socket churn). Release the
+    // lock so another contender isn't starved, then retry / fail loud.
+    _lockAttempt++;
+    try { _lock.release(); } catch { /* best-effort */ }
+    _lock = null;
+    if (_lockAttempt >= MAX_JOIN_ATTEMPTS) {
+      _failLoud(`mesh join failed: ${String(e)}`);
+    }
+    degradedReason = `mesh join failed (attempt ${_lockAttempt}/${MAX_JOIN_ATTEMPTS}): ${String(e)}`;
+    _scheduleJoinRetry(JOIN_RETRY_MS);
+  }
+}
+
+function _scheduleJoinRetry(delayMs: number): void {
+  if (_lockRetryTimer || _joined || _shuttingDown) return;
+  const t = setTimeout(() => {
+    _lockRetryTimer = null;
+    void tryJoinMesh();
+  }, delayMs);
+  // Don't let the retry timer alone keep the process alive past stdin close.
+  t.unref?.();
+  _lockRetryTimer = t;
+}
+
+/** Exit non-zero with a loud, specific reason so Claude surfaces the MCP as
+ *  errored (visible) instead of a silent connected-but-idle peer. */
+function _failLoud(reason: string): never {
+  logErr(
+    `FATAL: ${reason}. Exiting so the failure is visible. cwd=${_cwd}. ` +
+    `Most likely you launched claude in the WRONG FOLDER, or this folder ` +
+    `already has a running remote-pi agent (a duplicate session). ` +
+    `Launch one agent per folder via "remote-pi claude" from the project dir.`,
+  );
+  process.exit(1);
+}
+
+// Exit cleanly when Claude Code disconnects. The MeshNode keeps a UDS socket
+// (and, when leader, a relay WS) open, so without this the process would linger
+// after Claude exits — orphaning the mesh peer (it keeps showing "online" with
+// nothing attached). We leave the mesh, then exit. Triggered by the MCP
+// transport closing or stdin hitting EOF (whichever the host does first).
+function shutdown(): void {
+  if (_shuttingDown) return;
+  _shuttingDown = true;
+  if (_lockRetryTimer) { clearTimeout(_lockRetryTimer); _lockRetryTimer = null; }
+  try { _lock?.release(); } catch { /* OS frees the UDS lock on exit anyway */ }
+  void Promise.resolve(mesh.close())
+    .catch(() => { /* best-effort */ })
+    .finally(() => process.exit(0));
 }
 
 main().catch((err: unknown) => {

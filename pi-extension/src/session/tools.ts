@@ -80,14 +80,15 @@ export function registerAgentTools(
     label: "Agent Send",
     description:
       "Send a message to another Pi agent in the current local session and " +
-      "wait for the broker's delivery ACK. Returns one of: `received` (peer " +
-      "was idle, will process in its next turn), `busy` (peer mid-turn, " +
-      "message dropped — you own the retry), `denied` (peer refused), " +
-      "`timeout` (no ACK in 5s — treat as transport error), `sent` " +
-      "(broadcast/multicast — no ACK semantics). Use `re` to mark this " +
-      "message as a reply to an incoming envelope's `id`.",
+      "wait for the broker's delivery ACK. Delivery is reliable: a peer that " +
+      "is mid-turn still receives the message (its harness enqueues it for " +
+      "the next turn), so you never need to retry. Returns one of: `received` " +
+      "(delivered; peer will process it in an upcoming turn), `denied` (peer " +
+      "refused), `timeout` (no ACK in 5s — peer offline / transport error), " +
+      "`sent` (broadcast/multicast — no ACK semantics). Use `re` to mark this " +
+      "message as a reply to an incoming envelope's `id` (correlation only).",
     promptSnippet:
-      "agent_send({to, body, re?}): unicast → returns {status: received|busy|denied|timeout}. Broadcast/multicast → fire-and-forget ({status:'sent'}).",
+      "agent_send({to, body, re?}): unicast → returns {status: received|denied|timeout} (delivery is reliable; no retry-on-busy). Broadcast/multicast → fire-and-forget ({status:'sent'}).",
     parameters: SendParams,
     execute: async (_toolCallId, params) => {
       const peer = getSessionPeer();
@@ -177,8 +178,7 @@ export function registerAgentTools(
       try {
         // Internal use of the request/reply primitive is fine — broker
         // replies are synthesised in-process (`_handleBrokerMessage`)
-        // without going through `_route`, so they bypass the ACK and
-        // busy-gate machinery entirely.
+        // without going through `_route`, so they bypass the ACK path.
         const reply = await peer.request(
           "broker",
           { type: "list_peers" },
@@ -262,9 +262,15 @@ function _formatAck(to: string, status: SendStatus, re: string | null | undefine
   const reSuffix = re ? ` (re=${re})` : "";
   switch (status) {
     case "received":
-      return `Delivered to "${to}"${reSuffix} — peer was idle and will process in its next turn.`;
+      return `Delivered to "${to}"${reSuffix} — peer will process it in an upcoming turn.`;
     case "busy":
-      return `"${to}" is busy${reSuffix} — message dropped. Retry with backoff or abandon (see agent-network skill).`;
+      // plan/34 removed busy-drop: the current broker never returns `busy`. If
+      // we still see it, an OUT-OF-DATE broker leader dropped the message — so
+      // be honest that it was NOT delivered, and point at the fix.
+      return `NOT delivered — "${to}"${reSuffix} came back BUSY, which only ` +
+        `happens when an out-of-date broker leader dropped the message. ` +
+        `Restart the agent leading the local broker (oldest Pi/remote-pi process) ` +
+        `to pick up the new build, then resend.`;
     case "denied":
       return `"${to}" denied the message${reSuffix}. Do not retry; report to user.`;
     case "timeout":

@@ -18,8 +18,9 @@ import { removeStaleSock, tryBind, tryConnect } from "./leader_election.js";
  *   - Kernel-enforced — there is no race window between "check if held"
  *     and "claim", which an explicit PID file would have.
  *
- * Lock files live in `~/.pi/remote/locks/<roomId>.sock` (where `roomId` is
- * `sha256(realpath(cwd))[:12]`), NOT inside the cwd itself, to dodge:
+ * Lock files live in `<root>/.pi/remote/locks/<roomId>.sock` (where `roomId`
+ * is `sha256(realpath(cwd))[:12]` and `<root>` is `$REMOTE_PI_HOME` or the
+ * home dir), NOT inside the cwd itself, to dodge:
  *   - The 104/108-char path-length limit on UDS sockets on macOS/Linux.
  *   - Symlinked cwds (realpath canonicalization happens in `roomIdForCwd`).
  *   - Read-only cwds (the home directory is always writable).
@@ -30,7 +31,13 @@ import { removeStaleSock, tryBind, tryConnect } from "./leader_election.js";
  *   // …run /remote-pi normally; lock auto-releases on process exit
  */
 
-const LOCKS_DIR = join(homedir(), ".pi", "remote", "locks");
+/** Resolved at call time (not module load) so tests can redirect the lock
+ *  dir away from the developer's real `~/.pi/remote/locks` via
+ *  `REMOTE_PI_HOME` — same override the daemon registry honors. */
+function locksDir(): string {
+  const root = process.env["REMOTE_PI_HOME"] || homedir();
+  return join(root, ".pi", "remote", "locks");
+}
 
 export interface AcquiredLock {
   ok: true;
@@ -48,7 +55,7 @@ export type CwdLockResult = AcquiredLock | RefusedLock;
 
 /** Path of the lock socket for a given cwd. Pure helper (no IO). */
 export function lockPathForCwd(cwd: string): string {
-  return join(LOCKS_DIR, `${roomIdForCwd(cwd)}.sock`);
+  return join(locksDir(), `${roomIdForCwd(cwd)}.sock`);
 }
 
 /**

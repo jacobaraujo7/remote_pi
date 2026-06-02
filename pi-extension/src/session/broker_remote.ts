@@ -26,8 +26,9 @@ import type { PiForwardClient } from "../transport/pi_forward_client.js";
  *         `broker.injectFromRemote`. Build a one-way ACK envelope back via
  *         the relay so the cross-PC sender's `sendWithAck` resolves.
  *
- * The replies-bypass-busy rule from Wave 0 is honoured at injection time
- * by the broker itself; `broker_remote` does not duplicate the check.
+ * plan/34: cross-PC injection always delivers when the local peer exists
+ * (no busy-drop); `broker_remote` just forwards the broker's `received |
+ * denied` status in the ACK it sends back.
  *
  * Siblings (`Map<pc_label, pc_pubkey>`) are seeded externally by the
  * extension at bootstrap (typically from `mesh_versions` of every paired
@@ -360,9 +361,8 @@ export class BrokerRemote implements RemoteRouter {
     // ── control: ack ───────────────────────────────────────────────────────
     // ACK envelopes from a remote wrapper are addressed to our local
     // sender. Strip prefix from `to` and inject so the sender's
-    // `sendWithAck` pending resolves. ACK envelopes carry `re` (always)
-    // and bypass busy via the `isReply` rule in `injectFromRemote`.
-    // (No special-casing needed — generic injection below covers them.)
+    // `sendWithAck` pending resolves. (No special-casing needed — generic
+    // injection below covers them; plan/34 made injection always-deliver.)
 
     // ── regular envelope: strip `to` prefix and inject ─────────────────────
     if (typeof env.to !== "string") {

@@ -99,7 +99,7 @@ import { fileURLToPath } from "node:url";
 import { mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { spawnSync } from "node:child_process";
-import { hostname, homedir } from "node:os";
+import { hostname } from "node:os";
 import {
   kDefaultRelayUrl,
   resolveRelayUrl,
@@ -1096,11 +1096,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _currentTurnId = null;
   });
 
-  // plan/25 Wave 0: notify the local broker of turn lifecycle so it can
-  // ACK incoming agent-network envelopes as `busy` while this peer's LLM is
-  // mid-turn (and `received` once idle). Fire-and-forget — if the broker
-  // can't be reached, the worst case is a bad ACK answer; recovery is the
-  // next turn boundary. Skip silently when no mesh session is joined.
+  // plan/34: the broker no longer gates delivery on busy state, so we no
+  // longer notify it of turn lifecycle. Working state is still published as
+  // room_meta over the relay (plan/32) below — that's independent of the
+  // broker and drives the app's working indicator.
   pi.on("turn_start", (_event, ctx) => {
     // Late model hydration: if the model was still unknown at connect (resolved
     // lazily by the SDK), grab it on the first turn and fan it out — so a daemon
@@ -1118,9 +1117,6 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (_relay && _myRoomId) {
       _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: true } });
     }
-    if (!_meshNode) return;
-    void _meshNode.send("broker", { type: "turn_state", busy: true })
-      .catch(() => { /* best-effort */ });
   });
   pi.on("turn_end", () => {
     // Plan/32 Part B: publish working=false as room_meta (raw, no debounce).
@@ -1128,9 +1124,6 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (_relay && _myRoomId) {
       _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: false } });
     }
-    if (!_meshNode) return;
-    void _meshNode.send("broker", { type: "turn_state", busy: false })
-      .catch(() => { /* best-effort */ });
   });
 
   // Plan/32: compaction feedback. compact() doesn't run a turn, so bracket it
@@ -2882,33 +2875,28 @@ if (_isDirectRun()) {
 // ── `remote-pi claude` — launch Claude Code connected to the mesh ─────────────
 
 /**
- * Deploy the agent-network skill into the user-global Claude skills dir
- * (`~/.claude/skills/agent-network/SKILL.md`). The template ships in the
- * package at `skills/claude-agent-network/SKILL.md` (sibling of `dist/`).
- * Idempotent: overwrites on every launch so skill edits in the package
- * propagate. Best-effort — a failure here doesn't block the launch (the
- * MCP `instructions` + tool descriptions still give Claude the basics).
- *
- * Mirrors the Pi extension's `_deployAgentNetworkSkill()` (which targets
- * `~/.pi/remote/skills/`): same concept, each runtime's own skills dir.
+ * Resolve the packaged agent-network skill path
+ * (`<pkgRoot>/skills/agent-network/SKILL.md`). Single source of truth shared
+ * by both runtimes: Pi discovers it via `resources_discover`, and the Claude
+ * launcher injects it as a system prompt (see `_cmdClaudeCli`). Returns null
+ * if the file is missing (e.g. running before `pnpm build`).
  */
-function _deployClaudeMeshSkill(): void {
-  try {
-    const here = fileURLToPath(import.meta.url);            // dist/index.js
-    const pkgRoot = dirname(dirname(here));                 // package root (dist → ..)
-    const template = join(pkgRoot, "skills", "claude-agent-network", "SKILL.md");
-    if (!existsSync(template)) return;
-    const destDir = join(homedir(), ".claude", "skills", "agent-network");
-    mkdirSync(destDir, { recursive: true });
-    copyFileSync(template, join(destDir, "SKILL.md"));
-  } catch {
-    /* best-effort — never block the launch on skill deploy */
-  }
+function _agentNetworkSkillPath(): string | null {
+  const here = fileURLToPath(import.meta.url);            // dist/index.js (or src/index.ts via tsx)
+  const pkgRoot = dirname(dirname(here));                 // package root (dist → ..; src → ..)
+  const skill = join(pkgRoot, "skills", "agent-network", "SKILL.md");
+  return existsSync(skill) ? skill : null;
 }
 
 async function _cmdClaudeCli(args: string[]): Promise<void> {
-  // Determine target cwd — first non-flag arg, or process.cwd()
-  const targetCwd = args.find((a) => !a.startsWith("--")) ?? process.cwd();
+  // Contract: `remote-pi claude [cwd] [claude-flags...]`. The optional cwd is
+  // ONLY the leading positional (first token, not a flag); everything after it
+  // is forwarded verbatim to the `claude` binary (e.g. `--resume`, `-c`,
+  // `-p "prompt"`). Restricting cwd to the leading token avoids mistaking a
+  // flag's value (e.g. the id in `--resume <id>`) for the cwd.
+  const hasCwdArg = args.length > 0 && !args[0]!.startsWith("-");
+  const targetCwd = hasCwdArg ? args[0]! : process.cwd();
+  const passthroughArgs = hasCwdArg ? args.slice(1) : args;
 
   // Wizard when no local config exists
   if (!localConfigExists(targetCwd)) {
@@ -2938,15 +2926,6 @@ async function _cmdClaudeCli(args: string[]): Promise<void> {
   const absCwd = resolve(targetCwd);
   const SERVER_NAME = "remote-pi-mesh";
 
-  // Deploy the agent-network skill so Claude knows HOW to use the mesh tools
-  // (when to call get_messages, ACK statuses, cross-PC addressing, replies).
-  // Skills load only from disk — an MCP server can't inject one — so we write
-  // it to the user-global Claude skills dir, mirroring how the Pi extension
-  // deploys its own agent-network skill to ~/.pi/remote/skills/. The skill's
-  // `description` self-gates activation to mesh contexts, so a global deploy
-  // doesn't pollute unrelated Claude sessions.
-  _deployClaudeMeshSkill();
-
   // The channel feature (claude/channel push) only recognizes MCP servers
   // registered in one of the persistent scopes Claude Code enumerates:
   // enterprise / user / project / local. A server passed via `--mcp-config`
@@ -2954,31 +2933,43 @@ async function _cmdClaudeCli(args: string[]): Promise<void> {
   // scopes, so `--dangerously-load-development-channels server:<name>` can't
   // match it ("no MCP server configured with that name").
   //
-  // We therefore register in the **local** scope: per-project (only active in
-  // this cwd) and stored in `~/.claude.json` — NOT written into the project
-  // dir, NOT committed to VCS, NOT global. Best of both: no file pollution
-  // AND channels work.
+  // We therefore register in the **local** scope, stored in `~/.claude.json`
+  // (NOT written into the project dir, NOT committed to VCS, NOT global) so the
+  // dev-channel flag matches it. Caveat that drives the next decision: `-s
+  // local` is keyed by the **git repo root** and shares ONE entry per server
+  // name across every subdir of the repo — a same-name re-add overwrites it.
   //
   // remove-then-add makes it idempotent and refreshes the path if the
   // extension moved (Pi can reinstall to a new hash dir on upgrade).
+  //
+  // Crucially we do NOT bake `--cwd <absCwd>` into the registration. In a
+  // monorepo (app/, relay/, site/, …) every subproject is its own agent, but
+  // they'd all share this single repo-keyed entry — so whichever agent ran
+  // `remote-pi claude` LAST would leak its cwd to every other session, and the
+  // repo-root session would then spawn a peer that locks a subdir another agent
+  // owns ("Failed to connect"). Instead, the server resolves its folder from
+  // its own `process.cwd()`, which Claude sets to the directory each `claude`
+  // session was launched in (verified empirically — NOT the git root, NOT
+  // CLAUDE_PROJECT_DIR). We launch claude with `cwd: absCwd` below, so a single
+  // shared registration self-identifies as the right agent in every session.
   spawnSync("claude", ["mcp", "remove", SERVER_NAME, "-s", "local"], {
     cwd: absCwd, stdio: "ignore", shell: false,
   });
   const add = spawnSync("claude", [
     "mcp", "add", SERVER_NAME, "-s", "local", "--",
-    process.execPath, meshServerPath, "--cwd", absCwd,
+    process.execPath, meshServerPath,
   ], { cwd: absCwd, stdio: ["ignore", "pipe", "pipe"], shell: false, encoding: "utf8" });
   if (add.status !== 0) {
     console.log(`[remote-pi] failed to register MCP server: ${add.stderr || add.stdout}`);
     process.exit(1);
   }
 
-  const agentName = loadLocalConfig(targetCwd).agent_name ?? defaultAgentName(targetCwd);
-  process.stdout.write(`[remote-pi] Launching Claude as "${agentName}" in ${absCwd}\n`);
-  process.stdout.write(`[remote-pi] MCP server: ${meshServerPath} (local scope)\n`);
-  process.stdout.write(`[remote-pi] Tools: list_peers, agent_send, get_messages\n`);
-  process.stdout.write(`[remote-pi] Skill: agent-network (~/.claude/skills/)\n`);
-  process.stdout.write(`[remote-pi] Channel push enabled — incoming messages wake Claude\n\n`);
+  // Inject the agent-network protocol as a system prompt instead of deploying a
+  // skill file into ~/.claude. Anyone running `remote-pi claude` is here to use
+  // the mesh, so load the protocol unconditionally — no lazy skill gating, no
+  // global skills-dir pollution, and the packaged file is the single source of
+  // truth shared with the Pi runtime. Skipped only if the file is missing.
+  const skillPath = _agentNetworkSkillPath();
 
   // Launch flags:
   //   --dangerously-load-development-channels TAG  — enable claude/channel push
@@ -2988,9 +2979,23 @@ async function _cmdClaudeCli(args: string[]): Promise<void> {
   //       (`plugin:<name>@<marketplace>` is the plugin form). Shows a one-time
   //       confirmation dialog at startup.
   //   --dangerously-skip-permissions               — auto-approve tool calls
+  //   --append-system-prompt-file=<skill>           — load the mesh protocol
+  // `--append-system-prompt-file` uses the glued `--flag=value` form (a SINGLE
+  // argv token) on purpose: tools that restore a session by capturing and
+  // replaying the live process's argv (e.g. cmux) drop the TRAILING token,
+  // which here was the skill path — leaving a dangling `--append-system-prompt-file`
+  // → `claude` aborts with "argument missing" and the session never comes back.
+  // As one token, the worst case is the whole flag being dropped: claude still
+  // starts (just without the injected protocol), which is recoverable instead
+  // of fatal. (The channels flag stays a separate pair — it's never last, so
+  // it isn't affected, and we don't risk a parser that may not accept `=`.)
+  // Any extra args the user passed (e.g. `--resume`, `-c`) are appended last so
+  // they reach the claude binary; ours come first as sensible defaults.
   spawnSync("claude", [
     "--dangerously-load-development-channels", `server:${SERVER_NAME}`,
     "--dangerously-skip-permissions",
+    ...(skillPath ? [`--append-system-prompt-file=${skillPath}`] : []),
+    ...passthroughArgs,
   ], {
     cwd: absCwd,
     stdio: "inherit",

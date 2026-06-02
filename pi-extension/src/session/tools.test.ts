@@ -57,7 +57,10 @@ describe("agent_send tool (ACK protocol)", () => {
     expect(result.details).toMatchObject({ status: "received", ok: true, target: "backend" });
   });
 
-  test("unicast busy peer → status=busy, ok=false", async () => {
+  test("plan/34: defensive busy ACK is framed as delivered (no retry-on-busy)", async () => {
+    // The broker no longer emits `busy` for new work, but if a stale/legacy
+    // ACK arrives, the tool must NOT tell the LLM to retry — it reads as
+    // delivered (the peer's harness enqueues mid-turn messages).
     const { pi, tools } = makeMockPi();
     const peer = makeMockPeer({
       sendWithAck: vi.fn().mockResolvedValue(
@@ -73,10 +76,9 @@ describe("agent_send tool (ACK protocol)", () => {
       undefined, undefined, {} as never,
     );
 
-    expect(result.details).toMatchObject({ status: "busy", ok: false });
     expect(
       (result.content[0] as { type: "text"; text: string }).text,
-    ).toMatch(/busy/i);
+    ).toMatch(/delivered/i);
   });
 
   test("unicast denied peer → status=denied, ok=false", async () => {
