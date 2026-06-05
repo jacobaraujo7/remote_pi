@@ -41,6 +41,8 @@ export interface RpcChildExitEvent {
   isCrash: boolean;
 }
 
+export const EXIT_DAEMON_FRESH_SESSION = 42;
+
 /**
  * CLI args for the daemon's `pi --mode rpc` child.
  *
@@ -58,9 +60,14 @@ export interface RpcChildExitEvent {
  * daemon's name is set at registration (`remote-pi create <cwd> --name "…"`).
  * Omitted when no name resolves, so the arg list stays minimal.
  */
-export function rpcSpawnArgs(extensionPath: string, sessionName?: string): string[] {
+export function rpcSpawnArgs(
+  extensionPath: string,
+  sessionName?: string,
+  useContinue = true,
+): string[] {
   return [
-    "--mode", "rpc", "--continue",
+    "--mode", "rpc",
+    ...(useContinue ? ["--continue"] : []),
     ...(sessionName ? ["--name", sessionName] : []),
     "-e", extensionPath,
   ];
@@ -77,6 +84,8 @@ export class RpcChild extends EventEmitter {
    *  just stopped/removed. Gating `isCrash` on this makes a deliberate stop a
    *  clean exit (no restart). Reset on every `spawn()`. */
   private _stopping = false;
+  /** Next spawn should create a fresh session instead of --continue. */
+  private forceFreshSessionOnNextSpawn = false;
   /** Accumulates partial stdout lines while waiting for `\n`. */
   private stdoutBuf = "";
 
@@ -105,7 +114,9 @@ export class RpcChild extends EventEmitter {
     // so it shows up stably instead of an auto-generated name on each restart.
     const sessionName = loadLocalConfig(this.opts.cwd).agent_name
       ?? defaultAgentName(this.opts.cwd);
-    const args = rpcSpawnArgs(this.opts.extensionPath, sessionName);
+    const useContinue = !this.forceFreshSessionOnNextSpawn;
+    this.forceFreshSessionOnNextSpawn = false;
+    const args = rpcSpawnArgs(this.opts.extensionPath, sessionName, useContinue);
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ...this.opts.env,
@@ -193,6 +204,10 @@ export class RpcChild extends EventEmitter {
   }
 
   private _onExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // Daemon app-action `/new`: child exits with a private code, supervisor
+    // restarts it, and the next spawn omits --continue once to create a fresh
+    // session. Later restarts go back to --continue.
+    if (code === EXIT_DAEMON_FRESH_SESSION) this.forceFreshSessionOnNextSpawn = true;
     // A deliberate stop() kills by signal — not a crash, so the supervisor
     // must NOT auto-restart it. Only an UNexpected exit counts as a crash.
     const isCrash = !this._stopping && (code !== 0 || signal !== null);

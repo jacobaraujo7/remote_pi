@@ -25,6 +25,12 @@ describe("rpcSpawnArgs", () => {
       "--mode", "rpc", "--continue", "--name", "PC", "-e", "/path/to/dist/index.js",
     ]);
   });
+
+  test("can omit --continue for one daemon fresh-session restart", () => {
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "PC", false)).toEqual([
+      "--mode", "rpc", "--name", "PC", "-e", "/path/to/dist/index.js",
+    ]);
+  });
 });
 
 describe("RpcChild — deliberate stop is not a crash", () => {

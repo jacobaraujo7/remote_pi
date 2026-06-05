@@ -84,6 +84,7 @@ import { acquireCwdLock, type AcquiredLock } from "./session/cwd_lock.js";
 import { addDaemon, listDaemons, removeDaemon } from "./daemon/registry.js";
 import { callSupervisor, supervisorOnline, SupervisorOfflineError } from "./daemon/client.js";
 import type { DaemonInfo } from "./daemon/control_protocol.js";
+import { EXIT_DAEMON_FRESH_SESSION } from "./daemon/rpc_child.js";
 import { installService, uninstallService, linkCliBinaries, unlinkCliBinaries } from "./daemon/install.js";
 import {
   defaultAgentName,
@@ -2486,9 +2487,20 @@ export function _routeClientMessageFrom(
       // session_start has landed yet (keeps the pre-replacement happy path).
       handleSessionCompact((_lastEventCtx ?? _lastCtx) as ActionCtx | null, sender, msg);
       break;
-    case "session_new":
+    case "session_new": {
+      const actionCtx = _lastCtx as ActionCtx | null;
+      if (process.env["REMOTE_PI_DAEMON"] === "1" && !actionCtx?.newSession) {
+        // Headless RPC daemon has no ExtensionCommandContext, so ctx.newSession
+        // is unavailable. Ack, clear remote-pi's mirror, then exit with a
+        // private code; the supervisor restarts once without --continue, which
+        // creates a fresh Pi session. Later restarts resume that fresh session.
+        sender.send({ type: "action_ok", in_reply_to: msg.id, action: "session_new" });
+        _resetSessionForNew(msg.id);
+        setTimeout(() => process.exit(EXIT_DAEMON_FRESH_SESSION), 100);
+        break;
+      }
       void handleSessionNew(
-        _lastCtx as ActionCtx | null,
+        actionCtx,
         sender,
         msg,
         (freshCtx) => {
@@ -2509,6 +2521,7 @@ export function _routeClientMessageFrom(
         if (created) _resetSessionForNew(msg.id);
       });
       break;
+    }
     case "model_set":
       void handleModelSet(_pi, ensureModelRegistry(), sender, msg, _persistModelDefault);
       break;
