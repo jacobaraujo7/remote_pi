@@ -6,6 +6,7 @@ class PiModel {
     required this.id,
     required this.name,
     required this.reasoning,
+    this.supportsImages = false,
     this.contextWindow,
     this.thinkingLevelMap = const <String, String?>{},
   });
@@ -16,6 +17,10 @@ class PiModel {
 
   /// Suporta thinking/raciocínio (habilita o seletor de effort).
   final bool reasoning;
+
+  /// Aceita imagem na entrada (`input` contém `image`) — habilita anexos de
+  /// visão. `false` = modelo text-only (não enxerga imagem).
+  final bool supportsImages;
 
   /// Tamanho da janela de contexto em tokens (pode faltar).
   final int? contextWindow;

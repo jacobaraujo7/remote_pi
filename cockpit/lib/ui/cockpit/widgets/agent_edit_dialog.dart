@@ -1,26 +1,24 @@
-import 'package:cockpit/domain/entities/remote_pi_config.dart';
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 
-/// Dialog "Editar agente": nome editável + infos do agente + config do remote-pi
-/// (relay), salva nos mesmos arquivos/formato do `/remote-pi setup`. Devolve a
-/// [RemotePiConfig] editada (pra salvar), ou `null` se cancelar.
-Future<RemotePiConfig?> showAgentEditDialog(
+typedef AgentEditResult = ({String agentName, bool autoStartRelay});
+
+/// Dialog "Editar agente": nome editável + toggle relay + infos do agente.
+/// Devolve [AgentEditResult] ou `null` se cancelar.
+Future<AgentEditResult?> showAgentEditDialog(
   BuildContext context, {
   required AgentSession session,
-  required RemotePiConfig config,
 }) {
-  return showDialog<RemotePiConfig>(
+  return showDialog<AgentEditResult>(
     context: context,
-    builder: (context) => _AgentEditDialog(session: session, config: config),
+    builder: (context) => _AgentEditDialog(session: session),
   );
 }
 
 class _AgentEditDialog extends StatefulWidget {
-  const _AgentEditDialog({required this.session, required this.config});
+  const _AgentEditDialog({required this.session});
   final AgentSession session;
-  final RemotePiConfig config;
 
   @override
   State<_AgentEditDialog> createState() => _AgentEditDialogState();
@@ -28,15 +26,13 @@ class _AgentEditDialog extends StatefulWidget {
 
 class _AgentEditDialogState extends State<_AgentEditDialog> {
   late final TextEditingController _name;
+  late bool _autoStartRelay;
 
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(
-      text: widget.config.agentName?.isNotEmpty == true
-          ? widget.config.agentName
-          : widget.session.title,
-    );
+    _name = TextEditingController(text: widget.session.title);
+    _autoStartRelay = widget.session.autoStartRelay;
   }
 
   @override
@@ -46,9 +42,10 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
   }
 
   void _save() {
-    // Só o nome é editável; o relay é só visualização.
+    final name = _name.text.trim();
+    if (name.isEmpty) return;
     Navigator.of(context).pop(
-      widget.config.copyWith(agentName: _name.text.trim()),
+      (agentName: name, autoStartRelay: _autoStartRelay),
     );
   }
 
@@ -84,17 +81,29 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
               _Label('Nome do agente'),
               const SizedBox(height: 6),
               _Field(controller: _name, hint: 'Nome do agente'),
+              const SizedBox(height: 16),
+
+              _SectionTitle('Relay (remote-pi)'),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Auto-conectar ao iniciar',
+                    style: context.typo.label.copyWith(color: colors.text2),
+                  ),
+                  Switch(
+                    value: _autoStartRelay,
+                    activeThumbColor: colors.accent,
+                    onChanged: (v) => setState(() => _autoStartRelay = v),
+                  ),
+                ],
+              ),
               const SizedBox(height: 18),
 
               _SectionTitle('Informações'),
               const SizedBox(height: 8),
               _InfoRow('Pasta', session.workingDirectory),
-              _InfoRow(
-                'Workspace',
-                widget.config.workspace?.isNotEmpty == true
-                    ? widget.config.workspace!
-                    : '—',
-              ),
               _InfoRow('Modelo', session.model?.name ?? '—'),
               _InfoRow('Estado', _statusLabel(session.status)),
               _InfoRow(
@@ -103,22 +112,8 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
                     ? '${ctx!.percent!.toStringAsFixed(ctx.percent! < 10 ? 1 : 0)}%  (${ctx.tokens ?? "?"}/${ctx.contextWindow})'
                     : '—',
               ),
-              const SizedBox(height: 18),
-
-              _SectionTitle('Relay (remote-pi)'),
-              const SizedBox(height: 4),
-              Text(
-                'Somente visualização — configure via /remote-pi setup na extensão. '
-                'O cockpit roda pi --mode rpc puro (local-only).',
-                style: context.typo.label.copyWith(color: colors.text4),
-              ),
-              const SizedBox(height: 8),
-              _InfoRow('URL', widget.config.relayUrl ?? '—'),
-              _InfoRow(
-                'Auto-conectar',
-                widget.config.autoStartRelay ? 'sim' : 'não',
-              ),
               const SizedBox(height: 16),
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [

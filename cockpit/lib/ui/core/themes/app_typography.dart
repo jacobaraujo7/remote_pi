@@ -33,22 +33,43 @@ class AppTypography extends ThemeExtension<AppTypography> {
   /// JetBrains Mono — código, args de tool, métricas.
   final TextStyle mono;
 
-  factory AppTypography.build() {
-    final display = GoogleFonts.spaceGrotesk();
-    final ui = GoogleFonts.hankenGrotesk();
-    final mono = GoogleFonts.jetBrainsMono();
+  /// Monta a tipografia. Sem args = defaults do design. [uiFont]/[monoFont]
+  /// vazios mantêm Space Grotesk/Hanken e JetBrains Mono; preenchidos trocam a
+  /// família (resolução pelo SO). [interfaceSize] escala toda a UI
+  /// proporcionalmente (baseline 14); [codeSize] define o tamanho do mono.
+  factory AppTypography.build({
+    String? uiFont,
+    String? monoFont,
+    double interfaceSize = 14,
+    double codeSize = 13,
+  }) {
+    final hasUi = uiFont != null && uiFont.trim().isNotEmpty;
+    final hasMono = monoFont != null && monoFont.trim().isNotEmpty;
+    // Display/títulos: Space Grotesk por padrão; corpo/rótulos: Hanken. Com uma
+    // fonte custom de interface, ela manda em tudo.
+    final TextStyle displayBase = hasUi
+        ? TextStyle(fontFamily: uiFont)
+        : GoogleFonts.spaceGrotesk();
+    final TextStyle ui = hasUi
+        ? TextStyle(fontFamily: uiFont)
+        : GoogleFonts.hankenGrotesk();
+    final TextStyle mono = hasMono
+        ? TextStyle(fontFamily: monoFont)
+        : GoogleFonts.jetBrainsMono();
+
+    final s = interfaceSize / 14.0; // baseline = 14
     return AppTypography(
-      display: display.copyWith(
-        fontSize: 22,
+      display: displayBase.copyWith(
+        fontSize: 22 * s,
         fontWeight: FontWeight.w600,
         height: 1.25,
         letterSpacing: -0.2,
       ),
-      title: display.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
-      body: ui.copyWith(fontSize: 14.5, height: 1.6),
-      label: ui.copyWith(fontSize: 12, height: 1.3),
-      tab: display.copyWith(fontSize: 12.5, fontWeight: FontWeight.w500),
-      mono: mono.copyWith(fontSize: 12.5, height: 1.55),
+      title: displayBase.copyWith(fontSize: 13 * s, fontWeight: FontWeight.w600),
+      body: ui.copyWith(fontSize: 14.5 * s, height: 1.6),
+      label: ui.copyWith(fontSize: 12 * s, height: 1.3),
+      tab: displayBase.copyWith(fontSize: 12.5 * s, fontWeight: FontWeight.w500),
+      mono: mono.copyWith(fontSize: codeSize, height: 1.55),
     );
   }
 

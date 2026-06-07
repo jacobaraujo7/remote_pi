@@ -17,11 +17,13 @@ class RpcDataMapper {
     final id = json['id'] as String?;
     final provider = json['provider'] as String?;
     if (id == null || provider == null) return null;
+    final input = json['input'];
     return PiModel(
       provider: provider,
       id: id,
       name: json['name'] as String? ?? id,
       reasoning: json['reasoning'] == true,
+      supportsImages: input is List && input.contains('image'),
       contextWindow: (json['contextWindow'] as num?)?.toInt(),
       thinkingLevelMap: _thinkingLevelMap(json['thinkingLevelMap']),
     );

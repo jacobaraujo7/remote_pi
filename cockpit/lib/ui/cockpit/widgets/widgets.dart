@@ -9,6 +9,7 @@ export 'empty_pane.dart';
 export 'file_tree_panel.dart';
 export 'history_dialog.dart';
 export 'model_picker.dart';
+export 'onboarding_view.dart';
 export 'pane_divider.dart';
 export 'pane_view.dart';
 export 'projects_rail.dart';

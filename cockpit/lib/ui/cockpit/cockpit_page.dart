@@ -1,11 +1,16 @@
+import 'dart:async' show unawaited;
+
 import 'package:cockpit/domain/entities/project.dart';
+import 'package:cockpit/routing/routes.dart';
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/cockpit/states/pane_node.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/ui/cockpit/widgets/widgets.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
+import 'package:cockpit/ui/settings/settings_controller.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 /// Shell do Cockpit: top bar + rail de projetos + multiplexador (árvore de
@@ -47,6 +52,35 @@ class _CockpitPageState extends State<CockpitPage> {
     return true;
   }
 
+  /// Fluxo "Criar Workspace": escolhe a pasta, abre o dialog de configurações
+  /// (nome pré-preenchido com o da pasta + cor sugerida, ambos editáveis) e cria.
+  Future<bool> _createWorkspace() async {
+    final vm = _vm;
+    final path = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Escolha a pasta do workspace',
+    );
+    if (path == null || !mounted) return false;
+    final suggestedName = path
+        .split('/')
+        .where((p) => p.isNotEmpty)
+        .lastOrNull;
+    final suggestedColor =
+        kWorkspacePalette[vm.projects.length % kWorkspacePalette.length];
+    final result = await showWorkspaceSettingsDialog(
+      context,
+      name: suggestedName ?? path,
+      colorValue: suggestedColor,
+      path: path,
+    );
+    if (result == null) return false;
+    await vm.addProject(
+      path,
+      name: result.name,
+      colorValue: result.colorValue,
+    );
+    return true;
+  }
+
   /// "Configurações" do workspace: editar nome + cor do avatar.
   Future<void> _configureProject(Project project) async {
     final vm = _vm;
@@ -62,6 +96,16 @@ class _CockpitPageState extends State<CockpitPage> {
       name: result.name,
       colorValue: result.colorValue,
     );
+    if (!mounted) return;
+    if (result.name != project.name) {
+      await showInfoDialog(
+        context,
+        title: 'Workspace renomeado',
+        message:
+            'O novo nome "${result.name}" será enviado aos agentes somente '
+            'após reiniciar o workspace ou a aplicação.',
+      );
+    }
   }
 
   /// "Deletar" o workspace (confirma → remove da base local + encerra agentes).
@@ -111,23 +155,20 @@ class _CockpitPageState extends State<CockpitPage> {
     await session.loadHistory(picked.path);
   }
 
-  /// "Editar": dialog com infos do agente + config do remote-pi (relay), salva
-  /// nos mesmos arquivos/formato. Mantém o spawn puro (config é pro futuro).
+  /// "Editar": dialog com infos + config do agente (nome + relay).
   Future<void> _openEdit(String agentId) async {
     final vm = _vm;
     final session = vm.session(agentId);
-    if (session is! AgentSession) return; // edição é só de agente
-    final config = await vm.loadRemotePiConfig(session.workingDirectory);
-    if (!mounted) return;
-    final edited = await showAgentEditDialog(
-      context,
-      session: session,
-      config: config,
+    if (session is! AgentSession) return;
+    final edited = await showAgentEditDialog(context, session: session);
+    if (!mounted || edited == null) return;
+    unawaited(
+      vm.saveAgentConfig(
+        agentId,
+        agentName: edited.agentName,
+        autoStartRelay: edited.autoStartRelay,
+      ),
     );
-    if (edited == null) return;
-    await vm.saveRemotePiConfig(session.workingDirectory, edited);
-    final name = edited.agentName;
-    if (name != null && name.trim().isNotEmpty) session.rename(name.trim());
   }
 
   @override
@@ -147,12 +188,23 @@ class _CockpitPageState extends State<CockpitPage> {
       body: Column(
         children: [
           CockpitTopbar(
-            projectName: vm.selectedProject?.name ?? 'Sem projeto',
+            projectName: vm.selectedProject?.name ?? 'Cockpit',
             railVisible: vm.railVisible,
             treeVisible: vm.treeVisible,
+            openEnabled: vm.selectedProject != null,
             onToggleRail: vm.toggleRail,
             onToggleTree: vm.toggleTree,
-            onOpen: _addProject,
+            availableApps: vm.availableApps,
+            lastOpenAppId: context
+                .select<SettingsController, String?>(
+                  (c) => c.settings.lastOpenAppId,
+                ),
+            onOpenInApp: (id) {
+              final app = vm.availableApps.where((a) => a.id == id).firstOrNull;
+              if (app == null) return;
+              context.read<SettingsController>().setLastOpenApp(id);
+              unawaited(vm.openProjectInApp(app));
+            },
           ),
           Expanded(
             child: Row(
@@ -167,9 +219,10 @@ class _CockpitPageState extends State<CockpitPage> {
                         notificationCount: vm.notificationCount,
                         gitInfo: vm.gitInfo,
                         onSelect: vm.selectProject,
-                        onAdd: _addProject,
+                        onAdd: _createWorkspace,
                         onConfigure: _configureProject,
                         onDelete: _deleteProject,
+                        onOpenSettings: () => context.push(RoutePaths.settings),
                       ),
                       // Alça de arraste na borda direita (direita = alarga).
                       Positioned(
@@ -189,7 +242,7 @@ class _CockpitPageState extends State<CockpitPage> {
                   ),
                 Expanded(
                   child: vm.selectedProjectId == null
-                      ? _NoProjectView(onAdd: _addProject)
+                      ? OnboardingView(onCreateWorkspace: _createWorkspace)
                       : IndexedStack(
                           index: _activeIndex(vm),
                           sizing: StackFit.expand,
@@ -331,40 +384,6 @@ class _CockpitPageState extends State<CockpitPage> {
           ],
         );
       },
-    );
-  }
-}
-
-/// Tela quando ainda não há projeto: CTA pra abrir uma pasta.
-class _NoProjectView extends StatelessWidget {
-  const _NoProjectView({required this.onAdd});
-  final Future<bool> Function() onAdd;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return ColoredBox(
-      color: colors.bg,
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_open, size: 30, color: colors.text3),
-            const SizedBox(height: 14),
-            Text(
-              'Abra uma pasta pra começar um workspace.',
-              style: context.typo.body.copyWith(color: colors.text2),
-            ),
-            const SizedBox(height: 16),
-            FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: colors.accent),
-              onPressed: () => onAdd(),
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Abrir pasta'),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -68,6 +68,29 @@ class AppColors extends ThemeExtension<AppColors> {
     editedBg: Color(0xFF2A210F),
   );
 
+  /// Variante light — mesmos papéis, luminância invertida; accent azul mantido.
+  static const AppColors light = AppColors(
+    bg: Color(0xFFF5F5F7),
+    panel: Color(0xFFFFFFFF),
+    panel2: Color(0xFFF0F0F3),
+    panel3: Color(0xFFE7E7EC),
+    border: Color(0xFFE2E2E7),
+    border2: Color(0xFFD1D1D8),
+    text: Color(0xFF1A1A1F),
+    text2: Color(0xFF5B5B66),
+    text3: Color(0xFF8A8A94),
+    text4: Color(0xFFB4B4BC),
+    accent: Color(0xFF2F6FF0),
+    accentSoft: Color(0x222F6FF0),
+    accentText: Color(0xFF1F5FD6),
+    online: Color(0xFF2E9E54),
+    ok: Color(0xFF2E9E54),
+    error: Color(0xFFD32F2F),
+    warn: Color(0xFFB7791F),
+    edited: Color(0xFFB7791F),
+    editedBg: Color(0xFFFBF1DC),
+  );
+
   @override
   AppColors copyWith({
     Color? bg,

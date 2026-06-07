@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' show max;
 
+import 'package:cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/domain/contracts/file_system_reader.dart';
@@ -8,7 +10,6 @@ import 'package:cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/domain/contracts/project_repository.dart';
-import 'package:cockpit/domain/contracts/remote_pi_config_store.dart';
 import 'package:cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/domain/contracts/terminal_gateway_factory.dart';
@@ -16,8 +17,8 @@ import 'package:cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/domain/entities/git_info.dart';
+import 'package:cockpit/domain/entities/launchable_app.dart';
 import 'package:cockpit/domain/entities/project.dart';
-import 'package:cockpit/domain/entities/remote_pi_config.dart';
 import 'package:cockpit/domain/entities/session_info.dart';
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/cockpit/session/file_viewer_session.dart';
@@ -42,7 +43,6 @@ class CockpitViewModel extends ChangeNotifier {
     this._factory,
     this._folders,
     this._history,
-    this._remotePiConfig,
     this._notifier,
     this._fileSystem,
     this._terminalFactory,
@@ -50,13 +50,13 @@ class CockpitViewModel extends ChangeNotifier {
     this._layoutStore,
     this._gitReader,
     this._fileSearcher,
+    this._launcher,
   );
 
   final ProjectRepository _projects;
   final RpcGatewayFactory _factory;
   final FolderLister _folders;
   final SessionHistory _history;
-  final RemotePiConfigStore _remotePiConfig;
   final Notifier _notifier;
   final FileSystemReader _fileSystem;
   final TerminalGatewayFactory _terminalFactory;
@@ -64,6 +64,9 @@ class CockpitViewModel extends ChangeNotifier {
   final WorkspaceLayoutStore _layoutStore;
   final GitStatusReader _gitReader;
   final FileSearcher _fileSearcher;
+  final AppLauncherGateway _launcher;
+
+  List<LaunchableApp> _availableApps = const [];
 
   final List<Project> _projectList = <Project>[];
   String? _selectedProjectId;
@@ -116,6 +119,8 @@ class CockpitViewModel extends ChangeNotifier {
   bool get ready => _ready;
   bool get railVisible => _railVisible;
   bool get treeVisible => _treeVisible;
+  List<LaunchableApp> get availableApps =>
+      List<LaunchableApp>.unmodifiable(_availableApps);
   PaneItem? session(String id) => _sessions[id];
 
   /// Estado git do projeto (branch + sujos), ou `null` se não for repo git.
@@ -136,15 +141,18 @@ class CockpitViewModel extends ChangeNotifier {
   Future<List<String>> searchFiles(String cwd, String query) =>
       _fileSearcher.search(cwd, query);
 
-  /// Abre um arquivo num viewer na pane focada (duplo-clique na árvore).
-  /// Binário/vídeo/grande demais → não abre. Reusa a aba se já estiver aberta.
-  Future<void> openFile(String path) async {
+  /// Abre um arquivo num viewer. Sem [inPane], usa a pane focada (duplo-clique
+  /// na árvore); com [inPane], abre naquela pane e a foca (arrastar arquivo →
+  /// pane). Binário/vídeo/grande demais → não abre. Reusa a aba se já aberta.
+  Future<void> openFile(String path, {String? inPane}) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
-    final paneId = projectId == null ? null : _focused[projectId];
+    final paneId = inPane ?? (projectId == null ? null : _focused[projectId]);
     if (projectId == null || tree == null || paneId == null) return;
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
+    // Soltar um arquivo numa pane específica também a foca.
+    if (inPane != null) _focused[projectId] = inPane;
 
     // Já aberto na pane? só seleciona.
     for (final tabId in leaf.tabs) {
@@ -222,10 +230,25 @@ class CockpitViewModel extends ChangeNotifier {
     for (final project in _projectList) {
       unawaited(_refreshGit(project.id));
     }
+    // Detecta IDEs instaladas (assíncrono — topbar atualiza ao chegar).
+    unawaited(_launcher.probe().then((apps) {
+      _availableApps = apps;
+      notifyListeners();
+    }));
+  }
+
+  /// Abre a pasta do projeto selecionado no [app] informado.
+  Future<void> openProjectInApp(LaunchableApp app) async {
+    final project = selectedProject;
+    if (project == null) return;
+    await _launcher.launch(app, project.path);
   }
 
   // ---- projects -------------------------------------------------------------
-  Future<Project> addProject(String path) async {
+  /// Cria (ou seleciona, se já existir) um workspace pra [path]. [name] e
+  /// [colorValue] permitem sobrescrever os defaults (fluxo "Criar Workspace",
+  /// onde o usuário edita nome/cor antes de confirmar).
+  Future<Project> addProject(String path, {String? name, int? colorValue}) async {
     for (final existing in _projectList) {
       if (existing.path == path) {
         _selectedProjectId = existing.id;
@@ -233,12 +256,16 @@ class CockpitViewModel extends ChangeNotifier {
         return existing;
       }
     }
-    final name = _basename(path);
+    final basename = _basename(path);
+    final resolvedName = (name != null && name.trim().isNotEmpty)
+        ? name.trim()
+        : (basename.isEmpty ? path : basename);
     final project = Project(
       id: path, // o caminho é único e estável entre reinícios
-      name: name.isEmpty ? path : name,
+      name: resolvedName,
       path: path,
-      colorValue: _palette[_projectList.length % _palette.length],
+      colorValue:
+          colorValue ?? _palette[_projectList.length % _palette.length],
       createdAt: DateTime.now(),
     );
     _projectList.add(project);
@@ -307,12 +334,33 @@ class CockpitViewModel extends ChangeNotifier {
   Future<List<SessionInfo>> historyFor(String cwd) =>
       _history.sessionsFor(cwd, withTitle: true);
 
-  /// Config do remote-pi (mesmos arquivos/formato do `/remote-pi setup`).
-  Future<RemotePiConfig> loadRemotePiConfig(String cwd) =>
-      _remotePiConfig.load(cwd);
+  /// Aplica nome e relay ao agente. Se houver mudança real e o processo estiver
+  /// rodando, reinicia com a nova config (preservando `sessionPath`).
+  Future<void> saveAgentConfig(
+    String sessionId, {
+    required String agentName,
+    required bool autoStartRelay,
+  }) async {
+    final s = _sessions[sessionId];
+    if (s is! AgentSession) return;
 
-  Future<void> saveRemotePiConfig(String cwd, RemotePiConfig config) =>
-      _remotePiConfig.save(cwd, config);
+    final nameChanged = agentName.trim() != s.title;
+    final relayChanged = autoStartRelay != s.autoStartRelay;
+    if (!nameChanged && !relayChanged) return;
+
+    s.rename(agentName.trim());
+    s.autoStartRelay = autoStartRelay;
+    notifyListeners();
+
+    if (!s.isAlive) return;
+
+    final project = _projectById(s.projectId);
+    if (project == null) return;
+
+    final sessionPath = s.sessionPath;
+    await s.killForRestart();
+    unawaited(_bootAgent(s, s.workingDirectory, project, sessionPath));
+  }
 
   // ---- agent / tab / split operations (projeto ativo) -----------------------
   void focus(String paneId) {
@@ -665,6 +713,7 @@ class CockpitViewModel extends ChangeNotifier {
     Project project,
     String cwd, {
     String? title,
+    bool autoStartRelay = false,
     String? restoreSessionPath,
   }) {
     final s = AgentSession(
@@ -673,29 +722,40 @@ class CockpitViewModel extends ChangeNotifier {
       workingDirectory: cwd,
       factory: _factory,
       title: title,
+      autoStartRelay: autoStartRelay,
     );
     s.onTurnEnd = () => _onAgentTurnEnd(s);
     _sessions[s.id] = s;
-    unawaited(_bootAgent(s, cwd, restoreSessionPath));
-    unawaited(_applyRemotePiConfig(s, cwd, project.name));
+    unawaited(_bootAgent(s, cwd, project, restoreSessionPath));
     return s;
   }
 
   Future<void> _bootAgent(
     AgentSession s,
     String cwd,
+    Project project,
     String? restoreSessionPath,
   ) async {
-    // Snapshot ANTES do boot: as sessões que já existiam na pasta. O arquivo
-    // que o pi criar pra este agente é a diferença (capturada no fim do turno).
     s.sessionBaseline = (await _history.sessionsFor(cwd))
         .map((e) => e.path)
         .toSet();
-    await s.boot();
+    await s.boot(environment: _buildDirectConfig(s, project));
     if (restoreSessionPath != null) {
       s.sessionPath = restoreSessionPath;
-      await s.loadHistory(restoreSessionPath); // reanexa + repovoa o transcript
+      await s.loadHistory(restoreSessionPath);
     }
+  }
+
+  /// Serializa `agent_name`, `auto_start_relay` e `workspace` em
+  /// `REMOTE_PI_DIRECT_CONFIG` para o processo filho.
+  Map<String, String> _buildDirectConfig(AgentSession s, Project project) {
+    return {
+      'REMOTE_PI_DIRECT_CONFIG': jsonEncode(<String, dynamic>{
+        'agent_name': s.title,
+        'auto_start_relay': s.autoStartRelay,
+        'workspace': project.name,
+      }),
+    };
   }
 
   // ---- notificações ---------------------------------------------------------
@@ -735,21 +795,6 @@ class CockpitViewModel extends ChangeNotifier {
     final id = _focusedAgentId;
     final s = id == null ? null : _sessions[id];
     if (s != null && s.unseenFinish) s.clearUnseen();
-  }
-
-  /// Garante o config local (cria com defaults se faltar) — `workspace` = nome
-  /// do projeto — e usa o `agent_name` salvo como título da aba.
-  Future<void> _applyRemotePiConfig(
-    AgentSession session,
-    String cwd,
-    String workspace,
-  ) async {
-    final config = await _remotePiConfig.ensureDefaults(
-      cwd,
-      workspace: workspace,
-    );
-    final name = config.agentName;
-    if (name != null && name.isNotEmpty) session.rename(name);
   }
 
   AgentSession _makeEmpty(String projectId) =>
@@ -865,6 +910,7 @@ class CockpitViewModel extends ChangeNotifier {
           project,
           cwdOf(),
           title: desc['title'] as String?,
+          autoStartRelay: desc['auto_start_relay'] == true,
           restoreSessionPath: desc['sessionPath'] as String?,
         );
         return true;
@@ -968,6 +1014,7 @@ class CockpitViewModel extends ChangeNotifier {
       'sub': _subOf(a.workingDirectory, project.path),
       'title': a.title,
       if (a.sessionPath != null) 'sessionPath': a.sessionPath,
+      if (a.autoStartRelay) 'auto_start_relay': true,
     };
   }
 

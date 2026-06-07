@@ -30,6 +30,18 @@ class TerminalSession extends PaneItem {
     terminal.onOutput = (data) => _gateway.write(utf8.encode(data));
     terminal.onResize = (width, height, pixelWidth, pixelHeight) =>
         _gateway.resize(height, width);
+    // Programas mudam o título da janela via OSC 0/2 (ex.: shell mostra o cwd,
+    // `vim`/`ssh` mostram o arquivo/host). Refletimos isso no nome da aba.
+    terminal.onTitleChange = (osc) => rename(_shortTitle(osc));
+  }
+
+  /// Encurta títulos longos pra caber melhor na aba. Caminhos viram o último
+  /// segmento; `~` é mantido; o resto vai como veio (a aba ainda faz ellipsis).
+  String _shortTitle(String raw) {
+    final t = raw.trim();
+    if (t.isEmpty || !t.contains('/')) return t;
+    final segments = t.split('/').where((s) => s.isNotEmpty).toList();
+    return segments.isEmpty ? t : segments.last;
   }
 
   @override
@@ -53,6 +65,10 @@ class TerminalSession extends PaneItem {
     _title = trimmed;
     notifyListeners();
   }
+
+  /// Insere [text] diretamente no PTY como se o usuário tivesse digitado/colado
+  /// (ex.: caminho de arquivo arrastado até o terminal).
+  void insertText(String text) => _gateway.write(utf8.encode(text));
 
   @override
   Future<void> dispose() async {

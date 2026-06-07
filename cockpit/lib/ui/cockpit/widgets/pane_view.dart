@@ -10,6 +10,7 @@ import 'package:cockpit/ui/cockpit/widgets/confirm_dialog.dart';
 import 'package:cockpit/ui/cockpit/widgets/agent_transcript.dart';
 import 'package:cockpit/ui/cockpit/widgets/empty_pane.dart';
 import 'package:cockpit/ui/cockpit/widgets/file_viewer.dart';
+import 'package:cockpit/ui/core/file_icons/file_icons.dart';
 import 'package:cockpit/ui/core/themes/terminal_theme.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
@@ -83,7 +84,20 @@ class PaneView extends StatelessWidget {
   }
 }
 
-class _TabStrip extends StatelessWidget {
+/// Largura fixa de uma aba — também usada pra calcular o auto-scroll do ativo.
+const double _kTabWidth = 188;
+
+/// Ícone por tipo de aba (usado na aba e no dropdown "todas as abas").
+IconData _tabIcon(PaneItem? item) {
+  if (item is TerminalSession) return Icons.terminal_outlined;
+  if (item is FileViewerSession) return Icons.description_outlined;
+  if (item is AgentSession && item.status == AgentStatus.empty) {
+    return Icons.edit_outlined;
+  }
+  return Icons.auto_awesome;
+}
+
+class _TabStrip extends StatefulWidget {
   const _TabStrip({
     required this.pane,
     required this.vm,
@@ -102,10 +116,80 @@ class _TabStrip extends StatelessWidget {
   final ValueChanged<String> onHistoryAgent;
   final ValueChanged<String> onEditAgent;
 
-  /// Fechar a pane fecha **todas** as abas dela (encerra agentes/terminais) →
-  /// confirma antes.
+  @override
+  State<_TabStrip> createState() => _TabStripState();
+}
+
+class _TabStripState extends State<_TabStrip> {
+  final ScrollController _scroll = ScrollController();
+  bool _overflowing = false;
+  bool _hovering = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollActiveIntoView();
+      _syncOverflow();
+    });
+  }
+
+  @override
+  void didUpdateWidget(_TabStrip old) {
+    super.didUpdateWidget(old);
+    final activeChanged = old.pane.active != widget.pane.active;
+    final countChanged = old.pane.tabs.length != widget.pane.tabs.length;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (activeChanged || countChanged) _scrollActiveIntoView();
+      _syncOverflow();
+    });
+  }
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _setHover(bool value) {
+    if (value != _hovering) setState(() => _hovering = value);
+  }
+
+  /// Mostra/esconde o botão de overflow conforme a strip realmente estoura.
+  void _syncOverflow() {
+    if (!_scroll.hasClients) return;
+    final over = _scroll.position.maxScrollExtent > 0.5;
+    if (over != _overflowing) setState(() => _overflowing = over);
+  }
+
+  /// Rola a aba ativa pra dentro da área visível (largura fixa → offset = i*W).
+  void _scrollActiveIntoView() {
+    if (!_scroll.hasClients) return;
+    final index = widget.pane.tabs.indexOf(widget.pane.active);
+    if (index < 0) return;
+    final pos = _scroll.position;
+    final start = index * _kTabWidth;
+    final end = start + _kTabWidth;
+    final viewStart = pos.pixels;
+    final viewEnd = viewStart + pos.viewportDimension;
+    double? target;
+    if (start < viewStart) {
+      target = start;
+    } else if (end > viewEnd) {
+      target = end - pos.viewportDimension;
+    }
+    if (target != null) {
+      _scroll.animateTo(
+        target.clamp(0.0, pos.maxScrollExtent),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOut,
+      );
+    }
+  }
+
   Future<void> _confirmClosePane(BuildContext context) async {
-    final count = pane.tabs.length;
+    final count = widget.pane.tabs.length;
     final ok = await showConfirmDialog(
       context,
       title: 'Fechar pane?',
@@ -115,12 +199,36 @@ class _TabStrip extends StatelessWidget {
       confirmLabel: 'Fechar',
       danger: true,
     );
-    if (ok) vm.closePane(pane.id);
+    if (ok) widget.vm.closePane(widget.pane.id);
+  }
+
+  /// Dropdown com todas as abas (pular direto pra uma) — aparece no overflow.
+  Future<void> _showTabList(BuildContext anchor) async {
+    final pane = widget.pane;
+    final picked = await showAppMenu<String>(
+      anchor,
+      minWidth: 220,
+      items: [
+        for (final id in pane.tabs)
+          AppMenuItem(
+            value: id,
+            label: widget.vm.session(id)?.title ?? '—',
+            icon: _tabIcon(widget.vm.session(id)),
+            selected: id == pane.active,
+          ),
+      ],
+    );
+    if (picked != null) widget.vm.selectTab(pane.id, picked);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final pane = widget.pane;
+    // Re-checa overflow a cada layout (resize de pane, add/remove de aba).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncOverflow();
+    });
     return Container(
       height: 40,
       decoration: BoxDecoration(
@@ -130,46 +238,97 @@ class _TabStrip extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: ScrollConfiguration(
-              behavior: ScrollConfiguration.of(
-                context,
-              ).copyWith(scrollbars: false),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+            child: MouseRegion(
+              onEnter: (_) => _setHover(true),
+              onExit: (_) => _setHover(false),
+              child: Scrollbar(
+                controller: _scroll,
+                // Só aparece com o mouse em cima (e quando há overflow).
+                thumbVisibility: _hovering && _overflowing,
+                thickness: 3,
+                radius: const Radius.circular(3),
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: SingleChildScrollView(
+                    controller: _scroll,
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
                   children: [
                     for (var i = 0; i < pane.tabs.length; i++)
                       _TabDropSlot(
                         index: i,
-                        onInsert: (data, index) => vm.moveTabToIndex(
+                        onInsert: (data, index) => widget.vm.moveTabToIndex(
                           data.paneId,
                           data.tabId,
                           pane.id,
                           index,
                         ),
                         child: _Tab(
-                          item: vm.session(pane.tabs[i]),
+                          item: widget.vm.session(pane.tabs[i]),
                           paneId: pane.id,
                           active: pane.tabs[i] == pane.active,
-                          focused: focused,
-                          onSelect: () => vm.selectTab(pane.id, pane.tabs[i]),
-                          onClose: () => vm.closeTab(pane.id, pane.tabs[i]),
-                          onEdit: () => onEditAgent(pane.tabs[i]),
-                          onHistory: () => onHistoryAgent(pane.tabs[i]),
+                          focused: widget.focused,
+                          onSelect: () =>
+                              widget.vm.selectTab(pane.id, pane.tabs[i]),
+                          onClose: () =>
+                              widget.vm.closeTab(pane.id, pane.tabs[i]),
+                          onEdit: () => widget.onEditAgent(pane.tabs[i]),
+                          onHistory: () => widget.onHistoryAgent(pane.tabs[i]),
                         ),
                       ),
-                    _TabAdd(onTap: onCreateTab),
+                    _TabAdd(onTap: widget.onCreateTab),
                   ],
+                ),
+                  ),
                 ),
               ),
             ),
           ),
+          // Overflow: lista todas as abas pra pular direto (só quando estoura).
+          if (_overflowing)
+            Builder(
+              builder: (ctx) => _StripButton(
+                icon: Icons.keyboard_arrow_down,
+                tooltip: 'Todas as abas',
+                onTap: () => _showTabList(ctx),
+              ),
+            ),
           _PaneTools(
-            onSplitRight: () => onSplit(SplitDir.vertical),
-            onSplitDown: () => onSplit(SplitDir.horizontal),
+            onSplitRight: () => widget.onSplit(SplitDir.vertical),
+            onSplitDown: () => widget.onSplit(SplitDir.horizontal),
             onClosePane: () => _confirmClosePane(context),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botãozinho de ícone da tab strip (28px) — overflow, etc.
+class _StripButton extends StatelessWidget {
+  const _StripButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(5),
+        onTap: onTap,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(icon, size: 16, color: context.colors.text3),
+        ),
       ),
     );
   }
@@ -206,7 +365,6 @@ class _Tab extends StatelessWidget {
         final colors = context.colors;
         final isFocusedActive = active && focused;
         final agent = s is AgentSession ? s : null;
-        final isTerminal = s is TerminalSession;
         final isEmpty = agent?.status == AgentStatus.empty;
         final streaming = agent?.isStreaming ?? false;
 
@@ -240,16 +398,11 @@ class _Tab extends StatelessWidget {
           });
         }
 
-        final isViewer = s is FileViewerSession;
-        final IconData icon = isTerminal
-            ? Icons.terminal_outlined
-            : isViewer
-            ? Icons.description_outlined
-            : (isEmpty ? Icons.edit_outlined : Icons.auto_awesome);
+        final icon = _tabIcon(s);
 
         final tabBody = Container(
           height: 40,
-          width: 188,
+          width: _kTabWidth,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             color: active ? colors.panel : colors.bg,
@@ -265,22 +418,27 @@ class _Tab extends StatelessWidget {
           padding: const EdgeInsets.only(left: 11, right: 7),
           child: Row(
             children: [
-              Icon(
-                icon,
-                size: 13,
-                color: isFocusedActive
-                    ? colors.accentText
-                    : (active ? colors.text2 : colors.text3),
-              ),
+              // Aba de arquivo → ícone colorido por tipo (material-icon-theme);
+              // demais abas → ícone Material por tipo de sessão.
+              if (s is FileViewerSession)
+                FileTypeIcon.file(s.title, size: 15)
+              else
+                Icon(
+                  icon,
+                  size: 13,
+                  color: isFocusedActive
+                      ? colors.accentText
+                      : (active ? colors.text2 : colors.text3),
+                ),
               const SizedBox(width: 7),
               Expanded(
                 child: Text(
                   s.title,
                   overflow: TextOverflow.ellipsis,
                   style: context.typo.tab.copyWith(
-                    color: isFocusedActive
-                        ? Colors.white
-                        : (active ? colors.text : colors.text3),
+                    color: isFocusedActive || active
+                        ? colors.text
+                        : colors.text3,
                   ),
                 ),
               ),
@@ -545,7 +703,10 @@ class _PaneBodyState extends State<_PaneBody> {
         color: context.colors.panel,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
-          child: TerminalView(item.terminal, theme: cockpitTerminalTheme),
+          child: TerminalView(
+            item.terminal,
+            theme: cockpitTerminalThemeFor(Theme.of(context).brightness),
+          ),
         ),
       );
     }
@@ -673,6 +834,19 @@ class _PaneDropZoneState extends State<PaneDropZone> {
   static const double _edge = 0.25; // fração da borda que vira split
 
   _DropZone? _zone;
+  bool _fileOver = false;
+
+  /// Retorna a sessão ativa na pane, ou `null` se não encontrada.
+  PaneItem? _activeSession() {
+    final projectId = widget.vm.selectedProjectId;
+    if (projectId == null) return null;
+    final tree = widget.vm.tree(projectId);
+    if (tree == null) return null;
+    final leaf = findLeaf(tree, widget.paneId);
+    final activeId = leaf?.active;
+    if (activeId == null) return null;
+    return widget.vm.session(activeId);
+  }
 
   _DropZone _zoneAt(Offset global) {
     final box = context.findRenderObject() as RenderBox?;
@@ -749,29 +923,71 @@ class _PaneDropZoneState extends State<PaneDropZone> {
 
   @override
   Widget build(BuildContext context) {
-    return DragTarget<TabDragData>(
+    // Camada externa: arrastar um **arquivo** (da árvore, `Draggable<String>`)
+    // sobre a pane abre-o como aba. O input (composer) é um `DragTarget<String>`
+    // mais interno → soltar nele vira `@menção`; soltar no resto da pane vira
+    // aba. Os dois disputam o mesmo drag; o mais interno (input) ganha.
+    return DragTarget<String>(
       hitTestBehavior: HitTestBehavior.opaque,
-      onMove: (d) {
-        final z = _zoneAt(d.offset);
-        if (z != _zone) setState(() => _zone = z);
+      onMove: (_) {
+        if (!_fileOver) setState(() => _fileOver = true);
       },
       onLeave: (_) {
-        if (_zone != null) setState(() => _zone = null);
+        if (_fileOver) setState(() => _fileOver = false);
       },
       onAcceptWithDetails: (d) {
-        _commit(d.data);
-        setState(() => _zone = null);
+        final session = _activeSession();
+        if (session is TerminalSession) {
+          // Terminal ativo: insere o caminho absoluto no PTY (como se digitado).
+          session.insertText(d.data);
+        } else {
+          widget.vm.openFile(d.data, inPane: widget.paneId);
+        }
+        setState(() => _fileOver = false);
       },
-      builder: (context, candidate, rejected) {
-        final dragging = candidate.isNotEmpty && _zone != null;
-        return Stack(
-          children: [
-            widget.child,
-            if (dragging)
-              Positioned.fill(
-                child: IgnorePointer(child: _ZonePreview(zone: _zone!)),
-              ),
-          ],
+      builder: (context, fileCandidate, fileRejected) {
+        final fileOver = _fileOver && fileCandidate.isNotEmpty;
+        // Camada interna: mover **abas** entre panes (`DragTarget<TabDragData>`).
+        return DragTarget<TabDragData>(
+          hitTestBehavior: HitTestBehavior.opaque,
+          onMove: (d) {
+            final z = _zoneAt(d.offset);
+            if (z != _zone) setState(() => _zone = z);
+          },
+          onLeave: (_) {
+            if (_zone != null) setState(() => _zone = null);
+          },
+          onAcceptWithDetails: (d) {
+            _commit(d.data);
+            setState(() => _zone = null);
+          },
+          builder: (context, candidate, rejected) {
+            final dragging = candidate.isNotEmpty && _zone != null;
+            return Stack(
+              children: [
+                widget.child,
+                if (dragging)
+                  Positioned.fill(
+                    child: IgnorePointer(child: _ZonePreview(zone: _zone!)),
+                  ),
+                // Realce sutil: arquivo sobre a pane → vira aba ao soltar.
+                if (fileOver)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: context.colors.accentSoft,
+                          border: Border.all(
+                            color: context.colors.accent,
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
         );
       },
     );

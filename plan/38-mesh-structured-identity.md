@@ -70,9 +70,9 @@ mobile ganha a estrutura de graça pra agrupar/filtrar agentes.
 | # | Decisão | Valor | Por quê |
 |---|---|---|---|
 | **A** | Derivação do `workspace` | **Auto-derivada, marker-gated** (revisado 2026-06-05): `workspace = basename(parent)` **se** o `parent` tem `CLAUDE.md`/`AGENTS.md`; senão `workspace = basename(projectRoot)`. `name = agent_name` explícito ou `basename(projectRoot)`. Config explícita (`workspace`/`agent_name`) sobrescreve | O default de HOJE (`parent/folder`, `local_config.ts:67-73`) **já é** um workspace achatado dentro do nome. Esta regra **ergue** o `parent` pro campo `workspace` só quando ele é um root real (marcador), e cai pro próprio folder quando não é. Resolve o #1 **inclusive com `agent_name` explícito** (que hoje colide); torna o broadcast per-projeto de graça; deixa `name` uma folha limpa (sanitização da decisão B deixa de ser issue) |
-| **B** | Render do `address` | **Legível + sanitizado** (`pc:workspace/worktree/name`, `/` interno de cada componente → `-`), roteado por **exact-match** no broker dono | Debuggável em log/UI sem comprometer correção (o lookup é igualdade exata na `Map<address,conn>`); address opaco+hash perde legibilidade sem ganho — o modelo de ameaça não exige endereço opaco (qualquer peer da malha já enxerga os outros) |
+| **B** | Render do `address` | **Legível + sanitizado** (`pc:workspace/worktree/name`; `sanitizeSegment` já troca `/ : #`/espaços → `-` e rejeita reservados `broadcast`/`broker` — **feito 2026-06-06**), roteado por **exact-match** no broker dono | Debuggável em log/UI sem comprometer correção (o lookup é igualdade exata na `Map<address,conn>`); address opaco+hash perde legibilidade sem ganho — o modelo de ameaça não exige endereço opaco (qualquer peer da malha já enxerga os outros) |
 | **C** | Escopo default do broadcast | Par exato **`(workspace, worktree)`** — colegas da *mesma* worktree; **local-only** (cross-PC segue unicast) | Broadcast não deve vazar entre worktrees (é o ponto do isolamento) nem entre workspaces. Com `workspace`/`worktree` ambos vazios (caso default), todos os agentes de nome-puro do mesmo PC se enxergam — igual a hoje. Aceito |
-| **D** | Derivação da `worktree` | **`branch` sanitizada** + fallback **`basename(toplevel)`** em detached HEAD | Branch é o rótulo humano da worktree; basename do toplevel cobre o detached HEAD sem virar hash ilegível |
+| **D** | Derivação da `worktree` | **`branch` sanitizada** + fallback **`basename(toplevel)`** em detached HEAD; **+ override opcional via config `worktree?`** (normalmente unset — derivado em runtime, não persistido) | Branch é o rótulo humano da worktree; basename do toplevel cobre o detached HEAD sem virar hash ilegível; o override deixa Cockpit/usuário fixar um rótulo custom |
 
 > **Consequência da decisão A**: o problema #1 (colisão multi-projeto) e o #2
 > (worktree) são resolvidos **de fábrica** — sem exigir config. O `workspace`
@@ -264,6 +264,15 @@ relaunch).
    `(workspace, worktree)`". Setup multi-projeto que dependia de broadcast
    cross-projeto vê menos destinatários — mudança semântica, intencional.
 3. **Colisão `#N` fica rara** (workspace desambigua) — melhoria, strings mudam.
+4. **App vê o nome via `room_meta` (cosmético, NÃO quebra)** — o `room_meta.name`
+   que o app exibe vem de `_displayName(cwd)` → `_meshNode.name()` (com malha) ou
+   `agent_name || defaultAgentName` (`index.ts:520-523`, `:1501`). Como o 38 muda
+   essa derivação, o **valor** do rótulo muda (`Projects/myapp` → `myapp` etc.);
+   mesmo campo/tipo, app velho só re-rotula. O **apelido local** do pareamento
+   (Keychain) é app-local e **não** é afetado.
+   - **Decisão de Fase 1 que respinga no app**: o que `_meshNode.name()` retorna
+     pós-38 — a folha `name` (`relay`) ou o `address` composto (`remote_pi/relay`)?
+     Define o rótulo da sessão no app. **Parkear pro dive do app** (ver Fase 3).
 
 **Exige migração:**
 - **Config com `agent_name` achatado congelado**: `index.ts:1870-1874` persiste
@@ -282,6 +291,11 @@ relaunch).
 ### Fase 1 — broker + extension (local)  ← cai no pane `Extension`
 
 1. **Identidade + derivação git/marcador** (`local_config.ts`)
+   - **✅ Camada de config FEITA (2026-06-06, não commitada)**: campos `workspace?`
+     (override) e `worktree?` (override opcional) + `sanitizeSegment` + refactor
+     `parseLocalConfig` + env `REMOTE_PI_DIRECT_CONFIG` (ver plano 37). 445/445
+     verde. **Falta o resto deste passo** (derivação marker-gated + migração +
+     triagem dos callsites) e o consumo (passos 2-8).
    - Campo `workspace?` opcional no config (override explícito do derivado).
    - Helper que retorna `{ name, workspace, worktree? }` resolvendo, nesta ordem:
      `worktree` via git plumbing (decisão D); `projectRoot` (repo principal se
@@ -378,6 +392,9 @@ relaunch).
       `peers_detailed`); encoder de `address` (sanitizado, exact-match); broadcast
       escopado por `(workspace, worktree)`; `rpc_child` alinhado; skill atualizada;
       `pnpm test` verde
+      — *parcial: camada de config (`workspace?`/`worktree?` + `sanitizeSegment` +
+      env `REMOTE_PI_DIRECT_CONFIG`) FEITA 2026-06-06 (445/445), não commitada;
+      falta derivação marker-gated + consumo (register/list_peers/broadcast)*
 - [ ] **Fase 2** — `broker_remote` + `peer_inventory` propagam os campos;
       `list_peers` cross-PC estruturado com `pc`; roteamento por address verbatim;
       broadcast local-only preservado

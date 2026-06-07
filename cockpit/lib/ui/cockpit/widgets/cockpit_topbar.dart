@@ -1,10 +1,15 @@
+import 'dart:io';
+
+import 'package:cockpit/domain/entities/launchable_app.dart';
+import 'package:cockpit/ui/cockpit/widgets/window_controls.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Top bar (~46px) customizada — substitui a barra nativa da janela. Semáforo
 /// macOS **funcional** (fecha/minimiza/maximiza) · toggle da rail · nome do
-/// projeto · botão "Abrir". A barra inteira arrasta a janela ([DragToMoveArea]).
+/// projeto · botão "Abrir" (split: IDE | dropdown). A barra inteira arrasta a
+/// janela ([DragToMoveArea]).
 class CockpitTopbar extends StatelessWidget {
   const CockpitTopbar({
     super.key,
@@ -13,7 +18,10 @@ class CockpitTopbar extends StatelessWidget {
     required this.treeVisible,
     required this.onToggleRail,
     required this.onToggleTree,
-    required this.onOpen,
+    required this.availableApps,
+    required this.onOpenInApp,
+    this.lastOpenAppId,
+    this.openEnabled = true,
   });
 
   final String projectName;
@@ -21,7 +29,18 @@ class CockpitTopbar extends StatelessWidget {
   final bool treeVisible;
   final VoidCallback onToggleRail;
   final VoidCallback onToggleTree;
-  final Future<bool> Function() onOpen;
+
+  /// Apps disponíveis para abrir o workspace (vazio = botão desabilitado).
+  final List<LaunchableApp> availableApps;
+
+  /// Último app usado (pode não estar mais em [availableApps]).
+  final String? lastOpenAppId;
+
+  /// Chamado com o `id` do app escolhido (click no segmento esquerdo ou no menu).
+  final void Function(String appId) onOpenInApp;
+
+  /// Botão desabilitado quando não há workspace selecionado.
+  final bool openEnabled;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +55,7 @@ class CockpitTopbar extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const _TrafficLights(),
+            const WindowControls(),
             const SizedBox(width: 12),
             _IconBtn(
               icon: Icons.view_sidebar_outlined,
@@ -53,12 +72,17 @@ class CockpitTopbar extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            _OpenButton(onTap: onOpen),
+            _OpenInIdeButton(
+              apps: availableApps,
+              lastAppId: lastOpenAppId,
+              enabled: openEnabled && availableApps.isNotEmpty,
+              onOpen: (id) => onOpenInApp(id),
+            ),
             const SizedBox(width: 8),
             _IconBtn(
               icon: Icons.view_sidebar_outlined,
               tooltip: 'Mostrar/ocultar arquivos',
-              active: treeVisible,
+              active: !treeVisible,
               onTap: onToggleTree,
             ),
           ],
@@ -68,100 +92,153 @@ class CockpitTopbar extends StatelessWidget {
   }
 }
 
-/// Semáforo macOS funcional — os símbolos aparecem ao passar o mouse no cluster.
-class _TrafficLights extends StatefulWidget {
-  const _TrafficLights();
+// --------------------------------------------------------------------------
 
-  @override
-  State<_TrafficLights> createState() => _TrafficLightsState();
-}
+/// Botão split: segmento esquerdo [ícone + "Abrir"] abre no último app; segmento
+/// direito [chevron] mostra dropdown com todos os apps disponíveis + checkmark.
+class _OpenInIdeButton extends StatelessWidget {
+  const _OpenInIdeButton({
+    required this.apps,
+    required this.lastAppId,
+    required this.onOpen,
+    this.enabled = true,
+  });
 
-class _TrafficLightsState extends State<_TrafficLights> {
-  bool _hover = false;
+  final List<LaunchableApp> apps;
+  final String? lastAppId;
+  final void Function(String id) onOpen;
+  final bool enabled;
 
-  Future<void> _toggleMaximize() async {
-    if (await windowManager.isMaximized()) {
-      await windowManager.unmaximize();
-    } else {
-      await windowManager.maximize();
+  LaunchableApp? get _current {
+    if (apps.isEmpty) return null;
+    if (lastAppId != null) {
+      for (final a in apps) {
+        if (a.id == lastAppId) return a;
+      }
     }
+    return apps.first;
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
-      child: Row(
-        children: [
-          _light(const Color(0xFFFF5F57), Icons.close, windowManager.close),
-          const SizedBox(width: 8),
-          _light(
-            const Color(0xFFFEBC2E),
-            Icons.remove,
-            windowManager.minimize,
-          ),
-          const SizedBox(width: 8),
-          _light(const Color(0xFF28C840), Icons.add, _toggleMaximize),
-        ],
-      ),
-    );
-  }
-
-  Widget _light(Color color, IconData icon, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: Container(
-          width: 12,
-          height: 12,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          child: _hover
-              ? Icon(icon, size: 8, color: Colors.black.withValues(alpha: 0.55))
-              : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _OpenButton extends StatelessWidget {
-  const _OpenButton({required this.onTap});
-  final Future<bool> Function() onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final current = _current;
+    final fg = enabled ? Colors.white : colors.text4;
+    final bg = enabled ? colors.accent : colors.panel3;
+
     return Material(
-      color: colors.accent,
+      color: bg,
       borderRadius: BorderRadius.circular(7),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(7),
-        onTap: () => onTap(),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.folder_open, size: 14, color: Colors.white),
-              const SizedBox(width: 7),
-              Text(
-                'Abrir',
-                style: context.typo.label.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 13,
-                ),
+      clipBehavior: Clip.hardEdge,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Segmento esquerdo — abre no app atual
+          InkWell(
+            onTap: enabled && current != null ? () => onOpen(current.id) : null,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _AppIcon(current, size: 14, color: fg),
+                  const SizedBox(width: 7),
+                  Text(
+                    'Abrir',
+                    style: context.typo.label.copyWith(
+                      color: fg,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+          // Divisor vertical
+          Container(
+            width: 1,
+            height: 28,
+            color: fg.withValues(alpha: 0.25),
+          ),
+          // Segmento direito — dropdown de apps
+          PopupMenuButton<String>(
+            enabled: enabled && apps.isNotEmpty,
+            tooltip: '',
+            padding: EdgeInsets.zero,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+            color: colors.panel2,
+            onSelected: onOpen,
+            itemBuilder: (_) => apps.map((app) {
+              return PopupMenuItem<String>(
+                value: app.id,
+                child: Row(
+                  children: [
+                    _AppIcon(app, size: 14, color: colors.text2),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        app.name,
+                        style: context.typo.label.copyWith(
+                          color: colors.text,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                    if (app.id == (current?.id))
+                      Icon(Icons.check, size: 14, color: colors.accent),
+                  ],
+                ),
+              );
+            }).toList(),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              child: Icon(Icons.expand_more, size: 16, color: fg),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+/// Mostra o ícone do app extraído do bundle (PNG) ou cai num ícone Material.
+class _AppIcon extends StatelessWidget {
+  const _AppIcon(this.app, {this.size = 14, this.color});
+
+  final LaunchableApp? app;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = app?.iconPath;
+    if (path != null) {
+      return Image.file(
+        File(path),
+        width: size,
+        height: size,
+        filterQuality: FilterQuality.medium,
+      );
+    }
+    return Icon(_iconFor(app?.id), size: size, color: color);
+  }
+}
+
+IconData _iconFor(String? id) {
+  return switch (id) {
+    'cursor' => Icons.auto_awesome,
+    'windsurf' => Icons.waves,
+    'antigravity' => Icons.rocket_launch,
+    'vscode' => Icons.code,
+    'finder' => Icons.folder_open,
+    _ => Icons.open_in_new,
+  };
+}
+
+// --------------------------------------------------------------------------
 
 class _IconBtn extends StatelessWidget {
   const _IconBtn({

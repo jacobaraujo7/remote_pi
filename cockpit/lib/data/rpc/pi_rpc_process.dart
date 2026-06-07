@@ -11,6 +11,7 @@ import 'package:cockpit/domain/entities/agent_snapshot.dart';
 import 'package:cockpit/domain/entities/context_usage.dart';
 import 'package:cockpit/domain/entities/pi_command.dart';
 import 'package:cockpit/domain/entities/pi_model.dart';
+import 'package:cockpit/domain/entities/prompt_image.dart';
 import 'package:cockpit/domain/entities/rpc_event.dart';
 import 'package:cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/domain/entities/transcript_message.dart';
@@ -61,6 +62,7 @@ class PiRpcProcess implements RpcProcessGateway {
   @override
   Future<Result<void, RpcError>> spawn({
     required String workingDirectory,
+    Map<String, String>? environment,
   }) async {
     if (_process != null) {
       return const Failure(
@@ -68,10 +70,15 @@ class PiRpcProcess implements RpcProcessGateway {
       );
     }
     try {
+      // Funde com o ambiente do processo pai para preservar PATH/HOME/etc.
+      final env = environment != null
+          ? {...Platform.environment, ...environment}
+          : null;
       final process = await Process.start(
         _config.executable,
         _config.spawnArgs(),
         workingDirectory: workingDirectory,
+        environment: env,
       );
       _process = process;
       _cwd = workingDirectory;
@@ -106,6 +113,7 @@ class PiRpcProcess implements RpcProcessGateway {
   Future<Result<void, RpcError>> sendPrompt(
     String message, {
     bool steerIfBusy = false,
+    List<PromptImage> images = const <PromptImage>[],
   }) async {
     final process = _process;
     if (process == null) {
@@ -113,6 +121,12 @@ class PiRpcProcess implements RpcProcessGateway {
     }
     final command = <String, dynamic>{'type': 'prompt', 'message': message};
     if (steerIfBusy) command['streamingBehavior'] = 'steer';
+    if (images.isNotEmpty) {
+      command['images'] = <Map<String, String>>[
+        for (final image in images)
+          {'type': 'image', 'data': image.data, 'mimeType': image.mimeType},
+      ];
+    }
     try {
       await _writeLine('${jsonEncode(command)}\n');
       return const Success(null);

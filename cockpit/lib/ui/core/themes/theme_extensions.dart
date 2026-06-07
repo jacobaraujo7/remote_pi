@@ -1,5 +1,6 @@
 import 'package:cockpit/ui/core/themes/app_colors.dart';
 import 'package:cockpit/ui/core/themes/app_typography.dart';
+import 'package:cockpit/ui/core/themes/syntax_colors.dart';
 import 'package:flutter/material.dart';
 
 /// Acesso ergonômico aos tokens do tema a partir de qualquer widget.
@@ -21,4 +22,7 @@ extension AppThemeX on BuildContext {
 
   AppTypography get typo =>
       Theme.of(this).extension<AppTypography>() ?? _fallbackTypo;
+
+  SyntaxColors get syntax =>
+      Theme.of(this).extension<SyntaxColors>() ?? SyntaxColors.dark;
 }

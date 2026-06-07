@@ -1,5 +1,6 @@
 import 'package:cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/ui/cockpit/widgets/app_menu.dart';
+import 'package:cockpit/ui/core/file_icons/file_icons.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -378,13 +379,15 @@ class _RowState extends State<_Row> {
                       : null,
                 ),
                 const SizedBox(width: 2),
-                Icon(
-                  widget.isFolder
-                      ? Icons.folder_outlined
-                      : Icons.insert_drive_file_outlined,
-                  size: 14,
-                  color: widget.selected ? colors.accentText : colors.text3,
-                ),
+                // Ícone colorido por tipo (material-icon-theme). Pastas variam
+                // entre aberta/fechada; sem tint (a seleção vem do fundo/texto).
+                widget.isFolder
+                    ? FileTypeIcon.folder(
+                        widget.name,
+                        open: widget.expanded,
+                        size: 16,
+                      )
+                    : FileTypeIcon.file(widget.name, size: 16),
                 const SizedBox(width: 7),
                 Expanded(
                   child: Text(

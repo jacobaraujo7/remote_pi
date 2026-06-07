@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/domain/contracts/rpc_process_gateway.dart';
 import 'package:cockpit/domain/entities/context_usage.dart';
 import 'package:cockpit/domain/entities/pi_command.dart';
 import 'package:cockpit/domain/entities/pi_model.dart';
+import 'package:cockpit/domain/entities/prompt_image.dart';
 import 'package:cockpit/domain/entities/rpc_event.dart';
 import 'package:cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/domain/entities/transcript_message.dart';
@@ -25,6 +27,7 @@ class AgentSession extends PaneItem {
     required this.workingDirectory,
     required RpcGatewayFactory factory,
     String? title,
+    this.autoStartRelay = false,
   }) : _factory = factory,
        _title = title ?? 'Novo agente';
 
@@ -40,6 +43,9 @@ class AgentSession extends PaneItem {
   /// Pasta (subpasta do projeto) onde o `pi --mode rpc` roda.
   @override
   final String workingDirectory;
+
+  /// Conectar ao relay ao iniciar (injetado em `REMOTE_PI_DIRECT_CONFIG`).
+  bool autoStartRelay;
 
   final RpcGatewayFactory _factory;
   RpcProcessGateway? _gateway;
@@ -112,7 +118,10 @@ class AgentSession extends PaneItem {
   // ---- lifecycle ------------------------------------------------------------
 
   /// Sobe o `pi --mode rpc` na [workingDirectory] e começa a ouvir o stream.
-  Future<void> boot() async {
+  ///
+  /// [environment] é fundido com o ambiente do processo pai — use para injetar
+  /// `REMOTE_PI_DIRECT_CONFIG` sem perder PATH/HOME. Se `null`, herda tudo.
+  Future<void> boot({Map<String, String>? environment}) async {
     if (_status == AgentStatus.booting || isAlive) return;
     _status = AgentStatus.booting;
     _entries.clear();
@@ -121,7 +130,10 @@ class AgentSession extends PaneItem {
 
     final gateway = _factory.create();
     _gateway = gateway;
-    final result = await gateway.spawn(workingDirectory: workingDirectory);
+    final result = await gateway.spawn(
+      workingDirectory: workingDirectory,
+      environment: environment,
+    );
     result.fold(
       (_) {
         _status = AgentStatus.idle;
@@ -138,15 +150,28 @@ class AgentSession extends PaneItem {
     );
   }
 
-  Future<void> send(String message) async {
+  Future<void> send(
+    String message, {
+    List<PromptImage> images = const <PromptImage>[],
+  }) async {
     final text = message.trim();
     final gateway = _gateway;
-    if (text.isEmpty || gateway == null || !isAlive || isBusy) return;
-    _addUser(text);
+    if ((text.isEmpty && images.isEmpty) ||
+        gateway == null ||
+        !isAlive ||
+        isBusy) {
+      return;
+    }
+    // Balão do usuário: texto + miniaturas das imagens (decodifica o base64
+    // uma vez pra exibir).
+    _addUser(
+      text,
+      images: [for (final image in images) base64Decode(image.data)],
+    );
     _status = AgentStatus.streaming;
     _turnStartedAt = DateTime.now();
     notifyListeners();
-    final result = await gateway.sendPrompt(text);
+    final result = await gateway.sendPrompt(text, images: images);
     result.fold((_) {}, (error) {
       _addInfo('erro ao enviar: ${error.message}', isError: true);
       _status = AgentStatus.idle;
@@ -277,6 +302,26 @@ class AgentSession extends PaneItem {
     if (trimmed.isEmpty || trimmed == _title) return;
     _title = trimmed;
     notifyListeners();
+  }
+
+  /// Mata o processo e reseta o status para `crashed`, mas mantém a sessão
+  /// viva na UI. Use antes de chamar `boot()` novamente com nova config.
+  Future<void> killForRestart() async {
+    await _sub?.cancel();
+    _sub = null;
+    final gateway = _gateway;
+    _gateway = null;
+    if (gateway != null) {
+      await gateway.kill();
+      gateway.dispose();
+    }
+    // _onExit não será recebido (sub cancelado) — forçamos o status.
+    if (_status == AgentStatus.booting || isAlive) {
+      _status = AgentStatus.crashed;
+      _resetOpenBuffers();
+      _addInfo('reiniciando com nova configuração...');
+      notifyListeners();
+    }
   }
 
   /// Mata o processo limpo e libera o gateway. Chamado ao fechar a aba.
@@ -410,9 +455,9 @@ class AgentSession extends PaneItem {
     return entry;
   }
 
-  void _addUser(String text) {
+  void _addUser(String text, {List<Uint8List> images = const <Uint8List>[]}) {
     _resetOpenBuffers();
-    _add(UserEntry(text));
+    _add(UserEntry(text, images: images));
   }
 
   void _addInfo(String text, {bool isError = false, bool dedup = false}) {

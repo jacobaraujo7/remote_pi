@@ -2,7 +2,7 @@ name: cockpit
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
-publish_to: 'none' # Remove this line if you wish to publish to pub.dev
+publish_to: "none" # Remove this line if you wish to publish to pub.dev
 
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -69,6 +69,32 @@ dependencies:
   # Wave 2 — viewer de arquivo: renderiza SVG no pane (PNG/JPEG via Image.file).
   flutter_svg: ^2.0.10
 
+  # Wave 2 — syntax highlight no viewer de texto. Port Dart do highlight.js; o
+  # import default registra todas as 189 linguagens + aliases. Convertemos a
+  # árvore de nós em TextSpan e pintamos com a paleta `SyntaxColors` do tema.
+  # NOTA: registrar esta dep no plano 37 (responsabilidade do orquestrador).
+  highlight: ^0.7.0
+
+  # Wave 2 — colar imagem/arquivos do clipboard (Cmd/Ctrl+V) no composer. O
+  # `Clipboard` do Flutter só lê texto; o pasteboard lê imagem (bytes) e paths.
+  # NOTA: registrar esta dep no plano 37 (responsabilidade do orquestrador).
+  pasteboard: ^0.4.0
+
+  # Wave 2 — arrastar arquivos do SO (Finder/Explorer/etc.) pro input. O
+  # drag-drop interno do Flutter não pega drops nativos; o desktop_drop cobre
+  # macOS/Linux/Windows. NOTA: registrar esta dep no plano 37.
+  desktop_drop: ^0.5.0
+
+  # Wave 2 — header fixo (sticky) por turno no chat: a pergunta do usuário fica
+  # pinada no topo enquanto a resposta rola. NOTA: registrar no plano 37.
+  flutter_sticky_header: ^0.8.0
+
+dependency_overrides:
+  gpt_markdown:
+    git:
+      url: https://github.com/jacobaraujo7/gpt_markdown
+      ref: v1.2.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -85,16 +111,15 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
-
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # Ícones de arquivo/pasta por extensão (material-icon-theme, MIT). O mapa
+  # arquivo->ícone é gerado em lib/ui/core/file_icons/file_icon_map.g.dart.
+  assets:
+    - assets/file_icons/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

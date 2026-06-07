@@ -1,6 +1,12 @@
 // Testes do núcleo do multiplexador: a árvore de splits (puro, sem Flutter).
 
+import 'package:cockpit/domain/contracts/environment_probe.dart';
+import 'package:cockpit/domain/contracts/system_permissions.dart';
+import 'package:cockpit/domain/entities/setup_check.dart';
 import 'package:cockpit/ui/cockpit/states/pane_node.dart';
+import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
+import 'package:cockpit/ui/core/file_icons/file_icon.dart';
+import 'package:cockpit/ui/core/file_icons/file_icon_map.g.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -177,4 +183,125 @@ void main() {
       expect(out.active, 'a');
     });
   });
+
+  group('file icons', () {
+    test('extensão simples resolve pelo último segmento', () {
+      expect(fileIconName('main.dart'), 'dart');
+      expect(fileIconName('styles.scss'), 'sass');
+      expect(fileIconName('script.sh'), 'console');
+    });
+
+    test('extensão é case-insensitive', () {
+      expect(fileIconName('PHOTO.PNG'), 'image');
+    });
+
+    test('extensão composta vence a simples (mais longa primeiro)', () {
+      expect(fileIconName('app.module.ts'), 'angular');
+      expect(fileIconName('foo.test.tsx'), 'test-jsx');
+    });
+
+    test('nome exato tem prioridade sobre extensão', () {
+      expect(fileIconName('package.json'), 'nodejs');
+      expect(fileIconName('.gitignore'), 'git');
+      expect(fileIconName('Dockerfile'), 'docker');
+    });
+
+    test('desconhecido cai no ícone padrão', () {
+      expect(fileIconName('weird'), kDefaultFileIcon);
+      expect(fileIconName('no.such.ext'), kDefaultFileIcon);
+    });
+
+    test('pasta resolve e normaliza variantes (._- e __x__)', () {
+      expect(folderIconName('src'), folderIconName('.src'));
+      expect(folderIconName('test'), folderIconName('__tests__'));
+      expect(folderIconName('node_modules'), isNot(kDefaultFolderIcon));
+    });
+
+    test('pasta aberta usa o ícone aberto', () {
+      final closed = folderIconName('src');
+      final open = folderIconName('src', open: true);
+      expect(open, isNot(closed));
+      expect(folderIconName('xyz-unknown'), kDefaultFolderIcon);
+      expect(folderIconName('xyz-unknown', open: true), kDefaultFolderOpenIcon);
+    });
+  });
+
+  group('setup gate', () {
+    test('todas satisfeitas → canCreate', () async {
+      final vm = SetupViewModel(_FakeEnv(), _FakePerms());
+      await vm.recheckAll();
+      expect(vm.pi, CheckStatus.ok);
+      expect(vm.extension, CheckStatus.ok);
+      expect(vm.supervisor, CheckStatus.ok);
+      expect(vm.canCreate, isTrue);
+    });
+
+    test('um passo faltando bloqueia', () async {
+      final vm = SetupViewModel(_FakeEnv(ext: false), _FakePerms());
+      await vm.recheckAll();
+      expect(vm.extension, CheckStatus.missing);
+      expect(vm.canCreate, isFalse);
+    });
+
+    test('pi ou supervisor faltando também bloqueia', () async {
+      final a = SetupViewModel(_FakeEnv(pi: false), _FakePerms());
+      await a.recheckAll();
+      expect(a.pi, CheckStatus.missing);
+      expect(a.canCreate, isFalse);
+
+      final b = SetupViewModel(_FakeEnv(sup: false), _FakePerms());
+      await b.recheckAll();
+      expect(b.supervisor, CheckStatus.missing);
+      expect(b.canCreate, isFalse);
+    });
+
+    test('notApplicable conta como satisfeita', () async {
+      final vm = SetupViewModel(
+        _FakeEnv(),
+        _FakePerms(notif: CheckStatus.notApplicable),
+      );
+      await vm.recheckAll();
+      expect(vm.notifications, CheckStatus.notApplicable);
+      expect(vm.canCreate, isTrue);
+    });
+
+    test('requestNotifications muda missing → ok e libera o gate', () async {
+      final perms = _FakePerms(notif: CheckStatus.missing);
+      final vm = SetupViewModel(_FakeEnv(), perms);
+      await vm.recheckAll();
+      expect(vm.notifications, CheckStatus.missing);
+      expect(vm.canCreate, isFalse);
+      await vm.requestNotifications();
+      expect(perms.requested, 1);
+      expect(vm.notifications, CheckStatus.ok);
+      expect(vm.canCreate, isTrue);
+    });
+  });
+}
+
+class _FakeEnv implements EnvironmentProbe {
+  _FakeEnv({this.pi = true, this.ext = true, this.sup = true});
+  final bool pi;
+  final bool ext;
+  final bool sup;
+  @override
+  Future<bool> piInstalled() async => pi;
+  @override
+  Future<bool> extensionInstalled() async => ext;
+  @override
+  Future<bool> supervisorInstalled() async => sup;
+}
+
+class _FakePerms implements SystemPermissions {
+  _FakePerms({this.notif = CheckStatus.ok});
+  CheckStatus notif;
+  int requested = 0;
+  @override
+  Future<CheckStatus> notificationStatus() async => notif;
+  @override
+  Future<CheckStatus> requestNotifications() async {
+    requested++;
+    notif = CheckStatus.ok;
+    return notif;
+  }
 }

@@ -1,31 +1,39 @@
 import 'package:cockpit/config/env.dart';
 import 'package:cockpit/config/utils/injector.dart';
+import 'package:cockpit/data/filesystem/app_launcher_impl.dart';
 import 'package:cockpit/data/filesystem/file_reader_impl.dart';
 import 'package:cockpit/data/filesystem/file_searcher_impl.dart';
 import 'package:cockpit/data/filesystem/file_system_reader_impl.dart';
 import 'package:cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/data/filesystem/folder_lister_impl.dart';
-import 'package:cockpit/data/filesystem/remote_pi_config_store_impl.dart';
 import 'package:cockpit/data/filesystem/session_history_impl.dart';
 import 'package:cockpit/data/notifications/local_notifier.dart';
 import 'package:cockpit/data/repositories/hive_project_repository.dart';
+import 'package:cockpit/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/data/repositories/hive_workspace_layout_store.dart';
 import 'package:cockpit/data/rpc/pi_rpc_process_factory.dart';
+import 'package:cockpit/data/setup/environment_probe_impl.dart';
+import 'package:cockpit/data/setup/system_permissions_impl.dart';
 import 'package:cockpit/data/terminal/pty_terminal_gateway_factory.dart';
+import 'package:cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/domain/contracts/git_status_reader.dart';
+import 'package:cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/domain/contracts/project_repository.dart';
-import 'package:cockpit/domain/contracts/remote_pi_config_store.dart';
+import 'package:cockpit/domain/contracts/system_permissions.dart';
 import 'package:cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/domain/contracts/session_history.dart';
+import 'package:cockpit/domain/contracts/settings_store.dart';
 import 'package:cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
+import 'package:cockpit/ui/settings/settings_controller.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 final CustomInjector _injector = CustomInjector();
@@ -41,6 +49,7 @@ Future<void> setupDependencies() async {
   final layoutBox = await Hive.openBox<dynamic>(
     HiveWorkspaceLayoutStore.boxName,
   );
+  final settingsBox = await Hive.openBox<dynamic>(HiveSettingsStore.boxName);
 
   final config = await PiSpawnConfig.resolve();
 
@@ -49,17 +58,22 @@ Future<void> setupDependencies() async {
   _injector.addInstance<WorkspaceLayoutStore>(
     HiveWorkspaceLayoutStore(layoutBox),
   );
+  _injector.addInstance<SettingsStore>(HiveSettingsStore(settingsBox));
   _injector.addInstance<FolderLister>(const FolderListerImpl());
   _injector.addInstance<FileSystemReader>(const FileSystemReaderImpl());
   _injector.addInstance<FileReader>(const FileReaderImpl());
   _injector.addInstance<FileSearcher>(FileSearcherImpl());
   _injector.addInstance<GitStatusReader>(GitStatusReaderImpl());
   _injector.addInstance<SessionHistory>(const SessionHistoryImpl());
-  _injector.addInstance<RemotePiConfigStore>(const RemotePiConfigStoreImpl());
   _injector.addInstance<RpcGatewayFactory>(PiRpcProcessFactory(config));
   _injector.addInstance<TerminalGatewayFactory>(
     const PtyTerminalGatewayFactory(),
   );
+  _injector.addInstance<AppLauncherGateway>(const AppLauncherImpl());
+
+  // Onboarding: checagens de ambiente + permissões do SO.
+  _injector.addInstance<EnvironmentProbe>(EnvironmentProbeImpl(config));
+  _injector.addInstance<SystemPermissions>(SystemPermissionsImpl());
 
   // Notificações do SO — inicializa (pede permissão). Falha de init não pode
   // derrubar o boot do app.
@@ -82,7 +96,6 @@ CockpitViewModel buildCockpitViewModel() {
     _injector.get<RpcGatewayFactory>(),
     _injector.get<FolderLister>(),
     _injector.get<SessionHistory>(),
-    _injector.get<RemotePiConfigStore>(),
     _injector.get<Notifier>(),
     _injector.get<FileSystemReader>(),
     _injector.get<TerminalGatewayFactory>(),
@@ -90,5 +103,20 @@ CockpitViewModel buildCockpitViewModel() {
     _injector.get<WorkspaceLayoutStore>(),
     _injector.get<GitStatusReader>(),
     _injector.get<FileSearcher>(),
+    _injector.get<AppLauncherGateway>(),
   );
+}
+
+/// ViewModel da tela de onboarding (checagens de ambiente/permissão).
+SetupViewModel buildSetupViewModel() {
+  return SetupViewModel(
+    _injector.get<EnvironmentProbe>(),
+    _injector.get<SystemPermissions>(),
+  );
+}
+
+/// Controller global de preferências (tema/fonte/syntax). Vive acima do
+/// `MaterialApp`; criado uma vez no boot.
+SettingsController buildSettingsController() {
+  return SettingsController(_injector.get<SettingsStore>());
 }

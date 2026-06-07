@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/ui/cockpit/widgets/agent_markdown.dart';
+import 'package:cockpit/ui/cockpit/widgets/code_highlight.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -18,7 +19,10 @@ class FileViewer extends StatelessWidget {
       color: colors.panel,
       child: switch (view) {
         FileViewMarkdown(:final text) => _Scroll(child: AgentMarkdown(text)),
-        FileViewText(:final text) => _TextView(text: text),
+        FileViewText(:final text, :final language) => _TextView(
+          text: text,
+          language: language,
+        ),
         FileViewImage(:final path) => _ImageView(path: path),
         FileViewUnsupported() => Center(
           child: Text(
@@ -48,9 +52,12 @@ class _Scroll extends StatelessWidget {
 /// esquerda (fixo na horizontal) e **scroll horizontal** pro conteúdo quando a
 /// linha é longa. O texto segue selecionável; os números, não.
 class _TextView extends StatefulWidget {
-  const _TextView({required this.text});
+  const _TextView({required this.text, this.language});
 
   final String text;
+
+  /// Linguagem (extensão do arquivo) pro syntax highlight; `null` = sem dica.
+  final String? language;
 
   @override
   State<_TextView> createState() => _TextViewState();
@@ -69,59 +76,73 @@ class _TextViewState extends State<_TextView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     final typo = context.typo;
-
-    const fontSize = 12.5;
-    const lineHeight = 1.55;
-    final codeStyle = typo.mono.copyWith(
-      fontSize: fontSize,
-      height: lineHeight,
-      color: const Color(0xFFC9C9CF),
+    // O viewer de código segue o tema de **syntax** (fundo próprio), não o tema
+    // do app — assim One Dark/Dracula ficam escuros mesmo no app em light. O
+    // tamanho vem do `typo.mono` (configurável em Configurações → Código).
+    final syntax = context.syntax;
+    final codeStyle = typo.mono.copyWith(color: syntax.base);
+    // Spans coloridos (highlight.js → tema). `null` quando não vale destacar
+    // (sem linguagem / arquivo grande) → renderiza texto puro.
+    final codeSpan = buildCodeSpan(
+      context,
+      source: widget.text,
+      language: widget.language,
+      baseStyle: codeStyle,
     );
     final numStyle = typo.mono.copyWith(
-      fontSize: fontSize,
-      height: lineHeight,
-      color: colors.text4,
+      color: syntax.base.withValues(alpha: 0.4),
     );
 
     // Conta linhas pelos '\n' (arquivo sem newline final = última linha conta;
     // arquivo vazio = 1 linha). Mesma métrica do código → gutter alinha 1:1.
     final lineCount = '\n'.allMatches(widget.text).length + 1;
 
-    return Scrollbar(
-      controller: _vertical,
-      child: SingleChildScrollView(
-        controller: _vertical,
-        padding: const EdgeInsets.symmetric(vertical: 14),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Gutter — números à direita, fixo (não rola na horizontal).
-            Padding(
-              padding: const EdgeInsets.only(left: 14, right: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  for (var i = 1; i <= lineCount; i++)
-                    Text('$i', style: numStyle),
-                ],
-              ),
-            ),
-            Container(width: 1, color: colors.border),
-            // Código — rola na horizontal quando a linha estoura; selecionável.
-            Expanded(
-              child: Scrollbar(
-                controller: _horizontal,
-                child: SingleChildScrollView(
-                  controller: _horizontal,
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: 14, right: 16),
-                  child: SelectableText(widget.text, style: codeStyle),
+    // Dois scrollbars aninhados: a barra **horizontal** envolve tudo, então fica
+    // **pinada no rodapé do viewport** (não some ao fim do conteúdo). O scroll
+    // horizontal é aninhado dentro do vertical (`depth == 1`), por isso o
+    // `notificationPredicate` filtra por profundidade. A vertical fica na borda.
+    return ColoredBox(
+      color: syntax.background,
+      child: Scrollbar(
+        controller: _horizontal,
+        thumbVisibility: true,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        notificationPredicate: (notification) => notification.depth == 1,
+        child: Scrollbar(
+          controller: _vertical,
+          child: SingleChildScrollView(
+            controller: _vertical,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Gutter — números à direita, fixo (não rola na horizontal).
+                Padding(
+                  padding: const EdgeInsets.only(left: 14, right: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (var i = 1; i <= lineCount; i++)
+                        Text('$i', style: numStyle),
+                    ],
+                  ),
                 ),
-              ),
+                Container(width: 1, color: syntax.base.withValues(alpha: 0.15)),
+                // Código — rola na horizontal quando a linha estoura; selecionável.
+                Expanded(
+                  child: SingleChildScrollView(
+                    controller: _horizontal,
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.only(left: 14, right: 16),
+                    child: codeSpan == null
+                        ? SelectableText(widget.text, style: codeStyle)
+                        : SelectableText.rich(codeSpan),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );

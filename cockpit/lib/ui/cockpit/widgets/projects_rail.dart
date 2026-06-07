@@ -17,6 +17,7 @@ class ProjectsRail extends StatefulWidget {
     required this.onAdd,
     required this.onConfigure,
     required this.onDelete,
+    required this.onOpenSettings,
     this.width = 252,
   });
 
@@ -31,6 +32,9 @@ class ProjectsRail extends StatefulWidget {
   final Future<bool> Function() onAdd;
   final ValueChanged<Project> onConfigure;
   final ValueChanged<Project> onDelete;
+
+  /// Abre a tela de Configurações (engrenagem no rodapé).
+  final VoidCallback onOpenSettings;
 
   @override
   State<ProjectsRail> createState() => _ProjectsRailState();
@@ -69,17 +73,20 @@ class _ProjectsRailState extends State<ProjectsRail> {
                   style: context.typo.title.copyWith(color: colors.text),
                 ),
                 const Spacer(),
-                _SmallIcon(
-                  icon: Icons.add,
-                  tooltip: 'Novo projeto',
-                  onTap: () => onAdd(),
-                ),
+                // Sem "+" quando não há workspace: a criação fica centralizada
+                // no onboarding da tela vazia.
+                if (projects.isNotEmpty)
+                  _SmallIcon(
+                    icon: Icons.add,
+                    tooltip: 'Novo workspace',
+                    onTap: () => onAdd(),
+                  ),
               ],
             ),
           ),
           Expanded(
             child: projects.isEmpty
-                ? _EmptyRail(onAdd: onAdd)
+                ? const _EmptyRail()
                 : Scrollbar(
                     controller: _scroll,
                     thumbVisibility: true,
@@ -123,9 +130,17 @@ class _ProjectsRailState extends State<ProjectsRail> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  'MBP-de-jacob',
-                  style: context.typo.label.copyWith(color: colors.text2),
+                Expanded(
+                  child: Text(
+                    'MBP-de-jacob',
+                    overflow: TextOverflow.ellipsis,
+                    style: context.typo.label.copyWith(color: colors.text2),
+                  ),
+                ),
+                _SmallIcon(
+                  icon: Icons.settings_outlined,
+                  tooltip: 'Configurações',
+                  onTap: widget.onOpenSettings,
                 ),
               ],
             ),
@@ -352,8 +367,7 @@ class _MenuButton extends StatelessWidget {
 }
 
 class _EmptyRail extends StatelessWidget {
-  const _EmptyRail({required this.onAdd});
-  final Future<bool> Function() onAdd;
+  const _EmptyRail();
 
   @override
   Widget build(BuildContext context) {
@@ -361,21 +375,10 @@ class _EmptyRail extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Nenhum projeto ainda.',
-              textAlign: TextAlign.center,
-              style: context.typo.label.copyWith(color: colors.text3),
-            ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => onAdd(),
-              icon: const Icon(Icons.add, size: 15),
-              label: const Text('Adicionar pasta'),
-            ),
-          ],
+        child: Text(
+          'Nenhum workspace ainda.',
+          textAlign: TextAlign.center,
+          style: context.typo.label.copyWith(color: colors.text3),
         ),
       ),
     );

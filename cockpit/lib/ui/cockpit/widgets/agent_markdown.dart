@@ -22,13 +22,13 @@ class AgentMarkdown extends StatelessWidget {
     return SelectionArea(
       child: GptMarkdown(
         data,
-        style: typo.body.copyWith(color: const Color(0xFFC9C9CF)),
+        style: typo.body.copyWith(color: colors.text),
         // `code` inline — fundo sutil, mono.
         highlightBuilder: (context, text, style) => Text(
           text,
           style: typo.mono.copyWith(
             fontSize: 12,
-            color: const Color(0xFFD6D6DC),
+            color: colors.text,
             backgroundColor: colors.panel3,
           ),
         ),
@@ -85,7 +85,7 @@ class _CodeBlock extends StatelessWidget {
             child: Text(
               code,
               style: typo.mono.copyWith(
-                color: const Color(0xFFC9C9CF),
+                color: colors.text,
                 height: 1.5,
               ),
             ),

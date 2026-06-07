@@ -3,6 +3,7 @@ import 'package:cockpit/domain/entities/agent_snapshot.dart';
 import 'package:cockpit/domain/entities/context_usage.dart';
 import 'package:cockpit/domain/entities/pi_command.dart';
 import 'package:cockpit/domain/entities/pi_model.dart';
+import 'package:cockpit/domain/entities/prompt_image.dart';
 import 'package:cockpit/domain/entities/rpc_event.dart';
 import 'package:cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/domain/entities/transcript_message.dart';
@@ -30,13 +31,22 @@ abstract class RpcProcessGateway implements Service {
 
   /// Sobe um `pi --mode rpc` puro em [workingDirectory]. Falha se já houver um
   /// agente vivo (dedup é responsabilidade de quem chama, no MVP single-pane).
-  Future<Result<void, RpcError>> spawn({required String workingDirectory});
+  ///
+  /// [environment] é **fundido** com o ambiente do processo pai — variáveis
+  /// ausentes aqui são herdadas normalmente. Use para injetar
+  /// `REMOTE_PI_DIRECT_CONFIG` sem perder PATH/HOME/etc.
+  Future<Result<void, RpcError>> spawn({
+    required String workingDirectory,
+    Map<String, String>? environment,
+  });
 
   /// Envia um prompt do usuário pelo stdin. Se [steerIfBusy], anexa
-  /// `streamingBehavior: "steer"` para enfileirar durante streaming.
+  /// `streamingBehavior: "steer"` para enfileirar durante streaming. [images]
+  /// viram o campo `images` do comando (anexos de visão).
   Future<Result<void, RpcError>> sendPrompt(
     String message, {
     bool steerIfBusy = false,
+    List<PromptImage> images = const <PromptImage>[],
   });
 
   /// Mata o child limpo: fecha o stdin (encerramento gracioso, code 0) e só

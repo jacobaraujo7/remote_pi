@@ -1,15 +1,22 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:cockpit/domain/entities/pi_command.dart';
+import 'package:cockpit/domain/entities/prompt_image.dart';
 import 'package:cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/ui/cockpit/widgets/app_menu.dart';
 import 'package:cockpit/ui/cockpit/widgets/model_picker.dart';
+import 'package:cockpit/ui/core/file_icons/file_icons.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pasteboard/pasteboard.dart';
 import 'package:provider/provider.dart';
 
 /// Composer do design: input + toolbar (modelo · effort · aprovação · enviar).
@@ -43,10 +50,130 @@ class _AgentComposerState extends State<AgentComposer> {
   /// Índice destacado no overlay ativo (comando OU arquivo).
   int _index = 0;
 
+  /// Anexos do composer. Imagem → chip com preview, vai como visão (`images`).
+  /// Arquivo → chip badge (ícone + nome) e a referência `@<rel>` é reconstruída
+  /// no envio — conceito do textfield_tags: a menção vive como **chip, fora do
+  /// texto editável**.
+  final List<_Attachment> _attachments = <_Attachment>[];
+  static const int _maxImages = 3;
+  int _pasteSeq = 0;
+
+  /// Arrastando arquivos do SO (Finder/Explorer) sobre o input.
+  bool _osDragOver = false;
+
   @override
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
+  }
+
+  /// "+" — escolhe arquivos externos: imagem → anexo de visão; outro → chip.
+  Future<void> _pickAttachment() async {
+    final result = await FilePicker.platform.pickFiles(
+      allowMultiple: true,
+      withData: true,
+      dialogTitle: 'Anexar arquivo',
+    );
+    if (result == null) return;
+    for (final file in result.files) {
+      final path = file.path;
+      if (path == null) continue;
+      if (_isImageName(file.name)) {
+        _addImage(_Attachment(name: file.name, isImage: true, bytes: file.bytes));
+      } else {
+        _addFileFromPath(path);
+      }
+    }
+  }
+
+  /// Drop nativo do SO (Finder/Explorer/…): imagem → visão; outro → chip.
+  Future<void> _onOsDrop(List<DropItem> items) async {
+    for (final item in items) {
+      final path = item.path;
+      if (path.isEmpty) continue;
+      if (_isImageName(item.name)) {
+        final bytes = await item.readAsBytes();
+        _addImage(_Attachment(name: item.name, isImage: true, bytes: bytes));
+      } else {
+        _addFileFromPath(path);
+      }
+    }
+  }
+
+  /// Cmd/Ctrl+V: imagem do clipboard → visão; arquivos copiados → chips; senão
+  /// cola o texto no cursor (paste normal).
+  Future<void> _pasteFromClipboard() async {
+    final imageBytes = await Pasteboard.image;
+    if (imageBytes != null && imageBytes.isNotEmpty) {
+      _addImage(
+        _Attachment(
+          name: 'colado-${++_pasteSeq}.png',
+          isImage: true,
+          bytes: imageBytes,
+        ),
+      );
+      return;
+    }
+    final files = await Pasteboard.files();
+    if (files.isNotEmpty) {
+      for (final p in files) {
+        _addFileFromPath(p);
+      }
+      return;
+    }
+    final text = await Pasteboard.text;
+    if (text != null && text.isNotEmpty) _insertText(text);
+  }
+
+  /// Insere [text] na posição do cursor (fallback do paste de texto).
+  void _insertText(String text) {
+    final value = _controller.value;
+    final sel = value.selection;
+    final start = sel.isValid ? sel.start : value.text.length;
+    final end = sel.isValid ? sel.end : value.text.length;
+    final newText = value.text.replaceRange(start, end, text);
+    _controller.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: start + text.length),
+    );
+  }
+
+  /// Adiciona um anexo de **imagem** (respeita o limite [_maxImages]).
+  void _addImage(_Attachment image) {
+    if (!mounted) return;
+    final count = _attachments.where((a) => a.isImage).length;
+    if (count >= _maxImages) {
+      _notifyLimit();
+      return;
+    }
+    setState(() => _attachments.add(image));
+  }
+
+  /// Chip de **arquivo** a partir do caminho (emite `@<path>` no envio).
+  void _addFileFromPath(String path) {
+    _addFileMention(path, _basename(path));
+  }
+
+  /// Chip de arquivo a partir da referência (sem duplicar).
+  void _addFileMention(String mention, String name) {
+    if (!mounted) return;
+    if (_attachments.any((a) => !a.isImage && a.mention == mention)) return;
+    setState(() {
+      _attachments.add(_Attachment(name: name, isImage: false, mention: mention));
+    });
+  }
+
+  void _notifyLimit() {
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      const SnackBar(
+        content: Text('Máximo de $_maxImages imagens.'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _removeAttachment(int index) {
+    setState(() => _attachments.removeAt(index));
   }
 
   @override
@@ -262,6 +389,10 @@ class _AgentComposerState extends State<AgentComposer> {
     );
   }
 
+  /// Aceita um arquivo do overlay `@`: **remove o `@query`** digitado e vira um
+  /// chip de arquivo (conceito do textfield_tags — a menção sai do texto). A
+  /// busca devolve caminho **relativo** ao cwd; convertemos pra **absoluto**
+  /// (todas as menções são absolutas — relativo dava ambiguidade).
   void _acceptFile(int index) {
     final mention = _mention;
     final matches = _fileMatches;
@@ -270,67 +401,106 @@ class _AgentComposerState extends State<AgentComposer> {
     final text = _controller.text;
     final before = text.substring(0, mention.start);
     final after = text.substring(_cursor);
-    final inserted = '@$rel ';
     _fileSuppress = true;
-    final newText = before + inserted + after;
     _controller.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: (before + inserted).length),
+      text: before + after,
+      selection: TextSelection.collapsed(offset: before.length),
     );
-  }
-
-  /// Insere `@<rel>` no cursor — drag-drop de um arquivo do painel Files.
-  void _insertFileMention(String absolutePath) {
-    final rel = _relativeTo(widget.session.workingDirectory, absolutePath);
-    final text = _controller.text;
-    final sel = _controller.selection;
-    final offset = sel.isValid ? sel.end : text.length;
-    final needsSpace = offset > 0 && !_isSpace(text[offset - 1]);
-    final insert = '${needsSpace ? ' ' : ''}@$rel ';
-    _fileSuppress = true;
-    final newText = text.substring(0, offset) + insert + text.substring(offset);
-    _controller.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: offset + insert.length),
-    );
+    _mention = null;
+    _fileMatches = const <String>[];
+    final cwd = widget.session.workingDirectory;
+    final abs = cwd.isEmpty
+        ? rel
+        : (cwd.endsWith('/') ? '$cwd$rel' : '$cwd/$rel');
+    _addFileMention(abs, _basename(abs));
     _inputFocus.requestFocus();
   }
 
-  /// Caminho de [toPath] relativo a [fromDir] (com `../` quando necessário).
-  String _relativeTo(String fromDir, String toPath) {
-    final from = fromDir.split('/').where((s) => s.isNotEmpty).toList();
-    final to = toPath.split('/').where((s) => s.isNotEmpty).toList();
-    var i = 0;
-    while (i < from.length && i < to.length && from[i] == to[i]) {
-      i++;
-    }
-    final parts = <String>[
-      ...List<String>.filled(from.length - i, '..'),
-      ...to.sublist(i),
-    ];
-    return parts.isEmpty ? '.' : parts.join('/');
-  }
-
-  void _submit() {
+  Future<void> _submit() async {
     final session = widget.session;
     if (session.isStreaming) {
       session.stop();
       return;
     }
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    final typed = _controller.text.trim();
+    final attachments = List<_Attachment>.of(_attachments);
+    if (typed.isEmpty && attachments.isEmpty) return;
+
+    // Embutido (/new, /compact) → RPC dedicado; só quando é comando puro (sem
+    // anexo). Senão vai como prompt (texto + anexos).
+    if (attachments.isEmpty &&
+        typed.startsWith('/') &&
+        _runBuiltin(typed.substring(1).split(' ').first)) {
+      _resetInput();
+      return;
+    }
+
+    // Reconstrói as menções de arquivo (`@<path>`) a partir dos chips e anexa
+    // ao texto — o agente lê via tools e o balão renderiza como badge.
+    final fileMentions = attachments
+        .where((a) => !a.isImage && a.mention != null)
+        .map((a) => '@${a.mention}');
+    final message = <String>[
+      if (typed.isNotEmpty) typed,
+      ...fileMentions,
+    ].join(' ');
+
+    // Limpa a UI já (responsivo); a normalização das imagens é assíncrona.
+    _resetInput();
+
+    // Normaliza toda imagem pra **PNG sRGB 8-bit** (decodifica e re-encoda):
+    // o clipboard do macOS costuma trazer Display P3/16-bit, que vários
+    // provedores de visão rejeitam — por isso colar falhava e anexar não.
+    // Também reduz screenshots gigantes.
+    final images = <PromptImage>[];
+    for (final a in attachments) {
+      if (!a.isImage || a.bytes == null) continue;
+      final png = await _toStandardPng(a.bytes!);
+      images.add(PromptImage(data: base64Encode(png), mimeType: 'image/png'));
+    }
+
+    session.send(message, images: images);
+  }
+
+  /// Decodifica os [bytes] e re-encoda como PNG padrão (8-bit sRGB), reduzindo
+  /// se o lado maior passar de [maxSide]. Em erro, devolve os bytes originais.
+  Future<Uint8List> _toStandardPng(
+    Uint8List bytes, {
+    int maxSide = 1568,
+  }) async {
+    try {
+      var codec = await ui.instantiateImageCodec(bytes);
+      var image = (await codec.getNextFrame()).image;
+      final longest = math.max(image.width, image.height);
+      if (longest > maxSide) {
+        final wide = image.width >= image.height;
+        image.dispose();
+        codec = await ui.instantiateImageCodec(
+          bytes,
+          targetWidth: wide ? maxSide : null,
+          targetHeight: wide ? null : maxSide,
+        );
+        image = (await codec.getNextFrame()).image;
+      }
+      final data = await image.toByteData(format: ui.ImageByteFormat.png);
+      image.dispose();
+      return data?.buffer.asUint8List() ?? bytes;
+    } catch (_) {
+      return bytes;
+    }
+  }
+
+  /// Limpa input e anexos após enviar (ou executar um builtin).
+  void _resetInput() {
     _controller.clear();
     _cmdSuppress = false;
     _cmdQuery = null;
     _fileSuppress = false;
     _mention = null;
     _fileMatches = const <String>[];
-    // Embutido (/new, /compact) → RPC dedicado; senão vai como prompt (texto
-    // normal ou comando de extension, ex.: /remote-pi setup).
-    if (text.startsWith('/') && _runBuiltin(text.substring(1).split(' ').first)) {
-      return;
+    if (_attachments.isNotEmpty) {
+      setState(() => _attachments.clear());
     }
-    session.send(text);
   }
 
   @override
@@ -340,112 +510,143 @@ class _AgentComposerState extends State<AgentComposer> {
     final streaming = session.isStreaming;
     final controlsEnabled = session.isAlive && !streaming;
 
-    // Alvo de drop — arrastar um arquivo do painel Files vira `@<rel>` no input.
-    return DragTarget<String>(
-      onAcceptWithDetails: (d) => _insertFileMention(d.data),
-      builder: (context, candidate, rejected) {
-        final dragging = candidate.isNotEmpty;
-        final borderColor = (_focused || dragging)
-            ? colors.accent
-            : (controlsEnabled ? colors.border2 : colors.border);
-        return Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: colors.panel2,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: borderColor),
-            boxShadow: [
-              // Elevação — o composer paira sobre o transcript.
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.38),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-              if (_focused || dragging)
-                BoxShadow(
-                  color: colors.accentSoft,
-                  blurRadius: 0,
-                  spreadRadius: 3,
-                ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Overlay de sugestões (comandos `/` ou arquivos `@`) — acima do
-              // input (a caixa cresce pra cima).
-              if (_overlayOpen)
-                _SuggestPalette(
-                  items: _suggestions,
-                  selected: _index,
-                  onSelect: _onSelectIndex,
-                ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-                child: Focus(
-                  onFocusChange: (f) => setState(() => _focused = f),
-                  child: CallbackShortcuts(
-                    bindings: <ShortcutActivator, VoidCallback>{
-                      const SingleActivator(LogicalKeyboardKey.enter): _onEnter,
-                      if (_overlayOpen) ...{
-                        const SingleActivator(LogicalKeyboardKey.arrowDown):
-                            () => _moveIndex(1),
-                        const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-                            _moveIndex(-1),
-                        const SingleActivator(LogicalKeyboardKey.tab): _accept,
-                        const SingleActivator(LogicalKeyboardKey.escape):
-                            _dismissOverlay,
+    // Drop **nativo** do SO (Finder/Explorer/…) → anexa imagem / vira `@`. O
+    // drag-drop **interno** (do painel Files) é o DragTarget<String> filho.
+    return DropTarget(
+      onDragEntered: (_) {
+        if (!_osDragOver) setState(() => _osDragOver = true);
+      },
+      onDragExited: (_) {
+        if (_osDragOver) setState(() => _osDragOver = false);
+      },
+      onDragDone: (detail) {
+        if (_osDragOver) setState(() => _osDragOver = false);
+        _onOsDrop(detail.files);
+      },
+      child: DragTarget<String>(
+        onAcceptWithDetails: (d) => _addFileFromPath(d.data),
+        builder: (context, candidate, rejected) {
+          final dragging = candidate.isNotEmpty;
+          final borderColor = (_focused || dragging || _osDragOver)
+              ? colors.accent
+              : (controlsEnabled ? colors.border2 : colors.border);
+          return Container(
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: colors.panel2,
+              borderRadius: BorderRadius.circular(10),
+              // Sem sombra — o foco é sinalizado só pela borda accent.
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Overlay de sugestões (comandos `/` ou arquivos `@`) — acima do
+                // input (a caixa cresce pra cima).
+                if (_overlayOpen)
+                  _SuggestPalette(
+                    items: _suggestions,
+                    selected: _index,
+                    onSelect: _onSelectIndex,
+                  ),
+                // Anexos do "+" — imagens em miniatura, outros como chip. Acima
+                // do input.
+                if (_attachments.isNotEmpty)
+                  _AttachmentStrip(
+                    attachments: _attachments,
+                    onRemove: _removeAttachment,
+                  ),
+                // Aviso: o modelo atual é text-only e não vai enxergar a imagem.
+                if (_attachments.any((a) => a.isImage) &&
+                    !(session.model?.supportsImages ?? false))
+                  const _ImageModelWarning(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
+                  child: Focus(
+                    onFocusChange: (f) => setState(() => _focused = f),
+                    child: CallbackShortcuts(
+                      bindings: <ShortcutActivator, VoidCallback>{
+                        const SingleActivator(LogicalKeyboardKey.enter):
+                            _onEnter,
+                        // Cmd/Ctrl+V: imagem/arquivo do clipboard vira anexo;
+                        // texto cola normalmente.
+                        const SingleActivator(
+                          LogicalKeyboardKey.keyV,
+                          meta: true,
+                        ): _pasteFromClipboard,
+                        const SingleActivator(
+                          LogicalKeyboardKey.keyV,
+                          control: true,
+                        ): _pasteFromClipboard,
+                        if (_overlayOpen) ...{
+                          const SingleActivator(
+                            LogicalKeyboardKey.arrowDown,
+                          ): () =>
+                              _moveIndex(1),
+                          const SingleActivator(
+                            LogicalKeyboardKey.arrowUp,
+                          ): () =>
+                              _moveIndex(-1),
+                          const SingleActivator(LogicalKeyboardKey.tab):
+                              _accept,
+                          const SingleActivator(LogicalKeyboardKey.escape):
+                              _dismissOverlay,
+                        },
                       },
-                    },
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _inputFocus,
-                      minLines: 2,
-                      maxLines: 6,
-                      style: context.typo.body.copyWith(
-                        fontSize: 13.5,
-                        color: colors.text,
-                      ),
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        border: InputBorder.none,
-                        hintText:
-                            'Mensagem pro agente, use @arquivos ou /comandos',
-                        hintStyle: context.typo.body.copyWith(
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _inputFocus,
+                        minLines: 2,
+                        maxLines: 6,
+                        style: context.typo.body.copyWith(
                           fontSize: 13.5,
-                          color: colors.text3,
+                          color: colors.text,
+                        ),
+                        decoration: InputDecoration(
+                          isCollapsed: true,
+                          border: InputBorder.none,
+                          hintText:
+                              'Mensagem pro agente, use @arquivos ou /comandos',
+                          hintStyle: context.typo.body.copyWith(
+                            fontSize: 13.5,
+                            color: colors.text3,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
-              ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 4, 8, 7),
-            child: Row(
-              children: [
-                _BarIcon(icon: Icons.add, tooltip: 'Anexar', onTap: () {}),
-                _ModelChip(session: session, enabled: controlsEnabled),
-                // Effort só pra modelos com raciocínio (senão o pi não usa).
-                if (session.model?.reasoning ?? false)
-                  _EffortChip(session: session, enabled: controlsEnabled),
-                // Bolinha de uso do contexto (enche conforme a janela enche).
-                _ContextGauge(session: session),
-                const Spacer(),
-                // Spinner + cronômetro do turno (só enquanto trabalha).
-                _TurnIndicator(session: session),
-                _SendButton(
-                  streaming: streaming,
-                  ready: _hasText,
-                  onTap: _submit,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 4, 8, 7),
+                  child: Row(
+                    children: [
+                      _BarIcon(
+                        icon: Icons.add,
+                        tooltip: 'Anexar arquivo',
+                        onTap: _pickAttachment,
+                      ),
+                      _ModelChip(session: session, enabled: controlsEnabled),
+                      // Effort só pra modelos com raciocínio (senão o pi não usa).
+                      if (session.model?.reasoning ?? false)
+                        _EffortChip(session: session, enabled: controlsEnabled),
+                      // Bolinha de uso do contexto (enche conforme a janela enche).
+                      _ContextGauge(session: session),
+                      const Spacer(),
+                      // Spinner + cronômetro do turno (só enquanto trabalha).
+                      _TurnIndicator(session: session),
+                      _SendButton(
+                        streaming: streaming,
+                        ready: _hasText || _attachments.isNotEmpty,
+                        onTap: _submit,
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-          ),
-            ],
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
@@ -915,6 +1116,177 @@ class _SendButton extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Anexos do "+"
+// ---------------------------------------------------------------------------
+
+const Set<String> _kImageExts = <String>{
+  'png',
+  'jpg',
+  'jpeg',
+  'gif',
+  'webp',
+  'bmp',
+};
+
+bool _isImageName(String name) {
+  final dot = name.lastIndexOf('.');
+  if (dot < 0) return false;
+  return _kImageExts.contains(name.substring(dot + 1).toLowerCase());
+}
+
+/// Um anexo do composer. Imagens guardam os [bytes] (preview + base64 no envio);
+/// outros arquivos guardam só o [path] (o agente lê via tools).
+class _Attachment {
+  _Attachment({
+    required this.name,
+    required this.isImage,
+    this.bytes,
+    this.mention,
+  });
+
+  final String name;
+  final bool isImage;
+
+  /// Imagens: bytes (preview + base64 no envio).
+  final Uint8List? bytes;
+
+  /// Arquivos: referência relativa (sem o `@`) emitida no envio.
+  final String? mention;
+}
+
+/// Aviso quando há imagem anexada mas o modelo é text-only (não enxerga).
+class _ImageModelWarning extends StatelessWidget {
+  const _ImageModelWarning();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.warning_amber_rounded, size: 14, color: colors.warn),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                'O modelo atual não enxerga imagens — troque por um com visão.',
+                style: context.typo.label.copyWith(color: colors.warn),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Faixa de anexos acima do input: imagens em miniatura, outros como chip.
+class _AttachmentStrip extends StatelessWidget {
+  const _AttachmentStrip({required this.attachments, required this.onRemove});
+
+  final List<_Attachment> attachments;
+  final ValueChanged<int> onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    // Align(centerLeft) ocupa a largura toda e encosta os anexos à esquerda (o
+    // Column do composer é center por padrão).
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (var i = 0; i < attachments.length; i++)
+              _AttachmentChip(
+                attachment: attachments[i],
+                onRemove: () => onRemove(i),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttachmentChip extends StatelessWidget {
+  const _AttachmentChip({required this.attachment, required this.onRemove});
+
+  final _Attachment attachment;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final showThumb = attachment.isImage && attachment.bytes != null;
+
+    final Widget content = showThumb
+        ? ClipRRect(
+            borderRadius: BorderRadius.circular(7),
+            child: Image.memory(
+              attachment.bytes!,
+              width: 52,
+              height: 52,
+              fit: BoxFit.cover,
+            ),
+          )
+        : Container(
+            height: 52,
+            constraints: const BoxConstraints(maxWidth: 190),
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            decoration: BoxDecoration(
+              color: colors.panel3,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FileTypeIcon.file(attachment.name, size: 18),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    attachment.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.typo.label.copyWith(color: colors.text),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        content,
+        Positioned(
+          top: -6,
+          right: -6,
+          child: GestureDetector(
+            onTap: onRemove,
+            child: Container(
+              width: 18,
+              height: 18,
+              decoration: BoxDecoration(
+                color: colors.panel,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.border2),
+              ),
+              child: Icon(Icons.close, size: 11, color: colors.text2),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

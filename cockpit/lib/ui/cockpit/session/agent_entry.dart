@@ -1,13 +1,17 @@
+import 'dart:typed_data';
+
 /// Item renderizável do transcript de um agente — modelo de UI derivado dos
 /// [RpcEvent] tipados. Mutável de propósito (deltas crescem em lugar).
 sealed class AgentEntry {
   AgentEntry();
 }
 
-/// Prompt enviado pelo usuário (eco local).
+/// Prompt enviado pelo usuário (eco local). [images] são as imagens anexadas
+/// (PNG já normalizado), exibidas no balão.
 final class UserEntry extends AgentEntry {
-  UserEntry(this.text);
+  UserEntry(this.text, {this.images = const <Uint8List>[]});
   final String text;
+  final List<Uint8List> images;
 }
 
 /// Texto do assistant, crescendo via `text_delta`.
