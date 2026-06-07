@@ -1,7 +1,7 @@
 import { ChildProcess, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import type { DaemonState } from "./control_protocol.js";
-import { defaultAgentName, loadLocalConfig } from "../session/local_config.js";
+import { defaultAgentName, loadLocalConfig, type LocalConfig } from "../session/local_config.js";
 
 /**
  * Wrapper around a `pi --mode rpc -e <extension>` child process for the
@@ -32,6 +32,15 @@ export interface RpcChildOptions {
   /** Additional env vars merged on top of `process.env` + the mandatory
    *  `REMOTE_PI_DAEMON=1`. */
   env?: NodeJS.ProcessEnv;
+  /**
+   * Daemon config injected into the child via `REMOTE_PI_DIRECT_CONFIG`
+   * (JSON inline) instead of a per-cwd `.pi/remote-pi/config.json` file. The
+   * supervisor builds this from the registry. When set, the child reads it
+   * env-first (see `loadLocalConfig`) and no config file is needed. Also the
+   * source of the `--name` for the session. Falls back to the on-disk config
+   * when omitted.
+   */
+  config?: LocalConfig;
 }
 
 export interface RpcChildExitEvent {
@@ -112,8 +121,9 @@ export class RpcChild extends EventEmitter {
     const piBin = this.opts.piBin ?? "pi";
     // Name the (single) daemon session after the daemon's configured identity,
     // so it shows up stably instead of an auto-generated name on each restart.
-    const sessionName = loadLocalConfig(this.opts.cwd).agent_name
-      ?? defaultAgentName(this.opts.cwd);
+    // Prefer the supervisor-injected config; fall back to the on-disk file.
+    const cfg = this.opts.config ?? loadLocalConfig(this.opts.cwd);
+    const sessionName = cfg.agent_name ?? defaultAgentName(this.opts.cwd);
     const useContinue = !this.forceFreshSessionOnNextSpawn;
     this.forceFreshSessionOnNextSpawn = false;
     const args = rpcSpawnArgs(this.opts.extensionPath, sessionName, useContinue);
@@ -123,6 +133,8 @@ export class RpcChild extends EventEmitter {
       // Mandatory daemon marker — `_cmdRoot` in index.ts can use this to
       // bail early if local config is missing (no wizard in RPC mode).
       REMOTE_PI_DAEMON: "1",
+      // Inject the daemon config inline so the child needs no config file.
+      ...(this.opts.config ? { REMOTE_PI_DIRECT_CONFIG: JSON.stringify(this.opts.config) } : {}),
     };
 
     const child = spawn(piBin, args, {

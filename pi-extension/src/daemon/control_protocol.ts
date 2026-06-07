@@ -32,7 +32,9 @@ export type ControlRequest =
   | { op: "start_all" }
   | { op: "start"; id: string }
   | { op: "stop_all" }
+  | { op: "stop"; id: string }
   | { op: "restart_all" }
+  | { op: "restart"; id: string }
   | { op: "send"; id: string; text: string }
   | { op: "register"; cwd: string }
   | { op: "unregister"; id: string };
@@ -52,7 +54,9 @@ export interface ControlReplyShapes {
   start_all: { started: string[]; already_running: string[] };
   start: { id: string; state: DaemonState; started: boolean };
   stop_all: { stopped: string[]; already_stopped: string[] };
+  stop: { id: string; state: DaemonState; stopped: boolean };
   restart_all: { restarted: string[] };
+  restart: { id: string; state: DaemonState; restarted: boolean };
   send: { id: string; delivered: boolean };
   register: { id: string; cwd: string };
   unregister: { removed: boolean; cwd?: string };

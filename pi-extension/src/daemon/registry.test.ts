@@ -6,12 +6,14 @@ import {
   addDaemon,
   listDaemons,
   loadRegistry,
+  migrateRegistryNames,
   normalizeCwd,
   registryPath,
   removeDaemon,
   saveRegistry,
 } from "./registry.js";
 import { daemonIdForCwd } from "./id.js";
+import { defaultAgentName } from "../session/local_config.js";
 
 /** Each test runs against an isolated $HOME-like directory so the registry
  *  writes never touch the developer's real `~/.pi/remote/daemons.json`. */
@@ -169,12 +171,42 @@ describe("listDaemons", () => {
     addDaemon(b);
     const out = listDaemons();
     expect(out).toEqual([
-      { id: daemonIdForCwd(realpathSync(a)), cwd: realpathSync(a) },
-      { id: daemonIdForCwd(realpathSync(b)), cwd: realpathSync(b) },
+      { id: daemonIdForCwd(realpathSync(a)), cwd: realpathSync(a), name: defaultAgentName(realpathSync(a)) },
+      { id: daemonIdForCwd(realpathSync(b)), cwd: realpathSync(b), name: defaultAgentName(realpathSync(b)) },
     ]);
+  });
+
+  test("legacy entry without a name falls back to the folder-derived name", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-legacy-"));
+    const cwd = realpathSync(dir);
+    saveRegistry({ daemons: [{ cwd }] }); // pre-name-field shape
+    const out = listDaemons();
+    expect(out).toEqual([{ id: daemonIdForCwd(cwd), cwd, name: defaultAgentName(cwd) }]);
   });
 
   test("empty registry yields []", () => {
     expect(listDaemons()).toEqual([]);
+  });
+});
+
+describe("migrateRegistryNames", () => {
+  test("backfills folder names into legacy entries and persists", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-mig-"));
+    const cwd = realpathSync(dir);
+    saveRegistry({ daemons: [{ cwd }] }); // legacy: no name
+
+    const changed = migrateRegistryNames();
+    expect(changed).toBe(1);
+
+    const onDisk = JSON.parse(readFileSync(registryPath(), "utf8")) as {
+      daemons: Array<{ cwd: string; name?: string }>;
+    };
+    expect(onDisk.daemons[0]!.name).toBe(defaultAgentName(cwd));
+  });
+
+  test("is idempotent — a second run changes nothing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "pi-mig2-"));
+    addDaemon(dir); // already has a name
+    expect(migrateRegistryNames()).toBe(0);
   });
 });

@@ -1213,9 +1213,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       else if (sub.startsWith("create"))         { await _cmdCreate(sub.slice("create".length).trim(), ctx); }
       else if (sub.startsWith("remove"))         { await _cmdRemove(sub.slice("remove".length).trim(), ctx); }
       else if (sub === "daemons")                { await _cmdDaemonsList(ctx); }
-      else if (sub === "daemon start")           { await _cmdDaemonStart(ctx); }
-      else if (sub === "daemon stop")            { await _cmdDaemonStop(ctx); }
-      else if (sub === "daemon restart")         { await _cmdDaemonRestart(ctx); }
+      else if (sub === "daemon start" || sub.startsWith("daemon start "))     { await _cmdDaemonStart(ctx, sub.slice("daemon start".length).trim() || undefined); }
+      else if (sub === "daemon stop" || sub.startsWith("daemon stop "))       { await _cmdDaemonStop(ctx, sub.slice("daemon stop".length).trim() || undefined); }
+      else if (sub === "daemon restart" || sub.startsWith("daemon restart ")) { await _cmdDaemonRestart(ctx, sub.slice("daemon restart".length).trim() || undefined); }
       else if (sub === "daemon status")          { await _cmdDaemonStatus(ctx); }
       else if (sub.startsWith("daemon send"))    { await _cmdDaemonSend(sub.slice("daemon send".length).trim(), ctx); }
       else if (sub === "install")                { _cmdInstall(ctx, { linkCli: true }); }
@@ -1259,9 +1259,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // Fleet ops via the supervisor (plan/26 W2). `/remote-pi stop` stays as
   // local stop — fleet stop is `/remote-pi daemon stop`.
   pi.registerCommand("remote-pi daemons",        { description: "List registered daemons + state", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonsList(ctx); } });
-  pi.registerCommand("remote-pi daemon start",   { description: "Start every registered daemon", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonStart(ctx); } });
-  pi.registerCommand("remote-pi daemon stop",    { description: "Stop every running daemon", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonStop(ctx); } });
-  pi.registerCommand("remote-pi daemon restart", { description: "Restart every registered daemon", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonRestart(ctx); } });
+  pi.registerCommand("remote-pi daemon start",   { description: "Start daemons: all, or one by id (`daemon start <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonStart(ctx, args.trim() || undefined); } });
+  pi.registerCommand("remote-pi daemon stop",    { description: "Stop daemons: all, or one by id (`daemon stop <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonStop(ctx, args.trim() || undefined); } });
+  pi.registerCommand("remote-pi daemon restart", { description: "Restart daemons: all, or one by id (`daemon restart <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonRestart(ctx, args.trim() || undefined); } });
   pi.registerCommand("remote-pi daemon status",  { description: "Show fleet runtime status (pid, uptime, restarts)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonStatus(ctx); } });
   pi.registerCommand("remote-pi daemon send",    { description: "Send a prompt to a daemon: `daemon send <id> \"<text>\"`", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonSend(args.trim(), ctx); } });
 
@@ -1897,36 +1897,29 @@ async function _cmdCreate(arg: string, ctx: Pick<ExtensionContext, "ui">): Promi
     return;
   }
 
-  let result: { id: string; cwd: string };
+  let result: { id: string; cwd: string; name: string };
   try {
-    result = addDaemon(cwdRaw);
+    result = addDaemon(cwdRaw, name);
   } catch (err) {
     ctx.ui.notify(`[remote-pi] create failed: ${String(err)}`, "error");
     return;
   }
 
-  // Provision local config when missing. Use the existing helpers so the
-  // daemon's first boot sees the same shape as a manually-configured Pi.
-  // `saveLocalConfig` is a partial-merge: if the file already exists with
-  // a different agent_name we DON'T overwrite — user's existing config
-  // wins to avoid surprises.
-  if (!localConfigExists(result.cwd)) {
-    saveLocalConfig(result.cwd, {
-      agent_name: name ?? defaultAgentName(result.cwd),
-      auto_start_relay: true,
-    });
-  }
+  // No local `.pi/remote-pi/config.json` is written anymore — the name lives
+  // in the registry and the supervisor injects the full config (workspace
+  // "assistent", auto_start_relay true, no worktree) via REMOTE_PI_DIRECT_CONFIG
+  // when it spawns the daemon. The cwd needs no init folder.
 
-  const finalName = loadLocalConfig(result.cwd).agent_name ?? defaultAgentName(result.cwd);
   ctx.ui.notify(
-    `[remote-pi] Daemon registered: id=${result.id} name="${finalName}" cwd=${result.cwd}`,
+    `[remote-pi] Daemon registered: id=${result.id} name="${result.name}" cwd=${result.cwd}`,
     "info",
   );
 
   // Auto-start: register alone used to leave the daemon idle until the next
   // supervisor restart (the reported bug — `create` didn't run anything). Ask
-  // the supervisor to spawn THIS daemon now. Config was just written above, so
-  // the child boots with it. When the supervisor is offline we keep the
+  // the supervisor to spawn THIS daemon now; it reads the name from the
+  // registry and injects the config via env. When the supervisor is offline we
+  // keep the
   // registration and tell the user it'll boot on the next supervisor start.
   try {
     await callSupervisor({ op: "start", id: result.id });
@@ -2070,8 +2063,18 @@ async function _cmdDaemonStatus(ctx: Pick<ExtensionContext, "ui">): Promise<void
   }
 }
 
-async function _cmdDaemonStart(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+async function _cmdDaemonStart(ctx: Pick<ExtensionContext, "ui">, id?: string): Promise<void> {
   try {
+    if (id) {
+      const data = await callSupervisor({ op: "start", id });
+      ctx.ui.notify(
+        data.started
+          ? `[remote-pi] Started daemon ${id} (${data.state}).`
+          : `[remote-pi] Daemon ${id} already ${data.state}.`,
+        "info",
+      );
+      return;
+    }
     const data = await callSupervisor({ op: "start_all" });
     ctx.ui.notify(
       `[remote-pi] Started ${data.started.length} daemon(s), ` +
@@ -2084,8 +2087,18 @@ async function _cmdDaemonStart(ctx: Pick<ExtensionContext, "ui">): Promise<void>
   }
 }
 
-async function _cmdDaemonStop(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+async function _cmdDaemonStop(ctx: Pick<ExtensionContext, "ui">, id?: string): Promise<void> {
   try {
+    if (id) {
+      const data = await callSupervisor({ op: "stop", id });
+      ctx.ui.notify(
+        data.stopped
+          ? `[remote-pi] Stopped daemon ${id}.`
+          : `[remote-pi] Daemon ${id} already ${data.state}.`,
+        "info",
+      );
+      return;
+    }
     const data = await callSupervisor({ op: "stop_all" });
     ctx.ui.notify(
       `[remote-pi] Stopped ${data.stopped.length} daemon(s), ` +
@@ -2098,8 +2111,13 @@ async function _cmdDaemonStop(ctx: Pick<ExtensionContext, "ui">): Promise<void> 
   }
 }
 
-async function _cmdDaemonRestart(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+async function _cmdDaemonRestart(ctx: Pick<ExtensionContext, "ui">, id?: string): Promise<void> {
   try {
+    if (id) {
+      const data = await callSupervisor({ op: "restart", id });
+      ctx.ui.notify(`[remote-pi] Restarted daemon ${id} (${data.state}).`, "info");
+      return;
+    }
     const data = await callSupervisor({ op: "restart_all" });
     ctx.ui.notify(`[remote-pi] Restarted ${data.restarted.length} daemon(s).`, "info");
   } catch (err) {
@@ -3021,13 +3039,13 @@ if (_isDirectRun()) {
     const op = cliArgs[0] ?? "";
     const rest = cliArgs.slice(1).map((a) => (/\s/.test(a) ? `"${a}"` : a)).join(" ");
     const stubCtx = { ui: { notify: (msg: string) => console.log(msg) } as unknown as ExtensionContext["ui"] };
-    if      (op === "start")   { await _cmdDaemonStart(stubCtx); }
-    else if (op === "stop")    { await _cmdDaemonStop(stubCtx); }
-    else if (op === "restart") { await _cmdDaemonRestart(stubCtx); }
+    if      (op === "start")   { await _cmdDaemonStart(stubCtx, cliArgs[1]); }
+    else if (op === "stop")    { await _cmdDaemonStop(stubCtx, cliArgs[1]); }
+    else if (op === "restart") { await _cmdDaemonRestart(stubCtx, cliArgs[1]); }
     else if (op === "status")  { await _cmdDaemonStatus(stubCtx); }
     else if (op === "send")    { await _cmdDaemonSend(rest, stubCtx); }
     else {
-      console.log("Usage: remote-pi daemon <start|stop|restart|status|send <id> \"<text>\">");
+      console.log("Usage: remote-pi daemon <start|stop|restart [<id>]|status|send <id> \"<text>\">");
     }
   } else if (subcmd === "claude") {
     await _cmdClaudeCli(cliArgs);
@@ -3051,9 +3069,9 @@ if (_isDirectRun()) {
       "  daemons                         List registered daemons",
       "",
       "Fleet control:",
-      "  daemon start                    Start all registered daemons",
-      "  daemon stop                     Stop all running daemons",
-      "  daemon restart                  Restart all daemons",
+      "  daemon start [<id>]             Start all daemons, or one by id",
+      "  daemon stop [<id>]              Stop all daemons, or one by id",
+      "  daemon restart [<id>]           Restart all daemons, or one by id",
       "  daemon status                   Show pid / uptime / restarts",
       "  daemon send <id> \"<text>\"       Send a prompt to a daemon",
       "",

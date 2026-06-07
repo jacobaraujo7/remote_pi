@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { addDaemon, listDaemons, removeDaemon } from "./registry.js";
+import { addDaemon, listDaemons, migrateRegistryNames, removeDaemon } from "./registry.js";
 import { daemonIdForCwd } from "./id.js";
-import { loadLocalConfig, defaultAgentName } from "../session/local_config.js";
+import { defaultAgentName, type LocalConfig } from "../session/local_config.js";
 import { EXIT_DAEMON_FRESH_SESSION, RpcChild, type RpcChildExitEvent, type RpcChildOptions } from "./rpc_child.js";
 import {
   type ControlReply,
@@ -35,6 +35,10 @@ import {
  */
 
 const SUPERVISOR_SOCK_NAME = "supervisor.sock";
+
+/** Fixed workspace for supervisor-launched daemons. Injected via
+ *  REMOTE_PI_DIRECT_CONFIG so all daemons share one mesh scope. */
+const DAEMON_WORKSPACE = "assistent";
 
 /** Backoff schedule for auto-restart after a crash. After exhausting, the
  *  child stays in `crashed` state until manual `restart_all` or fresh
@@ -103,6 +107,9 @@ export class Supervisor {
   /** Bind the control UDS + spawn all registered daemons. */
   async start(): Promise<void> {
     this._mkdirParent();
+    // Backfill folder-derived names into legacy registry entries (pre-name
+    // field) so every daemon has a stable name to inject via env.
+    migrateRegistryNames();
     await this._bindUds();
     this._spawnAllFromRegistry();
   }
@@ -186,7 +193,9 @@ export class Supervisor {
       case "start_all":    return this._opStartAll();
       case "start":        return this._opStart(req.id);
       case "stop_all":     return this._opStopAll();
+      case "stop":         return this._opStop(req.id);
       case "restart_all":  return this._opRestartAll();
+      case "restart":      return this._opRestart(req.id);
       case "send":         return this._opSend(req.id, req.text);
       case "register":     return this._opRegister(req.cwd);
       case "unregister":   return this._opUnregister(req.id);
@@ -203,8 +212,7 @@ export class Supervisor {
     const registry = listDaemons();
     return registry.map((entry) => {
       const slot = this.children.get(entry.id);
-      const cfg = loadLocalConfig(entry.cwd);
-      const name = cfg.agent_name ?? defaultAgentName(entry.cwd);
+      const name = entry.name ?? defaultAgentName(entry.cwd);
       const info: DaemonInfo = {
         id: entry.id,
         cwd: entry.cwd,
@@ -246,7 +254,7 @@ export class Supervisor {
     if (slot && slot.child.state === "running") {
       return { ok: true, data: { id, state: slot.child.state, started: false } };
     }
-    this._spawnEntry(entry.id, entry.cwd);
+    this._spawnEntry(entry.id, entry.cwd, entry.name);
     const state = this.children.get(id)?.child.state ?? "starting";
     return { ok: true, data: { id, state, started: true } };
   }
@@ -267,6 +275,43 @@ export class Supervisor {
       stopped.push(id);
     }
     return { ok: true, data: { stopped, already_stopped: already } };
+  }
+
+  /** Stop a single registered daemon by id. Idempotent: a daemon that isn't
+   *  running returns `stopped: false`. Unknown id → ok:false. Mirrors the
+   *  per-id semantics of `_opStart`. Cancels any pending restart backoff so a
+   *  deliberate stop stays stopped. */
+  private async _opStop(id: string): Promise<ControlReply<unknown>> {
+    const entry = listDaemons().find((d) => d.id === id);
+    if (!entry) return { ok: false, error: `no daemon with id ${id}` };
+    const slot = this.children.get(id);
+    if (!slot || slot.child.state !== "running") {
+      return { ok: true, data: { id, state: slot?.child.state ?? "stopped", stopped: false } };
+    }
+    if (slot.restartTimer !== null) {
+      clearTimeout(slot.restartTimer);
+      slot.restartTimer = null;
+    }
+    await slot.child.stop();
+    return { ok: true, data: { id, state: slot.child.state, stopped: true } };
+  }
+
+  /** Restart a single registered daemon by id (stop-if-running, then spawn).
+   *  Unknown id → ok:false. Resets the crash backoff. */
+  private async _opRestart(id: string): Promise<ControlReply<unknown>> {
+    const entry = listDaemons().find((d) => d.id === id);
+    if (!entry) return { ok: false, error: `no daemon with id ${id}` };
+    const slot = this.children.get(id);
+    if (slot && slot.child.state === "running") {
+      if (slot.restartTimer !== null) {
+        clearTimeout(slot.restartTimer);
+        slot.restartTimer = null;
+      }
+      await slot.child.stop();
+    }
+    this._spawnEntry(entry.id, entry.cwd, entry.name);
+    const state = this.children.get(id)?.child.state ?? "starting";
+    return { ok: true, data: { id, state, restarted: true } };
   }
 
   private async _opRestartAll(): Promise<ControlReply<unknown>> {
@@ -321,11 +366,11 @@ export class Supervisor {
 
   private _spawnAllFromRegistry(): void {
     for (const entry of listDaemons()) {
-      this._spawnEntry(entry.id, entry.cwd);
+      this._spawnEntry(entry.id, entry.cwd, entry.name);
     }
   }
 
-  private _spawnEntry(id: string, cwd: string): void {
+  private _spawnEntry(id: string, cwd: string, name?: string): void {
     // Clean up any prior slot (e.g. crashed + waiting for backoff).
     const existing = this.children.get(id);
     if (existing) {
@@ -335,9 +380,17 @@ export class Supervisor {
       if (existing.child.state === "running") void existing.child.stop();
     }
 
+    // Build the daemon's config and inject it via REMOTE_PI_DIRECT_CONFIG —
+    // no per-cwd config file needed. workspace is fixed; no worktree; relay on.
+    const config: LocalConfig = {
+      agent_name: name ?? defaultAgentName(cwd),
+      auto_start_relay: true,
+      workspace: DAEMON_WORKSPACE,
+    };
     const childOpts: RpcChildOptions = {
       extensionPath: this.opts.extensionPath,
       cwd,
+      config,
     };
     if (this.opts.piBin !== undefined) childOpts.piBin = this.opts.piBin;
     const child = new RpcChild(childOpts);

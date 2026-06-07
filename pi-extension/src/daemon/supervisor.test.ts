@@ -112,6 +112,42 @@ describe("Supervisor — control UDS surface", () => {
     if (!r.ok) expect(r.error).toMatch(/no daemon/i);
   });
 
+  test("stop of unknown id returns ok:false", async () => {
+    const r = await ask({ op: "stop", id: "ffffffff" });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/no daemon/i);
+  });
+
+  test("restart of unknown id returns ok:false", async () => {
+    const r = await ask({ op: "restart", id: "ffffffff" });
+    expect(r).toMatchObject({ ok: false });
+    if (!r.ok) expect(r.error).toMatch(/no daemon/i);
+  });
+
+  test("stop of a registered-but-not-running daemon → ok:true, stopped:false", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "pi-sv-stop-"));
+    const reg = await ask({ op: "register", cwd: tmp }) as ControlReply<{ id: string }>;
+    const id = reg.ok ? reg.data!.id : "";
+    const r = await ask({ op: "stop", id }) as ControlReply<{ id: string; stopped: boolean }>;
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data!.id).toBe(id);
+      expect(r.data!.stopped).toBe(false);
+    }
+  });
+
+  test("restart spawns a single registered daemon by id", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "pi-sv-restart-"));
+    const reg = await ask({ op: "register", cwd: tmp }) as ControlReply<{ id: string }>;
+    const id = reg.ok ? reg.data!.id : "";
+    const r = await ask({ op: "restart", id }) as ControlReply<{ id: string; restarted: boolean }>;
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(r.data!.id).toBe(id);
+      expect(r.data!.restarted).toBe(true);
+    }
+  });
+
   test("send to unknown daemon returns ok:false with clear error", async () => {
     const r = await ask({ op: "send", id: "ffffffff", text: "hi" });
     expect(r).toMatchObject({ ok: false });
