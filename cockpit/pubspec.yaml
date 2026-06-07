@@ -89,6 +89,10 @@ dependencies:
   # pinada no topo enquanto a resposta rola. NOTA: registrar no plano 37.
   flutter_sticky_header: ^0.8.0
 
+  # Conectividade (Fatia 3 — pareamento) — renderiza a URI de pareamento do
+  # `remote-pi` como QR Code no dialog. NOTA: registrar esta dep no plano 37.
+  qr_flutter: ^4.1.0
+
 dependency_overrides:
   gpt_markdown:
     git:

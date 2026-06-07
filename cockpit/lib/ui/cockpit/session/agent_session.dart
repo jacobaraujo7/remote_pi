@@ -44,6 +44,10 @@ class AgentSession extends PaneItem {
   /// A VM usa pra agendar um save imediato — sem depender do fim de turno.
   VoidCallback? onPreferenceChanged;
 
+  /// Foca o input do composer deste agente. Registrado pelo `AgentComposer`
+  /// (quando montado) e disparado pelo atalho ⌘L/Ctrl+L.
+  VoidCallback? requestComposerFocus;
+
   /// Pasta (subpasta do projeto) onde o `pi --mode rpc` roda.
   @override
   final String workingDirectory;

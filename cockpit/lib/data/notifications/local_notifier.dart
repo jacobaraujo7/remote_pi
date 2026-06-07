@@ -14,6 +14,11 @@ class LocalNotifier implements Notifier {
         requestAlertPermission: true,
         requestBadgePermission: true,
         requestSoundPermission: true,
+        // Desktop app está sempre em foreground: sem esses flags o
+        // UNUserNotificationCenter suprime o banner silenciosamente.
+        defaultPresentAlert: true,
+        defaultPresentBadge: true,
+        defaultPresentSound: true,
       ),
       linux: LinuxInitializationSettings(defaultActionName: 'Abrir'),
     );
@@ -31,7 +36,11 @@ class LocalNotifier implements Notifier {
       'Agente terminou',
       subtitle,
       const NotificationDetails(
-        macOS: DarwinNotificationDetails(),
+        macOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
         linux: LinuxNotificationDetails(),
       ),
     );

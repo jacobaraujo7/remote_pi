@@ -291,11 +291,12 @@ relaunch).
 ### Fase 1 — broker + extension (local)  ← cai no pane `Extension`
 
 1. **Identidade + derivação git/marcador** (`local_config.ts`)
-   - **✅ Camada de config FEITA (2026-06-06, não commitada)**: campos `workspace?`
-     (override) e `worktree?` (override opcional) + `sanitizeSegment` + refactor
-     `parseLocalConfig` + env `REMOTE_PI_DIRECT_CONFIG` (ver plano 37). 445/445
-     verde. **Falta o resto deste passo** (derivação marker-gated + migração +
-     triagem dos callsites) e o consumo (passos 2-8).
+   - **✅ Camada de config FEITA e committada+pushada** (em `af66d04`, bundled —
+     mensagem enganosa; ver plano 37): campos `workspace?` (override) e `worktree?`
+     (override opcional) + `sanitizeSegment` + refactor `parseLocalConfig` + env
+     `REMOTE_PI_DIRECT_CONFIG`. **Falta o resto deste passo** (derivação
+     marker-gated + migração do nome congelado + triagem dos callsites) e o consumo
+     (passos 2-8). ⚠️ Ninguém ainda *consome* os campos → inertes até lá.
    - Campo `workspace?` opcional no config (override explícito do derivado).
    - Helper que retorna `{ name, workspace, worktree? }` resolvendo, nesta ordem:
      `worktree` via git plumbing (decisão D); `projectRoot` (repo principal se
@@ -393,7 +394,7 @@ relaunch).
       escopado por `(workspace, worktree)`; `rpc_child` alinhado; skill atualizada;
       `pnpm test` verde
       — *parcial: camada de config (`workspace?`/`worktree?` + `sanitizeSegment` +
-      env `REMOTE_PI_DIRECT_CONFIG`) FEITA 2026-06-06 (445/445), não commitada;
+      env `REMOTE_PI_DIRECT_CONFIG`) FEITA, committada+pushada (`af66d04`, bundled);
       falta derivação marker-gated + consumo (register/list_peers/broadcast)*
 - [ ] **Fase 2** — `broker_remote` + `peer_inventory` propagam os campos;
       `list_peers` cross-PC estruturado com `pc`; roteamento por address verbatim;

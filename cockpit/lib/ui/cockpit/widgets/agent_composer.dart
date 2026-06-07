@@ -14,6 +14,7 @@ import 'package:cockpit/ui/core/file_icons/file_icons.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -65,6 +66,12 @@ class _AgentComposerState extends State<AgentComposer> {
   void initState() {
     super.initState();
     _controller.addListener(_onChanged);
+    // Registra o foco do input pra o atalho ⌘L/Ctrl+L (em CockpitPage).
+    widget.session.requestComposerFocus = _focusInput;
+  }
+
+  void _focusInput() {
+    if (mounted) _inputFocus.requestFocus();
   }
 
   /// "+" — escolhe arquivos externos: imagem → anexo de visão; outro → chip.
@@ -79,7 +86,9 @@ class _AgentComposerState extends State<AgentComposer> {
       final path = file.path;
       if (path == null) continue;
       if (_isImageName(file.name)) {
-        _addImage(_Attachment(name: file.name, isImage: true, bytes: file.bytes));
+        _addImage(
+          _Attachment(name: file.name, isImage: true, bytes: file.bytes),
+        );
       } else {
         _addFileFromPath(path);
       }
@@ -159,7 +168,9 @@ class _AgentComposerState extends State<AgentComposer> {
     if (!mounted) return;
     if (_attachments.any((a) => !a.isImage && a.mention == mention)) return;
     setState(() {
-      _attachments.add(_Attachment(name: name, isImage: false, mention: mention));
+      _attachments.add(
+        _Attachment(name: name, isImage: false, mention: mention),
+      );
     });
   }
 
@@ -179,6 +190,9 @@ class _AgentComposerState extends State<AgentComposer> {
   @override
   void dispose() {
     _searchDebounce?.cancel();
+    if (widget.session.requestComposerFocus == _focusInput) {
+      widget.session.requestComposerFocus = null;
+    }
     _controller.removeListener(_onChanged);
     _controller.dispose();
     _inputFocus.dispose();
@@ -530,7 +544,7 @@ class _AgentComposerState extends State<AgentComposer> {
           final borderColor = (_focused || dragging || _osDragOver)
               ? colors.accent
               : (controlsEnabled ? colors.border2 : colors.border);
-          return Container(
+          final box = Container(
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
               color: colors.panel2,
@@ -645,7 +659,48 @@ class _AgentComposerState extends State<AgentComposer> {
               ],
             ),
           );
+          return Stack(
+            clipBehavior: Clip.none,
+            children: [
+              box,
+              // Dica do atalho — só quando esta tab é a ativa E o input não
+              // está focado. Tabs de planos de fundo não exibem o badge.
+              if (context.select<CockpitViewModel, bool>(
+                    (vm) => vm.focusedAgent?.id == widget.session.id,
+                  ) &&
+                  !_focused &&
+                  controlsEnabled)
+                const Positioned(top: 7, right: 10, child: _ShortcutHint()),
+            ],
+          );
         },
+      ),
+    );
+  }
+}
+
+/// Pílula discreta com o atalho de foco do input (⌘L / Ctrl+L).
+class _ShortcutHint extends StatelessWidget {
+  const _ShortcutHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final isMac = defaultTargetPlatform == TargetPlatform.macOS;
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: colors.panel3,
+          borderRadius: BorderRadius.circular(5),
+        ),
+        child: Text(
+          isMac ? '⌘L' : 'Ctrl+L',
+          style: context.typo.label.copyWith(
+            fontSize: 10.5,
+            color: colors.text3,
+          ),
+        ),
       ),
     );
   }

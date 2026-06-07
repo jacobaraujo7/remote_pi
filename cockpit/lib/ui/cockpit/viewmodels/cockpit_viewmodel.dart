@@ -27,6 +27,7 @@ import 'package:cockpit/ui/cockpit/session/pane_item.dart';
 import 'package:cockpit/ui/cockpit/session/terminal_session.dart';
 import 'package:cockpit/ui/cockpit/states/pane_node.dart';
 import 'package:flutter/foundation.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// Controlador do shell: projetos, árvore de splits **por projeto**, sessões de
 /// agente, foco.
@@ -781,18 +782,22 @@ class CockpitViewModel extends ChangeNotifier {
   }
 
   void _onAgentTurnEnd(AgentSession s) {
-    // 1ª vez que fecha um turno: descobre (por diferença) o arquivo de sessão
-    // que o pi criou pra este agente, pra poder restaurá-lo depois.
     if (s.sessionPath == null) unawaited(_captureSessionPath(s));
-    // O agente pode ter mexido em arquivos → atualiza o git da rail.
     unawaited(_refreshGit(s.projectId));
-    // Se você está olhando esse agente, não notifica.
-    if (s.id == _focusedAgentId) return;
+    unawaited(_notifyIfNeeded(s));
+  }
+
+  /// Notifica e marca "unseen" apenas se o usuário não está ativamente vendo
+  /// este agente — ou seja: aba diferente da focada **ou** janela sem foco
+  /// no SO (usuário em outra app/espaço).
+  Future<void> _notifyIfNeeded(AgentSession s) async {
+    final isActiveTab = s.id == _focusedAgentId;
+    final windowFocused = await windowManager.isFocused();
+    if (isActiveTab && windowFocused) return;
+
     s.markUnseen();
     final workspace = _projectById(s.projectId)?.name ?? '';
-    unawaited(
-      _notifier.agentFinished(agentName: s.title, workspace: workspace),
-    );
+    await _notifier.agentFinished(agentName: s.title, workspace: workspace);
     notifyListeners(); // atualiza o badge na rail
   }
 

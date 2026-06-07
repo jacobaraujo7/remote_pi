@@ -75,6 +75,7 @@ class PaneView extends StatelessWidget {
                   : _PaneBody(
                       key: ValueKey('body-${active.id}'),
                       item: active,
+                      focused: focused,
                       onFillEmpty: (terminal) =>
                           onFillEmpty(active.id, terminal),
                     ),
@@ -572,12 +573,15 @@ class _TabClose extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(4),
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(3),
-        child: Icon(Icons.close, size: 12, color: context.colors.text3),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(4),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(3),
+          child: Icon(Icons.close, size: 12, color: context.colors.text3),
+        ),
       ),
     );
   }
@@ -653,8 +657,14 @@ class _PaneTools extends StatelessWidget {
 }
 
 class _PaneBody extends StatefulWidget {
-  const _PaneBody({super.key, required this.item, required this.onFillEmpty});
+  const _PaneBody({
+    super.key,
+    required this.item,
+    required this.focused,
+    required this.onFillEmpty,
+  });
   final PaneItem item;
+  final bool focused;
 
   /// `(terminal)` — qual tipo criar ao preencher a pane vazia.
   final ValueChanged<bool> onFillEmpty;
@@ -665,12 +675,39 @@ class _PaneBody extends StatefulWidget {
 
 class _PaneBodyState extends State<_PaneBody> {
   final ScrollController _scroll = ScrollController();
+  final FocusNode _terminalFocus = FocusNode();
 
   static const double _stickThreshold = 80;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.item is TerminalSession && widget.focused) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _terminalFocus.requestFocus();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(_PaneBody old) {
+    super.didUpdateWidget(old);
+    if (widget.item is! TerminalSession) return;
+    if (widget.focused && !old.focused) {
+      // Adiar para pós-frame: o requestFocus() síncrono durante onTapDown
+      // interfere com o onTapUp da seleção de tab no mesmo ciclo de gestos.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _terminalFocus.requestFocus();
+      });
+    } else if (!widget.focused && old.focused) {
+      _terminalFocus.unfocus();
+    }
+  }
+
+  @override
   void dispose() {
     _scroll.dispose();
+    _terminalFocus.dispose();
     super.dispose();
   }
 
@@ -712,9 +749,11 @@ class _PaneBodyState extends State<_PaneBody> {
       return ColoredBox(
         color: context.colors.panel,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+          padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
           child: TerminalView(
             item.terminal,
+            focusNode: _terminalFocus,
+
             theme: cockpitTerminalThemeFor(Theme.of(context).brightness),
             textStyle: termStyle,
           ),

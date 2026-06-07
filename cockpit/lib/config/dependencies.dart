@@ -7,7 +7,11 @@ import 'package:cockpit/data/filesystem/file_system_reader_impl.dart';
 import 'package:cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/data/filesystem/folder_lister_impl.dart';
 import 'package:cockpit/data/filesystem/session_history_impl.dart';
+import 'package:cockpit/data/daemon/supervisor_client_impl.dart';
 import 'package:cockpit/data/notifications/local_notifier.dart';
+import 'package:cockpit/data/relay/pairing_gateway_impl.dart';
+import 'package:cockpit/data/relay/relay_gateway_impl.dart';
+import 'package:cockpit/data/relay/revoke_gateway_impl.dart';
 import 'package:cockpit/data/repositories/hive_project_repository.dart';
 import 'package:cockpit/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/data/repositories/hive_workspace_layout_store.dart';
@@ -22,8 +26,10 @@ import 'package:cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/domain/contracts/environment_probe.dart';
+import 'package:cockpit/domain/contracts/daemon_supervisor.dart';
 import 'package:cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/domain/contracts/project_repository.dart';
+import 'package:cockpit/domain/contracts/relay_gateway.dart';
 import 'package:cockpit/domain/contracts/system_permissions.dart';
 import 'package:cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/domain/contracts/session_history.dart';
@@ -33,6 +39,8 @@ import 'package:cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
+import 'package:cockpit/ui/settings/connectivity_viewmodel.dart';
+import 'package:cockpit/ui/settings/daemons_viewmodel.dart';
 import 'package:cockpit/ui/settings/settings_controller.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -74,6 +82,12 @@ Future<void> setupDependencies() async {
   // Onboarding: checagens de ambiente + permissões do SO.
   _injector.addInstance<EnvironmentProbe>(EnvironmentProbeImpl(config));
   _injector.addInstance<SystemPermissions>(SystemPermissionsImpl());
+
+  // Conectividade: relay global + aparelhos pareados (shell-out do `remote-pi`).
+  _injector.addInstance<RelayGateway>(RelayGatewayImpl());
+
+  // Daemon Agents: controle dos agentes 24/7 via UDS do `pi-supervisord`.
+  _injector.addInstance<DaemonSupervisor>(SupervisorClientImpl());
 
   // Notificações do SO — inicializa (pede permissão). Falha de init não pode
   // derrubar o boot do app.
@@ -119,4 +133,22 @@ SetupViewModel buildSetupViewModel() {
 /// `MaterialApp`; criado uma vez no boot.
 SettingsController buildSettingsController() {
   return SettingsController(_injector.get<SettingsStore>());
+}
+
+/// ViewModel da aba Conectividade das Configurações (relay + aparelhos +
+/// pareamento). Criado pela rota `/settings`; carrega sob demanda quando a aba
+/// abre. Recebe a factory de [PairingGateway] — cada dialog de pareamento sobe
+/// um `pi --mode rpc` efêmero próprio.
+ConnectivityViewModel buildConnectivityViewModel() {
+  return ConnectivityViewModel(
+    _injector.get<RelayGateway>(),
+    () => PairingGatewayImpl(_injector.get<PiSpawnConfig>()),
+    () => RevokeGatewayImpl(_injector.get<PiSpawnConfig>()),
+  );
+}
+
+/// ViewModel da aba Daemon Agents das Configurações (agentes 24/7). Criado pela
+/// rota `/settings`; carrega sob demanda quando a aba abre.
+DaemonsViewModel buildDaemonsViewModel() {
+  return DaemonsViewModel(_injector.get<DaemonSupervisor>());
 }

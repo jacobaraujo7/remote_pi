@@ -75,8 +75,45 @@ A/B/C confirmadas pelo usuário ("por enquanto vamo testar o conceito").
 | **A** | Onde mora o app | **Pasta própria `cockpit/`** (não dentro de `app/`). `packages/pi_core` (protocolo + modelos + tema compartilhados com `app/`) é **extração futura — ainda não feita** | UI mobile ≠ UI desktop (não compartilhar `lib/ui`). No MVP, `cockpit/` é projeto Flutter standalone; o reuso real com `app/` vem depois, quando doer duplicação |
 | **B** | MVP carrega a extensão remote-pi? | **Não** — spawna `pi --mode rpc` puro (local, sem relay) | Desacopla o MVP de config de relay/mesh. Sem extensão, sem CWD lock cross-process; dedup é interno ao cockpit. Quando carregar a extensão (futuro), agentes do cockpit ficam alcançáveis do celular **de graça** |
 | **C** | Cockpit reusa o supervisor (plano 26) ou spawna próprio? | **Spawna próprio** | Supervisor é fire-and-forget sem streaming (plano 26:285); o cockpit precisa de stdout streaming pra renderizar. São gerenciadores paralelos; convergência depois se valer |
-| **D** | Como o Cockpit injeta config no Pi | **Via env `REMOTE_PI_DIRECT_CONFIG`** (JSON do `LocalConfig` inteiro inline; precedência sobre o `config.json`; espelha `REMOTE_PI_RELAY`) — **feito no pi-ext 2026-06-06** (`local_config.ts`, não commitado) | Cockpit spawna `pi --mode rpc` e injeta config sem escrever arquivo na pasta do usuário. Carrega `agent_name`/`workspace`/`worktree`/`auto_start_relay` do plano 38 de graça |
+| **D** | Como o Cockpit injeta config no Pi | **Via env `REMOTE_PI_DIRECT_CONFIG`** (JSON do `LocalConfig` inteiro inline; precedência sobre o `config.json`; espelha `REMOTE_PI_RELAY`) — **committado+pushado** (bundled em `af66d04`, mensagem enganosa; ver "higiene" abaixo) | Cockpit spawna `pi --mode rpc` e injeta config sem escrever arquivo na pasta do usuário. Carrega `agent_name`/`workspace`/`worktree`/`auto_start_relay` do plano 38 de graça |
 | **E** | Update de config em runtime? | **NÃO** — sem `/remote-pi ctl` via stdin. Updates vão por **env no (re)spawn**: Cockpit re-spawna com o env atualizado | Restart-only de fato (o único campo imutável é `cwd`); evita um canal de controle paralelo e mantém o env como fonte única no modo Cockpit |
+| **F** | Como o celular pareia/revoga com um agente do Cockpit | **Caminho A — pelo agente RPC vivo** (`/remote-pi pair` e `/remote-pi revoke` no Pi que já roda; reusam a conexão de relay; sem 2º processo) — **pi-ext feito**: pair `054b16c`, revoke `fe79759` (locais, **não pushados**) | O relay rejeita 2ª conexão lado-Pi com mesmo `(pubkey, roomId)` (`RoomAlreadyOpenError`) e o token vive na memória do **ocupante da room** → quem emite token / recebe `pair_request` / derruba o canal no revoke tem que ser o agente vivo, não um 2º processo |
+
+### Pareamento + revoke RPC-friendly — contrato pro Cockpit (pi-ext feito; lado cockpit = próximo)
+
+O Cockpit gerencia pareamento pela própria UI mandando comandos pelo stdin do
+`pi --mode rpc` e reagindo aos eventos estruturados.
+
+**Parear** (`054b16c`) — renderiza o QR a partir dos eventos:
+```
+dispara: {"type":"prompt","message":"/remote-pi pair --ttl 120"}
+recebe:  remote-pi:pair-code  → details { uri, token, expiresAt, roomId, name }  → renderiza QR de `uri`
+         remote-pi:paired     → details { name, peerId, pairedAt }               → fecha QR, mostra device
+         (relay-down/erro → extension_ui_request method `notify`)
+```
+
+**Revogar** (`fe79759`) — espelha o pair:
+```
+dispara: {"type":"prompt","message":"/remote-pi revoke <remote_epk-completo>"}
+confirma: relendo ~/.pi/remote/peers.json (peer some)
+```
+
+Detalhes (pi-ext, feito): `/remote-pi pair` aceita `--ttl <s>` (default 60s, faixa
+10–600s via `clampPairTtlMs`). **Ambos** (`_cmdPair` e `_cmdRevoke`) **auto-sobem
+o mesh+relay quando ocioso e RECUSAM se o relay não conectar** — usam
+`localConfigExists` (honra `REMOTE_PI_DIRECT_CONFIG`) e o `ctx` ganhou `cwd`. No
+revoke isso garante revoke **real**: o device revogado recebe o `bye` e tem o canal
+vivo derrubado (não é só edição offline do `peers.json`). TUI inalterado; 457/457.
+
+> **⚠️ Mudança de comportamento do `/remote-pi revoke` in-agent**: antes editava o
+> `peers.json` offline; agora **recusa quando ocioso/relay-down**. O **`remote-pi
+> revoke` CLI standalone** (caminho offline/sem-agente) ficou **inalterado** — é o
+> escape pra revogar sem relay. Consistente com a propagação implícita do plano 08
+> Q5 (o `bye` é entrega ativa best-effort; o `error{unknown_peer}` segue de fallback).
+
+**Lado Cockpit (renderizar o QR + fechar no `paired` + UI de revoke) é o próximo
+passo** — e é o que transforma a decisão B ("MVP sem extensão") na evolução
+"extensão carregada → alcançável/gerenciável do celular".
 
 > **Foco imediato** (pedido do usuário): provar que o `--mode rpc` se comporta no
 > Flutter desktop — **spike + layout básico**. **Panes/multiplexação adiados**
@@ -266,7 +303,8 @@ contexto pras próximas waves:
   do cockpit também entra no relay e fica alcançável do celular **de graça**
   (stdout pro cockpit, socket de relay pra mobile — canais distintos no mesmo
   child). Acopla a config de relay; reusa a malha de agentes (broker, planos
-  19/25 + 34).
+  19/25 + 34). O **pareamento** desse caminho já tem o lado pi-ext pronto
+  (decisão F + contrato acima); falta o lado Cockpit renderizar o QR.
 - **Attach a Pi já rodando** — em vez de recusar pasta com Pi ativo (terminal ou
   daemon), o cockpit *anexa* via malha e observa/dirige o agente existente,
   resolvendo o CWD lock por adoção, não por recusa. (O mecanismo exato fica em

@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 
+import 'package:cockpit/config/app_intents.dart';
 import 'package:cockpit/config/dependencies.dart';
 import 'package:cockpit/domain/entities/app_settings.dart';
 import 'package:cockpit/routing/router.dart';
@@ -8,6 +10,7 @@ import 'package:cockpit/ui/settings/settings_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:go_router/go_router.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -18,24 +21,75 @@ Future<void> main() async {
   // salvo (sem flash de tema errado).
   final settings = buildSettingsController();
   await settings.load();
-  await _setupWindow();
-  runApp(CockpitApp(router: buildRouter(), settings: settings));
+  // Hive já foi inicializado em setupDependencies(); abre (ou reaproveita) a
+  // box de estado da janela.
+  final winBox = await Hive.openBox<dynamic>('window_state');
+  await _setupWindow(winBox);
+  runApp(
+    _WindowStateKeeper(
+      box: winBox,
+      child: CockpitApp(router: buildRouter(), settings: settings),
+    ),
+  );
 }
 
-/// Esconde a barra nativa (temos a customizada). macOS/Windows/Linux.
-Future<void> _setupWindow() async {
+/// Esconde a barra nativa e restaura o último tamanho da janela.
+Future<void> _setupWindow(Box<dynamic> winBox) async {
   if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) return;
   await windowManager.ensureInitialized();
-  const options = WindowOptions(
+  final w = (winBox.get('width') as num?)?.toDouble() ?? 1280;
+  final h = (winBox.get('height') as num?)?.toDouble() ?? 720;
+  final options = WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
-    // Esconde os botões nativos do macOS — usamos os nossos desenhados.
     windowButtonVisibility: false,
-    minimumSize: Size(720, 480),
+    minimumSize: const Size(720, 480),
+    size: Size(w, h),
   );
   await windowManager.waitUntilReadyToShow(options, () async {
     await windowManager.show();
     await windowManager.focus();
   });
+}
+
+/// Ouve redimensionamentos e persiste o tamanho da janela com debounce.
+class _WindowStateKeeper extends StatefulWidget {
+  const _WindowStateKeeper({required this.box, required this.child});
+  final Box<dynamic> box;
+  final Widget child;
+
+  @override
+  State<_WindowStateKeeper> createState() => _WindowStateKeeperState();
+}
+
+class _WindowStateKeeperState extends State<_WindowStateKeeper>
+    with WindowListener {
+  Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void onWindowResize() {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), () async {
+      final size = await windowManager.getSize();
+      await widget.box.put('width', size.width);
+      await widget.box.put('height', size.height);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class CockpitApp extends StatelessWidget {
@@ -64,10 +118,10 @@ class CockpitApp extends StatelessWidget {
             themeMode: _themeMode(s.themeMode),
             routerConfig: router,
             builder: (context, child) => CallbackShortcuts(
-              // Zoom por teclado: ⌘=/⌘- (macOS) · Ctrl+=/Ctrl+- (Win/Linux);
-              // ⌘0/Ctrl+0 reseta. CallbackShortcuts é aditivo (não quebra
-              // copiar/colar) e funciona mesmo com um input focado.
-              bindings: _zoomBindings(controller),
+              // Atalhos globais (sempre na cadeia de foco): zoom (⌘=/⌘-/⌘0) e
+              // foco do input (⌘L). CallbackShortcuts é aditivo (não quebra
+              // copiar/colar) e funciona mesmo sem nada focado.
+              bindings: {..._zoomBindings(controller), ..._focusBindings()},
               child: _AppZoom(scale: uiScale, child: child ?? const SizedBox()),
             ),
           );
@@ -82,6 +136,17 @@ class CockpitApp extends StatelessWidget {
     AppThemeMode.dark => ThemeMode.dark,
   };
 
+  /// ⌘L / Ctrl+L → foca o input do agente focado (via ponte global, resolvida
+  /// pelo `CockpitPage`). Fica aqui (não no shell) pra disparar mesmo quando o
+  /// foco caiu num espaço vazio.
+  Map<ShortcutActivator, VoidCallback> _focusBindings() {
+    void focus() => requestFocusActiveComposer?.call();
+    return <ShortcutActivator, VoidCallback>{
+      const SingleActivator(LogicalKeyboardKey.keyL, meta: true): focus,
+      const SingleActivator(LogicalKeyboardKey.keyL, control: true): focus,
+    };
+  }
+
   /// Atalhos de zoom (tamanho da interface). `meta` = ⌘ (macOS); `control` =
   /// Ctrl (Windows/Linux). `=`/numpad+ aumenta, `-`/numpad- diminui, `0` reseta.
   /// Step de 1, limitado a 11..22 (igual ao stepper das Configurações).
@@ -89,7 +154,10 @@ class CockpitApp extends StatelessWidget {
     SettingsController controller,
   ) {
     void by(double delta) {
-      final next = (controller.settings.interfaceSize + delta).clamp(11.0, 22.0);
+      final next = (controller.settings.interfaceSize + delta).clamp(
+        11.0,
+        22.0,
+      );
       controller.setInterfaceSize(next);
     }
 
@@ -101,27 +169,28 @@ class CockpitApp extends StatelessWidget {
           LogicalKeyboardKey.equal,
           meta: mod,
           control: !mod,
-        ): () => by(1),
+        ): () =>
+            by(1),
         SingleActivator(
           LogicalKeyboardKey.numpadAdd,
           meta: mod,
           control: !mod,
-        ): () => by(1),
+        ): () =>
+            by(1),
         SingleActivator(
           LogicalKeyboardKey.minus,
           meta: mod,
           control: !mod,
-        ): () => by(-1),
+        ): () =>
+            by(-1),
         SingleActivator(
           LogicalKeyboardKey.numpadSubtract,
           meta: mod,
           control: !mod,
-        ): () => by(-1),
-        SingleActivator(
-          LogicalKeyboardKey.digit0,
-          meta: mod,
-          control: !mod,
-        ): reset,
+        ): () =>
+            by(-1),
+        SingleActivator(LogicalKeyboardKey.digit0, meta: mod, control: !mod):
+            reset,
       },
     };
   }

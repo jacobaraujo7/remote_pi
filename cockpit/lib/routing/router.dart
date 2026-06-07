@@ -3,6 +3,8 @@ import 'package:cockpit/routing/routes.dart';
 import 'package:cockpit/ui/cockpit/cockpit_page.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
+import 'package:cockpit/ui/settings/connectivity_viewmodel.dart';
+import 'package:cockpit/ui/settings/daemons_viewmodel.dart';
 import 'package:cockpit/ui/settings/settings_page.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
@@ -36,7 +38,19 @@ GoRouter buildRouter() {
         path: RoutePaths.settings,
         pageBuilder: (context, state) => CustomTransitionPage<void>(
           key: state.pageKey,
-          child: const SettingsPage(),
+          // As abas Conectividade e Daemon Agents têm ViewModels próprios;
+          // providos aqui, cada um carrega sob demanda quando a aba abre.
+          child: MultiProvider(
+            providers: [
+              ChangeNotifierProvider<ConnectivityViewModel>(
+                create: (_) => buildConnectivityViewModel(),
+              ),
+              ChangeNotifierProvider<DaemonsViewModel>(
+                create: (_) => buildDaemonsViewModel(),
+              ),
+            ],
+            child: const SettingsPage(),
+          ),
           transitionDuration: const Duration(milliseconds: 220),
           reverseTransitionDuration: const Duration(milliseconds: 180),
           transitionsBuilder: (context, animation, secondary, child) =>

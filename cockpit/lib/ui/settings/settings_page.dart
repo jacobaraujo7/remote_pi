@@ -1,9 +1,18 @@
 import 'package:cockpit/domain/entities/app_settings.dart';
+import 'package:cockpit/domain/entities/daemon_info.dart';
+import 'package:cockpit/domain/entities/paired_device.dart';
 import 'package:cockpit/ui/cockpit/widgets/app_menu.dart';
 import 'package:cockpit/ui/cockpit/widgets/code_highlight.dart';
 import 'package:cockpit/ui/cockpit/widgets/window_controls.dart';
+import 'package:cockpit/ui/settings/connectivity_viewmodel.dart';
+import 'package:cockpit/ui/settings/daemons_viewmodel.dart';
+import 'package:cockpit/ui/settings/pairing_controller.dart';
+import 'package:cockpit/ui/settings/pairing_dialog.dart';
+import 'package:cockpit/ui/settings/revoke_controller.dart';
+import 'package:cockpit/ui/settings/revoke_dialog.dart';
 import 'package:cockpit/ui/settings/settings_controller.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -19,7 +28,7 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-enum _Category { appearance, connectivity }
+enum _Category { appearance, connectivity, daemons, scheduling }
 
 class _SettingsPageState extends State<SettingsPage> {
   _Category _category = _Category.appearance;
@@ -43,11 +52,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 Expanded(
                   child: switch (_category) {
                     _Category.appearance => const _AppearancePanel(),
-                    _Category.connectivity => const _ComingSoonPanel(
-                      title: 'Conectividade',
+                    _Category.connectivity => const _ConnectivityPanel(),
+                    _Category.daemons => const _DaemonsPanel(),
+                    _Category.scheduling => const _ComingSoonPanel(
+                      title: 'Agendamentos',
                       message:
-                          'Relay, status online e pareamento de aparelhos '
-                          'chegam na próxima etapa.',
+                          'Agendar prompts e rotinas para os seus agentes '
+                          'chega em breve.',
                     ),
                   },
                 ),
@@ -137,6 +148,22 @@ class _CategoryNav extends StatelessWidget {
             label: 'Conectividade',
             selected: selected == _Category.connectivity,
             onTap: () => onSelect(_Category.connectivity),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Divider(height: 1, thickness: 1, color: colors.border),
+          ),
+          _NavItem(
+            icon: Icons.dns_outlined,
+            label: 'Daemon Agents',
+            selected: selected == _Category.daemons,
+            onTap: () => onSelect(_Category.daemons),
+          ),
+          _NavItem(
+            icon: Icons.schedule_outlined,
+            label: 'Agendamentos',
+            selected: selected == _Category.scheduling,
+            onTap: () => onSelect(_Category.scheduling),
           ),
         ],
       ),
@@ -373,49 +400,16 @@ class _SyntaxPreview extends StatelessWidget {
   }
 }
 
-class _ComingSoonPanel extends StatelessWidget {
-  const _ComingSoonPanel({required this.title, required this.message});
-  final String title;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.construction_outlined, size: 28, color: colors.text3),
-            const SizedBox(height: 12),
-            Text(
-              title,
-              style: context.typo.title.copyWith(
-                fontSize: 15,
-                color: colors.text2,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: context.typo.label.copyWith(color: colors.text3),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Blocos reutilizáveis
 // ---------------------------------------------------------------------------
 class _Section extends StatelessWidget {
-  const _Section({required this.label, required this.child});
+  const _Section({required this.label, required this.child, this.trailing});
   final String label;
   final Widget child;
+
+  /// Ação opcional à direita do rótulo da seção (ex.: botão de recarregar).
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -426,10 +420,17 @@ class _Section extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 4, bottom: 8),
-            child: Text(
-              label,
-              style: context.typo.label.copyWith(color: colors.text3),
+            padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: context.typo.label.copyWith(color: colors.text3),
+                  ),
+                ),
+                ?trailing,
+              ],
             ),
           ),
           child,
@@ -752,4 +753,1122 @@ class _SizeStepper extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// Conectividade
+// ---------------------------------------------------------------------------
+class _ConnectivityPanel extends StatefulWidget {
+  const _ConnectivityPanel();
+
+  @override
+  State<_ConnectivityPanel> createState() => _ConnectivityPanelState();
+}
+
+class _ConnectivityPanelState extends State<_ConnectivityPanel> {
+  @override
+  void initState() {
+    super.initState();
+    // Carrega relay + aparelhos quando a aba abre (lazy — não roda o shell-out
+    // do `remote-pi` se o usuário só visita Aparência).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ConnectivityViewModel>().load();
+    });
+  }
+
+  /// Abre o dialog de pareamento (sobe um `pi --mode rpc` efêmero). Quando um
+  /// aparelho parear, o dialog fecha com `true` e a lista é recarregada.
+  Future<void> _openPairing() async {
+    final vm = context.read<ConnectivityViewModel>();
+    final paired = await showDialog<bool>(
+      context: context,
+      builder: (_) => ChangeNotifierProvider<PairingController>(
+        create: (_) => vm.newPairingController()..start(),
+        child: const PairingDialog(),
+      ),
+    );
+    if (!mounted) return;
+    if (paired == true) await vm.loadDevices();
+  }
+
+  /// Revogar é destrutivo (o aparelho perde acesso) → confirma, depois roda o
+  /// revoke (sobe um `pi --mode rpc` que liga o relay) num dialog de progresso,
+  /// e recarrega a lista ao fim.
+  Future<void> _confirmRevoke(PairedDevice device) async {
+    final vm = context.read<ConnectivityViewModel>();
+    final colors = context.colors;
+    final name = device.label.isEmpty ? device.shortId : device.label;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.panel2,
+        title: Text(
+          'Revogar aparelho?',
+          style: ctx.typo.title.copyWith(fontSize: 15, color: colors.text),
+        ),
+        content: Text(
+          '"$name" perderá o acesso aos seus agentes e precisará parear de novo.'
+          '\n\nÉ preciso estar conectado ao relay — o app vai conectar '
+          'automaticamente para revogar.',
+          style: ctx.typo.body.copyWith(fontSize: 13.5, color: colors.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: ctx.typo.body.copyWith(fontSize: 13, color: colors.text2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Revogar',
+              style: ctx.typo.body.copyWith(
+                fontSize: 13,
+                color: colors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    // Dialog de progresso (não-dismissível): roda o revoke e mostra resultado.
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => ChangeNotifierProvider<RevokeController>(
+        create: (_) => vm.newRevokeController()..run(device),
+        child: const RevokeDialog(),
+      ),
+    );
+    if (!mounted) return;
+    await vm.loadDevices();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<ConnectivityViewModel>();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _Section(
+                label: 'Relay',
+                child: _Card(children: [_RelayEditor()]),
+              ),
+              _Section(
+                label: 'Aparelhos pareados',
+                trailing: _ReloadButton(
+                  busy: vm.devicesLoad == ConnLoad.loading,
+                  onTap: vm.loadDevices,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _devicesCard(context, vm),
+                    const SizedBox(height: 12),
+                    _PairButton(onTap: _openPairing),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _devicesCard(BuildContext context, ConnectivityViewModel vm) {
+    final colors = context.colors;
+
+    // Primeira carga (ainda sem dados).
+    if (vm.devicesLoad == ConnLoad.loading && vm.devices.isEmpty) {
+      return _MessageCard(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.text3,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Carregando…',
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text3,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (vm.devicesLoad == ConnLoad.error && vm.devices.isEmpty) {
+      return _MessageCard(
+        child: Text(
+          vm.devicesError ?? 'Falha ao listar os aparelhos.',
+          style: context.typo.body.copyWith(fontSize: 13.5, color: colors.error),
+        ),
+      );
+    }
+
+    if (vm.devices.isEmpty) {
+      return _MessageCard(
+        child: Text(
+          'Nenhum aparelho pareado.',
+          style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text3),
+        ),
+      );
+    }
+
+    return _Card(
+      children: [
+        for (final device in vm.devices)
+          _DeviceTile(
+            device: device,
+            onRevoke: () => _confirmRevoke(device),
+          ),
+      ],
+    );
+  }
+}
+
+/// Campo de URL do relay (mono) + botão Salvar. O valor carregado/salvo sincroniza
+/// com o campo, mas só enquanto o usuário não estiver digitando.
+class _RelayEditor extends StatefulWidget {
+  const _RelayEditor();
+
+  @override
+  State<_RelayEditor> createState() => _RelayEditorState();
+}
+
+class _RelayEditorState extends State<_RelayEditor> {
+  final TextEditingController _ctrl = TextEditingController();
+  late final ConnectivityViewModel _vm;
+  bool _edited = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _vm = context.read<ConnectivityViewModel>();
+    _ctrl.text = _vm.relayUrl ?? '';
+    _vm.addListener(_syncFromVm);
+  }
+
+  void _syncFromVm() {
+    if (_edited) return;
+    final loaded = _vm.relayUrl ?? '';
+    if (_ctrl.text != loaded) {
+      _ctrl.text = loaded;
+      if (mounted) setState(() {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _vm.removeListener(_syncFromVm);
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final ok = await _vm.setRelay(_ctrl.text);
+    if (!mounted) return;
+    if (ok) setState(() => _edited = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<ConnectivityViewModel>();
+    final colors = context.colors;
+    final value = _ctrl.text.trim();
+    final canSave =
+        !vm.savingRelay && value.isNotEmpty && value != (vm.relayUrl ?? '');
+
+    OutlineInputBorder border(Color c) => OutlineInputBorder(
+      borderRadius: BorderRadius.circular(7),
+      borderSide: BorderSide(color: c),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Endereço do relay',
+            style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'Servidor que conecta seus agentes ao celular. Vale para todo agente '
+            'com o relay ligado.',
+            style: context.typo.label.copyWith(color: colors.text3),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _ctrl,
+                  onChanged: (_) {
+                    setState(() => _edited = true);
+                    _vm.clearHealth(); // check anterior não vale mais
+                  },
+                  onSubmitted: (_) {
+                    if (canSave) _save();
+                  },
+                  style: context.typo.mono.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                  ),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'https://relay.exemplo.com',
+                    hintStyle: context.typo.mono.copyWith(
+                      fontSize: 12.5,
+                      color: colors.text3,
+                    ),
+                    filled: true,
+                    fillColor: colors.panel3,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 11,
+                      vertical: 11,
+                    ),
+                    border: border(colors.border),
+                    enabledBorder: border(colors.border),
+                    focusedBorder: border(colors.accent),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.accent,
+                  disabledBackgroundColor: colors.panel3,
+                  disabledForegroundColor: colors.text4,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                ),
+                onPressed: canSave ? () => _save() : null,
+                child: Text(vm.savingRelay ? 'Salvando…' : 'Salvar'),
+              ),
+            ],
+          ),
+          if (vm.relayError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              vm.relayError!,
+              style: context.typo.label.copyWith(color: colors.error),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.text2,
+                  side: BorderSide(color: colors.border2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                ),
+                onPressed: vm.healthState == HealthState.checking
+                    ? null
+                    : () => vm.checkRelay(_ctrl.text),
+                icon: const Icon(Icons.wifi_tethering, size: 15),
+                label: const Text('Verificar'),
+              ),
+              const SizedBox(width: 12),
+              Expanded(child: _HealthIndicator(vm: vm)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Resultado do "Verificar" do relay: ponto colorido + texto.
+class _HealthIndicator extends StatelessWidget {
+  const _HealthIndicator({required this.vm});
+  final ConnectivityViewModel vm;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    if (vm.healthState == HealthState.checking) {
+      return Row(
+        children: [
+          SizedBox(
+            width: 13,
+            height: 13,
+            child: CircularProgressIndicator(strokeWidth: 2, color: colors.text3),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'Verificando…',
+            style: context.typo.label.copyWith(color: colors.text3),
+          ),
+        ],
+      );
+    }
+
+    final (Color dot, String label, Color text) = switch (vm.healthState) {
+      HealthState.healthy => (colors.online, 'Online', colors.text2),
+      HealthState.unhealthy => (
+        colors.error,
+        vm.healthMessage ?? 'Sem resposta',
+        colors.error,
+      ),
+      _ => (colors.text4, 'Não verificado', colors.text3),
+    };
+
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            label,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: context.typo.label.copyWith(color: text),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Uma linha da lista de aparelhos pareados (rótulo + shortId + revogar).
+class _DeviceTile extends StatelessWidget {
+  const _DeviceTile({required this.device, required this.onRevoke});
+  final PairedDevice device;
+  final VoidCallback onRevoke;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Row(
+        children: [
+          Icon(_deviceIcon(device.label), size: 18, color: colors.text3),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  device.label.isEmpty ? 'Aparelho' : device.label,
+                  style: context.typo.body.copyWith(
+                    fontSize: 13.5,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  device.shortId,
+                  style: context.typo.mono.copyWith(
+                    fontSize: 11.5,
+                    color: colors.text3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Tooltip(
+            message: 'Revogar',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: onRevoke,
+              child: SizedBox(
+                width: 30,
+                height: 30,
+                child: Icon(Icons.link_off, size: 16, color: colors.text3),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Botão de recarregar (à direita do rótulo da seção). Vira spinner enquanto carrega.
+class _ReloadButton extends StatelessWidget {
+  const _ReloadButton({required this.busy, required this.onTap});
+  final bool busy;
+  final Future<void> Function() onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      message: 'Recarregar',
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: busy ? null : () => onTap(),
+        child: SizedBox(
+          width: 26,
+          height: 22,
+          child: busy
+              ? Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.text3,
+                  ),
+                )
+              : Icon(Icons.refresh, size: 15, color: colors.text3),
+        ),
+      ),
+    );
+  }
+}
+
+/// Container com a mesma moldura do `_Card`, para mensagens de estado (vazio /
+/// carregando / erro) no lugar da lista.
+class _MessageCard extends StatelessWidget {
+  const _MessageCard({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+      decoration: BoxDecoration(
+        color: colors.panel2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: child,
+    );
+  }
+}
+
+/// Botão de pareamento (abre o dialog com QR). Tonal accent pra diferenciar do
+/// Salvar (primário) sem competir com ele.
+class _PairButton extends StatelessWidget {
+  const _PairButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Material(
+      color: colors.accentSoft,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.qr_code_2, size: 17, color: colors.accentText),
+              const SizedBox(width: 8),
+              Text(
+                'Parear novo aparelho',
+                style: context.typo.body.copyWith(
+                  fontSize: 13.5,
+                  color: colors.accentText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+IconData _deviceIcon(String label) {
+  final l = label.toLowerCase();
+  if (l.contains('iphone') || l.contains('ipad') || l.contains('ios')) {
+    return Icons.phone_iphone;
+  }
+  if (l.contains('android')) return Icons.phone_android;
+  return Icons.devices_outlined;
+}
+
+// ---------------------------------------------------------------------------
+// Placeholder genérico (Agendamentos por ora)
+// ---------------------------------------------------------------------------
+class _ComingSoonPanel extends StatelessWidget {
+  const _ComingSoonPanel({required this.title, required this.message});
+  final String title;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.construction_outlined, size: 28, color: colors.text3),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: context.typo.title.copyWith(fontSize: 15, color: colors.text2),
+            ),
+            const SizedBox(height: 6),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 320),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: context.typo.label.copyWith(color: colors.text3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Daemon Agents
+// ---------------------------------------------------------------------------
+class _DaemonsPanel extends StatefulWidget {
+  const _DaemonsPanel();
+
+  @override
+  State<_DaemonsPanel> createState() => _DaemonsPanelState();
+}
+
+class _DaemonsPanelState extends State<_DaemonsPanel> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<DaemonsViewModel>().reload();
+    });
+  }
+
+  Future<void> _create() async {
+    final vm = context.read<DaemonsViewModel>();
+    final dir = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Escolha a pasta do Daemon Agent',
+    );
+    if (dir == null || !mounted) return;
+    final name = await _askName(dir);
+    if (!mounted || name == null) return; // null = cancelado
+    await vm.create(dir, name: name.isEmpty ? null : name);
+  }
+
+  Future<String?> _askName(String dir) async {
+    final controller = TextEditingController();
+    final colors = context.colors;
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: colors.panel2,
+          title: Text(
+            'Nome do agente',
+            style: ctx.typo.title.copyWith(fontSize: 15, color: colors.text),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                dir,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: ctx.typo.mono.copyWith(fontSize: 11.5, color: colors.text3),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+                style: ctx.typo.body.copyWith(fontSize: 13.5, color: colors.text),
+                decoration: InputDecoration(
+                  isDense: true,
+                  hintText: 'Opcional — padrão: nome da pasta',
+                  hintStyle: ctx.typo.body.copyWith(fontSize: 13, color: colors.text3),
+                  filled: true,
+                  fillColor: colors.panel3,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(7),
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(7),
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(7),
+                    borderSide: BorderSide(color: colors.accent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(
+                'Cancelar',
+                style: ctx.typo.body.copyWith(fontSize: 13, color: colors.text2),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text.trim()),
+              child: Text(
+                'Criar',
+                style: ctx.typo.body.copyWith(
+                  fontSize: 13,
+                  color: colors.accentText,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _confirmRemove(DaemonInfo daemon) async {
+    final vm = context.read<DaemonsViewModel>();
+    final colors = context.colors;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: colors.panel2,
+        title: Text(
+          'Remover daemon?',
+          style: ctx.typo.title.copyWith(fontSize: 15, color: colors.text),
+        ),
+        content: Text(
+          '"${daemon.name}" para de rodar e sai do registro. A pasta e o config '
+          'local são mantidos — dá pra recriar depois.',
+          style: ctx.typo.body.copyWith(fontSize: 13.5, color: colors.text2),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: Text(
+              'Cancelar',
+              style: ctx.typo.body.copyWith(fontSize: 13, color: colors.text2),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(
+              'Remover',
+              style: ctx.typo.body.copyWith(
+                fontSize: 13,
+                color: colors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await vm.remove(daemon.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<DaemonsViewModel>();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (vm.actionError != null) ...[
+                _ErrorBanner(message: vm.actionError!),
+                const SizedBox(height: 12),
+              ],
+              _Section(
+                label: 'Agentes sempre ativos',
+                trailing: _ReloadButton(
+                  busy: vm.load == DaemonsLoad.loading,
+                  onTap: vm.reload,
+                ),
+                child: _body(context, vm),
+              ),
+              if (vm.online) ...[
+                _DaemonActionsBar(vm: vm, onCreate: _create),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _body(BuildContext context, DaemonsViewModel vm) {
+    final colors = context.colors;
+
+    if (!vm.online && vm.load != DaemonsLoad.loading) {
+      return _MessageCard(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.power_off_outlined, size: 16, color: colors.text3),
+                const SizedBox(width: 8),
+                Text(
+                  'Supervisor offline',
+                  style: context.typo.body.copyWith(
+                    fontSize: 13.5,
+                    color: colors.text2,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'O pi-supervisord não está rodando. Instale-o com '
+              '`remote-pi install` para gerenciar agentes 24/7.',
+              style: context.typo.label.copyWith(color: colors.text3),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (vm.load == DaemonsLoad.loading && vm.daemons.isEmpty) {
+      return _MessageCard(
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: colors.text3),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              'Carregando…',
+              style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text3),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (vm.load == DaemonsLoad.error && vm.daemons.isEmpty) {
+      return _MessageCard(
+        child: Text(
+          vm.error ?? 'Falha ao listar os daemons.',
+          style: context.typo.body.copyWith(fontSize: 13.5, color: colors.error),
+        ),
+      );
+    }
+
+    if (vm.daemons.isEmpty) {
+      return _MessageCard(
+        child: Text(
+          'Nenhum agente registrado. Crie um a partir de uma pasta.',
+          style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text3),
+        ),
+      );
+    }
+
+    return _Card(
+      children: [
+        for (final daemon in vm.daemons)
+          _DaemonTile(
+            daemon: daemon,
+            busy: vm.isBusy(daemon.id),
+            onStart: () => vm.start(daemon.id),
+            onStop: () => vm.stop(daemon.id),
+            onRestart: () => vm.restart(daemon.id),
+            onRemove: () => _confirmRemove(daemon),
+          ),
+      ],
+    );
+  }
+}
+
+/// Barra de ações: criar daemon + controles da frota inteira.
+class _DaemonActionsBar extends StatelessWidget {
+  const _DaemonActionsBar({required this.vm, required this.onCreate});
+  final DaemonsViewModel vm;
+  final Future<void> Function() onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final hasDaemons = vm.daemons.isNotEmpty;
+    final fleetEnabled = hasDaemons && !vm.busyAll;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        children: [
+          FilledButton.icon(
+            style: FilledButton.styleFrom(
+              backgroundColor: colors.accent,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onPressed: () => onCreate(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Criar daemon'),
+          ),
+          const Spacer(),
+          if (vm.busyAll)
+            Padding(
+              padding: const EdgeInsets.only(right: 6),
+              child: SizedBox(
+                width: 15,
+                height: 15,
+                child: CircularProgressIndicator(strokeWidth: 2, color: colors.text3),
+              ),
+            ),
+          _FleetButton(
+            label: 'Iniciar',
+            icon: Icons.play_arrow,
+            onTap: fleetEnabled ? vm.startAll : null,
+          ),
+          const SizedBox(width: 8),
+          _FleetButton(
+            label: 'Parar',
+            icon: Icons.stop,
+            onTap: fleetEnabled ? vm.stopAll : null,
+          ),
+          const SizedBox(width: 8),
+          _FleetButton(
+            label: 'Reiniciar',
+            icon: Icons.restart_alt,
+            onTap: fleetEnabled ? vm.restartAll : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FleetButton extends StatelessWidget {
+  const _FleetButton({required this.label, required this.icon, required this.onTap});
+  final String label;
+  final IconData icon;
+  final Future<void> Function()? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return OutlinedButton.icon(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: colors.text2,
+        disabledForegroundColor: colors.text4,
+        side: BorderSide(color: colors.border2),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+        visualDensity: VisualDensity.compact,
+      ),
+      onPressed: onTap == null ? null : () => onTap!(),
+      icon: Icon(icon, size: 14),
+      label: Text(label, style: const TextStyle(fontSize: 12.5)),
+    );
+  }
+}
+
+/// Uma linha de daemon: badge de estado + nome + métricas + ações.
+class _DaemonTile extends StatelessWidget {
+  const _DaemonTile({
+    required this.daemon,
+    required this.busy,
+    required this.onStart,
+    required this.onStop,
+    required this.onRestart,
+    required this.onRemove,
+  });
+  final DaemonInfo daemon;
+  final bool busy;
+  final Future<void> Function() onStart;
+  final Future<void> Function() onStop;
+  final Future<void> Function() onRestart;
+  final Future<void> Function() onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final running = daemon.state == DaemonState.running;
+    final (Color dotColor, String stateLabel) = _stateView(context, daemon.state);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      child: Row(
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            margin: const EdgeInsets.only(top: 2),
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  daemon.name.isEmpty ? daemon.id : daemon.name,
+                  style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  _subtitle(stateLabel),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.typo.mono.copyWith(fontSize: 11, color: colors.text3),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          if (busy)
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: colors.text3),
+            )
+          else
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (running) ...[
+                  _act(context, Icons.stop, 'Parar', onStop),
+                  _act(context, Icons.restart_alt, 'Reiniciar', onRestart),
+                ] else
+                  _act(context, Icons.play_arrow, 'Iniciar', onStart),
+                _act(context, Icons.delete_outline, 'Remover', onRemove),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _subtitle(String stateLabel) {
+    final parts = <String>[stateLabel];
+    if (daemon.pid != null) parts.add('pid ${daemon.pid}');
+    if (daemon.uptimeSeconds != null) parts.add(_fmtUptime(daemon.uptimeSeconds!));
+    if ((daemon.restartCount ?? 0) > 0) parts.add('↻${daemon.restartCount}');
+    parts.add(daemon.cwd);
+    return parts.join('  ·  ');
+  }
+
+  (Color, String) _stateView(BuildContext context, DaemonState state) {
+    final colors = context.colors;
+    return switch (state) {
+      DaemonState.running => (colors.online, 'rodando'),
+      DaemonState.starting => (colors.warn, 'iniciando'),
+      DaemonState.stopped => (colors.text4, 'parado'),
+      DaemonState.crashed => (colors.error, 'falhou'),
+      DaemonState.unknown => (colors.text4, '—'),
+    };
+  }
+
+  Widget _act(
+    BuildContext context,
+    IconData icon,
+    String tip,
+    Future<void> Function() onTap,
+  ) {
+    return Tooltip(
+      message: tip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: () => onTap(),
+        child: SizedBox(
+          width: 30,
+          height: 30,
+          child: Icon(icon, size: 16, color: context.colors.text3),
+        ),
+      ),
+    );
+  }
+}
+
+class _ErrorBanner extends StatelessWidget {
+  const _ErrorBanner({required this.message});
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: colors.panel2,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.error),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.error_outline, size: 15, color: colors.error),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              message,
+              style: context.typo.label.copyWith(color: colors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _fmtUptime(int s) {
+  if (s < 60) return '${s}s';
+  final m = s ~/ 60;
+  if (m < 60) return '${m}m';
+  final h = m ~/ 60;
+  if (h < 24) return '${h}h${m % 60}m';
+  final d = h ~/ 24;
+  return '${d}d${h % 24}h';
 }
