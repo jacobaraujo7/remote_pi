@@ -82,6 +82,7 @@ jobs:
           schtasks /Query /TN RemotePiSupervisor 2>$null
           if ($LASTEXITCODE -eq 0) { Write-Error "task ainda presente após uninstall"; exit 1 }
           Write-Host "task removida com sucesso"
+          exit 0  # /Query saiu 1 (esperado: task não existe) — não deixar esse código vazar pro step
 
   # Smoke do named-pipe IPC: sobe o supervisor e fala com ele pelo pipe (sem modelo).
   # Prova o caminho `\\.\pipe\remote-pi-*-<user>` (Bloco A) sob o Node-Windows real.
