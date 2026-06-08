@@ -64,7 +64,12 @@ describe("joinOrLead", () => {
     if (r.role === "leader") await new Promise<void>((res) => r.server.close(() => res()));
   });
 
-  test("real stale socket from prior leader is cleaned + new leader binds", async () => {
+  // POSIX-only: simulates a stale leftover by `writeFileSync(sock, "")` — i.e.
+  // the sock-as-FILE crash-recovery path. On Windows `sock` is a named pipe
+  // (auto-cleaned on owner exit; no file to leave behind), so the premise
+  // doesn't apply — the Bloco A lifecycle skips unlink on win32 for the same
+  // reason. The cross-platform election cases are covered by the tests above.
+  test.skipIf(process.platform === "win32")("real stale socket from prior leader is cleaned + new leader binds", async () => {
     const sock = tmpSock();
     const r1 = await joinOrLead(sock);
     expect(r1.role).toBe("leader");
