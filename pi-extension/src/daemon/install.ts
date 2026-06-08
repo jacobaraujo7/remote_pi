@@ -192,7 +192,15 @@ export function installService(vars: RenderVars = defaultRenderVars()): InstallR
 
   const unitPath = plat === "macos" ? launchdPlistPath() : plat === "linux" ? systemdUnitPath() : taskXmlPath();
   mkdirSync(dirname(unitPath), { recursive: true });
-  writeFileSync(unitPath, rendered);
+  if (plat === "windows") {
+    // `schtasks /Create /XML` requires UTF-16LE + BOM. A UTF-8 file fails with
+    // "(1,40)::ERROR: unable to switch the encoding" — the bytes must match the
+    // template's `encoding="UTF-16"` declaration. (plan/40 risk #5.)
+    const bom = Buffer.from([0xff, 0xfe]); // UTF-16LE byte-order mark
+    writeFileSync(unitPath, Buffer.concat([bom, Buffer.from(rendered, "utf16le")]));
+  } else {
+    writeFileSync(unitPath, rendered);  // launchd/systemd → UTF-8
+  }
   log.push(`wrote ${unitPath}`);
 
   if (plat === "macos") {

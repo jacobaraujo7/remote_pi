@@ -81,6 +81,9 @@ describe("findTemplate", () => {
     expect(content).toContain("<RestartOnFailure>");
     expect(content).toContain("{NODE}");
     expect(content).toContain("{SUPERVISOR}");
+    // Must declare UTF-16 to match the UTF-16LE+BOM bytes install.ts writes —
+    // schtasks /Create /XML rejects a mismatch ("unable to switch the encoding").
+    expect(content).toContain('encoding="UTF-16"');
   });
 });
 

@@ -2338,7 +2338,11 @@ async function _cronLog(rest: string, ctx: Pick<ExtensionContext, "ui">): Promis
  * did `npm install -g remote-pi`), so re-linking would point their
  * `remote-pi` at the Pi-extension copy and diverge on upgrades.
  */
-function _cmdInstall(ctx: Pick<ExtensionContext, "ui">, opts: { linkCli?: boolean } = {}): void {
+/** Returns true on success, false when install failed (so the standalone CLI
+ *  can exit non-zero — e.g. the Cockpit / CI detect failure by exit code).
+ *  We do NOT process.exit here: this also runs inside the Pi TUI, where exiting
+ *  would kill the session. */
+function _cmdInstall(ctx: Pick<ExtensionContext, "ui">, opts: { linkCli?: boolean } = {}): boolean {
   const linkCli = opts.linkCli ?? false;
   try {
     const result = installService();
@@ -2363,8 +2367,10 @@ function _cmdInstall(ctx: Pick<ExtensionContext, "ui">, opts: { linkCli?: boolea
       }
     }
     ctx.ui.notify(sections.join("\n"), "info");
+    return true;
   } catch (err) {
     ctx.ui.notify(`[remote-pi] install failed: ${String(err)}`, "error");
+    return false;
   }
 }
 
@@ -3272,7 +3278,9 @@ if (_isDirectRun()) {
     // global prefix. Explicit `linkCli: false` so we never stomp those
     // with symlinks pointing at a parallel Pi-extension install.
     const stubCtx = { ui: { notify: (msg: string) => console.log(msg) } as unknown as ExtensionContext["ui"] };
-    _cmdInstall(stubCtx, { linkCli: false });
+    // Propagate failure as a non-zero exit so callers (Cockpit / CI) detect it
+    // — installService throws on a failed schtasks/launchctl/systemctl step.
+    if (!_cmdInstall(stubCtx, { linkCli: false })) process.exit(1);
   } else if (subcmd === "uninstall") {
     const stubCtx = { ui: { notify: (msg: string) => console.log(msg) } as unknown as ExtensionContext["ui"] };
     _cmdUninstall(stubCtx, { linkCli: false });
