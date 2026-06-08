@@ -85,7 +85,7 @@ import { addDaemon, listDaemons, removeDaemon } from "./daemon/registry.js";
 import { callSupervisor, supervisorOnline, SupervisorOfflineError } from "./daemon/client.js";
 import type { ControlRequest, DaemonInfo } from "./daemon/control_protocol.js";
 import { EXIT_DAEMON_FRESH_SESSION } from "./daemon/rpc_child.js";
-import { installService, uninstallService, linkCliBinaries, unlinkCliBinaries, LAUNCHD_LABEL, SYSTEMD_UNIT } from "./daemon/install.js";
+import { installService, uninstallService, linkCliBinaries, unlinkCliBinaries, LAUNCHD_LABEL, SYSTEMD_UNIT, WINDOWS_TASK_NAME } from "./daemon/install.js";
 import {
   defaultAgentName,
   effectiveAutoStartRelay,
@@ -3135,41 +3135,48 @@ export function _mapAgentMessagesToEvents(
  * Restarting the supervisor re-spawns every daemon as a side effect. Exits 0
  * on success, non-zero on failure (the Cockpit detects failure by exit code).
  */
-/** Pure: the OS command that restarts the supervisor service, or null when the
- *  platform isn't supported yet. Exported for tests. */
+/** One step of a restart sequence. `ignoreFailure` steps (e.g. `schtasks /End`
+ *  when the task isn't running) don't abort the sequence. */
+export interface RestartStep { cmd: string; args: string[]; ignoreFailure?: boolean }
+
+/** Pure: the OS command sequence that restarts the supervisor service, or null
+ *  when the platform isn't supported. Most platforms are 1 step; Windows is 2
+ *  (`schtasks /End` then `/Run`). Exported for tests. */
 export function _restartSupervisorCommand(
   platform: NodeJS.Platform,
   uid: number,
-): { cmd: string; args: string[] } | null {
-  if (platform === "darwin") return { cmd: "launchctl", args: ["kickstart", "-k", `gui/${uid}/${LAUNCHD_LABEL}`] };
-  if (platform === "linux") return { cmd: "systemctl", args: ["--user", "restart", SYSTEMD_UNIT] };
+): RestartStep[] | null {
+  if (platform === "darwin") return [{ cmd: "launchctl", args: ["kickstart", "-k", `gui/${uid}/${LAUNCHD_LABEL}`] }];
+  if (platform === "linux") return [{ cmd: "systemctl", args: ["--user", "restart", SYSTEMD_UNIT] }];
+  if (platform === "win32") return [
+    { cmd: "schtasks", args: ["/End", "/TN", WINDOWS_TASK_NAME], ignoreFailure: true },
+    { cmd: "schtasks", args: ["/Run", "/TN", WINDOWS_TASK_NAME] },
+  ];
   return null;
 }
 
 function _restartSupervisor(): void {
   const uid = process.getuid?.() ?? 0;
-  const spec = _restartSupervisorCommand(process.platform, uid);
-  if (!spec) {
+  const steps = _restartSupervisorCommand(process.platform, uid);
+  if (!steps) {
     console.error(
-      `[remote-pi] restart-supervisor is not supported on '${process.platform}' yet ` +
-      "(the supervisor has no Windows service). Restart pi-supervisord manually.",
+      `[remote-pi] restart-supervisor is not supported on '${process.platform}' yet. ` +
+      "Restart pi-supervisord manually.",
     );
     process.exit(1);
   }
-  _runRestart(spec.cmd, spec.args);
-}
-
-/** Runs the platform restart command, mapping its outcome to a clean exit. */
-function _runRestart(cmd: string, args: string[]): void {
-  const r = spawnSync(cmd, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
-  if (r.error) {
-    console.error(`[remote-pi] restart-supervisor failed: ${cmd} not runnable (${r.error.message}). Is the service installed? Run \`remote-pi install\`.`);
-    process.exit(1);
-  }
-  if (r.status !== 0) {
-    const detail = (r.stderr || r.stdout || "").trim();
-    console.error(`[remote-pi] restart-supervisor failed (${cmd} exited ${r.status})${detail ? `: ${detail}` : ""}.`);
-    process.exit(r.status === null ? 1 : r.status);
+  for (const step of steps) {
+    const r = spawnSync(step.cmd, step.args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+    if (r.error) {
+      if (step.ignoreFailure) continue;
+      console.error(`[remote-pi] restart-supervisor failed: ${step.cmd} not runnable (${r.error.message}). Is the service installed? Run \`remote-pi install\`.`);
+      process.exit(1);
+    }
+    if (r.status !== 0 && !step.ignoreFailure) {
+      const detail = (r.stderr || r.stdout || "").trim();
+      console.error(`[remote-pi] restart-supervisor failed (${step.cmd} exited ${r.status})${detail ? `: ${detail}` : ""}.`);
+      process.exit(r.status === null ? 1 : r.status);
+    }
   }
   console.log("[remote-pi] Supervisor restarted.");
 }

@@ -8,6 +8,7 @@ import {
   parseReply,
 } from "./control_protocol.js";
 import { getSupervisorSockPath } from "./supervisor.js";
+import { usesNamedPipe } from "../session/ipc.js";
 
 /**
  * Tiny client for the `remote-pi` CLI to call the supervisor over the
@@ -47,7 +48,9 @@ export async function callSupervisor<Op extends ControlRequest["op"]>(
   req: Extract<ControlRequest, { op: Op }>,
 ): Promise<ControlReplyFor<Op>> {
   const sockPath = getSupervisorSockPath();
-  if (!existsSync(sockPath)) throw new SupervisorOfflineError(sockPath);
+  // POSIX fast-fail on a missing socket file. Windows pipes have no file —
+  // skip the check and let `_connect` fail fast if the pipe isn't there.
+  if (!usesNamedPipe() && !existsSync(sockPath)) throw new SupervisorOfflineError(sockPath);
 
   const sock = await _connect(sockPath);
   try {
@@ -66,7 +69,7 @@ export async function callSupervisor<Op extends ControlRequest["op"]>(
  *  registry-only listing. */
 export async function supervisorOnline(): Promise<boolean> {
   const sockPath = getSupervisorSockPath();
-  if (!existsSync(sockPath)) return false;
+  if (!usesNamedPipe() && !existsSync(sockPath)) return false;
   try {
     const sock = await _connect(sockPath);
     sock.destroy();

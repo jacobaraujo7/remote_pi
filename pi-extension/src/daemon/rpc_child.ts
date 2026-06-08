@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from "node:child_process";
+import { ChildProcess, execFileSync, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import type { DaemonState } from "./control_protocol.js";
 import { defaultAgentName, loadLocalConfig, type LocalConfig } from "../session/local_config.js";
@@ -51,6 +51,27 @@ export interface RpcChildExitEvent {
 }
 
 export const EXIT_DAEMON_FRESH_SESSION = 42;
+
+/**
+ * Resolve the `pi` executable for `spawn` (plan/40, decision C). On Windows a
+ * bare `pi` is actually `pi.cmd`/`pi.ps1`, and `spawn` won't find it without an
+ * extension → resolve the real path via `where` (rather than `shell:true`,
+ * which risks shell injection). An explicit path or an already-suffixed name is
+ * used as-is. POSIX returns the name unchanged. Best-effort: if `where` fails,
+ * fall back to the bare name (spawn will surface ENOENT honestly).
+ */
+export function resolvePiBin(piBin: string, plat: NodeJS.Platform = process.platform): string {
+  if (plat !== "win32") return piBin;
+  if (piBin.includes("\\") || piBin.includes("/") || /\.[a-z0-9]+$/i.test(piBin)) return piBin;
+  try {
+    const out = execFileSync("where", [piBin], { encoding: "utf8" });
+    const first = out.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)[0];
+    if (first) return first;
+  } catch {
+    /* `where` unavailable or `pi` not found — fall back to the bare name */
+  }
+  return piBin;
+}
 
 /**
  * Maps an RPC stdout line to a busy-state transition: `message_start` → true
@@ -160,7 +181,7 @@ export class RpcChild extends EventEmitter {
     this._busy = false;
     this._state = "starting";
 
-    const piBin = this.opts.piBin ?? "pi";
+    const piBin = resolvePiBin(this.opts.piBin ?? "pi");
     // Name the (single) daemon session after the daemon's configured identity,
     // so it shows up stably instead of an auto-generated name on each restart.
     // Prefer the supervisor-injected config; fall back to the on-disk file.

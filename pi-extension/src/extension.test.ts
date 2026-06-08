@@ -238,17 +238,20 @@ describe("extension default export", () => {
     expect(registeredCommands).toContain("remote-pi peers");
   });
 
-  test("restart-supervisor maps to the right OS command per platform", () => {
-    expect(_restartSupervisorCommand("darwin", 501)).toEqual({
-      cmd: "launchctl",
-      args: ["kickstart", "-k", "gui/501/dev.remotepi.supervisord"],
-    });
-    expect(_restartSupervisorCommand("linux", 1000)).toEqual({
-      cmd: "systemctl",
-      args: ["--user", "restart", "remote-pi-supervisord.service"],
-    });
-    // Windows (+ any other) not supported yet → null (caller exits non-zero).
-    expect(_restartSupervisorCommand("win32", 0)).toBeNull();
+  test("restart-supervisor maps to the right OS command sequence per platform", () => {
+    expect(_restartSupervisorCommand("darwin", 501)).toEqual([
+      { cmd: "launchctl", args: ["kickstart", "-k", "gui/501/dev.remotepi.supervisord"] },
+    ]);
+    expect(_restartSupervisorCommand("linux", 1000)).toEqual([
+      { cmd: "systemctl", args: ["--user", "restart", "remote-pi-supervisord.service"] },
+    ]);
+    // Windows (plan/40): End (ignorable) then Run, via Task Scheduler.
+    expect(_restartSupervisorCommand("win32", 0)).toEqual([
+      { cmd: "schtasks", args: ["/End", "/TN", "RemotePiSupervisor"], ignoreFailure: true },
+      { cmd: "schtasks", args: ["/Run", "/TN", "RemotePiSupervisor"] },
+    ]);
+    // Truly unsupported platform → null (caller exits non-zero).
+    expect(_restartSupervisorCommand("aix", 0)).toBeNull();
   });
 
   test("no deprecated or removed commands leak back into the surface", () => {

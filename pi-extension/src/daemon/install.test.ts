@@ -26,9 +26,9 @@ import {
  */
 
 describe("detectPlatform", () => {
-  test("returns 'macos' or 'linux' on supported platforms", () => {
+  test("returns a known platform", () => {
     const p = detectPlatform();
-    expect(["macos", "linux", "unsupported"]).toContain(p);
+    expect(["macos", "linux", "windows", "unsupported"]).toContain(p);
   });
 });
 
@@ -63,6 +63,17 @@ describe("findTemplate", () => {
     const content = readFileSync(p, "utf8");
     expect(content).toContain("<key>Label</key>");
     expect(content).toContain("dev.remotepi.supervisord");
+    expect(content).toContain("{NODE}");
+    expect(content).toContain("{SUPERVISOR}");
+  });
+
+  test("task-scheduler (Windows) template file exists on disk (plan/40)", () => {
+    const p = findTemplate("taskscheduler");
+    expect(p.endsWith("task-scheduler.xml.template")).toBe(true);
+    const content = readFileSync(p, "utf8");
+    expect(content).toContain("<Task ");
+    expect(content).toContain("<LogonTrigger>");
+    expect(content).toContain("<RestartOnFailure>");
     expect(content).toContain("{NODE}");
     expect(content).toContain("{SUPERVISOR}");
   });

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RpcChild, busyTransition, rpcSpawnArgs, type RpcChildExitEvent } from "./rpc_child.js";
+import { RpcChild, busyTransition, resolvePiBin, rpcSpawnArgs, type RpcChildExitEvent } from "./rpc_child.js";
 
 /**
  * Regression for the orphaned-daemon bug: a deliberate `stop()` kills the
@@ -57,6 +57,21 @@ describe("RpcChild — deliberate stop is not a crash", () => {
     expect(evt.isCrash).toBe(false);   // ← was `true` before the fix → spurious restart
     expect(child.state).toBe("stopped");
   });
+});
+
+describe("resolvePiBin (plan/40 — Windows pi.cmd)", () => {
+  test("POSIX → returns the bin name unchanged", () => {
+    expect(resolvePiBin("pi", "darwin")).toBe("pi");
+    expect(resolvePiBin("pi", "linux")).toBe("pi");
+    expect(resolvePiBin("/opt/homebrew/bin/pi", "darwin")).toBe("/opt/homebrew/bin/pi");
+  });
+  test("Windows → an explicit path or suffixed name is used as-is (no lookup)", () => {
+    expect(resolvePiBin("C:\\tools\\pi.cmd", "win32")).toBe("C:\\tools\\pi.cmd");
+    expect(resolvePiBin("pi.cmd", "win32")).toBe("pi.cmd");
+    expect(resolvePiBin("C:/tools/pi", "win32")).toBe("C:/tools/pi");
+  });
+  // The bare-`pi`-on-win32 lookup uses `where` (Windows-only); not unit-tested
+  // here (no `where` on the POSIX dev host) — covered by the real Windows smoke.
 });
 
 describe("busyTransition (stream markers)", () => {

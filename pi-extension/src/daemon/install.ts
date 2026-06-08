@@ -29,12 +29,13 @@ import { fileURLToPath } from "node:url";
 
 // ── Platform detection ─────────────────────────────────────────────────────
 
-export type SupervisorPlatform = "macos" | "linux" | "unsupported";
+export type SupervisorPlatform = "macos" | "linux" | "windows" | "unsupported";
 
 export function detectPlatform(): SupervisorPlatform {
   switch (platform()) {
     case "darwin": return "macos";
     case "linux": return "linux";
+    case "win32": return "windows";
     default: return "unsupported";
   }
 }
@@ -82,16 +83,17 @@ export function findNodeBinary(): string {
   return process.execPath;
 }
 
-export function findTemplate(name: "systemd" | "launchd"): string {
+export function findTemplate(name: "systemd" | "launchd" | "taskscheduler"): string {
   // Templates ship next to the compiled `dist/` (via `files` in package.json).
   // From `dist/daemon/install.js` go up two levels and into
   // `service-templates/`. In the published npm tarball the layout is the
   // same — `service-templates/` is sibling to `dist/`.
   const here = fileURLToPath(import.meta.url);          // dist/daemon/install.js
   const pkgRoot = resolve(dirname(dirname(dirname(here))));  // package root
-  const file = name === "systemd"
-    ? "systemd.service.template"
-    : "launchd.plist.template";
+  const file =
+    name === "systemd" ? "systemd.service.template" :
+    name === "launchd" ? "launchd.plist.template" :
+    "task-scheduler.xml.template";
   return resolve(pkgRoot, "service-templates", file);
 }
 
@@ -108,6 +110,13 @@ export function launchdPlistPath(): string {
 export const LAUNCHD_LABEL = "dev.remotepi.supervisord";
 /** systemd --user unit name (with `.service`) for the supervisor. */
 export const SYSTEMD_UNIT = "remote-pi-supervisord.service";
+/** Windows Task Scheduler task name (plan/40). */
+export const WINDOWS_TASK_NAME = "RemotePiSupervisor";
+
+/** Path of the rendered Task Scheduler XML (input to `schtasks /Create /XML`). */
+export function taskXmlPath(): string {
+  return join(homedir(), ".pi", "remote", "RemotePiSupervisor.xml");
+}
 
 // ── Template rendering ─────────────────────────────────────────────────────
 
@@ -173,14 +182,15 @@ export function installService(vars: RenderVars = defaultRenderVars()): InstallR
     );
   }
 
-  const templatePath = findTemplate(plat === "macos" ? "launchd" : "systemd");
+  const templateName = plat === "macos" ? "launchd" : plat === "linux" ? "systemd" : "taskscheduler";
+  const templatePath = findTemplate(templateName);
   if (!existsSync(templatePath)) {
     throw new Error(`service template missing: ${templatePath}`);
   }
   const tpl = readFileSync(templatePath, "utf8");
   const rendered = renderTemplate(tpl, vars);
 
-  const unitPath = plat === "macos" ? launchdPlistPath() : systemdUnitPath();
+  const unitPath = plat === "macos" ? launchdPlistPath() : plat === "linux" ? systemdUnitPath() : taskXmlPath();
   mkdirSync(dirname(unitPath), { recursive: true });
   writeFileSync(unitPath, rendered);
   log.push(`wrote ${unitPath}`);
@@ -194,10 +204,17 @@ export function installService(vars: RenderVars = defaultRenderVars()): InstallR
     _tryExec("launchctl", ["unload", unitPath], log);
     _exec("launchctl", ["bootstrap", `gui/${uid}`, unitPath], log);
     log.push(`activated via launchctl bootstrap gui/${uid}`);
-  } else {
+  } else if (plat === "linux") {
     _exec("systemctl", ["--user", "daemon-reload"], log);
     _exec("systemctl", ["--user", "enable", "--now", "remote-pi-supervisord.service"], log);
     log.push("activated via systemctl --user enable --now");
+  } else {
+    // windows — Task Scheduler (plan/40). End any prior instance, (re)create
+    // the task from the rendered XML (user-level, restart-on-failure), run now.
+    _tryExec("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], log);
+    _exec("schtasks", ["/Create", "/XML", unitPath, "/TN", WINDOWS_TASK_NAME, "/F"], log);
+    _exec("schtasks", ["/Run", "/TN", WINDOWS_TASK_NAME], log);
+    log.push(`activated via schtasks /Create + /Run (${WINDOWS_TASK_NAME})`);
   }
 
   return { platform: plat, unitPath, log };
@@ -218,16 +235,21 @@ export function uninstallService(): UninstallResult {
     throw new Error(`unsupported platform: ${platform()}. Only macOS and Linux.`);
   }
 
-  const unitPath = plat === "macos" ? launchdPlistPath() : systemdUnitPath();
+  const unitPath = plat === "macos" ? launchdPlistPath() : plat === "linux" ? systemdUnitPath() : taskXmlPath();
 
   if (plat === "macos") {
     const uid = userInfo().uid;
     _tryExec("launchctl", ["bootout", `gui/${uid}`, unitPath], log);
     _tryExec("launchctl", ["unload", unitPath], log);
     log.push("deactivated via launchctl bootout");
-  } else {
+  } else if (plat === "linux") {
     _tryExec("systemctl", ["--user", "disable", "--now", "remote-pi-supervisord.service"], log);
     log.push("deactivated via systemctl --user disable --now");
+  } else {
+    // windows — Task Scheduler (plan/40): stop + delete the task.
+    _tryExec("schtasks", ["/End", "/TN", WINDOWS_TASK_NAME], log);
+    _tryExec("schtasks", ["/Delete", "/TN", WINDOWS_TASK_NAME, "/F"], log);
+    log.push(`deactivated via schtasks /Delete (${WINDOWS_TASK_NAME})`);
   }
 
   let removed = false;
@@ -331,6 +353,19 @@ export function linkCliBinaries(
   paths: { remotePi?: string; supervisord?: string } = {},
 ): LinkBinariesResult {
   const binDir = userLocalBinDir(home);
+
+  // Windows (plan/40): no POSIX symlinks / `~/.local/bin`. The supported path
+  // is `npm install -g remote-pi`, which provides the `remote-pi` /
+  // `pi-supervisord` command shims (`.cmd`) on PATH. Skip linking, don't fail.
+  if (platform() === "win32") {
+    return {
+      binDir,
+      links: [],
+      onPath: true,
+      log: ["Windows: skipping CLI symlinks — `npm install -g remote-pi` provides the command shims."],
+    };
+  }
+
   const log: string[] = [];
 
   mkdirSync(binDir, { recursive: true });

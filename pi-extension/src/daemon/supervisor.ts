@@ -5,6 +5,7 @@ import { dirname, join } from "node:path";
 import { addDaemon, listDaemons, migrateRegistryNames, removeDaemon } from "./registry.js";
 import { daemonIdForCwd } from "./id.js";
 import { defaultAgentName, type LocalConfig } from "../session/local_config.js";
+import { ipcAddress, usesNamedPipe } from "../session/ipc.js";
 import { EXIT_DAEMON_FRESH_SESSION, RpcChild, type RpcChildExitEvent, type RpcChildOptions } from "./rpc_child.js";
 import {
   type ControlReply,
@@ -62,7 +63,8 @@ const RESTART_BACKOFFS_MS = [1_000, 5_000, 30_000, 5 * 60_000];
 
 function supervisorSockPath(): string {
   const root = process.env["REMOTE_PI_HOME"] || homedir();
-  return join(root, ".pi", "remote", SUPERVISOR_SOCK_NAME);
+  // POSIX → ~/.pi/remote/supervisor.sock; Windows → per-user named pipe (plan/40).
+  return ipcAddress("supervisor", join(root, ".pi", "remote", SUPERVISOR_SOCK_NAME));
 }
 
 /** Thrown by `start()` when another live supervisor already holds the UDS.
@@ -169,29 +171,37 @@ export class Supervisor {
     });
     this.server = null;
     // Best-effort: clear the socket file so a next supervisor bind succeeds.
-    try { unlinkSync(supervisorSockPath()); } catch { /* ignored */ }
+    // Windows named pipes have no file (auto-removed on exit) → nothing to do.
+    if (!usesNamedPipe()) {
+      try { unlinkSync(supervisorSockPath()); } catch { /* ignored */ }
+    }
   }
 
   // ── UDS binding ──────────────────────────────────────────────────────────
 
   private _mkdirParent(): void {
+    // A named pipe has no parent directory to create (the addr is `\\.\pipe\…`).
+    if (usesNamedPipe()) return;
     mkdirSync(dirname(supervisorSockPath()), { recursive: true });
   }
 
   private async _bindUds(): Promise<void> {
     const path = supervisorSockPath();
-    // Single-instance guard. If a socket file exists, PROBE it first: a live
-    // supervisor answering the connect means we must NOT start a second one.
-    // Stealing the socket (unlink + bind) would orphan the running
-    // supervisor's children — they'd keep running, unreachable by the CLI,
-    // so `remote-pi daemon stop` could never kill them. Only when the probe
-    // fails (stale socket from a crashed supervisor) do we unlink + bind.
-    if (existsSync(path)) {
+    const pipe = usesNamedPipe();
+    // Single-instance guard. PROBE first: a live supervisor answering the
+    // connect means we must NOT start a second one. Stealing the socket
+    // (unlink + bind) would orphan the running supervisor's children — they'd
+    // keep running, unreachable by the CLI. Only on POSIX, when the probe
+    // fails (stale socket from a crash), do we unlink + bind. On Windows there
+    // is no file: always probe, never unlink (the pipe self-cleans on exit).
+    if (pipe || existsSync(path)) {
       const alive = await _probeSupervisor(path);
       if (alive) {
         throw new SupervisorAlreadyRunningError(path);
       }
-      try { unlinkSync(path); } catch { /* will throw on bind if still held */ }
+      if (!pipe) {
+        try { unlinkSync(path); } catch { /* will throw on bind if still held */ }
+      }
     }
     const server = createServer((socket) => this._onConnection(socket));
     await new Promise<void>((resolve, reject) => {

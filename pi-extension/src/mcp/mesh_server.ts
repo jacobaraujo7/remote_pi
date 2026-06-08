@@ -16,11 +16,10 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { homedir } from "node:os";
-import { join } from "node:path";
 import { z } from "zod";
 import { MeshNode } from "../session/mesh_node.js";
 import { loadLocalConfig, defaultAgentName, localConfigExists } from "../session/local_config.js";
+import { sessionSockPath, sessionAuditPath, LOCAL_SESSION_NAME } from "../session/global_config.js";
 import { resolveRelayUrl } from "../config.js";
 import { acquireCwdLock, type AcquiredLock } from "../session/cwd_lock.js";
 
@@ -46,8 +45,9 @@ for (let i = 0; i < _argv.length; i++) {
 
 const _cfg = loadLocalConfig(_cwd);
 const AGENT_NAME = _nameOverride ?? _cfg.agent_name ?? defaultAgentName(_cwd);
-const BROKER_SOCK = join(homedir(), ".pi", "remote", "sessions", "local", "broker.sock");
-const AUDIT_PATH = join(homedir(), ".pi", "remote", "sessions", "local", "audit.jsonl");
+// Platform-aware (plan/40): POSIX → broker.sock file; Windows → named pipe.
+const BROKER_SOCK = sessionSockPath(LOCAL_SESSION_NAME);
+const AUDIT_PATH = sessionAuditPath(LOCAL_SESSION_NAME);
 
 // ── Incoming message buffer ───────────────────────────────────────────────────
 

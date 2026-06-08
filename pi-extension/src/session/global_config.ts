@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { ipcAddress, usesNamedPipe } from "./ipc.js";
 
 const HOME_PI_REMOTE = join(homedir(), ".pi", "remote");
 const SESSIONS_DIR = join(HOME_PI_REMOTE, "sessions");
@@ -22,9 +23,13 @@ export function ensureGlobalDirs(): void {
   mkdirSync(SKILLS_DIR, { recursive: true });
 }
 
-/** Path to the UDS socket for a named session. */
+/**
+ * Local-IPC address for a session's broker. POSIX → a `.sock` file under the
+ * session dir; Windows → a per-user named pipe (plan/40). The `net` API treats
+ * both the same; only the address string differs.
+ */
 export function sessionSockPath(name: string): string {
-  return join(SESSIONS_DIR, name, "broker.sock");
+  return ipcAddress(`broker-${name}`, join(SESSIONS_DIR, name, "broker.sock"));
 }
 
 /** Path to the audit log for a named session. */
@@ -59,7 +64,14 @@ export function listSessions(): string[] {
   }
 }
 
-/** Heuristic: a session has an existing broker.sock file. */
+/**
+ * Heuristic: a session has an existing broker socket FILE (POSIX only). On
+ * Windows the broker is a named pipe with no file to stat, so this returns
+ * false — the authoritative liveness check there is a connect-probe
+ * (`leader_election.tryConnect` / `client.supervisorOnline`), not this. Only
+ * legacy `session/wizard.ts` consumes this.
+ */
 export function sessionHasSock(name: string): boolean {
+  if (usesNamedPipe()) return false;
   return existsSync(sessionSockPath(name));
 }

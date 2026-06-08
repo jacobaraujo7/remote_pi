@@ -1,6 +1,7 @@
 import { Server, Socket, createConnection, createServer } from "node:net";
 import { existsSync, lstatSync, unlinkSync } from "node:fs";
 import { setTimeout as delay } from "node:timers/promises";
+import { usesNamedPipe } from "./ipc.js";
 
 const MAX_ATTEMPTS = 20;
 const BASE_BACKOFF_MS = 30;
@@ -19,11 +20,15 @@ export type ElectionResult =
  * Returns the role + the live handle (server for leader, socket for follower).
  */
 export async function joinOrLead(sockPath: string): Promise<ElectionResult> {
+  const pipe = usesNamedPipe();
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    if (existsSync(sockPath)) {
+    // Windows named pipes have no file to `existsSync`; always connect-probe
+    // first and never `unlink` (the pipe auto-disappears when its owner exits).
+    // POSIX keeps the existsSync fast-path + stale-socket cleanup.
+    if (pipe || existsSync(sockPath)) {
       const sock = await _tryConnect(sockPath);
       if (sock) return { role: "follower", socket: sock };
-      _removeStaleSock(sockPath);
+      if (!pipe) _removeStaleSock(sockPath);
     }
 
     const server = await _tryBind(sockPath);
