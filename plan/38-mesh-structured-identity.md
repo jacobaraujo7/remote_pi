@@ -122,6 +122,15 @@ Consequências:
 - **O address derivado muda no upgrade** (`Projects/myapp` vira
   `/abs/Projects/myapp@myapp`). Não quebra roteamento porque o princípio é
   **ecoar `peer.address`**, nunca hardcodar.
+- **App antigo NÃO quebra (App↔Pi intacto)**: o app só consome `session_name`
+  (= `_displayName(cwd)`, `index.ts:953`) e `room_id` (= `roomIdForCwd` =
+  `sha256(realpath)`, `rooms.ts:12`) no `pair_ok`. `room_id` **não muda** (segue
+  por realpath). `session_name` muda só de **valor** (`parent/folder` →
+  `basename(cwd)`), mesmo campo/tipo → app apenas re-rotula.
+  - **Invariante a manter (Fase 1)**: `_meshNode.name()` / `_displayName`
+    (`index.ts:555-556`) devolvem a **folha `nome`**, NUNCA o `address` composto.
+    Senão o app velho exibiria o path absoluto como nome (vaza path, regressão
+    cosmética). O `address` é acessor **separado**, só pra roteamento/`list_peers`.
 - **Migração de nome congelado** (re-derivado no load — decisão E): `agent_name`
   com `#N` (só pode vir de assignment do broker/lock — `sanitizeSegment` troca
   `#`→`-`, então o usuário nunca grava `#`) tem o sufixo **removido**; o legado
@@ -237,11 +246,15 @@ Consequências:
 
 ## DoD
 
-- [ ] **Fase 1** — `nome`=folha; `register` carrega `cwd`; `PeerConn`/`Map` por
+- [x] **Fase 1** — `nome`=folha; `register` carrega `cwd`; `PeerConn`/`Map` por
       `address`; encoder único `[pc:]cwd@nome`; `_uniqueName` por `(cwd,nome)`;
       `#N` runtime-only (não persistido) + migração strip `#N`/`parent/folder` no
       load; `list_peers` aditivo (`peers` + `peers_detailed`); broadcast por `cwd`;
       `rpc_child` alinhado; skill atualizada; `pnpm test` verde
+      — *implementado 2026-06-08, 529/529 verde, typecheck limpo, invariante
+      `_meshNode.name()`=folha verificado (sem vazar address pro app). **Sem
+      commit** (modo orquestrado). `rpc_child` não exigiu código (daemon roda a
+      mesma extensão → mesma address por construção).*
 - [ ] **Fase 2** — `broker_remote` + `peer_inventory` propagam `cwd`/`pc`;
       `list_peers` cross-PC com `pc`; roteamento por address verbatim; wrinkle
       Windows resolvido; broadcast local-only preservado

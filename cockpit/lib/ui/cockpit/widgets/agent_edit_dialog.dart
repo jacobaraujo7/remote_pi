@@ -1,6 +1,7 @@
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 typedef AgentEditResult = ({String agentName, bool autoStartRelay});
 
@@ -42,7 +43,7 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
   }
 
   void _save() {
-    final name = _name.text.trim();
+    final name = _name.text.trim().replaceAll(' ', '-');
     if (name.isEmpty) return;
     Navigator.of(context).pop(
       (agentName: name, autoStartRelay: _autoStartRelay),
@@ -80,7 +81,17 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
 
               _Label('Nome do agente'),
               const SizedBox(height: 6),
-              _Field(controller: _name, hint: 'Nome do agente'),
+              _Field(
+                controller: _name,
+                hint: 'Nome do agente',
+                inputFormatters: [
+                  FilteringTextInputFormatter(
+                    RegExp(r' '),
+                    allow: false,
+                    replacementString: '-',
+                  ),
+                ],
+              ),
               const SizedBox(height: 16),
 
               _SectionTitle('Relay (remote-pi)'),
@@ -178,15 +189,21 @@ class _Label extends StatelessWidget {
 }
 
 class _Field extends StatelessWidget {
-  const _Field({required this.controller, required this.hint});
+  const _Field({
+    required this.controller,
+    required this.hint,
+    this.inputFormatters,
+  });
   final TextEditingController controller;
   final String hint;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return TextField(
       controller: controller,
+      inputFormatters: inputFormatters,
       style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text),
       decoration: InputDecoration(
         isDense: true,

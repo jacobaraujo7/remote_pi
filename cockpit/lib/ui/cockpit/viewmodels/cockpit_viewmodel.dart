@@ -684,7 +684,9 @@ class CockpitViewModel extends ChangeNotifier {
     final cwd = subRelative.isEmpty
         ? project.path
         : '${project.path}/$subRelative';
-    final title = subRelative.isEmpty ? project.name : _basename(subRelative);
+    final title = _sanitizeName(
+      subRelative.isEmpty ? project.name : _basename(subRelative),
+    );
     return terminal
         ? _buildTerminal(_nid('t'), project.id, cwd, title: title)
         : _buildAgent(_nid('a'), project, cwd, title: title);
@@ -1091,6 +1093,8 @@ class CockpitViewModel extends ChangeNotifier {
     final parts = path.split('/').where((p) => p.isNotEmpty).toList();
     return parts.isEmpty ? path : parts.last;
   }
+
+  String _sanitizeName(String name) => name.replaceAll(' ', '-');
 
   /// Toda mudança estrutural passa por aqui → agenda (debounced) a gravação do
   /// layout do projeto ativo. Pulado durante a restauração (layout meio-feito).
