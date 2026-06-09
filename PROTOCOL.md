@@ -1,7 +1,7 @@
 # Remote Pi — Protocol & Security
 
 Documentação canônica do protocolo Remote Pi e do modelo de proteção.
-Atualizada em 2026-05-24.
+Atualizada em 2026-06-09.
 
 ---
 
@@ -269,6 +269,38 @@ A imagem vai **inline** na `user_message` (base64), dentro do `ct` opaco que já
 existe — **relay inalterado** (forward opaco). Custo: double-base64 (~+77%),
 aceito nesta fatia por usar imagem comprimida (~150–400 KB). Histórico/
 `session_sync` trafega os bytes (decisão #8). Canal binário fica pra Trilha 2.
+
+---
+
+## Mensagem enfileirada durante turn ativo
+
+Fila curta **Pi-side, em memória**: enquanto há turn ativo, o app pode guardar
+um próximo prompt textual. A Pi-extension envia quando o turn atual acaba. Não é
+fila offline do relay; restart perde o estado.
+
+### Wire
+
+```jsonc
+// app → Pi-extension
+{ "type": "queued_message_set", "id": "msg-2", "text": "próximo prompt" }
+{ "type": "queued_message_clear", "id": "clear-1" }
+
+// Pi-extension → app(s)
+{ "type": "queued_message_state", "id": "msg-2", "text": "próximo prompt" }
+{ "type": "queued_message_state" } // vazio
+```
+
+### Semântica
+
+- `queued_message_set`: define/substitui uma pendência textual. `id` vira o id
+  do `user_message` drenado. App pode juntar múltiplos prompts com `\n`.
+- `queued_message_clear`: cancela a pendência.
+- Drain: quando `!turnActive && !currentTurnId`, limpa o estado, broadcasta
+  `queued_message_state` vazio, e processa como `user_message` normal
+  (`echo user_message` + `sendUserMessage(text)`).
+- `session_sync`: envia o `queued_message_state` atual antes do histórico.
+- Só texto. `images` seguem apenas no `user_message` imediato.
+- Relay inalterado/opaco.
 
 ---
 
