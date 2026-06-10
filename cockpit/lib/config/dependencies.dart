@@ -18,6 +18,7 @@ import 'package:cockpit/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/data/repositories/hive_workspace_layout_store.dart';
 import 'package:cockpit/data/rpc/pi_process_registry.dart';
 import 'package:cockpit/data/rpc/pi_rpc_process_factory.dart';
+import 'package:cockpit/data/setup/environment_installer_impl.dart';
 import 'package:cockpit/data/setup/environment_probe_impl.dart';
 import 'package:cockpit/data/setup/system_permissions_impl.dart';
 import 'package:cockpit/data/terminal/pty_terminal_gateway_factory.dart';
@@ -28,6 +29,7 @@ import 'package:cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/domain/contracts/worktree_manager.dart';
+import 'package:cockpit/domain/contracts/environment_installer.dart';
 import 'package:cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/domain/contracts/cron_gateway.dart';
 import 'package:cockpit/domain/contracts/daemon_supervisor.dart';
@@ -90,8 +92,9 @@ Future<void> setupDependencies() async {
   );
   _injector.addInstance<AppLauncherGateway>(const AppLauncherImpl());
 
-  // Onboarding: checagens de ambiente + permissões do SO.
+  // Onboarding: checagens de ambiente + permissões do SO + instaladores.
   _injector.addInstance<EnvironmentProbe>(EnvironmentProbeImpl(config));
+  _injector.addInstance<EnvironmentInstaller>(EnvironmentInstallerImpl(config));
   _injector.addInstance<SystemPermissions>(SystemPermissionsImpl());
 
   // Conectividade: relay global + aparelhos pareados (shell-out do `remote-pi`).
@@ -141,6 +144,7 @@ SetupViewModel buildSetupViewModel() {
   return SetupViewModel(
     _injector.get<EnvironmentProbe>(),
     _injector.get<SystemPermissions>(),
+    _injector.get<EnvironmentInstaller>(),
   );
 }
 

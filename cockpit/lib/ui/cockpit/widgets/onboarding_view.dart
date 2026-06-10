@@ -1,3 +1,4 @@
+import 'package:cockpit/domain/entities/install_result.dart';
 import 'package:cockpit/domain/entities/setup_check.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/ui/core/themes/themes.dart';
@@ -42,6 +43,21 @@ class _OnboardingViewState extends State<OnboardingView>
     if (state == AppLifecycleState.resumed && mounted) {
       context.read<SetupViewModel>().recheckPermissions();
     }
+  }
+
+  /// Abre o dialog de instalação (spinner → resultado). A re-checagem do passo
+  /// acontece dentro do [runner] (no ViewModel), então ao fechar o card já
+  /// reflete o novo status.
+  Future<void> _install(
+    BuildContext context, {
+    required String title,
+    required Future<InstallResult> Function() runner,
+  }) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _InstallDialog(title: title, runner: runner),
+    );
   }
 
   @override
@@ -96,6 +112,14 @@ class _OnboardingViewState extends State<OnboardingView>
                   description: 'Registrada em ~/.pi/agent/settings.json.',
                   status: vm.extension,
                   onRecheck: vm.recheckExtension,
+                  action: _StepAction(
+                    label: 'Instalar',
+                    onTap: () => _install(
+                      context,
+                      title: 'Instalar extensão remote-pi',
+                      runner: vm.installExtension,
+                    ),
+                  ),
                 ),
                 _StepCard(
                   index: 3,
@@ -103,6 +127,17 @@ class _OnboardingViewState extends State<OnboardingView>
                   description: 'Serviço pi-supervisord (remote-pi install).',
                   status: vm.supervisor,
                   onRecheck: vm.recheckSupervisor,
+                  // Sem a extensão não há index.js pra rodar o instalador.
+                  action: vm.extension == CheckStatus.ok
+                      ? _StepAction(
+                          label: 'Instalar',
+                          onTap: () => _install(
+                            context,
+                            title: 'Instalar supervisor',
+                            runner: vm.installSupervisor,
+                          ),
+                        )
+                      : null,
                 ),
                 _StepCard(
                   index: 4,
@@ -311,6 +346,103 @@ class _CreateButton extends StatelessWidget {
         icon: const Icon(Icons.add, size: 16),
         label: const Text('Criar Workspace'),
       ),
+    );
+  }
+}
+
+/// Dialog simples de instalação: dispara o [runner] ao montar, mostra spinner
+/// enquanto roda e, ao terminar, o resultado (sucesso/erro). Botão "Fechar" só
+/// habilita no fim.
+class _InstallDialog extends StatefulWidget {
+  const _InstallDialog({required this.title, required this.runner});
+
+  final String title;
+  final Future<InstallResult> Function() runner;
+
+  @override
+  State<_InstallDialog> createState() => _InstallDialogState();
+}
+
+class _InstallDialogState extends State<_InstallDialog> {
+  InstallResult? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    _run();
+  }
+
+  Future<void> _run() async {
+    final result = await widget.runner();
+    if (mounted) setState(() => _result = result);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final result = _result;
+
+    return AlertDialog(
+      backgroundColor: colors.panel2,
+      title: Text(
+        widget.title,
+        style: context.typo.title.copyWith(fontSize: 15, color: colors.text),
+      ),
+      content: SizedBox(
+        width: 380,
+        child: result == null
+            ? Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Instalando…',
+                    style: context.typo.body.copyWith(
+                      fontSize: 13.5,
+                      color: colors.text2,
+                    ),
+                  ),
+                ],
+              )
+            : Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    result.ok ? Icons.check_circle : Icons.error,
+                    size: 20,
+                    color: result.ok ? colors.online : colors.error,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      result.ok
+                          ? 'Instalado com sucesso.'
+                          : result.detail,
+                      style: context.typo.body.copyWith(
+                        fontSize: 13.5,
+                        color: colors.text2,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: result == null ? null : () => Navigator.of(context).pop(),
+          child: Text(
+            'Fechar',
+            style: context.typo.body.copyWith(
+              fontSize: 13,
+              color: result == null ? colors.text4 : colors.text2,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

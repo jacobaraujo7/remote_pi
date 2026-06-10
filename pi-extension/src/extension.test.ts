@@ -2777,6 +2777,13 @@ describe("relay control channel + relay-state event", () => {
     expect(ev).toBeDefined();
     expect(ev!.display).toBe(false);
     expect(ev!.details).toMatchObject({ requested: "Renamed", assigned: "Renamed", changed: false });
+
+    // Clean up: rename churns the real UDS broker (leave+rejoin) and leaves the
+    // mesh/relay live — tear down so it can't leak into later tests (an orphaned
+    // broker socket makes a subsequent bind flaky).
+    const stop = captureHandler("remote-pi stop");
+    await stop("", makeMockCtx());
+    _resetCwdLockForTest();
   });
 
   test("empty rename is a no-op", async () => {

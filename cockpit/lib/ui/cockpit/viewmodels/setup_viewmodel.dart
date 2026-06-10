@@ -1,5 +1,7 @@
+import 'package:cockpit/domain/contracts/environment_installer.dart';
 import 'package:cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/domain/contracts/system_permissions.dart';
+import 'package:cockpit/domain/entities/install_result.dart';
 import 'package:cockpit/domain/entities/setup_check.dart';
 import 'package:flutter/foundation.dart';
 
@@ -10,10 +12,11 @@ import 'package:flutter/foundation.dart';
 /// (botão por passo); os de permissão também são re-checados automaticamente
 /// quando a janela volta a ter foco (a view chama [recheckPermissions]).
 class SetupViewModel extends ChangeNotifier {
-  SetupViewModel(this._env, this._perms);
+  SetupViewModel(this._env, this._perms, this._installer);
 
   final EnvironmentProbe _env;
   final SystemPermissions _perms;
+  final EnvironmentInstaller _installer;
 
   CheckStatus pi = CheckStatus.checking;
   CheckStatus extension = CheckStatus.checking;
@@ -65,6 +68,25 @@ class SetupViewModel extends ChangeNotifier {
   /// Botão "Testar" das notificações: pede permissão + dispara uma de teste.
   Future<void> requestNotifications() =>
       _run((s) => notifications = s, _perms.requestNotifications);
+
+  /// Botão "Instalar" do passo da extensão: roda `pi install npm:remote-pi` e,
+  /// em caso de sucesso, re-checa a extensão (e o supervisor, agora possível).
+  Future<InstallResult> installExtension() async {
+    final result = await _installer.installExtension();
+    if (result.ok) {
+      await recheckExtension();
+      await recheckSupervisor();
+    }
+    return result;
+  }
+
+  /// Botão "Instalar" do passo do supervisor: roda o instalador via `node` e,
+  /// em caso de sucesso, re-checa o supervisor.
+  Future<InstallResult> installSupervisor() async {
+    final result = await _installer.installSupervisor();
+    if (result.ok) await recheckSupervisor();
+    return result;
+  }
 
   /// Marca o passo como `checking`, roda [probe], grava o resultado. Resolve um
   /// `bool`/`CheckStatus` de forma uniforme.

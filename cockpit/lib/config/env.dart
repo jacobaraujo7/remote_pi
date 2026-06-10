@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:cockpit/config/utils/executable_resolver.dart';
 
 /// Configuração de como o Cockpit spawna o `pi --mode rpc`.
 ///
@@ -75,53 +75,10 @@ class PiSpawnConfig {
   /// caminhos conhecidos. Override explícito vence; 'pi' (PATH) é o último recurso.
   static Future<String> _resolveExecutable(String override) async {
     if (override.isNotEmpty) return override;
-
-    if (Platform.isWindows) {
-      // No Windows o `pi` costuma ser um shim do npm (`pi.cmd`/`pi.ps1`/`pi.exe`)
-      // em `%APPDATA%\npm` ou onde o PATH apontar. Varre o PATH manualmente.
-      final fromPath = await _searchWindowsPath('pi');
-      if (fromPath != null) return fromPath;
-      final appData = Platform.environment['APPDATA'];
-      if (appData != null) {
-        for (final ext in const ['cmd', 'exe', 'bat']) {
-          final shim = '$appData\\npm\\pi.$ext';
-          if (await File(shim).exists()) return shim;
-        }
-      }
-      return 'pi';
-    }
-
-    const candidates = <String>[
-      '/opt/homebrew/bin/pi',
-      '/usr/local/bin/pi',
-    ];
-    for (final candidate in candidates) {
-      if (await File(candidate).exists()) return candidate;
-    }
-    final home = Platform.environment['HOME'];
-    if (home != null) {
-      final local = '$home/.local/bin/pi';
-      if (await File(local).exists()) return local;
-    }
-    return 'pi';
-  }
-
-  /// Varre cada diretório do `PATH` testando `name` + cada extensão do `PATHEXT`
-  /// (`.COM;.EXE;.BAT;.CMD;…`). Devolve o caminho absoluto do primeiro hit, ou
-  /// `null`. Específico de Windows.
-  static Future<String?> _searchWindowsPath(String name) async {
-    final pathEnv = Platform.environment['PATH'] ?? '';
-    final pathExt = (Platform.environment['PATHEXT'] ?? '.COM;.EXE;.BAT;.CMD')
-        .split(';')
-        .where((e) => e.isNotEmpty)
-        .toList();
-    for (final dir in pathEnv.split(';')) {
-      if (dir.isEmpty) continue;
-      for (final ext in pathExt) {
-        final candidate = '$dir\\$name$ext';
-        if (await File(candidate).exists()) return candidate;
-      }
-    }
-    return null;
+    return resolveExecutable(
+      'pi',
+      unixCandidates: const ['/opt/homebrew/bin/pi', '/usr/local/bin/pi'],
+      unixHomeRelative: const ['.local/bin/pi'],
+    );
   }
 }

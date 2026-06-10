@@ -1,7 +1,9 @@
 // Testes do núcleo do multiplexador: a árvore de splits (puro, sem Flutter).
 
+import 'package:cockpit/domain/contracts/environment_installer.dart';
 import 'package:cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/domain/contracts/system_permissions.dart';
+import 'package:cockpit/domain/entities/install_result.dart';
 import 'package:cockpit/domain/entities/setup_check.dart';
 import 'package:cockpit/ui/cockpit/states/pane_node.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/setup_viewmodel.dart';
@@ -228,7 +230,7 @@ void main() {
 
   group('setup gate', () {
     test('todas satisfeitas → canCreate', () async {
-      final vm = SetupViewModel(_FakeEnv(), _FakePerms());
+      final vm = SetupViewModel(_FakeEnv(), _FakePerms(), _FakeInstaller());
       await vm.recheckAll();
       expect(vm.pi, CheckStatus.ok);
       expect(vm.extension, CheckStatus.ok);
@@ -237,19 +239,19 @@ void main() {
     });
 
     test('um passo faltando bloqueia', () async {
-      final vm = SetupViewModel(_FakeEnv(ext: false), _FakePerms());
+      final vm = SetupViewModel(_FakeEnv(ext: false), _FakePerms(), _FakeInstaller());
       await vm.recheckAll();
       expect(vm.extension, CheckStatus.missing);
       expect(vm.canCreate, isFalse);
     });
 
     test('pi ou supervisor faltando também bloqueia', () async {
-      final a = SetupViewModel(_FakeEnv(pi: false), _FakePerms());
+      final a = SetupViewModel(_FakeEnv(pi: false), _FakePerms(), _FakeInstaller());
       await a.recheckAll();
       expect(a.pi, CheckStatus.missing);
       expect(a.canCreate, isFalse);
 
-      final b = SetupViewModel(_FakeEnv(sup: false), _FakePerms());
+      final b = SetupViewModel(_FakeEnv(sup: false), _FakePerms(), _FakeInstaller());
       await b.recheckAll();
       expect(b.supervisor, CheckStatus.missing);
       expect(b.canCreate, isFalse);
@@ -259,6 +261,7 @@ void main() {
       final vm = SetupViewModel(
         _FakeEnv(),
         _FakePerms(notif: CheckStatus.notApplicable),
+        _FakeInstaller(),
       );
       await vm.recheckAll();
       expect(vm.notifications, CheckStatus.notApplicable);
@@ -267,7 +270,7 @@ void main() {
 
     test('requestNotifications muda missing → ok e libera o gate', () async {
       final perms = _FakePerms(notif: CheckStatus.missing);
-      final vm = SetupViewModel(_FakeEnv(), perms);
+      final vm = SetupViewModel(_FakeEnv(), perms, _FakeInstaller());
       await vm.recheckAll();
       expect(vm.notifications, CheckStatus.missing);
       expect(vm.canCreate, isFalse);
@@ -304,4 +307,13 @@ class _FakePerms implements SystemPermissions {
     notif = CheckStatus.ok;
     return notif;
   }
+}
+
+class _FakeInstaller implements EnvironmentInstaller {
+  @override
+  Future<InstallResult> installExtension() async =>
+      const InstallResult.success();
+  @override
+  Future<InstallResult> installSupervisor() async =>
+      const InstallResult.success();
 }
