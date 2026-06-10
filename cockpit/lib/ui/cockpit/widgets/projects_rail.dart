@@ -725,6 +725,7 @@ class _SmallIcon extends StatelessWidget {
       message: tooltip,
       child: InkWell(
         borderRadius: BorderRadius.circular(5),
+        mouseCursor: SystemMouseCursors.click,
         onTap: onTap,
         child: SizedBox(
           width: 26,

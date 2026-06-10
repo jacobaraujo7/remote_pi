@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:cockpit/ui/cockpit/session/agent_session.dart';
 import 'package:cockpit/ui/cockpit/session/file_viewer_session.dart';
 import 'package:cockpit/ui/cockpit/session/pane_item.dart';
@@ -5,9 +7,9 @@ import 'package:cockpit/ui/cockpit/session/terminal_session.dart';
 import 'package:cockpit/ui/cockpit/states/pane_node.dart';
 import 'package:cockpit/ui/cockpit/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/ui/cockpit/widgets/agent_composer.dart';
+import 'package:cockpit/ui/cockpit/widgets/agent_transcript.dart';
 import 'package:cockpit/ui/cockpit/widgets/app_menu.dart';
 import 'package:cockpit/ui/cockpit/widgets/confirm_dialog.dart';
-import 'package:cockpit/ui/cockpit/widgets/agent_transcript.dart';
 import 'package:cockpit/ui/cockpit/widgets/empty_pane.dart';
 import 'package:cockpit/ui/cockpit/widgets/file_viewer.dart';
 import 'package:cockpit/ui/core/file_icons/file_icons.dart';
@@ -268,33 +270,36 @@ class _TabStripState extends State<_TabStrip> {
                     controller: _scroll,
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                  children: [
-                    for (var i = 0; i < pane.tabs.length; i++)
-                      _TabDropSlot(
-                        index: i,
-                        onInsert: (data, index) => widget.vm.moveTabToIndex(
-                          data.paneId,
-                          data.tabId,
-                          pane.id,
-                          index,
-                        ),
-                        child: _Tab(
-                          item: widget.vm.session(pane.tabs[i]),
-                          paneId: pane.id,
-                          active: pane.tabs[i] == pane.active,
-                          focused: widget.focused,
-                          onSelect: () =>
-                              widget.vm.selectTab(pane.id, pane.tabs[i]),
-                          onClose: () =>
-                              widget.vm.closeTab(pane.id, pane.tabs[i]),
-                          onRename: (name) => widget.onRenameAgent(pane.tabs[i], name),
-                          onToggleRelay: () => widget.onToggleRelayAgent(pane.tabs[i]),
-                          onHistory: () => widget.onHistoryAgent(pane.tabs[i]),
-                        ),
-                      ),
-                    _TabAdd(onTap: widget.onCreateTab),
-                  ],
-                ),
+                      children: [
+                        for (var i = 0; i < pane.tabs.length; i++)
+                          _TabDropSlot(
+                            index: i,
+                            onInsert: (data, index) => widget.vm.moveTabToIndex(
+                              data.paneId,
+                              data.tabId,
+                              pane.id,
+                              index,
+                            ),
+                            child: _Tab(
+                              item: widget.vm.session(pane.tabs[i]),
+                              paneId: pane.id,
+                              active: pane.tabs[i] == pane.active,
+                              focused: widget.focused,
+                              onSelect: () =>
+                                  widget.vm.selectTab(pane.id, pane.tabs[i]),
+                              onClose: () =>
+                                  widget.vm.closeTab(pane.id, pane.tabs[i]),
+                              onRename: (name) =>
+                                  widget.onRenameAgent(pane.tabs[i], name),
+                              onToggleRelay: () =>
+                                  widget.onToggleRelayAgent(pane.tabs[i]),
+                              onHistory: () =>
+                                  widget.onHistoryAgent(pane.tabs[i]),
+                            ),
+                          ),
+                        _TabAdd(onTap: widget.onCreateTab),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -406,7 +411,10 @@ class _TabState extends State<_Tab> {
     final s = widget.item;
     if (s is! AgentSession) return;
     _ctrl.text = s.title;
-    _ctrl.selection = TextSelection(baseOffset: 0, extentOffset: s.title.length);
+    _ctrl.selection = TextSelection(
+      baseOffset: 0,
+      extentOffset: s.title.length,
+    );
     setState(() => _editing = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _focus.requestFocus();
@@ -456,11 +464,7 @@ class _TabState extends State<_Tab> {
             icon: Icons.history,
           ),
         ],
-        const AppMenuItem(
-          value: 'close',
-          label: 'Fechar',
-          icon: Icons.close,
-        ),
+        const AppMenuItem(value: 'close', label: 'Fechar', icon: Icons.close),
       ],
     );
     if (!mounted) return;
@@ -598,8 +602,7 @@ class _TabState extends State<_Tab> {
           builder: (menuCtx) => GestureDetector(
             onTapUp: (d) => widget.onSelect(),
             onDoubleTap: agent != null && !isEmpty ? _startEditing : null,
-            onSecondaryTapUp:
-                isEmpty ? null : (d) => _showTabMenu(menuCtx),
+            onSecondaryTapUp: isEmpty ? null : (d) => _showTabMenu(menuCtx),
             child: tabBody,
           ),
         );
@@ -753,31 +756,46 @@ class _PaneTools extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final iconColor = colors.text3;
+    const spacing = 13.0;
     Widget btn(Widget icon, String tip, VoidCallback onTap) => Tooltip(
       message: tip,
       child: InkWell(
+        mouseCursor: SystemMouseCursors.click,
         borderRadius: BorderRadius.circular(5),
         onTap: onTap,
-        child: SizedBox(width: 28, height: 28, child: icon),
+        child: SizedBox(width: spacing, height: spacing, child: icon),
       ),
     );
     // Mesma base (splitscreen = dois painéis), pra ler "horizontal vs vertical"
     // num relance: empilhado = dividir abaixo; girado 90° (colunas lado-a-lado)
     // = dividir à direita. (Mockup.)
-    Icon split() =>
-        Icon(Icons.splitscreen_outlined, size: 14, color: iconColor);
+
     return Padding(
-      padding: const EdgeInsets.only(right: 6),
+      padding: const EdgeInsets.only(right: spacing),
       child: Row(
+        spacing: 12,
         children: [
           btn(
-            Transform.rotate(angle: 1.5707963267948966, child: split()),
+            _SplitterScreenIcon(
+              type: _SplitterScreenIconType.horizontal,
+              color: iconColor,
+            ),
             'Dividir à direita',
             onSplitRight,
           ),
-          btn(split(), 'Dividir abaixo', onSplitDown),
           btn(
-            Icon(Icons.close, size: 14, color: iconColor),
+            _SplitterScreenIcon(
+              type: _SplitterScreenIconType.vertical,
+              color: iconColor,
+            ),
+            'Dividir abaixo',
+            onSplitDown,
+          ),
+          btn(
+            _SplitterScreenIcon(
+              type: _SplitterScreenIconType.close,
+              color: iconColor,
+            ),
             'Fechar pane',
             onClosePane,
           ),
@@ -971,7 +989,11 @@ class _DragFeedback extends StatelessWidget {
           borderRadius: BorderRadius.circular(7),
           border: Border.all(color: colors.accent),
           boxShadow: const [
-            BoxShadow(color: Color(0x55000000), blurRadius: 12, offset: Offset(0, 4)),
+            BoxShadow(
+              color: Color(0x55000000),
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
           ],
         ),
         child: Row(
@@ -1239,6 +1261,91 @@ class _ZonePreview extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+enum _SplitterScreenIconType { horizontal, vertical, close }
+
+class _SplitterScreenIcon extends StatelessWidget {
+  final _SplitterScreenIconType type;
+  final Color color;
+  const _SplitterScreenIcon({required this.type, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final height = constraints.maxHeight;
+        final size = min(width, height);
+        final borderLine = size * 0.10;
+        final borderRadius = size * 0.10;
+        final gap = size * 0.1;
+
+        if (_SplitterScreenIconType.close == type) {
+          return SizedBox(
+            width: size,
+            height: size,
+            child: Transform.rotate(
+              angle: 45 * pi / 180,
+              child: Stack(
+                children: [
+                  Center(
+                    child: Container(
+                      width: borderRadius,
+                      height: height,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(borderRadius),
+                        color: color,
+                      ),
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      width: width,
+                      height: borderRadius,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(borderRadius),
+                        color: color,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final children = [
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: color, width: borderLine),
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: color, width: borderLine),
+                borderRadius: BorderRadius.circular(borderRadius),
+              ),
+            ),
+          ),
+        ];
+
+        return Center(
+          child: SizedBox(
+            width: height,
+            height: height,
+            child: type == _SplitterScreenIconType.vertical
+                ? Column(spacing: gap, children: children)
+                : Row(spacing: gap, children: children),
+          ),
+        );
+      },
     );
   }
 }

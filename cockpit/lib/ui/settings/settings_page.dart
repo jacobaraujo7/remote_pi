@@ -1800,24 +1800,28 @@ class _CronEditorDialogState extends State<_CronEditorDialog> {
             children: [
               _fieldLabel(context, 'Daemon'),
               const SizedBox(height: 6),
-              _DropdownChip(
-                label: vm.daemonName(_daemonId),
-                icon: Icons.dns_outlined,
-                onTap: () async {
-                  final picked = await showAppMenu<String>(
-                    context,
-                    minWidth: 220,
-                    items: [
-                      for (final d in vm.daemons)
-                        AppMenuItem(
-                          value: d.id,
-                          label: d.name.isEmpty ? d.id : d.name,
-                          selected: d.id == _daemonId,
-                        ),
-                    ],
-                  );
-                  if (picked != null) setState(() => _daemonId = picked);
-                },
+              // Builder garante um BuildContext cujo RenderBox é o próprio chip,
+              // não o do AlertDialog — senão o menu ancora fora do dialog.
+              Builder(
+                builder: (chipContext) => _DropdownChip(
+                  label: vm.daemonName(_daemonId),
+                  icon: Icons.dns_outlined,
+                  onTap: () async {
+                    final picked = await showAppMenu<String>(
+                      chipContext,
+                      minWidth: 220,
+                      items: [
+                        for (final d in vm.daemons)
+                          AppMenuItem(
+                            value: d.id,
+                            label: d.name.isEmpty ? d.id : d.name,
+                            selected: d.id == _daemonId,
+                          ),
+                      ],
+                    );
+                    if (picked != null) setState(() => _daemonId = picked);
+                  },
+                ),
               ),
               const SizedBox(height: 16),
               _fieldLabel(context, 'Quando (expressão cron)'),
