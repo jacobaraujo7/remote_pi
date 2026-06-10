@@ -163,6 +163,85 @@ void main() {
     s.sync.dispose();
   });
 
+  test('cancel sends a Cancel frame for the active turn target', () async {
+    final s = await setup();
+    s.ch.push(UserInput(id: 'u1', text: 'hi'));
+    await _settle();
+
+    await s.sync.cancel('u1');
+    await _settle();
+
+    final cancel = s.ch.sent.whereType<Cancel>().single;
+    expect(cancel.targetId, 'u1');
+    s.conn.dispose();
+    s.sync.dispose();
+  });
+
+  test('cancelled stops the turn but preserves confirmed user history', () async {
+    final s = await setup();
+    s.ch.push(UserInput(id: 'u1', text: 'keep this'));
+    await _settle();
+    s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'partial'));
+    s.ch.push(Cancelled(inReplyTo: 'cancel-1', targetId: 'u1'));
+    await _settle();
+
+    final rows = messages(s.epk);
+    expect(
+      rows.where((m) => m.id == 'u1' && m.role == MsgRole.user),
+      hasLength(1),
+    );
+    expect(rows.singleWhere((m) => m.id == 'u1').pending, isFalse);
+    expect(s.sync.streaming, isNull);
+    expect(s.sync.isWorking, isFalse);
+    expect(index(s.epk)?.status, SessionActivity.idle);
+    s.conn.dispose();
+    s.sync.dispose();
+  });
+
+  test('cancelled removes a still-pending optimistic user row', () async {
+    final s = await setup();
+    await s.sync.sendMessage('stop before echo');
+    await _settle();
+    final id = (s.ch.sent.whereType<UserMessage>().last).id;
+    expect(messages(s.epk).single.pending, isTrue);
+
+    s.ch.push(Cancelled(inReplyTo: 'cancel-1', targetId: id));
+    await _settle();
+
+    expect(messages(s.epk), isEmpty);
+    expect(s.sync.streaming, isNull);
+    expect(s.sync.isWorking, isFalse);
+    expect(index(s.epk)?.status, SessionActivity.idle);
+    s.conn.dispose();
+    s.sync.dispose();
+  });
+
+  test(
+    'server error clears pending chunk flush so chat does not stay working',
+    () async {
+      final s = await setup();
+      s.ch.push(UserInput(id: 'u1', text: 'hi'));
+      await _settle();
+      s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'partial'));
+      s.ch.push(ErrorMessage(
+        inReplyTo: 'cancel-1',
+        code: 'internal_error',
+        message: 'No active Pi context to abort',
+      ));
+      await _settle();
+
+      expect(s.sync.streaming, isNull);
+      expect(s.sync.isWorking, isFalse);
+      expect(index(s.epk)?.status, SessionActivity.idle);
+      final errorTexts = messages(
+        s.epk,
+      ).where((m) => m.role == MsgRole.assistant).map((m) => m.text);
+      expect(errorTexts, contains(startsWith('⚠ internal_error:')));
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
   test('isWorking spans the whole turn (echo → agent_done)', () async {
     final s = await setup();
     expect(s.sync.isWorking, isFalse);

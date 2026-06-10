@@ -164,6 +164,59 @@ void main() {
   });
 
   test(
+    'cancelled clears the stop state without deleting the user row',
+    () async {
+      final ch = _FakeChannel();
+      final storage = _FakeStorage();
+      final conn = ConnectionManager(
+        factory: (_, _) async => ch,
+        storage: storage,
+      );
+      final boxes = LocalBoxes();
+      final msgBox = await boxes.msgsBox(_peer.remoteEpk, 'main');
+      await msgBox.clear();
+      final sync = SyncService(conn, boxes);
+      final read = SessionReadRepository(boxes);
+      final prefs = Preferences(_FakeSecureStorage());
+      await prefs.setSelectedPeerEpk(_peer.remoteEpk);
+      await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
+
+      conn.adopt(ch, _peer);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final vm = ChatViewModel(read, sync, conn, prefs, storage);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      ch.push(UserInput(id: 'cancel-u1', text: 'please stop'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      ch.push(AgentChunk(inReplyTo: 'cancel-u1', delta: 'partial'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(vm.isWorking, isTrue);
+      expect(vm.cancelTargetId, 'cancel-u1');
+      expect((vm.state as ChatReady).streaming, isNotNull);
+
+      ch.push(Cancelled(inReplyTo: 'cancel-1', targetId: 'cancel-u1'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final state = vm.state as ChatReady;
+      expect(vm.isWorking, isFalse);
+      expect(vm.cancelTargetId, isNull);
+      expect(state.streaming, isNull);
+      expect(
+        state.messages.whereType<UserMsg>().map((m) => m.text),
+        contains('please stop'),
+      );
+      expect(
+        state.messages.whereType<UserMsg>().single.status,
+        UserMsgStatus.confirmed,
+      );
+
+      vm.dispose();
+      sync.dispose();
+      conn.dispose();
+    },
+  );
+
+  test(
     'an empty session reaches ChatReady with no messages → the chat shows the '
     'default "Nothing here" placeholder (plan/32)',
     () async {

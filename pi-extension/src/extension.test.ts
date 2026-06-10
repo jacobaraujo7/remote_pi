@@ -850,6 +850,21 @@ async function _pairAdditionalForTest(appPeerId: string, deviceName: string): Pr
   );
 }
 
+async function _pairForTestWithCtx(
+  appPeerId: string,
+  connectCtx: { ui: { notify: ReturnType<typeof vi.fn> }; cwd?: string; abort?: ReturnType<typeof vi.fn> },
+): Promise<void> {
+  captureHandler("remote-pi");
+  await _connectForTest(connectCtx);
+  relayRef.current!.emit("message", JSON.stringify({
+    peer: appPeerId,
+    ct: Buffer.from(JSON.stringify({
+      type: "pair_request", id: "req-1", token: "test-token", device_name: "Phone",
+    })).toString("base64"),
+  }));
+  await vi.waitFor(() => expect(_getState()).toBe("paired"), { timeout: 2000 });
+}
+
 // ── Multi-channel (plan/24 W2D) ──────────────────────────────────────────────
 //
 // These tests pin down the new contract: N owners can be connected at the
@@ -1733,6 +1748,208 @@ describe("/remote-pi set-relay + config", () => {
       expect.stringContaining("source: config"),
       "info",
     );
+  });
+});
+
+describe("routeClientMessage cancel handling", () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    _knownPeers.length = 0;
+    _addedPeers.length = 0;
+    _removedPeers.length = 0;
+    _consumeCalls.length = 0;
+    _setRelayCalls.length = 0;
+    _savedRelayUrl = null;
+    _tokenStatus = "ok";
+    relayRef.current = null;
+    relayInstances.length = 0;
+    _defaultConnectImpl = async () => undefined;
+    const qr = await import("./pairing/qr.js");
+    (qr.qrSession.consumeToken as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (token: string) => {
+        _consumeCalls.push(token);
+        return _tokenStatus;
+      },
+    );
+    const stop = captureHandler("remote-pi stop");
+    await stop("", { ui: { notify: vi.fn() }, cwd: "/tmp/remote-pi-cancel-reset" } as ReturnType<typeof makeMockCtx>);
+  });
+
+  test("cancel uses freshest session_start ctx and ignores stale _lastCtx abort", async () => {
+    const staleAbort = vi.fn();
+    const freshAbort = vi.fn();
+
+    await _pairForTestWithCtx("owner-cancel-1", {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-cancel-stale",
+    });
+
+    const status = captureHandler("remote-pi status");
+    await status("", {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-cancel-stale",
+      abort: staleAbort,
+    });
+
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart({ type: "session_start" }, { abort: freshAbort, compact: vi.fn() } as unknown as {
+      abort: ReturnType<typeof vi.fn>;
+      compact: ReturnType<typeof vi.fn>;
+    });
+
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-cancel-1",
+      ct: Buffer.from(JSON.stringify({
+        type: "cancel", id: "cancel-stale", target_id: "msg-stale",
+      })).toString("base64"),
+    }));
+
+    await new Promise<void>((r) => setImmediate(r));
+
+    const sent = relayRef.current!.send.mock.calls
+      .slice(sendsBefore)
+      .map((c) => c[0] as string)
+      .map(decodeSentCt)
+      .filter((d) => d.peer === "owner-cancel-1");
+    const cancelled = sent.filter((d) => d.inner.type === "cancelled");
+    expect(cancelled).toHaveLength(1);
+    expect(cancelled[0]!.inner).toMatchObject({
+      type: "cancelled",
+      in_reply_to: "cancel-stale",
+      target_id: "msg-stale",
+    });
+    expect(staleAbort).not.toHaveBeenCalled();
+    expect(freshAbort).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancel is handled before the strict pi binding guard", async () => {
+    const freshAbort = vi.fn();
+
+    await _pairForTestWithCtx("owner-cancel-nopi", {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-cancel-nopi",
+    });
+
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart({ type: "session_start" }, { abort: freshAbort, compact: vi.fn() } as unknown as {
+      abort: ReturnType<typeof vi.fn>;
+      compact: ReturnType<typeof vi.fn>;
+    });
+    _setPiForTest(null);
+
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-cancel-nopi",
+      ct: Buffer.from(JSON.stringify({
+        type: "cancel", id: "cancel-nopi", target_id: "msg-nopi",
+      })).toString("base64"),
+    }));
+
+    await new Promise<void>((r) => setImmediate(r));
+
+    const sent = relayRef.current!.send.mock.calls
+      .slice(sendsBefore)
+      .map((c) => c[0] as string)
+      .map(decodeSentCt)
+      .filter((d) => d.peer === "owner-cancel-nopi");
+    const cancelled = sent.filter((d) => d.inner.type === "cancelled");
+    expect(cancelled).toHaveLength(1);
+    expect(cancelled[0]!.inner).toMatchObject({
+      type: "cancelled",
+      in_reply_to: "cancel-nopi",
+      target_id: "msg-nopi",
+    });
+    expect(freshAbort).toHaveBeenCalledTimes(1);
+  });
+
+  test("cancel with no real abort context returns error and does not send cancelled", async () => {
+    await _pairForTestWithCtx("owner-cancel-2", {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-cancel-nonreal",
+      // Intentionally omit abort: the router must not claim success.
+    } as unknown as { ui: { notify: ReturnType<typeof vi.fn> }; cwd: string });
+
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart({ type: "session_start" }, { compact: vi.fn() } as unknown as {
+      compact: ReturnType<typeof vi.fn>;
+    });
+
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-cancel-2",
+      ct: Buffer.from(JSON.stringify({
+        type: "cancel", id: "cancel-nonreal", target_id: "msg-nonreal",
+      })).toString("base64"),
+    }));
+
+    await new Promise<void>((r) => setImmediate(r));
+
+    const sent = relayRef.current!.send.mock.calls
+      .slice(sendsBefore)
+      .map((c) => c[0] as string)
+      .map(decodeSentCt)
+      .filter((d) => d.peer === "owner-cancel-2");
+    const errors = sent.filter((d) => d.inner.type === "error");
+    const cancelled = sent.filter((d) => d.inner.type === "cancelled");
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.inner).toMatchObject({
+      type: "error",
+      in_reply_to: "cancel-nonreal",
+      code: "internal_error",
+    });
+    expect(cancelled).toHaveLength(0);
+  });
+
+  test("abort throw sends error, and the router still handles a later ping", async () => {
+    const aborting = vi.fn(() => { throw new Error("abort boom"); });
+
+    await _pairForTestWithCtx("owner-cancel-3", {
+      ui: { notify: vi.fn() },
+      cwd: "/tmp/remote-pi-cancel-throw",
+      abort: aborting,
+    });
+
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart({ type: "session_start" }, { abort: aborting, compact: vi.fn() } as unknown as {
+      abort: ReturnType<typeof vi.fn>;
+      compact: ReturnType<typeof vi.fn>;
+    });
+
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-cancel-3",
+      ct: Buffer.from(JSON.stringify({
+        type: "cancel", id: "cancel-throw", target_id: "msg-throw",
+      })).toString("base64"),
+    }));
+
+    await new Promise<void>((r) => setImmediate(r));
+
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-cancel-3",
+      ct: Buffer.from(JSON.stringify({ type: "ping", id: "ping-after-cancel" })).toString("base64"),
+    }));
+    await new Promise<void>((r) => setImmediate(r));
+
+    const sent = relayRef.current!.send.mock.calls
+      .slice(sendsBefore)
+      .map((c) => c[0] as string)
+      .map(decodeSentCt)
+      .filter((d) => d.peer === "owner-cancel-3");
+
+    const errors = sent.filter((d) => d.inner.type === "error");
+    const pongs = sent.filter((d) => d.inner.type === "pong");
+
+    expect(aborting).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.inner).toMatchObject({
+      type: "error",
+      in_reply_to: "cancel-throw",
+      code: "internal_error",
+    });
+    expect(pongs).toHaveLength(1);
+    expect(pongs[0]!.inner).toMatchObject({ type: "pong", in_reply_to: "ping-after-cancel" });
   });
 });
 

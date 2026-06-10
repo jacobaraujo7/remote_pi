@@ -493,9 +493,12 @@ class SyncService extends Service {
 
       case Cancelled(:final targetId):
         _pendingSendTimers.remove(targetId)?.cancel();
-        _emitStreaming(null);
+        _discardStreamingState();
+        // Cancel is stop-generation, not delete-history. Only drop a local
+        // optimistic row that never got confirmed by the Pi echo; preserve
+        // confirmed user/tool rows as the audit trail of what happened.
         // ignore: discarded_futures
-        _removeById(targetId);
+        _removePendingById(targetId);
         _setWorking(false);
 
       case Bye(:final rawReason):
@@ -520,6 +523,7 @@ class SyncService extends Service {
           }
           break;
         }
+        _discardStreamingState();
         _setWorking(false);
         // ignore: discarded_futures
         _upsert(
@@ -803,6 +807,30 @@ class SyncService extends Service {
     });
   }
 
+  Future<void> _removePendingById(String id) {
+    final epk = _activeEpk;
+    if (epk == null) return Future<void>.value();
+    final room = _activeRoomId;
+    return _enqueue(() async {
+      if (_activeEpk != epk || _activeRoomId != room) return;
+      final box = await _boxes.msgsBox(epk, room);
+      for (final role in MsgRole.values) {
+        final key = _key(role, id);
+        final seq = _idToSeq[key];
+        if (seq == null) continue;
+        final raw = box.get(seq);
+        if (raw == null) {
+          _idToSeq.remove(key);
+          continue;
+        }
+        final existing = MessageRecord.fromJson(_coerce(raw));
+        if (!existing.pending) continue;
+        _idToSeq.remove(key);
+        await box.delete(seq);
+      }
+    });
+  }
+
   void _setActivity(SessionActivity status, {String? preview}) {
     _updateIndex(
       (cur) => cur.copyWith(
@@ -934,6 +962,14 @@ class SyncService extends Service {
     _chunkReplyTo = '';
     _emitStreaming(null);
     return text;
+  }
+
+  void _discardStreamingState() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    _chunkBuffer.clear();
+    _chunkReplyTo = '';
+    _emitStreaming(null);
   }
 
   void _emitStreaming(StreamingMessage? s) {
