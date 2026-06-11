@@ -80,6 +80,14 @@ class WorktreeManagerImpl implements WorktreeManager {
   ) async {
     try {
       final git = await _resolveGit();
+      // Regra cross-plataforma: só cria worktree quando a branch NÃO existe.
+      // Sem isso, `worktree add -b` falha ("branch already exists") e/ou deixa
+      // o repo num estado meio-criado.
+      if (await _branchExists(git, repoPath, name)) {
+        return const Failure(
+          WorktreeOpError('Já existe uma branch com esse nome.'),
+        );
+      }
       final target = '$repoPath/$worktreesSubdir/$name';
       // Branch nova a partir do HEAD atual do repo (sem ref explícito).
       final res = await Process.run(git, [
@@ -94,10 +102,32 @@ class WorktreeManagerImpl implements WorktreeManager {
       if (res.exitCode != 0) {
         return Failure(WorktreeOpError(_errText(res)));
       }
-      return Success(Worktree(path: target, branch: name, isDetached: false));
+      // Devolve o path **como o git lista** (separadores nativos do SO), não o
+      // `target` que montamos com `/`. No Windows o git lista com `\`, então o
+      // `target` com `/` não casaria com `list()` → o chamador não encontraria
+      // o fork recém-criado ("não apareceu na lista") e o dialog não fecharia.
+      final created = (await list(repoPath)).where((w) => w.branch == name);
+      return Success(
+        created.isNotEmpty
+            ? created.first
+            : Worktree(path: target, branch: name, isDetached: false),
+      );
     } catch (e) {
       return Failure(WorktreeOpError('Falha ao criar worktree: $e'));
     }
+  }
+
+  /// `true` se a branch local [name] já existe no repo.
+  Future<bool> _branchExists(String git, String repoPath, String name) async {
+    final res = await Process.run(git, [
+      '-C',
+      repoPath,
+      'show-ref',
+      '--verify',
+      '--quiet',
+      'refs/heads/$name',
+    ]);
+    return res.exitCode == 0;
   }
 
   @override
@@ -212,11 +242,12 @@ class WorktreeManagerImpl implements WorktreeManager {
   }
 
   String _basename(String path) {
+    // Aceita separador `/` (POSIX) e `\` (Windows, como o git lista lá).
     var p = path;
-    while (p.endsWith('/') && p.length > 1) {
+    while ((p.endsWith('/') || p.endsWith(r'\')) && p.length > 1) {
       p = p.substring(0, p.length - 1);
     }
-    final idx = p.lastIndexOf('/');
+    final idx = p.lastIndexOf(RegExp(r'[/\\]'));
     return idx >= 0 ? p.substring(idx + 1) : p;
   }
 
