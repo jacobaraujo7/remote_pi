@@ -4,9 +4,9 @@ import 'dart:io';
 /// robusta — apps GUI não herdam a PATH do shell.
 ///
 /// Estratégia preferida:
-/// - **macOS/Linux**: `which <name>` rodado num **shell de login interativo**
-///   (`$SHELL -lic`), que carrega o profile do usuário e enxerga a PATH real
-///   (npm global, nvm, Homebrew, etc.) — bem mais seguro que adivinhar prefixos.
+/// - **macOS/Linux**: `which <name>` rodado num **shell de login** (`$SHELL -lc`),
+///   que carrega o profile do usuário e enxerga a PATH real (npm global, nvm,
+///   Homebrew, etc.) — bem mais seguro que adivinhar prefixos.
 /// - **Windows**: `where <name>`, que já resolve PATHEXT (`pi.cmd`/`pi.exe`/…).
 ///
 /// Fallbacks (quando o which/where não acha): os caminhos conhecidos abaixo e,
@@ -63,13 +63,18 @@ Future<String> resolveExecutable(
   return name;
 }
 
-/// `which <name>` num shell de login interativo do usuário. O `-lic` carrega
-/// `.zprofile`/`.zshrc` (ou equivalente) pra herdar a PATH real (nvm/npm/brew),
-/// que o processo GUI não tem. Devolve o 1º caminho existente, ou `null`.
+/// `which <name>` num shell de **login** do usuário (`-lc`). Carrega
+/// `.zprofile`/`.bash_profile`/`.profile` (ou equivalente) pra herdar a PATH real
+/// (nvm/npm/brew), que o processo GUI não tem. Devolve o 1º caminho existente,
+/// ou `null`.
+///
+/// **Por que login e não interativo** (`-lc`, não `-lic`): um shell interativo
+/// sem tty quebra em alguns sistemas (Linux ARM: "bash: cannot set terminal
+/// process group / no job control"). O modo login basta pra carregar a PATH.
 Future<String?> _unixWhich(String name) async {
   final shell = Platform.environment['SHELL'] ?? '/bin/sh';
   try {
-    final res = await Process.run(shell, ['-lic', 'which $name'])
+    final res = await Process.run(shell, ['-lc', 'which $name'])
         .timeout(const Duration(seconds: 4));
     if (res.exitCode != 0) return null;
     for (final line in (res.stdout as String? ?? '').split('\n')) {
