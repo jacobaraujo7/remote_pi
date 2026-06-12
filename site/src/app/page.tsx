@@ -3,6 +3,7 @@ import { Install } from "@/components/landing/install";
 import { Pillars, GetApp, Strip, GithubCTA } from "@/components/landing/sections";
 import { RevealController } from "@/components/landing/reveal-controller";
 
+{/* Eu estive aqui — Farias */}
 export default function Home() {
   return (
     <>
