@@ -97,19 +97,19 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       ]);
       if (result == null) {
         return const Failure(
-          DaemonError('Não encontrei o remote-pi (instale a extensão).'),
+          DaemonError('Could not find remote-pi (install the extension).'),
         );
       }
       if (result.exitCode != 0) {
         final err = (result.stderr as String? ?? '').trim();
         final out = (result.stdout as String? ?? '').trim();
-        final msg = err.isNotEmpty ? err : (out.isNotEmpty ? out : 'Falha ao criar o daemon.');
+        final msg = err.isNotEmpty ? err : (out.isNotEmpty ? out : 'Failed to create the daemon.');
         return Failure(DaemonError(msg));
       }
       return const Success(null);
     } catch (error, stackTrace) {
       return Failure(
-        DaemonError('Falha ao criar o daemon: $error', cause: error, stackTrace: stackTrace),
+        DaemonError('Failed to create the daemon: $error', cause: error, stackTrace: stackTrace),
       );
     }
   }
@@ -122,18 +122,18 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
     // registry direto; o `restart{id}` (no VM) respawna com o nome novo.
     final home = _home;
     if (home == null) {
-      return const Failure(DaemonError('HOME não encontrado no ambiente.'));
+      return const Failure(DaemonError('HOME not found in the environment.'));
     }
     try {
       final file = File('$home/.pi/remote/daemons.json');
       if (!await file.exists()) {
         return const Failure(
-          DaemonError('Registro de daemons não encontrado.'),
+          DaemonError('Daemon registry not found.'),
         );
       }
       final decoded = jsonDecode(await file.readAsString());
       if (decoded is! Map || decoded['daemons'] is! List) {
-        return const Failure(DaemonError('Registro de daemons inválido.'));
+        return const Failure(DaemonError('Invalid daemon registry.'));
       }
       var found = false;
       for (final item in decoded['daemons'] as List) {
@@ -145,7 +145,7 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       }
       if (!found) {
         return const Failure(
-          DaemonError('Daemon não encontrado no registro.'),
+          DaemonError('Daemon not found in the registry.'),
         );
       }
       // Mesmo formato do saveRegistry do pi-extension (2 espaços + LF final).
@@ -155,7 +155,7 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       return const Success(null);
     } catch (error, stackTrace) {
       return Failure(
-        DaemonError('Falha ao renomear o agente: $error', cause: error, stackTrace: stackTrace),
+        DaemonError('Failed to rename the agent: $error', cause: error, stackTrace: stackTrace),
       );
     }
   }
@@ -169,7 +169,7 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       final result = await _runCli(const ['restart-supervisor']);
       if (result == null) {
         return const Failure(
-          DaemonError('Não encontrei o remote-pi (instale a extensão).'),
+          DaemonError('Could not find remote-pi (install the extension).'),
         );
       }
       final out = (result.stdout as String? ?? '');
@@ -179,8 +179,8 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       if ('$out\n$err'.contains('Usage: remote-pi')) {
         return const Failure(
           DaemonError(
-            'Este remote-pi ainda não tem o comando `restart-supervisor`. '
-            'Atualize o remote-pi.',
+            'This remote-pi does not have the `restart-supervisor` command yet. '
+            'Update remote-pi.',
           ),
         );
       }
@@ -189,13 +189,13 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
         final o = out.trim();
         final msg = e.isNotEmpty
             ? e
-            : (o.isNotEmpty ? o : 'Falha ao reiniciar o supervisor.');
+            : (o.isNotEmpty ? o : 'Failed to restart the supervisor.');
         return Failure(DaemonError(msg));
       }
       return const Success(null);
     } catch (error, stackTrace) {
       return Failure(
-        DaemonError('Falha ao reiniciar o supervisor: $error', cause: error, stackTrace: stackTrace),
+        DaemonError('Failed to restart the supervisor: $error', cause: error, stackTrace: stackTrace),
       );
     }
   }
@@ -327,25 +327,25 @@ class SupervisorClientImpl implements DaemonSupervisor, CronGateway {
       final line = await _transact('${jsonEncode(request)}\n');
       if (line == null) {
         return const Failure(
-          DaemonError('Não foi possível falar com o supervisor.'),
+          DaemonError('Could not reach the supervisor.'),
         );
       }
       final decoded = jsonDecode(line);
       if (decoded is! Map) {
-        return const Failure(DaemonError('Resposta inválida do supervisor.'));
+        return const Failure(DaemonError('Invalid response from the supervisor.'));
       }
       if (decoded['ok'] == true) {
         final data = decoded['data'];
         return Success(data is Map<String, dynamic> ? data : const {});
       }
       return Failure(
-        DaemonError((decoded['error'] as String?) ?? 'Erro do supervisor.'),
+        DaemonError((decoded['error'] as String?) ?? 'Supervisor error.'),
       );
     } on TimeoutException {
-      return const Failure(DaemonError('Tempo esgotado ao falar com o supervisor.'));
+      return const Failure(DaemonError('Timed out talking to the supervisor.'));
     } catch (error, stackTrace) {
       return Failure(
-        DaemonError('Falha no supervisor: $error', cause: error, stackTrace: stackTrace),
+        DaemonError('Supervisor failure: $error', cause: error, stackTrace: stackTrace),
       );
     }
   }

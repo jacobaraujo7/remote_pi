@@ -24,7 +24,7 @@ class EnvironmentInstallerImpl implements EnvironmentInstaller {
       if (result.exitCode == 0) return const InstallResult.success();
       return InstallResult.failure(_output(result));
     } catch (e) {
-      return InstallResult.failure('Falha ao executar "pi install": $e');
+      return InstallResult.failure('Failed to run "pi install": $e');
     }
   }
 
@@ -33,8 +33,8 @@ class EnvironmentInstallerImpl implements EnvironmentInstaller {
     final indexJs = await resolveRemotePiIndexJs();
     if (indexJs == null) {
       return const InstallResult.failure(
-        'Não encontrei o index.js da extensão remote-pi. '
-        'Instale a extensão antes de instalar o supervisor.',
+        'Could not find the remote-pi extension\'s index.js. '
+        'Install the extension before installing the supervisor.',
       );
     }
     final node = await resolveNode();
@@ -48,7 +48,7 @@ class EnvironmentInstallerImpl implements EnvironmentInstaller {
       if (result.exitCode == 0) return const InstallResult.success();
       return InstallResult.failure(_output(result));
     } catch (e) {
-      return InstallResult.failure('Falha ao executar o instalador: $e');
+      return InstallResult.failure('Failed to run the installer: $e');
     }
   }
 
@@ -57,7 +57,7 @@ class EnvironmentInstallerImpl implements EnvironmentInstaller {
     final err = (r.stderr ?? '').toString().trim();
     final out = (r.stdout ?? '').toString().trim();
     final text = err.isNotEmpty ? err : out;
-    if (text.isEmpty) return 'Saída com código ${r.exitCode}.';
+    if (text.isEmpty) return 'Exited with code ${r.exitCode}.';
     return text.length > 600 ? text.substring(text.length - 600) : text;
   }
 }

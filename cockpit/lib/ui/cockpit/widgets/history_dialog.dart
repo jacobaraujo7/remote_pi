@@ -36,7 +36,7 @@ class _HistoryDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 4),
               child: Text(
-                'Histórico de sessões',
+                'Session history',
                 style: context.typo.title.copyWith(
                   fontSize: 15,
                   color: colors.text,
@@ -46,7 +46,7 @@ class _HistoryDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
               child: Text(
-                'Abrir uma substitui o transcript atual deste agente',
+                'Opening one replaces this agent\'s current transcript',
                 style: context.typo.label.copyWith(color: colors.text3),
               ),
             ),
@@ -54,7 +54,7 @@ class _HistoryDialog extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
                 child: Text(
-                  'Nenhuma sessão salva nesta pasta.',
+                  'No saved sessions in this folder.',
                   style: context.typo.body.copyWith(color: colors.text3),
                 ),
               )
@@ -75,7 +75,7 @@ class _HistoryDialog extends StatelessWidget {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancel'),
                   ),
                 ],
               ),
@@ -111,7 +111,7 @@ class _SessionRow extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      session.title ?? 'Sessão sem título',
+                      session.title ?? 'Untitled session',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: context.typo.body.copyWith(
@@ -150,9 +150,9 @@ class _SessionRow extends StatelessWidget {
 
   String _relative(DateTime d) {
     final diff = DateTime.now().difference(d);
-    if (diff.inMinutes < 1) return 'agora';
-    if (diff.inMinutes < 60) return 'há ${diff.inMinutes} min';
-    if (diff.inHours < 24) return 'há ${diff.inHours} h';
-    return 'há ${diff.inDays} d';
+    if (diff.inMinutes < 1) return 'now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} h ago';
+    return '${diff.inDays} d ago';
   }
 }

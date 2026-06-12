@@ -71,7 +71,7 @@ class _PairingDialogState extends State<PairingDialog> {
                 children: [
                   Expanded(
                     child: Text(
-                      'Parear aparelho',
+                      'Pair device',
                       style: context.typo.title.copyWith(
                         fontSize: 16,
                         color: colors.text,
@@ -119,7 +119,7 @@ class _PairingDialogState extends State<PairingDialog> {
           ),
           const SizedBox(height: 18),
           Text(
-            'Conectando ao relay…',
+            'Connecting to the relay…',
             style: context.typo.body.copyWith(
               fontSize: 13.5,
               color: colors.text2,
@@ -136,9 +136,9 @@ class _PairingDialogState extends State<PairingDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _step(context, 1, 'Abra o app Remote Pi no celular.'),
-        _step(context, 2, 'Toque em adicionar / parear aparelho.'),
-        _step(context, 3, 'Aponte a câmera para o QR abaixo.'),
+        _step(context, 1, 'Open the Remote Pi app on your phone.'),
+        _step(context, 2, 'Tap add / pair device.'),
+        _step(context, 3, 'Point the camera at the QR below.'),
         const SizedBox(height: 18),
         Center(
           child: Container(
@@ -158,7 +158,7 @@ class _PairingDialogState extends State<PairingDialog> {
                 height: 200,
                 child: Center(
                   child: Text(
-                    'Não foi possível gerar o QR.',
+                    'Could not generate the QR.',
                     textAlign: TextAlign.center,
                     style: context.typo.label.copyWith(color: colors.text3),
                   ),
@@ -180,7 +180,7 @@ class _PairingDialogState extends State<PairingDialog> {
             const SizedBox(width: 6),
             Flexible(
               child: Text(
-                'O código se renova sozinho. Mantenha esta janela aberta.',
+                'The code refreshes on its own. Keep this window open.',
                 style: context.typo.label.copyWith(color: colors.text3),
               ),
             ),
@@ -199,7 +199,7 @@ class _PairingDialogState extends State<PairingDialog> {
           Icon(Icons.error_outline, size: 30, color: colors.error),
           const SizedBox(height: 12),
           Text(
-            ctrl.error ?? 'Falha no pareamento.',
+            ctrl.error ?? 'Pairing failed.',
             textAlign: TextAlign.center,
             style: context.typo.body.copyWith(
               fontSize: 13.5,
@@ -217,7 +217,7 @@ class _PairingDialogState extends State<PairingDialog> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: () => Navigator.of(context).pop(false),
-                  child: const Text('Fechar'),
+                  child: const Text('Close'),
                 ),
               ),
               const SizedBox(width: 10),
@@ -228,7 +228,7 @@ class _PairingDialogState extends State<PairingDialog> {
                     padding: const EdgeInsets.symmetric(vertical: 12),
                   ),
                   onPressed: () => ctrl.retry(),
-                  child: const Text('Tentar de novo'),
+                  child: const Text('Try again'),
                 ),
               ),
             ],
@@ -303,7 +303,7 @@ class _CopyButton extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Text(
-                copied ? 'Copiado!' : 'Copiar dados',
+                copied ? 'Copied!' : 'Copy data',
                 style: context.typo.body.copyWith(
                   fontSize: 13,
                   color: colors.accentText,

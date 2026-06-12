@@ -108,7 +108,7 @@ class DaemonsViewModel extends ChangeNotifier {
       final restart = await _supervisor.restart(daemon.id);
       restart.fold(
         (_) {},
-        (e) => actionError = 'Nome salvo, mas falha ao reiniciar: ${e.message}',
+        (e) => actionError = 'Name saved, but failed to restart: ${e.message}',
       );
     }
     _busy.remove(daemon.id);

@@ -83,17 +83,17 @@ class WindowControlsTrailing extends StatelessWidget {
       children: [
         _WinButton(
           icon: Icons.remove,
-          tooltip: 'Minimizar',
+          tooltip: 'Minimize',
           onTap: windowManager.minimize,
         ),
         _WinButton(
           icon: Icons.crop_square,
-          tooltip: 'Maximizar',
+          tooltip: 'Maximize',
           onTap: _toggleMaximize,
         ),
         _WinButton(
           icon: Icons.close,
-          tooltip: 'Fechar',
+          tooltip: 'Close',
           onTap: windowManager.close,
           danger: true,
         ),

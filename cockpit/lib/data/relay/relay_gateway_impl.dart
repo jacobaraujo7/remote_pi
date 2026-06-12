@@ -26,7 +26,7 @@ class RelayGatewayImpl implements RelayGateway {
   Future<Result<String?, RelayError>> currentRelay() async {
     final home = _home;
     if (home == null) {
-      return const Failure(RelayError('HOME não encontrado no ambiente.'));
+      return const Failure(RelayError('HOME not found in the environment.'));
     }
     try {
       final file = File('$home/.pi/remote/config.json');
@@ -37,14 +37,14 @@ class RelayGatewayImpl implements RelayGateway {
       return Success(relay is String && relay.isNotEmpty ? relay : null);
     } catch (e, s) {
       return Failure(
-        RelayError('Falha ao ler o relay configurado.', cause: e, stackTrace: s),
+        RelayError('Failed to read the configured relay.', cause: e, stackTrace: s),
       );
     }
   }
 
   @override
   Future<Result<void, RelayError>> setRelay(String url) =>
-      _run(<String>['set-relay', url], 'Falha ao definir o relay.');
+      _run(<String>['set-relay', url], 'Failed to set the relay.');
 
   @override
   Future<Result<List<PairedDevice>, RelayError>> listDevices() async {
@@ -53,7 +53,7 @@ class RelayGatewayImpl implements RelayGateway {
     // arquivo funciona igual em macOS/Linux/Windows.
     final home = _home;
     if (home == null) {
-      return const Failure(RelayError('HOME não encontrado no ambiente.'));
+      return const Failure(RelayError('HOME not found in the environment.'));
     }
     try {
       final file = File('$home/.pi/remote/peers.json');
@@ -81,7 +81,7 @@ class RelayGatewayImpl implements RelayGateway {
     } catch (e, s) {
       return Failure(
         RelayError(
-          'Falha ao listar os aparelhos pareados.',
+          'Failed to list paired devices.',
           cause: e,
           stackTrace: s,
         ),
@@ -97,7 +97,7 @@ class RelayGatewayImpl implements RelayGateway {
         (parsed.scheme != 'http' && parsed.scheme != 'https') ||
         parsed.host.isEmpty) {
       return const Failure(
-        RelayError('URL inválida — use http:// ou https://.'),
+        RelayError('Invalid URL — use http:// or https://.'),
       );
     }
 
@@ -110,17 +110,17 @@ class RelayGatewayImpl implements RelayGateway {
       final response = await request.close().timeout(timeout);
       await response.drain<void>();
       if (response.statusCode == 200) return const Success(null);
-      return Failure(RelayError('O relay respondeu HTTP ${response.statusCode}.'));
+      return Failure(RelayError('The relay responded HTTP ${response.statusCode}.'));
     } on TimeoutException {
-      return const Failure(RelayError('Tempo esgotado ao contatar o relay.'));
+      return const Failure(RelayError('Timed out contacting the relay.'));
     } on SocketException {
       return const Failure(
-        RelayError('Não foi possível conectar ao relay (host/porta).'),
+        RelayError('Could not connect to the relay (host/port).'),
       );
     } on HandshakeException {
-      return const Failure(RelayError('Falha de TLS ao contatar o relay.'));
+      return const Failure(RelayError('TLS failure contacting the relay.'));
     } catch (error) {
-      return Failure(RelayError('Falha ao contatar o relay: $error'));
+      return Failure(RelayError('Failed to contact the relay: $error'));
     } finally {
       client.close(force: true);
     }
@@ -151,7 +151,7 @@ class RelayGatewayImpl implements RelayGateway {
       if (cmd == null) {
         return Failure(
           RelayError(
-            '$onError\nNão encontrei o remote-pi (instale a extensão).',
+            '$onError\nCould not find remote-pi (install the extension).',
           ),
         );
       }

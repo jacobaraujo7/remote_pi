@@ -48,7 +48,7 @@ class AgentTranscript extends StatelessWidget {
     if (entries.isEmpty) {
       return Center(
         child: Text(
-          'Mande um prompt para o agente começar.',
+          'Send a prompt to get the agent started.',
           style: context.typo.body.copyWith(color: context.colors.text3),
         ),
       );
@@ -222,7 +222,7 @@ class _EntryView extends StatelessWidget {
             Icon(Icons.schedule, size: 13, color: context.colors.text3),
             const SizedBox(width: 7),
             Text(
-              'Trabalhou por ${_formatWorked(duration)}',
+              'Worked for ${_formatWorked(duration)}',
               style: context.typo.label.copyWith(color: context.colors.text3),
             ),
           ],
@@ -578,7 +578,7 @@ class _ThinkingBlock extends StatelessWidget {
             Icon(Icons.psychology_outlined, size: 14, color: colors.text3),
             const SizedBox(width: 8),
             Text(
-              'raciocínio',
+              'reasoning',
               style: context.typo.label.copyWith(
                 color: colors.text3,
                 fontStyle: FontStyle.italic,
@@ -680,7 +680,7 @@ class _ToolCard extends StatelessWidget {
   }
 
   String _clip(String text, int max) =>
-      text.length <= max ? text : '${text.substring(0, max)}\n… (truncado)';
+      text.length <= max ? text : '${text.substring(0, max)}\n… (truncated)';
 }
 
 /// Aviso da extensão (`notify`) — linha inline, cor por nível (0 info / 1 warn /
@@ -764,8 +764,8 @@ class _UiRequestCardState extends State<_UiRequestCard> {
             Expanded(
               child: Text(
                 entry.answerLabel == null
-                    ? '${entry.title ?? "Pedido"} — respondido'
-                    : '${entry.title ?? "Você escolheu"}: ${entry.answerLabel}',
+                    ? '${entry.title ?? "Request"} — answered'
+                    : '${entry.title ?? "You chose"}: ${entry.answerLabel}',
                 style: context.typo.label.copyWith(color: colors.text3),
               ),
             ),
@@ -814,10 +814,10 @@ class _UiRequestCardState extends State<_UiRequestCard> {
               ),
               onPressed: () => _respond(
                 <String, dynamic>{'cancelled': true},
-                'cancelado',
+                'cancelled',
               ),
               child: Text(
-                'Cancelar',
+                'Cancel',
                 style: context.typo.label.copyWith(color: colors.text3),
               ),
             ),
@@ -834,20 +834,20 @@ class _UiRequestCardState extends State<_UiRequestCard> {
         return Row(
           children: [
             _ChoiceButton(
-              label: 'Não',
+              label: 'No',
               filled: false,
               onTap: () => _respond(
                 <String, dynamic>{'confirmed': false},
-                'Não',
+                'No',
               ),
             ),
             const SizedBox(width: 8),
             _ChoiceButton(
-              label: 'Sim',
+              label: 'Yes',
               filled: true,
               onTap: () => _respond(
                 <String, dynamic>{'confirmed': true},
-                'Sim',
+                'Yes',
               ),
             ),
           ],
@@ -856,7 +856,7 @@ class _UiRequestCardState extends State<_UiRequestCard> {
       case 'editor':
         return _InputRow(
           controller: _input,
-          hint: entry.placeholder ?? 'Digite a resposta',
+          hint: entry.placeholder ?? 'Type your answer',
           onSubmit: () {
             final v = _input.text.trim();
             if (v.isEmpty) return;
@@ -961,7 +961,7 @@ class _InputRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 8),
-        _ChoiceButton(label: 'Enviar', filled: true, onTap: onSubmit),
+        _ChoiceButton(label: 'Send', filled: true, onTap: onSubmit),
       ],
     );
   }

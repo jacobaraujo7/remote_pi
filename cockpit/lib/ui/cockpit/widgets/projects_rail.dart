@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/domain/entities/project.dart';
 import 'package:cockpit/ui/cockpit/widgets/app_menu.dart';
@@ -112,7 +114,7 @@ class _ProjectsRailState extends State<ProjectsRail> {
                 if (projects.isNotEmpty)
                   _SmallIcon(
                     icon: Icons.add,
-                    tooltip: 'Novo workspace',
+                    tooltip: 'New workspace',
                     onTap: () => onAdd(),
                   ),
               ],
@@ -179,14 +181,14 @@ class _ProjectsRailState extends State<ProjectsRail> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'MBP-de-jacob',
+                    Platform.localHostname,
                     overflow: TextOverflow.ellipsis,
                     style: context.typo.label.copyWith(color: colors.text2),
                   ),
                 ),
                 _SmallIcon(
                   icon: Icons.settings_outlined,
-                  tooltip: 'Configurações',
+                  tooltip: 'Settings',
                   onTap: widget.onOpenSettings,
                 ),
               ],
@@ -432,12 +434,12 @@ class _ForkMenuButton extends StatelessWidget {
       items: const [
         AppMenuItem(
           value: 'copy',
-          label: 'Copiar branch',
+          label: 'Copy branch',
           icon: Icons.content_copy,
         ),
         AppMenuItem(
           value: 'remove',
-          label: 'Remover',
+          label: 'Remove',
           icon: Icons.delete_outline,
           danger: true,
         ),
@@ -448,7 +450,7 @@ class _ForkMenuButton extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.maybeOf(context)?.showSnackBar(
           SnackBar(
-            content: Text('Branch "$branch" copiada'),
+            content: Text('Branch "$branch" copied'),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -460,7 +462,7 @@ class _ForkMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Opções',
+      message: 'Options',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
@@ -650,17 +652,17 @@ class _MenuButton extends StatelessWidget {
         if (canCreateWorktree)
           const AppMenuItem(
             value: 'worktree',
-            label: 'Criar worktree',
+            label: 'Create worktree',
             icon: Icons.call_split,
           ),
         const AppMenuItem(
           value: 'config',
-          label: 'Configurações',
+          label: 'Settings',
           icon: Icons.settings_outlined,
         ),
         const AppMenuItem(
           value: 'delete',
-          label: 'Deletar',
+          label: 'Delete',
           icon: Icons.delete_outline,
           danger: true,
         ),
@@ -674,7 +676,7 @@ class _MenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Opções',
+      message: 'Options',
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
@@ -701,7 +703,7 @@ class _EmptyRail extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Text(
-          'Nenhum workspace ainda.',
+          'No workspaces yet.',
           textAlign: TextAlign.center,
           style: context.typo.label.copyWith(color: colors.text3),
         ),

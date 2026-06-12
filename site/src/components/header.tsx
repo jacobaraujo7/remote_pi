@@ -14,6 +14,9 @@ export function SiteHeader() {
           Remote Pi
         </Link>
         <div className="nav-links">
+          <Link className="lnk" href="/cockpit">
+            Cockpit
+          </Link>
           <Link className="lnk" href="/tutorials">
             Tutorials
           </Link>

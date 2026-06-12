@@ -40,11 +40,26 @@ class AgentMarkdown extends StatelessWidget {
   }
 }
 
-class _CodeBlock extends StatelessWidget {
+class _CodeBlock extends StatefulWidget {
   const _CodeBlock({required this.language, required this.code});
 
   final String language;
   final String code;
+
+  @override
+  State<_CodeBlock> createState() => _CodeBlockState();
+}
+
+class _CodeBlockState extends State<_CodeBlock> {
+  // Controller próprio pra a Scrollbar horizontal ficar sempre visível
+  // (thumbVisibility exige um controller compartilhado com o scroll view).
+  final ScrollController _horizontal = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontal.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +82,9 @@ class _CodeBlock extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    language.isEmpty ? 'code' : language.toUpperCase(),
+                    widget.language.isEmpty
+                        ? 'code'
+                        : widget.language.toUpperCase(),
                     style: typo.mono.copyWith(
                       fontSize: 10,
                       color: colors.text3,
@@ -75,18 +92,25 @@ class _CodeBlock extends StatelessWidget {
                     ),
                   ),
                 ),
-                _CopyButton(code: code),
+                _CopyButton(code: widget.code),
               ],
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-            child: Text(
-              code,
-              style: typo.mono.copyWith(
-                color: colors.text,
-                height: 1.5,
+          // Scroll horizontal com barra **sempre visível** pra código que
+          // estoura a largura (linhas longas) — antes a barra não aparecia.
+          Scrollbar(
+            controller: _horizontal,
+            thumbVisibility: true,
+            child: SingleChildScrollView(
+              controller: _horizontal,
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+              child: Text(
+                widget.code,
+                style: typo.mono.copyWith(
+                  color: colors.text,
+                  height: 1.5,
+                ),
               ),
             ),
           ),
@@ -131,7 +155,7 @@ class _CopyButtonState extends State<_CopyButton> {
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
       iconSize: 14,
-      tooltip: 'Copiar código',
+      tooltip: 'Copy code',
       onPressed: _copy,
       icon: Icon(
         _copied ? Icons.check : Icons.copy,

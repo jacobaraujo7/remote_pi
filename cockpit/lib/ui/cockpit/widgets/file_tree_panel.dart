@@ -73,7 +73,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                   ),
                 ),
                 Tooltip(
-                  message: 'Atualizar',
+                  message: 'Refresh',
                   child: InkWell(
                     borderRadius: BorderRadius.circular(5),
                     onTap: () => setState(() => _refresh++),
@@ -91,7 +91,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
             child: widget.rootPath.isEmpty
                 ? Center(
                     child: Text(
-                      'Nenhuma pasta — abra um workspace.',
+                      'No folder — open a workspace.',
                       textAlign: TextAlign.center,
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
@@ -350,23 +350,23 @@ class _RowState extends State<_Row> {
         if (canCreate) ...const [
           AppMenuItem(
             value: 'agent',
-            label: 'Criar agente',
+            label: 'Create agent',
             icon: Icons.auto_awesome,
           ),
           AppMenuItem(
             value: 'terminal',
-            label: 'Criar terminal',
+            label: 'Create terminal',
             icon: Icons.terminal_outlined,
           ),
         ],
         const AppMenuItem(
           value: 'rel',
-          label: 'Copiar caminho relativo',
+          label: 'Copy relative path',
           icon: Icons.content_copy_outlined,
         ),
         const AppMenuItem(
           value: 'abs',
-          label: 'Copiar caminho absoluto',
+          label: 'Copy absolute path',
           icon: Icons.content_copy,
         ),
       ],

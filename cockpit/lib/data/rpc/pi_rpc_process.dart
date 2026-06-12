@@ -70,7 +70,7 @@ class PiRpcProcess implements RpcProcessGateway {
   }) async {
     if (_process != null) {
       return const Failure(
-        RpcError('Um agente já está em execução nesta sessão.'),
+        RpcError('An agent is already running in this session.'),
       );
     }
     try {
@@ -108,7 +108,7 @@ class PiRpcProcess implements RpcProcessGateway {
       _cwd = null;
       return Failure(
         RpcError(
-          'Falha ao spawnar "${_config.executable}": $error',
+          'Failed to spawn "${_config.executable}": $error',
           cause: error,
           stackTrace: stackTrace,
         ),
@@ -124,7 +124,7 @@ class PiRpcProcess implements RpcProcessGateway {
   }) async {
     final process = _process;
     if (process == null) {
-      return const Failure(RpcError('Nenhum agente em execução.'));
+      return const Failure(RpcError('No agent running.'));
     }
     final command = <String, dynamic>{'type': 'prompt', 'message': message};
     if (steerIfBusy) command['streamingBehavior'] = 'steer';
@@ -140,7 +140,7 @@ class PiRpcProcess implements RpcProcessGateway {
     } catch (error, stackTrace) {
       return Failure(
         RpcError(
-          'Falha ao enviar prompt: $error',
+          'Failed to send prompt: $error',
           cause: error,
           stackTrace: stackTrace,
         ),
@@ -155,7 +155,7 @@ class PiRpcProcess implements RpcProcessGateway {
   ) async {
     final process = _process;
     if (process == null) {
-      return const Failure(RpcError('Nenhum agente em execução.'));
+      return const Failure(RpcError('No agent running.'));
     }
     final command = <String, dynamic>{
       'type': 'extension_ui_response',
@@ -168,7 +168,7 @@ class PiRpcProcess implements RpcProcessGateway {
     } catch (error, stackTrace) {
       return Failure(
         RpcError(
-          'Falha ao responder UI: $error',
+          'Failed to respond to UI: $error',
           cause: error,
           stackTrace: stackTrace,
         ),
@@ -250,7 +250,7 @@ class PiRpcProcess implements RpcProcessGateway {
     final result = _writeChain.then((_) async {
       final process = _process;
       if (process == null) {
-        throw const RpcError('Nenhum agente em execução.');
+        throw const RpcError('No agent running.');
       }
       debugPrint('[rpc-mode-agent][in] $line');
       process.stdin.write(line);
@@ -267,7 +267,7 @@ class PiRpcProcess implements RpcProcessGateway {
   Future<Map<String, dynamic>> _request(Map<String, dynamic> command) async {
     final process = _process;
     if (process == null) {
-      throw const RpcError('Nenhum agente em execução.');
+      throw const RpcError('No agent running.');
     }
     final id = 'req-${++_seq}';
     final completer = Completer<Map<String, dynamic>>();
@@ -279,7 +279,7 @@ class PiRpcProcess implements RpcProcessGateway {
     } catch (error, stackTrace) {
       _pending.remove(id);
       throw RpcError(
-        'Falha ao enviar ${command['type']}: $error',
+        'Failed to send ${command['type']}: $error',
         cause: error,
         stackTrace: stackTrace,
       );
@@ -288,12 +288,12 @@ class PiRpcProcess implements RpcProcessGateway {
       const Duration(seconds: 15),
       onTimeout: () {
         _pending.remove(id);
-        throw RpcError('Timeout aguardando resposta de ${command['type']}.');
+        throw RpcError('Timed out waiting for a response to ${command['type']}.');
       },
     );
     if (response['success'] != true) {
       throw RpcError(
-        '${command['type']} falhou: ${response['error'] ?? "erro desconhecido"}',
+        '${command['type']} failed: ${response['error'] ?? "unknown error"}',
       );
     }
     return response;
@@ -385,7 +385,7 @@ class PiRpcProcess implements RpcProcessGateway {
   @override
   Future<Result<void, RpcError>> sendControl(String verb) async {
     if (_process == null) {
-      return const Failure(RpcError('Nenhum agente em execução.'));
+      return const Failure(RpcError('No agent running.'));
     }
     try {
       await _writeLine(
@@ -398,7 +398,7 @@ class PiRpcProcess implements RpcProcessGateway {
     } catch (error, stackTrace) {
       return Failure(
         RpcError(
-          'Falha ao enviar controle: $error',
+          'Failed to send control: $error',
           cause: error,
           stackTrace: stackTrace,
         ),
@@ -427,7 +427,7 @@ class PiRpcProcess implements RpcProcessGateway {
     // Não deixe requests pendentes pendurados quando o processo morre.
     for (final completer in _pending.values) {
       if (!completer.isCompleted) {
-        completer.completeError(RpcError('Processo encerrou (code=$code).'));
+        completer.completeError(RpcError('Process exited (code=$code).'));
       }
     }
     _pending.clear();

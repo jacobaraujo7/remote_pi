@@ -30,15 +30,15 @@ class UpdateInfo {
   /// atualização" e silencia.
   factory UpdateInfo.fromJson(Object? json) {
     if (json is! Map) {
-      throw const FormatException('manifest não é um objeto JSON');
+      throw const FormatException('manifest is not a JSON object');
     }
     final version = json['version'];
     if (version is! String || version.isEmpty) {
-      throw const FormatException('campo "version" inválido');
+      throw const FormatException('invalid "version" field');
     }
     final rawArtifacts = json['artifacts'];
     if (rawArtifacts is! List) {
-      throw const FormatException('campo "artifacts" inválido');
+      throw const FormatException('invalid "artifacts" field');
     }
     return UpdateInfo(
       version: version,
@@ -88,13 +88,13 @@ class UpdateArtifact {
 
   factory UpdateArtifact.fromJson(Object? json) {
     if (json is! Map) {
-      throw const FormatException('artifact não é um objeto JSON');
+      throw const FormatException('artifact is not a JSON object');
     }
     final url = json['url'];
     final platform = json['platform'];
     final format = json['format'];
     if (url is! String || platform is! String || format is! String) {
-      throw const FormatException('artifact com campos obrigatórios inválidos');
+      throw const FormatException('artifact with invalid required fields');
     }
     return UpdateArtifact(
       platform: platform,

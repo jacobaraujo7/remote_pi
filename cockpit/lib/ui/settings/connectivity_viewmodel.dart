@@ -102,7 +102,7 @@ class ConnectivityViewModel extends ChangeNotifier {
     final trimmed = url.trim();
     if (trimmed.isEmpty) {
       healthState = HealthState.unhealthy;
-      healthMessage = 'Defina a URL do relay primeiro.';
+      healthMessage = 'Set the relay URL first.';
       _notify();
       return;
     }

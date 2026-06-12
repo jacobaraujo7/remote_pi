@@ -41,14 +41,14 @@ class RevokeGatewayImpl implements RevokeGateway {
         onLine: (json) => _onLine(json, finish),
         onExit: (code) => finish(
           Failure(
-            RelayError('O processo encerrou antes de confirmar (code=$code).'),
+            RelayError('The process exited before confirming (code=$code).'),
           ),
         ),
       );
     } catch (error, stackTrace) {
       await rpc.dispose();
       return Failure(
-        RelayError('Falha ao revogar: $error', cause: error, stackTrace: stackTrace),
+        RelayError('Failed to revoke: $error', cause: error, stackTrace: stackTrace),
       );
     }
 
@@ -57,7 +57,7 @@ class RevokeGatewayImpl implements RevokeGateway {
       () => finish(
         const Failure(
           RelayError(
-            'Tempo esgotado ao revogar. Verifique a conexão com o relay.',
+            'Timed out revoking. Check the connection to the relay.',
           ),
         ),
       ),

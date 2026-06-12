@@ -4,6 +4,13 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
 `latest.json` (VPS) deriva deste arquivo.
 
+## [1.1.0] — 2026-06-12
+
+### Changed
+- Interface fully translated to **English** (all on-screen text, tooltips,
+  dialogs, notifications and error messages). The machine name in the rail now
+  shows the real hostname.
+
 ## [1.0.0] — 2026-06-12
 
 Primeira release distribuível do Cockpit (cliente desktop do Remote Pi).

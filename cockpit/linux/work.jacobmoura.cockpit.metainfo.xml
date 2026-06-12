@@ -30,6 +30,11 @@
   <content_rating type="oars-1.1" />
 
   <releases>
+    <release version="1.1.0" date="2026-06-12">
+      <description>
+        <p>Interface fully translated to English.</p>
+      </description>
+    </release>
     <release version="1.0.0" date="2026-06-12">
       <description>
         <p>Primeira release distribuível do Cockpit.</p>

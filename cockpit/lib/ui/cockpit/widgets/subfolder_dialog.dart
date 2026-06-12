@@ -91,7 +91,7 @@ class _SubfolderDialogState extends State<_SubfolderDialog> {
             Padding(
               padding: const EdgeInsets.fromLTRB(18, 18, 18, 4),
               child: Text(
-                'Onde atuar?',
+                'Where to work?',
                 style: context.typo.title.copyWith(
                   fontSize: 15,
                   color: colors.text,
@@ -148,7 +148,7 @@ class _SubfolderDialogState extends State<_SubfolderDialog> {
                               vertical: 14,
                             ),
                             child: Text(
-                              'Sem subpastas aqui.',
+                              'No subfolders here.',
                               style: context.typo.label
                                   .copyWith(color: colors.text4),
                             ),
@@ -164,8 +164,8 @@ class _SubfolderDialogState extends State<_SubfolderDialog> {
                   Expanded(
                     child: Text(
                       atRoot
-                          ? 'Usar a raiz de ${widget.projectName}'
-                          : 'Usar ${widget.projectName}/$_rel',
+                          ? 'Use the root of ${widget.projectName}'
+                          : 'Use ${widget.projectName}/$_rel',
                       overflow: TextOverflow.ellipsis,
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
@@ -173,7 +173,7 @@ class _SubfolderDialogState extends State<_SubfolderDialog> {
                   const SizedBox(width: 10),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 6),
                   FilledButton(
@@ -181,7 +181,7 @@ class _SubfolderDialogState extends State<_SubfolderDialog> {
                       backgroundColor: colors.accent,
                     ),
                     onPressed: () => Navigator.of(context).pop(_rel),
-                    child: const Text('Usar esta pasta'),
+                    child: const Text('Use this folder'),
                   ),
                 ],
               ),

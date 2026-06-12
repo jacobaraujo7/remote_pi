@@ -80,7 +80,7 @@ class _AgentComposerState extends State<AgentComposer> {
     final result = await FilePicker.platform.pickFiles(
       allowMultiple: true,
       withData: true,
-      dialogTitle: 'Anexar arquivo',
+      dialogTitle: 'Attach file',
     );
     if (result == null) return;
     for (final file in result.files) {
@@ -187,7 +187,7 @@ class _AgentComposerState extends State<AgentComposer> {
   void _notifyLimit() {
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       const SnackBar(
-        content: Text('Máximo de $_maxImages imagens.'),
+        content: Text('Maximum of $_maxImages images.'),
         duration: Duration(seconds: 2),
       ),
     );
@@ -286,8 +286,8 @@ class _AgentComposerState extends State<AgentComposer> {
 
   // --- slash command data ---
   static const List<PiCommand> _builtins = <PiCommand>[
-    PiCommand(name: 'new', description: 'Nova sessão — limpa a conversa'),
-    PiCommand(name: 'compact', description: 'Compacta o contexto do agente'),
+    PiCommand(name: 'new', description: 'New session — clears the conversation'),
+    PiCommand(name: 'compact', description: 'Compacts the agent context'),
   ];
 
   /// Embutidos + comandos das extensions, **suprimindo os `/remote-pi`**.
@@ -634,7 +634,7 @@ class _AgentComposerState extends State<AgentComposer> {
                           isCollapsed: true,
                           border: InputBorder.none,
                           hintText:
-                              'Mensagem pro agente, use @arquivos ou /comandos',
+                              'Message to the agent, use @files or /commands',
                           hintStyle: context.typo.body.copyWith(
                             fontSize: 13.5,
                             color: colors.text3,
@@ -650,7 +650,7 @@ class _AgentComposerState extends State<AgentComposer> {
                     children: [
                       _BarIcon(
                         icon: Icons.add,
-                        tooltip: 'Anexar arquivo',
+                        tooltip: 'Attach file',
                         onTap: _pickAttachment,
                       ),
                       _ModelChip(session: session, enabled: controlsEnabled),
@@ -868,7 +868,7 @@ class _ModelChip extends StatelessWidget {
     return _Chip(
       icon: Icons.auto_awesome,
       iconColor: context.colors.accentText,
-      label: model?.name ?? 'modelo',
+      label: model?.name ?? 'model',
       enabled: enabled && session.models.isNotEmpty,
       onTap: () async {
         final picked = await showModelPicker(
@@ -1028,7 +1028,7 @@ class _ContextGauge extends StatelessWidget {
         : (fraction >= 0.75 ? colors.warn : colors.accentText);
     final pct = percent.toStringAsFixed(percent < 10 ? 1 : 0);
     return Tooltip(
-      message: 'Contexto: $pct% da janela',
+      message: 'Context: $pct% of the window',
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8),
         child: SizedBox(
@@ -1168,7 +1168,7 @@ class _SendButton extends StatelessWidget {
       icon = Icons.arrow_upward;
     }
     return Tooltip(
-      message: streaming ? 'Parar' : 'Enviar',
+      message: streaming ? 'Stop' : 'Send',
       child: Material(
         color: bg,
         shape: CircleBorder(
@@ -1209,7 +1209,7 @@ class _RelayButton extends StatelessWidget {
       RelayStatus.reconnecting => (
         Icons.cell_tower,
         colors.warn,
-        'Relay reconectando...',
+        'Relay reconnecting...',
       ),
       RelayStatus.disconnected => (
         Icons.cell_tower_outlined,
@@ -1291,7 +1291,7 @@ class _ImageModelWarning extends StatelessWidget {
             const SizedBox(width: 7),
             Flexible(
               child: Text(
-                'O modelo atual não enxerga imagens — troque por um com visão.',
+                'The current model cannot see images — switch to one with vision.',
                 style: context.typo.label.copyWith(color: colors.warn),
               ),
             ),

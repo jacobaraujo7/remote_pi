@@ -100,13 +100,15 @@ function isAppManifest(d: unknown): d is AppManifest {
 }
 
 /**
- * Load the app release manifest. Fetches the live host endpoint with hourly
- * revalidation; on any failure (network, non-200, malformed) returns the mock
- * so the page degrades gracefully instead of crashing.
+ * Load the app release manifest. Fetches the live host endpoint at request
+ * time (no build-time caching — the manifest is published independently of
+ * the site deploy, so a static snapshot would go stale or freeze the page in
+ * "not published" state). On any failure (network, non-200, malformed)
+ * returns the mock so the page degrades gracefully instead of crashing.
  */
 export async function loadAppManifest(): Promise<AppManifestLoad> {
   try {
-    const res = await fetch(APP_MANIFEST_URL, { next: { revalidate: 3600 } });
+    const res = await fetch(APP_MANIFEST_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`manifest responded ${res.status}`);
     const data: unknown = await res.json();
     if (!isAppManifest(data)) throw new Error("manifest shape invalid");

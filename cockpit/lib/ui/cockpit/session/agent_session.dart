@@ -29,7 +29,7 @@ class AgentSession extends PaneItem {
     String? title,
     this.autoStartRelay = false,
   }) : _factory = factory,
-       _title = title ?? 'Novo agente';
+       _title = title ?? 'New agent';
 
   @override
   final String id;
@@ -183,7 +183,7 @@ class AgentSession extends PaneItem {
       (_) {
         _status = AgentStatus.idle;
         _sub = gateway.events.listen(_onEvent);
-        _addInfo('agente pronto em $workingDirectory');
+        _addInfo('agent ready in $workingDirectory');
         unawaited(_loadControls());
         unawaited(_syncRelayStatus());
         if (restoreSessionPath != null) {
@@ -193,7 +193,7 @@ class AgentSession extends PaneItem {
       },
       (error) {
         _status = AgentStatus.crashed;
-        _addInfo('falha ao iniciar: ${error.message}', isError: true);
+        _addInfo('failed to start: ${error.message}', isError: true);
         notifyListeners();
       },
     );
@@ -223,7 +223,7 @@ class AgentSession extends PaneItem {
     notifyListeners();
     final result = await gateway.sendPrompt(text, images: images);
     result.fold((_) {}, (error) {
-      _addInfo('erro ao enviar: ${error.message}', isError: true);
+      _addInfo('failed to send: ${error.message}', isError: true);
       _pendingSend = false;
       notifyListeners();
     });
@@ -246,14 +246,14 @@ class AgentSession extends PaneItem {
         _resetOpenBuffers();
         _ctx = null;
         sessionPath = null;
-        _addInfo('nova sessão');
+        _addInfo('new session');
         notifyListeners();
         // sessionPath mudou → pede à VM para salvar o layout agora (sem esperar
         // o próximo fim de turno, que pode nunca vir antes do app fechar).
         onPreferenceChanged?.call();
       },
       (error) {
-        _addInfo('falha ao criar sessão: ${error.message}', isError: true);
+        _addInfo('failed to create session: ${error.message}', isError: true);
         notifyListeners();
       },
     );
@@ -265,8 +265,8 @@ class AgentSession extends PaneItem {
     if (gateway == null || isBusy) return;
     final result = await gateway.compact();
     result.fold(
-      (_) => _addInfo('contexto compactado'),
-      (error) => _addInfo('falha ao compactar: ${error.message}', isError: true),
+      (_) => _addInfo('context compacted'),
+      (error) => _addInfo('failed to compact: ${error.message}', isError: true),
     );
     notifyListeners();
     unawaited(_refreshStats()); // o contexto mudou
@@ -281,7 +281,7 @@ class AgentSession extends PaneItem {
       preferredModelId = applied.id; // persiste a escolha do usuário
       onPreferenceChanged?.call();
     }, (error) {
-      _addInfo('falha ao trocar modelo: ${error.message}', isError: true);
+      _addInfo('failed to switch model: ${error.message}', isError: true);
     });
     notifyListeners();
     unawaited(_refreshStats());
@@ -296,7 +296,7 @@ class AgentSession extends PaneItem {
       preferredThinking = level; // persiste a escolha do usuário
       onPreferenceChanged?.call();
     }, (error) {
-      _addInfo('falha ao mudar effort: ${error.message}', isError: true);
+      _addInfo('failed to change effort: ${error.message}', isError: true);
     });
     notifyListeners();
   }
@@ -309,7 +309,7 @@ class AgentSession extends PaneItem {
 
     final switched = await gateway.switchSession(sessionPath);
     final ok = switched.fold((_) => true, (error) {
-      _addInfo('falha ao trocar sessão: ${error.message}', isError: true);
+      _addInfo('failed to switch session: ${error.message}', isError: true);
       notifyListeners();
       return false;
     });
@@ -363,7 +363,7 @@ class AgentSession extends PaneItem {
         onPreferenceChanged?.call();
       },
       (error) {
-        _addInfo('falha ao carregar histórico: ${error.message}', isError: true);
+        _addInfo('failed to load history: ${error.message}', isError: true);
         notifyListeners();
       },
     );
@@ -391,7 +391,7 @@ class AgentSession extends PaneItem {
     if (_status == AgentStatus.booting || isAlive) {
       _status = AgentStatus.crashed;
       _resetOpenBuffers();
-      _addInfo('reiniciando com nova configuração...');
+      _addInfo('restarting with new configuration...');
       notifyListeners();
     }
   }
@@ -514,22 +514,22 @@ class AgentSession extends PaneItem {
         _finishTool(toolCallId, isError, resultText);
       case RpcCommandResponse(:final command, :final success, :final error):
         if (!success) {
-          _addInfo('comando "$command" falhou: ${error ?? "?"}', isError: true);
+          _addInfo('command "$command" failed: ${error ?? "?"}', isError: true);
         }
       case RpcStreamError(:final message):
         _pendingSend = false;
         if (_status == AgentStatus.streaming) _status = AgentStatus.idle;
         _turnStartedAt = null;
-        _addInfo('erro do agente: $message', isError: true, dedup: true);
+        _addInfo('agent error: $message', isError: true, dedup: true);
       case RpcAutoRetry(:final attempt, :final maxAttempts, :final delayMs, :final message):
-        _addInfo('retentando ($attempt/$maxAttempts em ${delayMs}ms) — $message');
+        _addInfo('retrying ($attempt/$maxAttempts in ${delayMs}ms) — $message');
       case RpcDiagnostic(:final text):
         _addInfo('stderr: $text');
       case RpcProcessExit(:final code):
         _pendingSend = false;
         _status = AgentStatus.crashed;
         _resetOpenBuffers();
-        _addInfo('processo encerrado (code=$code)', isError: code != 0);
+        _addInfo('process exited (code=$code)', isError: code != 0);
       case RpcNotice(:final message, :final level):
         _add(NoticeEntry(message, level.index));
       case RpcUiRequest(

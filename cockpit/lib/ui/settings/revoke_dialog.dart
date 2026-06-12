@@ -27,13 +27,13 @@ class RevokeDialog extends StatelessWidget {
               context,
               icon: Icons.check_circle_outline,
               color: colors.online,
-              message: 'Aparelho removido.',
+              message: 'Device removed.',
             ),
             RevokeStage.failed => _result(
               context,
               icon: Icons.error_outline,
               color: colors.error,
-              message: ctrl.error ?? 'Falha ao revogar o aparelho.',
+              message: ctrl.error ?? 'Failed to revoke the device.',
             ),
           },
         ),
@@ -54,14 +54,14 @@ class RevokeDialog extends StatelessWidget {
         const SizedBox(height: 18),
         Text(
           ctrl.deviceName == null
-              ? 'Revogando…'
-              : 'Revogando ${ctrl.deviceName}…',
+              ? 'Revoking…'
+              : 'Revoking ${ctrl.deviceName}…',
           textAlign: TextAlign.center,
           style: context.typo.body.copyWith(fontSize: 13.5, color: colors.text2),
         ),
         const SizedBox(height: 6),
         Text(
-          'Conectando ao relay e removendo o acesso.',
+          'Connecting to the relay and removing access.',
           textAlign: TextAlign.center,
           style: context.typo.label.copyWith(color: colors.text3),
         ),

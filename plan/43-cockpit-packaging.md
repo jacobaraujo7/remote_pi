@@ -134,8 +134,14 @@ containers.
 > — jobs `meta` (valida tag↔pubspec) → `macos`/`windows`/`linux` (matrix
 > amd64+arm64, com smoke test de `.deb` no runner e `.rpm` em `fedora:40`) →
 > `publish` (GitHub Release + `SHA256SUMS` + `latest.json` com exatamente 6
-> artefatos, `--latest=false` pra não poluir o monorepo). **Não testado
-> ainda** — primeira validação real é cortar a tag `cockpit-v1.0.0`.
+> artefatos, `--latest=false` pra não poluir o monorepo).
+> **Validado em produção 2026-06-12** (5 iterações até o verde): release
+> `cockpit-v1.0.0` criada com 6 artefatos + SHA256SUMS + latest.json.
+> Fixes do ciclo: YAML multilinha no `--notes` (block scalar), executável
+> do Fastforge é `fastforge:main`, **não há SDK Flutter empacotado pra
+> linux-arm64** (job arm64 usa git clone do Flutter), `installed_size`
+> obrigatório no deb, smoke do rpm via `rpm -qpl` (nome interno do pacote
+> vem do pubspec).
 
 - Trigger: push de tag `cockpit-v*` + `workflow_dispatch`. Primeiro step
   valida que a tag bate com `version:` do `pubspec.yaml` (falha cedo se
@@ -271,16 +277,26 @@ analyze` zero issues.
 ## Definition of Done
 
 - [x] Identidade aplicada: bundle ID `work.jacobmoura.cockpit`, nome "Remote Pi Cockpit", CompanyName corrigido, versão Windows dinâmica
-- [ ] DMG universal assinado + notarizado abre sem aviso do Gatekeeper após download real
+- [x] DMG universal assinado + notarizado abre sem aviso do Gatekeeper após download real (validado 2026-06-12: download da URL do manifest, sha256 OK, spctl accepted/Notarized Developer ID, staple válido)
 - [ ] `Setup.exe` instala/desinstala em Windows 10/11 x64 (aviso SmartScreen documentado no site)
-- [ ] `.deb` x86_64 e arm64 instalam em Ubuntu 24.04; `.rpm` x86_64 e arm64 instalam em Fedora; app no menu com ícone
-- [ ] `cockpit-release.yml` gera os 6 artefatos + `SHA256SUMS` + `latest.json` a partir de tag `cockpit-v*`
-- [ ] Release `cockpit-v*` no GitHub com 6 artefatos + `SHA256SUMS` + `latest.json`; checksums conferindo após download; `latest.json` no rp-s3 servindo na URL estável
+- [x] `.deb` x86_64 e arm64 instalam em Ubuntu 24.04; `.rpm` x86_64 e arm64 instalam em Fedora (smoke no CI com `.desktop` presente; menu/ícone visual a confirmar em máquina real)
+- [x] `cockpit-release.yml` gera os 6 artefatos + `SHA256SUMS` + `latest.json` a partir de tag `cockpit-v*`
+- [x] Release `cockpit-v*` no GitHub com 6 artefatos + `SHA256SUMS` + `latest.json`; checksums conferindo após download; `latest.json` no rp-s3 servindo na URL estável (validado 2026-06-12: headers CORS/cache OK, 7 URLs de artefato respondendo, sha256 do DMG conferido)
 - [ ] Página de downloads no site consumindo `latest.json` real
 - [x] Aviso de atualização in-app: mini card dispensável no shell consultando o `latest.json`, com download por clique
 - [ ] Runbook + CHANGELOG iniciados; uma release de ponta a ponta concluída pelo runbook
 
 ## Próximos planos (fora de escopo aqui)
+
+- **Nome interno do pacote rpm** — hoje sai como `cockpit` (vem do pubspec),
+  que **colide com o pacote `cockpit` do Fedora** (UI de admin de servidor).
+  Dar nome próprio (`remote-pi-cockpit`) no make_config do rpm.
+- **Recalibrar `installed_size`** do deb (150000 KB é estimativa) com
+  `du -sk` do bundle real do CI.
+- **Cachear o DMG notarizado entre re-runs** — cada iteração do workflow
+  re-notariza (~5 min); cache por sha do commit economizaria nas próximas.
+- **Bump actions pra Node 24** (`checkout`/`upload-artifact` avisam
+  deprecation do Node 20 a partir de 2026-06-16).
 
 - **Repositórios APT/DNF na VPS** — com `.deb`/`.rpm` já existindo, um repo
   apt/dnf dá updates de graça via `apt upgrade`/`dnf upgrade` (o caminho

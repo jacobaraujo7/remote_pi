@@ -63,7 +63,7 @@ class CockpitTopbar extends StatelessWidget {
             const SizedBox(width: 12),
             _IconBtn(
               icon: Icons.view_sidebar_outlined,
-              tooltip: 'Recolher sidebar',
+              tooltip: 'Collapse sidebar',
               active: !railVisible,
               onTap: onToggleRail,
             ),
@@ -85,7 +85,7 @@ class CockpitTopbar extends StatelessWidget {
             const SizedBox(width: 8),
             _IconBtn(
               icon: Icons.view_sidebar_outlined,
-              tooltip: 'Mostrar/ocultar arquivos',
+              tooltip: 'Show/hide files',
               active: !treeVisible,
               onTap: onToggleTree,
             ),
@@ -149,7 +149,7 @@ class _OpenInIdeButton extends StatelessWidget {
                   _AppIcon(current, size: 14, color: fg),
                   const SizedBox(width: 7),
                   Text(
-                    'Abrir',
+                    'Open',
                     style: context.typo.label.copyWith(
                       color: fg,
                       fontWeight: FontWeight.w600,

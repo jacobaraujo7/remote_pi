@@ -208,11 +208,11 @@ class _TabStripState extends State<_TabStrip> {
     final count = widget.pane.tabs.length;
     final ok = await showConfirmDialog(
       context,
-      title: 'Fechar pane?',
+      title: 'Close pane?',
       message:
-          'Isso fecha todas as $count aba(s) desta pane e encerra os agentes/'
-          'terminais nela.',
-      confirmLabel: 'Fechar',
+          'This closes all $count tab(s) in this pane and ends the agents/'
+          'terminals in it.',
+      confirmLabel: 'Close',
       danger: true,
     );
     if (ok) widget.vm.closePane(widget.pane.id);
@@ -311,7 +311,7 @@ class _TabStripState extends State<_TabStrip> {
             Builder(
               builder: (ctx) => _StripButton(
                 icon: Icons.keyboard_arrow_down,
-                tooltip: 'Todas as abas',
+                tooltip: 'All tabs',
                 onTap: () => _showTabList(ctx),
               ),
             ),
@@ -450,7 +450,7 @@ class _TabState extends State<_Tab> {
         if (agent != null && !isEmpty) ...[
           const AppMenuItem(
             value: 'rename',
-            label: 'Renomear',
+            label: 'Rename',
             icon: Icons.edit_outlined,
           ),
           AppMenuItem(
@@ -461,11 +461,11 @@ class _TabState extends State<_Tab> {
           ),
           const AppMenuItem(
             value: 'history',
-            label: 'Histórico',
+            label: 'History',
             icon: Icons.history,
           ),
         ],
-        const AppMenuItem(value: 'close', label: 'Fechar', icon: Icons.close),
+        const AppMenuItem(value: 'close', label: 'Close', icon: Icons.close),
       ],
     );
     if (!mounted) return;
@@ -722,7 +722,7 @@ class _TabAdd extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Tooltip(
-      message: 'Nova aba',
+      message: 'New tab',
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -781,7 +781,7 @@ class _PaneTools extends StatelessWidget {
               type: _SplitterScreenIconType.horizontal,
               color: iconColor,
             ),
-            'Dividir à direita',
+            'Split right',
             onSplitRight,
           ),
           btn(
@@ -789,7 +789,7 @@ class _PaneTools extends StatelessWidget {
               type: _SplitterScreenIconType.vertical,
               color: iconColor,
             ),
-            'Dividir abaixo',
+            'Split down',
             onSplitDown,
           ),
           btn(
@@ -797,7 +797,7 @@ class _PaneTools extends StatelessWidget {
               type: _SplitterScreenIconType.close,
               color: iconColor,
             ),
-            'Fechar pane',
+            'Close pane',
             onClosePane,
           ),
         ],
@@ -1225,7 +1225,7 @@ class _ZonePreview extends StatelessWidget {
             border: Border(bottom: BorderSide(color: colors.accent, width: 2)),
           ),
           child: Text(
-            'Soltar aqui pra mover a aba',
+            'Drop here to move the tab',
             style: context.typo.tab.copyWith(color: colors.accentText),
           ),
         ),
@@ -1233,7 +1233,7 @@ class _ZonePreview extends StatelessWidget {
     }
 
     final (align, wf, hf, label) = switch (zone) {
-      _DropZone.center => (Alignment.center, 1.0, 1.0, 'Acoplar como aba'),
+      _DropZone.center => (Alignment.center, 1.0, 1.0, 'Dock as tab'),
       _DropZone.left => (Alignment.centerLeft, 0.5, 1.0, null),
       _DropZone.right => (Alignment.centerRight, 0.5, 1.0, null),
       _DropZone.top => (Alignment.topCenter, 1.0, 0.5, null),

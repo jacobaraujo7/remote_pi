@@ -85,7 +85,7 @@ class WorktreeManagerImpl implements WorktreeManager {
       // o repo num estado meio-criado.
       if (await _branchExists(git, repoPath, name)) {
         return const Failure(
-          WorktreeOpError('Já existe uma branch com esse nome.'),
+          WorktreeOpError('A branch with that name already exists.'),
         );
       }
       final target = '$repoPath/$worktreesSubdir/$name';
@@ -113,7 +113,7 @@ class WorktreeManagerImpl implements WorktreeManager {
             : Worktree(path: target, branch: name, isDetached: false),
       );
     } catch (e) {
-      return Failure(WorktreeOpError('Falha ao criar worktree: $e'));
+      return Failure(WorktreeOpError('Failed to create worktree: $e'));
     }
   }
 
@@ -166,7 +166,7 @@ class WorktreeManagerImpl implements WorktreeManager {
       }
       return const Success(null);
     } catch (e) {
-      return Failure(WorktreeOpError('Falha ao remover worktree: $e'));
+      return Failure(WorktreeOpError('Failed to remove worktree: $e'));
     }
   }
 
@@ -255,6 +255,6 @@ class WorktreeManagerImpl implements WorktreeManager {
     final err = (res.stderr as String).trim();
     if (err.isNotEmpty) return err;
     final out = (res.stdout as String).trim();
-    return out.isNotEmpty ? out : 'git saiu com código ${res.exitCode}';
+    return out.isNotEmpty ? out : 'git exited with code ${res.exitCode}';
   }
 }

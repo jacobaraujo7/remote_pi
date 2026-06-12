@@ -70,7 +70,7 @@ class _CockpitPageState extends State<CockpitPage> {
   Future<bool> _addProject() async {
     final vm = _vm;
     final path = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Escolha a pasta do projeto',
+      dialogTitle: 'Choose the project folder',
     );
     if (path == null) return false;
     await vm.addProject(path);
@@ -94,7 +94,7 @@ class _CockpitPageState extends State<CockpitPage> {
     final vm = _vm;
     _mark('picker:start');
     final path = await FilePicker.platform.getDirectoryPath(
-      dialogTitle: 'Escolha a pasta do workspace',
+      dialogTitle: 'Choose the workspace folder',
     );
     _mark('picker:done path=$path mounted=$mounted');
     if (path == null || !mounted) return false;
@@ -135,10 +135,10 @@ class _CockpitPageState extends State<CockpitPage> {
     if (result.name != project.name) {
       await showInfoDialog(
         context,
-        title: 'Workspace renomeado',
+        title: 'Workspace renamed',
         message:
-            'O novo nome "${result.name}" será enviado aos agentes somente '
-            'após reiniciar o workspace ou a aplicação.',
+            'The new name "${result.name}" will only be sent to agents '
+            'after restarting the workspace or the application.',
       );
     }
   }
@@ -166,11 +166,11 @@ class _CockpitPageState extends State<CockpitPage> {
     final vm = _vm;
     final ok = await showConfirmDialog(
       context,
-      title: 'Deletar workspace',
+      title: 'Delete workspace',
       message:
-          'Remover "${project.name}"? Os agentes deste workspace serão '
-          'encerrados. A pasta no disco não é apagada.',
-      confirmLabel: 'Deletar',
+          'Remove "${project.name}"? The agents in this workspace will be '
+          'terminated. The folder on disk is not deleted.',
+      confirmLabel: 'Delete',
       danger: true,
     );
     if (!ok) return;
@@ -187,15 +187,15 @@ class _CockpitPageState extends State<CockpitPage> {
     if (!mounted) return;
     final warn = merged
         ? ''
-        : '\n\nAviso: a branch "${fork.name}" ainda não foi mergeada — '
-              'removê-la (git branch -D) descarta o trabalho não-mergeado.';
+        : '\n\nWarning: the branch "${fork.name}" has not been merged yet — '
+              'removing it (git branch -D) discards the unmerged work.';
     final ok = await showConfirmDialog(
       context,
-      title: 'Remover worktree',
+      title: 'Remove worktree',
       message:
-          'Remover "${fork.name}"? A pasta do worktree e a branch serão '
-          'apagadas e os agentes deste fork serão encerrados.$warn',
-      confirmLabel: 'Remover',
+          'Remove "${fork.name}"? The worktree folder and the branch will be '
+          'deleted and the agents in this fork will be terminated.$warn',
+      confirmLabel: 'Remove',
       danger: true,
     );
     if (!ok) return;
@@ -205,7 +205,7 @@ class _CockpitPageState extends State<CockpitPage> {
     if (err != null) {
       await showInfoDialog(
         context,
-        title: 'Falha ao remover worktree',
+        title: 'Failed to remove worktree',
         message: err,
       );
     }

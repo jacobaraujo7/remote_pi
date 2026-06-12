@@ -44,7 +44,7 @@ class UpdateCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Atualização disponível',
+                        'Update available',
                         overflow: TextOverflow.ellipsis,
                         style: context.typo.label.copyWith(
                           color: colors.text,
@@ -53,7 +53,7 @@ class UpdateCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 1),
                       Text(
-                        'v${info.version} — clique pra baixar',
+                        'v${info.version} — click to download',
                         overflow: TextOverflow.ellipsis,
                         style: context.typo.label.copyWith(color: colors.text3),
                       ),
@@ -61,7 +61,7 @@ class UpdateCard extends StatelessWidget {
                   ),
                 ),
                 Tooltip(
-                  message: 'Dispensar',
+                  message: 'Dismiss',
                   child: InkWell(
                     borderRadius: BorderRadius.circular(5),
                     onTap: () => context.read<UpdateViewModel>().dismiss(),

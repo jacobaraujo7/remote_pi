@@ -16,7 +16,7 @@ class TerminalSession extends PaneItem {
     required TerminalGateway gateway,
     String? title,
   }) : _gateway = gateway,
-       _title = title ?? 'Terminal' {
+       _title = title ?? 'New terminal' {
     terminal = Terminal(maxLines: 10000);
 
     // Sobe o shell e liga os dois lados. O `.cast<List<int>>()` re-vincula o

@@ -81,7 +81,7 @@ class _OnboardingViewState extends State<OnboardingView>
                     Icon(Icons.rocket_launch_outlined, color: colors.accentText),
                     const SizedBox(width: 10),
                     Text(
-                      'Bem-vindo ao Cockpit',
+                      'Welcome to Cockpit',
                       style: context.typo.title.copyWith(
                         fontSize: 20,
                         color: colors.text,
@@ -91,8 +91,8 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Antes de criar um workspace, vamos preparar o ambiente. '
-                  'Conclua os passos abaixo.',
+                  'Before creating a workspace, let\'s prepare the environment. '
+                  'Complete the steps below.',
                   style: context.typo.body.copyWith(
                     fontSize: 13.5,
                     color: colors.text2,
@@ -101,39 +101,39 @@ class _OnboardingViewState extends State<OnboardingView>
                 const SizedBox(height: 22),
                 _StepCard(
                   index: 1,
-                  title: 'Pi Code instalado',
-                  description: 'O binário `pi` precisa estar acessível.',
+                  title: 'Pi Code installed',
+                  description: 'The `pi` binary must be accessible.',
                   status: vm.pi,
                   onRecheck: vm.recheckPi,
                 ),
                 _StepCard(
                   index: 2,
-                  title: 'Extensão remote-pi no Pi',
-                  description: 'Registrada em ~/.pi/agent/settings.json.',
+                  title: 'remote-pi extension on Pi',
+                  description: 'Registered in ~/.pi/agent/settings.json.',
                   status: vm.extension,
                   onRecheck: vm.recheckExtension,
                   action: _StepAction(
-                    label: 'Instalar',
+                    label: 'Install',
                     onTap: () => _install(
                       context,
-                      title: 'Instalar extensão remote-pi',
+                      title: 'Install remote-pi extension',
                       runner: vm.installExtension,
                     ),
                   ),
                 ),
                 _StepCard(
                   index: 3,
-                  title: 'Supervisor instalado',
-                  description: 'Serviço pi-supervisord (remote-pi install).',
+                  title: 'Supervisor installed',
+                  description: 'pi-supervisord service (remote-pi install).',
                   status: vm.supervisor,
                   onRecheck: vm.recheckSupervisor,
                   // Sem a extensão não há index.js pra rodar o instalador.
                   action: vm.extension == CheckStatus.ok
                       ? _StepAction(
-                          label: 'Instalar',
+                          label: 'Install',
                           onTap: () => _install(
                             context,
-                            title: 'Instalar supervisor',
+                            title: 'Install supervisor',
                             runner: vm.installSupervisor,
                           ),
                         )
@@ -141,12 +141,12 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
                 _StepCard(
                   index: 4,
-                  title: 'Notificações',
-                  description: 'Avisos quando um agente termina um turno.',
+                  title: 'Notifications',
+                  description: 'Alerts when an agent finishes a turn.',
                   status: vm.notifications,
                   onRecheck: vm.recheckNotifications,
                   action: _StepAction(
-                    label: 'Testar',
+                    label: 'Test',
                     onTap: vm.requestNotifications,
                   ),
                 ),
@@ -158,7 +158,7 @@ class _OnboardingViewState extends State<OnboardingView>
                 if (!vm.canCreate) ...[
                   const SizedBox(height: 10),
                   Text(
-                    'Conclua os passos acima para liberar a criação.',
+                    'Complete the steps above to enable creation.',
                     style: context.typo.label.copyWith(color: colors.text3),
                   ),
                 ],
@@ -239,7 +239,7 @@ class _StepCard extends StatelessWidget {
           ],
           if (status != CheckStatus.notApplicable)
             Tooltip(
-              message: 'Verificar de novo',
+              message: 'Check again',
               child: InkWell(
                 borderRadius: BorderRadius.circular(6),
                 onTap: () => onRecheck(),
@@ -284,7 +284,7 @@ class _StatusDot extends StatelessWidget {
         );
       case CheckStatus.notApplicable:
         return Tooltip(
-          message: 'Dispensado nesta configuração',
+          message: 'Not required in this setup',
           child: Icon(
             Icons.remove_circle_outline,
             size: 20,
@@ -344,7 +344,7 @@ class _CreateButton extends StatelessWidget {
         ),
         onPressed: enabled ? () => onTap() : null,
         icon: const Icon(Icons.add, size: 16),
-        label: const Text('Criar Workspace'),
+        label: const Text('Create Workspace'),
       ),
     );
   }
@@ -400,7 +400,7 @@ class _InstallDialogState extends State<_InstallDialog> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    'Instalando…',
+                    'Installing…',
                     style: context.typo.body.copyWith(
                       fontSize: 13.5,
                       color: colors.text2,
@@ -420,7 +420,7 @@ class _InstallDialogState extends State<_InstallDialog> {
                   Expanded(
                     child: Text(
                       result.ok
-                          ? 'Instalado com sucesso.'
+                          ? 'Installed successfully.'
                           : result.detail,
                       style: context.typo.body.copyWith(
                         fontSize: 13.5,
@@ -435,7 +435,7 @@ class _InstallDialogState extends State<_InstallDialog> {
         TextButton(
           onPressed: result == null ? null : () => Navigator.of(context).pop(),
           child: Text(
-            'Fechar',
+            'Close',
             style: context.typo.body.copyWith(
               fontSize: 13,
               color: result == null ? colors.text4 : colors.text2,

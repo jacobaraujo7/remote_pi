@@ -152,7 +152,7 @@ const STORES: Store[] = [
     top: "Desktop app",
     name: "Cockpit",
     sub: "macOS · Windows · Linux",
-    href: "/download",
+    href: "/cockpit",
   },
 ];
 

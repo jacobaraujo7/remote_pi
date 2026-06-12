@@ -114,7 +114,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Configurações do workspace',
+                'Workspace settings',
                 style: context.typo.title.copyWith(
                   fontSize: 15,
                   color: colors.text,
@@ -151,7 +151,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
                       ),
                       decoration: InputDecoration(
                         isDense: true,
-                        hintText: 'Nome do workspace',
+                        hintText: 'Workspace name',
                         hintStyle: context.typo.body.copyWith(
                           color: colors.text3,
                         ),
@@ -180,7 +180,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Cor',
+                'Color',
                 style: context.typo.label.copyWith(color: colors.text2),
               ),
               const SizedBox(height: 10),
@@ -198,7 +198,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
               ),
               const SizedBox(height: 18),
               Text(
-                'Pasta',
+                'Folder',
                 style: context.typo.label.copyWith(color: colors.text2),
               ),
               const SizedBox(height: 6),
@@ -228,7 +228,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
                       Navigator.of(context).pop();
                       _trace('cancel:after-pop');
                     },
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -236,7 +236,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
                       backgroundColor: colors.accent,
                     ),
                     onPressed: _save,
-                    child: const Text('Salvar'),
+                    child: const Text('Save'),
                   ),
                 ],
               ),

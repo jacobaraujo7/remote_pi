@@ -68,7 +68,7 @@ class SystemPermissionsImpl implements SystemPermissions {
     await _plugin.show(
       _testId++,
       'Cockpit',
-      'Notificações ativadas — você verá os avisos dos agentes aqui.',
+      'Notifications enabled — you will see agent alerts here.',
       const NotificationDetails(macOS: DarwinNotificationDetails()),
     );
   }

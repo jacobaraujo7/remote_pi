@@ -6,7 +6,7 @@ Future<void> showInfoDialog(
   BuildContext context, {
   required String title,
   required String message,
-  String okLabel = 'Entendi',
+  String okLabel = 'Got it',
 }) {
   return showDialog<void>(
     context: context,
@@ -66,8 +66,8 @@ Future<bool> showConfirmDialog(
   BuildContext context, {
   required String title,
   required String message,
-  String confirmLabel = 'Confirmar',
-  String cancelLabel = 'Cancelar',
+  String confirmLabel = 'Confirm',
+  String cancelLabel = 'Cancel',
   bool danger = false,
 }) async {
   final result = await showDialog<bool>(

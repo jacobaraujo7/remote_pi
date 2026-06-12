@@ -45,14 +45,14 @@ class PairingGatewayImpl implements PairingGateway {
         if (!_gotCode) {
           _emit(
             const PairFailed(
-              'Não foi possível iniciar o pareamento. Verifique se a extensão '
-              'remote-pi está instalada e se há um relay configurado.',
+              'Could not start pairing. Check that the remote-pi extension is '
+              'installed and that a relay is configured.',
             ),
           );
         }
       });
     } catch (error) {
-      _emit(PairFailed('Falha ao iniciar o pareamento: $error'));
+      _emit(PairFailed('Failed to start pairing: $error'));
       await _cleanup();
     }
   }
@@ -99,7 +99,7 @@ class PairingGatewayImpl implements PairingGateway {
 
   void _onExit(int code) {
     if (!_gotCode && !_closed) {
-      _emit(PairFailed('O processo de pareamento encerrou (code=$code).'));
+      _emit(PairFailed('The pairing process exited (code=$code).'));
     }
     unawaited(_cleanup());
   }

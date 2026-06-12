@@ -39,7 +39,7 @@ export type CockpitManifest = {
  */
 export const MANIFEST_URL =
   process.env.NEXT_PUBLIC_COCKPIT_MANIFEST_URL ??
-  "https://remote-pi.jacobmoura.work/downloads/cockpit/latest.json";
+  "https://rp-s3.jacobmoura.work/downloads/cockpit/latest.json";
 
 /**
  * Stand-in manifest used during development and whenever the live fetch
@@ -140,13 +140,15 @@ function isManifest(d: unknown): d is CockpitManifest {
 }
 
 /**
- * Load the release manifest. Fetches the live VPS endpoint with hourly
- * revalidation; on any failure (network, non-200, malformed) returns the
- * mock so the page degrades gracefully instead of crashing.
+ * Load the release manifest. Fetches the live VPS endpoint at request time
+ * (no build-time caching — the manifest is published independently of the
+ * site deploy, so a static snapshot would go stale or freeze the page in
+ * "not published" state). On any failure (network, non-200, malformed)
+ * returns the mock so the page degrades gracefully instead of crashing.
  */
 export async function loadCockpitManifest(): Promise<ManifestLoad> {
   try {
-    const res = await fetch(MANIFEST_URL, { next: { revalidate: 3600 } });
+    const res = await fetch(MANIFEST_URL, { cache: "no-store" });
     if (!res.ok) throw new Error(`manifest responded ${res.status}`);
     const data: unknown = await res.json();
     if (!isManifest(data)) throw new Error("manifest shape invalid");

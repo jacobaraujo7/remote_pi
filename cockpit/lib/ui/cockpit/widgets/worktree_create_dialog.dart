@@ -62,16 +62,16 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
   /// Mensagem por causa de validação (null quando válido ou campo intacto).
   String? _reason(WorktreeNameCheck check) => switch (check.error) {
     null || WorktreeNameError.empty => null,
-    WorktreeNameError.whitespace => 'Sem espaços no nome.',
+    WorktreeNameError.whitespace => 'No spaces in the name.',
     WorktreeNameError.invalidChar =>
-      'Caractere inválido para um nome de branch.',
+      'Invalid character for a branch name.',
     WorktreeNameError.invalidSequence =>
-      'Sequência inválida (ex.: "..", "//", começar/terminar com "/").',
+      'Invalid sequence (e.g. "..", "//", starting/ending with "/").',
     WorktreeNameError.reserved =>
-      'Posição reservada (não comece com "-"/"." nem termine em ".lock").',
-    WorktreeNameError.duplicateBranch => 'Já existe uma branch com esse nome.',
+      'Reserved position (do not start with "-"/"." or end with ".lock").',
+    WorktreeNameError.duplicateBranch => 'A branch with that name already exists.',
     WorktreeNameError.duplicateWorktree =>
-      'Já existe uma worktree com esse nome.',
+      'A worktree with that name already exists.',
   };
 
   Future<void> _submit() async {
@@ -114,7 +114,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Criar worktree',
+                'Create worktree',
                 style: context.typo.title.copyWith(
                   fontSize: 15,
                   color: colors.text,
@@ -122,8 +122,8 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Nova feature em ${widget.rootName} — branch nova a partir do '
-                'HEAD atual.',
+                'New feature in ${widget.rootName} — new branch from the '
+                'current HEAD.',
                 style: context.typo.label.copyWith(color: colors.text3),
               ),
               const SizedBox(height: 16),
@@ -183,7 +183,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
                     onPressed: _submitting
                         ? null
                         : () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -200,7 +200,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
                               color: Colors.white,
                             ),
                           )
-                        : const Text('Criar'),
+                        : const Text('Create'),
                   ),
                 ],
               ),

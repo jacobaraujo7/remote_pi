@@ -382,7 +382,7 @@ class CockpitViewModel extends ChangeNotifier {
   ) async {
     final root = _projectById(rootId);
     if (root == null) {
-      return const Failure(WorktreeOpError('Workspace não encontrado.'));
+      return const Failure(WorktreeOpError('Workspace not found.'));
     }
     final res = await _worktreeMgr.add(root.path, name);
     switch (res) {
@@ -396,7 +396,7 @@ class CockpitViewModel extends ChangeNotifier {
         final fork = _projectById(value.path);
         if (fork == null) {
           return const Failure(
-            WorktreeOpError('Worktree criada, mas não apareceu na lista.'),
+            WorktreeOpError('Worktree created, but did not appear in the list.'),
           );
         }
         if (clonedLayout != null) {
@@ -426,11 +426,11 @@ class CockpitViewModel extends ChangeNotifier {
   Future<Result<void, WorktreeOpError>> removeWorktree(String forkId) async {
     final fork = _projectById(forkId);
     if (fork == null || fork.parentId == null) {
-      return const Failure(WorktreeOpError('Worktree não encontrada.'));
+      return const Failure(WorktreeOpError('Worktree not found.'));
     }
     final root = _projectById(fork.parentId);
     if (root == null) {
-      return const Failure(WorktreeOpError('Workspace pai não encontrado.'));
+      return const Failure(WorktreeOpError('Parent workspace not found.'));
     }
     final res = await _worktreeMgr.remove(root.path, fork.path, fork.name);
     if (res.isSuccess) {
@@ -996,7 +996,7 @@ class CockpitViewModel extends ChangeNotifier {
       projectId: projectId,
       workingDirectory: '',
       factory: _factory,
-      title: 'Novo',
+      title: 'New',
     );
     _sessions[s.id] = s;
     return s;

@@ -71,7 +71,7 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Editar agente',
+                'Edit agent',
                 style: context.typo.title.copyWith(
                   fontSize: 16,
                   color: colors.text,
@@ -79,11 +79,11 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
               ),
               const SizedBox(height: 16),
 
-              _Label('Nome do agente'),
+              _Label('Agent name'),
               const SizedBox(height: 6),
               _Field(
                 controller: _name,
-                hint: 'Nome do agente',
+                hint: 'Agent name',
                 inputFormatters: [
                   FilteringTextInputFormatter(
                     RegExp(r' '),
@@ -100,7 +100,7 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Auto-conectar ao iniciar',
+                    'Auto-connect on start',
                     style: context.typo.label.copyWith(color: colors.text2),
                   ),
                   Switch(
@@ -112,13 +112,13 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
               ),
               const SizedBox(height: 18),
 
-              _SectionTitle('Informações'),
+              _SectionTitle('Information'),
               const SizedBox(height: 8),
-              _InfoRow('Pasta', session.workingDirectory),
-              _InfoRow('Modelo', session.model?.name ?? '—'),
-              _InfoRow('Estado', _statusLabel(session.status)),
+              _InfoRow('Folder', session.workingDirectory),
+              _InfoRow('Model', session.model?.name ?? '—'),
+              _InfoRow('State', _statusLabel(session.status)),
               _InfoRow(
-                'Contexto',
+                'Context',
                 ctx?.percent != null
                     ? '${ctx!.percent!.toStringAsFixed(ctx.percent! < 10 ? 1 : 0)}%  (${ctx.tokens ?? "?"}/${ctx.contextWindow})'
                     : '—',
@@ -130,7 +130,7 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
                 children: [
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('Cancelar'),
+                    child: const Text('Cancel'),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
@@ -138,7 +138,7 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
                       backgroundColor: colors.accent,
                     ),
                     onPressed: _save,
-                    child: const Text('Salvar'),
+                    child: const Text('Save'),
                   ),
                 ],
               ),
@@ -150,11 +150,11 @@ class _AgentEditDialogState extends State<_AgentEditDialog> {
   }
 
   String _statusLabel(AgentStatus status) => switch (status) {
-    AgentStatus.empty => 'vazio',
-    AgentStatus.booting => 'iniciando',
-    AgentStatus.idle => 'pronto',
+    AgentStatus.empty => 'empty',
+    AgentStatus.booting => 'starting',
+    AgentStatus.idle => 'ready',
     AgentStatus.streaming => 'streaming',
-    AgentStatus.crashed => 'encerrado',
+    AgentStatus.crashed => 'ended',
   };
 }
 

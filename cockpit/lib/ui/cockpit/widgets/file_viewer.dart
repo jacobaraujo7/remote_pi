@@ -26,7 +26,7 @@ class FileViewer extends StatelessWidget {
         FileViewImage(:final path) => _ImageView(path: path),
         FileViewUnsupported() => Center(
           child: Text(
-            'Não dá pra abrir esse arquivo.',
+            'Can\'t open this file.',
             style: context.typo.body.copyWith(color: colors.text3),
           ),
         ),
@@ -169,7 +169,7 @@ class _ImageView extends StatelessWidget {
                   file,
                   fit: BoxFit.contain,
                   errorBuilder: (context, error, stack) => Text(
-                    'Não foi possível carregar a imagem.',
+                    'Could not load the image.',
                     style: context.typo.body.copyWith(color: colors.text3),
                   ),
                 ),

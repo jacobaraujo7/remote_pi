@@ -61,7 +61,7 @@ class _ModelPickerState extends State<_ModelPicker> {
                 decoration: InputDecoration(
                   isDense: true,
                   prefixIcon: Icon(Icons.search, size: 18, color: colors.text3),
-                  hintText: 'Buscar modelo (${widget.models.length})',
+                  hintText: 'Search model (${widget.models.length})',
                   hintStyle: context.typo.body.copyWith(color: colors.text3),
                   filled: true,
                   fillColor: colors.panel2,

@@ -1888,6 +1888,44 @@ a {
 }
 
 /* ===========================================================
+   COCKPIT — product page (hero shot + requires-Pi note)
+   Sections reuse .page, .section-head, .feat-card, .callout, .btn.
+   =========================================================== */
+.ck-shot {
+  margin-top: 48px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--bg-2);
+  box-shadow:
+    0 40px 120px -40px rgba(0, 0, 0, 0.8),
+    0 0 90px -30px var(--green-glow);
+}
+.ck-shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.ck-note {
+  margin-top: 18px;
+  font-family: var(--ff-mono);
+  font-size: 13px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+.ck-note::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green-glow);
+  flex-shrink: 0;
+}
+
+/* ===========================================================
    DOWNLOAD — product bands, per-OS sections + artifact cards
    Reuses tokens, .btn, .callout and .terminal from above.
    =========================================================== */
