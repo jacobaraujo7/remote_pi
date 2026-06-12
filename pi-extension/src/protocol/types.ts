@@ -6,8 +6,22 @@ export type PairErrorCode =
 
 export type StreamingBehavior = "steer";
 
+export type AskUserOption = { title: string; description?: string };
+
+export type AskUserResponsePayload =
+  | {
+      kind: "selection";
+      selections: string[];
+      comment?: string;
+    }
+  | {
+      kind: "freeform";
+      text: string;
+      comment?: string;
+    };
+
 export type ClientMessage =
-  | { type: "pair_request"; id: string; token: string; device_name: string }
+  | { type: "pair_request"; id: string; token: string; device_name: string; capabilities?: string[] }
   // Plan/30: optional `images` carry inline base64 attachments (one today).
   // Omitted entirely on text-only messages — the no-image path is unchanged.
   | {
@@ -22,7 +36,7 @@ export type ClientMessage =
   | { type: "approve_tool"; id: string; tool_call_id: string; decision: "allow" | "deny" }
   | { type: "cancel"; id: string; target_id: string }
   | { type: "ping"; id: string }
-  | { type: "session_sync"; id: string; limit?: number }
+  | { type: "session_sync"; id: string; limit?: number; capabilities?: string[] }
   // Plan/28 — Typed app actions on the paired Pi session. Each carries a
   // structured payload (no string parsing) and gets either `action_ok` or
   // `action_error` back. Visible side-effects (chat output, model change
@@ -31,7 +45,13 @@ export type ClientMessage =
   | { type: "session_compact"; id: string }
   | { type: "model_set"; id: string; provider: string; model_id: string }
   | { type: "thinking_set"; id: string; level: ThinkingLevel }
-  | { type: "list_models"; id: string };
+  | { type: "list_models"; id: string }
+  | {
+      type: "ask_user_response";
+      id: string;
+      response?: AskUserResponsePayload;
+      cancelled?: boolean;
+    };
 
 /**
  * Plan/30 — one inline image attachment on a `user_message`. Mirrors the
@@ -65,6 +85,26 @@ export type SessionHistoryEvent =
   // Plan/30: `images` replayed in history so a re-sync rebuilds the image
   // bubble (the bytes live in `_messageBuffer`). Omitted on text-only inputs.
   | { ts: number; type: "user_input"; id: string; text: string; images?: WireImage[] }
+  | {
+      ts: number;
+      type: "ask_user_prompt";
+      id: string;
+      question: string;
+      context?: string;
+      options: AskUserOption[];
+      allow_multiple: boolean;
+      allow_freeform: boolean;
+      allow_comment: boolean;
+      room_id?: string;
+    }
+  | {
+      ts: number;
+      type: "ask_user_resolved";
+      id: string;
+      answer_label: string;
+      cancelled: boolean;
+      room_id?: string;
+    }
   | {
       ts: number;
       type: "tool_request";
@@ -131,6 +171,24 @@ export type ServerMessage =
       images?: WireImage[];
       streaming_behavior?: StreamingBehavior;
     }
+  | {
+      type: "ask_user_prompt";
+      id: string;
+      question: string;
+      context?: string;
+      options: AskUserOption[];
+      allow_multiple: boolean;
+      allow_freeform: boolean;
+      allow_comment: boolean;
+      room_id?: string;
+    }
+  | {
+      type: "ask_user_resolved";
+      id: string;
+      answer_label: string;
+      cancelled: boolean;
+      room_id?: string;
+    }
   | { type: "queued_message_state"; id?: string; text?: string }
   | { type: "agent_chunk"; in_reply_to: string; delta: string }
   | { type: "agent_done"; in_reply_to: string; usage?: Usage }
@@ -151,6 +209,7 @@ export type ServerMessage =
       events: SessionHistoryEvent[];
       eos: boolean;
       truncated: boolean;
+      room_id?: string;
     }
   // Plan/28 — Replies for typed app actions.
   // `action_ok` / `action_error` carry the original `ActionName` so the

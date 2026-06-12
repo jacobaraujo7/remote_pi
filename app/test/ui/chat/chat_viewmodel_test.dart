@@ -218,6 +218,115 @@ void main() {
   );
 
   test(
+    'respondAskUser sends AskUserResponse.selection and resolves the row',
+    () async {
+      final ch = _FakeChannel();
+      final storage = _FakeStorage();
+      final conn = ConnectionManager(
+        factory: (_, _) async => ch,
+        storage: storage,
+      );
+      final boxes = LocalBoxes();
+      final sync = SyncService(conn, boxes);
+      final read = SessionReadRepository(boxes);
+      final prefs = Preferences(_FakeSecureStorage());
+      await prefs.setSelectedPeerEpk(_peer.remoteEpk);
+      await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
+
+      conn.adopt(ch, _peer);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      final vm = ChatViewModel(read, sync, conn, prefs, storage);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      ch.push(
+        AskUserPrompt(
+          id: 'ask1',
+          question: 'Pick?',
+          context: 'ctx',
+          options: const [AskUserPromptOption(title: 'A')],
+          allowMultiple: false,
+          allowFreeform: false,
+          allowComment: true,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(
+        (vm.state as ChatReady).messages.whereType<AskUserPromptMsg>(),
+        hasLength(1),
+      );
+
+      await vm.respondAskUser(promptId: 'ask1', selections: const ['A']);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      final sent = ch.sent.whereType<AskUserResponse>().lastWhere(
+        (m) => m.id == 'ask1',
+      );
+      expect(sent.selections, ['A']);
+      expect(
+        (vm.state as ChatReady).messages
+            .whereType<AskUserPromptMsg>()
+            .single
+            .resolved,
+        isTrue,
+      );
+
+      vm.dispose();
+      sync.dispose();
+      conn.dispose();
+    },
+  );
+
+  test('respondAskUser can send freeform answers with comment', () async {
+    final ch = _FakeChannel();
+    final storage = _FakeStorage();
+    final conn = ConnectionManager(
+      factory: (_, _) async => ch,
+      storage: storage,
+    );
+    final boxes = LocalBoxes();
+    final sync = SyncService(conn, boxes);
+    final read = SessionReadRepository(boxes);
+    final prefs = Preferences(_FakeSecureStorage());
+    await prefs.setSelectedPeerEpk(_peer.remoteEpk);
+    await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
+
+    conn.adopt(ch, _peer);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final vm = ChatViewModel(read, sync, conn, prefs, storage);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    ch.push(
+      AskUserPrompt(
+        id: 'ask2',
+        question: 'Type?',
+        context: '',
+        options: const [],
+        allowMultiple: false,
+        allowFreeform: true,
+        allowComment: true,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    await vm.respondAskUser(
+      promptId: 'ask2',
+      freeform: 'Use B',
+      comment: 'because',
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final sent = ch.sent.whereType<AskUserResponse>().lastWhere(
+      (m) => m.id == 'ask2',
+    );
+    expect(sent.freeform, 'Use B');
+    expect(sent.comment, 'because');
+
+    vm.dispose();
+    sync.dispose();
+    conn.dispose();
+  });
+
+  test(
     'working send uses steer behavior and preserves current target',
     () async {
       final ch = _FakeChannel();
@@ -258,6 +367,51 @@ void main() {
       conn.dispose();
     },
   );
+
+  test('ask_user_resolved marks prompt row resolved across owners', () async {
+    final ch = _FakeChannel();
+    final storage = _FakeStorage();
+    final conn = ConnectionManager(
+      factory: (_, _) async => ch,
+      storage: storage,
+    );
+    final boxes = LocalBoxes();
+    final sync = SyncService(conn, boxes);
+    final read = SessionReadRepository(boxes);
+    final prefs = Preferences(_FakeSecureStorage());
+    await prefs.setSelectedPeerEpk(_peer.remoteEpk);
+    await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
+
+    conn.adopt(ch, _peer);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    final vm = ChatViewModel(read, sync, conn, prefs, storage);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    ch.push(
+      AskUserPrompt(
+        id: 'ask3',
+        question: 'Pick?',
+        context: '',
+        options: const [AskUserPromptOption(title: 'A')],
+        allowMultiple: false,
+        allowFreeform: false,
+        allowComment: false,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    ch.push(AskUserResolved(id: 'ask3', answerLabel: 'A', cancelled: false));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    final prompt = (vm.state as ChatReady).messages
+        .whereType<AskUserPromptMsg>()
+        .firstWhere((m) => m.id == 'ask3');
+    expect(prompt.resolved, isTrue);
+    expect(prompt.answerLabel, 'A');
+
+    vm.dispose();
+    sync.dispose();
+    conn.dispose();
+  });
 
   test(
     'an empty session reaches ChatReady with no messages → the chat shows the '

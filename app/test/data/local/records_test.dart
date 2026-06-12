@@ -57,6 +57,37 @@ void main() {
       expect(evt.status, ToolEventStatus.completed);
     });
 
+    test('MessageRecord (ask_user prompt) survives roundtrip', () {
+      final r = MessageRecord(
+        id: 'ask1',
+        seq: 1,
+        role: MsgRole.askUser,
+        ts: DateTime.fromMillisecondsSinceEpoch(2),
+        askUser: AskUserPromptData(
+          question: 'Choose?',
+          context: 'summary',
+          options: const [
+            AskUserPromptChoice(title: 'A', description: 'first'),
+            AskUserPromptChoice(title: 'B'),
+          ],
+          allowMultiple: false,
+          allowFreeform: true,
+          allowComment: true,
+          resolved: true,
+          cancelled: false,
+          answerLabel: 'A',
+        ),
+      );
+      final back = MessageRecord.fromJson(r.toJson());
+      expect(back.askUser, isNotNull);
+      expect(back.askUser!.question, 'Choose?');
+      expect(back.askUser!.options.length, 2);
+      expect(back.askUser!.resolved, isTrue);
+      final msg = back.toChatMessage() as AskUserPromptMsg;
+      expect(msg.answerLabel, 'A');
+      expect(msg.options.first.title, 'A');
+    });
+
     test('SessionIndexRecord survives roundtrip', () {
       final r = SessionIndexRecord(
         epk: 'epk1',

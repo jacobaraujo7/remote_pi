@@ -33,6 +33,16 @@ class WsTransportError implements Exception {
   String toString() => 'WsTransportError: $message';
 }
 
+/// Sender room carried by room-aware relays as `room`, or by legacy/raw-forward
+/// relays as `source_room` when the Pi extension tags outbound frames itself.
+String? senderRoomFromEnvelope(Map<String, dynamic> frame) {
+  final sourceRoom = frame['source_room'];
+  if (sourceRoom is String && sourceRoom.isNotEmpty) return sourceRoom;
+  final room = frame['room'];
+  if (room is String && room.isNotEmpty) return room;
+  return null;
+}
+
 class WsTransport implements PeerTransport, IControlLink {
   final WebSocketChannel _ws;
   final _queue = _MsgQueue();
@@ -91,7 +101,7 @@ class WsTransport implements PeerTransport, IControlLink {
           // Envelope: {peer, room?, ct} → enqueue payload bytes.
           if (frame.containsKey('peer') && frame.containsKey('ct')) {
             final bytes = _b64Decode(frame['ct'] as String);
-            final senderRoom = frame['room'] as String?;
+            final senderRoom = senderRoomFromEnvelope(frame);
             // Plan-18 follow-up — DEMUX inbound by sender room.
             // SessionRepository is singleton; without this guard,
             // AgentChunks for a chat the user just left bleed into

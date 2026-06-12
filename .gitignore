@@ -3,6 +3,11 @@
 .*
 # but DO track CI workflows (the `.*` rule above would otherwise ignore .github/)
 !.github/
+# and DO track orchestration contracts/fixtures shared across subprojects.
+!.orchestration/
+!.orchestration/contracts/
+!.orchestration/contracts/**
+!.orchestration/results/
 
 # orchestration: results são efêmeros (logs de execução de cada task);
 # INSTRUCTIONS.md e contracts/ ficam versionados (contrato compartilhado).

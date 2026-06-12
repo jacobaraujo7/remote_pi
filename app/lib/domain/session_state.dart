@@ -128,6 +128,108 @@ class ToolEvent extends ChatMessage {
   int get hashCode => Object.hash(id, toolCallId, status);
 }
 
+/// Plan/44 — question + answer metadata for `ask_user_prompt` cards.
+class AskUserPromptChoice {
+  final String title;
+  final String? description;
+  const AskUserPromptChoice({required this.title, this.description});
+
+  AskUserPromptChoice copyWith({String? title, String? description}) =>
+      AskUserPromptChoice(
+        title: title ?? this.title,
+        description: description ?? this.description,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is AskUserPromptChoice &&
+      other.title == title &&
+      other.description == description;
+
+  @override
+  int get hashCode => Object.hash(title, description);
+}
+
+class AskUserPromptMsg extends ChatMessage {
+  final String question;
+  final String context;
+  final List<AskUserPromptChoice> options;
+  final bool allowMultiple;
+  final bool allowFreeform;
+  final bool allowComment;
+  final bool resolved;
+  final bool cancelled;
+  final String? answerLabel;
+
+  const AskUserPromptMsg({
+    required super.id,
+    required this.question,
+    required this.context,
+    required this.options,
+    required this.allowMultiple,
+    required this.allowFreeform,
+    required this.allowComment,
+    this.resolved = false,
+    this.cancelled = false,
+    this.answerLabel,
+  });
+
+  AskUserPromptMsg copyWith({
+    String? question,
+    String? context,
+    List<AskUserPromptChoice>? options,
+    bool? allowMultiple,
+    bool? allowFreeform,
+    bool? allowComment,
+    bool? resolved,
+    bool? cancelled,
+    Object? answerLabel = _askUserPromptUnset,
+  }) => AskUserPromptMsg(
+    id: id,
+    question: question ?? this.question,
+    context: context ?? this.context,
+    options: options ?? this.options,
+    allowMultiple: allowMultiple ?? this.allowMultiple,
+    allowFreeform: allowFreeform ?? this.allowFreeform,
+    allowComment: allowComment ?? this.allowComment,
+    resolved: resolved ?? this.resolved,
+    cancelled: cancelled ?? this.cancelled,
+    answerLabel: identical(answerLabel, _askUserPromptUnset)
+        ? this.answerLabel
+        : answerLabel as String?,
+  );
+
+  static const Object _askUserPromptUnset = Object();
+
+  @override
+  bool operator ==(Object other) =>
+      other is AskUserPromptMsg &&
+      other.id == id &&
+      other.question == question &&
+      other.context == context &&
+      other.options == options &&
+      other.allowMultiple == allowMultiple &&
+      other.allowFreeform == allowFreeform &&
+      other.allowComment == allowComment &&
+      other.resolved == resolved &&
+      other.cancelled == cancelled &&
+      other.answerLabel == answerLabel;
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    question,
+    context,
+    options,
+    allowMultiple,
+    allowFreeform,
+    allowComment,
+    resolved,
+    cancelled,
+    answerLabel,
+  );
+}
+
 /// Plan/32 — `denied` = the user/SDK declined the tool; `failed` = the tool
 /// ran but errored (a distinct, red outcome). `expired` = approval timed out.
 enum ToolEventStatus { pending, allowed, denied, expired, completed, failed }

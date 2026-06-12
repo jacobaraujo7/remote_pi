@@ -1,0 +1,3 @@
+{"type":"ask_user_response","id":"tc_ask_001","response":{"kind":"selection","selections":["Canary"],"comment":"Prefer safer rollout"}}
+{"type":"ask_user_response","id":"tc_ask_002","response":{"kind":"freeform","text":"Use the fallback path"}}
+{"type":"ask_user_response","id":"tc_ask_003","cancelled":true}

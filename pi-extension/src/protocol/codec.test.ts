@@ -20,13 +20,17 @@ const SERVER_TYPE_FILES = new Set([
   "pong.jsonl",
   "bye.jsonl",
   "session_history.jsonl",
+  "ask_user_prompt.jsonl",
+  "ask_user_resolved.jsonl",
 ]);
+
+// ask_user_response is a client-only fixture
 
 describe("fixtures", () => {
   const files = readdirSync(fixtureDir).filter((f) => f.endsWith(".jsonl"));
 
-  test("31 fixture files present", () => {
-    expect(files).toHaveLength(31);
+  test("34 fixture files present", () => {
+    expect(files).toHaveLength(34);
   });
 
   for (const file of files) {

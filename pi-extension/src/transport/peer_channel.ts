@@ -20,6 +20,8 @@ export interface PeerChannel {
 interface OuterEnvelope {
   peer: string;
   room?: string;
+  /** Sender room for legacy relays that raw-forward envelopes without rewriting `room`. */
+  source_room?: string;
   ct: string;
 }
 
@@ -41,12 +43,9 @@ export class PlainPeerChannel implements PeerChannel {
   constructor(
     private readonly relay: RelayClient,
     private readonly remotePeerId: string,
-    /**
-     * This Pi's room id. Currently NOT injected in the outer envelope
-     * (defensive — relay/app not yet ready). Kept in the constructor for
-     * forward-compat so callers don't need to change again when we re-enable.
-     */
-    myRoomId: string | undefined,
+    /** This Pi's room id. Sent as `source_room` for app-side demux when a
+     * legacy relay raw-forwards envelopes instead of rewriting `room`. */
+    private readonly myRoomId: string | undefined,
     private readonly onMessage: (msg: ClientMessage) => void,
     /** Called when this specific peer connection is considered lost. */
     _onDisconnect?: () => void,
@@ -55,18 +54,22 @@ export class PlainPeerChannel implements PeerChannel {
     relay.on("message", listener);
     this._unsubscribe = () => relay.off("message", listener);
     void _onDisconnect;
-    void myRoomId;  // intentionally unused — see send() comment
   }
 
   // ── PeerChannel interface ──────────────────────────────────────────────────
 
   send(msg: ServerMessage): void {
     const ct = Buffer.from(JSON.stringify(msg)).toString("base64");
-    // NOTE: `room` removed from the outer envelope until relay (W1.A) + app
-    // (W1.C) accept the field. Multi-Pi multiplexing already works via
-    // `room_id`/`room_meta` in the WS-level `hello` — outer routing stays by
-    // `peer` alone. Re-add the field once downstream is ready.
-    const outer: OuterEnvelope = { peer: this.remotePeerId, ct };
+    // `room` is the relay destination room and intentionally omitted so the
+    // relay defaults to the app's `main` room. `source_room` is ignored by
+    // room-aware relays (they rewrite outbound `room` to this connection's
+    // registered room), but legacy/raw-forward relays preserve it so updated
+    // apps can still drop frames from non-active Pi rooms.
+    const outer: OuterEnvelope = {
+      peer: this.remotePeerId,
+      ...(this.myRoomId ? { source_room: this.myRoomId } : {}),
+      ct,
+    };
     this.relay.send(JSON.stringify(outer));
   }
 

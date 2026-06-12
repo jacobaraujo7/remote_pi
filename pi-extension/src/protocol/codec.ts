@@ -15,6 +15,8 @@ const SERVER_TYPES = new Set<ServerMessage["type"]>([
   "pong",
   "bye",
   "session_history",
+  "ask_user_prompt",
+  "ask_user_resolved",
 ]);
 
 export class DecodeError extends Error {

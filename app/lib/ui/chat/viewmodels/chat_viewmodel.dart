@@ -268,6 +268,44 @@ class ChatViewModel extends ViewModel<ChatState> {
   Future<void> approveTool(String toolCallId, ApproveDecision decision) =>
       _sync.approveTool(toolCallId, decision);
 
+  Future<void> respondAskUser({
+    required String promptId,
+    List<String>? selections,
+    String? freeform,
+    String? comment,
+    bool cancelled = false,
+  }) {
+    if (cancelled) {
+      return _sync.respondAskUser(AskUserResponse.cancelled(promptId));
+    }
+
+    final normalizedComment = comment?.trim().isNotEmpty == true
+        ? comment?.trim()
+        : null;
+
+    if (freeform != null && freeform.trim().isNotEmpty) {
+      return _sync.respondAskUser(
+        AskUserResponse.freeform(
+          id: promptId,
+          text: freeform.trim(),
+          comment: normalizedComment,
+        ),
+      );
+    }
+
+    if (selections != null && selections.isNotEmpty) {
+      return _sync.respondAskUser(
+        AskUserResponse.selection(
+          id: promptId,
+          selections: selections,
+          comment: normalizedComment,
+        ),
+      );
+    }
+
+    return Future.value();
+  }
+
   Future<void> clearActiveSession() => _sync.clearActiveSession();
 
   Future<void> reconnect() async {

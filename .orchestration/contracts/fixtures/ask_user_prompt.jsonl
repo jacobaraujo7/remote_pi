@@ -1,0 +1,1 @@
+{"type":"ask_user_prompt","id":"tc_ask_001","question":"Which deployment strategy should we use?","options":[{"title":"Canary","description":"Slow rollout with monitoring"},{"title":"Blue-green"}],"allow_multiple":false,"allow_freeform":true,"allow_comment":false,"room_id":"room_abc123"}
