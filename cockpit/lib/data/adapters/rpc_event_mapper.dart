@@ -50,7 +50,12 @@ class RpcEventMapper {
         return _fromMessageUpdate(json['assistantMessageEvent']);
 
       case 'message_start':
-        return _fromCustomMessage(json['message']);
+        final msg = json['message'];
+        // Mensagem do usuário (eco local ou vinda do app/mesh) → bolha de input.
+        if (msg is Map<String, dynamic> && msg['role'] == 'user') {
+          return RpcUserMessage(_contentText(msg['content']));
+        }
+        return _fromCustomMessage(msg);
 
       case 'message_end':
         // Carrega o erro do turno quando o assistant falhou (provider fora do
@@ -109,6 +114,25 @@ class RpcEventMapper {
       default:
         return RpcUnknown('message_start:custom:${customType ?? "?"}');
     }
+  }
+
+  /// Extrai o texto de um `content` de mensagem do pi: string crua, ou lista de
+  /// partes (`{type:"text", text:"..."}`; partes não-texto, ex.: imagem, são
+  /// ignoradas). Junta as partes de texto com espaço.
+  String _contentText(Object? content) {
+    if (content is String) return content;
+    if (content is List) {
+      final parts = <String>[];
+      for (final p in content) {
+        if (p is String) {
+          parts.add(p);
+        } else if (p is Map && p['type'] == 'text' && p['text'] is String) {
+          parts.add(p['text'] as String);
+        }
+      }
+      return parts.join(' ');
+    }
+    return '';
   }
 
   /// `errorMessage` de uma mensagem com `stopReason == "error"`, ou `null`.

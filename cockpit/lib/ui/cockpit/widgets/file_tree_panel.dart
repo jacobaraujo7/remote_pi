@@ -15,6 +15,7 @@ class FileTreePanel extends StatefulWidget {
     required this.rootPath,
     required this.listChildren,
     required this.onOpenFile,
+    required this.onCreateInFolder,
     this.width = 300,
   });
 
@@ -23,6 +24,10 @@ class FileTreePanel extends StatefulWidget {
 
   /// Duplo-clique num arquivo → abre no pane.
   final ValueChanged<String> onOpenFile;
+
+  /// Menu de contexto de uma **pasta**: cria uma aba (agente/terminal) nela. O
+  /// 1º arg é o caminho relativo à raiz do workspace; o 2º, `true` = terminal.
+  final void Function(String relativeSub, bool terminal) onCreateInFolder;
 
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
@@ -104,6 +109,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       selectedPath: _selectedPath,
                       onSelect: (p) => setState(() => _selectedPath = p),
                       onOpenFile: widget.onOpenFile,
+                      onCreateInFolder: widget.onCreateInFolder,
                       listChildren: widget.listChildren,
                     ),
                   ),
@@ -125,6 +131,7 @@ class _DirView extends StatefulWidget {
     required this.selectedPath,
     required this.onSelect,
     required this.onOpenFile,
+    required this.onCreateInFolder,
     required this.listChildren,
   });
 
@@ -135,6 +142,7 @@ class _DirView extends StatefulWidget {
   final String? selectedPath;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onOpenFile;
+  final void Function(String relativeSub, bool terminal) onCreateInFolder;
   final Future<List<FileNode>> Function(String path) listChildren;
 
   @override
@@ -178,6 +186,7 @@ class _DirViewState extends State<_DirView> {
               selectedPath: widget.selectedPath,
               onSelect: widget.onSelect,
               onOpenFile: widget.onOpenFile,
+              onCreateInFolder: widget.onCreateInFolder,
               listChildren: widget.listChildren,
             )
           else
@@ -213,6 +222,7 @@ class _Folder extends StatefulWidget {
     required this.selectedPath,
     required this.onSelect,
     required this.onOpenFile,
+    required this.onCreateInFolder,
     required this.listChildren,
   });
 
@@ -223,6 +233,7 @@ class _Folder extends StatefulWidget {
   final String? selectedPath;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onOpenFile;
+  final void Function(String relativeSub, bool terminal) onCreateInFolder;
   final Future<List<FileNode>> Function(String path) listChildren;
 
   @override
@@ -245,6 +256,7 @@ class _FolderState extends State<_Folder> {
           path: widget.node.path,
           rootPath: widget.rootPath,
           selected: widget.node.path == widget.selectedPath,
+          onCreateInFolder: widget.onCreateInFolder,
           // Clicar numa pasta seleciona E expande/recolhe.
           onTap: () {
             widget.onSelect(widget.node.path);
@@ -260,6 +272,7 @@ class _FolderState extends State<_Folder> {
             selectedPath: widget.selectedPath,
             onSelect: widget.onSelect,
             onOpenFile: widget.onOpenFile,
+            onCreateInFolder: widget.onCreateInFolder,
             listChildren: widget.listChildren,
           ),
       ],
@@ -278,6 +291,7 @@ class _Row extends StatefulWidget {
     this.selected = false,
     this.onTap,
     this.onDoubleTap,
+    this.onCreateInFolder,
   });
 
   final int depth;
@@ -289,6 +303,9 @@ class _Row extends StatefulWidget {
   final bool selected;
   final VoidCallback? onTap;
   final VoidCallback? onDoubleTap;
+
+  /// Só em pastas: cria agente/terminal nela (relativo, terminal?).
+  final void Function(String relativeSub, bool terminal)? onCreateInFolder;
 
   @override
   State<_Row> createState() => _RowState();
@@ -325,26 +342,44 @@ class _RowState extends State<_Row> {
   }
 
   void _showMenu(BuildContext context) {
+    final canCreate = widget.isFolder && widget.onCreateInFolder != null;
     showAppMenu<String>(
       context,
       minWidth: 220,
-      items: const [
-        AppMenuItem(
+      items: [
+        if (canCreate) ...const [
+          AppMenuItem(
+            value: 'agent',
+            label: 'Criar agente',
+            icon: Icons.auto_awesome,
+          ),
+          AppMenuItem(
+            value: 'terminal',
+            label: 'Criar terminal',
+            icon: Icons.terminal_outlined,
+          ),
+        ],
+        const AppMenuItem(
           value: 'rel',
           label: 'Copiar caminho relativo',
           icon: Icons.content_copy_outlined,
         ),
-        AppMenuItem(
+        const AppMenuItem(
           value: 'abs',
           label: 'Copiar caminho absoluto',
           icon: Icons.content_copy,
         ),
       ],
     ).then((value) {
-      if (value == 'rel') {
-        Clipboard.setData(ClipboardData(text: _relative));
-      } else if (value == 'abs') {
-        Clipboard.setData(ClipboardData(text: widget.path));
+      switch (value) {
+        case 'agent':
+          widget.onCreateInFolder?.call(_relative, false);
+        case 'terminal':
+          widget.onCreateInFolder?.call(_relative, true);
+        case 'rel':
+          Clipboard.setData(ClipboardData(text: _relative));
+        case 'abs':
+          Clipboard.setData(ClipboardData(text: widget.path));
       }
     });
   }

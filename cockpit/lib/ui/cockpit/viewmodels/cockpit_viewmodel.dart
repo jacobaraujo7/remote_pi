@@ -389,6 +389,9 @@ class CockpitViewModel extends ChangeNotifier {
       case Failure(:final error):
         return Failure<Project, WorktreeOpError>(error);
       case Success(:final value):
+        // Clona a estrutura (panes/abas/posições) do pai pra o fork: mesma
+        // organização, pasta nova, sessões do zero (ver _cloneLayoutForWorktree).
+        final clonedLayout = _cloneLayoutForWorktree(rootId);
         await _refreshWorktrees(rootId); // insere o fork em _projectList
         final fork = _projectById(value.path);
         if (fork == null) {
@@ -396,7 +399,13 @@ class CockpitViewModel extends ChangeNotifier {
             WorktreeOpError('Worktree criada, mas não apareceu na lista.'),
           );
         }
-        selectProject(fork.id); // auto-select → activate → pane vazia
+        if (clonedLayout != null) {
+          // Vira o layout salvo do fork → _activateProject reconstrói a estrutura
+          // apontando pra fork.path. Persiste pra sobreviver a reload.
+          _savedLayouts[fork.id] = clonedLayout;
+          unawaited(_layoutStore.save(fork.id, clonedLayout));
+        }
+        selectProject(fork.id); // auto-select → activate → reconstrói a estrutura
         return Success<Project, WorktreeOpError>(fork);
     }
   }
@@ -452,11 +461,16 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Subpastas do projeto selecionado, para o seletor de "onde o agente atua".
-  Future<List<String>> subfolders() async {
+  /// Subpastas do projeto selecionado em [relativePath] (vazio = raiz), para o
+  /// seletor navegável de "onde o agente atua". [relativePath] usa `/` e fica
+  /// sempre **dentro** do root do projeto (o dialog não sobe acima dele).
+  Future<List<String>> subfolders([String relativePath = '']) async {
     final project = selectedProject;
     if (project == null) return const <String>[];
-    return _folders.subfolders(project.path);
+    final base = relativePath.isEmpty
+        ? project.path
+        : '${project.path}/$relativePath';
+    return _folders.subfolders(base);
   }
 
   /// Sessões salvas do pi para uma pasta (histórico), mais recentes primeiro.
@@ -521,6 +535,37 @@ class CockpitViewModel extends ChangeNotifier {
       ),
     );
     _focused[projectId] = paneId;
+    notifyListeners();
+  }
+
+  /// Cria uma aba (agente ou terminal) direto na subpasta [subRelative] do
+  /// projeto ativo, na pane focada — **sem dialog**. Usada pelo menu de contexto
+  /// da árvore de arquivos. Se a pane focada está num placeholder "Novo" vazio,
+  /// substitui-o; senão, anexa uma aba nova e a ativa.
+  void newTabIn(String subRelative, {required bool terminal}) {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) return;
+    final paneId = _focused[projectId] ?? leaves(tree).first.id;
+    final leaf = findLeaf(tree, paneId) ?? leaves(tree).first;
+    final s = _spawn(subRelative, terminal: terminal);
+
+    final active = _sessions[leaf.active];
+    final replaceEmpty =
+        active is AgentSession && active.status == AgentStatus.empty;
+
+    _setActiveTree(
+      updateLeaf(tree, leaf.id, (p) {
+        if (replaceEmpty) {
+          final tabs =
+              p.tabs.map((t) => t == leaf.active ? s.id : t).toList();
+          return p.copyWith(tabs: tabs, active: s.id);
+        }
+        return p.copyWith(tabs: [...p.tabs, s.id], active: s.id);
+      }),
+    );
+    if (replaceEmpty) _disposeSession(leaf.active);
+    _focused[projectId] = leaf.id;
     notifyListeners();
   }
 
@@ -1176,6 +1221,79 @@ class CockpitViewModel extends ChangeNotifier {
     };
   }
 
+  /// Clona a estrutura de panes/abas do projeto [rootId] num doc de layout novo:
+  /// **ids frescos**, **sem `sessionPath`** (sessões começam do zero) e **sem
+  /// viewers**. A árvore (splits/posições/frac) e o `sub` relativo de cada
+  /// agente/terminal são preservados — ao restaurar no fork, o `cwd` vira
+  /// `fork.path + sub`, ou seja, a mesma estrutura na pasta do worktree.
+  /// `null` se o root não tem layout (ou só tinha viewers).
+  Map<String, dynamic>? _cloneLayoutForWorktree(String rootId) {
+    final doc = _trees.containsKey(rootId)
+        ? _serializeLayout(rootId)
+        : _savedLayouts[rootId];
+    if (doc == null || doc.isEmpty) return null;
+    final treeJson = doc['tree'];
+    final sessionsJson = doc['sessions'];
+    if (treeJson is! Map || sessionsJson is! Map) return null;
+
+    // 1. Remapeia sessões: dropa viewers, remove sessionPath, id novo por tipo.
+    final tabIdMap = <String, String>{};
+    final newSessions = <String, dynamic>{};
+    for (final entry in sessionsJson.entries) {
+      final desc = Map<String, dynamic>.from(entry.value as Map);
+      if (desc['type'] == 'viewer') continue; // worktree não replica viewers
+      desc.remove('sessionPath'); // não continua sessão — começa do zero
+      final newId = _nid(desc['type'] == 'terminal' ? 't' : 'a');
+      tabIdMap[entry.key as String] = newId;
+      newSessions[newId] = desc;
+    }
+    if (newSessions.isEmpty) return null;
+
+    // 2. Remapeia a árvore (ids de folha/split novos; abas via tabIdMap).
+    final nodeIdMap = <String, String>{};
+    final newTree = _remapTreeForClone(
+      paneNodeFromJson(treeJson.cast<String, dynamic>()),
+      tabIdMap,
+      nodeIdMap,
+    );
+    final focused = doc['focused'];
+    return <String, dynamic>{
+      'v': 1,
+      'focused': focused is String ? nodeIdMap[focused] : null,
+      'tree': paneNodeToJson(newTree),
+      'sessions': newSessions,
+    };
+  }
+
+  PaneNode _remapTreeForClone(
+    PaneNode node,
+    Map<String, String> tabIdMap,
+    Map<String, String> nodeIdMap,
+  ) {
+    switch (node) {
+      case LeafPane():
+        final newId = nodeIdMap.putIfAbsent(node.id, () => _nid('pane'));
+        final tabs = <String>[
+          for (final t in node.tabs)
+            if (tabIdMap[t] != null) tabIdMap[t]!,
+        ];
+        // Folha que só tinha viewers fica vazia → o sanitize do restore põe um
+        // placeholder. `active` aqui é só um fallback inofensivo nesse caso.
+        final active = tabIdMap[node.active] ??
+            (tabs.isNotEmpty ? tabs.first : newId);
+        return LeafPane(id: newId, tabs: tabs, active: active);
+      case SplitPane():
+        final newId = nodeIdMap.putIfAbsent(node.id, () => _nid('sp'));
+        return SplitPane(
+          id: newId,
+          dir: node.dir,
+          frac: node.frac,
+          a: _remapTreeForClone(node.a, tabIdMap, nodeIdMap),
+          b: _remapTreeForClone(node.b, tabIdMap, nodeIdMap),
+        );
+    }
+  }
+
   Map<String, dynamic> _sessionToJson(PaneItem s, Project project) {
     if (s is TerminalSession) {
       return <String, dynamic>{
@@ -1203,11 +1321,20 @@ class CockpitViewModel extends ChangeNotifier {
     };
   }
 
-  /// Caminho de [cwd] relativo à raiz [root] do projeto ('' = raiz).
+  /// Caminho de [cwd] relativo à raiz [root] do projeto ('' = raiz). Devolve
+  /// sempre com separador `/` (forma canônica interna).
+  ///
+  /// Normaliza `\`→`/` antes de comparar: no Windows os paths podem misturar
+  /// separadores (ex.: a pasta do worktree vem do git com `\`, enquanto os cwds
+  /// internos são montados com `/`). Sem isso o prefixo não casaria e o `sub`
+  /// sairia vazio — quebrando o posicionamento por subpasta (e a clonagem de
+  /// layout pro worktree).
   String _subOf(String cwd, String root) {
-    if (cwd == root) return '';
-    final prefix = root.endsWith('/') ? root : '$root/';
-    return cwd.startsWith(prefix) ? cwd.substring(prefix.length) : '';
+    final c = cwd.replaceAll('\\', '/');
+    final r = root.replaceAll('\\', '/');
+    if (c == r) return '';
+    final prefix = r.endsWith('/') ? r : '$r/';
+    return c.startsWith(prefix) ? c.substring(prefix.length) : '';
   }
 
   void _scheduleSave(String projectId) {

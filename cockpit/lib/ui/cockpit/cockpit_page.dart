@@ -216,14 +216,13 @@ class _CockpitPageState extends State<CockpitPage> {
   Future<void> _pickSubfolderThen(void Function(String sub) action) async {
     final vm = _vm;
     if (!await _ensureProject()) return;
+    if (!mounted) return;
     final project = vm.selectedProject;
     if (project == null) return;
-    final subfolders = await vm.subfolders();
-    if (!mounted) return;
     final chosen = await showSubfolderDialog(
       context,
       projectName: project.name,
-      subfolders: subfolders,
+      loadSubfolders: vm.subfolders,
     );
     if (chosen == null) return;
     action(chosen);
@@ -386,6 +385,8 @@ class _CockpitPageState extends State<CockpitPage> {
                             rootPath: vm.selectedProject?.path ?? '',
                             listChildren: vm.listChildren,
                             onOpenFile: vm.openFile,
+                            onCreateInFolder: (sub, terminal) =>
+                                vm.newTabIn(sub, terminal: terminal),
                           ),
                           // Alça de arraste sobre a borda esquerda do painel
                           // (esquerda = alarga; direita = estreita).

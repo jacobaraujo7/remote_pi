@@ -40,6 +40,15 @@ final class RpcTextEnd extends RpcEvent {
   final String content;
 }
 
+/// `message_start` com `role == "user"` — uma mensagem do usuário adicionada à
+/// sessão. Acontece tanto no envio local (eco do que digitamos) quanto quando
+/// a mensagem vem **de fora** (app/mesh). A UI usa pra mostrar a bolha das
+/// mensagens remotas; as locais já entram otimisticamente e são deduplicadas.
+final class RpcUserMessage extends RpcEvent {
+  const RpcUserMessage(this.text);
+  final String text;
+}
+
 /// `message_update` com `assistantMessageEvent.type == "thinking_delta"`.
 /// (deepseek/raciocinadores emitem isto pelo RPC mesmo com thinking oculto na TUI.)
 final class RpcThinkingDelta extends RpcEvent {

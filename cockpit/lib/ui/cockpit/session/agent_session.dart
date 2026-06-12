@@ -87,6 +87,12 @@ class AgentSession extends PaneItem {
   /// sem acender o indicador de "trabalhando" (que só aparece com AgentStart).
   bool _pendingSend = false;
 
+  /// Textos de mensagens enviadas **localmente** que já entraram otimisticamente
+  /// no transcript e estão aguardando o eco `message_start:user` do pi. Quando o
+  /// eco chega e bate com uma entrada daqui, ignoramos (senão duplica a bolha).
+  /// Mensagens do app/mesh não passam por aqui → viram bolha normalmente.
+  final List<String> _awaitingUserEcho = <String>[];
+
   /// Quando o turno atual começou (streaming). `null` quando ocioso — a UI usa
   /// pra mostrar o cronômetro de "trabalhando".
   DateTime? _turnStartedAt;
@@ -162,6 +168,7 @@ class AgentSession extends PaneItem {
     debugPrint('[agent-boot] boot() id=$id cwd=$workingDirectory');
     _status = AgentStatus.booting;
     _entries.clear();
+    _awaitingUserEcho.clear();
     _resetOpenBuffers();
     notifyListeners();
 
@@ -495,6 +502,12 @@ class AgentSession extends PaneItem {
         _appendText(delta);
       case RpcTextEnd(:final content):
         _finishText(content);
+      case RpcUserMessage(:final text):
+        // Eco da nossa própria mensagem local → já está no transcript, ignora.
+        // Caso contrário, é mensagem vinda do app/mesh → mostra a bolha.
+        if (_awaitingUserEcho.remove(text)) return;
+        _resetOpenBuffers();
+        _add(UserEntry(text));
       case RpcToolStart(:final toolCallId, :final toolName, :final args):
         _startTool(toolCallId, toolName, args);
       case RpcToolEnd(:final toolCallId, :final isError, :final resultText):
@@ -604,6 +617,8 @@ class AgentSession extends PaneItem {
   void _addUser(String text, {List<Uint8List> images = const <Uint8List>[]}) {
     _resetOpenBuffers();
     _add(UserEntry(text, images: images));
+    // Marca pra deduplicar o eco `message_start:user` que o pi vai emitir.
+    _awaitingUserEcho.add(text);
   }
 
   void _addInfo(String text, {bool isError = false, bool dedup = false}) {
