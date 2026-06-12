@@ -152,7 +152,7 @@ jobs:
         run: |
           flutter pub get
           flutter build windows --release
-          dart pub global run fastforge:fastforge package --platform windows --targets exe
+          dart pub global run fastforge:main package --platform windows --targets exe
           EXE=$(find dist -name "*.exe" | head -1)
           test -n "$EXE"
           mkdir -p out
@@ -213,8 +213,8 @@ jobs:
         run: |
           flutter pub get
           flutter build linux --release
-          dart pub global run fastforge:fastforge package --platform linux --targets deb
-          dart pub global run fastforge:fastforge package --platform linux --targets rpm
+          dart pub global run fastforge:main package --platform linux --targets deb
+          dart pub global run fastforge:main package --platform linux --targets rpm
           DEB=$(find dist -name "*.deb" | head -1); test -n "$DEB"
           RPM=$(find dist -name "*.rpm" | head -1); test -n "$RPM"
           mkdir -p out
