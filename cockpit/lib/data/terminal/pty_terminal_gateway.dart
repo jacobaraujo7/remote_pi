@@ -16,6 +16,7 @@ class PtyTerminalGateway implements TerminalGateway {
   }) {
     _pty = Pty.start(
       _shell(),
+      arguments: _shellArgs(),
       workingDirectory: workingDirectory.isEmpty ? null : workingDirectory,
       environment: Map<String, String>.of(Platform.environment),
       rows: rows,
@@ -52,6 +53,22 @@ class PtyTerminalGateway implements TerminalGateway {
       return 'powershell.exe';
     }
     return Platform.environment['SHELL'] ?? '/bin/zsh';
+  }
+
+  /// Argumentos do shell.
+  ///
+  /// macOS/Linux: `-l` (**login shell**), igual ao Terminal.app/iTerm. Sem isso
+  /// um app GUI aberto pelo Finder/Dock herda só o PATH mínimo
+  /// (`/usr/bin:/bin:/usr/sbin:/sbin`) e um shell não-login carrega apenas o
+  /// `.zshrc` — perdendo o `.zprofile`/`/etc/zprofile` (onde `path_helper` lê
+  /// `/etc/paths.d/*` e o `brew shellenv`/Docker/.NET injetam seus diretórios).
+  /// Resultado: `node`, `npm`, `dotnet`, `docker` "não encontrados". Como o PTY
+  /// já anexa um tty, o shell também é interativo → o `.zshrc` (nvm) entra junto.
+  ///
+  /// Windows: cmd/powershell herdam o PATH do registro mesmo via GUI — sem flag.
+  List<String> _shellArgs() {
+    if (Platform.isWindows) return const [];
+    return const ['-l'];
   }
 
   /// Arquitetura do build (ex.: `... on "windows_arm64"`) — fonte confiável da
