@@ -11,4 +11,11 @@ abstract class ProjectRepository {
 
   /// Remove um projeto pelo id.
   Future<void> remove(String id);
+
+  /// Id do último workspace selecionado (pra pré-selecionar na próxima
+  /// abertura), ou `null` se nunca salvou.
+  Future<String?> loadLastSelected();
+
+  /// Persiste o id do último workspace selecionado (`null` limpa).
+  Future<void> saveLastSelected(String? id);
 }

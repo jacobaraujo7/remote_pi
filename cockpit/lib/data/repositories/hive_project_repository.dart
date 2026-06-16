@@ -12,6 +12,10 @@ class HiveProjectRepository implements ProjectRepository {
 
   static const String boxName = 'projects';
 
+  /// Chave reservada (não-Map) pro último workspace selecionado. Não colide com
+  /// ids de projeto (caminhos absolutos) e o `all()` a ignora (`whereType<Map>`).
+  static const String _lastSelectedKey = '__last_selected__';
+
   @override
   Future<List<Project>> all() async {
     final projects = _box.values
@@ -33,6 +37,21 @@ class HiveProjectRepository implements ProjectRepository {
 
   @override
   Future<void> remove(String id) => _box.delete(id);
+
+  @override
+  Future<String?> loadLastSelected() async {
+    final v = _box.get(_lastSelectedKey);
+    return v is String ? v : null;
+  }
+
+  @override
+  Future<void> saveLastSelected(String? id) async {
+    if (id == null) {
+      await _box.delete(_lastSelectedKey);
+    } else {
+      await _box.put(_lastSelectedKey, id);
+    }
+  }
 
   Map<String, dynamic> _toMap(Project p) => <String, dynamic>{
     'id': p.id,

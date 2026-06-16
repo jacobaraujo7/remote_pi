@@ -269,7 +269,7 @@ class CockpitViewModel extends ChangeNotifier {
     for (final project in _projectList) {
       _savedLayouts[project.id] = await _layoutStore.load(project.id);
     }
-    _selectedProjectId = _projectList.isEmpty ? null : _projectList.first.id;
+    _selectedProjectId = await _initialSelection();
     // Só o projeto selecionado é ativado (sobe os processos) no boot.
     final selected = _selectedProjectId;
     if (selected != null) await _activateProject(selected);
@@ -288,6 +288,20 @@ class CockpitViewModel extends ChangeNotifier {
         notifyListeners();
       }),
     );
+  }
+
+  /// Workspace a pré-selecionar no boot: o último selecionado (se ainda existir);
+  /// senão — ou se der erro ao ler a preferência — o primeiro. `null` se vazio.
+  Future<String?> _initialSelection() async {
+    final roots = rootProjects;
+    if (roots.isEmpty) return null;
+    try {
+      final last = await _projects.loadLastSelected();
+      if (last != null && roots.any((p) => p.id == last)) return last;
+    } catch (_) {
+      // erro ao ler a preferência → fallback silencioso pro primeiro.
+    }
+    return roots.first.id;
   }
 
   /// Abre a pasta do projeto selecionado no [app] informado.
@@ -314,6 +328,7 @@ class CockpitViewModel extends ChangeNotifier {
     for (final existing in _projectList) {
       if (existing.path == path) {
         _selectedProjectId = existing.id;
+        unawaited(_projects.saveLastSelected(existing.id));
         notifyListeners();
         return existing;
       }
@@ -341,6 +356,7 @@ class CockpitViewModel extends ChangeNotifier {
     _projectList.add(project);
     _selectedProjectId = project.id;
     await _projects.save(project);
+    unawaited(_projects.saveLastSelected(project.id));
     await _activateProject(project.id); // sem layout salvo → pane vazia
     unawaited(_refreshGit(project.id));
     unawaited(_refreshWorktrees(project.id)); // pode já ter worktrees no disco
@@ -516,6 +532,8 @@ class CockpitViewModel extends ChangeNotifier {
   void selectProject(String id) {
     if (_selectedProjectId == id) return;
     _selectedProjectId = id;
+    // Persiste o workspace (raiz) pra pré-selecionar na próxima abertura.
+    unawaited(_projects.saveLastSelected(_rootOf(id)));
     _clearFocusedNotification();
     unawaited(_activateProject(id)); // reconstrói (lazy) se ainda não ativo
     unawaited(_refreshGit(id)); // pode ter mudado desde a última vez
