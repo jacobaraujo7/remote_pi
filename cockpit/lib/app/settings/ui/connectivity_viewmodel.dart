@@ -1,6 +1,6 @@
-import 'package:cockpit/app/settings/domain/contracts/pairing_gateway.dart';
+import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
 import 'package:cockpit/app/settings/domain/contracts/relay_gateway.dart';
-import 'package:cockpit/app/settings/domain/contracts/revoke_gateway.dart';
+import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/settings/domain/entities/paired_device.dart';
 import 'package:cockpit/app/settings/ui/pairing_controller.dart';
 import 'package:cockpit/app/settings/ui/revoke_controller.dart';

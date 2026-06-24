@@ -1,4 +1,4 @@
-import 'package:cockpit/app/settings/domain/exceptions/relay_error.dart';
+import 'package:cockpit/app/core/domain/exceptions/relay_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 
 /// Revoga um aparelho pareado via `pi --mode rpc` (não pelo CLI `remote-pi`).

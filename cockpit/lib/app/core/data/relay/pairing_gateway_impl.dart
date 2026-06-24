@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cockpit/app/core/env.dart';
-import 'package:cockpit/app/settings/data/relay/ephemeral_pi_rpc.dart';
-import 'package:cockpit/app/settings/domain/contracts/pairing_gateway.dart';
-import 'package:cockpit/app/settings/domain/entities/pair_event.dart';
+import 'package:cockpit/app/core/data/relay/ephemeral_pi_rpc.dart';
+import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
+import 'package:cockpit/app/core/domain/entities/pair_event.dart';
 
 /// Factory de [PairingGateway]: cada `create()` sobe uma sessão efêmera nova
 /// (cada tentativa de pareamento tem seu próprio `pi --mode rpc`).

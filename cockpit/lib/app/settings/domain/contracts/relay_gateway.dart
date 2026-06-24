@@ -1,5 +1,5 @@
 import 'package:cockpit/app/settings/domain/entities/paired_device.dart';
-import 'package:cockpit/app/settings/domain/exceptions/relay_error.dart';
+import 'package:cockpit/app/core/domain/exceptions/relay_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 
 /// Fronteira de conectividade do Cockpit: lê/define o relay global e gerencia os

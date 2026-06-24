@@ -1,4 +1,4 @@
-import 'package:cockpit/app/settings/domain/entities/pair_event.dart';
+import 'package:cockpit/app/core/domain/entities/pair_event.dart';
 
 /// Uma sessão **efêmera** de pareamento de aparelho.
 ///

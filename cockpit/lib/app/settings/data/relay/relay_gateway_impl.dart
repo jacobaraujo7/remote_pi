@@ -5,7 +5,7 @@ import 'dart:io';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/settings/domain/contracts/relay_gateway.dart';
 import 'package:cockpit/app/settings/domain/entities/paired_device.dart';
-import 'package:cockpit/app/settings/domain/exceptions/relay_error.dart';
+import 'package:cockpit/app/core/domain/exceptions/relay_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 
 /// Implementação via **shell-out** do `remote-pi` + leitura do config global

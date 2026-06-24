@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:cockpit/app/settings/domain/contracts/pairing_gateway.dart';
-import 'package:cockpit/app/settings/domain/entities/pair_event.dart';
+import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
+import 'package:cockpit/app/core/domain/entities/pair_event.dart';
 import 'package:flutter/foundation.dart';
 
 /// Etapa atual do fluxo de pareamento (dirige o que o dialog mostra).

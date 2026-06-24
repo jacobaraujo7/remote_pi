@@ -1,4 +1,4 @@
-import 'package:cockpit/app/settings/domain/contracts/revoke_gateway.dart';
+import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/settings/domain/entities/paired_device.dart';
 import 'package:flutter/foundation.dart';
 

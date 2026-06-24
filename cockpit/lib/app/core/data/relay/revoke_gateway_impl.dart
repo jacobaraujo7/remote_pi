@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:cockpit/app/core/env.dart';
-import 'package:cockpit/app/settings/data/relay/ephemeral_pi_rpc.dart';
-import 'package:cockpit/app/settings/domain/contracts/revoke_gateway.dart';
-import 'package:cockpit/app/settings/domain/exceptions/relay_error.dart';
+import 'package:cockpit/app/core/data/relay/ephemeral_pi_rpc.dart';
+import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
+import 'package:cockpit/app/core/domain/exceptions/relay_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 
 /// Factory de [RevokeGateway]: cada `create()` sobe um `pi --mode rpc` novo.

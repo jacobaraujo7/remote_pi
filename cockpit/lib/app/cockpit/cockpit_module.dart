@@ -8,6 +8,7 @@ import 'package:cockpit/app/cockpit/data/filesystem/folder_lister_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/session_history_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/worktree_manager_impl.dart';
+import 'package:cockpit/app/cockpit/data/notifications/local_notifier.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_dismissed_update_store.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_project_repository.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_workspace_layout_store.dart';
@@ -42,66 +43,91 @@ import 'package:cockpit/app/cockpit/ui/cockpit_page.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
-import 'package:cockpit/app/core/env.dart';
+import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 /// Feature **Cockpit** — o shell (home, `path: '/'`). Registra os binds de infra
 /// do shell (filesystem, RPC, terminal, repos, setup, update) e declara a rota
 /// `/` com os 3 ViewModels page-scoped.
 ///
-/// As factories `buildCockpitViewModel/buildSetupViewModel/buildUpdateViewModel`
-/// (que viviam no antigo `dependencies.dart`) viraram closures em `provide:` —
-/// mantendo os `..init()`/`..check()` que rodavam no `create:` do provider.
-/// `inject<T>()` resolve cada dependência do grafo do módulo.
+/// **Bootstrap async (idioma do flutter_modular):** o builder é `Future` e abre
+/// as PRÓPRIAS dependências assíncronas — Hive boxes, versão do app, notifier —
+/// capturando-as no closure (box privada → `addInstance(HiveX(box))`). Assim o
+/// `main` não threada esses valores: chame UMA vez e componha o módulo retornado
+/// (dedup é por identidade).
+///
+/// **Resolução cross-module (flutter_modular >= 7.1.0):** os binds que dependem
+/// do `PiSpawnConfig` usam `.new` e resolvem o config **upward** do core
+/// (root-owned) — por isso o builder não recebe mais `config`. As Hive boxes,
+/// porém, continuam exigindo o bootstrap async acima (não há async bind).
 ///
 /// Como o shell fica em `/` e o Settings é **empilhado** por cima (não substitui),
 /// a rota `/` nunca deixa a pilha em navegação normal → estes binds
 /// feature-scoped vivem o app inteiro na prática.
-Module buildCockpitModule({
-  required PiSpawnConfig config,
-  required Box<dynamic> projectBox,
-  required Box<dynamic> layoutBox,
-  required Box<dynamic> settingsBox,
-  required String appVersion,
-  required Notifier notifier,
-}) => createModule(
-  path: '/',
-  register: (c) {
-    c
-      ..addInstance<ProjectRepository>(HiveProjectRepository(projectBox))
-      ..addInstance<WorkspaceLayoutStore>(HiveWorkspaceLayoutStore(layoutBox))
-      ..addInstance<DismissedUpdateStore>(HiveDismissedUpdateStore(settingsBox))
-      ..addInstance<RpcGatewayFactory>(PiRpcProcessFactory(config))
-      ..addInstance<EnvironmentProbe>(EnvironmentProbeImpl(config))
-      ..addInstance<EnvironmentInstaller>(EnvironmentInstallerImpl(config))
-      ..addInstance<FolderLister>(const FolderListerImpl())
-      ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
-      ..addInstance<FileReader>(const FileReaderImpl())
-      ..addInstance<FileSearcher>(FileSearcherImpl())
-      ..addInstance<GitStatusReader>(GitStatusReaderImpl())
-      ..addInstance<WorktreeManager>(WorktreeManagerImpl())
-      ..addInstance<SessionHistory>(const SessionHistoryImpl())
-      ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())
-      ..addInstance<AppLauncherGateway>(const AppLauncherImpl())
-      ..addInstance<SystemPermissions>(SystemPermissionsImpl())
-      ..addInstance<Notifier>(notifier)
-      ..addInstance<UpdateChecker>(const UpdateCheckerImpl())
-      ..addInstance<UrlOpener>(const UrlOpenerImpl())
-      ..addInstance<UpdateTarget>(_updateTarget(appVersion))
-      ..route(
-        '/',
-        // ViewModels page-scoped via tear-off `.new` → o auto_injector resolve o
-        // construtor a partir dos binds acima. Os `init()`/`check()` (que antes
-        // encadeavam no factory) agora rodam no `CockpitPage.initState`.
-        provide: (s) => s
-          ..addChangeNotifier<CockpitViewModel>(CockpitViewModel.new)
-          ..addChangeNotifier<SetupViewModel>(SetupViewModel.new)
-          ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new),
-        child: (context, state) => const CockpitPage(),
-      );
-  },
-);
+Future<Module> buildCockpitModule() async {
+  // Bootstrap async: abre as próprias boxes (privadas no closure), resolve a
+  // versão e inicia o notifier. `Hive.initFlutter` já rodou no `main`.
+  final projectBox = await Hive.openBox<dynamic>(HiveProjectRepository.boxName);
+  final layoutBox = await Hive.openBox<dynamic>(
+    HiveWorkspaceLayoutStore.boxName,
+  );
+  // Updates dispensados moram na box de settings (mesma do SettingsController);
+  // `openBox` é idempotente → devolve a instância já aberta pelo `main`.
+  final settingsBox = await Hive.openBox<dynamic>(HiveSettingsStore.boxName);
+  final appVersion = (await PackageInfo.fromPlatform()).version;
+
+  // Notificações do SO — init pede permissão; falha não pode derrubar o boot.
+  final notifier = LocalNotifier();
+  try {
+    await notifier.init();
+  } catch (error) {
+    debugPrint('Falha ao iniciar notificações: $error');
+  }
+
+  return createModule(
+    path: '/',
+    register: (c) {
+      c
+        ..addInstance<ProjectRepository>(HiveProjectRepository(projectBox))
+        ..addInstance<WorkspaceLayoutStore>(HiveWorkspaceLayoutStore(layoutBox))
+        ..addInstance<DismissedUpdateStore>(
+          HiveDismissedUpdateStore(settingsBox),
+        )
+        // Dependem do PiSpawnConfig → `.new` resolve upward do core (>= 7.1.0).
+        ..addLazySingleton<RpcGatewayFactory>(PiRpcProcessFactory.new)
+        ..addLazySingleton<EnvironmentProbe>(EnvironmentProbeImpl.new)
+        ..addLazySingleton<EnvironmentInstaller>(EnvironmentInstallerImpl.new)
+        ..addInstance<FolderLister>(const FolderListerImpl())
+        ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
+        ..addInstance<FileReader>(const FileReaderImpl())
+        ..addInstance<FileSearcher>(FileSearcherImpl())
+        ..addInstance<GitStatusReader>(GitStatusReaderImpl())
+        ..addInstance<WorktreeManager>(WorktreeManagerImpl())
+        ..addInstance<SessionHistory>(const SessionHistoryImpl())
+        ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())
+        ..addInstance<AppLauncherGateway>(const AppLauncherImpl())
+        ..addInstance<SystemPermissions>(SystemPermissionsImpl())
+        ..addInstance<Notifier>(notifier)
+        ..addInstance<UpdateChecker>(const UpdateCheckerImpl())
+        ..addInstance<UrlOpener>(const UrlOpenerImpl())
+        ..addInstance<UpdateTarget>(_updateTarget(appVersion))
+        ..route(
+          '/',
+          // ViewModels page-scoped via tear-off `.new` → o auto_injector resolve
+          // o construtor a partir dos binds acima. Os `init()`/`check()` (que
+          // antes encadeavam no factory) agora rodam no `CockpitPage.initState`.
+          provide: (s) => s
+            ..addChangeNotifier<CockpitViewModel>(CockpitViewModel.new)
+            ..addChangeNotifier<SetupViewModel>(SetupViewModel.new)
+            ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new),
+          child: (context, state) => const CockpitPage(),
+        );
+    },
+  );
+}
 
 /// [UpdateTarget] da máquina atual: versão do app + plataforma/formato/arch do
 /// manifest. macOS → dmg/universal; Windows → exe/x64; Linux → deb/(arm64|x64).

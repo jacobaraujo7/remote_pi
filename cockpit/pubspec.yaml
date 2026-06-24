@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.2.0+3
+version: 1.2.1+4
 
 environment:
   sdk: ^3.11.5
@@ -47,7 +47,7 @@ dependencies:
   # DI + roteamento + estado page-scoped num pacote só: cada feature é um módulo
   # (`createModule`) que declara suas rotas + binds. Substitui provider +
   # auto_injector + go_router (removidos). Ver `lib/app/` e CLAUDE.md.
-  flutter_modular: ^7.0.2
+  flutter_modular: ^7.1.0
 
   # Plano 37 — seleção de pasta (NSOpenPanel no macOS) para abrir um projeto.
   file_picker: ^8.1.2
@@ -123,6 +123,17 @@ dependencies:
   url_launcher: ^6.3.0
 
 dependency_overrides:
+  # Fork do xterm com render procedural de Block Elements (U+2580–259F) e Box
+  # Drawing (U+2500–257F): o xterm 4.0 pinta esses glifos com a fonte (no
+  # tamanho natural, não esticados pra célula), deixando frestas entre células
+  # — half-blocks de arte de pixel (mascote do Claude) saem listrados e bordas
+  # de TUI não conectam. O fork desenha os blocos/bordas proceduralmente,
+  # preenchendo a célula exata, como os terminais nativos. PR para o upstream
+  # (TerminalStudio/xterm.dart) pendente; voltar pro pub.dev quando mergeado.
+  xterm:
+    git:
+      url: https://github.com/jacobaraujo7/xterm.dart
+      ref: feat/builtin-block-glyphs
   gpt_markdown:
     git:
       url: https://github.com/jacobaraujo7/gpt_markdown
