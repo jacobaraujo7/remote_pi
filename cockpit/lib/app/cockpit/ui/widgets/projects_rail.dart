@@ -177,7 +177,9 @@ class _ProjectsRailState extends State<ProjectsRail> {
           // Aviso de atualização in-app — acima do nome da máquina (passo 7).
           const UpdateCard(),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            // Mesma altura do footer do file viewer (34) pra alinhar a base.
+            height: 34,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: colors.border)),
             ),
