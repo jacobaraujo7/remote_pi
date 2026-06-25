@@ -4,3 +4,12 @@ allowBuilds:
   keytar: true
   koffi: true
   protobufjs: true
+
+# Keep transitive packages above known vulnerable ranges until upstreams
+# release dependency updates that naturally resolve these versions.
+overrides:
+  esbuild: ^0.28.1
+  hono: ^4.12.25
+  protobufjs: ^7.6.3
+  vite: ^8.0.16
+  ws: ^8.21.0
