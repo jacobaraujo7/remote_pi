@@ -38,6 +38,15 @@ import type { PiForwardClient } from "../transport/pi_forward_client.js";
 
 const CACHE_TTL_MS = 5 * 60_000;
 const PEERS_REQUEST_TIMEOUT_MS = 2_000;
+/** Periodic re-announce interval. Must stay comfortably under `CACHE_TTL_MS`
+ *  so that a single dropped push (laptop sleep, NAT rebind, WS reconnect race)
+ *  still gets a follow-up before the sibling's cache of us — and our cache of
+ *  them — expires and silently empties `list_peers`. At 2 min vs a 5 min TTL,
+ *  one miss is harmless (next push lands at 4 min < 5 min). Without this, a
+ *  STABLE sibling set never re-pushes (`setSiblings` only pings NEW siblings),
+ *  so the roster silently drains overnight even though phone routing — a
+ *  separate, TTL-less live-WS path on the relay — stays healthy. */
+const REANNOUNCE_INTERVAL_MS = 2 * 60_000;
 const BROKER_NAME = "broker";
 
 /** A sibling peer as carried on the wire in `peers_update.peers_detailed`:
@@ -70,6 +79,8 @@ export interface BrokerRemoteOptions {
   siblings?: SiblingInfo[];
   /** TTL override (testing). */
   cacheTtlMs?: number;
+  /** Re-announce interval override (testing). `0`/negative disables the timer. */
+  reannounceIntervalMs?: number;
   /** Logger (defaults to console.error). */
   log?: (msg: string) => void;
 }
@@ -106,6 +117,7 @@ export class BrokerRemote implements RemoteRouter {
   private readonly selfPcLabel: string;
   private readonly selfPcPubkey: string;
   private readonly cacheTtlMs: number;
+  private readonly reannounceIntervalMs: number;
   private readonly log: (msg: string) => void;
 
   /** Siblings: pc_label → pc_pubkey. Authoritative for anti-spoof. */
@@ -119,6 +131,7 @@ export class BrokerRemote implements RemoteRouter {
   private readonly pendingFills = new Map<string, Set<PendingFill>>();
 
   private readonly onIncoming: (env: Envelope, fromPc: string) => void;
+  private reannounceTimer: ReturnType<typeof setInterval> | null = null;
   private detached = false;
 
   constructor(opts: BrokerRemoteOptions) {
@@ -127,6 +140,7 @@ export class BrokerRemote implements RemoteRouter {
     this.selfPcLabel = opts.selfPcLabel;
     this.selfPcPubkey = opts.selfPcPubkey;
     this.cacheTtlMs = opts.cacheTtlMs ?? CACHE_TTL_MS;
+    this.reannounceIntervalMs = opts.reannounceIntervalMs ?? REANNOUNCE_INTERVAL_MS;
     this.log = opts.log ?? ((msg) => console.error(msg));
 
     for (const s of opts.siblings ?? []) this._addSibling(s);
@@ -143,6 +157,21 @@ export class BrokerRemote implements RemoteRouter {
     // Best-effort; siblings offline at boot will reply when they come
     // online and push their own `peers_update`.
     this._bootstrapWithSiblings();
+
+    // Periodic re-announce: the bootstrap pair (request + push) only fires
+    // again for siblings NEWLY added via `setSiblings`. With a stable mesh,
+    // nothing re-pushes — so once a `peers_update` is missed, both sides' caches
+    // age past `CACHE_TTL_MS` and the peer silently drops from `list_peers`
+    // until a process restart. Re-running the bootstrap on a timer (well under
+    // the TTL) keeps every sibling's roster warm. `unref` so this never holds
+    // the process open on its own.
+    if (this.reannounceIntervalMs > 0) {
+      this.reannounceTimer = setInterval(() => {
+        if (this.detached || this.siblingByLabel.size === 0) return;
+        this._bootstrapWithSiblings();
+      }, this.reannounceIntervalMs);
+      this.reannounceTimer.unref?.();
+    }
   }
 
   /** Bootstrap: announce ourselves AND ask every sibling for their peers.
@@ -173,6 +202,10 @@ export class BrokerRemote implements RemoteRouter {
   detach(): void {
     if (this.detached) return;
     this.detached = true;
+    if (this.reannounceTimer) {
+      clearInterval(this.reannounceTimer);
+      this.reannounceTimer = null;
+    }
     this.pi.off("envelope", this.onIncoming);
     this.broker.setRemoteRouter(null);
   }

@@ -473,6 +473,40 @@ describe("BrokerRemote: control envelopes (peers_update / peers_request)", () =>
     );
     expect(updates.map((u) => u.toPc).sort()).toEqual(["K_B", "K_C"]);
   });
+
+  test("periodic re-announce re-pushes to a STABLE sibling set (keeps roster warm vs TTL)", () => {
+    // Regression: without a timer, a stable mesh never re-announces (only NEW
+    // siblings get the bootstrap pair), so a single dropped push lets both
+    // caches expire and the peer silently drops from list_peers overnight.
+    vi.useFakeTimers();
+    try {
+      const fakePi = new FakePi();
+      const { broker } = makeFakeBroker({ localPeers: ["sess-3"] });
+      const br = new BrokerRemote({
+        broker, pi: fakePi as never,
+        selfPcLabel: "casa", selfPcPubkey: "K_A",
+        siblings: [{ pcLabel: "trab", pcPubkey: "K_B" }],
+        reannounceIntervalMs: 1_000,
+      });
+      fakePi.sent.length = 0;  // drop bootstrap request+push
+
+      vi.advanceTimersByTime(1_000);
+      // One full re-announce cycle = the bootstrap pair (request + push).
+      const byType = (t: string) => fakePi.sent.filter(
+        (s) => (s.env.body as { type?: string } | null)?.type === t,
+      );
+      expect(byType("peers_request").map((s) => s.toPc)).toEqual(["K_B"]);
+      expect(byType("peers_update").map((s) => s.toPc)).toEqual(["K_B"]);
+
+      // detach() stops the timer — no further traffic.
+      br.detach();
+      fakePi.sent.length = 0;
+      vi.advanceTimersByTime(5_000);
+      expect(fakePi.sent.length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // ── transport_error propagation ──────────────────────────────────────────────

@@ -43,6 +43,7 @@ import { buildQRUri, qrSession, renderQRAscii, clampPairTtlMs, TOKEN_TTL_MS } fr
 import {
   addPeer,
   getOrCreateEd25519Keypair,
+  KeyringUnavailableError,
   listOwnerPubkeys,
   listPeers,
   removePeer,
@@ -1753,7 +1754,27 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     return;
   }
 
-  const edKp = await getOrCreateEd25519Keypair();
+  let edKp: Awaited<ReturnType<typeof getOrCreateEd25519Keypair>>;
+  try {
+    edKp = await getOrCreateEd25519Keypair();
+  } catch (err) {
+    if (err instanceof KeyringUnavailableError) {
+      // The platform keyring (macOS Keychain / Windows Credential Manager) is
+      // locked/denied and there's no file identity to fall back to. We refuse
+      // to mint a new key (that's what silently broke pairing after idle), so
+      // abort cleanly with an actionable message instead of crashing or
+      // re-pairing. Unlocking the keychain and re-running fixes it.
+      ctx.ui.notify(
+        "[remote-pi] Could not read this machine's identity: the system " +
+        "keychain is locked or access was denied. Unlock it (open the app / " +
+        "log in) and run /remote-pi again. Your pairing is NOT lost. " +
+        "(Set REMOTE_PI_ALLOW_FILE_IDENTITY=1 only for headless hosts.)",
+        "error",
+      );
+      return;
+    }
+    throw err;
+  }
   _cachedEd25519 = edKp;
 
   const { url: relayUrl, source } = resolveRelayUrl();

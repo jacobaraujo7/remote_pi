@@ -17,7 +17,10 @@ vi.mock("node:os", async (importOriginal) => {
 const storage = await import("./storage.js");
 const {
   getOrCreateEd25519Keypair,
+  KeyringUnavailableError,
   _setKeyStoreBackendForTest,
+  _setKeyringExpectedForTest,
+  _setKeyringRetryForTest,
   _unlinkIdentityFileForTest,
   _IDENTITY_FILE_FOR_TEST,
 } = storage;
@@ -31,13 +34,21 @@ class InMemoryBackend implements KeyStoreBackend {
   readonly writes: { service: string; account: string; value: string }[] = [];
   readonly deletes: { service: string; account: string }[] = [];
   private _failOn?: "read" | "write" | "delete";
+  private _failAllOn?: "read" | "write" | "delete";
 
   failNext(op: "read" | "write" | "delete" | undefined) {
     this._failOn = op;
   }
 
+  /** Persistent failure — every op of this kind throws (simulates a keyring
+   *  that's locked/unavailable for the whole call, surviving retries). */
+  failAll(op: "read" | "write" | "delete" | undefined) {
+    this._failAllOn = op;
+  }
+
   async read(service: string, account: string) {
     this.reads.push({ service, account });
+    if (this._failAllOn === "read") throw new Error("simulated keyring locked");
     if (this._failOn === "read") {
       this._failOn = undefined;
       throw new Error("simulated keyring unavailable");
@@ -70,11 +81,17 @@ beforeEach(async () => {
   // vitest output isn't polluted.
   vi.spyOn(console, "info").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  // Zero retry delay so persistent-failure tests don't sleep.
+  _setKeyringRetryForTest(3, 0);
   await _unlinkIdentityFileForTest();
 });
 
 afterEach(() => {
   _setKeyStoreBackendForTest(null);
+  _setKeyringExpectedForTest(null);
+  _setKeyringRetryForTest(null);
+  delete process.env.REMOTE_PI_ALLOW_FILE_IDENTITY;
   vi.restoreAllMocks();
 });
 
@@ -177,10 +194,11 @@ describe("getOrCreateEd25519Keypair — keytar migration (plan/27 E1)", () => {
 // ── Headless fallback ───────────────────────────────────────────────────────
 
 describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
-  test("keyring read throws → falls back to identity.json (chmod 0o600)", async () => {
+  test("keyring read throws persistently (no keyring expected) → falls back to identity.json (chmod 0o600)", async () => {
     const backend = new InMemoryBackend();
-    backend.failNext("read");
+    backend.failAll("read");
     _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(false);  // simulate headless Linux (no core keyring)
 
     const kp = await getOrCreateEd25519Keypair();
     expect(kp.publicKey.length).toBe(32);
@@ -203,13 +221,14 @@ describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
 
   test("fallback second call returns the file-stored key (no regen)", async () => {
     const backend = new InMemoryBackend();
-    backend.failNext("read");
+    backend.failAll("read");
     _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(false);
     const first = await getOrCreateEd25519Keypair();
 
     // Reset the backend so it would throw again on a fresh read.
     const backend2 = new InMemoryBackend();
-    backend2.failNext("read");
+    backend2.failAll("read");
     _setKeyStoreBackendForTest(backend2);
     const second = await getOrCreateEd25519Keypair();
 
@@ -218,4 +237,71 @@ describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
     );
   });
 
+});
+
+// ── Locked-keychain protection (the "lost pairing after a week idle" bug) ────
+
+describe("getOrCreateEd25519Keypair — locked keyring does NOT regenerate", () => {
+  test("transient read failure recovers via retry → uses keyring entry, no file written", async () => {
+    const backend = new InMemoryBackend();
+    const original = JSON.stringify({
+      pk: Buffer.from(new Uint8Array(32).fill(5)).toString("base64"),
+      sk: Buffer.from(new Uint8Array(64).fill(6)).toString("base64"),
+    });
+    backend.store.set(`${NEW_SERVICE}|${ACCOUNT}`, original);
+    backend.failNext("read");  // first read throws, retry succeeds
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(true);  // macOS/Windows: keyring is core
+
+    const kp = await getOrCreateEd25519Keypair();
+    // Recovered the ORIGINAL paired key — not a freshly minted one.
+    expect(Buffer.from(kp.publicKey).toString("base64")).toBe(
+      Buffer.from(new Uint8Array(32).fill(5)).toString("base64"),
+    );
+    expect(backend.reads.length).toBeGreaterThanOrEqual(2);  // retried
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(false);  // no file regen
+  });
+
+  test("persistent failure on a core-keyring platform with no file → throws (refuses to regen)", async () => {
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(true);  // macOS/Windows
+
+    await expect(getOrCreateEd25519Keypair()).rejects.toBeInstanceOf(KeyringUnavailableError);
+    // Critically: no new identity file was written (pairing not silently broken).
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(false);
+  });
+
+  test("persistent failure but identity.json already exists → returns the FILE key (never throws, never regen)", async () => {
+    // First, create a file identity via the headless path.
+    const seed = new InMemoryBackend();
+    seed.failAll("read");
+    _setKeyStoreBackendForTest(seed);
+    _setKeyringExpectedForTest(false);
+    const fileKp = await getOrCreateEd25519Keypair();
+
+    // Now the keyring is "core" but locked; the existing file must win.
+    const locked = new InMemoryBackend();
+    locked.failAll("read");
+    _setKeyStoreBackendForTest(locked);
+    _setKeyringExpectedForTest(true);
+    const kp = await getOrCreateEd25519Keypair();
+
+    expect(Buffer.from(kp.publicKey).toString("base64")).toBe(
+      Buffer.from(fileKp.publicKey).toString("base64"),
+    );
+  });
+
+  test("REMOTE_PI_ALLOW_FILE_IDENTITY=1 opts into file identity even on a core-keyring platform", async () => {
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(true);
+    process.env.REMOTE_PI_ALLOW_FILE_IDENTITY = "1";
+
+    const kp = await getOrCreateEd25519Keypair();
+    expect(kp.publicKey.length).toBe(32);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
+  });
 });
