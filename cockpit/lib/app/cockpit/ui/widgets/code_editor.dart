@@ -70,64 +70,91 @@ class _CodeEditorState extends State<CodeEditor> {
     final lineCount = '\n'.allMatches(widget.controller.text).length + 1;
     _lineCount = lineCount;
 
-    return ColoredBox(
-      color: syntax.background,
-      child: Scrollbar(
-        controller: _horizontal,
-        thumbVisibility: true,
-        scrollbarOrientation: ScrollbarOrientation.bottom,
-        notificationPredicate: (n) => n.depth == 1,
+    // Clicar em qualquer ponto do editor (gutter, padding, espaço abaixo da
+    // última linha) foca o campo — como num editor de verdade. Cliques sobre o
+    // próprio TextField ganham a arena de gestos e posicionam o cursor; os
+    // demais caem aqui. `translucent` pra não roubar o tap do campo.
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: () {
+        if (!widget.focusNode.hasFocus) widget.focusNode.requestFocus();
+      },
+      child: ColoredBox(
+        color: syntax.background,
         child: Scrollbar(
-          controller: _vertical,
-          child: SingleChildScrollView(
+          controller: _horizontal,
+          thumbVisibility: true,
+          scrollbarOrientation: ScrollbarOrientation.bottom,
+          notificationPredicate: (n) => n.depth == 1,
+          child: Scrollbar(
             controller: _vertical,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (var i = 1; i <= lineCount; i++)
-                        Text('$i', style: numStyle),
-                    ],
-                  ),
-                ),
-                Container(width: 1, color: syntax.base.withValues(alpha: 0.15)),
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: _horizontal,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(left: 14, right: 16),
-                    // `TextField` (e não `EditableText` cru) pra ganhar os
-                    // gestos de seleção do desktop: arrastar com o mouse,
-                    // duplo-clique, Cmd+A. O highlight vem do `buildTextSpan` do
-                    // controller; a decoração é zerada (sem borda/fundo).
-                    child: IntrinsicWidth(
-                      child: TextField(
-                        controller: widget.controller,
-                        focusNode: widget.focusNode,
-                        style: codeStyle,
-                        cursorColor: syntax.base,
-                        maxLines: null,
-                        minLines: null,
-                        // Scroll vertical é do contêiner externo; o campo cresce
-                        // até a altura total (sem scroll interno) pra o gutter
-                        // alinhar 1:1.
-                        expands: false,
-                        keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
-                          isCollapsed: true,
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
+            child: SingleChildScrollView(
+              controller: _vertical,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(left: 14, right: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (var i = 1; i <= lineCount; i++)
+                          Text('$i', style: numStyle),
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  Container(
+                    width: 1,
+                    color: syntax.base.withValues(alpha: 0.15),
+                  ),
+                  Expanded(
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        // Largura mínima = viewport (menos o padding H). Sem isso, o
+                        // IntrinsicWidth colapsa o campo a ~0 quando o arquivo está
+                        // vazio (recém-criado) → sem área pra clicar/digitar.
+                        final minWidth = (constraints.maxWidth - 30).clamp(
+                          0.0,
+                          double.infinity,
+                        );
+                        return SingleChildScrollView(
+                          controller: _horizontal,
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.only(left: 14, right: 16),
+                          // `TextField` (e não `EditableText` cru) pra ganhar os
+                          // gestos de seleção do desktop: arrastar com o mouse,
+                          // duplo-clique, Cmd+A. O highlight vem do `buildTextSpan`
+                          // do controller; a decoração é zerada (sem borda/fundo).
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(minWidth: minWidth),
+                            child: IntrinsicWidth(
+                              child: TextField(
+                                controller: widget.controller,
+                                focusNode: widget.focusNode,
+                                style: codeStyle,
+                                cursorColor: syntax.base,
+                                maxLines: null,
+                                minLines: null,
+                                // Scroll vertical é do contêiner externo; o campo
+                                // cresce até a altura total (sem scroll interno) pra
+                                // o gutter alinhar 1:1.
+                                expands: false,
+                                keyboardType: TextInputType.multiline,
+                                decoration: const InputDecoration(
+                                  isCollapsed: true,
+                                  border: InputBorder.none,
+                                  contentPadding: EdgeInsets.zero,
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

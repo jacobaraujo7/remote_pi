@@ -140,7 +140,9 @@ class GitStatusReaderImpl implements GitStatusReader {
         continue;
       }
       if (x == '?' && y == '?' && isDir) {
-        untrackedDirs.add(pathPart); // pasta nova colapsada → cobre descendentes
+        untrackedDirs.add(
+          pathPart,
+        ); // pasta nova colapsada → cobre descendentes
       }
       final status = _classify(x, y);
       if (status != null) out[pathPart] = status;
@@ -158,13 +160,18 @@ class GitStatusReaderImpl implements GitStatusReader {
     // Ignored (só aparece com --ignored; defensivo).
     if (x == '!' && y == '!') return null;
     // Conflito: algum lado 'U', ou DD/AA (ambos add/delete).
-    if (x == 'U' || y == 'U' || (x == 'D' && y == 'D') || (x == 'A' && y == 'A')) {
+    if (x == 'U' ||
+        y == 'U' ||
+        (x == 'D' && y == 'D') ||
+        (x == 'A' && y == 'A')) {
       return GitFileStatus.conflict;
     }
     // Deleção (index ou working tree).
     if (x == 'D' || y == 'D') return GitFileStatus.deleted;
     // Mudança no working tree (não staged) → modificado.
-    if (y == 'M' || y == 'T' || y == 'R' || y == 'C') return GitFileStatus.modified;
+    if (y == 'M' || y == 'T' || y == 'R' || y == 'C') {
+      return GitFileStatus.modified;
+    }
     // Mudança só no index → staged (inclui add 'A').
     if (x == 'M' || x == 'T' || x == 'R' || x == 'C' || x == 'A') {
       return GitFileStatus.staged;

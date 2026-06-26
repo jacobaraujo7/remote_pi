@@ -6,6 +6,7 @@ import 'dart:math' show max;
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
@@ -59,6 +60,7 @@ class CockpitViewModel extends ChangeNotifier {
     this._fileSearcher,
     this._launcher,
     this._worktreeMgr,
+    this._fileMutator,
   );
 
   final ProjectRepository _projects;
@@ -74,6 +76,7 @@ class CockpitViewModel extends ChangeNotifier {
   final FileSearcher _fileSearcher;
   final AppLauncherGateway _launcher;
   final WorktreeManager _worktreeMgr;
+  final FileSystemMutator _fileMutator;
 
   List<LaunchableApp> _availableApps = const [];
 
@@ -127,6 +130,11 @@ class CockpitViewModel extends ChangeNotifier {
   /// existência mora no git, não no Hive (decisões 4, 17). Os mesmos `Project`s
   /// também entram em [_projectList] (pro IndexedStack e o lookup).
   final Map<String, List<Project>> _worktrees = <String, List<Project>>{};
+
+  /// Sobe a cada mutação na árvore (criar/renomear/deletar) — a `FileTreePanel`
+  /// lê isso como token de refresh pra reler as pastas abertas (passo 3 da UI).
+  int _fileTreeRevision = 0;
+  int get fileTreeRevision => _fileTreeRevision;
 
   bool _railVisible = true;
   bool _treeVisible = true;
@@ -301,6 +309,125 @@ class CockpitViewModel extends ChangeNotifier {
       notifyListeners();
     }
     return true;
+  }
+
+  // ---- mutação de arquivos (criar / renomear / deletar) ---------------------
+
+  /// Cria um arquivo vazio chamado [name] dentro de [dirPath] e o abre no pane
+  /// (quando [open]). Valida o nome (não-vazio, sem `/`). Devolve a falha
+  /// (mensagem) pra UI mostrar inline. Refaz a árvore no sucesso.
+  Future<Result<void, String>> createFileIn(
+    String dirPath,
+    String name, {
+    bool open = true,
+  }) async {
+    final invalid = _validateName(name);
+    if (invalid != null) return Failure(invalid);
+    final path = _join(dirPath, name.trim());
+    final r = await _fileMutator.createFile(path);
+    if (r.isSuccess) {
+      _bumpFileTree();
+      if (open) await openFile(path);
+    }
+    return r;
+  }
+
+  /// Cria uma pasta [name] dentro de [dirPath]. Refaz a árvore no sucesso.
+  Future<Result<void, String>> createDirIn(String dirPath, String name) async {
+    final invalid = _validateName(name);
+    if (invalid != null) return Failure(invalid);
+    final r = await _fileMutator.createDirectory(_join(dirPath, name.trim()));
+    if (r.isSuccess) _bumpFileTree();
+    return r;
+  }
+
+  /// Renomeia [path] para [newName] (mesma pasta). As abas abertas do arquivo
+  /// (ou de descendentes, se for pasta) **seguem** o novo caminho.
+  Future<Result<void, String>> renamePath(String path, String newName) async {
+    final invalid = _validateName(newName);
+    if (invalid != null) return Failure(invalid);
+    final to = _join(_parentOf(path), newName.trim());
+    final r = await _fileMutator.rename(path, to);
+    if (r.isSuccess) {
+      await _retargetSessions(path, to);
+      _bumpFileTree();
+    }
+    return r;
+  }
+
+  /// Manda [path] pra lixeira. **Fecha antes** as abas do arquivo (ou de tudo
+  /// dentro da pasta), sem prompt de salvar — a deleção sobrepõe.
+  Future<Result<void, String>> deletePath(String path) async {
+    _closeSessionsUnder(path);
+    final r = await _fileMutator.moveToTrash(path);
+    if (r.isSuccess) _bumpFileTree();
+    return r;
+  }
+
+  void _bumpFileTree() {
+    _fileTreeRevision++;
+    notifyListeners();
+  }
+
+  /// `null` se válido; senão a mensagem do erro. Nesta fase: sem aninhar (`/`).
+  String? _validateName(String name) {
+    final n = name.trim();
+    if (n.isEmpty) return 'Name cannot be empty.';
+    if (n.contains('/')) return 'Name cannot contain “/”.';
+    if (n == '.' || n == '..') return 'Invalid name.';
+    return null;
+  }
+
+  String _join(String dir, String name) {
+    final base = dir.endsWith('/') ? dir.substring(0, dir.length - 1) : dir;
+    return '$base/$name';
+  }
+
+  String _parentOf(String path) {
+    final i = path.lastIndexOf('/');
+    return i <= 0 ? path : path.substring(0, i);
+  }
+
+  /// Um caminho é "sob" [root] se for ele mesmo ou um descendente (`root/...`).
+  bool _isUnder(String path, String root) =>
+      path == root || path.startsWith('$root/');
+
+  /// Reaponta as abas de viewer afetadas por um rename de [from] → [to]: o
+  /// próprio arquivo e, se [from] for pasta, todos os descendentes (troca de
+  /// prefixo). Re-lê o conteúdo e re-arma o watcher no novo caminho.
+  Future<void> _retargetSessions(String from, String to) async {
+    for (final s in _sessions.values) {
+      if (s is! FileViewerSession || !_isUnder(s.path, from)) continue;
+      final newPath = s.path == from
+          ? to
+          : '$to${s.path.substring(from.length)}';
+      s.retarget(newPath);
+      final fresh = await _fileReader.read(newPath);
+      if (fresh is! FileViewUnsupported) s.view = fresh;
+      _fileWatchers.remove(s.id)?.cancel();
+      _watchFileViewer(s);
+    }
+    notifyListeners();
+  }
+
+  /// Fecha (no projeto ativo) toda aba de viewer cujo arquivo está em/sob [path].
+  /// Coleta os pares (pane, aba) antes de fechar pra não mutar a árvore durante
+  /// a varredura. (Multi-projeto fica pra depois — a árvore opera no ativo.)
+  void _closeSessionsUnder(String path) {
+    final tree = _activeTree;
+    if (tree == null) return;
+    final targets = <(String, String)>[];
+    for (final leaf in leaves(tree)) {
+      for (final tabId in leaf.tabs) {
+        final s = _sessions[tabId];
+        if (s is FileViewerSession && _isUnder(s.path, path)) {
+          targets.add((leaf.id, tabId));
+        }
+      }
+    }
+    for (final (paneId, tabId) in targets) {
+      closeTab(paneId, tabId);
+    }
   }
 
   /// Árvore do projeto (para renderizar cada folha do `IndexedStack`).

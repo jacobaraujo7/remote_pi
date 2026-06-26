@@ -57,22 +57,22 @@ class CockpitTerminalRender extends RenderBox
     required double devicePixelRatio,
     EditableRectCallback? onEditableRect,
     String? composingText,
-  })  : _terminal = terminal,
-        _controller = controller,
-        _offset = offset,
-        _padding = padding,
-        _autoResize = autoResize,
-        _focusNode = focusNode,
-        _cursorType = cursorType,
-        _alwaysShowCursor = alwaysShowCursor,
-        _onEditableRect = onEditableRect,
-        _composingText = composingText,
-        _painter = CockpitTerminalPainter(
-          theme: theme,
-          textStyle: textStyle,
-          textScaler: textScaler,
-          devicePixelRatio: devicePixelRatio,
-        );
+  }) : _terminal = terminal,
+       _controller = controller,
+       _offset = offset,
+       _padding = padding,
+       _autoResize = autoResize,
+       _focusNode = focusNode,
+       _cursorType = cursorType,
+       _alwaysShowCursor = alwaysShowCursor,
+       _onEditableRect = onEditableRect,
+       _composingText = composingText,
+       _painter = CockpitTerminalPainter(
+         theme: theme,
+         textStyle: textStyle,
+         textScaler: textScaler,
+         devicePixelRatio: devicePixelRatio,
+       );
 
   Terminal _terminal;
   set terminal(Terminal terminal) {
@@ -120,7 +120,8 @@ class CockpitTerminalRender extends RenderBox
   set textStyle(TerminalStyle value) {
     if (value == _painter.textStyle) return;
     _painter.textStyle = value;
-    _lineCache.clear(); // glifos mudam de tamanho/forma → pictures velhas inválidas
+    _lineCache
+        .clear(); // glifos mudam de tamanho/forma → pictures velhas inválidas
     markNeedsLayout();
   }
 
@@ -553,9 +554,7 @@ class CockpitTerminalRender extends RenderBox
       _painter.cellSize.height,
       PlaceholderAlignment.middle,
     );
-    builder.pushStyle(
-      style.getTextStyle(textScaler: _painter.textScaler),
-    );
+    builder.pushStyle(style.getTextStyle(textScaler: _painter.textScaler));
     builder.addText(composingText);
 
     final paragraph = builder.build();

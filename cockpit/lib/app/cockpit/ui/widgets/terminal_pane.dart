@@ -113,13 +113,17 @@ class _TerminalPaneState extends State<TerminalPane>
       return;
     }
     final link = _isCmd
-        ? _linkDetector.linkAt(widget.terminal, r.getCellOffset(r.globalToLocal(global)))
+        ? _linkDetector.linkAt(
+            widget.terminal,
+            r.getCellOffset(r.globalToLocal(global)),
+          )
         : null;
     _setHoverLink(link);
   }
 
   void _setHoverLink(TerminalLink? link) {
-    final same = link?.url == _hoverLink?.url &&
+    final same =
+        link?.url == _hoverLink?.url &&
         link?.row == _hoverLink?.row &&
         link?.startCol == _hoverLink?.startCol;
     if (same) return;
@@ -137,7 +141,9 @@ class _TerminalPaneState extends State<TerminalPane>
       );
     }
     setState(() {
-      _cursor = link != null ? SystemMouseCursors.click : SystemMouseCursors.text;
+      _cursor = link != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text;
     });
   }
 

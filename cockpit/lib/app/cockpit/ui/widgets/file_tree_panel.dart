@@ -2,6 +2,8 @@ import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -9,38 +11,59 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Painel direito (~300px): árvore **read-only** da pasta do **workspace**.
-/// Pastas começam **colapsadas** e expandem ao clicar (lazy-load). O botão do
-/// header é um **Refresh** (re-lê as pastas abertas pra pegar arquivos novos);
-/// ocultar o painel é pelo toggle do topbar.
+/// Painel direito (~300px): árvore da pasta do **workspace**. Pastas começam
+/// colapsadas e expandem ao clicar (lazy-load). O header tem **+arquivo**,
+/// **+pasta** e **Refresh**; criar/renomear é **inline** (linha-input na árvore),
+/// deletar manda pra lixeira (macOS) ou pede confirmação (demais).
 class FileTreePanel extends StatefulWidget {
   const FileTreePanel({
     super.key,
     required this.rootPath,
+    required this.revision,
     required this.listChildren,
     required this.gitStatusOf,
     required this.onOpenFile,
     required this.onOpenWith,
     required this.onCreateInFolder,
+    required this.onCreate,
+    required this.onRename,
+    required this.onDelete,
     this.width = 300,
   });
 
   final String rootPath;
+
+  /// Token externo (VM) que sobe a cada mutação — força reler as pastas abertas.
+  final int revision;
+
   final Future<List<FileNode>> Function(String path) listChildren;
 
-  /// Status git (cor) de um caminho absoluto — arquivo ou pasta agregada. `null`
-  /// = limpo / fora de repo. Recriado a cada build do shell → árvore reativa.
+  /// Status git (cor) de um caminho absoluto. `null` = limpo / fora de repo.
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
 
   /// Duplo-clique num arquivo → abre no pane.
   final ValueChanged<String> onOpenFile;
 
-  /// "Open with" do menu de contexto → abre o arquivo no app padrão do SO.
+  /// "Open with" → abre o arquivo/pasta no app/explorador padrão do SO.
   final ValueChanged<String> onOpenWith;
 
-  /// Menu de contexto de uma **pasta**: cria uma aba (agente/terminal) nela. O
-  /// 1º arg é o caminho relativo à raiz do workspace; o 2º, `true` = terminal.
+  /// Menu de contexto de uma **pasta**: cria uma aba (agente/terminal) nela.
   final void Function(String relativeSub, bool terminal) onCreateInFolder;
+
+  /// Cria arquivo (ou pasta) chamado [name] dentro de [parentDir]. Falha → msg.
+  final Future<Result<void, String>> Function(
+    String parentDir,
+    String name,
+    bool isFolder,
+  )
+  onCreate;
+
+  /// Renomeia [path] para [newName] (mesma pasta).
+  final Future<Result<void, String>> Function(String path, String newName)
+  onRename;
+
+  /// Manda [path] pra lixeira (a confirmação/condições ficam no painel).
+  final Future<Result<void, String>> Function(String path) onDelete;
 
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
@@ -49,13 +72,188 @@ class FileTreePanel extends StatefulWidget {
   State<FileTreePanel> createState() => _FileTreePanelState();
 }
 
+/// Intenção de criação inline pendente: dentro de [parentPath], arquivo ou pasta.
+class _PendingCreate {
+  const _PendingCreate(this.parentPath, this.isFolder);
+  final String parentPath;
+  final bool isFolder;
+}
+
 class _FileTreePanelState extends State<FileTreePanel> {
-  int _refresh = 0;
+  int _localRefresh = 0;
   String? _selectedPath;
+
+  /// Criação inline em andamento (uma de cada vez).
+  _PendingCreate? _pending;
+
+  /// Caminho sendo renomeado inline (`null` = nenhum).
+  String? _renaming;
+
+  final FocusNode _treeFocus = FocusNode(debugLabel: 'fileTree');
+
+  @override
+  void dispose() {
+    _treeFocus.dispose();
+    super.dispose();
+  }
+
+  /// Token efetivo: refresh manual (botão) + revisão externa (VM). Ambos
+  /// monotônicos → a soma muda sempre que qualquer um muda.
+  int get _refreshToken => _localRefresh + widget.revision;
+
+  bool _isUnder(String path, String root) =>
+      path == root || path.startsWith('$root/');
+
+  void _select(String path) {
+    setState(() => _selectedPath = path);
+    _treeFocus.requestFocus();
+  }
+
+  // ---- criação inline -------------------------------------------------------
+
+  void _startCreate(String parentPath, bool isFolder) {
+    setState(() {
+      _pending = _PendingCreate(parentPath, isFolder);
+      _renaming = null;
+    });
+  }
+
+  void _cancelCreate() {
+    if (_pending != null) setState(() => _pending = null);
+  }
+
+  /// Commit do input de criação. Devolve a mensagem de erro (mantém o input) ou
+  /// `null` no sucesso (limpa — a árvore recarrega pela revisão da VM).
+  Future<String?> _commitCreate(
+    String parentPath,
+    bool isFolder,
+    String name,
+  ) async {
+    final r = await widget.onCreate(parentPath, name, isFolder);
+    return r.fold((_) {
+      if (mounted) setState(() => _pending = null);
+      return null;
+    }, (e) => e);
+  }
+
+  // ---- rename inline --------------------------------------------------------
+
+  void _startRename(String path) {
+    setState(() {
+      _renaming = path;
+      _pending = null;
+    });
+  }
+
+  void _cancelRename() {
+    if (_renaming != null) setState(() => _renaming = null);
+  }
+
+  Future<String?> _commitRename(String path, String newName) async {
+    final r = await widget.onRename(path, newName);
+    return r.fold((_) {
+      if (mounted) {
+        // A seleção segue o novo caminho.
+        final parent = path.substring(0, path.lastIndexOf('/'));
+        final newPath = '$parent/${newName.trim()}';
+        setState(() {
+          _renaming = null;
+          if (_selectedPath != null && _isUnder(_selectedPath!, path)) {
+            _selectedPath = newPath;
+          }
+        });
+      }
+      return null;
+    }, (e) => e);
+  }
+
+  // ---- deleção --------------------------------------------------------------
+
+  Future<void> _requestDelete(String path) async {
+    final name = path.split('/').where((p) => p.isNotEmpty).last;
+    // macOS manda pra Lixeira (reversível) → sem confirmação, como o Finder.
+    // Nas demais é permanente → confirma antes.
+    if (!Platform.isMacOS) {
+      final ok = await showConfirmDialog(
+        context,
+        title: 'Delete?',
+        message: 'Permanently delete “$name”? This can’t be undone.',
+        confirmLabel: 'Delete',
+        danger: true,
+      );
+      if (!ok || !mounted) return;
+    }
+    final r = await widget.onDelete(path);
+    if (!mounted) return;
+    r.fold((_) {
+      if (_selectedPath != null && _isUnder(_selectedPath!, path)) {
+        setState(() => _selectedPath = null);
+      }
+    }, (e) => showInfoDialog(context, title: 'Could not delete', message: e));
+  }
+
+  // ---- atalhos de teclado ---------------------------------------------------
+
+  bool get _editing => _pending != null || _renaming != null;
+
+  void _renameSelected() {
+    final p = _selectedPath;
+    if (p != null && !_editing) _startRename(p);
+  }
+
+  void _deleteSelected() {
+    final p = _selectedPath;
+    if (p != null && !_editing) _requestDelete(p);
+  }
+
+  /// Handler de teclado **no próprio nó focado** (mais confiável que depender do
+  /// bubbling até um `CallbackShortcuts` ancestral). Delete/Backspace apagam;
+  /// Enter (macOS) / F2 (Win/Linux) renomeiam o selecionado.
+  KeyEventResult _onTreeKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent || _editing || _selectedPath == null) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    final isDelete =
+        key == LogicalKeyboardKey.delete ||
+        (Platform.isMacOS && key == LogicalKeyboardKey.backspace);
+    final isRename = Platform.isMacOS
+        ? key == LogicalKeyboardKey.enter ||
+              key == LogicalKeyboardKey.numpadEnter
+        : key == LogicalKeyboardKey.f2;
+    if (isDelete) {
+      _deleteSelected();
+      return KeyEventResult.handled;
+    }
+    if (isRename) {
+      _renameSelected();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+
+    final edit = _TreeEdit(
+      pending: _pending,
+      renaming: _renaming,
+      selectedPath: _selectedPath,
+      onSelect: _select,
+      onOpenFile: widget.onOpenFile,
+      onOpenWith: widget.onOpenWith,
+      onCreateInFolder: widget.onCreateInFolder,
+      onStartCreate: _startCreate,
+      onCancelCreate: _cancelCreate,
+      onCommitCreate: _commitCreate,
+      onStartRename: _startRename,
+      onCancelRename: _cancelRename,
+      onCommitRename: _commitRename,
+      onRequestDelete: _requestDelete,
+      gitStatusOf: widget.gitStatusOf,
+      listChildren: widget.listChildren,
+    );
 
     return Container(
       width: widget.width,
@@ -85,18 +283,22 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     ),
                   ),
                 ),
-                Tooltip(
-                  tooltip: (context) =>
-                      const TooltipContainer(child: Text('Refresh')),
-                  child: HoverTap(
-                    borderRadius: BorderRadius.circular(5),
-                    onTap: () => setState(() => _refresh++),
-                    child: SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: Icon(Icons.refresh, size: 16, color: colors.text3),
-                    ),
+                if (widget.rootPath.isNotEmpty) ...[
+                  _HeaderIcon(
+                    icon: Icons.note_add_outlined,
+                    tooltip: 'New file',
+                    onTap: () => _startCreate(widget.rootPath, false),
                   ),
+                  _HeaderIcon(
+                    icon: Icons.create_new_folder_outlined,
+                    tooltip: 'New folder',
+                    onTap: () => _startCreate(widget.rootPath, true),
+                  ),
+                ],
+                _HeaderIcon(
+                  icon: Icons.refresh,
+                  tooltip: 'Refresh',
+                  onTap: () => setState(() => _localRefresh++),
                 ),
               ],
             ),
@@ -110,23 +312,21 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
                   )
-                : SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 8,
-                      horizontal: 6,
-                    ),
-                    child: _DirView(
-                      path: widget.rootPath,
-                      rootPath: widget.rootPath,
-                      depth: 0,
-                      refreshToken: _refresh,
-                      selectedPath: _selectedPath,
-                      onSelect: (p) => setState(() => _selectedPath = p),
-                      onOpenFile: widget.onOpenFile,
-                      onOpenWith: widget.onOpenWith,
-                      onCreateInFolder: widget.onCreateInFolder,
-                      listChildren: widget.listChildren,
-                      gitStatusOf: widget.gitStatusOf,
+                : Focus(
+                    focusNode: _treeFocus,
+                    onKeyEvent: _onTreeKey,
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 8,
+                        horizontal: 6,
+                      ),
+                      child: _DirView(
+                        path: widget.rootPath,
+                        rootPath: widget.rootPath,
+                        depth: 0,
+                        refreshToken: _refreshToken,
+                        edit: edit,
+                      ),
                     ),
                   ),
           ),
@@ -136,34 +336,68 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 }
 
+/// Bundle das interações de edição da árvore — passado de cima a baixo pra evitar
+/// explosão de props. Imutável: recriado a cada build do painel.
+class _TreeEdit {
+  const _TreeEdit({
+    required this.pending,
+    required this.renaming,
+    required this.selectedPath,
+    required this.onSelect,
+    required this.onOpenFile,
+    required this.onOpenWith,
+    required this.onCreateInFolder,
+    required this.onStartCreate,
+    required this.onCancelCreate,
+    required this.onCommitCreate,
+    required this.onStartRename,
+    required this.onCancelRename,
+    required this.onCommitRename,
+    required this.onRequestDelete,
+    required this.gitStatusOf,
+    required this.listChildren,
+  });
+
+  final _PendingCreate? pending;
+  final String? renaming;
+  final String? selectedPath;
+
+  final ValueChanged<String> onSelect;
+  final ValueChanged<String> onOpenFile;
+  final ValueChanged<String> onOpenWith;
+  final void Function(String relativeSub, bool terminal) onCreateInFolder;
+
+  final void Function(String parentPath, bool isFolder) onStartCreate;
+  final VoidCallback onCancelCreate;
+  final Future<String?> Function(String parentPath, bool isFolder, String name)
+  onCommitCreate;
+
+  final ValueChanged<String> onStartRename;
+  final VoidCallback onCancelRename;
+  final Future<String?> Function(String path, String newName) onCommitRename;
+
+  final ValueChanged<String> onRequestDelete;
+
+  final GitFileStatus? Function(String absolutePath) gitStatusOf;
+  final Future<List<FileNode>> Function(String path) listChildren;
+}
+
 /// Carrega os filhos de uma pasta e os renderiza. Re-lê quando [refreshToken]
-/// muda (o Refresh do header).
+/// muda (Refresh manual ou mutação na VM).
 class _DirView extends StatefulWidget {
   const _DirView({
     required this.path,
     required this.rootPath,
     required this.depth,
     required this.refreshToken,
-    required this.selectedPath,
-    required this.onSelect,
-    required this.onOpenFile,
-    required this.onOpenWith,
-    required this.onCreateInFolder,
-    required this.listChildren,
-    required this.gitStatusOf,
+    required this.edit,
   });
 
   final String path;
   final String rootPath;
   final int depth;
   final int refreshToken;
-  final String? selectedPath;
-  final ValueChanged<String> onSelect;
-  final ValueChanged<String> onOpenFile;
-  final ValueChanged<String> onOpenWith;
-  final void Function(String relativeSub, bool terminal) onCreateInFolder;
-  final Future<List<FileNode>> Function(String path) listChildren;
-  final GitFileStatus? Function(String absolutePath) gitStatusOf;
+  final _TreeEdit edit;
 
   @override
   State<_DirView> createState() => _DirViewState();
@@ -185,7 +419,7 @@ class _DirViewState extends State<_DirView> {
   }
 
   Future<void> _load() async {
-    final children = await widget.listChildren(widget.path);
+    final children = await widget.edit.listChildren(widget.path);
     if (mounted) setState(() => _children = children);
   }
 
@@ -193,28 +427,33 @@ class _DirViewState extends State<_DirView> {
   Widget build(BuildContext context) {
     final children = _children;
     if (children == null) return const SizedBox.shrink();
+    final edit = widget.edit;
+    final pending = edit.pending;
+    final showCreate = pending != null && pending.parentPath == widget.path;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        // Input de criação inline (no topo da pasta-alvo).
+        if (showCreate)
+          _InlineEntry(
+            key: ValueKey('create:${widget.path}:${pending.isFolder}'),
+            depth: widget.depth,
+            isFolder: pending.isFolder,
+            onSubmit: (name) =>
+                edit.onCommitCreate(widget.path, pending.isFolder, name),
+            onCancel: edit.onCancelCreate,
+          ),
         for (final node in children)
           if (node.isDirectory)
             _Folder(
               node: node,
-              rootPath: widget.rootPath,
               depth: widget.depth,
               refreshToken: widget.refreshToken,
-              selectedPath: widget.selectedPath,
-              onSelect: widget.onSelect,
-              onOpenFile: widget.onOpenFile,
-              onOpenWith: widget.onOpenWith,
-              onCreateInFolder: widget.onCreateInFolder,
-              listChildren: widget.listChildren,
-              gitStatusOf: widget.gitStatusOf,
+              edit: edit,
             )
           else
-            // Arrasta o arquivo até o input (vira `@<rel>`). Clique-arraste
-            // direto — no desktop a árvore rola pela roda/trackpad, não por
-            // arraste na linha, então não há conflito.
+            // Arrasta o arquivo até o input (vira `@<rel>`).
             Draggable<String>(
               data: node.path,
               dragAnchorStrategy: pointerDragAnchorStrategy,
@@ -225,11 +464,16 @@ class _DirViewState extends State<_DirView> {
                 name: node.name,
                 path: node.path,
                 rootPath: widget.rootPath,
-                selected: node.path == widget.selectedPath,
-                gitStatus: widget.gitStatusOf(node.path),
-                onTap: () => widget.onSelect(node.path),
-                onDoubleTap: () => widget.onOpenFile(node.path),
-                onOpenWith: () => widget.onOpenWith(node.path),
+                selected: node.path == edit.selectedPath,
+                renaming: edit.renaming == node.path,
+                gitStatus: edit.gitStatusOf(node.path),
+                onTap: () => edit.onSelect(node.path),
+                onDoubleTap: () => edit.onOpenFile(node.path),
+                onOpenWith: () => edit.onOpenWith(node.path),
+                onStartRename: () => edit.onStartRename(node.path),
+                onCommitRename: (name) => edit.onCommitRename(node.path, name),
+                onCancelRename: edit.onCancelRename,
+                onDelete: () => edit.onRequestDelete(node.path),
               ),
             ),
       ],
@@ -240,29 +484,15 @@ class _DirViewState extends State<_DirView> {
 class _Folder extends StatefulWidget {
   const _Folder({
     required this.node,
-    required this.rootPath,
     required this.depth,
     required this.refreshToken,
-    required this.selectedPath,
-    required this.onSelect,
-    required this.onOpenFile,
-    required this.onOpenWith,
-    required this.onCreateInFolder,
-    required this.listChildren,
-    required this.gitStatusOf,
+    required this.edit,
   });
 
   final FileNode node;
-  final String rootPath;
   final int depth;
   final int refreshToken;
-  final String? selectedPath;
-  final ValueChanged<String> onSelect;
-  final ValueChanged<String> onOpenFile;
-  final ValueChanged<String> onOpenWith;
-  final void Function(String relativeSub, bool terminal) onCreateInFolder;
-  final Future<List<FileNode>> Function(String path) listChildren;
-  final GitFileStatus? Function(String absolutePath) gitStatusOf;
+  final _TreeEdit edit;
 
   @override
   State<_Folder> createState() => _FolderState();
@@ -271,43 +501,52 @@ class _Folder extends StatefulWidget {
 class _FolderState extends State<_Folder> {
   bool _expanded = false;
 
+  /// Força abrir quando há criação pendente nesta pasta ou em algo abaixo dela
+  /// (pra revelar o input inline alvo).
+  bool get _forceExpand {
+    final p = widget.edit.pending;
+    if (p == null) return false;
+    final path = widget.node.path;
+    return p.parentPath == path || p.parentPath.startsWith('$path/');
+  }
+
   @override
   Widget build(BuildContext context) {
+    final edit = widget.edit;
+    final expanded = _expanded || _forceExpand;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _Row(
           depth: widget.depth,
           isFolder: true,
-          expanded: _expanded,
+          expanded: expanded,
           name: widget.node.name,
           path: widget.node.path,
-          rootPath: widget.rootPath,
-          selected: widget.node.path == widget.selectedPath,
-          gitStatus: widget.gitStatusOf(widget.node.path),
-          onCreateInFolder: widget.onCreateInFolder,
-          // "Abrir no explorador do SO" (Finder/Explorer/Nautilus) — abre a
-          // pasta no gerenciador de arquivos padrão.
-          onOpenWith: () => widget.onOpenWith(widget.node.path),
-          // Clicar numa pasta seleciona E expande/recolhe.
+          rootPath: widget.node.path, // (não usado em pasta)
+          selected: widget.node.path == edit.selectedPath,
+          renaming: edit.renaming == widget.node.path,
+          gitStatus: edit.gitStatusOf(widget.node.path),
+          onCreateInFolder: edit.onCreateInFolder,
+          onNewFile: () => edit.onStartCreate(widget.node.path, false),
+          onNewFolder: () => edit.onStartCreate(widget.node.path, true),
+          onOpenWith: () => edit.onOpenWith(widget.node.path),
+          onStartRename: () => edit.onStartRename(widget.node.path),
+          onCommitRename: (name) => edit.onCommitRename(widget.node.path, name),
+          onCancelRename: edit.onCancelRename,
+          onDelete: () => edit.onRequestDelete(widget.node.path),
           onTap: () {
-            widget.onSelect(widget.node.path);
+            edit.onSelect(widget.node.path);
             setState(() => _expanded = !_expanded);
           },
         ),
-        if (_expanded)
+        if (expanded)
           _DirView(
             path: widget.node.path,
-            rootPath: widget.rootPath,
+            rootPath: widget.node.path,
             depth: widget.depth + 1,
             refreshToken: widget.refreshToken,
-            selectedPath: widget.selectedPath,
-            onSelect: widget.onSelect,
-            onOpenFile: widget.onOpenFile,
-            onOpenWith: widget.onOpenWith,
-            onCreateInFolder: widget.onCreateInFolder,
-            listChildren: widget.listChildren,
-            gitStatusOf: widget.gitStatusOf,
+            edit: edit,
           ),
       ],
     );
@@ -324,10 +563,17 @@ class _Row extends StatefulWidget {
     this.gitStatus,
     this.expanded = false,
     this.selected = false,
+    this.renaming = false,
     this.onTap,
     this.onDoubleTap,
     this.onOpenWith,
     this.onCreateInFolder,
+    this.onNewFile,
+    this.onNewFolder,
+    this.onStartRename,
+    this.onCommitRename,
+    this.onCancelRename,
+    this.onDelete,
   });
 
   final int depth;
@@ -336,19 +582,28 @@ class _Row extends StatefulWidget {
   final String path;
   final String rootPath;
 
-  /// Status git desta linha (cor). `null` = limpo / fora de repo.
   final GitFileStatus? gitStatus;
-
   final bool expanded;
   final bool selected;
+  final bool renaming;
+
   final VoidCallback? onTap;
   final VoidCallback? onDoubleTap;
 
-  /// Só em arquivos: "Open with" → abre no app padrão do SO.
+  /// "Open with" (arquivo) / "Open in Finder" (pasta).
   final VoidCallback? onOpenWith;
 
-  /// Só em pastas: cria agente/terminal nela (relativo, terminal?).
+  /// Só pastas: criar agente/terminal nela (relativo, terminal?).
   final void Function(String relativeSub, bool terminal)? onCreateInFolder;
+
+  /// Só pastas: iniciar criação inline de arquivo/pasta dentro dela.
+  final VoidCallback? onNewFile;
+  final VoidCallback? onNewFolder;
+
+  final VoidCallback? onStartRename;
+  final Future<String?> Function(String name)? onCommitRename;
+  final VoidCallback? onCancelRename;
+  final VoidCallback? onDelete;
 
   @override
   State<_Row> createState() => _RowState();
@@ -357,7 +612,6 @@ class _Row extends StatefulWidget {
 class _RowState extends State<_Row> {
   DateTime? _lastTap;
 
-  /// Caminho relativo à raiz do workspace.
   String get _relative {
     final root = widget.rootPath.endsWith('/')
         ? widget.rootPath
@@ -367,8 +621,6 @@ class _RowState extends State<_Row> {
         : widget.path;
   }
 
-  /// Detecção manual de duplo-clique: o primeiro clique seleciona na hora (sem
-  /// o atraso do recognizer de double-tap); o segundo, dentro da janela, abre.
   void _handleTap() {
     if (widget.onDoubleTap == null) {
       widget.onTap?.call();
@@ -384,8 +636,6 @@ class _RowState extends State<_Row> {
     }
   }
 
-  /// Rótulo do "abrir no explorador do SO" (a ação `open`/`xdg-open`/`start`
-  /// abre a pasta no gerenciador de arquivos padrão).
   String get _fileExplorerLabel {
     if (Platform.isMacOS) return 'Open in Finder';
     if (Platform.isWindows) return 'Open in Explorer';
@@ -393,8 +643,8 @@ class _RowState extends State<_Row> {
   }
 
   void _showMenu(BuildContext context, Offset globalPosition) {
-    final canCreate = widget.isFolder && widget.onCreateInFolder != null;
-    final isFile = !widget.isFolder;
+    final isFolder = widget.isFolder;
+    final isFile = !isFolder;
     showAppMenu<String>(
       context,
       minWidth: 220,
@@ -408,7 +658,17 @@ class _RowState extends State<_Row> {
             icon: Icons.launch_outlined,
           ),
         ],
-        if (canCreate) ...const [
+        if (isFolder) ...const [
+          AppMenuItem(
+            value: 'newfile',
+            label: 'New file',
+            icon: Icons.note_add_outlined,
+          ),
+          AppMenuItem(
+            value: 'newfolder',
+            label: 'New folder',
+            icon: Icons.create_new_folder_outlined,
+          ),
           AppMenuItem(
             value: 'agent',
             label: 'Create agent',
@@ -420,12 +680,22 @@ class _RowState extends State<_Row> {
             icon: Icons.terminal_outlined,
           ),
         ],
-        if (widget.isFolder)
+        if (isFolder)
           AppMenuItem(
             value: 'reveal',
             label: _fileExplorerLabel,
             icon: Icons.folder_open_outlined,
           ),
+        const AppMenuItem(
+          value: 'rename',
+          label: 'Rename',
+          icon: Icons.drive_file_rename_outline,
+        ),
+        const AppMenuItem(
+          value: 'delete',
+          label: 'Delete',
+          icon: Icons.delete_outline,
+        ),
         const AppMenuItem(
           value: 'rel',
           label: 'Copy relative path',
@@ -440,15 +710,22 @@ class _RowState extends State<_Row> {
     ).then((value) {
       switch (value) {
         case 'open':
-          // "Open" = abrir no pane (mesma ação do duplo-clique no arquivo).
           widget.onDoubleTap?.call();
         case 'openwith':
         case 'reveal':
           widget.onOpenWith?.call();
+        case 'newfile':
+          widget.onNewFile?.call();
+        case 'newfolder':
+          widget.onNewFolder?.call();
         case 'agent':
           widget.onCreateInFolder?.call(_relative, false);
         case 'terminal':
           widget.onCreateInFolder?.call(_relative, true);
+        case 'rename':
+          widget.onStartRename?.call();
+        case 'delete':
+          widget.onDelete?.call();
         case 'rel':
           Clipboard.setData(ClipboardData(text: _relative));
         case 'abs':
@@ -460,69 +737,229 @@ class _RowState extends State<_Row> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+
+    final Widget label = widget.renaming
+        ? _NameField(
+            initial: widget.name,
+            // Arquivos: pré-seleciona o nome sem extensão (estilo VSCode).
+            selectBasename: !widget.isFolder,
+            onSubmit: (name) async =>
+                await widget.onCommitRename?.call(name) ?? 'Rename failed.',
+            onCancel: () => widget.onCancelRename?.call(),
+          )
+        : Text(
+            widget.name,
+            overflow: TextOverflow.ellipsis,
+            style: context.typo.body.copyWith(
+              fontSize: 13,
+              color:
+                  _gitColor(colors, widget.gitStatus) ??
+                  (widget.selected ? colors.text : colors.text2),
+            ),
+          );
+
+    final row = HoverTap(
+      color: widget.selected ? colors.panel2 : Colors.transparent,
+      hoverColor: colors.panel,
+      borderRadius: BorderRadius.circular(5),
+      onTap: widget.renaming ? null : _handleTap,
+      padding: EdgeInsets.only(left: 6 + widget.depth * 14.0, right: 6),
+      child: SizedBox(
+        // Em rename a linha cresce (campo + erro); fora dela, altura fixa.
+        height: widget.renaming ? null : 26,
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              child: widget.isFolder
+                  ? Icon(
+                      widget.expanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.chevron_right,
+                      size: 15,
+                      color: colors.text4,
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 2),
+            widget.isFolder
+                ? FileTypeIcon.folder(
+                    widget.name,
+                    open: widget.expanded,
+                    size: 16,
+                  )
+                : FileTypeIcon.file(widget.name, size: 16),
+            const SizedBox(width: 7),
+            Expanded(child: label),
+          ],
+        ),
+      ),
+    );
+
+    // Em rename o gesto secundário/seleção fica desligado (o campo manda).
+    if (widget.renaming) return row;
     return GestureDetector(
       onSecondaryTapUp: (d) => _showMenu(context, d.globalPosition),
-      child: HoverTap(
-        color: widget.selected ? colors.panel2 : Colors.transparent,
-        hoverColor: colors.panel,
-        borderRadius: BorderRadius.circular(5),
-        onTap: _handleTap,
-        padding: EdgeInsets.only(left: 6 + widget.depth * 14.0, right: 6),
-        child: SizedBox(
-          height: 26,
-          child: Row(
-            children: [
-              SizedBox(
-                width: 14,
-                child: widget.isFolder
-                    ? Icon(
-                        widget.expanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.chevron_right,
-                        size: 15,
-                        color: colors.text4,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 2),
-              // Ícone colorido por tipo (material-icon-theme). Pastas variam
-              // entre aberta/fechada; sem tint (a seleção vem do fundo/texto).
-              widget.isFolder
-                  ? FileTypeIcon.folder(
-                      widget.name,
-                      open: widget.expanded,
-                      size: 16,
-                    )
-                  : FileTypeIcon.file(widget.name, size: 16),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
-                  widget.name,
-                  overflow: TextOverflow.ellipsis,
-                  style: context.typo.body.copyWith(
-                    fontSize: 13,
-                    color: _gitColor(colors, widget.gitStatus) ??
-                        (widget.selected ? colors.text : colors.text2),
-                  ),
-                ),
-              ),
-            ],
+      child: row,
+    );
+  }
+}
+
+/// Linha-input de **criação** inline: ícone (arquivo/pasta) + campo de nome,
+/// indentado como uma linha normal naquela profundidade.
+class _InlineEntry extends StatelessWidget {
+  const _InlineEntry({
+    super.key,
+    required this.depth,
+    required this.isFolder,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final int depth;
+  final bool isFolder;
+  final Future<String?> Function(String name) onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(left: 6 + depth * 14.0, right: 6),
+      child: Row(
+        children: [
+          const SizedBox(width: 14), // alinha com o chevron das pastas
+          const SizedBox(width: 2),
+          isFolder
+              ? FileTypeIcon.folder('new', open: false, size: 16)
+              : FileTypeIcon.file('new file', size: 16),
+          const SizedBox(width: 7),
+          Expanded(
+            child: _NameField(
+              initial: '',
+              selectBasename: false,
+              onSubmit: onSubmit,
+              onCancel: onCancel,
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
 }
 
-/// Cor do nome conforme o status git da linha (`null` = sem tint git → a linha
-/// usa a cor neutra de seleção). Modificado reusa `warn` (âmbar, mesma da
-/// branch); os demais têm tokens próprios.
+/// Campo de nome compartilhado por criar/renomear: autofoco, Enter confirma,
+/// Esc/clique-fora cancela. Erro de validação aparece como linha vermelha abaixo
+/// (mantendo o foco pra correção).
+class _NameField extends StatefulWidget {
+  const _NameField({
+    required this.initial,
+    required this.selectBasename,
+    required this.onSubmit,
+    required this.onCancel,
+  });
+
+  final String initial;
+
+  /// Pré-seleciona só o nome sem extensão (útil em rename de arquivo).
+  final bool selectBasename;
+
+  /// Devolve mensagem de erro (mantém editando) ou `null` no sucesso.
+  final Future<String?> Function(String name) onSubmit;
+  final VoidCallback onCancel;
+
+  @override
+  State<_NameField> createState() => _NameFieldState();
+}
+
+class _NameFieldState extends State<_NameField> {
+  late final TextEditingController _ctrl;
+  final FocusNode _focus = FocusNode();
+  String? _error;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+    final dot = widget.initial.lastIndexOf('.');
+    final end = (widget.selectBasename && dot > 0)
+        ? dot
+        : widget.initial.length;
+    _ctrl.selection = TextSelection(baseOffset: 0, extentOffset: end);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    final name = _ctrl.text.trim();
+    if (name.isEmpty) {
+      widget.onCancel();
+      return;
+    }
+    setState(() => _busy = true);
+    final err = await widget.onSubmit(name);
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _error = err;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final typo = context.typo;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.escape): widget.onCancel,
+          },
+          child: SizedBox(
+            height: 22,
+            child: TextField(
+              controller: _ctrl,
+              focusNode: _focus,
+              style: typo.body.copyWith(fontSize: 13, color: colors.text),
+              border: Border.all(color: colors.accent),
+              borderRadius: BorderRadius.circular(4),
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              onSubmitted: (_) => _submit(),
+              onTapOutside: (_) => widget.onCancel(),
+            ),
+          ),
+        ),
+        if (_error != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 2, left: 2),
+            child: Text(
+              _error!,
+              style: typo.label.copyWith(fontSize: 11, color: colors.error),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Cor do nome conforme o status git da linha.
 Color? _gitColor(AppColors colors, GitFileStatus? status) {
   switch (status) {
     case null:
       return null;
     case GitFileStatus.ignored:
-      return colors.text4; // atenuado (faint), estilo VS Code
+      return colors.text4;
     case GitFileStatus.modified:
       return colors.warn;
     case GitFileStatus.staged:
@@ -533,6 +970,33 @@ Color? _gitColor(AppColors colors, GitFileStatus? status) {
       return colors.gitDeleted;
     case GitFileStatus.conflict:
       return colors.gitConflict;
+  }
+}
+
+class _HeaderIcon extends StatelessWidget {
+  const _HeaderIcon({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      tooltip: (context) => TooltipContainer(child: Text(tooltip)),
+      child: HoverTap(
+        borderRadius: BorderRadius.circular(5),
+        onTap: onTap,
+        child: SizedBox(
+          width: 28,
+          height: 28,
+          child: Icon(icon, size: 16, color: context.colors.text3),
+        ),
+      ),
+    );
   }
 }
 

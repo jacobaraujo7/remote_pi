@@ -28,6 +28,7 @@ class FileViewer extends StatefulWidget {
     required this.session,
     required this.onSave,
     this.active = true,
+    this.focused = true,
   });
 
   final FileViewerSession session;
@@ -38,6 +39,10 @@ class FileViewer extends StatefulWidget {
   /// `true` enquanto esta é a aba ativa (visível). Repassado ao player A/V, que
   /// pausa ao virar `false` (plano 46). Tipos não-mídia ignoram.
   final bool active;
+
+  /// `true` quando esta aba está ativa **e** a pane focada — aí o editor recebe
+  /// o foco do teclado automaticamente (digitar direto ao selecionar a aba).
+  final bool focused;
 
   @override
   State<FileViewer> createState() => _FileViewerState();
@@ -72,7 +77,8 @@ class _FileViewerState extends State<FileViewer> {
   /// Tem modo renderizado além da fonte (markdown/svg) → mostra o switch
   /// Preview/Source. Demais textos/códigos entram direto em edição (sem toggle).
   bool get _hasPreview =>
-      widget.session.view is FileViewMarkdown || widget.session.view is FileViewSvg;
+      widget.session.view is FileViewMarkdown ||
+      widget.session.view is FileViewSvg;
 
   @override
   void initState() {
@@ -85,6 +91,8 @@ class _FileViewerState extends State<FileViewer> {
       // Expõe o save do buffer à sessão pro "Salvar e fechar" (limpo no dispose).
       widget.session.saveDraft = _save;
     }
+    // Aba já nasce focada (ex.: arquivo recém-aberto) → foca o editor.
+    _focusEditorIfActive();
   }
 
   @override
@@ -102,6 +110,20 @@ class _FileViewerState extends State<FileViewer> {
       _ctrl!.text = text;
       _baseline = text;
     }
+    // Virou a aba focada (seleção da tab) → joga o foco no editor.
+    if (widget.focused && !old.focused) _focusEditorIfActive();
+  }
+
+  /// `true` quando há editor visível (texto/código sempre; markdown/svg só em
+  /// Source). Markdown/svg em preview não têm campo pra focar.
+  bool get _editingNow => _editableText != null && (!_hasPreview || _editing);
+
+  /// Foca o campo do editor se esta aba está focada e em modo edição.
+  void _focusEditorIfActive() {
+    if (!widget.focused || !_editingNow || _ctrl == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.focused) _focus.requestFocus();
+    });
   }
 
   @override
@@ -369,10 +391,7 @@ class _Segmented extends StatelessWidget {
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            seg(leftLabel, leftActive),
-            seg(rightLabel, !leftActive),
-          ],
+          children: [seg(leftLabel, leftActive), seg(rightLabel, !leftActive)],
         ),
       ),
     );

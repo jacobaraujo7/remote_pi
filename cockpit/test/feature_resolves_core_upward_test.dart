@@ -30,7 +30,8 @@ void main() {
         ..addLazySingleton<_RpcLike>(_RpcLike.new)
         ..route(
           '/',
-          child: (ctx, s) => Text('exe:${inject<_RpcLike>().config.executable}'),
+          child: (ctx, s) =>
+              Text('exe:${inject<_RpcLike>().config.executable}'),
         ),
     );
     final app = createModule(

@@ -405,12 +405,18 @@ class _CockpitPageState extends State<CockpitPage> {
                             key: ValueKey(vm.selectedProject?.path ?? ''),
                             width: _treeWidth,
                             rootPath: vm.selectedProject?.path ?? '',
+                            revision: vm.fileTreeRevision,
                             listChildren: vm.listChildren,
                             gitStatusOf: vm.gitStatusForPath,
                             onOpenFile: vm.openFile,
                             onOpenWith: vm.openWithDefaultApp,
                             onCreateInFolder: (sub, terminal) =>
                                 vm.newTabIn(sub, terminal: terminal),
+                            onCreate: (parentDir, name, isFolder) => isFolder
+                                ? vm.createDirIn(parentDir, name)
+                                : vm.createFileIn(parentDir, name),
+                            onRename: vm.renamePath,
+                            onDelete: vm.deletePath,
                           ),
                           // Alça de arraste sobre a borda esquerda do painel
                           // (esquerda = alarga; direita = estreita).

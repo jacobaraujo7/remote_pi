@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/filesystem/app_launcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_searcher_impl.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/file_system_mutator_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/folder_lister_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
@@ -25,6 +26,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/environment_installer.dart'
 import 'package:cockpit/app/cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
@@ -102,6 +104,7 @@ Future<Module> buildCockpitModule() async {
         ..addLazySingleton<EnvironmentInstaller>(EnvironmentInstallerImpl.new)
         ..addInstance<FolderLister>(const FolderListerImpl())
         ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
+        ..addInstance<FileSystemMutator>(const FileSystemMutatorImpl())
         ..addInstance<FileReader>(const FileReaderImpl())
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<GitStatusReader>(GitStatusReaderImpl())

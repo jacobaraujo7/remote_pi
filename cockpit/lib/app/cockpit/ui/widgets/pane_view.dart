@@ -1007,6 +1007,7 @@ class _PaneBodyState extends State<_PaneBody> {
       return FileViewer(
         session: item,
         active: widget.active,
+        focused: widget.focused,
         onSave: (content) =>
             context.read<CockpitViewModel>().saveFile(item.id, content),
       );
