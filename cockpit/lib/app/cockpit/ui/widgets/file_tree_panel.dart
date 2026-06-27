@@ -32,7 +32,11 @@ class FileTreePanel extends StatefulWidget {
     required this.onRename,
     required this.onDelete,
     this.width = 300,
+    this.footer,
   });
+
+  /// Rodapé opcional, fixado abaixo da árvore (ex.: barra de status do LSP).
+  final Widget? footer;
 
   final String rootPath;
 
@@ -347,6 +351,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     ),
                   ),
           ),
+          ?widget.footer,
         ],
       ),
     );

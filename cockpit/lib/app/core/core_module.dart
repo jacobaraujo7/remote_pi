@@ -1,5 +1,8 @@
+import 'package:cockpit/app/core/data/lsp/lsp_client_impl.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
 import 'package:cockpit/app/core/data/relay/pairing_gateway_impl.dart';
 import 'package:cockpit/app/core/data/relay/revoke_gateway_impl.dart';
+import 'package:cockpit/app/core/domain/contracts/lsp_client.dart';
 import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/core/env.dart';
@@ -22,9 +25,15 @@ import 'package:flutter_modular/flutter_modular.dart';
 ///
 /// O `SettingsStore`/`SettingsController` são **app-scoped** (construídos no
 /// `main`, antes do 1º frame → sem flash de tema), então não entram no grafo aqui.
+///
+/// - [LspServerPool]: pool **global** de language servers (LSP), compartilhado
+///   por todos os workspaces. Root-owned aqui; o `CockpitViewModel` (page-scoped)
+///   o injeta para abrir documentos e rotear diagnostics ao editor.
 Module buildCoreModule({required PiSpawnConfig config}) => createModule(
   register: (c) => c
     ..addInstance<PiSpawnConfig>(config)
+    ..addInstance<LspClientFactory>(const LspClientFactoryImpl())
+    ..addLazySingleton<LspServerPool>(LspServerPool.new)
     ..add<PairingGatewayFactory>(PairingGatewayFactoryImpl.new)
     ..add<RevokeGatewayFactory>(RevokeGatewayFactoryImpl.new),
 );

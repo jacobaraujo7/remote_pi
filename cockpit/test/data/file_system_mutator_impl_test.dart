@@ -76,9 +76,12 @@ void main() {
     );
 
     test('moveToTrash remove o arquivo do caminho original', () async {
+      // useSystemTrash: false → deleção permanente em vez de mandar pra Lixeira
+      // do macOS de verdade (senão cada `flutter test` suja a Lixeira).
+      const fileMutator = FileSystemMutatorImpl(useSystemTrash: false);
       final path = '${dir.path}/trash-me.txt';
       File(path).writeAsStringSync('bye');
-      final r = await mutator.moveToTrash(path);
+      final r = await fileMutator.moveToTrash(path);
       expect(r.isSuccess, isTrue);
       expect(File(path).existsSync(), isFalse);
     });

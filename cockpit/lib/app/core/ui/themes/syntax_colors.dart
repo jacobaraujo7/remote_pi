@@ -1,4 +1,5 @@
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:flutter/widgets.dart';
 
 /// Paleta de **syntax highlight** do viewer de código. Mapeia os escopos do
@@ -136,6 +137,30 @@ class SyntaxColors {
 
   /// Fallback usado por `context.syntax` fora da árvore com tema.
   static const SyntaxColors dark = oneDark;
+
+  // --- Diagnostics (LSP) ----------------------------------------------------
+  // Cores semânticas independentes da paleta (legíveis sobre dark e light),
+  // usadas no squiggle e no ícone de severity do gutter.
+  static const Color diagnosticError = Color(0xFFE5484D);
+  static const Color diagnosticWarning = Color(0xFFF5A623);
+  static const Color diagnosticInfo = Color(0xFF4C9AFF);
+  static const Color diagnosticHint = Color(0xFF8B949E);
+
+  /// Cor do sublinhado/ícone por severidade.
+  static Color diagnosticColor(LspSeverity severity) => switch (severity) {
+    LspSeverity.error => diagnosticError,
+    LspSeverity.warning => diagnosticWarning,
+    LspSeverity.info => diagnosticInfo,
+    LspSeverity.hint => diagnosticHint,
+  };
+
+  /// Estilo de sublinhado ondulado para um range com diagnostic da [severity].
+  /// É feito para `style.merge(...)` sobre o span de syntax (preserva a cor).
+  static TextStyle underlineStyleFor(LspSeverity severity) => TextStyle(
+    decoration: TextDecoration.underline,
+    decorationStyle: TextDecorationStyle.wavy,
+    decorationColor: diagnosticColor(severity),
+  );
 
   /// Resolve a paleta pelo id escolhido **e o brilho do app** — cada família
   /// tem variante light/dark, então o highlight segue o tema (claro no claro).

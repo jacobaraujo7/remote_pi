@@ -16,6 +16,20 @@ import 'dart:io';
 /// - [unixHomeRelative]: caminhos relativos a `$HOME` (ex.: `.local/bin/pi`).
 /// - [windowsExtraDirs]: diretórios absolutos extras a sondar no Windows
 ///   (ex.: `C:\Program Files\nodejs`), além da PATH e de `%APPDATA%\npm`.
+/// `true` se [exec] dá pra resolver para um caminho real — usado pra mostrar o
+/// status (● encontrado / ○ ausente) de um language server na tela "Language".
+/// Caminho absoluto: testa existência direta. Nome simples: resolve via
+/// [resolveExecutable] e confirma que achou algo além do próprio nome.
+Future<bool> isExecutableAvailable(String exec) async {
+  final name = exec.trim();
+  if (name.isEmpty) return false;
+  if (name.contains('/') || name.contains(r'\')) {
+    return File(name).existsSync();
+  }
+  final resolved = await resolveExecutable(name);
+  return resolved != name && File(resolved).existsSync();
+}
+
 Future<String> resolveExecutable(
   String name, {
   List<String> unixCandidates = const [],

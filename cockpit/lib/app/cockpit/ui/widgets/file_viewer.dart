@@ -1,14 +1,23 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_markdown.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
+import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
+import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/media_view.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 // SelectionArea (Material) envolve o scroll do markdown → seleção + auto-scroll.
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/services.dart';
@@ -59,6 +68,14 @@ class _FileViewerState extends State<FileViewer> {
   CodeEditingController? _ctrl;
   final _focus = FocusNode();
 
+  /// LSP: VM (captado uma vez), assinatura de diagnostics e debounce do
+  /// didChange. `_diagnostics` espelha o último batch deste documento — vale pro
+  /// editor (via `_ctrl`) **e** pro viewer read-only.
+  CockpitViewModel? _vm;
+  StreamSubscription<LspDiagnosticsBatch>? _diagSub;
+  Timer? _lspDebounce;
+  List<LspDiagnostic> _diagnostics = const <LspDiagnostic>[];
+
   /// Texto editável da view atual, ou `null` se o tipo não é editável.
   String? get _editableText => switch (widget.session.view) {
     FileViewText(:final text) => text,
@@ -92,9 +109,25 @@ class _FileViewerState extends State<FileViewer> {
         ..addListener(_onCtrlChanged);
       // Expõe o save do buffer à sessão pro "Salvar e fechar" (limpo no dispose).
       widget.session.saveDraft = _save;
+      _startLsp(text);
     }
     // Aba já nasce focada (ex.: arquivo recém-aberto) → foca o editor.
     _focusEditorIfActive();
+  }
+
+  /// Abre o documento no LSP e passa a escutar os diagnostics deste arquivo.
+  /// No-op para linguagens sem servidor (o pool degrada graciosamente).
+  void _startLsp(String text) {
+    final vm = context.read<CockpitViewModel>();
+    _vm = vm;
+    final path = widget.session.path;
+    final uri = Uri.file(path).toString();
+    unawaited(vm.lspOpenDocument(path, text, widget.session.projectId));
+    _diagSub = vm.lspDiagnostics.listen((batch) {
+      if (batch.uri != uri || !mounted) return;
+      setState(() => _diagnostics = batch.diagnostics);
+      _ctrl?.diagnostics = batch.diagnostics;
+    });
   }
 
   @override
@@ -103,6 +136,7 @@ class _FileViewerState extends State<FileViewer> {
     
     // Se o path mudou (preview reutilizado), força rebuild total.
     if (widget.session.path != _lastObservedPath) {
+      final oldPath = _lastObservedPath;
       _lastObservedPath = widget.session.path;
       _editing = false;
       _dirty = false;
@@ -110,7 +144,13 @@ class _FileViewerState extends State<FileViewer> {
       _ctrl?.removeListener(_onCtrlChanged);
       _ctrl?.dispose();
       _ctrl = null;
-      
+
+      // Troca o documento do LSP: fecha o antigo, abre o novo.
+      if (oldPath != null) unawaited(_vm?.lspCloseDocument(oldPath));
+      _diagSub?.cancel();
+      _diagSub = null;
+      _diagnostics = const <LspDiagnostic>[];
+
       // Recria o controller com o novo conteúdo.
       final text = _editableText;
       if (text != null) {
@@ -118,6 +158,7 @@ class _FileViewerState extends State<FileViewer> {
         _ctrl = CodeEditingController(text: text, language: _language)
           ..addListener(_onCtrlChanged);
         widget.session.saveDraft = _save;
+        _startLsp(text);
       } else {
         widget.session.saveDraft = null;
       }
@@ -125,7 +166,7 @@ class _FileViewerState extends State<FileViewer> {
       setState(() {});
       return;
     }
-    
+
     final text = _editableText;
     // Tipo deixou de ser editável (raro) → sai do modo edição.
     if (text == null) {
@@ -140,6 +181,8 @@ class _FileViewerState extends State<FileViewer> {
         if (mounted && !_dirty && _ctrl != null && _ctrl!.text != text) {
           _ctrl!.text = text;
           _baseline = text;
+          // O disco mudou (agente editou) → mantém o LSP em sync.
+          unawaited(_vm?.lspChangeDocument(widget.session.path, text));
         }
       });
     }
@@ -150,6 +193,16 @@ class _FileViewerState extends State<FileViewer> {
   /// `true` quando há editor visível (texto/código sempre; markdown/svg só em
   /// Source). Markdown/svg em preview não têm campo pra focar.
   bool get _editingNow => _editableText != null && (!_hasPreview || _editing);
+
+  /// Devolve o foco ao editor após uma ação da toolbar (Format/Save/Discard),
+  /// pra continuar digitando sem reclicar no campo. Post-frame porque a ação
+  /// pode disparar rebuild (ex.: saving) que rouba o foco recém-pedido.
+  void _refocusEditor() {
+    if (!mounted || _ctrl == null || !_editingNow) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
 
   /// Foca o campo do editor se esta aba está focada e em modo edição.
   void _focusEditorIfActive() {
@@ -162,6 +215,9 @@ class _FileViewerState extends State<FileViewer> {
   @override
   void dispose() {
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
+    _lspDebounce?.cancel();
+    _diagSub?.cancel();
+    if (_vm != null) unawaited(_vm!.lspCloseDocument(widget.session.path));
     _ctrl?.removeListener(_onCtrlChanged);
     _ctrl?.dispose();
     _focus.dispose();
@@ -170,6 +226,13 @@ class _FileViewerState extends State<FileViewer> {
 
   void _onCtrlChanged() {
     _updateDirty(_ctrl != null && _ctrl!.text != _baseline);
+    // Edição do usuário → notifica o LSP (debounced p/ juntar rajada de teclas).
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    _lspDebounce?.cancel();
+    _lspDebounce = Timer(const Duration(milliseconds: 400), () {
+      _vm?.lspChangeDocument(widget.session.path, ctrl.text);
+    });
   }
 
   /// Atualiza o estado sujo local **e** o da sessão (indicador da aba + dialog).
@@ -197,11 +260,37 @@ class _FileViewerState extends State<FileViewer> {
     _updateDirty(false);
   }
 
+  /// Comando de formatador externo (`%FILE%`) configurado pra linguagem deste
+  /// arquivo, ou `null`. Lido das Configurações (app-scoped).
+  String? _externalFormatter() {
+    final lang = languageForPath(widget.session.path)?.id;
+    if (lang == null) return null;
+    return context.read<SettingsController>().settings.lspFormatters[lang];
+  }
+
+  bool get _formatOnSave =>
+      context.read<SettingsController>().settings.formatOnSave;
+
   /// Grava o buffer em disco. Retorna `true` no sucesso (ou se nada a salvar).
+  /// Com **format-on-save** ligado: formatadores de buffer (JSON/LSP) rodam
+  /// **antes** de gravar; formatador externo roda **depois** (file-based) e relê.
   Future<bool> _save() async {
     final ctrl = _ctrl;
     if (ctrl == null) return false;
     if (!_dirty || _saving) return true;
+
+    final external = _externalFormatter();
+    final formatOnSave = _formatOnSave;
+
+    // Buffer-format antes de gravar (só quando não há formatador externo).
+    if (formatOnSave && external == null) {
+      final formatted = await _formatBuffer();
+      if (!mounted) return false;
+      if (formatted != null && formatted != ctrl.text) {
+        _applyToBuffer(formatted);
+      }
+    }
+
     final content = ctrl.text;
     setState(() => _saving = true);
     final ok = await widget.onSave(content);
@@ -211,7 +300,85 @@ class _FileViewerState extends State<FileViewer> {
       _baseline = content;
       _updateDirty(false);
     }
+
+    // Formatador externo: roda no arquivo já gravado e relê.
+    if (ok && formatOnSave && external != null) {
+      await _runExternalFormatter(external);
+    }
     return ok;
+  }
+
+  /// Formata sob demanda (⇧⌘F). Externo (file-based) tem precedência; senão
+  /// JSON via stdlib / LSP no buffer.
+  Future<void> _format() async {
+    final ctrl = _ctrl;
+    if (ctrl == null || _saving) return;
+    final external = _externalFormatter();
+    if (external != null) {
+      // File-based: grava o buffer atual, roda o formatador, relê.
+      final ok = await _save();
+      if (!ok || !mounted) return;
+      await _runExternalFormatter(external);
+      return;
+    }
+    final formatted = await _formatBuffer();
+    if (!mounted || formatted == null || formatted == ctrl.text) return;
+    _applyToBuffer(formatted);
+  }
+
+  /// Formata o conteúdo atual **no buffer** e devolve o texto (sem gravar):
+  /// JSON via stdlib, demais via LSP. `null` se não há o que formatar.
+  Future<String?> _formatBuffer() async {
+    final ctrl = _ctrl;
+    if (ctrl == null) return null;
+    final path = widget.session.path;
+    final ext = path.contains('.') ? path.split('.').last.toLowerCase() : '';
+    if (ext == 'json') {
+      try {
+        return '${const JsonEncoder.withIndent('  ').convert(jsonDecode(ctrl.text))}\n';
+      } catch (_) {
+        return null; // JSON inválido
+      }
+    }
+    final vm = _vm;
+    if (vm == null) return null;
+    final edits = await vm.lspFormat(path, ctrl.text);
+    if (edits.isEmpty) return null;
+    return applyTextEdits(ctrl.text, edits);
+  }
+
+  /// Roda o formatador externo no arquivo em disco e relê o buffer.
+  Future<void> _runExternalFormatter(String command) async {
+    final result = await runFormatterCommand(command, widget.session.path);
+    if (!mounted) return;
+    await result.fold((_) => _reloadFromDisk(), (_) async {});
+  }
+
+  /// Relê o conteúdo do disco para o buffer (após o formatador externo).
+  Future<void> _reloadFromDisk() async {
+    try {
+      final fresh = await File(widget.session.path).readAsString();
+      if (!mounted) return;
+      final ctrl = _ctrl;
+      if (ctrl == null || ctrl.text == fresh) return;
+      _applyToBuffer(fresh);
+      _baseline = fresh;
+      _updateDirty(false);
+      unawaited(_vm?.lspChangeDocument(widget.session.path, fresh));
+    } catch (_) {}
+  }
+
+  /// Aplica [text] no buffer preservando o cursor (best-effort).
+  void _applyToBuffer(String text) {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    final caret = ctrl.selection.baseOffset;
+    ctrl.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(
+        offset: caret < 0 ? 0 : caret.clamp(0, text.length),
+      ),
+    );
   }
 
   @override
@@ -230,7 +397,13 @@ class _FileViewerState extends State<FileViewer> {
       FileViewSvg(:final text) =>
         editingNow ? _editor() : _SvgPreview(source: text),
       FileViewText(:final text, :final language) =>
-        editingNow ? _editor() : _TextView(text: text, language: language),
+        editingNow
+            ? _editor()
+            : _TextView(
+                text: text,
+                language: language,
+                diagnostics: _diagnostics,
+              ),
       FileViewImage(:final path) => _ImageView(path: path),
       FileViewAudio(:final path) => MediaView(
         key: ValueKey('media:$path'),
@@ -265,8 +438,12 @@ class _FileViewerState extends State<FileViewer> {
               dirty: _dirty,
               saving: _saving,
               onToggle: _toggleEditing,
-              onSave: () => _save(),
-              onDiscard: _discard,
+              onSave: () => _save().whenComplete(_refocusEditor),
+              onDiscard: () {
+                _discard();
+                _refocusEditor();
+              },
+              onFormat: () => _format().whenComplete(_refocusEditor),
             ),
         ],
       ),
@@ -282,6 +459,18 @@ class _FileViewerState extends State<FileViewer> {
             _save(),
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): () =>
             _save(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          meta: true,
+          shift: true,
+        ): () =>
+            _format(),
+        const SingleActivator(
+          LogicalKeyboardKey.keyF,
+          control: true,
+          shift: true,
+        ): () =>
+            _format(),
       },
       child: content,
     );
@@ -308,6 +497,7 @@ class _Toolbar extends StatelessWidget {
     required this.onToggle,
     required this.onSave,
     required this.onDiscard,
+    required this.onFormat,
   });
 
   /// Tem modo renderizado (markdown/svg) → mostra o switch Preview/Source.
@@ -323,6 +513,7 @@ class _Toolbar extends StatelessWidget {
   final VoidCallback onToggle;
   final VoidCallback onSave;
   final VoidCallback onDiscard;
+  final VoidCallback onFormat;
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +541,14 @@ class _Toolbar extends StatelessWidget {
               ),
             ),
           if (editing) ...[
+            _BarButton(
+              icon: Icons.auto_fix_high,
+              label: 'Format',
+              tooltip: 'Format (⇧⌘F)',
+              enabled: !saving,
+              onTap: onFormat,
+            ),
+            const SizedBox(width: 2),
             _BarButton(
               icon: Icons.undo,
               label: 'Discard',
@@ -493,12 +692,19 @@ class _Scroll extends StatelessWidget {
 /// esquerda (fixo na horizontal) e **scroll horizontal** pro conteúdo quando a
 /// linha é longa. O texto segue selecionável; os números, não.
 class _TextView extends StatefulWidget {
-  const _TextView({required this.text, this.language});
+  const _TextView({
+    required this.text,
+    this.language,
+    this.diagnostics = const <LspDiagnostic>[],
+  });
 
   final String text;
 
   /// Linguagem (extensão do arquivo) pro syntax highlight; `null` = sem dica.
   final String? language;
+
+  /// Diagnostics do LSP a sublinhar (mesmo do editor).
+  final List<LspDiagnostic> diagnostics;
 
   @override
   State<_TextView> createState() => _TextViewState();
@@ -530,6 +736,7 @@ class _TextViewState extends State<_TextView> {
       source: widget.text,
       language: widget.language,
       baseStyle: codeStyle,
+      diagnostics: diagnosticRangesFor(widget.text, widget.diagnostics),
     );
     final numStyle = typo.mono.copyWith(
       color: syntax.base.withValues(alpha: 0.4),

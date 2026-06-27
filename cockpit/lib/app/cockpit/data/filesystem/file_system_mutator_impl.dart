@@ -7,7 +7,12 @@ import 'package:cockpit/app/core/domain/result.dart';
 /// `osascript` (move pra Trash, reversível). Erros de IO viram `Failure` com
 /// mensagem amigável — sem `catch` genérico solto na UI.
 class FileSystemMutatorImpl implements FileSystemMutator {
-  const FileSystemMutatorImpl();
+  const FileSystemMutatorImpl({this.useSystemTrash = true});
+
+  /// Quando `true` (produção), o macOS delega à Lixeira do Finder via
+  /// `osascript`. `false` força a deleção permanente — usado em **testes**, que
+  /// não devem mandar arquivos pra Lixeira de verdade a cada `flutter test`.
+  final bool useSystemTrash;
 
   @override
   Future<Result<void, String>> createFile(String path) async {
@@ -62,7 +67,7 @@ class FileSystemMutatorImpl implements FileSystemMutator {
   @override
   Future<Result<void, String>> moveToTrash(String path) async {
     if (!await _exists(path)) return const Success(null); // idempotente
-    if (Platform.isMacOS) return _macTrash(path);
+    if (Platform.isMacOS && useSystemTrash) return _macTrash(path);
     return _permanentDelete(path);
   }
 

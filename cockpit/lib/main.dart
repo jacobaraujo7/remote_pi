@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cockpit/app/app_module.dart';
 import 'package:cockpit/app/app_widget.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/app/core/env.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
@@ -26,9 +27,11 @@ Future<void> main() async {
   // Plano 46 — inicializa o media_kit (libmpv) antes de qualquer Player.
   MediaKit.ensureInitialized();
 
-  // Mata processos `pi --mode rpc` órfãos do ciclo anterior antes de qualquer
-  // novo spawn (cobre hot restart e cold restart com crash).
+  // Mata processos `pi --mode rpc` e language servers (LSP) órfãos do ciclo
+  // anterior antes de qualquer novo spawn (cobre hot restart e cold restart
+  // com crash).
   await PiProcessRegistry.cleanOrphans();
+  await LspProcessRegistry.cleanOrphans();
 
   // Subdiretório próprio; em debug separado da build de produção. As boxes das
   // features são abertas pelos próprios builders async (ver buildCockpitModule);

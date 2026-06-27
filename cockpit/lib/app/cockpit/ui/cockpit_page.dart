@@ -1,4 +1,4 @@
-import 'dart:async' show unawaited;
+import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:io';
 
 import 'package:cockpit/app/core/app_intents.dart';
@@ -11,6 +11,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -48,10 +49,33 @@ class _CockpitPageState extends State<CockpitPage> {
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
     context.read<UpdateViewModel>().check();
+    // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
+    // empurra o estado atual e re-empurra a cada mudança das Configurações.
+    _settings = context.read<SettingsController>()
+      ..addListener(_syncLspCommands);
+    _syncLspCommands();
+  }
+
+  SettingsController? _settings;
+  Map<String, String> _lastLspCommands = const <String, String>{};
+
+  void _syncLspCommands() {
+    final next = _settings!.settings.lspCommands;
+    _vm.applyLspCommands(next);
+    // Reinicia os servidores das linguagens cujo comando mudou (efetiva o novo
+    // comando nos já vivos). Na 1ª sincronização não há o que reiniciar.
+    final langs = <String>{..._lastLspCommands.keys, ...next.keys};
+    for (final id in langs) {
+      if (_lastLspCommands[id] != next[id]) {
+        unawaited(_vm.restartLspLanguage(id));
+      }
+    }
+    _lastLspCommands = Map<String, String>.of(next);
   }
 
   @override
   void dispose() {
+    _settings?.removeListener(_syncLspCommands);
     if (requestFocusActiveComposer == _focusActiveComposer) {
       requestFocusActiveComposer = null;
     }
@@ -420,6 +444,7 @@ class _CockpitPageState extends State<CockpitPage> {
                                 : vm.createFileIn(parentDir, name),
                             onRename: vm.renamePath,
                             onDelete: vm.deletePath,
+                            footer: const _LspStatusBar(),
                           ),
                           // Alça de arraste sobre a borda esquerda do painel
                           // (esquerda = alarga; direita = estreita).
@@ -557,6 +582,105 @@ class _ResizeHandle extends StatelessWidget {
         onHorizontalDragUpdate: (d) => onDelta(d.delta.dx),
         child: const SizedBox(width: 8),
       ),
+    );
+  }
+}
+
+/// Barra de status do LSP no rodapé do pane de Files. Reflete o servidor da aba
+/// **focada**: linguagem + rodando/parado + botão de reiniciar. Quando a aba não
+/// é um arquivo de código (agente/terminal/sem aba), fica vazia — mas mantém a
+/// altura, pra não pular o layout. Reage a mudança de aba (watch da VM) e a
+/// subida/queda de servidor (stream `lspStatusChanges`).
+class _LspStatusBar extends StatefulWidget {
+  const _LspStatusBar();
+
+  @override
+  State<_LspStatusBar> createState() => _LspStatusBarState();
+}
+
+class _LspStatusBarState extends State<_LspStatusBar> {
+  StreamSubscription<void>? _sub;
+  bool _restarting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = context.read<CockpitViewModel>().lspStatusChanges.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _restart(CockpitViewModel vm) async {
+    setState(() => _restarting = true);
+    await vm.restartFocusedLsp();
+    if (mounted) setState(() => _restarting = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final vm = context.watch<CockpitViewModel>();
+    final status = vm.focusedLspStatus;
+
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: status == null
+          ? Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'No LSP available',
+                style: context.typo.label.copyWith(color: colors.text4),
+              ),
+            )
+          : Row(
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: status.running
+                        ? const Color(0xFF22C55E)
+                        : colors.text4,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    '${status.label} LSP · ${status.running ? "running" : "stopped"}',
+                    overflow: TextOverflow.ellipsis,
+                    style: context.typo.label.copyWith(color: colors.text2),
+                  ),
+                ),
+                Tooltip(
+                  tooltip: (context) =>
+                      const TooltipContainer(child: Text('Restart server')),
+                  child: HoverTap(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: _restarting ? () {} : () => _restart(vm),
+                    child: SizedBox(
+                      width: 26,
+                      height: 26,
+                      child: Icon(
+                        Icons.refresh,
+                        size: 15,
+                        color: _restarting ? colors.text4 : colors.text2,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }

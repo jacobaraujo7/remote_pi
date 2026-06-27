@@ -26,6 +26,9 @@ import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/session_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
+import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
+import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -61,6 +64,7 @@ class CockpitViewModel extends ChangeNotifier {
     this._launcher,
     this._worktreeMgr,
     this._fileMutator,
+    this._lsp,
   );
 
   final ProjectRepository _projects;
@@ -77,6 +81,7 @@ class CockpitViewModel extends ChangeNotifier {
   final AppLauncherGateway _launcher;
   final WorktreeManager _worktreeMgr;
   final FileSystemMutator _fileMutator;
+  final LspServerPool _lsp;
 
   List<LaunchableApp> _availableApps = const [];
 
@@ -373,6 +378,76 @@ class CockpitViewModel extends ChangeNotifier {
       notifyListeners();
     }
     return true;
+  }
+
+  // ---- LSP (diagnostics + formatação) ---------------------------------------
+
+  /// Diagnostics de todos os language servers (mesclados). O `FileViewer` filtra
+  /// pelo `uri` do seu documento. Ver [LspServerPool].
+  Stream<LspDiagnosticsBatch> get lspDiagnostics => _lsp.diagnostics;
+
+  /// Abre [path] no LSP (didOpen). O fallback de raiz é o caminho do projeto —
+  /// usado quando o walk-up de marcadores não acha raiz (ex.: arquivo solto).
+  Future<void> lspOpenDocument(String path, String text, String projectId) =>
+      _lsp.openDocument(
+        path: path,
+        text: text,
+        fallbackRoot: _projectById(projectId)?.path,
+      );
+
+  /// Notifica edição (didChange, full sync).
+  Future<void> lspChangeDocument(String path, String text) =>
+      _lsp.changeDocument(path: path, text: text);
+
+  /// Fecha o documento no LSP (didClose + refcount).
+  Future<void> lspCloseDocument(String path) => _lsp.closeDocument(path);
+
+  /// Aplica os overrides de comando do LSP (da tela "Language") no pool. Vale
+  /// para os próximos servidores spawnados; os já vivos seguem com o comando
+  /// anterior até reiniciarem.
+  void applyLspCommands(Map<String, String> commands) {
+    _lsp.commandOverrides = commands;
+  }
+
+  /// Pulsos de mudança de estado de servidores LSP (subiu/caiu/reiniciou). A
+  /// barra de status escuta isto pra atualizar ao vivo.
+  Stream<void> get lspStatusChanges => _lsp.statusChanges;
+
+  /// Caminho do arquivo da aba focada, se for um viewer; senão `null` (a aba é
+  /// agente/terminal). Usado pela barra de status do LSP.
+  String? get focusedFilePath {
+    final s = focusedAgent;
+    return s is FileViewerSession ? s.path : null;
+  }
+
+  /// Estado do LSP do arquivo focado (linguagem + rodando), ou `null` se a aba
+  /// não é um arquivo de código suportado → a barra fica vazia.
+  LspDocStatus? get focusedLspStatus {
+    final path = focusedFilePath;
+    return path == null ? null : _lsp.statusForPath(path);
+  }
+
+  /// Reinicia o servidor LSP do arquivo focado.
+  Future<void> restartFocusedLsp() async {
+    final path = focusedFilePath;
+    if (path == null) return;
+    await _lsp.restartForPath(path);
+    notifyListeners();
+  }
+
+  /// Reinicia os servidores de uma linguagem (após salvar novo comando na tela
+  /// "Language") — aplica a mudança nos servidores já vivos.
+  Future<void> restartLspLanguage(String languageId) async {
+    await _lsp.restartLanguage(languageId);
+    notifyListeners();
+  }
+
+  /// Formata [path] via LSP. Faz um `didChange` com [text] antes (flush do
+  /// debounce) pra o servidor formatar o conteúdo mais recente, e devolve os
+  /// edits a aplicar no buffer. Lista vazia = sem servidor / sem suporte / erro.
+  Future<List<LspTextEdit>> lspFormat(String path, String text) async {
+    await _lsp.changeDocument(path: path, text: text);
+    return _lsp.formatDocument(path);
   }
 
   // ---- mutação de arquivos (criar / renomear / deletar) ---------------------

@@ -70,7 +70,7 @@ class RpcEventMapper {
           attempt: (json['attempt'] as num?)?.toInt() ?? 0,
           maxAttempts: (json['maxAttempts'] as num?)?.toInt() ?? 0,
           delayMs: (json['delayMs'] as num?)?.toInt() ?? 0,
-          message: json['errorMessage'] as String? ?? 'erro transitório',
+          message: json['errorMessage'] as String? ?? 'transient error',
         );
 
       default:
