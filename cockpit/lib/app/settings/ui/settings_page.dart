@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:cockpit/app/core/domain/entities/setup_check.dart';
+import 'package:cockpit/app/core/ui/widgets/macos_notification_instructions_dialog.dart';
 import 'package:cockpit/app/settings/domain/cron_schedule.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
@@ -13,8 +16,10 @@ import 'package:cockpit/app/core/ui/widgets/window_controls.dart';
 import 'package:cockpit/app/settings/ui/connectivity_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/cron_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/daemons_viewmodel.dart';
+import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/pairing_dialog.dart';
 import 'package:cockpit/app/settings/ui/revoke_dialog.dart';
+import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -32,14 +37,43 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
-enum _Category { appearance, languages, connectivity, daemons, scheduling }
+enum _Category {
+  appearance,
+  languages,
+  notifications,
+  connectivity,
+  daemons,
+  scheduling,
+}
+
+extension on _Category {
+  /// Abas que dependem do ambiente remote-pi (extensão + supervisor).
+  bool get isRemote =>
+      this == _Category.connectivity ||
+      this == _Category.daemons ||
+      this == _Category.scheduling;
+}
 
 class _SettingsPageState extends State<SettingsPage> {
   _Category _category = _Category.appearance;
 
   @override
+  void initState() {
+    super.initState();
+    // Sonda o ambiente para decidir se as abas remotas aparecem.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<SettingsEnvGate>().check();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final remoteReady = context.watch<SettingsEnvGate>().remoteReady;
+    // Categoria selecionada caiu (ambiente sumiu) → volta pra Aparência.
+    final category = (!remoteReady && _category.isRemote)
+        ? _Category.appearance
+        : _category;
     return Scaffold(
       backgroundColor: colors.bg,
       child: Column(
@@ -50,13 +84,15 @@ class _SettingsPageState extends State<SettingsPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _CategoryNav(
-                  selected: _category,
+                  selected: category,
+                  remoteReady: remoteReady,
                   onSelect: (c) => setState(() => _category = c),
                 ),
                 Expanded(
-                  child: switch (_category) {
+                  child: switch (category) {
                     _Category.appearance => const _AppearancePanel(),
                     _Category.languages => const _LanguagesPanel(),
+                    _Category.notifications => const _NotificationsPanel(),
                     _Category.connectivity => const _ConnectivityPanel(),
                     _Category.daemons => const _DaemonsPanel(),
                     _Category.scheduling => const _AgendamentosPanel(),
@@ -107,8 +143,15 @@ class _SettingsHeader extends StatelessWidget {
 }
 
 class _CategoryNav extends StatelessWidget {
-  const _CategoryNav({required this.selected, required this.onSelect});
+  const _CategoryNav({
+    required this.selected,
+    required this.remoteReady,
+    required this.onSelect,
+  });
   final _Category selected;
+
+  /// Extensão remote-pi + supervisor instalados → mostra as abas remotas.
+  final bool remoteReady;
   final ValueChanged<_Category> onSelect;
 
   @override
@@ -135,27 +178,37 @@ class _CategoryNav extends StatelessWidget {
             onTap: () => onSelect(_Category.languages),
           ),
           _NavItem(
-            icon: Icons.wifi_tethering,
-            label: 'Connectivity',
-            selected: selected == _Category.connectivity,
-            onTap: () => onSelect(_Category.connectivity),
+            icon: Icons.notifications_outlined,
+            label: 'Notifications',
+            selected: selected == _Category.notifications,
+            onTap: () => onSelect(_Category.notifications),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            child: Divider(height: 1, thickness: 1, color: colors.border),
-          ),
-          _NavItem(
-            icon: Icons.dns_outlined,
-            label: 'Daemon Agents',
-            selected: selected == _Category.daemons,
-            onTap: () => onSelect(_Category.daemons),
-          ),
-          _NavItem(
-            icon: Icons.schedule_outlined,
-            label: 'Schedules',
-            selected: selected == _Category.scheduling,
-            onTap: () => onSelect(_Category.scheduling),
-          ),
+          // Abas que dependem do ambiente remote-pi — ocultas até instalá-lo
+          // (via checklist da aba de agente).
+          if (remoteReady) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: Divider(height: 1, thickness: 1, color: colors.border),
+            ),
+            _NavItem(
+              icon: Icons.wifi_tethering,
+              label: 'Connectivity',
+              selected: selected == _Category.connectivity,
+              onTap: () => onSelect(_Category.connectivity),
+            ),
+            _NavItem(
+              icon: Icons.dns_outlined,
+              label: 'Daemon Agents',
+              selected: selected == _Category.daemons,
+              onTap: () => onSelect(_Category.daemons),
+            ),
+            _NavItem(
+              icon: Icons.schedule_outlined,
+              label: 'Schedules',
+              selected: selected == _Category.scheduling,
+              onTap: () => onSelect(_Category.scheduling),
+            ),
+          ],
         ],
       ),
     );
@@ -338,6 +391,115 @@ class _AppearancePanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+/// Aba **Notifications** (sempre visível). Liga/desliga as notificações de fim
+/// de turno (persistido em `AppSettings`) e, no macOS, mostra o estado da
+/// permissão do SO + botão pra pedi-la.
+class _NotificationsPanel extends StatelessWidget {
+  const _NotificationsPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final s = controller.settings;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Section(
+                label: 'Notifications',
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: 'Enable notifications',
+                      description:
+                          'Alert me when an agent finishes a turn and the window '
+                          'is not focused.',
+                      trailing: Switch(
+                        value: s.notificationsEnabled,
+                        onChanged: controller.setNotificationsEnabled,
+                      ),
+                    ),
+                    if (Platform.isMacOS && s.notificationsEnabled)
+                      const _NotificationPermissionRow(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Estado da permissão de notificação do macOS + botão para solicitá-la. Sonda
+/// ao montar; ao pedir, dispara uma notificação de teste e, se ainda negada,
+/// abre as instruções do System Settings.
+class _NotificationPermissionRow extends StatefulWidget {
+  const _NotificationPermissionRow();
+
+  @override
+  State<_NotificationPermissionRow> createState() =>
+      _NotificationPermissionRowState();
+}
+
+class _NotificationPermissionRowState
+    extends State<_NotificationPermissionRow> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<NotificationsViewModel>().check();
+    });
+  }
+
+  Future<void> _request() async {
+    final status = await context.read<NotificationsViewModel>().request();
+    if (!mounted) return;
+    if (status == CheckStatus.missing) {
+      MacosNotificationInstructionsDialog.show(context);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final granted =
+        context.watch<NotificationsViewModel>().status == CheckStatus.ok;
+    return _Row(
+      title: 'System permission',
+      description: granted
+          ? 'Cockpit is allowed to send notifications.'
+          : 'macOS has not granted notification access yet.',
+      trailing: granted
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.check_circle, size: 18, color: colors.online),
+                const SizedBox(width: 6),
+                Text(
+                  'Granted',
+                  style: context.typo.label.copyWith(color: colors.text2),
+                ),
+              ],
+            )
+          : SecondaryButton(
+              onPressed: _request,
+              child: const Text('Request permission'),
+            ),
     );
   }
 }

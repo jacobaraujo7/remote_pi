@@ -150,6 +150,12 @@ class CockpitViewModel extends ChangeNotifier {
   bool _ready = false;
   int _seq = 0;
 
+  /// Espelha `AppSettings.notificationsEnabled` (app-scoped, fora do grafo desta
+  /// VM page-scoped). A `CockpitPage` empurra o valor do `SettingsController`.
+  /// Gateia o disparo de notificação de fim de turno.
+  bool _notificationsEnabled = true;
+  void setNotificationsEnabled(bool value) => _notificationsEnabled = value;
+
   /// Paleta dos avatares de projeto (cores do design).
   static const List<int> _palette = <int>[
     0xFF6E56CF,
@@ -250,7 +256,11 @@ class CockpitViewModel extends ChangeNotifier {
   /// - Se já existe um preview aberto na pane, substitui o conteúdo
   /// - Se a aba ativa é um preview, substitui em vez de criar nova aba
   /// - Duplo-clique deve passar `isPreview: false` para criar aba normal
-  Future<void> openFile(String path, {String? inPane, bool isPreview = true}) async {
+  Future<void> openFile(
+    String path, {
+    String? inPane,
+    bool isPreview = true,
+  }) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     final paneId = inPane ?? (projectId == null ? null : _focused[projectId]);
@@ -328,16 +338,23 @@ class CockpitViewModel extends ChangeNotifier {
         paneId,
         (p) => p.copyWith(tabs: [...p.tabs, viewer.id], active: viewer.id),
       );
-    } else if (isPreview && activeTab is FileViewerSession && activeTab.isPreview) {
+    } else if (isPreview &&
+        activeTab is FileViewerSession &&
+        activeTab.isPreview) {
       // Preview substituir outro preview → substitui a aba ativa.
       final oldId = activeTabId;
       _trees[projectId] = updateLeaf(
         current,
         paneId,
-        (p) => p.copyWith(tabs: [...p.tabs.where((t) => t != oldId), viewer.id], active: viewer.id),
+        (p) => p.copyWith(
+          tabs: [...p.tabs.where((t) => t != oldId), viewer.id],
+          active: viewer.id,
+        ),
       );
       _disposeSession(oldId!);
-    } else if (lf != null && only is AgentSession && only.status == AgentStatus.empty) {
+    } else if (lf != null &&
+        only is AgentSession &&
+        only.status == AgentStatus.empty) {
       // Placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -1394,6 +1411,8 @@ class CockpitViewModel extends ChangeNotifier {
       s.markUnseen();
       notifyListeners();
     }
+
+    if (!_notificationsEnabled) return;
 
     final windowFocused = await windowManager.isFocused();
     if (!windowFocused) {

@@ -52,12 +52,21 @@ class _CockpitPageState extends State<CockpitPage> {
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
-      ..addListener(_syncLspCommands);
+      ..addListener(_syncLspCommands)
+      ..addListener(_syncNotifications);
     _syncLspCommands();
+    _syncNotifications();
   }
 
   SettingsController? _settings;
   Map<String, String> _lastLspCommands = const <String, String>{};
+
+  /// Espelha o toggle de Notificações (aba das Configurações) para a VM, que
+  /// gateia o disparo de fim de turno. A VM é page-scoped e não vê o
+  /// `SettingsController` app-scoped, então a página empurra o valor.
+  void _syncNotifications() {
+    _vm.setNotificationsEnabled(_settings!.settings.notificationsEnabled);
+  }
 
   void _syncLspCommands() {
     final next = _settings!.settings.lspCommands;
@@ -76,6 +85,7 @@ class _CockpitPageState extends State<CockpitPage> {
   @override
   void dispose() {
     _settings?.removeListener(_syncLspCommands);
+    _settings?.removeListener(_syncNotifications);
     if (requestFocusActiveComposer == _focusActiveComposer) {
       requestFocusActiveComposer = null;
     }
@@ -403,7 +413,7 @@ class _CockpitPageState extends State<CockpitPage> {
                       ),
                     Expanded(
                       child: vm.selectedProjectId == null
-                          ? OnboardingView(onCreateWorkspace: _createWorkspace)
+                          ? WelcomeView(onCreateWorkspace: _createWorkspace)
                           : IndexedStack(
                               index: _activeIndex(vm),
                               sizing: StackFit.expand,
@@ -433,9 +443,11 @@ class _CockpitPageState extends State<CockpitPage> {
                             selectedPath: vm.selectedFileInTree,
                             listChildren: vm.listChildren,
                             gitStatusOf: vm.gitStatusForPath,
-                            onOpenFile: (path) => vm.openFile(path, isPreview: false),
+                            onOpenFile: (path) =>
+                                vm.openFile(path, isPreview: false),
                             onTapFile: vm.openFile, // clique único = preview
-                            onSelectFile: vm.selectFileInTree, // atualiza highlight
+                            onSelectFile:
+                                vm.selectFileInTree, // atualiza highlight
                             onOpenWith: vm.openWithDefaultApp,
                             onCreateInFolder: (sub, terminal) =>
                                 vm.newTabIn(sub, terminal: terminal),

@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/entities/setup_check.dart';
+import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 
 /// Permissões do SO necessárias ao Cockpit (macOS first). Contrato no domínio;
 /// a impl (plugin de notificação + heurística de disco) mora em `data/`.

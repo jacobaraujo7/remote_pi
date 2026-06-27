@@ -22,6 +22,7 @@ class AppSettings {
     this.lspCommands = const <String, String>{},
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
+    this.notificationsEnabled = true,
   });
 
   final AppThemeMode themeMode;
@@ -64,6 +65,10 @@ class AppSettings {
   /// Formatar automaticamente ao salvar (Cmd+S).
   final bool formatOnSave;
 
+  /// Disparar notificações do SO quando um agente termina um turno com a janela
+  /// fora de foco. Editado na aba "Notifications" das Configurações.
+  final bool notificationsEnabled;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? interfaceFont,
@@ -80,6 +85,7 @@ class AppSettings {
     Map<String, String>? lspCommands,
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
+    bool? notificationsEnabled,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -98,6 +104,7 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
     );
   }
 
@@ -114,6 +121,7 @@ class AppSettings {
     if (lspCommands.isNotEmpty) 'lspCommands': lspCommands,
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
+    if (!notificationsEnabled) 'notificationsEnabled': false,
   };
 
   factory AppSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -143,6 +151,7 @@ class AppSettings {
       lspCommands: _strMap(json['lspCommands']),
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
+      notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
     );
   }
 }

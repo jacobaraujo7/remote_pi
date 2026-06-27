@@ -7,7 +7,9 @@ import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_composer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/agent_setup_checklist.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
@@ -452,7 +454,8 @@ class _TabState extends State<_Tab> {
     _lastTapAt = now;
 
     // Duplo-clique: renomear agente OU fixar preview.
-    if (last != null && now.difference(last) < const Duration(milliseconds: 300)) {
+    if (last != null &&
+        now.difference(last) < const Duration(milliseconds: 300)) {
       _lastTapAt = null; // consumiu o segundo clique
       if (canPin) {
         viewer.pin();
@@ -947,6 +950,27 @@ class _PaneBodyState extends State<_PaneBody> {
 
   static const double _stickThreshold = 80;
 
+  /// Aba de agente vazia: gate do ambiente. `_checkingAgent` = rodando o probe
+  /// após "New agent"; `_showAgentSetup` = trio incompleto → mostra o checklist.
+  bool _checkingAgent = false;
+  bool _showAgentSetup = false;
+
+  /// "New agent" numa aba vazia: confere o ambiente. Pronto → spawna direto;
+  /// incompleto → revela o [AgentSetupChecklist] inline. Terminal nunca passa
+  /// por aqui.
+  Future<void> _onNewAgent() async {
+    final setup = context.read<SetupViewModel>();
+    setState(() => _checkingAgent = true);
+    await setup.recheckAll();
+    if (!mounted) return;
+    setState(() => _checkingAgent = false);
+    if (setup.agentReady) {
+      widget.onFillEmpty(false);
+    } else {
+      setState(() => _showAgentSetup = true);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1069,9 +1093,28 @@ class _PaneBodyState extends State<_PaneBody> {
       listenable: agent,
       builder: (context, _) {
         if (agent.status == AgentStatus.empty) {
-          return EmptyPane(
-            onNewAgent: () => widget.onFillEmpty(false),
-            onNewTerminal: () => widget.onFillEmpty(true),
+          if (_showAgentSetup) {
+            return AgentSetupChecklist(
+              onReady: () => widget.onFillEmpty(false),
+              onCancel: () => setState(() => _showAgentSetup = false),
+            );
+          }
+          return Stack(
+            children: [
+              EmptyPane(
+                onNewAgent: _onNewAgent,
+                onNewTerminal: () => widget.onFillEmpty(true),
+              ),
+              if (_checkingAgent)
+                Positioned.fill(
+                  child: ColoredBox(
+                    color: context.colors.panel.withValues(alpha: 0.6),
+                    child: const Center(
+                      child: CircularProgressIndicator(size: 18),
+                    ),
+                  ),
+                ),
+            ],
           );
         }
         _maybeStickToBottom();

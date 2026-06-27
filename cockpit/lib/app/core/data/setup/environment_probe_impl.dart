@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/core/env.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/environment_probe.dart';
+import 'package:cockpit/app/core/domain/contracts/environment_probe.dart';
 
 /// Detecta o que está instalado lendo o disco e (no máximo) rodando `pi
 /// --version`. Tudo é best-effort: qualquer falha de IO vira "não instalado".

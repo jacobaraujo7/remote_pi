@@ -1,42 +1,36 @@
 import 'package:cockpit/app/cockpit/domain/contracts/environment_installer.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/environment_probe.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/system_permissions.dart';
 import 'package:cockpit/app/cockpit/domain/entities/install_result.dart';
-import 'package:cockpit/app/cockpit/domain/entities/setup_check.dart';
+import 'package:cockpit/app/core/domain/contracts/environment_probe.dart';
+import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 import 'package:flutter/foundation.dart';
 
-/// Estado das 5 checagens de onboarding + ações de re-checagem/solicitação.
+/// Estado das 3 checagens do ambiente de **agente** (pi + extensão remote-pi +
+/// supervisor) + ações de re-checagem/instalação.
 ///
-/// Gate de "Criar Workspace" = [canCreate] (todas satisfeitas; `notApplicable`
-/// conta como satisfeita). Os passos de instalação são re-checados sob demanda
-/// (botão por passo); os de permissão também são re-checados automaticamente
-/// quando a janela volta a ter foco (a view chama [recheckPermissions]).
+/// Gate de "Create agent" = [agentReady] (o trio satisfeito; `notApplicable`
+/// conta como satisfeito). Os passos de instalação são re-checados sob demanda
+/// (botão por passo). Antes ficava no onboarding do boot; agora dispara só
+/// quando o usuário abre uma aba de agente (ver `AgentSetupChecklist`).
+/// Notificações saíram daqui — viraram aba própria nas Configurações.
 class SetupViewModel extends ChangeNotifier {
-  SetupViewModel(this._env, this._perms, this._installer);
+  SetupViewModel(this._env, this._installer);
 
   final EnvironmentProbe _env;
-  final SystemPermissions _perms;
   final EnvironmentInstaller _installer;
 
   CheckStatus pi = CheckStatus.checking;
   CheckStatus extension = CheckStatus.checking;
   CheckStatus supervisor = CheckStatus.checking;
-  CheckStatus notifications = CheckStatus.checking;
 
   bool _disposed = false;
 
-  /// Todas as checagens satisfeitas → habilita "Criar Workspace".
-  bool get canCreate =>
+  /// O trio satisfeito → habilita criar o agente.
+  bool get agentReady =>
       pi.satisfied && extension.satisfied && supervisor.satisfied;
 
-  /// Roda as 5 ao montar a tela.
+  /// Roda as 3 ao abrir o checklist do agente.
   Future<void> recheckAll() async {
-    await Future.wait([
-      recheckPi(),
-      recheckExtension(),
-      recheckSupervisor(),
-      recheckPermissions(),
-    ]);
+    await Future.wait([recheckPi(), recheckExtension(), recheckSupervisor()]);
   }
 
   Future<void> recheckPi() => _run(
@@ -55,16 +49,6 @@ class SetupViewModel extends ChangeNotifier {
     () async =>
         await _env.supervisorInstalled() ? CheckStatus.ok : CheckStatus.missing,
   );
-
-  Future<void> recheckNotifications() =>
-      _run((s) => notifications = s, _perms.notificationStatus);
-
-  /// Re-checa as permissões (chamado no foco da janela). Hoje só notificações.
-  Future<void> recheckPermissions() => recheckNotifications();
-
-  /// Botão "Testar" das notificações: pede permissão + dispara uma de teste.
-  Future<void> requestNotifications() =>
-      _run((s) => notifications = s, _perms.requestNotifications);
 
   /// Botão "Instalar" do passo da extensão: roda `pi install npm:remote-pi` e,
   /// em caso de sucesso, re-checa a extensão (e o supervisor, agora possível).

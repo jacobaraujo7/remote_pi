@@ -15,15 +15,12 @@ import 'package:cockpit/app/cockpit/data/repositories/hive_project_repository.da
 import 'package:cockpit/app/cockpit/data/repositories/hive_workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_rpc_process_factory.dart';
 import 'package:cockpit/app/cockpit/data/setup/environment_installer_impl.dart';
-import 'package:cockpit/app/cockpit/data/setup/environment_probe_impl.dart';
-import 'package:cockpit/app/cockpit/data/setup/system_permissions_impl.dart';
 import 'package:cockpit/app/cockpit/data/terminal/pty_terminal_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/data/update/update_checker_impl.dart';
 import 'package:cockpit/app/cockpit/data/update/url_opener_impl.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dismissed_update_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/environment_installer.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/environment_probe.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
@@ -34,7 +31,6 @@ import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/system_permissions.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/update_checker.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/url_opener.dart';
@@ -100,7 +96,6 @@ Future<Module> buildCockpitModule() async {
         )
         // Dependem do PiSpawnConfig → `.new` resolve upward do core (>= 7.1.0).
         ..addLazySingleton<RpcGatewayFactory>(PiRpcProcessFactory.new)
-        ..addLazySingleton<EnvironmentProbe>(EnvironmentProbeImpl.new)
         ..addLazySingleton<EnvironmentInstaller>(EnvironmentInstallerImpl.new)
         ..addInstance<FolderLister>(const FolderListerImpl())
         ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
@@ -112,7 +107,6 @@ Future<Module> buildCockpitModule() async {
         ..addInstance<SessionHistory>(const SessionHistoryImpl())
         ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())
         ..addInstance<AppLauncherGateway>(const AppLauncherImpl())
-        ..addInstance<SystemPermissions>(SystemPermissionsImpl())
         ..addInstance<Notifier>(notifier)
         ..addInstance<UpdateChecker>(const UpdateCheckerImpl())
         ..addInstance<UrlOpener>(const UrlOpenerImpl())

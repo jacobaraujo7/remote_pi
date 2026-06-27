@@ -6,6 +6,8 @@ import 'package:cockpit/app/settings/domain/contracts/relay_gateway.dart';
 import 'package:cockpit/app/settings/ui/connectivity_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/cron_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/daemons_viewmodel.dart';
+import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
+import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
 import 'package:cockpit/app/settings/ui/settings_page.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 
@@ -34,7 +36,13 @@ Module buildSettingsModule() => createModule(
         provide: (s) => s
           ..addChangeNotifier<ConnectivityViewModel>(ConnectivityViewModel.new)
           ..addChangeNotifier<DaemonsViewModel>(DaemonsViewModel.new)
-          ..addChangeNotifier<CronViewModel>(CronViewModel.new),
+          ..addChangeNotifier<CronViewModel>(CronViewModel.new)
+          // Resolvem deps do core upward (page-scoped enxerga core):
+          // EnvironmentProbe e SystemPermissions.
+          ..addChangeNotifier<SettingsEnvGate>(SettingsEnvGate.new)
+          ..addChangeNotifier<NotificationsViewModel>(
+            NotificationsViewModel.new,
+          ),
         child: (context, state) => const SettingsPage(),
       );
   },

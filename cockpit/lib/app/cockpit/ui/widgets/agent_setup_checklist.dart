@@ -1,30 +1,37 @@
-import 'dart:io';
-
 import 'package:cockpit/app/cockpit/domain/entities/install_result.dart';
-import 'package:cockpit/app/cockpit/domain/entities/setup_check.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/macos_notification_instructions_dialog.dart';
+import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Tela inicial (sem workspace): passo-a-passo de preparação do ambiente. Só
-/// quando os 5 passos estão satisfeitos o botão "Criar Workspace" habilita.
+/// Checklist do ambiente de **agente** (pi + extensão remote-pi + supervisor),
+/// exibido inline numa aba de agente vazia quando o usuário escolhe "New agent"
+/// e o ambiente ainda não está pronto. Antes era a tela de onboarding do boot;
+/// agora dispara sob demanda (decisão: Cockpit como multiplexador não exige o
+/// Pi). O botão "Create agent" só habilita quando o trio está satisfeito.
 ///
-/// Re-checa as permissões quando a janela volta a ter foco (o usuário sai pros
-/// Ajustes do Sistema e volta) e oferece re-checagem manual por passo.
-class OnboardingView extends StatefulWidget {
-  const OnboardingView({super.key, required this.onCreateWorkspace});
+/// Re-checa ao montar e quando a janela volta a ter foco (o usuário sai pro
+/// terminal/sistema, instala algo e volta).
+class AgentSetupChecklist extends StatefulWidget {
+  const AgentSetupChecklist({
+    super.key,
+    required this.onReady,
+    required this.onCancel,
+  });
 
-  /// Dispara o fluxo de criação (escolher pasta → dialog → criar).
-  final Future<void> Function() onCreateWorkspace;
+  /// Trio satisfeito + clique em "Create agent" → spawnar o agente.
+  final VoidCallback onReady;
+
+  /// Volta pro seletor de tipo (agente/terminal) da aba vazia.
+  final VoidCallback onCancel;
 
   @override
-  State<OnboardingView> createState() => _OnboardingViewState();
+  State<AgentSetupChecklist> createState() => _AgentSetupChecklistState();
 }
 
-class _OnboardingViewState extends State<OnboardingView>
+class _AgentSetupChecklistState extends State<AgentSetupChecklist>
     with WidgetsBindingObserver {
   @override
   void initState() {
@@ -43,9 +50,9 @@ class _OnboardingViewState extends State<OnboardingView>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Voltou o foco → permissões podem ter mudado nos Ajustes do Sistema.
+    // Voltou o foco → o ambiente pode ter sido instalado por fora (terminal).
     if (state == AppLifecycleState.resumed && mounted) {
-      context.read<SetupViewModel>().recheckPermissions();
+      context.read<SetupViewModel>().recheckAll();
     }
   }
 
@@ -71,27 +78,24 @@ class _OnboardingViewState extends State<OnboardingView>
     final vm = context.watch<SetupViewModel>();
 
     return ColoredBox(
-      color: colors.bg,
+      color: colors.panel,
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 40),
+          padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 24),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 540),
+            constraints: const BoxConstraints(maxWidth: 520),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(
-                      Icons.rocket_launch_outlined,
-                      color: colors.accentText,
-                    ),
+                    Icon(Icons.auto_awesome, color: colors.accentText),
                     const SizedBox(width: 10),
                     Text(
-                      'Welcome to Cockpit',
+                      'Set up the agent environment',
                       style: context.typo.title.copyWith(
-                        fontSize: 20,
+                        fontSize: 18,
                         color: colors.text,
                       ),
                     ),
@@ -99,8 +103,8 @@ class _OnboardingViewState extends State<OnboardingView>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Before creating a workspace, let\'s prepare the environment. '
-                  'Complete the steps below.',
+                  'Running an agent needs Pi installed. Complete the steps below '
+                  '— terminals and files work without any of this.',
                   style: context.typo.body.copyWith(
                     fontSize: 13.5,
                     color: colors.text2,
@@ -147,37 +151,28 @@ class _OnboardingViewState extends State<OnboardingView>
                         )
                       : null,
                 ),
-                _StepCard(
-                  index: 4,
-                  title: 'Notifications',
-                  description: 'Alerts when an agent finishes a turn.',
-                  status: vm.notifications,
-                  onRecheck: vm.recheckNotifications,
-                  action: _StepAction(
-                    label: 'Test',
-                    onTap: () async {
-                      await vm.requestNotifications();
-                      if (Platform.isMacOS &&
-                          vm.notifications == CheckStatus.missing) {
-                        if (context.mounted) {
-                          MacosNotificationInstructionsDialog.show(context);
-                        }
-                      }
-                    },
-                  ),
-                ),
                 const SizedBox(height: 22),
-                _CreateButton(
-                  enabled: vm.canCreate,
-                  onTap: widget.onCreateWorkspace,
-                ),
-                if (!vm.canCreate) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    'Complete the steps above to enable creation.',
-                    style: context.typo.label.copyWith(color: colors.text3),
+                SizedBox(
+                  width: double.infinity,
+                  child: PrimaryButton(
+                    onPressed: vm.agentReady ? widget.onReady : null,
+                    leading: const Icon(Icons.auto_awesome, size: 16),
+                    child: const Text('Create agent'),
                   ),
-                ],
+                ),
+                const SizedBox(height: 8),
+                Center(
+                  child: GhostButton(
+                    onPressed: widget.onCancel,
+                    child: Text(
+                      'Back',
+                      style: context.typo.body.copyWith(
+                        fontSize: 13,
+                        color: colors.text3,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -187,7 +182,7 @@ class _OnboardingViewState extends State<OnboardingView>
   }
 }
 
-/// Ação secundária de um passo (ex.: "Testar", "Abrir Ajustes").
+/// Ação secundária de um passo (ex.: "Install").
 class _StepAction {
   const _StepAction({required this.label, required this.onTap});
   final String label;
@@ -215,7 +210,7 @@ class _StepCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     // Exibe a ação quando:
-    // - missing: precisa instalar/conceder
+    // - missing: precisa instalar
     // - checking: pode pular a espera e já pedir ação diretamente
     final showAction =
         action != null &&
@@ -315,7 +310,7 @@ class _StatusDot extends StatelessWidget {
   }
 }
 
-/// Botão-pílula matte pras ações de passo (Testar / Abrir Ajustes).
+/// Botão-pílula matte pras ações de passo (Install).
 class _PillButton extends StatelessWidget {
   const _PillButton({required this.label, required this.onTap});
   final String label;
@@ -340,26 +335,8 @@ class _PillButton extends StatelessWidget {
   }
 }
 
-class _CreateButton extends StatelessWidget {
-  const _CreateButton({required this.enabled, required this.onTap});
-  final bool enabled;
-  final Future<void> Function() onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: PrimaryButton(
-        onPressed: enabled ? () => onTap() : null,
-        leading: const Icon(Icons.add, size: 16),
-        child: const Text('Create Workspace'),
-      ),
-    );
-  }
-}
-
 /// Dialog simples de instalação: dispara o [runner] ao montar, mostra spinner
-/// enquanto roda e, ao terminar, o resultado (sucesso/erro). Botão "Fechar" só
+/// enquanto roda e, ao terminar, o resultado (sucesso/erro). Botão "Close" só
 /// habilita no fim.
 class _InstallDialog extends StatefulWidget {
   const _InstallDialog({required this.title, required this.runner});

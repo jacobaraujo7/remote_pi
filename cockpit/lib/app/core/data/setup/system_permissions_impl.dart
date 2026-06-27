@@ -1,7 +1,7 @@
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/domain/contracts/system_permissions.dart';
-import 'package:cockpit/app/cockpit/domain/entities/setup_check.dart';
+import 'package:cockpit/app/core/domain/contracts/system_permissions.dart';
+import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Implementa as checagens de permissão do macOS. Em outros SOs as permissões

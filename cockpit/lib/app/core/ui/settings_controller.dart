@@ -78,6 +78,9 @@ class SettingsController extends ChangeNotifier {
   void setFormatOnSave(bool value) =>
       _apply(_settings.copyWith(formatOnSave: value));
 
+  void setNotificationsEnabled(bool value) =>
+      _apply(_settings.copyWith(notificationsEnabled: value));
+
   void _apply(AppSettings next) {
     _settings = next;
     notifyListeners();
