@@ -182,6 +182,8 @@ class TasksViewModel extends ChangeNotifier {
 /// `cwd`/comandos pro projeto dele. Ver `docs/tasks-json.md`.
 const String _exampleConfig = '''
 {
+  // .cockpit/tasks.json — comentários (//, /* */) e vírgulas finais são OK (JSONC).
+  // Edite os "cwd"/"command" para o seu projeto. Docs: cockpit/docs/tasks-json.md
   "tasks": [
     {
       "label": "Flutter Example",

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cockpit/app/core/data/jsonc.dart';
 import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 
@@ -26,7 +27,8 @@ class TasksJsonLoader {
 
     final Object? decoded;
     try {
-      decoded = jsonDecode(await file.readAsString());
+      // JSONC: aceita comentários (// e /* */) e vírgulas finais.
+      decoded = jsonDecode(stripJsonc(await file.readAsString()));
     } catch (_) {
       return const []; // JSON malformado → ignora silenciosamente
     }

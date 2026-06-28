@@ -15,6 +15,9 @@ Há duas fontes de tasks, que convivem:
 > O executor é **genérico**: conhece só `command`/`args`/`env`. Não existem
 > chaves de stack (flavor, dart-define, NODE_ENV) — tudo isso vira `args`/`env`.
 
+> **JSONC**: o arquivo aceita **comentários** (`//` e `/* */`) e **vírgulas
+> finais**, igual ao `tasks.json` do VSCode. São removidos antes do parse.
+
 ## Onde fica
 
 Na **raiz do workspace** que você abre no cockpit. A descoberta é literal (sem
