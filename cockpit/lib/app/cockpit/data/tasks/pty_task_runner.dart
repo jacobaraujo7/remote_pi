@@ -18,6 +18,8 @@ class PtyTaskRunner implements TaskRunnerGateway {
   final _runs = StreamController<TaskRun>.broadcast();
   final _running = <String, _RunningTask>{};
   final _lastState = <String, TaskRun>{};
+  final _watchers = <String, StreamSubscription<FileSystemEvent>>{};
+  final _watchDebounce = <String, Timer>{};
 
   @override
   Stream<TaskRun> runs() => _runs.stream;
@@ -124,6 +126,32 @@ class PtyTaskRunner implements TaskRunnerGateway {
   }
 
   @override
+  void startWatch(TaskDefinition def) {
+    final w = def.watch;
+    if (w == null || _watchers.containsKey(def.id)) return;
+    final dir = Directory(def.cwd);
+    if (!dir.existsSync()) return;
+    try {
+      _watchers[def.id] = dir.watch(recursive: true).listen((event) {
+        if (!_matchesWatch(def.cwd, w, event.path)) return;
+        _watchDebounce[def.id]?.cancel();
+        _watchDebounce[def.id] = Timer(
+          Duration(milliseconds: w.debounceMs),
+          () => _dispatchWatch(def, w),
+        );
+      });
+    } catch (_) {
+      // FS sem suporte a watch recursivo → silencioso (sem reload automático).
+    }
+  }
+
+  @override
+  void stopWatch(String taskId) {
+    unawaited(_watchers.remove(taskId)?.cancel());
+    _watchDebounce.remove(taskId)?.cancel();
+  }
+
+  @override
   void resize(String taskId, int rows, int columns) {
     final task = _running[taskId];
     if (task == null) return;
@@ -132,8 +160,42 @@ class PtyTaskRunner implements TaskRunnerGateway {
     } catch (_) {}
   }
 
+  /// `true` se [path] (mudou) está sob algum [TaskWatch.paths] e fora de
+  /// [TaskWatch.ignore], tudo relativo a [cwd]. Glob simples por segmento de
+  /// prefixo (ex.: `lib` casa `lib/...`; `build` ignora `build/...`).
+  bool _matchesWatch(String cwd, TaskWatch w, String path) {
+    final sep = Platform.pathSeparator;
+    var rel = path;
+    if (path.startsWith(cwd)) {
+      rel = path.substring(cwd.length);
+      if (rel.startsWith(sep)) rel = rel.substring(1);
+    }
+    bool under(String base) =>
+        rel == base || rel.startsWith('$base$sep') || rel.startsWith('$base/');
+    if (w.ignore.any(under)) return false;
+    if (w.paths.isEmpty) return true;
+    return w.paths.any(under);
+  }
+
+  void _dispatchWatch(TaskDefinition def, TaskWatch w) {
+    if (!_running.containsKey(def.id)) return; // morreu nesse meio tempo
+    if (w.onChange == TaskWatch.restart) {
+      unawaited(restart(def.id));
+      return;
+    }
+    for (final k in def.interactiveKeys) {
+      if (k.label == w.onChange) {
+        sendKey(def.id, k.key);
+        return;
+      }
+    }
+  }
+
   @override
   Future<void> disposeAll() async {
+    for (final id in _watchers.keys.toList()) {
+      stopWatch(id);
+    }
     for (final task in _running.values) {
       task.stopping = true;
       try {
@@ -151,6 +213,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
   void _onExit(String taskId, int code) {
     final task = _running.remove(taskId);
     if (task == null) return;
+    stopWatch(taskId); // o processo morreu → nada pra recarregar
     unawaited(PiProcessRegistry.unregister(task.pty.pid));
     final TaskRunStatus status;
     if (task.stopping) {

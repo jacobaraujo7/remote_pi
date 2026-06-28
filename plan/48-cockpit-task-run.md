@@ -294,7 +294,9 @@ badge pisca `◐→●`; toggle off → manual; vite não mostra o toggle.
 - [ ] Doc do `.cockpit/tasks.json`: documentar o schema (campos, `cwd` per-task,
       interactiveKeys, watch, progressPatterns, profiles) + publicar/− referenciar
       um JSON Schema de verdade (substituindo a URL aspiracional removida)
-- [ ] Passo 6 — watch toggle (Directory.watch) + progress patterns ao vivo
+- [x] Passo 6 — watcher reload-on-save (`Directory.watch` recursivo, debounce,
+      match por path/ignore) + toggle por task (default on); dispara a tecla de
+      `onChange` (ou restart). (progress patterns já vinham do passo 2)
 - [x] Output ao vivo de cada task numa **aba read-only do pane central**
       (`TaskOutputSession`): clique na task abre/foca a aba; abrir/fechar à
       vontade sem matar a task; buffer preservado no `TaskTerminalStore`

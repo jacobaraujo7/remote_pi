@@ -72,6 +72,8 @@ class _TasksPanelState extends State<TasksPanel> {
                     _TaskRow(
                       def: def,
                       run: vm.stateOf(def.id),
+                      watchSupported: vm.watchSupported(def),
+                      watchOn: vm.watchOn(def.id),
                       // Clicar abre a aba read-only de output no pane central.
                       onTap: () => context
                           .read<CockpitViewModel>()
@@ -79,6 +81,7 @@ class _TasksPanelState extends State<TasksPanel> {
                       onStart: () => vm.start(def),
                       onStop: () => vm.stop(def.id),
                       onRestart: () => vm.restart(def.id),
+                      onToggleWatch: () => vm.toggleWatch(def),
                       onKey: (k) => vm.sendKey(def.id, k),
                     ),
                 ],
@@ -124,19 +127,25 @@ class _TaskRow extends StatelessWidget {
   const _TaskRow({
     required this.def,
     required this.run,
+    required this.watchSupported,
+    required this.watchOn,
     required this.onTap,
     required this.onStart,
     required this.onStop,
     required this.onRestart,
+    required this.onToggleWatch,
     required this.onKey,
   });
 
   final TaskDefinition def;
   final TaskRun run;
+  final bool watchSupported;
+  final bool watchOn;
   final VoidCallback onTap;
   final VoidCallback onStart;
   final VoidCallback onStop;
   final VoidCallback onRestart;
+  final VoidCallback onToggleWatch;
   final void Function(String key) onKey;
 
   @override
@@ -179,6 +188,15 @@ class _TaskRow extends StatelessWidget {
             ),
           ),
           if (active) ...[
+            if (watchSupported)
+              _IconAction(
+                tooltip: watchOn
+                    ? 'Reload ao salvar: ligado'
+                    : 'Reload ao salvar: desligado',
+                icon: watchOn ? Icons.bolt : Icons.bolt_outlined,
+                color: watchOn ? colors.warn : colors.text3,
+                onTap: onToggleWatch,
+              ),
             for (final k in def.interactiveKeys.where((k) => k.primary))
               _IconAction(
                 tooltip: "${k.label} (envia '${k.key}')",

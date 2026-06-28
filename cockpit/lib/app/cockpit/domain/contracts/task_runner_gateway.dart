@@ -32,6 +32,15 @@ abstract class TaskRunnerGateway {
   /// Escreve uma [InteractiveKey.key] no stdin do PTY (ex.: `"r"` no Flutter).
   void sendKey(String taskId, String key);
 
+  /// Começa a observar os arquivos de [def] (`def.watch`) e, a cada mudança
+  /// (com debounce), dispara a ação `onChange` — a tecla interativa de mesmo
+  /// label, ou um restart. No-op se `def.watch` é null ou já observa. É o
+  /// "reload ao salvar" que o `flutter run` CLI não faz sozinho.
+  void startWatch(TaskDefinition def);
+
+  /// Para de observar os arquivos da task (toggle off, stop ou exit).
+  void stopWatch(String taskId);
+
   /// Redimensiona o PTY da task (o terminal informa linhas/colunas).
   void resize(String taskId, int rows, int columns);
 
