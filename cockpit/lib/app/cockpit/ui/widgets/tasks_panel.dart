@@ -71,7 +71,7 @@ class _TasksPanelState extends State<TasksPanel> {
                 ? Padding(
                     padding: const EdgeInsets.fromLTRB(12, 4, 10, 10),
                     child: Text(
-                      'Nenhuma task detectada neste projeto.',
+                      'No tasks detected in this project.',
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
                   )
@@ -163,7 +163,7 @@ class _TasksPanelState extends State<TasksPanel> {
             )
           else
             _IconAction(
-              tooltip: 'Recarregar tasks',
+              tooltip: 'Reload tasks',
               icon: Icons.refresh,
               onTap: vm.reload,
             ),
@@ -234,7 +234,7 @@ class _TaskRow extends StatelessWidget {
           if (active) ...[
             for (final k in def.interactiveKeys.where((k) => k.primary))
               _IconAction(
-                tooltip: "${k.label} (envia '${k.key}')",
+                tooltip: "${k.label} (sends '${k.key}')",
                 icon: _iconFor(k.icon),
                 fallback: k.key,
                 onTap: () => onKey(k.key),
@@ -248,12 +248,12 @@ class _TaskRow extends StatelessWidget {
             // ícone de restart (ex.: Flutter "Hot restart") — evita 2 ícones iguais.
             if (!def.interactiveKeys.any((k) => k.primary && k.icon == 'restart'))
               _IconAction(
-                tooltip: 'Reiniciar',
+                tooltip: 'Restart',
                 icon: Icons.restart_alt,
                 onTap: onRestart,
               ),
             _IconAction(
-              tooltip: 'Parar',
+              tooltip: 'Stop',
               icon: Icons.stop,
               color: colors.error,
               onTap: onStop,
@@ -266,7 +266,7 @@ class _TaskRow extends StatelessWidget {
                 onTap: onCycleProfile,
               ),
             _IconAction(
-              tooltip: 'Rodar',
+              tooltip: 'Run',
               icon: Icons.play_arrow,
               color: colors.online,
               onTap: onStart,
@@ -390,7 +390,7 @@ class _ProfileChip extends StatelessWidget {
     if (!canCycle) return Padding(padding: const EdgeInsets.only(right: 2), child: chip);
     return Tooltip(
       tooltip: (context) =>
-          const TooltipContainer(child: Text('Trocar profile')),
+          const TooltipContainer(child: Text('Switch profile')),
       child: HoverTap(
         borderRadius: BorderRadius.circular(5),
         onTap: onTap,
@@ -411,7 +411,7 @@ class _OverflowKeys extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _IconAction(
-      tooltip: 'Mais teclas',
+      tooltip: 'More keys',
       icon: Icons.keyboard,
       onTap: () async {
         final chosen = await showAppMenu<String>(
