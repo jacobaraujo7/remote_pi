@@ -990,10 +990,18 @@ class _PaneBodyState extends State<_PaneBody> {
     }
   }
 
+  /// Tabs que usam um `TerminalPane` e portanto querem foco de teclado quando
+  /// ativas. Inclui a aba de logs de task ([TaskOutputSession]) — mesmo sendo
+  /// read-only, ela precisa do foco pra que o atalho de **copiar** (Cmd/Ctrl+C,
+  /// roteado pelo `ShortcutManager` interno do terminal) chegue ao handler.
+  /// Sem foco, dava pra selecionar (gesto de ponteiro) mas não copiar.
+  bool get _wantsTerminalFocus =>
+      widget.item is TerminalSession || widget.item is TaskOutputSession;
+
   @override
   void initState() {
     super.initState();
-    if (widget.item is TerminalSession && widget.focused) {
+    if (_wantsTerminalFocus && widget.focused) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _terminalFocus.requestFocus();
       });
@@ -1003,7 +1011,7 @@ class _PaneBodyState extends State<_PaneBody> {
   @override
   void didUpdateWidget(_PaneBody old) {
     super.didUpdateWidget(old);
-    if (widget.item is! TerminalSession) return;
+    if (!_wantsTerminalFocus) return;
     if (widget.focused && !old.focused) {
       // Adiar para pós-frame: o requestFocus() síncrono durante onTapDown
       // interfere com o onTapUp da seleção de tab no mesmo ciclo de gestos.

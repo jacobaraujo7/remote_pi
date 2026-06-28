@@ -272,10 +272,16 @@ class PtyTaskRunner implements TaskRunnerGateway {
     return Platform.environment['SHELL'] ?? '/bin/zsh';
   }
 
-  /// Args do shell pra rodar UM comando e herdar o PATH do perfil:
-  /// POSIX `-lc "<cmd>"` (login → carrega ~/.zprofile etc); Windows `/c <cmd>`.
+  /// Args do shell pra rodar UM comando e herdar o PATH do perfil. POSIX
+  /// `-ilc "<cmd>"`: **interactive + login**. O `-l` carrega `~/.zprofile`/
+  /// `/etc/paths`, mas só `-i` (interactive) faz o zsh ler `~/.zshrc` — onde a
+  /// maioria coloca o PATH de `flutter`/`fvm`/`asdf`. Sem o `-i`, um login
+  /// **não-interativo** (`-lc`) pula o `.zshrc` e o comando falha com
+  /// `command not found: flutter`. É o mesmo shell interativo do terminal
+  /// embutido (que roda `-l` com PTY → interativo), só que com `-c <cmd>`.
+  /// Windows: `/c <cmd>`.
   List<String> _shellArgs(String cmdLine) =>
-      Platform.isWindows ? ['/c', cmdLine] : ['-lc', cmdLine];
+      Platform.isWindows ? ['/c', cmdLine] : ['-ilc', cmdLine];
 
   /// Junta executável + args numa linha de shell, citando o que tem espaço.
   String _join(List<String> parts) => parts.map(_quote).join(' ');

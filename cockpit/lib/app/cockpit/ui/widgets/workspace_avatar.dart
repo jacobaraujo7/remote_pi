@@ -33,24 +33,33 @@ class WorkspaceAvatar extends StatelessWidget {
       final isSvg = path.toLowerCase().endsWith('.svg');
       return ClipRRect(
         borderRadius: BorderRadius.circular(radius),
-        // Arquivo movido/deletado/corrompido → placeholder de erro (ambos os
-        // loaders têm errorBuilder, então cobre raster e vetor do mesmo jeito).
-        child: isSvg
-            ? SvgPicture.file(
-                File(path),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (context, _, _) => _errorBox(context),
-              )
-            : Image.file(
-                File(path),
-                width: size,
-                height: size,
-                fit: BoxFit.cover,
-                filterQuality: FilterQuality.medium,
-                errorBuilder: (context, _, _) => _errorBox(context),
-              ),
+        // SizedBox externo garante o mesmo footprint pra raster e vetor: o
+        // SvgPicture dimensiona pelo viewBox e ignora width/height ao calcular o
+        // tamanho do layout, então sem o box forçado o SVG estoura o recorte e
+        // aparece maior que os PNGs. Com a caixa fixa, o BoxFit.cover preenche
+        // exatamente size×size nos dois casos.
+        child: SizedBox(
+          width: size,
+          height: size,
+          // Arquivo movido/deletado/corrompido → placeholder de erro (ambos os
+          // loaders têm errorBuilder, então cobre raster e vetor do mesmo jeito).
+          child: isSvg
+              ? SvgPicture.file(
+                  File(path),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, _, _) => _errorBox(context),
+                )
+              : Image.file(
+                  File(path),
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  filterQuality: FilterQuality.medium,
+                  errorBuilder: (context, _, _) => _errorBox(context),
+                ),
+        ),
       );
     }
     // Sem imagem: quadrado colorido com a inicial.
