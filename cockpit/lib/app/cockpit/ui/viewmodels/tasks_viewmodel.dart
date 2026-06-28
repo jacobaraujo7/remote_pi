@@ -24,12 +24,25 @@ class TasksViewModel extends ChangeNotifier {
   String _cwd = '';
   List<TaskDefinition> _tasks = const [];
   bool _loading = false;
+  bool _hasConfig = false;
   final _states = <String, TaskRun>{};
   // Profile escolhido por task (default = primeiro). Persiste só em memória.
   final _profile = <String, String>{};
 
   List<TaskDefinition> get tasks => _tasks;
   bool get loading => _loading;
+
+  /// `true` se já existe um `.cockpit/tasks.json` no projeto (esconde o botão
+  /// de criar exemplo).
+  bool get hasConfig => _hasConfig;
+
+  /// Há um projeto selecionado (cwd não-vazio) — habilita criar o exemplo.
+  bool get hasProject => _cwd.isNotEmpty;
+
+  String _configPath(String cwd) {
+    final sep = Platform.pathSeparator;
+    return '$cwd$sep.cockpit${sep}tasks.json';
+  }
 
   /// Estado atual de uma task (idle se nunca rodou).
   TaskRun stateOf(String taskId) =>
@@ -56,8 +69,24 @@ class TasksViewModel extends ChangeNotifier {
         : await _discovery.discover(cwd);
     if (cwd != _cwd) return; // corrida com outra troca de projeto
     _tasks = found;
+    _hasConfig = cwd.isNotEmpty && File(_configPath(cwd)).existsSync();
     _loading = false;
     notifyListeners();
+  }
+
+  /// Cria um `.cockpit/tasks.json` de exemplo (Flutter + Node + C#) no projeto
+  /// atual, se ainda não existe; depois redescobre. Botão "Create tasks.json".
+  Future<void> createExampleConfig() async {
+    if (_cwd.isEmpty) return;
+    final sep = Platform.pathSeparator;
+    final dir = Directory('$_cwd$sep.cockpit');
+    await dir.create(recursive: true);
+    final file = File(_configPath(_cwd));
+    if (!await file.exists()) {
+      await file.writeAsString(_exampleConfig);
+    }
+    _watchConfig(_cwd); // `.cockpit` agora existe → arma o watcher
+    await reload();
   }
 
   /// Observa o `.cockpit/tasks.json` do projeto e redescobre (debounced) quando
@@ -147,3 +176,53 @@ class TasksViewModel extends ChangeNotifier {
     super.dispose();
   }
 }
+
+/// Modelo de `.cockpit/tasks.json` gerado pelo botão "Create tasks.json":
+/// um exemplo de Flutter (watch + hot reload), Node e C#. O usuário edita os
+/// `cwd`/comandos pro projeto dele. Ver `docs/tasks-json.md`.
+const String _exampleConfig = '''
+{
+  "tasks": [
+    {
+      "label": "Flutter Example",
+      "cwd": "app",
+      "command": "flutter",
+      "args": ["run"],
+      "kind": "watch",
+      "interactiveKeys": [
+        { "key": "r", "label": "Hot reload", "icon": "bolt", "primary": true },
+        { "key": "R", "label": "Hot restart", "icon": "restart", "primary": true },
+        { "key": "p", "label": "Toggle debug paint" },
+        { "key": "o", "label": "Toggle platform" }
+      ],
+      "watch": {
+        "paths": ["lib", "assets"],
+        "ignore": ["build", ".dart_tool"],
+        "onChange": "Hot reload",
+        "debounceMs": 300
+      },
+      "progressPatterns": [
+        { "begin": "Performing hot reload", "end": "Reloaded .* in .*ms" },
+        { "begin": "Performing hot restart", "end": "Restarted application in .*ms" }
+      ],
+      "profiles": [
+        { "name": "web", "args": ["-d", "chrome"] },
+        { "name": "macos", "args": ["-d", "macos"] }
+      ]
+    },
+    {
+      "label": "Node Example",
+      "cwd": "site",
+      "command": "npm",
+      "args": ["run", "dev"]
+    },
+    {
+      "label": "C# Example",
+      "cwd": "api",
+      "command": "dotnet",
+      "args": ["watch", "run"],
+      "kind": "watch"
+    }
+  ]
+}
+''';

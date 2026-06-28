@@ -68,13 +68,7 @@ class _TasksPanelState extends State<TasksPanel> {
           SizedBox(
             height: widget.listHeight,
             child: vm.tasks.isEmpty && !vm.loading
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 4, 10, 10),
-                    child: Text(
-                      'No tasks detected in this project.',
-                      style: context.typo.label.copyWith(color: colors.text3),
-                    ),
-                  )
+                ? _empty(context, vm)
                 : ListView(
                     padding: const EdgeInsets.only(bottom: 6),
                     children: [
@@ -105,6 +99,50 @@ class _TasksPanelState extends State<TasksPanel> {
                     ],
                   ),
           ),
+        ],
+      ),
+    );
+  }
+
+  /// Estado vazio: mensagem + (se não há `.cockpit/tasks.json`) um botão que
+  /// cria um modelo de exemplo no projeto.
+  Widget _empty(BuildContext context, TasksViewModel vm) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'No tasks detected in this project.',
+            style: context.typo.label.copyWith(color: colors.text3),
+          ),
+          if (vm.hasProject && !vm.hasConfig) ...[
+            const SizedBox(height: 10),
+            HoverTap(
+              borderRadius: BorderRadius.circular(6),
+              onTap: vm.createExampleConfig,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: colors.panel3,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.add, size: 14, color: colors.text2),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Create tasks.json',
+                      style: context.typo.label.copyWith(color: colors.text),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
