@@ -4,7 +4,7 @@
  * Post plano 06: no Noise XX. Pairing is `pair_request → pair_ok|pair_error`
  * over an opaque outer envelope whose `ct` is base64(JSON.stringify(inner)).
  */
-import { describe, expect, test, vi, beforeEach } from "vitest";
+import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -163,6 +163,7 @@ const {
   _getLockedNameForTest,
   _resetCwdLockForTest,
   _handleControl,
+  _syncNameFromPiForTest,
   CTRL_PREFIX,
 } = await import("./index.js");
 const { acquireCwdLock } = await import("./session/cwd_lock.js");
@@ -2876,6 +2877,95 @@ describe("remote-pi:name-assigned event", () => {
     expect(typeof ev!.details!["requested"]).toBe("string");
     // No collision in this isolated broker → assigned === requested.
     expect(ev!.details!["assigned"]).toBe(ev!.details!["requested"]);
+  });
+});
+
+// ── Pi → remote-pi name sync (pi --name / /name drives the mesh name) ────────
+describe("pi session name → remote-pi mesh name sync", () => {
+  // Spy pi whose getSessionName() returns a fixed value (undefined by default).
+  function makeSyncSpyPi(sendMessage: ReturnType<typeof vi.fn>, sessionName?: string) {
+    return {
+      on: () => undefined, registerCommand: () => undefined,
+      registerTool: () => undefined, registerShortcut: () => undefined,
+      registerFlag: () => undefined, getFlag: () => undefined,
+      registerMessageRenderer: () => undefined,
+      sendMessage, sendUserMessage: () => undefined,
+      getSessionName: () => sessionName,
+    } as unknown as ExtensionAPI;
+  }
+  // Use a real temp cwd so config.json writes are isolated + cleanable.
+  let syncCwd: string;
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    _knownPeers.length = 0;
+    _addedPeers.length = 0;
+    _removedPeers.length = 0;
+    _consumeCalls.length = 0;
+    _setRelayCalls.length = 0;
+    _savedRelayUrl = null;
+    _tokenStatus = "ok";
+    relayRef.current = null;
+    relayInstances.length = 0;
+    _defaultConnectImpl = async () => undefined;
+    _setDisposedForTest(false);
+    _resetCwdLockForTest();
+    syncCwd = `/tmp/remote-pi-namesync-${process.pid}-${Date.now()}`;
+    delete process.env["REMOTE_PI_DIRECT_CONFIG"];
+    const stop = captureHandler("remote-pi stop");
+    await stop("", makeMockCtx(syncCwd));
+  });
+  afterEach(() => {
+    try { rmSync(syncCwd, { recursive: true, force: true }); } catch { /* best-effort */ }
+  });
+
+  test("join requestedName prefers pi.getSessionName() over config", async () => {
+    // Config says "crow" but pi session name says "remotepi" → join as "remotepi".
+    process.env["REMOTE_PI_DIRECT_CONFIG"] = JSON.stringify({
+      agent_name: "crow", auto_start_relay: false,
+    });
+    const root = captureHandler("remote-pi");
+    _setPiForTest(makeSyncSpyPi(vi.fn(), "remotepi")); // after capture so it isn't clobbered
+    await root("", makeMockCtx(syncCwd));
+    // The cwd-lock reserves (cwd, requestedName); the suffix-stripped base must
+    // be the pi session name, not the config name.
+    expect(_getLockedNameForTest()?.replace(/#\d+$/, "")).toBe("remotepi");
+    const stop = captureHandler("remote-pi stop");
+    await stop("", makeMockCtx(syncCwd));
+    _resetCwdLockForTest();
+  });
+
+  test("session_start persists the pi session name to agent_name (before join)", async () => {
+    // No config on disk yet; no mesh node up. The session_start hook runs
+    // _syncNameFromPi, which persists the pi name so the next join uses it.
+    // _syncNameFromPi + _renameAgent key persistence off process.cwd() (the same
+    // cwd axis the live agent uses), so chdir into the isolated temp cwd.
+    delete process.env["REMOTE_PI_DIRECT_CONFIG"];
+    const prevCwd = process.cwd();
+    mkdirSync(syncCwd, { recursive: true });
+    process.chdir(syncCwd);
+    try {
+      captureEventHandler("session_start"); // ensure the handler is registered
+      _setPiForTest(makeSyncSpyPi(vi.fn(), "frompiname"));
+      await _syncNameFromPiForTest();
+      const cfg = JSON.parse(readFileSync(`${syncCwd}/.pi/remote-pi/config.json`, "utf8"));
+      expect(cfg.agent_name).toBe("frompiname");
+    } finally {
+      process.chdir(prevCwd);
+      _resetCwdLockForTest();
+    }
+  });
+
+  test("unset pi session name does NOT clobber an existing agent_name", async () => {
+    process.env["REMOTE_PI_DIRECT_CONFIG"] = JSON.stringify({
+      agent_name: "crow", auto_start_relay: false,
+    });
+    const root = captureHandler("remote-pi");
+    _setPiForTest(makeSyncSpyPi(vi.fn(), undefined)); // pi name unset → keep config
+    await root("", makeMockCtx(syncCwd));
+    expect(_getLockedNameForTest()?.replace(/#\d+$/, "")).toBe("crow");
+    const stop = captureHandler("remote-pi stop");
+    await stop("", makeMockCtx(syncCwd));
+    _resetCwdLockForTest();
   });
 });
 

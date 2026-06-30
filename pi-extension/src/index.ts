@@ -93,6 +93,7 @@ import {
   loadLocalConfig,
   localConfigExists,
   saveLocalConfig,
+  sanitizeSegment,
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
@@ -408,6 +409,11 @@ export function _setPiForTest(pi: unknown): void {
   _pi = pi as typeof _pi;
 }
 
+/** Test-only: drive the pi → remote-pi name sync once and await it. */
+export async function _syncNameFromPiForTest(): Promise<void> {
+  await _syncNameFromPi();
+}
+
 /**
  * Persist a model change to the PROJECT settings (`<cwd>/.pi/settings.json`) so
  * a model picked from the app survives a Pi/daemon restart. `pi.setModel` only
@@ -585,6 +591,39 @@ function _displayName(cwd: string): string {
   if (_meshNode) return _meshNode.name();
   const local = loadLocalConfig(cwd);
   return local.agent_name || defaultAgentName(cwd);
+}
+
+// ── Pi → remote-pi name sync ───────────────────────────────────────────────────
+/**
+ * Mirror the pi session display name (`pi --name` / `/name`) into remote-pi's
+ * mesh identity. Pi is the source of truth: when the user sets a session name,
+ * it becomes agent_name (persisted, so it survives restarts) AND the live mesh
+ * peer name (broker re-register + relay room swap via _renameAgent).
+ *
+ * No-op when the pi session name is unset/blank — we never clobber a configured
+ * identity with a missing one. Re-entrancy guard + diff check mean this only
+ * does real work when the name actually changed, so calling it on every
+ * turn_start is cheap and never thrashes the relay.
+ */
+let _syncingName = false;
+async function _syncNameFromPi(): Promise<void> {
+  if (_disposed || _syncingName) return;
+  const piName = _pi?.getSessionName?.();
+  if (!piName || !piName.trim()) return;
+  const requested = sanitizeSegment(piName.trim());
+  if (!requested) return;
+  const cwd = process.cwd();
+  if (loadLocalConfig(cwd).agent_name !== requested)
+    saveLocalConfig(cwd, { agent_name: requested });
+  if (!_meshNode) return;
+  const base = _meshNode.name().replace(/#\d+$/, "");
+  if (base === requested) return;
+  _syncingName = true;
+  try {
+    await _renameAgent(requested);
+  } finally {
+    _syncingName = false;
+  }
 }
 
 // ── Peer lookup helpers ───────────────────────────────────────────────────────
@@ -1337,6 +1376,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // room_meta over the relay (plan/32) below — that's independent of the
   // broker and drives the app's working indicator.
   pi.on("turn_start", (_event, ctx) => {
+    // Pi → remote-pi name sync: the pi session name can change between turns
+    // (`/name X`) and the SDK has no event for it, so re-check every turn.
+    // Cheap diff guard — only does real work when the name actually changed.
+    void _syncNameFromPi();
     // Late model hydration: if the model was still unknown at connect (resolved
     // lazily by the SDK), grab it on the first turn and fan it out — so a daemon
     // whose model only materialises at turn 1 still reports it to the app.
@@ -1390,6 +1433,11 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    // Pi → remote-pi name sync: persist the pi session name (if set) BEFORE
+    // _cmdRoot/_cmdJoin reads config, so the first mesh join already uses it.
+    // Only persists here (no _meshNode yet); the live rename happens later via
+    // the turn_start hook once the mesh is up.
+    void _syncNameFromPi();
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -1685,7 +1733,14 @@ async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   // Lock identity is (cwd, name). Several agents may run in the SAME folder; the
   // requested name just has to be made unique. Derive the name the same way
   // `_cmdJoin` does so the lock and the mesh registration agree on identity.
-  const requestedName = loadLocalConfig(cwd).agent_name || defaultAgentName(cwd);
+  // Pi session name (`pi --name` / `/name`) is the source of truth — when set,
+  // it wins over the persisted agent_name so the mesh identity follows the pi
+  // session label. Falls back to config, then to basename(cwd).
+  const _piSessionName = _pi?.getSessionName?.();
+  const requestedName =
+    (_piSessionName && _piSessionName.trim() && sanitizeSegment(_piSessionName.trim()))
+    || loadLocalConfig(cwd).agent_name
+    || defaultAgentName(cwd);
 
   // Per-(cwd,name) lock, but COLLISION DOESN'T REFUSE — it auto-suffixes. If
   // `(cwd, "Backoffice")` is already held by a live agent, try
