@@ -1179,7 +1179,37 @@ let _lastCtx: Pick<ExtensionContext, "ui" | "abort" | "cwd"> | null = null;
 let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort"> | null = null;
 const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 
+// A single Pi process can load this extension TWICE in the SAME session:
+// pi-supervisord launches each daemon child as `pi -e <dist>/index.js`, but if
+// remote-pi is ALSO installed as a pi-package (auto-discovered from
+// ~/.pi/agent/extensions or <cwd>/.pi/extensions), Pi loads it a second time
+// for that same session. Both loads receive the same session-scoped `pi` and
+// would re-run registerTool/registerCommand for identical names — a hard
+// duplicate-registration conflict that crashes the daemon child on boot (see
+// daemon/rpc_child.ts). Idempotent, first-load-wins: whichever load runs first
+// does all the wiring; the duplicate is an inert no-op. A genuine session
+// REPLACEMENT gets a FRESH `pi`, so re-registration for the new session still
+// happens.
+//
+// We track "already wired" in a process-global WeakSet keyed by `pi` rather
+// than by mutating the host SDK object. The two loads are DISTINCT module
+// instances (the SDK's jiti loader uses moduleCache:false, and the `-e` path vs
+// the installed path resolve to different files), so a module-level Set can't
+// dedupe them; the WeakSet lives on `globalThis` under a `Symbol.for` key so
+// both module instances resolve the SAME set. Keying weakly by `pi` records the
+// fact without adding a foreign property to the API object and lets each `pi`
+// be GC'd when its session ends (no leak).
+const _APPLIED_REGISTRY_KEY = Symbol.for("remote-pi.extension.appliedRegistry");
+function _appliedRegistry(): WeakSet<object> {
+  const g = globalThis as typeof globalThis & { [_APPLIED_REGISTRY_KEY]?: WeakSet<object> };
+  return (g[_APPLIED_REGISTRY_KEY] ??= new WeakSet<object>());
+}
+
 const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
+  const applied = _appliedRegistry();
+  if (applied.has(pi)) return;  // this session's pi was already wired
+  applied.add(pi);
+
   _pi = pi;
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the

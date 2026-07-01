@@ -305,3 +305,70 @@ describe("getOrCreateEd25519Keypair — locked keyring does NOT regenerate", () 
     expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
   });
 });
+
+// ── File identity wins over a READABLE keyring (masking bug) ─────────────────
+//
+// A file-backed/headless install pairs the mobile against the key in
+// `~/.pi/remote/identity.json`. If the platform keyring later becomes readable
+// (D-Bus/libsecret installed, a desktop session, a stale entry from another
+// install), consulting it FIRST would mask the file identity — returning a
+// different key, or minting a fresh one over an empty keyring — and break the
+// existing pairing. The file must win. (These cases differ from the
+// "locked keyring" ones above: here the keyring READS FINE, it just isn't the
+// paired identity.)
+
+describe("getOrCreateEd25519Keypair — file identity wins over a readable keyring", () => {
+  /** Seed a file-backed identity via the headless path and return its key. */
+  async function seedFileIdentity() {
+    const seed = new InMemoryBackend();
+    seed.failAll("read");
+    _setKeyStoreBackendForTest(seed);
+    _setKeyringExpectedForTest(false);  // headless Linux → writes identity.json
+    const fileKp = await getOrCreateEd25519Keypair();
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
+    return fileKp;
+  }
+
+  test("readable keyring holding a DIFFERENT entry → file identity still wins", async () => {
+    const fileKp = await seedFileIdentity();
+
+    // A fully-readable keyring now holds a DIFFERENT identity.
+    const keyring = new InMemoryBackend();
+    const otherPk = Buffer.from(new Uint8Array(32).fill(42)).toString("base64");
+    keyring.store.set(`${NEW_SERVICE}|${ACCOUNT}`, JSON.stringify({
+      pk: otherPk,
+      sk: Buffer.from(new Uint8Array(64).fill(43)).toString("base64"),
+    }));
+    _setKeyStoreBackendForTest(keyring);
+    _setKeyringExpectedForTest(true);  // even on a core-keyring platform
+
+    const kp = await getOrCreateEd25519Keypair();
+    // File identity wins — the mobile is paired against it.
+    expect(Buffer.from(kp.publicKey).toString("base64")).toBe(
+      Buffer.from(fileKp.publicKey).toString("base64"),
+    );
+    expect(Buffer.from(kp.publicKey).toString("base64")).not.toBe(otherPk);
+    // The keyring is never consulted — the file short-circuits ahead of it.
+    expect(keyring.reads.length).toBe(0);
+    expect(keyring.writes.length).toBe(0);
+    expect(keyring.deletes.length).toBe(0);
+  });
+
+  test("readable but EMPTY keyring → does NOT mint a fresh key over identity.json", async () => {
+    const fileKp = await seedFileIdentity();
+
+    // A readable but EMPTY keyring appears (e.g. libsecret installed later).
+    const keyring = new InMemoryBackend();
+    _setKeyStoreBackendForTest(keyring);
+    _setKeyringExpectedForTest(true);
+
+    const kp = await getOrCreateEd25519Keypair();
+    expect(Buffer.from(kp.publicKey).toString("base64")).toBe(
+      Buffer.from(fileKp.publicKey).toString("base64"),
+    );
+    // Critically: no fresh keypair was generated + written into the keyring
+    // (that write is exactly what masked the file identity and broke pairing).
+    expect(keyring.reads.length).toBe(0);
+    expect(keyring.writes.length).toBe(0);
+  });
+});

@@ -188,25 +188,46 @@ async function _writeKeypairToFile(kp: Ed25519Keypair): Promise<void> {
 /**
  * Returns the Pi-secret Ed25519 keypair, generating + persisting one on
  * first call. Resolution order:
- *   1. New keyring service `dev.remotepi.pi` (read retried — a transiently
+ *   1. Existing file `~/.pi/remote/identity.json`, if present — it WINS over
+ *      the keyring. A file identity is only ever written by the headless/
+ *      degraded fallback (step 4) or an explicit `REMOTE_PI_ALLOW_FILE_IDENTITY`
+ *      opt-in, so its mere presence means this machine established its identity
+ *      as a file and the mobile device paired against THAT pubkey. If the
+ *      platform keyring later becomes readable (D-Bus/libsecret installed, a
+ *      desktop session, or a stale/other entry from another install), reading
+ *      it first would mask the file identity — returning a DIFFERENT key, or
+ *      (when the keyring is empty) minting a fresh one and persisting it —
+ *      silently breaking the existing pairing. So when both exist, file wins.
+ *   2. New keyring service `dev.remotepi.pi` (read retried — a transiently
  *      locked Keychain throws; we don't treat that as "no key")
- *   2. Old keyring service `dev.remotepi.mac` (migrate → step 1, delete old)
- *   3. File `~/.pi/remote/identity.json` (use if present — never regenerate
- *      over an existing one)
+ *   3. Old keyring service `dev.remotepi.mac` (migrate → step 2, delete old)
  *   4. Generate a fresh keypair, BUT only when it's safe to: either both
  *      keyring reads succeeded and returned nothing (genuine first run), or
  *      the keyring is genuinely unavailable on a platform without a core one
- *      (headless Linux). On macOS/Windows a persistent read failure with no
- *      file identity throws `KeyringUnavailableError` instead of minting a new
- *      key — generating there silently breaks existing pairing (the "lost
- *      pairing after idle" bug). `REMOTE_PI_ALLOW_FILE_IDENTITY=1` opts back
- *      into a file identity for headless macOS/Windows hosts.
+ *      (headless Linux → a file identity is minted here). On macOS/Windows a
+ *      persistent read failure with no file identity throws
+ *      `KeyringUnavailableError` instead of minting a new key — generating
+ *      there silently breaks existing pairing (the "lost pairing after idle"
+ *      bug). `REMOTE_PI_ALLOW_FILE_IDENTITY=1` opts back into a file identity
+ *      for headless macOS/Windows hosts.
  *
  * Idempotent: subsequent calls return the same identity. The migration
  * runs at most once per machine (the old entry is deleted after copy).
  */
 export async function getOrCreateEd25519Keypair(): Promise<Ed25519Keypair> {
   const backend = _getBackend();
+
+  // ── Path 0: an existing file-backed identity wins ──────────────────────
+  // `~/.pi/remote/identity.json` is only ever written by the headless/degraded
+  // fallback below (or an operator who set REMOTE_PI_ALLOW_FILE_IDENTITY=1) —
+  // never on a keyring-backed install. So its presence means THIS machine
+  // paired against the file key, and the keyring (readable or not, matching or
+  // not) must not be allowed to mask it. Short-circuit before touching the
+  // keyring so a keyring that later comes online can't return a different key,
+  // nor mint a fresh one over the file identity. No file → normal keyring
+  // resolution below; a headless first run still reaches Path B and mints one.
+  const existingFile = await _readKeypairFromFile();
+  if (existingFile) return existingFile;
 
   // ── Path A: keyring (retried) ──────────────────────────────────────────
   // A throw here means the keyring op FAILED — but on macOS/Windows that is
@@ -248,8 +269,9 @@ export async function getOrCreateEd25519Keypair(): Promise<Ed25519Keypair> {
   }
 
   // ── Path B: keyring threw on every attempt ─────────────────────────────
-  // If a file identity already exists, this machine is in file mode
-  // (headless, or previously degraded) — use it, never regenerate.
+  // Path 0 already returned any pre-existing file identity; this defensive
+  // re-check catches a file written concurrently by another Pi process during
+  // the keyring-retry window (still: use it, never regenerate).
   const fromFile = await _readKeypairFromFile();
   if (fromFile) return fromFile;
 

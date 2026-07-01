@@ -287,6 +287,39 @@ describe("extension default export", () => {
       expect(registeredCommands).not.toContain(removed);
     }
   });
+
+  test("idempotent: a second load on the SAME pi registers nothing twice (daemon -e + auto-discovery double-load)", () => {
+    // A daemon child is launched as `pi -e <dist>/index.js`; if remote-pi is
+    // ALSO installed as a pi-package, Pi auto-discovers it and loads the SAME
+    // extension a second time for the same session, on the same `pi`. Both
+    // loads would otherwise re-run registerTool/registerCommand for identical
+    // names → a duplicate-registration conflict that crashes the daemon.
+    const registeredCommands: string[] = [];
+    const registeredTools: string[] = [];
+    const pi = {
+      on: () => undefined,
+      registerCommand(name: string) { registeredCommands.push(name); },
+      registerTool(spec: { name: string }) { registeredTools.push(spec.name); },
+      registerShortcut: () => undefined,
+      registerFlag: () => undefined, getFlag: () => undefined,
+      registerMessageRenderer: () => undefined,
+      sendMessage: () => undefined, sendUserMessage: () => undefined,
+    } as unknown as ExtensionAPI;
+
+    (extension as ExtensionFactory)(pi);
+    const commandsAfterFirst = registeredCommands.length;
+    const toolsAfterFirst = registeredTools.length;
+    expect(commandsAfterFirst).toBeGreaterThan(0);
+    expect(toolsAfterFirst).toBeGreaterThan(0);  // agent_send / list_peers / agent_request
+
+    // Second load on the SAME pi object must be an inert no-op.
+    (extension as ExtensionFactory)(pi);
+    expect(registeredCommands.length).toBe(commandsAfterFirst);
+    expect(registeredTools.length).toBe(toolsAfterFirst);
+    // And no single name was registered more than once.
+    expect(new Set(registeredCommands).size).toBe(registeredCommands.length);
+    expect(new Set(registeredTools).size).toBe(registeredTools.length);
+  });
 });
 
 // ── State machine + pair_request flow ─────────────────────────────────────────
