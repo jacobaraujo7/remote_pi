@@ -1964,7 +1964,15 @@ class CockpitViewModel extends ChangeNotifier {
     for (final entry in sessionsJson.entries) {
       final desc = Map<String, dynamic>.from(entry.value as Map);
       if (desc['type'] == 'viewer') continue; // worktree não replica viewers
-      desc.remove('sessionPath'); // não continua sessão — começa do zero
+      // Zera qualquer estado de continuação — o worktree é um workspace novo,
+      // sessões começam do zero. `sessionPath` (agente) e `claude_sid`
+      // (terminal: dispararia `claude --resume <sid>` do pai) reanexariam a
+      // conversa do root; `cwd` (OSC 7 absoluto do pai) subiria o shell na
+      // pasta do root em vez de `fork.path + sub`.
+      desc
+        ..remove('sessionPath')
+        ..remove('claude_sid')
+        ..remove('cwd');
       final newId = _nid(desc['type'] == 'terminal' ? 't' : 'a');
       tabIdMap[entry.key as String] = newId;
       newSessions[newId] = desc;
