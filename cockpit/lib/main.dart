@@ -74,19 +74,33 @@ Future<void> main() async {
   );
 }
 
-/// Esconde a barra nativa e restaura o último tamanho da janela.
+/// Esconde a barra nativa e restaura o último tamanho E posição da janela.
+///
+/// `waitUntilReadyToShow` mantém a janela oculta até chamarmos `show()`; por
+/// isso aplicamos os bounds salvos ANTES do `show()`, evitando que o usuário
+/// veja o frame default do macOS recentralizar antes do restore.
 Future<void> _setupWindow(Box<dynamic> winBox) async {
   if (!(Platform.isMacOS || Platform.isWindows || Platform.isLinux)) return;
   await windowManager.ensureInitialized();
   final w = (winBox.get('width') as num?)?.toDouble() ?? 1280;
   final h = (winBox.get('height') as num?)?.toDouble() ?? 720;
+  final x = (winBox.get('x') as num?)?.toDouble();
+  final y = (winBox.get('y') as num?)?.toDouble();
   final options = WindowOptions(
     titleBarStyle: TitleBarStyle.hidden,
     windowButtonVisibility: false,
     minimumSize: const Size(720, 480),
     size: Size(w, h),
+    // Sem posição salva (1ª execução): centraliza. Com posição salva,
+    // aplicamos os bounds abaixo antes do show.
+    center: x == null || y == null,
   );
   await windowManager.waitUntilReadyToShow(options, () async {
+    if (x != null && y != null) {
+      // Restaura tamanho + posição num único setBounds, ainda oculto, para
+      // evitar o "salto" (recentralização) visível.
+      await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
+    }
     await windowManager.show();
     await windowManager.focus();
   });
@@ -120,12 +134,24 @@ class _WindowStateKeeperState extends State<_WindowStateKeeper>
   }
 
   @override
-  void onWindowResize() {
+  void onWindowResize() => _persistBounds();
+
+  @override
+  void onWindowMove() => _persistBounds();
+
+  /// Persiste tamanho + posição (bounds completos) com debounce. Um único
+  /// caminho para resize e move — ambos alteram os bounds que restauramos no
+  /// próximo boot.
+  void _persistBounds() {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 400), () async {
-      final size = await windowManager.getSize();
-      await widget.box.put('width', size.width);
-      await widget.box.put('height', size.height);
+      final bounds = await windowManager.getBounds();
+      await widget.box.putAll({
+        'x': bounds.left,
+        'y': bounds.top,
+        'width': bounds.width,
+        'height': bounds.height,
+      });
     });
   }
 

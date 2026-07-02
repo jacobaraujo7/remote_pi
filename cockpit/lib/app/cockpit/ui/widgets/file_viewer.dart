@@ -322,6 +322,48 @@ class _FileViewerState extends State<FileViewer> {
     }
   }
 
+  /// Duplica as linhas tocadas pela seleção (linha inteira, à la VSCode
+  /// "Copy Line Down/Up"). Sem seleção → duplica a linha do cursor. A cópia
+  /// entra abaixo ([down] = true) ou acima; o cursor/seleção acompanha a cópia.
+  void _cloneLines({required bool down}) {
+    final ctrl = _ctrl;
+    if (ctrl == null) return;
+    final text = ctrl.text;
+    final sel = ctrl.selection;
+    if (!sel.isValid) return;
+
+    // Expande pra abranger linhas inteiras: início da linha do menor offset até
+    // o fim da linha do maior offset.
+    final selStart = sel.start;
+    final selEnd = sel.end;
+    final lineStart = text.lastIndexOf('\n', selStart - 1) + 1;
+    var lineEnd = text.indexOf('\n', selEnd);
+    if (lineEnd == -1) lineEnd = text.length;
+    final block = text.substring(lineStart, lineEnd);
+
+    final String newText;
+    final int delta;
+    if (down) {
+      // Insere \n + bloco logo após a linha final; empurra o cursor pra cópia.
+      newText = '${text.substring(0, lineEnd)}\n$block${text.substring(lineEnd)}';
+      delta = block.length + 1;
+    } else {
+      // Insere bloco + \n antes da linha inicial; cursor fica na cópia de cima
+      // (offsets originais já apontam pra ela).
+      newText =
+          '${text.substring(0, lineStart)}$block\n${text.substring(lineStart)}';
+      delta = 0;
+    }
+
+    ctrl.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection(
+        baseOffset: sel.baseOffset + delta,
+        extentOffset: sel.extentOffset + delta,
+      ),
+    );
+  }
+
   void _discard() {
     final ctrl = _ctrl;
     if (ctrl == null || !_dirty || _saving) return;
@@ -661,6 +703,20 @@ class _FileViewerState extends State<FileViewer> {
           shift: true,
         ): () =>
             _format(),
+        // Clonar linha(s): Option+Shift+↓/↑ (macOS) = Alt+Shift+↓/↑ (Win/Linux).
+        // `alt` é a mesma tecla lógica (Option) → um binding serve as 3 plataformas.
+        const SingleActivator(
+          LogicalKeyboardKey.arrowDown,
+          alt: true,
+          shift: true,
+        ): () =>
+            _cloneLines(down: true),
+        const SingleActivator(
+          LogicalKeyboardKey.arrowUp,
+          alt: true,
+          shift: true,
+        ): () =>
+            _cloneLines(down: false),
       },
       child: content,
     );
