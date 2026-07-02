@@ -17,8 +17,6 @@ import 'package:cockpit/app/cockpit/data/repositories/hive_workspace_layout_stor
 import 'package:cockpit/app/cockpit/data/rpc/pi_rpc_process_factory.dart';
 import 'package:cockpit/app/cockpit/data/setup/environment_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
-import 'package:cockpit/app/cockpit/data/tasks/flutter_adapter.dart';
-import 'package:cockpit/app/cockpit/data/tasks/npm_adapter.dart';
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
 import 'package:cockpit/app/cockpit/data/terminal/file_terminal_scrollback_store.dart';
@@ -131,7 +129,7 @@ Future<Module> buildCockpitModule() async {
         ..addLazySingleton<TaskRunnerGateway>(PtyTaskRunner.new)
         ..addLazySingleton(TaskTerminalStore.new)
         ..addInstance<TaskDiscovery>(
-          TaskDiscoveryImpl(const [NpmAdapter(), FlutterAdapter()]),
+          TaskDiscoveryImpl(const []),
         )
         ..addInstance<AppLauncherGateway>(const AppLauncherImpl())
         ..addInstance<Notifier>(notifier)
