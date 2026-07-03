@@ -58,6 +58,15 @@ class _CockpitPageState extends State<CockpitPage> {
     // Registra a ponte do ⌘L global (handler em main.dart) → foca o input do
     // agente focado, mesmo quando o foco caiu num espaço vazio do shell.
     requestFocusActiveComposer = _focusActiveComposer;
+    // Pontes do menu nativo (PlatformMenuBar vive acima da rota, sem acesso aos
+    // ViewModels page-scoped): abrir projeto e verificar atualizações.
+    requestOpenProject = () => unawaited(_addProject());
+    requestCheckForUpdates = () =>
+        unawaited(context.read<UpdateViewModel>().check());
+    requestOpenSettings = () {
+      if (!mounted) return;
+      context.pushNamed(RoutePaths.settings);
+    };
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
@@ -111,6 +120,9 @@ class _CockpitPageState extends State<CockpitPage> {
     if (requestFocusActiveComposer == _focusActiveComposer) {
       requestFocusActiveComposer = null;
     }
+    requestOpenProject = null;
+    requestCheckForUpdates = null;
+    requestOpenSettings = null;
     _searchFocusSignal.dispose();
     super.dispose();
   }

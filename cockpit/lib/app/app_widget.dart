@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:cockpit/app/core/app_intents.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
@@ -20,7 +22,7 @@ class AppRoot extends StatelessWidget {
     // "Tamanho da interface" = **zoom do app inteiro** (texto, panes, ícones,
     // app bar, terminal). Baseline 14 = 1.0x. Ver [_AppZoom].
     final uiScale = s.interfaceSize / 14.0;
-    return ShadcnApp.router(
+    final app = ShadcnApp.router(
       title: 'Cockpit',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(brightness: Brightness.light, settings: s),
@@ -52,6 +54,121 @@ class AppRoot extends StatelessWidget {
         );
       },
     );
+    // Menu nativo do sistema (barra superior). O `PlatformMenuBar` só renderiza
+    // nativamente no macOS — nas outras plataformas ele apenas repassa o `child`
+    // (menu embutido em janela fica pra depois, se necessário). Fica **acima** do
+    // `ShadcnApp` porque os itens são serializados pro SO, não desenhados na
+    // árvore Flutter; as ações usam pontes globais (`app_intents.dart`) resolvidas
+    // pelo `CockpitPage`, `null`-safe enquanto o shell não estiver montado.
+    if (!Platform.isMacOS) return app;
+    return PlatformMenuBar(menus: _menus(controller), child: app);
+  }
+
+  /// Estrutura do menu nativo. Só as duas primeiras (App/Arquivo) têm ações
+  /// próprias; o resto reusa itens providos pelo SO (about/quit/hide/janela).
+  List<PlatformMenuItem> _menus(SettingsController controller) {
+    void zoom(double delta) => controller.setInterfaceSize(
+      (controller.settings.interfaceSize + delta).clamp(11.0, 22.0),
+    );
+
+    return <PlatformMenuItem>[
+      // 1ª entrada = menu do app (macOS rotula com o nome do app).
+      PlatformMenu(
+        label: 'Cockpit',
+        menus: <PlatformMenuItem>[
+          const PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.about,
+          ),
+          PlatformMenuItemGroup(
+            members: <PlatformMenuItem>[
+              PlatformMenuItem(
+                label: 'Configurações…',
+                shortcut: const SingleActivator(
+                  LogicalKeyboardKey.comma,
+                  meta: true,
+                ),
+                onSelected: () => requestOpenSettings?.call(),
+              ),
+              PlatformMenuItem(
+                label: 'Verificar atualizações…',
+                onSelected: () => requestCheckForUpdates?.call(),
+              ),
+            ],
+          ),
+          const PlatformMenuItemGroup(
+            members: <PlatformMenuItem>[
+              PlatformProvidedMenuItem(
+                type: PlatformProvidedMenuItemType.servicesSubmenu,
+              ),
+            ],
+          ),
+          const PlatformMenuItemGroup(
+            members: <PlatformMenuItem>[
+              PlatformProvidedMenuItem(
+                type: PlatformProvidedMenuItemType.hide,
+              ),
+              PlatformProvidedMenuItem(
+                type: PlatformProvidedMenuItemType.hideOtherApplications,
+              ),
+              PlatformProvidedMenuItem(
+                type: PlatformProvidedMenuItemType.showAllApplications,
+              ),
+            ],
+          ),
+          const PlatformMenuItemGroup(
+            members: <PlatformMenuItem>[
+              PlatformProvidedMenuItem(
+                type: PlatformProvidedMenuItemType.quit,
+              ),
+            ],
+          ),
+        ],
+      ),
+      PlatformMenu(
+        label: 'Arquivo',
+        menus: <PlatformMenuItem>[
+          PlatformMenuItem(
+            label: 'Abrir projeto…',
+            shortcut: const SingleActivator(
+              LogicalKeyboardKey.keyO,
+              meta: true,
+            ),
+            onSelected: () => requestOpenProject?.call(),
+          ),
+        ],
+      ),
+      // Zoom sem acelerador aqui de propósito: os atalhos ⌘=/⌘-/⌘0 já vivem no
+      // `CallbackShortcuts` (funciona em qualquer plataforma). Duplicar o key
+      // equivalent no menu dispararia a ação duas vezes no macOS.
+      PlatformMenu(
+        label: 'Visualizar',
+        menus: <PlatformMenuItem>[
+          PlatformMenuItem(
+            label: 'Aumentar tamanho',
+            onSelected: () => zoom(1),
+          ),
+          PlatformMenuItem(
+            label: 'Diminuir tamanho',
+            onSelected: () => zoom(-1),
+          ),
+          PlatformMenuItem(
+            label: 'Tamanho padrão',
+            onSelected: () => controller.setInterfaceSize(14),
+          ),
+        ],
+      ),
+      const PlatformMenu(
+        label: 'Janela',
+        menus: <PlatformMenuItem>[
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.minimizeWindow,
+          ),
+          PlatformProvidedMenuItem(
+            type: PlatformProvidedMenuItemType.zoomWindow,
+          ),
+        ],
+      ),
+    ];
   }
 
   ThemeMode _themeMode(AppThemeMode mode) => switch (mode) {
