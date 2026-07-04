@@ -108,6 +108,13 @@ ui ──► domain ◄── data
 - **Async**: prefira `Future`/`Stream` tipados, evite `dynamic` (o stream de
   eventos RPC é tipado em `domain/`, nunca `Map<String, dynamic>` cru na `ui/`)
 - **Erros**: `Result<T, E>` ou exceptions tipadas; nunca `catch (e)` genérico em produção
+- **Scroll = CLAMP**: todo scroll do app usa `ClampingScrollPhysics` (nada de
+  bounce/overscroll estranho). Isso já é global via `ClampingScrollBehavior`
+  (`core/ui/clamping_scroll_behavior.dart`), ligado no `ShadcnApp.router(scrollBehavior:)`
+  — qualquer `ListView`/`SingleChildScrollView`/`Scrollable` novo **herda** e não
+  precisa setar `physics:`. **Nunca** use `BouncingScrollPhysics` (default do shadcn);
+  se precisar customizar um scrollable, mantenha a física clamp (ou omita `physics:`
+  pra herdar). `ScrollConfiguration.of(context).copyWith(...)` preserva o clamp.
 - **ViewModels**: `ChangeNotifier` page-scoped, providos no `provide:` da rota
   (`s.addChangeNotifier<T>(…)`) **dentro do `<feature>_module.dart`**; páginas nunca
   instanciam ViewModel — sempre `context.watch/read/select`. Nascem ao montar a

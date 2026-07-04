@@ -6,6 +6,7 @@ import 'package:cockpit/app/core/ui/menu/app_menu_bar.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/menu/menu_model.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
+import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
@@ -36,6 +37,9 @@ class AppRoot extends StatelessWidget {
     final app = ShadcnApp.router(
       title: 'Cockpit',
       debugShowCheckedModeBanner: false,
+      // Física de scroll CLAMP em todo o app (mata o bounce/overscroll estranho
+      // do default BouncingScrollPhysics do shadcn). Ver ClampingScrollBehavior.
+      scrollBehavior: const ClampingScrollBehavior(),
       theme: buildTheme(brightness: Brightness.light, settings: s),
       darkTheme: buildTheme(brightness: Brightness.dark, settings: s),
       themeMode: _themeMode(s.themeMode),
