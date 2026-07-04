@@ -1,3 +1,11 @@
+/// Natureza de um workspace no rail.
+///
+/// - [project]: um workspace normal ancorado numa pasta (id == path).
+/// - [systemTerminal]: o workspace sintético "Cockpit" — sem pasta, terminal-only,
+///   injetado em runtime (nunca persistido). Serviços de path (git, árvore, tasks,
+///   worktrees) não sobem para ele; o terminal abre no `$HOME` do usuário.
+enum WorkspaceKind { project, systemTerminal }
+
 /// Uma pasta que o usuário salvou como projeto (workspace). Os workspaces raiz
 /// são persistidos via Hive; as **worktrees** (forks) são `Project`s de runtime
 /// com [parentId] preenchido, derivados do git e **não** persistidos (a
@@ -13,7 +21,23 @@ class Project {
     this.parentId,
     this.order = 0,
     this.imagePath,
+    this.kind = WorkspaceKind.project,
   });
+
+  /// Id sentinela do workspace de sistema "Cockpit". Não é um caminho absoluto,
+  /// então nunca colide com o `id == path` de um projeto real, e o repositório
+  /// Hive nunca o retorna (só é injetado em runtime).
+  static const String cockpitId = '__cockpit__';
+
+  /// Constrói o workspace sintético "Cockpit" (terminal-only, sem pasta).
+  factory Project.systemTerminal() => Project(
+    id: cockpitId,
+    name: 'Cockpit',
+    path: '',
+    colorValue: 0xFF6B7280,
+    createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+    kind: WorkspaceKind.systemTerminal,
+  );
 
   /// Sentinela do [copyWith] para distinguir "não mexer em [imagePath]" de
   /// "limpar [imagePath] (passar null)".
@@ -46,8 +70,15 @@ class Project {
   /// sumir/ilegível, a UI cai num placeholder de erro (ver `WorkspaceAvatar`).
   final String? imagePath;
 
+  /// Natureza do workspace (normal vs. terminal de sistema). Não persistido:
+  /// projetos carregados do Hive caem no default [WorkspaceKind.project].
+  final WorkspaceKind kind;
+
   /// `true` quando este `Project` é uma worktree de outro workspace.
   bool get isWorktree => parentId != null;
+
+  /// `true` quando este é o workspace sintético "Cockpit" (terminal-only).
+  bool get isSystemTerminal => kind == WorkspaceKind.systemTerminal;
 
   /// Inicial pro avatar da rail.
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : '?';
@@ -66,6 +97,7 @@ class Project {
     parentId: parentId,
     order: order ?? this.order,
     imagePath: imagePath == unchanged ? this.imagePath : imagePath as String?,
+    kind: kind,
   );
 
   @override

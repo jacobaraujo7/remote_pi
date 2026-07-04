@@ -118,6 +118,13 @@ jobs:
           codesign --force --options runtime --timestamp \
             --entitlements macos/cockpit_hook.entitlements \
             --sign "$SIGN_ID" "$APP/Contents/Resources/cockpit-hook"
+          # Mesmo caso do cockpit-cli: exe AOT do Dart solto em Resources/. O
+          # --deep NÃO assina Mach-O avulso em Resources/ (só trata code conhecido
+          # — frameworks/plugins/XPC), então ele saía sem Developer ID, sem
+          # timestamp e sem hardened runtime → notarização Invalid. Assina explícito.
+          codesign --force --options runtime --timestamp \
+            --entitlements macos/cockpit_hook.entitlements \
+            --sign "$SIGN_ID" "$APP/Contents/Resources/cockpit-cli"
           codesign --force --options runtime --timestamp \
             --entitlements macos/Runner/Release.entitlements \
             --sign "$SIGN_ID" "$APP"
@@ -125,8 +132,20 @@ jobs:
           mkdir -p dist
           echo "$APPLE_API_KEY" | base64 -d > "$RUNNER_TEMP/apikey.p8"
           notarize() {
-            xcrun notarytool submit "$1" --key "$RUNNER_TEMP/apikey.p8" \
-              --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait
+            local out
+            out=$(xcrun notarytool submit "$1" --key "$RUNNER_TEMP/apikey.p8" \
+              --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" --wait 2>&1)
+            echo "$out"
+            # Em rejeição (Invalid) o submit não traz os motivos; puxa o log com os
+            # issues (arquivo + razão) pra diagnosticar sem caça manual.
+            if echo "$out" | grep -q "status: Invalid"; then
+              local id
+              id=$(echo "$out" | grep -m1 -oE '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}')
+              echo "::error::Notarização Invalid — log da submissão $id:"
+              xcrun notarytool log "$id" --key "$RUNNER_TEMP/apikey.p8" \
+                --key-id "$APPLE_API_KEY_ID" --issuer "$APPLE_API_ISSUER" || true
+              return 1
+            fi
           }
           # 1) Notariza o .app (submetendo um zip) e grampeia o ticket no bundle.
           ditto -c -k --keepParent "$APP" "$RUNNER_TEMP/notarize-app.zip"

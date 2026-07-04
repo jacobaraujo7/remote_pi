@@ -50,6 +50,62 @@ void main() {
       expect((view as FileViewText).text, 'hello world');
     });
 
+    test('sem extensão (dotfile tipo .zprofile) → FileViewText', () async {
+      final dir = await Directory.systemTemp.createTemp('ck_fr_dot');
+      addTearDown(() => dir.delete(recursive: true));
+      final f = File('${dir.path}/.zprofile')
+        ..writeAsStringSync('export PATH=\$PATH');
+      final view = await reader.read(f.path);
+      expect(view, isA<FileViewText>());
+      expect((view as FileViewText).text, 'export PATH=\$PATH');
+      // sem extensão → sem language pra realce
+      expect(view.language, isNull);
+    });
+
+    test('sem extensão (Makefile) → FileViewText', () async {
+      final dir = await Directory.systemTemp.createTemp('ck_fr_mk');
+      addTearDown(() => dir.delete(recursive: true));
+      final f = File('${dir.path}/Makefile')..writeAsStringSync('all:\n\techo');
+      final view = await reader.read(f.path);
+      expect(view, isA<FileViewText>());
+    });
+
+    test(
+      'bytes binários (null bytes) → FileViewText, não barra mais',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('ck_fr_bin');
+        addTearDown(() => dir.delete(recursive: true));
+        final f = File('${dir.path}/blob.dat')
+          ..writeAsBytesSync([0x00, 0x01, 0x02, 0xff, 0x41, 0x00]);
+        final view = await reader.read(f.path);
+        expect(view, isA<FileViewText>());
+      },
+    );
+
+    test(
+      'bytes não-utf8 (latin-1) → FileViewText tolerante (U+FFFD)',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('ck_fr_l1');
+        addTearDown(() => dir.delete(recursive: true));
+        // 0xE9 = 'é' em latin-1, byte inválido em utf-8 → vira U+FFFD.
+        final f = File('${dir.path}/cafe.txt')
+          ..writeAsBytesSync([0x63, 0x61, 0x66, 0xe9]);
+        final view = await reader.read(f.path);
+        expect(view, isA<FileViewText>());
+        expect((view as FileViewText).text, contains('caf'));
+        expect(view.text, contains('�'));
+      },
+    );
+
+    test('grande demais (> 2MB) ainda → FileViewUnsupported', () async {
+      final dir = await Directory.systemTemp.createTemp('ck_fr_big');
+      addTearDown(() => dir.delete(recursive: true));
+      final f = File('${dir.path}/huge.log')
+        ..writeAsBytesSync(List.filled(2 * 1024 * 1024 + 1, 0x41));
+      final view = await reader.read(f.path);
+      expect(view, isA<FileViewUnsupported>());
+    });
+
     test('write grava em disco e read devolve o novo conteúdo', () async {
       final dir = await Directory.systemTemp.createTemp('ck_fr_write');
       addTearDown(() => dir.delete(recursive: true));

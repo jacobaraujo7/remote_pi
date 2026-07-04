@@ -9,8 +9,14 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 /// - áudio → [FileViewAudio] (só o caminho);
 /// - imagem → [FileViewImage] (só o caminho);
 /// - markdown → [FileViewMarkdown];
-/// - texto legível (utf8, sem null byte, ≤ 2MB) → [FileViewText];
-/// - resto (binário, grande demais, não-utf8) → [FileViewUnsupported].
+/// - qualquer outra coisa que caiba na memória (≤ 2MB) → [FileViewText].
+///
+/// **Não** barramos por extensão nem por conteúdo binário: qualquer tipo
+/// desconhecido (inclusive sem extensão, tipo `.zprofile`/`Makefile`, e até
+/// binário) abre como texto. Os bytes viram UTF-8 tolerante (`allowMalformed`),
+/// então bytes inválidos aparecem como U+FFFD — pode "sujar" a tela, mas o
+/// arquivo abre. O único limite é o tamanho (proteção de memória/UI):
+/// - grande demais (> 2MB) ou não é um arquivo → [FileViewUnsupported].
 class FileReaderImpl implements FileReader {
   const FileReaderImpl();
 
@@ -62,13 +68,9 @@ class FileReaderImpl implements FileReader {
     }
 
     final bytes = await file.readAsBytes();
-    if (_looksBinary(bytes)) return const FileViewUnsupported();
-    final String text;
-    try {
-      text = utf8.decode(bytes);
-    } catch (_) {
-      return const FileViewUnsupported();
-    }
+    // UTF-8 tolerante: bytes inválidos (latin-1, binário) viram U+FFFD em vez
+    // de barrar o arquivo. Decisão explícita — abrir qualquer coisa como texto.
+    final text = utf8.decode(bytes, allowMalformed: true);
 
     if (_markdown.contains(ext)) return FileViewMarkdown(text);
     // SVG é texto (XML) que também renderiza — fonte editável + preview.
@@ -97,15 +99,6 @@ class FileReaderImpl implements FileReader {
     } catch (_) {
       return const Stream<void>.empty();
     }
-  }
-
-  /// Heurística de binário: null byte nos primeiros ~8KB.
-  bool _looksBinary(List<int> bytes) {
-    final n = bytes.length < 8000 ? bytes.length : 8000;
-    for (var i = 0; i < n; i++) {
-      if (bytes[i] == 0) return true;
-    }
-    return false;
   }
 
   String _ext(String path) {

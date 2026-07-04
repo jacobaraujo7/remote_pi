@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Directory, FileSystemEvent;
+import 'dart:io' show Directory, File, FileSystemEvent, Platform;
 import 'dart:math' show max;
+
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
@@ -10,6 +12,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
@@ -33,7 +37,9 @@ import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/domain/result.dart';
+import 'package:cockpit/app/core/utils/user_home.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
@@ -75,6 +81,8 @@ class CockpitViewModel extends ChangeNotifier {
     this._contentSearcher,
     this._taskTerminals,
     this._scrollback,
+    this._gitRunner,
+    this._gitDiff,
   );
 
   final ProjectRepository _projects;
@@ -96,12 +104,19 @@ class CockpitViewModel extends ChangeNotifier {
   final ContentSearcher _contentSearcher;
   final TaskTerminalStore _taskTerminals;
   final TerminalScrollbackStore _scrollback;
+  final GitCommandRunner _gitRunner;
+  final GitDiffReader _gitDiff;
 
   List<LaunchableApp> _availableApps = const [];
 
   final List<Project> _projectList = <Project>[];
   String? _selectedProjectId;
   final Map<String, PaneItem> _sessions = <String, PaneItem>{};
+
+  /// Espelha `AppSettings.showCockpit` (app-scoped, empurrado pela `CockpitPage`).
+  /// Governa se o workspace de sistema "Cockpit" é injetado. Default `true`;
+  /// antes de [init] terminar só guarda a flag (a injeção acontece no [init]).
+  bool _cockpitEnabled = true;
 
   /// Watcher por aba de arquivo: relê o conteúdo ao vivo quando o disco muda
   /// (o agente edita o arquivo). Chaveado pelo id da sessão; cancelado no
@@ -171,9 +186,27 @@ class CockpitViewModel extends ChangeNotifier {
   String? _selectedFileInTree;
   String? get selectedFileInTree => _selectedFileInTree;
 
-  bool _railVisible = true;
-  bool _treeVisible = true;
+  bool _railVisible = false;
+  bool _treeVisible = false;
   bool _ready = false;
+
+  /// Persiste a visibilidade dos painéis (rail/árvore). A `CockpitPage` injeta o
+  /// callback que grava no `SettingsController` app-scoped (a VM é page-scoped e
+  /// não o enxerga). Chamado a cada mudança de visibilidade.
+  void Function(bool rail, bool tree)? onPanelVisibilityChanged;
+
+  /// Restaura a visibilidade dos painéis a partir das preferências salvas.
+  /// Chamado uma vez pela página no `initState`, sem persistir de volta. **Não**
+  /// notifica: roda antes do primeiro build (que já lê os campos frescos), e
+  /// notificar aqui dispara `markNeedsBuild` no `_VMInherited` durante o build
+  /// ("setState() called during build").
+  void restorePanelVisibility({required bool rail, required bool tree}) {
+    _railVisible = rail;
+    _treeVisible = tree;
+  }
+
+  void _persistPanels() =>
+      onPanelVisibilityChanged?.call(_railVisible, _treeVisible);
   int _seq = 0;
 
   /// Espelha `AppSettings.notificationsEnabled` (app-scoped, fora do grafo desta
@@ -202,9 +235,13 @@ class CockpitViewModel extends ChangeNotifier {
   // ---- getters --------------------------------------------------------------
   List<Project> get projects => List<Project>.unmodifiable(_projectList);
 
-  /// Só os workspaces raiz (sem as worktrees) — o nível de topo do rail.
+  /// Só os workspaces raiz **reais** (sem worktrees e sem o Cockpit sintético) —
+  /// o nível de topo da lista de projetos do rail. O Cockpit é renderizado num
+  /// slot próprio via [cockpitWorkspace] e fica de fora de reorder/menu/persist.
   List<Project> get rootProjects {
-    final roots = _projectList.where((p) => p.parentId == null).toList();
+    final roots = _projectList
+        .where((p) => p.parentId == null && !p.isSystemTerminal)
+        .toList();
     // Ordem manual do usuário (drag-drop); createdAt como desempate/fallback.
     roots.sort((a, b) {
       final byOrder = a.order.compareTo(b.order);
@@ -212,6 +249,16 @@ class CockpitViewModel extends ChangeNotifier {
     });
     return List<Project>.unmodifiable(roots);
   }
+
+  /// O workspace de sistema "Cockpit" (terminal-only), se estiver habilitado e
+  /// injetado; `null` caso contrário. Renderizado num slot próprio no rail.
+  Project? get cockpitWorkspace => _projectById(Project.cockpitId);
+
+  /// `true` se [id] é o workspace de sistema "Cockpit". Chokepoint usado pelos
+  /// gates de serviços de path (git/árvore/tasks) e pela UI (Files desabilitado,
+  /// agente off).
+  bool isSystemTerminal(String? id) =>
+      _projectById(id)?.isSystemTerminal ?? false;
 
   /// Worktrees (forks) de um workspace raiz, na ordem do git (vazio se nenhuma).
   List<Project> worktreesOf(String rootId) =>
@@ -239,6 +286,13 @@ class CockpitViewModel extends ChangeNotifier {
   List<LaunchableApp> get availableApps =>
       List<LaunchableApp>.unmodifiable(_availableApps);
   PaneItem? session(String id) => _sessions[id];
+
+  /// `true` se existe ao menos uma aba de agente **real** (não o placeholder
+  /// vazio `AgentStatus.empty`). Usado pra impedir desligar `enableAgent` com
+  /// agentes em uso.
+  bool get hasAgentTabsInUse => _sessions.values.whereType<AgentSession>().any(
+    (a) => a.status != AgentStatus.empty,
+  );
 
   /// Estado git do projeto (branch + sujos), ou `null` se não for repo git.
   GitInfo? gitInfo(String projectId) => _gitInfo[projectId];
@@ -324,7 +378,9 @@ class CockpitViewModel extends ChangeNotifier {
 
     final lf = findLeaf(tree, paneId);
     final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
-    if (lf != null && only is AgentSession && only.status == AgentStatus.empty) {
+    if (lf != null &&
+        only is AgentSession &&
+        only.status == AgentStatus.empty) {
       // Pane só com placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -461,6 +517,132 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  // === Git diff viewer (feature "more git") ===
+
+  /// `true` se o workspace [projectId] é um repo git (tem [GitInfo]).
+  bool isGitRepo(String projectId) => _gitInfo[projectId] != null;
+
+  /// Status git (relativo → status) dos arquivos com mudança do projeto
+  /// [projectId], excluindo ignorados — insumo do filtro "source control".
+  Map<String, GitFileStatus> changedFiles(String projectId) {
+    final info = _gitInfo[projectId];
+    if (info == null) return const {};
+    return info.files;
+  }
+
+  /// Caminhos **absolutos** com mudança git do projeto selecionado (exclui
+  /// ignorados) — alimenta a árvore podada do modo Source Control.
+  List<String> changedAbsolutePaths() {
+    final project = selectedProject;
+    if (project == null) return const [];
+    var root = project.path;
+    if (root.endsWith('/')) root = root.substring(0, root.length - 1);
+    final out = <String>[];
+    changedFiles(project.id).forEach((rel, status) {
+      if (status == GitFileStatus.ignored) return;
+      out.add('$root/$rel');
+    });
+    return out;
+  }
+
+  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
+  /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
+  Future<void> openDiff(String path, {bool isPreview = true}) async {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    final paneId = projectId == null ? null : _focused[projectId];
+    if (projectId == null || tree == null || paneId == null) return;
+    final leaf = findLeaf(tree, paneId);
+    if (leaf == null) return;
+    final root = _projectById(projectId)?.path;
+    if (root == null) return;
+
+    // Já aberto? Seleciona (e fixa se não é preview).
+    DiffViewerSession? previewCandidate;
+    for (final tabId in leaf.tabs) {
+      final s = _sessions[tabId];
+      if (s is DiffViewerSession) {
+        if (s.path == path) {
+          if (!isPreview && s.isPreview) s.pin();
+          _trees[projectId] = updateLeaf(
+            tree,
+            paneId,
+            (p) => p.copyWith(active: tabId),
+          );
+          notifyListeners();
+          return;
+        }
+        if (isPreview && s.isPreview && previewCandidate == null) {
+          previewCandidate = s;
+        }
+      }
+    }
+
+    final diff = await _gitDiff.read(root, path);
+
+    // Reutiliza a aba de preview de diff, se houver.
+    if (isPreview && previewCandidate != null) {
+      previewCandidate
+        ..path = path
+        ..diff = diff
+        ..notifyListeners();
+      _trees[projectId] = updateLeaf(
+        tree,
+        paneId,
+        (p) => p.copyWith(active: previewCandidate!.id),
+      );
+      notifyListeners();
+      return;
+    }
+
+    final viewer = DiffViewerSession(
+      id: _nid('d'),
+      projectId: projectId,
+      path: path,
+      diff: diff,
+      isPreview: isPreview,
+    );
+    _sessions[viewer.id] = viewer;
+
+    final current = _trees[projectId] ?? tree;
+    final lf = findLeaf(current, paneId);
+    final activeTabId = lf?.active;
+    final activeTab = activeTabId != null ? _sessions[activeTabId] : null;
+    final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
+
+    if (isPreview && activeTab is DiffViewerSession && activeTab.isPreview) {
+      // Preview substitui preview.
+      final oldId = activeTabId;
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(
+          tabs: [...p.tabs.where((t) => t != oldId), viewer.id],
+          active: viewer.id,
+        ),
+      );
+      _disposeSession(oldId!);
+    } else if (lf != null &&
+        only is AgentSession &&
+        only.status == AgentStatus.empty) {
+      // Placeholder vazio → substitui.
+      final emptyId = lf.tabs.first;
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(tabs: [viewer.id], active: viewer.id),
+      );
+      _disposeSession(emptyId);
+    } else {
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(tabs: [...p.tabs, viewer.id], active: viewer.id),
+      );
+    }
+    notifyListeners();
+  }
+
   /// Seleciona um arquivo no FileTreePanel (atualiza o highlight).
   void selectFileInTree(String path) {
     _selectedFileInTree = path;
@@ -496,6 +678,60 @@ class CockpitViewModel extends ChangeNotifier {
     final root = selectedProject?.path;
     if (root == null) return null;
     return '$root/$relative';
+  }
+
+  /// Abre um arquivo referenciado no **terminal** (Cmd+clique). [token] pode ser
+  /// absoluto, relativo ao [cwd] vivo do shell (OSC 7) ou começar com `~`. Abre
+  /// aba normal e revela [line] (base 1) quando informada. Sem-op se o token não
+  /// resolve. O FileViewer trata caminho inexistente por conta própria.
+  Future<void> openTerminalPath(String token, {String? cwd, int? line}) async {
+    final abs = _resolveTerminalPath(token, cwd);
+    if (abs == null) return;
+    await openFile(abs, isPreview: false);
+    if (line != null) {
+      for (final s in _sessions.values) {
+        if (s is FileViewerSession && s.path == abs) s.reveal(line);
+      }
+    }
+  }
+
+  /// Resolve um token de caminho do terminal para absoluto: expande `~`, junta
+  /// com [cwd] se relativo, e normaliza `.`/`..`. `null` se não dá pra resolver.
+  String? _resolveTerminalPath(String token, String? cwd) {
+    var t = token.trim();
+    if (t.isEmpty) return null;
+    if (t == '~' || t.startsWith('~/')) {
+      final home = userHome();
+      if (home == null) return null;
+      t = t == '~' ? home : '$home/${t.substring(2)}';
+    }
+    final isAbsolute = t.startsWith('/') ||
+        (Platform.isWindows && RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(t));
+    if (!isAbsolute) {
+      if (cwd == null || cwd.isEmpty) return null;
+      t = '$cwd/$t';
+    }
+    return _normalizePath(t);
+  }
+
+  /// Colapsa segmentos `.` e `..` de um caminho POSIX-ish (mantém a raiz `/`).
+  String _normalizePath(String path) {
+    final isAbs = path.startsWith('/');
+    final out = <String>[];
+    for (final part in path.split('/')) {
+      if (part.isEmpty || part == '.') continue;
+      if (part == '..') {
+        if (out.isNotEmpty && out.last != '..') {
+          out.removeLast();
+        } else if (!isAbs) {
+          out.add('..');
+        }
+      } else {
+        out.add(part);
+      }
+    }
+    final joined = out.join('/');
+    return isAbs ? '/$joined' : joined;
   }
 
   /// Abre um arquivo do projeto **por caminho relativo** (palette Cmd+P). Aba
@@ -543,6 +779,7 @@ class CockpitViewModel extends ChangeNotifier {
   void showTree() {
     if (_treeVisible) return;
     _treeVisible = true;
+    _persistPanels();
     notifyListeners();
   }
 
@@ -768,7 +1005,8 @@ class CockpitViewModel extends ChangeNotifier {
   Future<void> init() async {
     // Servidor de status do `cockpit-hook` (claude nas abas reporta turno aqui).
     // Await: no Windows o `hookEnv` depende da porta ligada antes de spawnar abas.
-    await _statusServer.start(_onClaudeStatus);
+    // O mesmo socket atende a CLI interna `cockpit` (`_onCockpitCommand`).
+    await _statusServer.start(_onClaudeStatus, onCommand: _onCockpitCommand);
     _projectList.addAll(await _projects.all());
     // Carrega os layouts salvos (mas não reconstrói nada ainda — lazy).
     for (final project in _projectList) {
@@ -778,6 +1016,10 @@ class CockpitViewModel extends ChangeNotifier {
     // TODOS os layouts. Varre todos os layouts salvos (não só o ativo: a
     // reconstrução é lazy), senão apagaria o scrollback de projetos não-ativados.
     unawaited(_scrollback.pruneExcept(_persistedTerminalIds()));
+    // Injeta o workspace de sistema "Cockpit" (terminal-only), se habilitado.
+    // Depois do carregamento de layouts (ele não tem layout salvo) e antes da
+    // seleção inicial (que pode cair nele no 1º boot).
+    if (_cockpitEnabled) _injectCockpit();
     _selectedProjectId = await _initialSelection();
     // Só o projeto selecionado é ativado (sobe os processos) no boot.
     final selected = _selectedProjectId;
@@ -801,18 +1043,64 @@ class CockpitViewModel extends ChangeNotifier {
     );
   }
 
-  /// Workspace a pré-selecionar no boot: o último selecionado (se ainda existir);
-  /// senão — ou se der erro ao ler a preferência — o primeiro. `null` se vazio.
+  /// Workspace a pré-selecionar no boot:
+  /// 1. o último selecionado, se ainda existir (inclui o próprio Cockpit);
+  /// 2. senão, o Cockpit (1º boot de instalação nova: sem `lastSelected`);
+  /// 3. senão, o primeiro workspace real; `null` se não houver nenhum.
   Future<String?> _initialSelection() async {
-    final roots = rootProjects;
-    if (roots.isEmpty) return null;
     try {
       final last = await _projects.loadLastSelected();
-      if (last != null && roots.any((p) => p.id == last)) return last;
+      if (last != null && _projectById(last) != null) return last;
     } catch (_) {
-      // erro ao ler a preferência → fallback silencioso pro primeiro.
+      // erro ao ler a preferência → segue pro fallback.
     }
-    return roots.first.id;
+    if (cockpitWorkspace != null) return Project.cockpitId;
+    final roots = rootProjects;
+    return roots.isEmpty ? null : roots.first.id;
+  }
+
+  /// Adiciona o workspace de sistema "Cockpit" a [_projectList] (runtime, nunca
+  /// persistido). Idempotente: no-op se já presente. Entra no fim da lista — sua
+  /// posição é irrelevante (fica de fora de [rootProjects]; o rail o renderiza
+  /// num slot próprio via [cockpitWorkspace]).
+  void _injectCockpit() {
+    if (_projectById(Project.cockpitId) != null) return;
+    _projectList.add(Project.systemTerminal());
+  }
+
+  /// Liga/desliga o workspace de sistema "Cockpit" em runtime (empurrado pela
+  /// `CockpitPage` a partir de `AppSettings.showCockpit`).
+  ///
+  /// Antes de [init] terminar (`!_ready`), só guarda a flag — o [init] faz a
+  /// injeção. Já habilitado o app:
+  /// - **ON**: injeta o slot (sem roubar a seleção atual).
+  /// - **OFF**: mata os PTYs do Cockpit e remove o slot; se estava selecionado,
+  ///   cai no primeiro workspace real (ou `null` → `WelcomeView`). Sem diálogo.
+  void setCockpitEnabled(bool value) {
+    if (_cockpitEnabled == value) return;
+    _cockpitEnabled = value;
+    if (!_ready) return; // init() cuidará da injeção conforme a flag
+    if (value) {
+      _injectCockpit();
+      notifyListeners();
+      return;
+    }
+    // OFF: encerra runtime (mata PTYs/sessões/timers) e remove o sintético.
+    final wasSelected = _selectedProjectId == Project.cockpitId;
+    _disposeProjectRuntime(Project.cockpitId);
+    _projectList.removeWhere((p) => p.isSystemTerminal);
+    if (wasSelected) {
+      final roots = rootProjects;
+      _selectedProjectId = roots.isEmpty ? null : roots.first.id;
+      final next = _selectedProjectId;
+      if (next != null) {
+        unawaited(_activateProject(next));
+        _startGitWatch(next);
+      } else {
+        _startGitWatch(null);
+      }
+    }
+    notifyListeners();
   }
 
   /// Abre a pasta do projeto selecionado no [app] informado.
@@ -848,8 +1136,11 @@ class CockpitViewModel extends ChangeNotifier {
     final resolvedName = (name != null && name.trim().isNotEmpty)
         ? name.trim()
         : (basename.isEmpty ? path : basename);
-    // Cor pela contagem de raízes (forks não entram no rodízio da paleta).
-    final roots = _projectList.where((p) => p.parentId == null);
+    // Cor pela contagem de raízes (forks e o Cockpit sintético não entram no
+    // rodízio da paleta nem na numeração de `order`).
+    final roots = _projectList.where(
+      (p) => p.parentId == null && !p.isSystemTerminal,
+    );
     final rootCount = roots.length;
     // Entra no fim da lista (maior order + 1).
     final nextOrder = roots.isEmpty
@@ -1041,6 +1332,48 @@ class CockpitViewModel extends ChangeNotifier {
     return _worktreeMgr.isBranchMerged(root.path, fork.name);
   }
 
+  // === Git commands (Sync / Pull / Push) — feature "more git" ===
+
+  /// Sync = `git pull` e, se OK, `git push` no repo em [repoPath]. Stream ao vivo.
+  GitRun gitSync(String repoPath) => _gitRunner.syncPullPush(repoPath);
+
+  /// `git pull` no repo em [repoPath].
+  GitRun gitPull(String repoPath) => _gitRunner.run(repoPath, const ['pull']);
+
+  /// `git push` no repo em [repoPath].
+  GitRun gitPush(String repoPath) => _gitRunner.run(repoPath, const ['push']);
+
+  /// Mergeia a branch do worktree [fork] no checkout do workspace pai. Em
+  /// sucesso, remove o worktree (reusa [removeWorktree] → kill+close) e seleciona
+  /// o pai. Devolve o handle ao vivo pro dialog de processo.
+  GitMergeOutcome mergeWorktreeToParent(Project fork) {
+    final parentId = fork.parentId;
+    if (parentId == null) return _mergeError('Not a worktree.');
+    final root = _projectById(parentId);
+    if (root == null) return _mergeError('Parent workspace not found.');
+
+    final outcome = _gitRunner.mergeIntoParent(root.path, fork.path, fork.name);
+    // Ao terminar com sucesso, limpa o worktree e volta pro pai. A remoção passa
+    // pela reconciliação de [removeWorktree] (mata processos, fecha panes).
+    outcome.status.then((status) async {
+      if (status != GitMergeStatus.merged) return;
+      await removeWorktree(fork.id);
+      selectProject(root.id);
+    });
+    return outcome;
+  }
+
+  /// Handle de merge já finalizado em erro, com uma linha explicativa — pro
+  /// dialog quando nem chegamos a rodar o git (pai/worktree ausente).
+  GitMergeOutcome _mergeError(String message) {
+    final controller = StreamController<String>()..add(message);
+    unawaited(controller.close());
+    return GitMergeOutcome(
+      status: Future.value(GitMergeStatus.error),
+      output: controller.stream,
+    );
+  }
+
   void selectProject(String id) {
     if (_selectedProjectId == id) return;
     _selectedProjectId = id;
@@ -1159,6 +1492,17 @@ class CockpitViewModel extends ChangeNotifier {
     if (replaceEmpty) _disposeSession(leaf.active);
     _focused[projectId] = leaf.id;
     notifyListeners();
+  }
+
+  /// `true` se a aba ativa da pane [paneId] é um terminal. O split espelha esse
+  /// tipo (terminal→terminal), então o call site usa isso pra decidir se pergunta
+  /// a subpasta (agente) ou abre direto na raiz (terminal).
+  bool paneActiveIsTerminal(String paneId) {
+    final tree = _activeTree;
+    if (tree == null) return false;
+    final leaf = findLeaf(tree, paneId);
+    final active = leaf == null ? null : _sessions[leaf.active];
+    return active is TerminalSession;
   }
 
   /// Divide a pane criando um agente novo ao lado/abaixo.
@@ -1425,11 +1769,13 @@ class CockpitViewModel extends ChangeNotifier {
 
   void toggleRail() {
     _railVisible = !_railVisible;
+    _persistPanels();
     notifyListeners();
   }
 
   void toggleTree() {
     _treeVisible = !_treeVisible;
+    _persistPanels();
     notifyListeners();
   }
 
@@ -1462,6 +1808,16 @@ class CockpitViewModel extends ChangeNotifier {
 
   PaneItem _spawn(String subRelative, {required bool terminal}) {
     final project = selectedProject!;
+    // Cockpit (terminal-only, sem pasta): shell sempre no HOME do usuário,
+    // ignorando `subRelative`. Nunca spawna agente aqui (a UI força terminal).
+    if (project.isSystemTerminal) {
+      return _buildTerminal(
+        _nid('t'),
+        project.id,
+        userHome() ?? '',
+        title: 'Terminal',
+      );
+    }
     final cwd = subRelative.isEmpty
         ? project.path
         : '${project.path}/$subRelative';
@@ -1499,6 +1855,8 @@ class CockpitViewModel extends ChangeNotifier {
       spawnEnv: <String, String>{
         'COCKPIT_PANE_ID': id,
         ..._statusServer.hookEnv,
+        // PATH escopado → o binário `cockpit` (CLI interna) resolve só nas abas.
+        ..._cliPathEnv(),
       },
     );
     // claude rodando na aba reporta fim de turno via socket → mesma notificação
@@ -1608,6 +1966,141 @@ class CockpitViewModel extends ChangeNotifier {
     if (s.claudeSessionId != hadSid && s.claudeSessionId != null) {
       _scheduleSave(s.projectId);
     }
+  }
+
+  /// Atende um comando da CLI interna `cockpit` (via o mesmo socket do
+  /// [TerminalStatusServer]). Roda **fora** da árvore de widgets — não toca
+  /// `BuildContext`, só lê/muta o estado da VM. Retorna rápido (o `insertText`
+  /// só enfileira o write no PTY).
+  Future<CockpitCommandResult> _onCockpitCommand(CockpitCommand c) async {
+    switch (c.cmd) {
+      // `send` e `send-key` chegam unificados como `write` (a CLI já resolveu o
+      // texto/tecla em bytes UTF-8, transmitidos em base64 pra não quebrar o
+      // framing de uma-linha-por-conexão).
+      case 'write':
+        final id = c.tabId;
+        if (id == null || id.isEmpty) {
+          return const CockpitCommandResult.fail(
+            'missing tabId (use --tab-id or run inside a Cockpit terminal)',
+          );
+        }
+        final s = _sessions[id];
+        if (s == null) {
+          return CockpitCommandResult.fail('pane "$id" does not exist');
+        }
+        if (s is! TerminalSession) {
+          return CockpitCommandResult.fail('pane "$id" is not a terminal');
+        }
+        final raw = (c.args['data'] ?? '').toString();
+        String text;
+        try {
+          text = utf8.decode(base64.decode(raw));
+        } catch (_) {
+          return const CockpitCommandResult.fail(
+            'invalid data (base64 expected)',
+          );
+        }
+        s.insertText(text);
+        return const CockpitCommandResult.ok();
+
+      case 'list-panes':
+        final panes = _sessions.values
+            .map(
+              (s) => <String, dynamic>{
+                'id': s.id,
+                'kind': _paneKind(s),
+                'title': s.title,
+                'workspaceId': s.projectId,
+                'working': s.isWorking,
+              },
+            )
+            .toList();
+        return CockpitCommandResult.ok(panes);
+
+      // `cockpit open <path>` — abre um arquivo no viewer. A CLI já resolveu
+      // pro caminho absoluto (o cwd do pane ≠ cwd do app). Abre no workspace do
+      // pane que emitiu (trazendo-o pra frente se não for o ativo) e como aba
+      // ao lado do próprio terminal (mesma folha).
+      case 'open':
+        final path = (c.args['path'] ?? '').toString();
+        if (path.isEmpty) {
+          return const CockpitCommandResult.fail('missing path');
+        }
+        if (!await File(path).exists()) {
+          return CockpitCommandResult.fail('file not found: "$path"');
+        }
+        final from = c.tabId;
+        String? targetProject;
+        String? targetLeaf;
+        if (from != null && from.isNotEmpty) {
+          final s = _sessions[from];
+          if (s != null) {
+            targetProject = s.projectId;
+            targetLeaf = _leafOfTab(targetProject, from);
+          }
+        }
+        if (targetProject != null && targetProject != _selectedProjectId) {
+          selectProject(targetProject);
+        }
+        if (_selectedProjectId == null) {
+          return const CockpitCommandResult.fail(
+            'no active workspace to open the file in',
+          );
+        }
+        await openFile(path, inPane: targetLeaf, isPreview: false);
+        return const CockpitCommandResult.ok();
+
+      case 'list-workspaces':
+        final ws = _projectList
+            .map(
+              (p) => <String, dynamic>{
+                'id': p.id,
+                'name': p.name,
+                'panes': _sessions.values
+                    .where((s) => s.projectId == p.id)
+                    .length,
+              },
+            )
+            .toList();
+        return CockpitCommandResult.ok(ws);
+
+      default:
+        return CockpitCommandResult.fail('unknown command: "${c.cmd}"');
+    }
+  }
+
+  /// Id da folha (coluna de splits) que contém a aba [tabId] no projeto
+  /// [projectId], ou `null` se não achar. Usado pra abrir o arquivo ao lado do
+  /// terminal que emitiu o `cockpit open`.
+  String? _leafOfTab(String projectId, String tabId) {
+    final tree = _trees[projectId];
+    if (tree == null) return null;
+    for (final leaf in leaves(tree)) {
+      if (leaf.tabs.contains(tabId)) return leaf.id;
+    }
+    return null;
+  }
+
+  String _paneKind(PaneItem s) {
+    if (s is TerminalSession) return 'terminal';
+    if (s is AgentSession) return 'agent';
+    if (s is FileViewerSession) return 'file';
+    if (s is TaskOutputSession) return 'task';
+    return 'other';
+  }
+
+  /// Env de PATH escopado: prepend `~/.cockpit/bin` (onde o binário `cockpit` é
+  /// materializado no boot) ao PATH **só dos terminais do Cockpit** — a CLI fica
+  /// visível dentro das abas e invisível fora, sem poluir o PATH global.
+  Map<String, String> _cliPathEnv() {
+    final home = remotePiHome();
+    if (home == null) return const <String, String>{};
+    final binDir = '$home/.cockpit/bin';
+    final sep = Platform.isWindows ? ';' : ':';
+    final existing = Platform.environment['PATH'] ?? '';
+    return <String, String>{
+      'PATH': existing.isEmpty ? binDir : '$binDir$sep$existing',
+    };
   }
 
   void _onAgentTurnEnd(AgentSession s) {
@@ -1840,6 +2333,17 @@ class CockpitViewModel extends ChangeNotifier {
           view: view,
         );
         return true;
+      case 'diff':
+        final path = desc['path'] as String?;
+        if (path == null) return false;
+        final diff = await _gitDiff.read(project.path, path);
+        _sessions[id] = DiffViewerSession(
+          id: id,
+          projectId: project.id,
+          path: path,
+          diff: diff,
+        );
+        return true;
       case 'empty':
         _makeEmptyWithId(id, project.id);
         return true;
@@ -1976,7 +2480,8 @@ class CockpitViewModel extends ChangeNotifier {
     final newSessions = <String, dynamic>{};
     for (final entry in sessionsJson.entries) {
       final desc = Map<String, dynamic>.from(entry.value as Map);
-      if (desc['type'] == 'viewer') continue; // worktree não replica viewers
+      // worktree não replica viewers nem diffs (efêmeros)
+      if (desc['type'] == 'viewer' || desc['type'] == 'diff') continue;
       // Zera qualquer estado de continuação — o worktree é um workspace novo,
       // sessões começam do zero. `sessionPath` (agente) e `claude_sid`
       // (terminal: dispararia `claude --resume <sid>` do pai) reanexariam a
@@ -2055,6 +2560,9 @@ class CockpitViewModel extends ChangeNotifier {
     if (s is FileViewerSession) {
       return <String, dynamic>{'type': 'viewer', 'path': s.path};
     }
+    if (s is DiffViewerSession) {
+      return <String, dynamic>{'type': 'diff', 'path': s.path};
+    }
     if (s is TaskOutputSession) {
       // A task não roda de novo no restart, mas o output persiste: guarda o
       // `taskId` (chave do log no `TaskTerminalStore`) + label pra recriar a aba
@@ -2098,6 +2606,9 @@ class CockpitViewModel extends ChangeNotifier {
   }
 
   void _scheduleSave(String projectId) {
+    // O Cockpit é efêmero (sessão só enquanto o app vive) — nunca persiste
+    // layout. Chokepoint único: cobre resize, cwd, criação/fechamento de aba.
+    if (isSystemTerminal(projectId)) return;
     _saveTimers[projectId]?.cancel();
     _saveTimers[projectId] = Timer(const Duration(milliseconds: 500), () {
       _saveTimers.remove(projectId);
@@ -2110,7 +2621,9 @@ class CockpitViewModel extends ChangeNotifier {
   /// ao selecionar e no fim de turno do agente (que pode ter mexido em arquivos).
   Future<void> _refreshGit(String projectId) async {
     final project = _projectById(projectId);
-    if (project == null) return;
+    // Sink único de git — barra o Cockpit (sem pasta) de uma vez: cobre o
+    // watcher, o poll e o refresh manual/fim-de-turno.
+    if (project == null || project.isSystemTerminal) return;
     final info = await _gitReader.read(project.path);
     // Evita rebuild se nada mudou (branch + ahead/behind + mapa de arquivos).
     final old = _gitInfo[projectId];
@@ -2148,6 +2661,14 @@ class CockpitViewModel extends ChangeNotifier {
   /// árvore/branch atualizadas ao vivo conforme o disco muda (o agente edita
   /// arquivos, troca de branch, comita). No-op se já observa esse mesmo path.
   void _startGitWatch(String? projectId) {
+    // Cockpit não tem pasta → nunca observa (evita `Directory('').watch`).
+    if (projectId != null && isSystemTerminal(projectId)) {
+      _gitWatch?.cancel();
+      _gitWatchDebounce?.cancel();
+      _gitWatch = null;
+      _gitWatchPath = null;
+      return;
+    }
     final path = projectId == null ? null : _projectById(projectId)?.path;
     if (path == _gitWatchPath) return; // já observando este projeto
     _gitWatch?.cancel();
@@ -2188,7 +2709,7 @@ class CockpitViewModel extends ChangeNotifier {
     _gitPoll?.cancel();
     _gitPoll = Timer.periodic(_gitPollInterval, (_) {
       final selected = _selectedProjectId;
-      if (selected == null) return;
+      if (selected == null || isSystemTerminal(selected)) return;
       // Raiz do selecionado + seus forks = a família visível na rail.
       final rootId = _rootOf(selected);
       unawaited(_refreshGit(rootId));
@@ -2220,7 +2741,7 @@ class CockpitViewModel extends ChangeNotifier {
   /// se selecionados, a seleção volta pro pai. Só notifica quando a lista muda.
   Future<void> _refreshWorktrees(String rootId) async {
     final root = _projectById(rootId);
-    if (root == null || root.parentId != null) return;
+    if (root == null || root.parentId != null || root.isSystemTerminal) return;
 
     final wts = await _worktreeMgr.list(root.path);
     final forks = <Project>[

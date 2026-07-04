@@ -101,7 +101,7 @@ Then in the Pi chat, run:
 The setup wizard walks you through agent name, session name, and relay choice,
 then prints a QR code. Scan it with the Remote Pi mobile app and you're paired.
 
-## Status
+## Statu
 
 The MVP is functional. Planning notes and roadmap live in [`plan/`](./plan).
 

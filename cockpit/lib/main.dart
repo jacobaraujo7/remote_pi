@@ -8,6 +8,8 @@ import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/app/core/env.dart';
+import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
+import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter_modular/flutter_modular.dart';
@@ -67,7 +69,10 @@ Future<void> main() async {
       box: winBox,
       child: ModularApp(
         module: appModule,
-        provide: (s) => s.addChangeNotifier<SettingsController>(() => settings),
+        provide: (s) => s
+          ..addChangeNotifier<SettingsController>(() => settings)
+          ..addChangeNotifier<EditorMenuBridge>(EditorMenuBridge.new)
+          ..addChangeNotifier<WorkspaceMenuBridge>(WorkspaceMenuBridge.new),
         child: const AppRoot(),
       ),
     ),

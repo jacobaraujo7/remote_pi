@@ -4,10 +4,13 @@ import 'dart:io';
 import 'package:cockpit/app/core/app_intents.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/core/routes.dart';
+import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
@@ -58,17 +61,42 @@ class _CockpitPageState extends State<CockpitPage> {
     // Registra a ponte do ⌘L global (handler em main.dart) → foca o input do
     // agente focado, mesmo quando o foco caiu num espaço vazio do shell.
     requestFocusActiveComposer = _focusActiveComposer;
+    // Pontes do menu nativo (PlatformMenuBar vive acima da rota, sem acesso aos
+    // ViewModels page-scoped): abrir projeto e verificar atualizações.
+    requestOpenProject = () => unawaited(_addProject());
+    requestCheckForUpdates = () =>
+        unawaited(context.read<UpdateViewModel>().check());
+    requestOpenSettings = () {
+      if (!mounted) return;
+      context.pushNamed(RoutePaths.settings);
+    };
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
     context.read<UpdateViewModel>().check();
+    // Publica o estado do workspace no menu File (New Agent / New Terminal): só
+    // habilitam quando há workspace ativo. Re-sincroniza a cada mudança da VM.
+    _workspaceMenu = context.read<WorkspaceMenuBridge>();
+    _menuVm = context.read<CockpitViewModel>()..addListener(_syncWorkspaceMenu);
+    _syncWorkspaceMenu();
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
       ..addListener(_syncLspCommands)
-      ..addListener(_syncNotifications);
+      ..addListener(_syncNotifications)
+      ..addListener(_syncCockpit);
     _syncLspCommands();
     _syncNotifications();
+    _syncCockpit();
+    // Restaura a visibilidade dos painéis (rail/árvore) salva na sessão anterior
+    // e persiste de volta a cada toggle. A VM é a fonte de verdade em runtime.
+    final vm = context.read<CockpitViewModel>();
+    vm.restorePanelVisibility(
+      rail: _settings!.settings.railVisible,
+      tree: _settings!.settings.treeVisible,
+    );
+    vm.onPanelVisibilityChanged = (rail, tree) =>
+        _settings!.setPanelVisibility(rail: rail, tree: tree);
     _searchHeight = _settings!.settings.searchPanelHeight.clamp(
       _searchMin,
       _searchMax,
@@ -82,12 +110,63 @@ class _CockpitPageState extends State<CockpitPage> {
   SettingsController? _settings;
   Map<String, String> _lastLspCommands = const <String, String>{};
 
+  /// Bridge do menu File (New Agent/Terminal) + a VM que observamos pra saber se
+  /// há workspace ativo. Capturados no [initState] pra uso seguro no [dispose].
+  WorkspaceMenuBridge? _workspaceMenu;
+  CockpitViewModel? _menuVm;
+
+  /// Espelha "há workspace ativo?" no menu; os callbacks abrem uma aba nova no
+  /// workspace ativo (root do projeto). `setWorkspace` só notifica quando o
+  /// booleano muda, então chamar a cada evento da VM é barato.
+  void _syncWorkspaceMenu() {
+    final vm = _menuVm;
+    if (vm == null) return;
+    _workspaceMenu?.setWorkspace(
+      hasWorkspace: vm.selectedProject != null,
+      agentTabsInUse: vm.hasAgentTabsInUse,
+      // Cockpit é terminal-only → sem "New Agent" no menu File.
+      agentsAllowed: !vm.isSystemTerminal(vm.selectedProjectId),
+      // Agente pergunta a subpasta onde vai atuar (igual ao fluxo direto de
+      // criar agente); terminal abre direto na raiz do workspace.
+      onNewAgent: () => unawaited(
+        _pickSubfolderThen((sub) => vm.newTabIn(sub, terminal: false)),
+      ),
+      onNewTerminal: () => vm.newTabIn('', terminal: true),
+      onSplitRight: () => _splitFocused(SplitDir.vertical),
+      onSplitDown: () => _splitFocused(SplitDir.horizontal),
+      onToggleRail: vm.toggleRail,
+      onToggleFiles: vm.toggleTree,
+    );
+  }
+
+  /// Divide a pane **focada** na direção [dir]. Terminal abre direto na raiz;
+  /// agente pergunta a subpasta — mesma regra do menu de split da pane.
+  void _splitFocused(SplitDir dir) {
+    final vm = _vm;
+    final projectId = vm.selectedProject?.id;
+    if (projectId == null) return;
+    final paneId = vm.focusedPaneId(projectId);
+    if (paneId == null) return;
+    if (vm.paneActiveIsTerminal(paneId)) {
+      vm.splitPane(paneId, dir, '');
+    } else {
+      unawaited(_pickSubfolderThen((sub) => vm.splitPane(paneId, dir, sub)));
+    }
+  }
+
   /// Espelha o toggle de Notificações (aba das Configurações) para a VM, que
   /// gateia o disparo de fim de turno. A VM é page-scoped e não vê o
   /// `SettingsController` app-scoped, então a página empurra o valor.
   void _syncNotifications() {
     _vm.setNotificationsEnabled(_settings!.settings.notificationsEnabled);
     _vm.setSoundEnabled(_settings!.settings.soundEnabled);
+  }
+
+  /// Espelha o toggle "Show Cockpit terminal" (Configurações › General) para a
+  /// VM, que injeta/remove o workspace de sistema em runtime (matando os PTYs no
+  /// desligar). A VM é page-scoped e não vê o `SettingsController` app-scoped.
+  void _syncCockpit() {
+    _vm.setCockpitEnabled(_settings!.settings.showCockpit);
   }
 
   void _syncLspCommands() {
@@ -108,9 +187,15 @@ class _CockpitPageState extends State<CockpitPage> {
   void dispose() {
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
+    _settings?.removeListener(_syncCockpit);
+    _menuVm?.removeListener(_syncWorkspaceMenu);
+    _workspaceMenu?.setWorkspace(hasWorkspace: false);
     if (requestFocusActiveComposer == _focusActiveComposer) {
       requestFocusActiveComposer = null;
     }
+    requestOpenProject = null;
+    requestCheckForUpdates = null;
+    requestOpenSettings = null;
     _searchFocusSignal.dispose();
     super.dispose();
   }
@@ -235,6 +320,52 @@ class _CockpitPageState extends State<CockpitPage> {
   /// "Criar worktree": busca o namespace (branches + worktrees) pra validação ao
   /// vivo e abre o dialog. O dialog roda o `git worktree add` via `onCreate` e a
   /// VM auto-seleciona o fork novo (decisões 14, 21).
+  /// Sync (pull → push) do workspace, com o processo ao vivo num dialog.
+  Future<void> _syncProject(Project project) async {
+    final run = _vm.gitSync(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Sync — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  Future<void> _pullProject(Project project) async {
+    final run = _vm.gitPull(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Pull — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  Future<void> _pushProject(Project project) async {
+    final run = _vm.gitPush(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Push — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  /// "Merge to Parent": mergeia a branch do worktree no pai. Bloqueia se o
+  /// worktree tem mudanças não commitadas; conflito → aborta e mostra o erro;
+  /// sucesso → o VM remove o worktree e volta pro pai. Processo ao vivo no dialog.
+  Future<void> _mergeWorktree(Project fork) async {
+    final outcome = _vm.mergeWorktreeToParent(fork);
+    await showGitProcessDialog(
+      context,
+      title: 'Merge to Parent — ${fork.name}',
+      output: outcome.output,
+      success: outcome.status.then((s) => s == GitMergeStatus.merged),
+      finalMessage: (ok) =>
+          ok ? 'Worktree merged and removed.' : 'Nothing was changed.',
+    );
+  }
+
   Future<void> _createWorktree(Project root) async {
     final vm = _vm;
     final namespace = await vm.worktreeNamespace(root.id);
@@ -360,24 +491,20 @@ class _CockpitPageState extends State<CockpitPage> {
   /// ⌘L (macOS) / Ctrl+L (Win/Linux): foca o input do agente focado quando o
   /// foco está dentro do shell. (Fora dele — clique no vazio — quem dispara é a
   /// ponte global de `main.dart`; ver [requestFocusActiveComposer].)
-  Map<ShortcutActivator, VoidCallback> _focusComposerBindings() =>
-      <ShortcutActivator, VoidCallback>{
-        const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
-            _focusActiveComposer,
-        const SingleActivator(LogicalKeyboardKey.keyL, control: true):
-            _focusActiveComposer,
-        const SingleActivator(LogicalKeyboardKey.keyP, meta: true):
-            _openFileFinder,
-        const SingleActivator(LogicalKeyboardKey.keyP, control: true):
-            _openFileFinder,
-        const SingleActivator(LogicalKeyboardKey.keyF, meta: true, shift: true):
-            _focusContentSearch,
-        const SingleActivator(
-          LogicalKeyboardKey.keyF,
-          control: true,
-          shift: true,
-        ): _focusContentSearch,
-      };
+  Map<ShortcutActivator, VoidCallback>
+  _focusComposerBindings() => <ShortcutActivator, VoidCallback>{
+    const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
+        _focusActiveComposer,
+    const SingleActivator(LogicalKeyboardKey.keyL, control: true):
+        _focusActiveComposer,
+    const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _openFileFinder,
+    const SingleActivator(LogicalKeyboardKey.keyP, control: true):
+        _openFileFinder,
+    const SingleActivator(LogicalKeyboardKey.keyF, meta: true, shift: true):
+        _focusContentSearch,
+    const SingleActivator(LogicalKeyboardKey.keyF, control: true, shift: true):
+        _focusContentSearch,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -406,21 +533,9 @@ class _CockpitPageState extends State<CockpitPage> {
                 projectName: vm.selectedDisplayTitle ?? 'Cockpit',
                 railVisible: vm.railVisible,
                 treeVisible: vm.treeVisible,
-                openEnabled: vm.selectedProject != null,
                 onToggleRail: vm.toggleRail,
                 onToggleTree: vm.toggleTree,
-                availableApps: vm.availableApps,
-                lastOpenAppId: context.select<SettingsController, String?>(
-                  (c) => c.settings.lastOpenAppId,
-                ),
-                onOpenInApp: (id) {
-                  final app = vm.availableApps
-                      .where((a) => a.id == id)
-                      .firstOrNull;
-                  if (app == null) return;
-                  context.read<SettingsController>().setLastOpenApp(id);
-                  unawaited(vm.openProjectInApp(app));
-                },
+                filesEnabled: !vm.isSystemTerminal(vm.selectedProjectId),
               ),
               Expanded(
                 child: Row(
@@ -441,6 +556,10 @@ class _CockpitPageState extends State<CockpitPage> {
                             onDelete: _deleteProject,
                             onCreateWorktree: _createWorktree,
                             onRemoveWorktree: _removeWorktree,
+                            onMergeWorktree: _mergeWorktree,
+                            onSync: _syncProject,
+                            onPull: _pullProject,
+                            onPush: _pushProject,
                             onReorder: (moved, target, before) =>
                                 vm.reorderWorkspace(
                                   moved,
@@ -449,6 +568,9 @@ class _CockpitPageState extends State<CockpitPage> {
                                 ),
                             onOpenSettings: () =>
                                 context.pushNamed(RoutePaths.settings),
+                            cockpit: vm.cockpitWorkspace,
+                            onSelectCockpit: () =>
+                                vm.selectProject(Project.cockpitId),
                           ),
                           // Alça de arraste na borda direita (direita = alarga).
                           Positioned(
@@ -486,7 +608,10 @@ class _CockpitPageState extends State<CockpitPage> {
                               ],
                             ),
                     ),
-                    if (vm.treeVisible)
+                    // Cockpit (sem pasta) nunca mostra a árvore/tasks/busca,
+                    // mesmo com `treeVisible` persistido de outro workspace.
+                    if (vm.treeVisible &&
+                        !vm.isSystemTerminal(vm.selectedProjectId))
                       Stack(
                         children: [
                           FileTreePanel(
@@ -503,6 +628,13 @@ class _CockpitPageState extends State<CockpitPage> {
                             onTapFile: vm.openFile, // clique único = preview
                             onSelectFile:
                                 vm.selectFileInTree, // atualiza highlight
+                            onOpenDiff: (path) =>
+                                vm.openDiff(path, isPreview: false),
+                            onTapDiff: vm.openDiff, // clique único = preview
+                            isGitRepo:
+                                vm.selectedProject != null &&
+                                vm.isGitRepo(vm.selectedProject!.id),
+                            changedPaths: vm.changedAbsolutePaths(),
                             onOpenWith: vm.openWithDefaultApp,
                             onCreateInFolder: (sub, terminal) =>
                                 vm.newTabIn(sub, terminal: terminal),
@@ -519,10 +651,8 @@ class _CockpitPageState extends State<CockpitPage> {
                                     focusSignal: _searchFocusSignal,
                                     resultsHeight: _searchHeight,
                                     onResizeDelta: (dy) => setState(() {
-                                      _searchHeight = (_searchHeight - dy).clamp(
-                                        _searchMin,
-                                        _searchMax,
-                                      );
+                                      _searchHeight = (_searchHeight - dy)
+                                          .clamp(_searchMin, _searchMax);
                                     }),
                                     onResizeEnd: () => context
                                         .read<SettingsController>()
@@ -595,11 +725,15 @@ class _CockpitPageState extends State<CockpitPage> {
           vm: vm,
           focused: node.id == vm.focusedPaneId(projectId),
           onCreateTab: () => vm.newEmptyTab(node.id),
-          onSplit: (dir) =>
-              _pickSubfolderThen((sub) => vm.splitPane(node.id, dir, sub)),
-          onFillEmpty: (emptyId, terminal) => _pickSubfolderThen(
-            (sub) => vm.fillEmpty(node.id, emptyId, sub, terminal: terminal),
-          ),
+          // Terminal abre direto na raiz do workspace; agente pergunta a subpasta.
+          onSplit: (dir) => vm.paneActiveIsTerminal(node.id)
+              ? vm.splitPane(node.id, dir, '')
+              : _pickSubfolderThen((sub) => vm.splitPane(node.id, dir, sub)),
+          onFillEmpty: (emptyId, terminal) => terminal
+              ? vm.fillEmpty(node.id, emptyId, '', terminal: true)
+              : _pickSubfolderThen(
+                  (sub) => vm.fillEmpty(node.id, emptyId, sub, terminal: false),
+                ),
           onHistoryAgent: _openHistory,
           onRenameAgent: _renameAgent,
           onToggleRelayAgent: _toggleRelayAgent,

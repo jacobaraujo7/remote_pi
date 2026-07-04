@@ -1169,7 +1169,7 @@ packages:
     description:
       path: "."
       ref: "feat/builtin-block-glyphs"
-      resolved-ref: "6ef92b9b7bff990d9dbd9b19ff5794bb20318484"
+      resolved-ref: "245e58bc75cb4aaa903a1b65fbe5064ca1338c51"
       url: "https://github.com/jacobaraujo7/xterm.dart"
     source: git
     version: "4.0.0"

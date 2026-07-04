@@ -26,6 +26,10 @@ class FileTreePanel extends StatefulWidget {
     required this.onOpenFile,
     this.onTapFile,
     this.onSelectFile,
+    required this.onOpenDiff,
+    this.onTapDiff,
+    required this.isGitRepo,
+    required this.changedPaths,
     required this.onOpenWith,
     required this.onCreateInFolder,
     required this.onCreate,
@@ -70,6 +74,18 @@ class FileTreePanel extends StatefulWidget {
   /// Clique único → seleciona o arquivo no tree (highlight).
   final ValueChanged<String>? onSelectFile;
 
+  /// Duplo-clique (modo source control) / "Show git diff" → abre o diff no pane.
+  final ValueChanged<String> onOpenDiff;
+
+  /// Clique único no modo source control → abre o diff em preview.
+  final ValueChanged<String>? onTapDiff;
+
+  /// `true` se o workspace é um repo git — habilita o toggle "Source Control".
+  final bool isGitRepo;
+
+  /// Caminhos **absolutos** com mudança git (modo source control, árvore podada).
+  final List<String> changedPaths;
+
   /// "Open with" → abre o arquivo/pasta no app/explorador padrão do SO.
   final ValueChanged<String> onOpenWith;
 
@@ -108,6 +124,9 @@ class _PendingCreate {
 class _FileTreePanelState extends State<FileTreePanel> {
   int _localRefresh = 0;
   String? _selectedPath;
+
+  /// `true` = modo "Source Control" (só arquivos modificados, árvore podada).
+  bool _scMode = false;
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -282,9 +301,13 @@ class _FileTreePanelState extends State<FileTreePanel> {
       onCancelRename: _cancelRename,
       onCommitRename: _commitRename,
       onRequestDelete: _requestDelete,
+      onShowDiff: widget.onOpenDiff,
       gitStatusOf: widget.gitStatusOf,
       listChildren: widget.listChildren,
     );
+
+    // Fora de repo git, o modo source-control não existe.
+    final scMode = _scMode && widget.isGitRepo;
 
     return Container(
       width: widget.width,
@@ -302,19 +325,22 @@ class _FileTreePanelState extends State<FileTreePanel> {
             ),
             child: Row(
               children: [
-                Icon(Icons.folder_outlined, size: 15, color: colors.text3),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Files',
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typo.title.copyWith(
-                      fontSize: 13,
-                      color: colors.text,
-                    ),
-                  ),
+                _HeaderIcon(
+                  icon: Icons.folder_outlined,
+                  tooltip: 'Files',
+                  selected: !scMode,
+                  onTap: () => setState(() => _scMode = false),
                 ),
-                if (widget.rootPath.isNotEmpty) ...[
+                if (widget.isGitRepo)
+                  _HeaderIcon(
+                    icon: Icons.account_tree_outlined,
+                    tooltip: 'Source Control',
+                    selected: scMode,
+                    onTap: () => setState(() => _scMode = true),
+                  ),
+                const Spacer(),
+                // "New file/folder" só no modo Files (o source control é leitura).
+                if (widget.rootPath.isNotEmpty && !scMode) ...[
                   _HeaderIcon(
                     icon: Icons.note_add_outlined,
                     tooltip: 'New file',
@@ -342,6 +368,18 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       textAlign: TextAlign.center,
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
+                  )
+                : scMode
+                ? _ChangedTree(
+                    rootPath: widget.rootPath,
+                    changedPaths: widget.changedPaths,
+                    gitStatusOf: widget.gitStatusOf,
+                    selectedPath: effectiveSelected,
+                    onOpenDiff: widget.onOpenDiff,
+                    onTapDiff: (path) {
+                      _select(path);
+                      (widget.onTapDiff ?? widget.onOpenDiff)(path);
+                    },
                   )
                 : Focus(
                     focusNode: _treeFocus,
@@ -390,6 +428,7 @@ class _TreeEdit {
     required this.onCancelRename,
     required this.onCommitRename,
     required this.onRequestDelete,
+    required this.onShowDiff,
     required this.gitStatusOf,
     required this.listChildren,
   });
@@ -402,6 +441,9 @@ class _TreeEdit {
   final ValueChanged<String> onOpenFile;
   final ValueChanged<String>? onTapFile;
   final ValueChanged<String>? onSelectFile;
+
+  /// "Show git diff" (menu de contexto) → abre o diff do arquivo.
+  final ValueChanged<String> onShowDiff;
   final ValueChanged<String> onOpenWith;
   final void Function(String relativeSub, bool terminal) onCreateInFolder;
 
@@ -516,6 +558,7 @@ class _DirViewState extends State<_DirView> {
                 onCommitRename: (name) => edit.onCommitRename(node.path, name),
                 onCancelRename: edit.onCancelRename,
                 onDelete: () => edit.onRequestDelete(node.path),
+                onShowDiff: () => edit.onShowDiff(node.path),
               ),
             ),
       ],
@@ -616,6 +659,7 @@ class _Row extends StatefulWidget {
     this.onCommitRename,
     this.onCancelRename,
     this.onDelete,
+    this.onShowDiff,
   });
 
   final int depth;
@@ -646,6 +690,9 @@ class _Row extends StatefulWidget {
   final Future<String?> Function(String name)? onCommitRename;
   final VoidCallback? onCancelRename;
   final VoidCallback? onDelete;
+
+  /// "Show git diff" (só arquivos). `null` em pastas.
+  final VoidCallback? onShowDiff;
 
   @override
   State<_Row> createState() => _RowState();
@@ -692,12 +739,23 @@ class _RowState extends State<_Row> {
       minWidth: 220,
       globalPosition: globalPosition,
       items: [
-        if (isFile) ...const [
-          AppMenuItem(value: 'open', label: 'Open', icon: Icons.open_in_new),
-          AppMenuItem(
+        if (isFile) ...[
+          const AppMenuItem(
+            value: 'open',
+            label: 'Open',
+            icon: Icons.open_in_new,
+          ),
+          const AppMenuItem(
             value: 'openwith',
             label: 'Open with',
             icon: Icons.launch_outlined,
+          ),
+          // Sempre visível; desabilitado quando o arquivo não tem mudança git.
+          AppMenuItem(
+            value: 'diff',
+            label: 'Show git diff',
+            icon: Icons.difference_outlined,
+            enabled: widget.gitStatus != null,
           ),
         ],
         if (isFolder) ...const [
@@ -753,6 +811,8 @@ class _RowState extends State<_Row> {
       switch (value) {
         case 'open':
           widget.onDoubleTap?.call();
+        case 'diff':
+          widget.onShowDiff?.call();
         case 'openwith':
         case 'reveal':
           widget.onOpenWith?.call();
@@ -995,6 +1055,176 @@ class _NameFieldState extends State<_NameField> {
   }
 }
 
+/// Um arquivo modificado, já quebrado em nome + diretório relativo (pra lista
+/// plana do modo Source Control).
+class _ChangedFile {
+  const _ChangedFile({
+    required this.absPath,
+    required this.name,
+    required this.dir,
+  });
+  final String absPath;
+  final String name;
+
+  /// Diretório relativo à raiz (sem barra final), vazio quando na raiz.
+  final String dir;
+}
+
+/// Lista **plana** do modo Source Control (estilo VSCode): cada arquivo
+/// modificado numa linha, com o nome + o diretório relativo esmaecido ao lado
+/// (ex.: `main.dart  lib/app`). Clique abre o diff — só leitura.
+class _ChangedTree extends StatelessWidget {
+  const _ChangedTree({
+    required this.rootPath,
+    required this.changedPaths,
+    required this.gitStatusOf,
+    required this.selectedPath,
+    required this.onOpenDiff,
+    required this.onTapDiff,
+  });
+
+  final String rootPath;
+  final List<String> changedPaths;
+  final GitFileStatus? Function(String absolutePath) gitStatusOf;
+  final String? selectedPath;
+  final ValueChanged<String> onOpenDiff;
+  final ValueChanged<String> onTapDiff;
+
+  @override
+  Widget build(BuildContext context) {
+    if (changedPaths.isEmpty) {
+      return Center(
+        child: Text(
+          'No changes.',
+          style: context.typo.label.copyWith(color: context.colors.text3),
+        ),
+      );
+    }
+
+    final normalizedRoot = rootPath.endsWith('/') ? rootPath : '$rootPath/';
+    final files = <_ChangedFile>[];
+    for (final abs in changedPaths) {
+      final rel = abs.startsWith(normalizedRoot)
+          ? abs.substring(normalizedRoot.length)
+          : abs;
+      final slash = rel.lastIndexOf('/');
+      files.add(
+        _ChangedFile(
+          absPath: abs,
+          name: slash >= 0 ? rel.substring(slash + 1) : rel,
+          dir: slash >= 0 ? rel.substring(0, slash) : '',
+        ),
+      );
+    }
+    // Ordena pelo caminho relativo completo (agrupa por pasta, estável).
+    files.sort((a, b) {
+      final ap = a.dir.isEmpty ? a.name : '${a.dir}/${a.name}';
+      final bp = b.dir.isEmpty ? b.name : '${b.dir}/${b.name}';
+      return ap.toLowerCase().compareTo(bp.toLowerCase());
+    });
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final f in files)
+            _ChangedRow(
+              file: f,
+              gitStatus: gitStatusOf(f.absPath),
+              selected: f.absPath == selectedPath,
+              onTap: () => onTapDiff(f.absPath),
+              onDoubleTap: () => onOpenDiff(f.absPath),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Uma linha da lista plana de source control (só leitura, sem menu).
+class _ChangedRow extends StatefulWidget {
+  const _ChangedRow({
+    required this.file,
+    required this.gitStatus,
+    required this.selected,
+    required this.onTap,
+    required this.onDoubleTap,
+  });
+
+  final _ChangedFile file;
+  final GitFileStatus? gitStatus;
+  final bool selected;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+
+  @override
+  State<_ChangedRow> createState() => _ChangedRowState();
+}
+
+class _ChangedRowState extends State<_ChangedRow> {
+  DateTime? _lastTap;
+
+  void _handleTap() {
+    if (widget.onDoubleTap == null) {
+      widget.onTap?.call();
+      return;
+    }
+    final now = DateTime.now();
+    if (_lastTap != null && now.difference(_lastTap!).inMilliseconds < 350) {
+      _lastTap = null;
+      widget.onDoubleTap!();
+    } else {
+      _lastTap = now;
+      widget.onTap?.call();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final typo = context.typo;
+    final file = widget.file;
+    final nameColor =
+        _gitColor(colors, widget.gitStatus) ??
+        (widget.selected ? colors.text : colors.text2);
+    return HoverTap(
+      color: widget.selected ? colors.panel2 : Colors.transparent,
+      hoverColor: colors.panel,
+      borderRadius: BorderRadius.circular(5),
+      onTap: _handleTap,
+      padding: const EdgeInsets.only(left: 6, right: 6),
+      child: SizedBox(
+        height: 26,
+        child: Row(
+          children: [
+            FileTypeIcon.file(file.name, size: 16),
+            const SizedBox(width: 7),
+            // Nome do arquivo (não encolhe) + diretório esmaecido (trunca).
+            Flexible(
+              child: Text(
+                file.name,
+                overflow: TextOverflow.ellipsis,
+                style: typo.body.copyWith(fontSize: 13, color: nameColor),
+              ),
+            ),
+            if (file.dir.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  file.dir,
+                  overflow: TextOverflow.ellipsis,
+                  style: typo.label.copyWith(fontSize: 11, color: colors.text4),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Cor do nome conforme o status git da linha.
 Color? _gitColor(AppColors colors, GitFileStatus? status) {
   switch (status) {
@@ -1020,22 +1250,32 @@ class _HeaderIcon extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.selected = false,
   });
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
 
+  /// Toggle ativo → fundo realçado + ícone em cor primária.
+  final bool selected;
+
   @override
   Widget build(BuildContext context) {
+    final colors = context.colors;
     return Tooltip(
       tooltip: (context) => TooltipContainer(child: Text(tooltip)),
       child: HoverTap(
+        color: selected ? colors.panel2 : Colors.transparent,
         borderRadius: BorderRadius.circular(5),
         onTap: onTap,
         child: SizedBox(
           width: 28,
           height: 28,
-          child: Icon(icon, size: 16, color: context.colors.text3),
+          child: Icon(
+            icon,
+            size: 16,
+            color: selected ? colors.text : colors.text3,
+          ),
         ),
       ),
     );

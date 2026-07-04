@@ -1,5 +1,12 @@
-import 'package:cockpit/app/core/app_intents.dart';
+import 'dart:io' show Platform;
+
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/app_intents.dart';
+import 'package:cockpit/app/core/ui/menu/app_menu_bar.dart';
+import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
+import 'package:cockpit/app/core/ui/menu/menu_model.dart';
+import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
+import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
@@ -20,9 +27,19 @@ class AppRoot extends StatelessWidget {
     // "Tamanho da interface" = **zoom do app inteiro** (texto, panes, ícones,
     // app bar, terminal). Baseline 14 = 1.0x. Ver [_AppZoom].
     final uiScale = s.interfaceSize / 14.0;
-    return ShadcnApp.router(
+    // Fonte de verdade dos menus (usada pelo menu nativo do macOS aqui e pela
+    // barra desenhada da janela [WindowMenuBar] no Windows/Linux, montada na
+    // barra de título do shell). `watch` no bridge do editor → o menu File
+    // (Save/Discard/Format) reconstrói e re-habilita conforme a aba focada.
+    final editor = context.watch<EditorMenuBridge>();
+    final workspace = context.watch<WorkspaceMenuBridge>();
+    final menus = buildAppMenus(controller, editor, workspace);
+    final app = ShadcnApp.router(
       title: 'Cockpit',
       debugShowCheckedModeBanner: false,
+      // Física de scroll CLAMP em todo o app (mata o bounce/overscroll estranho
+      // do default BouncingScrollPhysics do shadcn). Ver ClampingScrollBehavior.
+      scrollBehavior: const ClampingScrollBehavior(),
       theme: buildTheme(brightness: Brightness.light, settings: s),
       darkTheme: buildTheme(brightness: Brightness.dark, settings: s),
       themeMode: _themeMode(s.themeMode),
@@ -38,20 +55,35 @@ class AppRoot extends StatelessWidget {
         return CallbackShortcuts(
           // Atalhos globais (sempre na cadeia de foco): zoom (⌘=/⌘-/⌘0) e foco do
           // input (⌘L). CallbackShortcuts é aditivo (não quebra copiar/colar) e
-          // funciona mesmo sem nada focado.
-          bindings: {..._zoomBindings(controller), ..._focusBindings()},
-          child: _AppZoom(
-            scale: uiScale,
-            child: CockpitTheme(
-              colors: tokens.colors,
-              typo: tokens.typo,
-              syntax: tokens.syntax,
-              child: child ?? const SizedBox(),
+          // funciona mesmo sem nada focado. Fora do macOS somamos os aceleradores
+          // do menu (⌘,/⌘O etc): lá a barra é desenhada e não dispara teclas
+          // sozinha; no macOS a barra nativa já dispara, então não duplicamos.
+          bindings: {
+            ..._zoomBindings(controller),
+            ..._focusBindings(),
+            if (!Platform.isMacOS) ...menuShortcuts(menus),
+          },
+          // macOS: barra de menu **nativa** do SO — o [AppMenuBar] envolve com um
+          // `PlatformMenuBar`. Fica **abaixo** do `ShadcnApp` (dentro do builder,
+          // com `View`/`MediaQuery` ancestrais): acima dele o `setMenus` do engine
+          // não é aplicado. Windows/Linux: no-op aqui — a barra é desenhada na
+          // barra de título do shell pelo [WindowMenuBar].
+          child: AppMenuBar(
+            menus: menus,
+            child: _AppZoom(
+              scale: uiScale,
+              child: CockpitTheme(
+                colors: tokens.colors,
+                typo: tokens.typo,
+                syntax: tokens.syntax,
+                child: child ?? const SizedBox(),
+              ),
             ),
           ),
         );
       },
     );
+    return app;
   }
 
   ThemeMode _themeMode(AppThemeMode mode) => switch (mode) {

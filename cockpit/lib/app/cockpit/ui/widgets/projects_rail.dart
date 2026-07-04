@@ -26,8 +26,14 @@ class ProjectsRail extends StatefulWidget {
     required this.onDelete,
     required this.onCreateWorktree,
     required this.onRemoveWorktree,
+    required this.onMergeWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
     required this.onOpenSettings,
     required this.onReorder,
+    this.cockpit,
+    required this.onSelectCockpit,
     this.width = 252,
   });
 
@@ -36,6 +42,13 @@ class ProjectsRail extends StatefulWidget {
 
   /// Só os workspaces raiz; as worktrees vêm por [worktreesOf].
   final List<Project> projects;
+
+  /// O workspace de sistema "Cockpit" (terminal-only), renderizado num slot
+  /// fixo no topo, separado da lista de projetos. `null` quando desabilitado.
+  final Project? cockpit;
+
+  /// Seleciona o workspace de sistema "Cockpit".
+  final VoidCallback onSelectCockpit;
 
   /// Worktrees (forks) de um workspace raiz, na ordem do git.
   final List<Project> Function(String rootId) worktreesOf;
@@ -53,6 +66,14 @@ class ProjectsRail extends StatefulWidget {
 
   /// Abre o fluxo de remover uma worktree (fork). A confirmação fica na page.
   final ValueChanged<Project> onRemoveWorktree;
+
+  /// Mergeia a branch do worktree (fork) no workspace pai.
+  final ValueChanged<Project> onMergeWorktree;
+
+  /// Ações git no workspace raiz (só repos git).
+  final ValueChanged<Project> onSync;
+  final ValueChanged<Project> onPull;
+  final ValueChanged<Project> onPush;
 
   /// Abre a tela de Configurações (engrenagem no rodapé).
   final VoidCallback onOpenSettings;
@@ -87,6 +108,7 @@ class _ProjectsRailState extends State<ProjectsRail> {
           git: widget.gitInfo(forks[i].id),
           onTap: () => widget.onSelect(forks[i].id),
           onRemove: () => widget.onRemoveWorktree(forks[i]),
+          onMerge: () => widget.onMergeWorktree(forks[i]),
         ),
     ];
   }
@@ -115,17 +137,26 @@ class _ProjectsRailState extends State<ProjectsRail> {
                   style: context.typo.title.copyWith(color: colors.text),
                 ),
                 const Spacer(),
-                // Sem "+" quando não há workspace: a criação fica centralizada
-                // no onboarding da tela vazia.
-                if (projects.isNotEmpty)
-                  _SmallIcon(
-                    icon: Icons.add,
-                    tooltip: 'New workspace',
-                    onTap: () => onAdd(),
-                  ),
+                // "+" sempre visível: com o Cockpit fixo no topo o rail nunca
+                // fica realmente vazio, e criar workspace precisa estar à mão.
+                _SmallIcon(
+                  icon: Icons.add,
+                  tooltip: 'New workspace',
+                  onTap: () => onAdd(),
+                ),
               ],
             ),
           ),
+          // Slot fixo do workspace de sistema "Cockpit" (terminal-only), acima
+          // e separado da lista de projetos. Sem avatar/imagem, sem menu ⋮.
+          if (widget.cockpit != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+              child: _CockpitSlot(
+                selected: widget.cockpit!.id == widget.selectedId,
+                onTap: widget.onSelectCockpit,
+              ),
+            ),
           Expanded(
             child: projects.isEmpty
                 ? const _EmptyRail()
@@ -163,6 +194,9 @@ class _ProjectsRailState extends State<ProjectsRail> {
                                 onDelete: () => widget.onDelete(project),
                                 onCreateWorktree: () =>
                                     widget.onCreateWorktree(project),
+                                onSync: () => widget.onSync(project),
+                                onPull: () => widget.onPull(project),
+                                onPush: () => widget.onPush(project),
                               ),
                             ),
                             // Worktrees (forks) penduradas abaixo do workspace,
@@ -216,6 +250,53 @@ class _ProjectsRailState extends State<ProjectsRail> {
   }
 }
 
+/// Slot fixo do workspace de sistema "Cockpit": glifo de terminal + rótulo, sem
+/// avatar/imagem, sem menu de contexto (não é um projeto — não pode ser
+/// renomeado, excluído nem virar worktree). Selecionável como os demais.
+class _CockpitSlot extends StatelessWidget {
+  const _CockpitSlot({required this.selected, required this.onTap});
+
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return HoverTap(
+      color: selected ? colors.panel2 : Colors.transparent,
+      borderRadius: BorderRadius.circular(7),
+      onTap: onTap,
+      padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: colors.panel,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: colors.border),
+            ),
+            child: Icon(Icons.terminal, size: 17, color: colors.text2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Cockpit',
+              overflow: TextOverflow.ellipsis,
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text,
+                fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _ProjectItem extends StatelessWidget {
   const _ProjectItem({
     required this.project,
@@ -227,6 +308,9 @@ class _ProjectItem extends StatelessWidget {
     required this.onConfigure,
     required this.onDelete,
     required this.onCreateWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
   });
 
   final Project project;
@@ -238,6 +322,9 @@ class _ProjectItem extends StatelessWidget {
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
   final VoidCallback onCreateWorktree;
+  final VoidCallback onSync;
+  final VoidCallback onPull;
+  final VoidCallback onPush;
 
   @override
   Widget build(BuildContext context) {
@@ -304,10 +391,14 @@ class _ProjectItem extends StatelessWidget {
               const SizedBox(width: 4),
             ],
             _MenuButton(
+              workspaceId: project.id,
               canCreateWorktree: canCreateWorktree,
               onConfigure: onConfigure,
               onDelete: onDelete,
               onCreateWorktree: onCreateWorktree,
+              onSync: onSync,
+              onPull: onPull,
+              onPush: onPush,
             ),
           ],
         ),
@@ -330,6 +421,7 @@ class _WorktreeItem extends StatelessWidget {
     required this.git,
     required this.onTap,
     required this.onRemove,
+    required this.onMerge,
   });
 
   final Project worktree;
@@ -342,6 +434,7 @@ class _WorktreeItem extends StatelessWidget {
   final GitInfo? git;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+  final VoidCallback onMerge;
 
   @override
   Widget build(BuildContext context) {
@@ -389,7 +482,11 @@ class _WorktreeItem extends StatelessWidget {
                       hasNotification: notifications > 0,
                     ),
                     const SizedBox(width: 2),
-                    _ForkMenuButton(branch: worktree.name, onRemove: onRemove),
+                    _ForkMenuButton(
+                      branch: worktree.name,
+                      onRemove: onRemove,
+                      onMerge: onMerge,
+                    ),
                   ],
                 ),
               ),
@@ -403,15 +500,25 @@ class _WorktreeItem extends StatelessWidget {
 
 /// Menu ⋮ compacto do fork — só "Remover" (plan/42, decisão 13).
 class _ForkMenuButton extends StatelessWidget {
-  const _ForkMenuButton({required this.branch, required this.onRemove});
+  const _ForkMenuButton({
+    required this.branch,
+    required this.onRemove,
+    required this.onMerge,
+  });
 
   final String branch;
   final VoidCallback onRemove;
+  final VoidCallback onMerge;
 
   Future<void> _show(BuildContext context) async {
     final pick = await showAppMenu<String>(
       context,
       items: const [
+        AppMenuItem(
+          value: 'merge',
+          label: 'Merge to Parent',
+          icon: Icons.merge_type,
+        ),
         AppMenuItem(
           value: 'copy',
           label: 'Copy branch',
@@ -425,6 +532,7 @@ class _ForkMenuButton extends StatelessWidget {
         ),
       ],
     );
+    if (pick == 'merge') onMerge();
     if (pick == 'copy') {
       await Clipboard.setData(ClipboardData(text: branch));
     }
@@ -641,21 +749,37 @@ class _AheadBehind extends StatelessWidget {
 /// repo git) / Configurações / Deletar.
 class _MenuButton extends StatelessWidget {
   const _MenuButton({
+    required this.workspaceId,
     required this.canCreateWorktree,
     required this.onConfigure,
     required this.onDelete,
     required this.onCreateWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
   });
 
+  /// Id do workspace (`projectId`) — copiável pra usar na CLI `cockpit`
+  /// (`--workspace-id` / filtros de `list-panes`).
+  final String workspaceId;
   final bool canCreateWorktree;
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
   final VoidCallback onCreateWorktree;
+  final VoidCallback onSync;
+  final VoidCallback onPull;
+  final VoidCallback onPush;
 
   Future<void> _show(BuildContext context) async {
     final pick = await showAppMenu<String>(
       context,
       items: [
+        // Ações de sincronização só em repo git.
+        if (canCreateWorktree) ...const [
+          AppMenuItem(value: 'sync', label: 'Sync', icon: Icons.sync),
+          AppMenuItem(value: 'pull', label: 'Pull', icon: Icons.arrow_downward),
+          AppMenuItem(value: 'push', label: 'Push', icon: Icons.arrow_upward),
+        ],
         // "Criar worktree" só aparece quando o workspace é um repo git.
         if (canCreateWorktree)
           const AppMenuItem(
@@ -663,6 +787,11 @@ class _MenuButton extends StatelessWidget {
             label: 'Create worktree',
             icon: Icons.call_split,
           ),
+        const AppMenuItem(
+          value: 'copy-id',
+          label: 'Copy workspace id',
+          icon: Icons.content_copy,
+        ),
         const AppMenuItem(
           value: 'config',
           label: 'Settings',
@@ -676,7 +805,13 @@ class _MenuButton extends StatelessWidget {
         ),
       ],
     );
+    if (pick == 'sync') onSync();
+    if (pick == 'pull') onPull();
+    if (pick == 'push') onPush();
     if (pick == 'worktree') onCreateWorktree();
+    if (pick == 'copy-id') {
+      await Clipboard.setData(ClipboardData(text: workspaceId));
+    }
     if (pick == 'config') onConfigure();
     if (pick == 'delete') onDelete();
   }

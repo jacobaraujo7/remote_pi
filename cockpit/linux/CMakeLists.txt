@@ -127,6 +127,42 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
     COMPONENT Runtime)
 endif()
 
+# === tool → cockpit-hook + cockpit-cli (helpers Dart AOT) ===
+# Compila o helper de hook (status de turno do claude) e a CLI interna
+# (send/send-key/list-panes/open) e os instala **ao lado do binário** (raiz do
+# bundle, onde o [_bundledHelper] os procura). Em runtime o ClaudeHookInstaller
+# os materializa em ~/.cockpit/bin. Equivale ao build_hook.sh/build_cli.sh do
+# macOS e ao bloco correspondente no windows/CMakeLists.txt.
+if(DEFINED ENV{FLUTTER_ROOT})
+  set(DART_EXE "$ENV{FLUTTER_ROOT}/bin/dart")
+else()
+  set(DART_EXE "dart")
+endif()
+
+set(COCKPIT_HOOK_SRC "${CMAKE_SOURCE_DIR}/../tool/cockpit_hook.dart")
+set(COCKPIT_HOOK_EXE "${CMAKE_BINARY_DIR}/cockpit-hook")
+add_custom_command(
+  OUTPUT "${COCKPIT_HOOK_EXE}"
+  COMMAND "${DART_EXE}" compile exe "${COCKPIT_HOOK_SRC}" -o "${COCKPIT_HOOK_EXE}"
+  DEPENDS "${COCKPIT_HOOK_SRC}"
+  COMMENT "Compilando cockpit-hook"
+  VERBATIM)
+add_custom_target(cockpit_hook ALL DEPENDS "${COCKPIT_HOOK_EXE}")
+install(PROGRAMS "${COCKPIT_HOOK_EXE}" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
+set(COCKPIT_CLI_SRC "${CMAKE_SOURCE_DIR}/../tool/cockpit_cli.dart")
+set(COCKPIT_CLI_EXE "${CMAKE_BINARY_DIR}/cockpit-cli")
+add_custom_command(
+  OUTPUT "${COCKPIT_CLI_EXE}"
+  COMMAND "${DART_EXE}" compile exe "${COCKPIT_CLI_SRC}" -o "${COCKPIT_CLI_EXE}"
+  DEPENDS "${COCKPIT_CLI_SRC}"
+  COMMENT "Compilando cockpit-cli"
+  VERBATIM)
+add_custom_target(cockpit_cli ALL DEPENDS "${COCKPIT_CLI_EXE}")
+install(PROGRAMS "${COCKPIT_CLI_EXE}" DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  COMPONENT Runtime)
+
 # === Desktop integration (nome + ícone para publicação) ===
 # .desktop com Name=Cockpit, e ícones do tema hicolor nomeados pelo
 # APPLICATION_ID (work.jacobmoura.cockpit) — é assim que o launcher/dock e a

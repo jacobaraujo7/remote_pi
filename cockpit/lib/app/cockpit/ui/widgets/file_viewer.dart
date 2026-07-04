@@ -13,6 +13,7 @@ import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
+import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
@@ -271,8 +272,47 @@ class _FileViewerState extends State<FileViewer> {
     });
   }
 
+  /// Bridge app-scoped do menu File (Save/Discard/Format). Capturado em
+  /// [didChangeDependencies] pra ficar acessível no [dispose] (onde `context`
+  /// já não pode ser lido).
+  EditorMenuBridge? _menuBridge;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _menuBridge = context.read<EditorMenuBridge>();
+  }
+
+  /// Publica (ou limpa) o estado do menu File conforme esta aba. Só publica se
+  /// for a aba **focada** e em edição; senão libera o menu (item cinza). As
+  /// capacidades espelham exatamente os botões da toolbar (Save/Discard exigem
+  /// `dirty && !saving`; Format exige só `!saving`). `owner: this` garante que a
+  /// aba antiga não apague o estado da nova ao perder o foco.
+  void _syncMenuBridge() {
+    final bridge = _menuBridge;
+    if (bridge == null) return;
+    if (widget.focused && _editingNow) {
+      final canWrite = _dirty && !_saving;
+      bridge.publish(
+        owner: this,
+        canSave: canWrite,
+        canDiscard: canWrite,
+        canFormat: !_saving,
+        onSave: () => _save().whenComplete(_refocusEditor),
+        onDiscard: () {
+          _discard();
+          _refocusEditor();
+        },
+        onFormat: () => _format().whenComplete(_refocusEditor),
+      );
+    } else {
+      bridge.clear(this);
+    }
+  }
+
   @override
   void dispose() {
+    _menuBridge?.clear(this);
     widget.session.removeListener(_onSession);
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _lspDebounce?.cancel();
@@ -609,6 +649,12 @@ class _FileViewerState extends State<FileViewer> {
     // Texto/código sem preview edita direto; markdown/svg só editam quando o
     // switch está em "Source".
     final editingNow = editable && (!_hasPreview || _editing);
+
+    // Reflete o estado atual no menu File (Save/Discard/Format). Post-frame
+    // porque `publish/clear` pode `notifyListeners` (não pode rodar durante build).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _syncMenuBridge();
+    });
 
     final Widget body = switch (widget.session.view) {
       FileViewMarkdown(:final text) =>

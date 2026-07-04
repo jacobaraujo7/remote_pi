@@ -34,7 +34,10 @@ Decisões fechadas (plano 37, 2026-06-05):
   (re-exportados pelo `flutter_modular` — API igual à do `provider`).
 - Resultado tipado: `Result<T, E>`
 - Subprocesso: `dart:io` `Process.start` (spawn do `pi --mode rpc`)
-- Menu nativo: `PlatformMenuBar`
+- Menu de app: abstração em `core/ui/menu/` — modelo declarativo único
+  (`menu_model.dart`), renderizado nativo no macOS (`PlatformMenuBar`) e
+  desenhado na barra de título no Windows/Linux (`Menubar` do shadcn, via
+  `WindowMenuBar`). Fonte de verdade em `buildAppMenus()`
 
 > **Diverge do `app/` de propósito**: o cockpit é organizado em **fatias verticais
 > por feature** (`lib/app/<feature>/{domain,data,ui}`), não em camadas globais. A
@@ -105,6 +108,13 @@ ui ──► domain ◄── data
 - **Async**: prefira `Future`/`Stream` tipados, evite `dynamic` (o stream de
   eventos RPC é tipado em `domain/`, nunca `Map<String, dynamic>` cru na `ui/`)
 - **Erros**: `Result<T, E>` ou exceptions tipadas; nunca `catch (e)` genérico em produção
+- **Scroll = CLAMP**: todo scroll do app usa `ClampingScrollPhysics` (nada de
+  bounce/overscroll estranho). Isso já é global via `ClampingScrollBehavior`
+  (`core/ui/clamping_scroll_behavior.dart`), ligado no `ShadcnApp.router(scrollBehavior:)`
+  — qualquer `ListView`/`SingleChildScrollView`/`Scrollable` novo **herda** e não
+  precisa setar `physics:`. **Nunca** use `BouncingScrollPhysics` (default do shadcn);
+  se precisar customizar um scrollable, mantenha a física clamp (ou omita `physics:`
+  pra herdar). `ScrollConfiguration.of(context).copyWith(...)` preserva o clamp.
 - **ViewModels**: `ChangeNotifier` page-scoped, providos no `provide:` da rota
   (`s.addChangeNotifier<T>(…)`) **dentro do `<feature>_module.dart`**; páginas nunca
   instanciam ViewModel — sempre `context.watch/read/select`. Nascem ao montar a

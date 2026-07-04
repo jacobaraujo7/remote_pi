@@ -93,6 +93,7 @@ import {
   loadLocalConfig,
   localConfigExists,
   saveLocalConfig,
+  sanitizeSegment,
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
@@ -408,6 +409,11 @@ export function _setPiForTest(pi: unknown): void {
   _pi = pi as typeof _pi;
 }
 
+/** Test-only: drive the pi → remote-pi name sync once and await it. */
+export async function _syncNameFromPiForTest(): Promise<void> {
+  await _syncNameFromPi();
+}
+
 /**
  * Persist a model change to the PROJECT settings (`<cwd>/.pi/settings.json`) so
  * a model picked from the app survives a Pi/daemon restart. `pi.setModel` only
@@ -585,6 +591,39 @@ function _displayName(cwd: string): string {
   if (_meshNode) return _meshNode.name();
   const local = loadLocalConfig(cwd);
   return local.agent_name || defaultAgentName(cwd);
+}
+
+// ── Pi → remote-pi name sync ───────────────────────────────────────────────────
+/**
+ * Mirror the pi session display name (`pi --name` / `/name`) into remote-pi's
+ * mesh identity. Pi is the source of truth: when the user sets a session name,
+ * it becomes agent_name (persisted, so it survives restarts) AND the live mesh
+ * peer name (broker re-register + relay room swap via _renameAgent).
+ *
+ * No-op when the pi session name is unset/blank — we never clobber a configured
+ * identity with a missing one. Re-entrancy guard + diff check mean this only
+ * does real work when the name actually changed, so calling it on every
+ * turn_start is cheap and never thrashes the relay.
+ */
+let _syncingName = false;
+async function _syncNameFromPi(): Promise<void> {
+  if (_disposed || _syncingName) return;
+  const piName = _pi?.getSessionName?.();
+  if (!piName || !piName.trim()) return;
+  const requested = sanitizeSegment(piName.trim());
+  if (!requested) return;
+  const cwd = process.cwd();
+  if (loadLocalConfig(cwd).agent_name !== requested)
+    saveLocalConfig(cwd, { agent_name: requested });
+  if (!_meshNode) return;
+  const base = _meshNode.name().replace(/#\d+$/, "");
+  if (base === requested) return;
+  _syncingName = true;
+  try {
+    await _renameAgent(requested);
+  } finally {
+    _syncingName = false;
+  }
 }
 
 // ── Peer lookup helpers ───────────────────────────────────────────────────────
@@ -1179,7 +1218,37 @@ let _lastCtx: Pick<ExtensionContext, "ui" | "abort" | "cwd"> | null = null;
 let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort"> | null = null;
 const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 
+// A single Pi process can load this extension TWICE in the SAME session:
+// pi-supervisord launches each daemon child as `pi -e <dist>/index.js`, but if
+// remote-pi is ALSO installed as a pi-package (auto-discovered from
+// ~/.pi/agent/extensions or <cwd>/.pi/extensions), Pi loads it a second time
+// for that same session. Both loads receive the same session-scoped `pi` and
+// would re-run registerTool/registerCommand for identical names — a hard
+// duplicate-registration conflict that crashes the daemon child on boot (see
+// daemon/rpc_child.ts). Idempotent, first-load-wins: whichever load runs first
+// does all the wiring; the duplicate is an inert no-op. A genuine session
+// REPLACEMENT gets a FRESH `pi`, so re-registration for the new session still
+// happens.
+//
+// We track "already wired" in a process-global WeakSet keyed by `pi` rather
+// than by mutating the host SDK object. The two loads are DISTINCT module
+// instances (the SDK's jiti loader uses moduleCache:false, and the `-e` path vs
+// the installed path resolve to different files), so a module-level Set can't
+// dedupe them; the WeakSet lives on `globalThis` under a `Symbol.for` key so
+// both module instances resolve the SAME set. Keying weakly by `pi` records the
+// fact without adding a foreign property to the API object and lets each `pi`
+// be GC'd when its session ends (no leak).
+const _APPLIED_REGISTRY_KEY = Symbol.for("remote-pi.extension.appliedRegistry");
+function _appliedRegistry(): WeakSet<object> {
+  const g = globalThis as typeof globalThis & { [_APPLIED_REGISTRY_KEY]?: WeakSet<object> };
+  return (g[_APPLIED_REGISTRY_KEY] ??= new WeakSet<object>());
+}
+
 const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
+  const applied = _appliedRegistry();
+  if (applied.has(pi)) return;  // this session's pi was already wired
+  applied.add(pi);
+
   _pi = pi;
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
@@ -1337,6 +1406,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // room_meta over the relay (plan/32) below — that's independent of the
   // broker and drives the app's working indicator.
   pi.on("turn_start", (_event, ctx) => {
+    // Pi → remote-pi name sync: the pi session name can change between turns
+    // (`/name X`) and the SDK has no event for it, so re-check every turn.
+    // Cheap diff guard — only does real work when the name actually changed.
+    void _syncNameFromPi();
     // Late model hydration: if the model was still unknown at connect (resolved
     // lazily by the SDK), grab it on the first turn and fan it out — so a daemon
     // whose model only materialises at turn 1 still reports it to the app.
@@ -1390,6 +1463,11 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    // Pi → remote-pi name sync: persist the pi session name (if set) BEFORE
+    // _cmdRoot/_cmdJoin reads config, so the first mesh join already uses it.
+    // Only persists here (no _meshNode yet); the live rename happens later via
+    // the turn_start hook once the mesh is up.
+    void _syncNameFromPi();
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -1502,6 +1580,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       return [
         "setup", "status", "stop",
         "pair", "devices", "revoke",
+        "rename",
         "set-relay",
         "peers",  // plan/25 Wave D — local + cross-PC inventory
         "create", "remove", "daemons",  // daemon registry (plan/26 W1)
@@ -1526,6 +1605,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       else if (sub === "devices")                { await _cmdList(ctx); }
       else if (sub.startsWith("revoke"))         { await _cmdRevoke(sub.slice("revoke".length).trim(), ctx); }
       else if (sub.startsWith("set-relay"))      { _cmdSetRelay(sub.slice("set-relay".length).trim(), ctx); }
+      else if (sub === "rename" || sub.startsWith("rename ")) { await _renameAgent(sub.slice("rename".length).trim()); }
       else if (sub === "peers")                  { await _cmdPeers(ctx); }
       else if (sub.startsWith("create"))         { await _cmdCreate(sub.slice("create".length).trim(), ctx); }
       else if (sub.startsWith("remove"))         { await _cmdRemove(sub.slice("remove".length).trim(), ctx); }
@@ -1550,6 +1630,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   pi.registerCommand("remote-pi stop",     { description: "Stop everything (leave local mesh + disconnect relay)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStop(ctx); } });
   pi.registerCommand("remote-pi pair",     { description: "Show a QR code to pair a new mobile device (optional: --ttl <seconds>)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdPair(ctx, args.trim()); } });
   pi.registerCommand("remote-pi devices",  { description: "List paired mobile devices", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdList(ctx); } });
+  pi.registerCommand("remote-pi rename",  { description: "Rename this agent in the current session (updates mesh + relay room)", handler: async (args, ctx) => { _lastCtx = ctx; await _renameAgent(args.trim()); } });
   pi.registerCommand("remote-pi revoke", {
     description: "Revoke a paired device by its shortid",
     getArgumentCompletions: async (prefix) => _shortidCompletions(prefix),
@@ -1682,7 +1763,14 @@ async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   // Lock identity is (cwd, name). Several agents may run in the SAME folder; the
   // requested name just has to be made unique. Derive the name the same way
   // `_cmdJoin` does so the lock and the mesh registration agree on identity.
-  const requestedName = loadLocalConfig(cwd).agent_name || defaultAgentName(cwd);
+  // Pi session name (`pi --name` / `/name`) is the source of truth — when set,
+  // it wins over the persisted agent_name so the mesh identity follows the pi
+  // session label. Falls back to config, then to basename(cwd).
+  const _piSessionName = _pi?.getSessionName?.();
+  const requestedName =
+    (_piSessionName && _piSessionName.trim() && sanitizeSegment(_piSessionName.trim()))
+    || loadLocalConfig(cwd).agent_name
+    || defaultAgentName(cwd);
 
   // Per-(cwd,name) lock. Interactive agents may coexist by auto-suffixing
   // (`name#2`, `name#3`, …), but supervised daemons must be singletons for their

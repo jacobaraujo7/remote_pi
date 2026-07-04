@@ -108,6 +108,22 @@ add_custom_target(cockpit_hook ALL DEPENDS "${COCKPIT_HOOK_EXE}")
 install(PROGRAMS "${COCKPIT_HOOK_EXE}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# === cockpit CLI (CLI interna: send/send-key/list-panes) ===
+# Compila a CLI como `cockpit-cli.exe` (nome distinto do runner) e a instala ao
+# lado do binário. Em runtime o ClaudeHookInstaller a materializa como
+# ~/.cockpit/bin/cockpit.exe. Equivale ao Run Script phase do macOS (build_cli.sh).
+set(COCKPIT_CLI_SRC "${CMAKE_SOURCE_DIR}/../tool/cockpit_cli.dart")
+set(COCKPIT_CLI_EXE "${CMAKE_BINARY_DIR}/cockpit-cli.exe")
+add_custom_command(
+  OUTPUT "${COCKPIT_CLI_EXE}"
+  COMMAND "${DART_EXE}" compile exe "${COCKPIT_CLI_SRC}" -o "${COCKPIT_CLI_EXE}"
+  DEPENDS "${COCKPIT_CLI_SRC}"
+  COMMENT "Compilando cockpit-cli.exe"
+  VERBATIM)
+add_custom_target(cockpit_cli ALL DEPENDS "${COCKPIT_CLI_EXE}")
+install(PROGRAMS "${COCKPIT_CLI_EXE}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
+  COMPONENT Runtime)
+
 # Copy the native assets provided by the build.dart from all packages.
 set(NATIVE_ASSETS_DIR "${PROJECT_BUILD_DIR}native_assets/windows/")
 install(DIRECTORY "${NATIVE_ASSETS_DIR}"

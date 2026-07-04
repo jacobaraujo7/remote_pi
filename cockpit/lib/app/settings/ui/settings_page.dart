@@ -20,6 +20,7 @@ import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/pairing_dialog.dart';
 import 'package:cockpit/app/settings/ui/revoke_dialog.dart';
 import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
+import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -39,6 +40,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 enum _Category {
+  general,
   appearance,
   languages,
   notifications,
@@ -56,7 +58,7 @@ extension on _Category {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  _Category _category = _Category.appearance;
+  _Category _category = _Category.general;
 
   @override
   void initState() {
@@ -91,6 +93,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
                 Expanded(
                   child: switch (category) {
+                    _Category.general => const _GeneralPanel(),
                     _Category.appearance => const _AppearancePanel(),
                     _Category.languages => const _LanguagesPanel(),
                     _Category.notifications => const _NotificationsPanel(),
@@ -166,6 +169,12 @@ class _CategoryNav extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       child: Column(
         children: [
+          _NavItem(
+            icon: Icons.tune,
+            label: 'General',
+            selected: selected == _Category.general,
+            onTap: () => onSelect(_Category.general),
+          ),
           _NavItem(
             icon: Icons.palette_outlined,
             label: 'Appearance',
@@ -302,6 +311,107 @@ class _NavItem extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
+// General
+// ---------------------------------------------------------------------------
+class _GeneralPanel extends StatelessWidget {
+  const _GeneralPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final s = controller.settings;
+    // `agentTabsInUse` é publicado pelo shell (cross-route) via bridge app-scoped.
+    final agentsInUse = context.watch<WorkspaceMenuBridge>().agentTabsInUse;
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Section(
+                label: 'Agent',
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: 'Enable agents',
+                      description:
+                          'Show the option to open agent tabs (pi). When off, '
+                          'Cockpit works as a terminal-only workspace.',
+                      // Mantém o switch clicável: tentar DESLIGAR com um agente em
+                      // uso mostra um erro explicando o porquê (em vez de um switch
+                      // inerte, sem feedback). Ligar é sempre permitido.
+                      trailing: Switch(
+                        value: s.enableAgent,
+                        onChanged: (value) {
+                          if (!value && agentsInUse) {
+                            _notifyAgentsInUse(context);
+                            return;
+                          }
+                          controller.setEnableAgent(value);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _Section(
+                label: 'Cockpit',
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: 'Show Cockpit terminal',
+                      description:
+                          'Keep a pathless, terminal-only workspace pinned at '
+                          'the top of the rail. Turning it off closes its '
+                          'terminals.',
+                      trailing: Switch(
+                        value: s.showCockpit,
+                        onChanged: controller.setShowCockpit,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Erro ao tentar desligar agentes com uma aba de agente aberta.
+  void _notifyAgentsInUse(BuildContext context) {
+    final colors = context.colors;
+    showToast(
+      context: context,
+      location: ToastLocation.bottomRight,
+      builder: (context, overlay) => SurfaceCard(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 18, color: colors.error),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  "Can't turn agents off while an agent tab is open. "
+                  'Close all agent tabs first, then disable it.',
+                  style: context.typo.label.copyWith(color: colors.text),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // Aparência
 // ---------------------------------------------------------------------------
 class _AppearancePanel extends StatelessWidget {

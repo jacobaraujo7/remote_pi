@@ -7,6 +7,9 @@ import 'package:cockpit/app/cockpit/data/filesystem/file_searcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_mutator_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/folder_lister_impl.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/git_command_runner_impl.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/git_diff_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/session_history_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/worktree_manager_impl.dart';
@@ -34,6 +37,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
@@ -118,8 +123,11 @@ Future<Module> buildCockpitModule() async {
         ..addInstance<FileReader>(const FileReaderImpl())
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<ContentSearcher>(const ContentSearcherImpl())
-        ..addInstance<GitStatusReader>(GitStatusReaderImpl())
-        ..addInstance<WorktreeManager>(WorktreeManagerImpl())
+        ..addInstance<GitBinary>(GitBinary())
+        ..addLazySingleton<GitStatusReader>(GitStatusReaderImpl.new)
+        ..addLazySingleton<WorktreeManager>(WorktreeManagerImpl.new)
+        ..addLazySingleton<GitCommandRunner>(GitCommandRunnerImpl.new)
+        ..addLazySingleton<GitDiffReader>(GitDiffReaderImpl.new)
         ..addInstance<SessionHistory>(const SessionHistoryImpl())
         ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())
         ..addInstance<TerminalScrollbackStore>(

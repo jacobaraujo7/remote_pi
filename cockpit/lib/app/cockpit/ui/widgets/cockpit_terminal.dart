@@ -281,13 +281,23 @@ class CockpitTerminalState extends State<CockpitTerminal> {
       },
     );
 
-    child = TerminalScrollGestureHandler(
-      terminal: widget.terminal,
-      simulateScroll: widget.simulateScroll,
-      getCellOffset: (offset) => renderTerminal.getCellOffset(offset),
-      getLineHeight: () => renderTerminal.lineHeight,
-      child: child,
-    );
+    // Quando a app dona o scroll (claude/vim com mouse reporting), o [TerminalPane]
+    // é a única autoridade do wheel — ele encaminha em ambos os buffers. Nesse
+    // modo NÃO montamos o TerminalScrollGestureHandler do xterm: no alt-buffer ele
+    // criaria um segundo `Scrollable` (InfiniteScrollView) que disputa o mesmo
+    // pointer signal com o nosso `Listener` — a disputa dos dois scrollables era o
+    // que travava o scroll (e pesava no gesture arena). Fora desse modo (shell
+    // normal, `less`/`man` sem mouse reporting) o handler do xterm segue ativo pra
+    // rolar o scrollback / simular setas no alt-buffer.
+    if (!_appOwnsScroll) {
+      child = TerminalScrollGestureHandler(
+        terminal: widget.terminal,
+        simulateScroll: widget.simulateScroll,
+        getCellOffset: (offset) => renderTerminal.getCellOffset(offset),
+        getLineHeight: () => renderTerminal.lineHeight,
+        child: child,
+      );
+    }
 
     if (!widget.hardwareKeyboardOnly) {
       child = CustomTextEdit(

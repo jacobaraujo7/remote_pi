@@ -26,6 +26,10 @@ class AppSettings {
     this.soundEnabled = true,
     this.searchPanelHeight = 260,
     this.tasksPanelHeight = 200,
+    this.enableAgent = false,
+    this.railVisible = false,
+    this.treeVisible = false,
+    this.showCockpit = true,
   });
 
   final AppThemeMode themeMode;
@@ -83,6 +87,26 @@ class AppSettings {
   /// Altura (px) da área de lista do subpane de Tasks (redimensionável).
   final double tasksPanelHeight;
 
+  /// Habilita o suporte a **agentes** (abas de `pi`). Desligado por padrão em
+  /// instalações novas (experiência terminal-first); ligado por migração para
+  /// quem já usava agentes numa versão anterior (ver `HiveSettingsStore.load`).
+  /// Com ela desligada, o app não oferece criar aba de agente (só terminal).
+  final bool enableAgent;
+
+  /// Visibilidade do painel esquerdo (rail de projetos). Persistido entre
+  /// sessões; fechado por padrão em instalações novas.
+  final bool railVisible;
+
+  /// Visibilidade do painel direito (árvore de arquivos). Persistido entre
+  /// sessões; fechado por padrão em instalações novas.
+  final bool treeVisible;
+
+  /// Mostra o workspace de sistema "Cockpit" (terminal-only, sem pasta) fixo no
+  /// topo do rail. Ligado por padrão; desligar remove o slot e mata seus PTYs.
+  /// Persistido; migração liga automático para quem já usava (ver
+  /// `HiveSettingsStore.load`).
+  final bool showCockpit;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? interfaceFont,
@@ -103,6 +127,10 @@ class AppSettings {
     bool? soundEnabled,
     double? searchPanelHeight,
     double? tasksPanelHeight,
+    bool? enableAgent,
+    bool? railVisible,
+    bool? treeVisible,
+    bool? showCockpit,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -125,6 +153,10 @@ class AppSettings {
       soundEnabled: soundEnabled ?? this.soundEnabled,
       searchPanelHeight: searchPanelHeight ?? this.searchPanelHeight,
       tasksPanelHeight: tasksPanelHeight ?? this.tasksPanelHeight,
+      enableAgent: enableAgent ?? this.enableAgent,
+      railVisible: railVisible ?? this.railVisible,
+      treeVisible: treeVisible ?? this.treeVisible,
+      showCockpit: showCockpit ?? this.showCockpit,
     );
   }
 
@@ -145,6 +177,14 @@ class AppSettings {
     if (!soundEnabled) 'soundEnabled': false,
     'searchPanelHeight': searchPanelHeight,
     'tasksPanelHeight': tasksPanelHeight,
+    // Sempre gravado (mesmo quando false) para a migração distinguir "install
+    // novo" (chave presente = false) de "upgrade sem a flag" (chave ausente).
+    'enableAgent': enableAgent,
+    if (railVisible) 'railVisible': true,
+    if (treeVisible) 'treeVisible': true,
+    // Sempre gravado: a migração distingue "install novo" (chave presente) de
+    // "upgrade sem a flag" (chave ausente → liga automático).
+    'showCockpit': showCockpit,
   };
 
   factory AppSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -176,9 +216,12 @@ class AppSettings {
       formatOnSave: json['formatOnSave'] as bool? ?? false,
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
       soundEnabled: json['soundEnabled'] as bool? ?? true,
-      searchPanelHeight:
-          (json['searchPanelHeight'] as num?)?.toDouble() ?? 260,
+      searchPanelHeight: (json['searchPanelHeight'] as num?)?.toDouble() ?? 260,
       tasksPanelHeight: (json['tasksPanelHeight'] as num?)?.toDouble() ?? 200,
+      enableAgent: json['enableAgent'] as bool? ?? false,
+      railVisible: json['railVisible'] as bool? ?? false,
+      treeVisible: json['treeVisible'] as bool? ?? false,
+      showCockpit: json['showCockpit'] as bool? ?? true,
     );
   }
 }

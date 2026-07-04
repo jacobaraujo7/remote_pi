@@ -9,7 +9,12 @@ import 'package:flutter/widgets.dart';
 /// sobrescrevê-lo para devolver os spans do highlight.js + diagnostics dá tudo
 /// ao vivo enquanto se digita — sem reimplementar pintura, seleção ou cursor.
 class CodeEditingController extends TextEditingController {
-  CodeEditingController({super.text, required this.language});
+  CodeEditingController({super.text, required this.language}) {
+    // Sem seleção explícita, o TextEditingController nasce com selection inválida
+    // (offset -1); ao ganhar foco, o cursor pula pro FIM do texto e o viewport
+    // rola pro rodapé. Ancorar no início abre o arquivo no começo (esperado).
+    selection = const TextSelection.collapsed(offset: 0);
+  }
 
   /// Linguagem (extensão) pro highlight; `null`/desconhecida cai em texto puro.
   final String? language;

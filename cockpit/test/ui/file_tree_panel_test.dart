@@ -40,6 +40,9 @@ void main() {
                 onSelectFile: (path) {
                   selectedFile = path;
                 },
+                onOpenDiff: (path) {},
+                isGitRepo: false,
+                changedPaths: const [],
                 onOpenWith: (path) {},
                 onCreateInFolder: (sub, terminal) {},
                 onCreate: (parentDir, name, isFolder) async =>

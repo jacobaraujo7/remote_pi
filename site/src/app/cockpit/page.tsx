@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { Callout } from "@/components/callout";
+import { CodeBlock } from "@/components/code-block";
 import { RevealController } from "@/components/landing/reveal-controller";
 import { IconDownload, IconGithub, IconArrow } from "@/components/landing/icons";
 
@@ -236,6 +237,90 @@ export default function CockpitPage() {
                   the agents themselves do the talking.
                 </p>
               </Callout>
+            </div>
+          </section>
+
+          {/* ---------------- CLI ---------------- */}
+          <section id="cli">
+            <div className="section-head reveal" style={{ marginTop: 110 }}>
+              <span className="eyebrow">CLI</span>
+              <h2>Drive the panes from inside a pane.</h2>
+              <p>
+                Cockpit ships a small <code>cockpit</code> command — a control
+                mode for its terminals. From any shell in the app, an agent (or
+                you) can type into another pane, press keys, open files in the
+                viewer, and list what&apos;s open. It&apos;s on the{" "}
+                <code>PATH</code> only inside Cockpit&apos;s own terminals, so it
+                never leaks into your global shell.
+              </p>
+            </div>
+
+            <div className="reveal" style={{ marginTop: 28, maxWidth: 760 }}>
+              <Callout title="Where it lives">
+                <p>
+                  The binary is app-managed under <code>~/.cockpit/bin</code> and
+                  added to the <code>PATH</code> of Cockpit&apos;s terminals only.
+                  Commands target the current pane by default (
+                  <code>$COCKPIT_PANE_ID</code>) — pass <code>--tab-id</code> to
+                  reach another one.
+                </p>
+              </Callout>
+            </div>
+
+            <div
+              className="reveal"
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+                gap: 18,
+                marginTop: 28,
+                maxWidth: 760,
+              }}
+            >
+              <div className="feat-card">
+                <h3>Type across panes</h3>
+                <p>
+                  <code>send</code> writes literal text into a terminal and{" "}
+                  <code>send-key</code> presses named keys — <code>Enter</code>,{" "}
+                  <code>Tab</code>, <code>Escape</code>, <code>C-c</code> — so one
+                  agent can steer another&apos;s shell.
+                </p>
+              </div>
+              <div className="feat-card">
+                <h3>Open files in the viewer</h3>
+                <p>
+                  <code>open &lt;file&gt;</code> (or just <code>cockpit
+                  &lt;file&gt;</code>) resolves the path against the pane&apos;s
+                  working directory and opens it in a viewer tab beside the
+                  terminal.
+                </p>
+              </div>
+              <div className="feat-card">
+                <h3>See what&apos;s open</h3>
+                <p>
+                  <code>list-panes</code> and <code>list-workspaces</code> report
+                  the pane and workspace ids you need to target — the same ids{" "}
+                  <code>--tab-id</code> accepts.
+                </p>
+              </div>
+            </div>
+
+            <div className="reveal" style={{ marginTop: 28, maxWidth: 760 }}>
+              <CodeBlock
+                label="Cockpit terminal"
+                prompt
+                code={`# type a command into this pane and run it
+cockpit send "pnpm test"
+cockpit send-key Enter
+
+# steer another pane by id
+cockpit list-panes
+cockpit send --tab-id 2 "git status"
+cockpit send-key --tab-id 2 Enter
+
+# open a file in the viewer, next to the terminal
+cockpit open src/app/page.tsx`}
+              />
             </div>
           </section>
 

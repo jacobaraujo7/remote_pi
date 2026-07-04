@@ -30,6 +30,8 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>FLTEnableMergedPlatformUIThread</key>
+	<false/>
 	<!-- Plano 47 — self-update via Sparkle (pacote auto_updater). Chave pública
 	     EdDSA (a privada vive no iCloud + secret SPARKLE_PRIVATE_KEY). O feed
 	     (appcast-macos.xml) é setado em runtime via setFeedURL (delegate do
