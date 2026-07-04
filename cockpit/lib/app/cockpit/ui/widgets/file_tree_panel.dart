@@ -38,8 +38,13 @@ class FileTreePanel extends StatefulWidget {
     this.width = 300,
     this.footer,
     this.searchPanel,
+    this.searchFocusSignal,
     this.tasksPanel,
   });
+
+  /// Notificado a cada Cmd+Shift+F → ativa a aba de busca (além de focar o
+  /// campo, que o próprio [searchPanel] faz). `null` = sem projeto.
+  final Listenable? searchFocusSignal;
 
   /// Rodapé opcional, fixado abaixo da árvore (ex.: barra de status do LSP).
   final Widget? footer;
@@ -114,6 +119,10 @@ class FileTreePanel extends StatefulWidget {
   State<FileTreePanel> createState() => _FileTreePanelState();
 }
 
+/// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo ou
+/// source control. Ordem visual no header: Files · Search · Source Control.
+enum _RightPaneTab { files, search, sourceControl }
+
 /// Intenção de criação inline pendente: dentro de [parentPath], arquivo ou pasta.
 class _PendingCreate {
   const _PendingCreate(this.parentPath, this.isFolder);
@@ -125,8 +134,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
   int _localRefresh = 0;
   String? _selectedPath;
 
-  /// `true` = modo "Source Control" (só arquivos modificados, árvore podada).
-  bool _scMode = false;
+  /// Aba ativa do painel: árvore de arquivos, busca ou source control.
+  _RightPaneTab _tab = _RightPaneTab.files;
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -137,9 +146,32 @@ class _FileTreePanelState extends State<FileTreePanel> {
   final FocusNode _treeFocus = FocusNode(debugLabel: 'fileTree');
 
   @override
+  void initState() {
+    super.initState();
+    widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
+  }
+
+  @override
+  void didUpdateWidget(FileTreePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchFocusSignal != widget.searchFocusSignal) {
+      oldWidget.searchFocusSignal?.removeListener(_onSearchFocusRequested);
+      widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
+    }
+  }
+
+  @override
   void dispose() {
+    widget.searchFocusSignal?.removeListener(_onSearchFocusRequested);
     _treeFocus.dispose();
     super.dispose();
+  }
+
+  /// Cmd+Shift+F: revela a aba de busca (o campo é focado pelo próprio painel).
+  void _onSearchFocusRequested() {
+    if (widget.searchPanel != null && _tab != _RightPaneTab.search) {
+      setState(() => _tab = _RightPaneTab.search);
+    }
   }
 
   /// Token efetivo: refresh manual (botão) + revisão externa (VM). Ambos
@@ -306,8 +338,18 @@ class _FileTreePanelState extends State<FileTreePanel> {
       listChildren: widget.listChildren,
     );
 
-    // Fora de repo git, o modo source-control não existe.
-    final scMode = _scMode && widget.isGitRepo;
+    // Aba efetiva: source-control só existe em repo git; busca só com projeto.
+    // Se a condição da aba ativa sumiu, cai de volta pra Files.
+    final hasSearch = widget.searchPanel != null;
+    var tab = _tab;
+    if (tab == _RightPaneTab.sourceControl && !widget.isGitRepo) {
+      tab = _RightPaneTab.files;
+    }
+    if (tab == _RightPaneTab.search && !hasSearch) {
+      tab = _RightPaneTab.files;
+    }
+    final scMode = tab == _RightPaneTab.sourceControl;
+    final searchMode = tab == _RightPaneTab.search;
 
     return Container(
       width: widget.width,
@@ -328,19 +370,27 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 _HeaderIcon(
                   icon: Icons.folder_outlined,
                   tooltip: 'Files',
-                  selected: !scMode,
-                  onTap: () => setState(() => _scMode = false),
+                  selected: tab == _RightPaneTab.files,
+                  onTap: () => setState(() => _tab = _RightPaneTab.files),
                 ),
+                if (hasSearch)
+                  _HeaderIcon(
+                    icon: Icons.search,
+                    tooltip: 'Search',
+                    selected: searchMode,
+                    onTap: () => setState(() => _tab = _RightPaneTab.search),
+                  ),
                 if (widget.isGitRepo)
                   _HeaderIcon(
                     icon: Icons.account_tree_outlined,
                     tooltip: 'Source Control',
                     selected: scMode,
-                    onTap: () => setState(() => _scMode = true),
+                    onTap: () =>
+                        setState(() => _tab = _RightPaneTab.sourceControl),
                   ),
                 const Spacer(),
                 // "New file/folder" só no modo Files (o source control é leitura).
-                if (widget.rootPath.isNotEmpty && !scMode) ...[
+                if (widget.rootPath.isNotEmpty && tab == _RightPaneTab.files) ...[
                   _HeaderIcon(
                     icon: Icons.note_add_outlined,
                     tooltip: 'New file',
@@ -369,6 +419,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       style: context.typo.label.copyWith(color: colors.text3),
                     ),
                   )
+                : searchMode
+                ? (widget.searchPanel ?? const SizedBox.shrink())
                 : scMode
                 ? _ChangedTree(
                     rootPath: widget.rootPath,
@@ -399,7 +451,6 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     ),
                   ),
           ),
-          ?widget.searchPanel,
           ?widget.tasksPanel,
           ?widget.footer,
         ],

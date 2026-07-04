@@ -45,11 +45,6 @@ class _CockpitPageState extends State<CockpitPage> {
   /// Sobe a cada Cmd+Shift+F → o [ContentSearchPanel] foca o campo de busca.
   final ValueNotifier<int> _searchFocusSignal = ValueNotifier<int>(0);
 
-  /// Altura (arrastável + persistida) da área de resultados da busca.
-  double _searchHeight = 260;
-  static const double _searchMin = 120;
-  static const double _searchMax = 640;
-
   /// Altura (arrastável + persistida) da lista de Tasks.
   double _tasksHeight = 200;
   static const double _tasksMin = 100;
@@ -97,10 +92,6 @@ class _CockpitPageState extends State<CockpitPage> {
     );
     vm.onPanelVisibilityChanged = (rail, tree) =>
         _settings!.setPanelVisibility(rail: rail, tree: tree);
-    _searchHeight = _settings!.settings.searchPanelHeight.clamp(
-      _searchMin,
-      _searchMax,
-    );
     _tasksHeight = _settings!.settings.tasksPanelHeight.clamp(
       _tasksMin,
       _tasksMax,
@@ -646,18 +637,12 @@ class _CockpitPageState extends State<CockpitPage> {
                             searchPanel: vm.selectedProject == null
                                 ? null
                                 : ContentSearchPanel(
+                                    fill: true,
                                     search: vm.searchContent,
                                     onOpenResult: vm.openSearchResult,
                                     focusSignal: _searchFocusSignal,
-                                    resultsHeight: _searchHeight,
-                                    onResizeDelta: (dy) => setState(() {
-                                      _searchHeight = (_searchHeight - dy)
-                                          .clamp(_searchMin, _searchMax);
-                                    }),
-                                    onResizeEnd: () => context
-                                        .read<SettingsController>()
-                                        .setSearchPanelHeight(_searchHeight),
                                   ),
+                            searchFocusSignal: _searchFocusSignal,
                             tasksPanel: vm.selectedProject == null
                                 ? null
                                 : TasksPanel(

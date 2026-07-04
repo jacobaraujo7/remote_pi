@@ -27,9 +27,10 @@ class ContentSearchPanel extends StatefulWidget {
     required this.search,
     required this.onOpenResult,
     required this.focusSignal,
-    required this.resultsHeight,
-    required this.onResizeDelta,
-    required this.onResizeEnd,
+    this.fill = false,
+    this.resultsHeight = 0,
+    this.onResizeDelta,
+    this.onResizeEnd,
   });
 
   final ContentSearchFn search;
@@ -40,14 +41,20 @@ class ContentSearchPanel extends StatefulWidget {
   /// Sobe a cada Cmd+Shift+F → foca o campo (e expande o painel).
   final ValueListenable<int> focusSignal;
 
+  /// `true` = aba de busca (ocupa toda a área do painel: sem alça de arraste,
+  /// resultados em [Expanded]). `false` = modo rodapé fixo (alça + altura fixa).
+  final bool fill;
+
   /// Altura (px) da área de resultados — controlada/persistida pela página.
+  /// Ignorada quando [fill] é `true`.
   final double resultsHeight;
 
   /// Arraste da alça superior (dy bruto; a página inverte/clampa e persiste).
-  final ValueChanged<double> onResizeDelta;
+  /// Null em modo [fill].
+  final ValueChanged<double>? onResizeDelta;
 
-  /// Fim do arraste → a página persiste a altura final.
-  final VoidCallback onResizeEnd;
+  /// Fim do arraste → a página persiste a altura final. Null em modo [fill].
+  final VoidCallback? onResizeEnd;
 
   @override
   State<ContentSearchPanel> createState() => _ContentSearchPanelState();
@@ -147,6 +154,18 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
   Widget build(BuildContext context) {
     final colors = context.colors;
 
+    // Aba (fill): ocupa a área toda, sem alça nem borda-topo; resultados
+    // expandem. Rodapé: alça de arraste + altura fixa dos resultados.
+    if (widget.fill) {
+      return Column(
+        children: [
+          _header(context),
+          _field(context),
+          Expanded(child: _resultsList(context)),
+        ],
+      );
+    }
+
     return Container(
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: colors.border)),
@@ -174,8 +193,8 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
       cursor: SystemMouseCursors.resizeUpDown,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
-        onVerticalDragUpdate: (d) => widget.onResizeDelta(d.delta.dy),
-        onVerticalDragEnd: (_) => widget.onResizeEnd(),
+        onVerticalDragUpdate: (d) => widget.onResizeDelta?.call(d.delta.dy),
+        onVerticalDragEnd: (_) => widget.onResizeEnd?.call(),
         child: SizedBox(
           height: 9,
           child: Center(
