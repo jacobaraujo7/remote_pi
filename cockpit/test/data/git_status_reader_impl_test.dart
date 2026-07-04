@@ -1,11 +1,12 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final reader = GitStatusReaderImpl();
+  final reader = GitStatusReaderImpl(GitBinary());
   late Directory repo;
 
   Future<ProcessResult> git(List<String> args, {String? cwd}) =>

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
@@ -15,6 +16,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/empty_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/terminal_pane.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
@@ -136,6 +138,7 @@ IconData _tabIcon(PaneItem? item) {
   if (item is TerminalSession) return Icons.terminal_outlined;
   if (item is TaskOutputSession) return Icons.play_circle_outline;
   if (item is FileViewerSession) return Icons.description_outlined;
+  if (item is DiffViewerSession) return Icons.difference_outlined;
   if (item is AgentSession && item.status == AgentStatus.empty) {
     return Icons.edit_outlined;
   }
@@ -1089,6 +1092,11 @@ class _PaneBodyState extends State<_PaneBody> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
+
+    // Viewer de diff (read-only, split): comparação com o HEAD do git.
+    if (item is DiffViewerSession) {
+      return DiffViewer(session: item);
+    }
 
     // Viewer de arquivo (read-only): markdown / texto / imagem.
     if (item is FileViewerSession) {

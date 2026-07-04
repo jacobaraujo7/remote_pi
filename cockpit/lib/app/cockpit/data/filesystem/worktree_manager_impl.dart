@@ -1,35 +1,22 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 
-/// Roda o binário `git` pra listar/criar/remover worktrees. Resolve o caminho do
-/// git por candidatos conhecidos (o app macOS **não herda o PATH do shell**) —
-/// mesmo padrão do `GitStatusReaderImpl`.
+/// Roda o binário `git` pra listar/criar/remover worktrees. O caminho do `git`
+/// vem do [GitBinary] compartilhado (o app macOS **não herda o PATH do shell**).
 class WorktreeManagerImpl implements WorktreeManager {
-  WorktreeManagerImpl();
+  WorktreeManagerImpl(this._gitBinary);
 
-  String? _git; // caminho do binário, resolvido uma vez
-
-  static const List<String> _candidates = <String>[
-    '/usr/bin/git',
-    '/opt/homebrew/bin/git',
-    '/usr/local/bin/git',
-  ];
+  final GitBinary _gitBinary;
 
   /// Onde as worktrees criadas pelo Cockpit moram, relativo à raiz do repo
   /// (decisão 2).
   static const String worktreesSubdir = '.pi/remote/worktrees';
 
-  Future<String> _resolveGit() async {
-    final cached = _git;
-    if (cached != null) return cached;
-    for (final candidate in _candidates) {
-      if (await File(candidate).exists()) return _git = candidate;
-    }
-    return _git = 'git'; // último recurso: PATH
-  }
+  Future<String> _resolveGit() => _gitBinary.resolve();
 
   @override
   Future<List<Worktree>> list(String repoPath) async {

@@ -10,6 +10,7 @@ class AppMenuItem<T> {
     this.icon,
     this.selected = false,
     this.danger = false,
+    this.enabled = true,
   });
 
   final T value;
@@ -17,6 +18,9 @@ class AppMenuItem<T> {
   final IconData? icon;
   final bool selected;
   final bool danger;
+
+  /// `false` → item cinza, não clicável (não devolve o `value`).
+  final bool enabled;
 }
 
 /// Popover de menu atualmente aberto. O `showPopover` do shadcn **não** fecha
@@ -64,11 +68,14 @@ Future<T?> showAppMenu<T>(
         children: [
           for (final item in items)
             MenuButton(
+              enabled: item.enabled,
               leading: item.icon != null
                   ? Icon(
                       item.icon,
                       size: 15,
-                      color: item.danger ? colors.error : colors.text3,
+                      color: !item.enabled
+                          ? colors.text4
+                          : (item.danger ? colors.error : colors.text3),
                     )
                   : null,
               trailing: item.selected
@@ -82,7 +89,9 @@ Future<T?> showAppMenu<T>(
                 overflow: TextOverflow.ellipsis,
                 style: context.typo.body.copyWith(
                   fontSize: 13,
-                  color: item.danger ? colors.error : colors.text,
+                  color: !item.enabled
+                      ? colors.text4
+                      : (item.danger ? colors.error : colors.text),
                 ),
               ),
             ),

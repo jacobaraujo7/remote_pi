@@ -9,6 +9,8 @@ import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
@@ -318,6 +320,52 @@ class _CockpitPageState extends State<CockpitPage> {
   /// "Criar worktree": busca o namespace (branches + worktrees) pra validação ao
   /// vivo e abre o dialog. O dialog roda o `git worktree add` via `onCreate` e a
   /// VM auto-seleciona o fork novo (decisões 14, 21).
+  /// Sync (pull → push) do workspace, com o processo ao vivo num dialog.
+  Future<void> _syncProject(Project project) async {
+    final run = _vm.gitSync(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Sync — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  Future<void> _pullProject(Project project) async {
+    final run = _vm.gitPull(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Pull — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  Future<void> _pushProject(Project project) async {
+    final run = _vm.gitPush(project.path);
+    await showGitProcessDialog(
+      context,
+      title: 'Push — ${project.name}',
+      output: run.output,
+      success: run.exitCode.then((c) => c == 0),
+    );
+  }
+
+  /// "Merge to Parent": mergeia a branch do worktree no pai. Bloqueia se o
+  /// worktree tem mudanças não commitadas; conflito → aborta e mostra o erro;
+  /// sucesso → o VM remove o worktree e volta pro pai. Processo ao vivo no dialog.
+  Future<void> _mergeWorktree(Project fork) async {
+    final outcome = _vm.mergeWorktreeToParent(fork);
+    await showGitProcessDialog(
+      context,
+      title: 'Merge to Parent — ${fork.name}',
+      output: outcome.output,
+      success: outcome.status.then((s) => s == GitMergeStatus.merged),
+      finalMessage: (ok) =>
+          ok ? 'Worktree merged and removed.' : 'Nothing was changed.',
+    );
+  }
+
   Future<void> _createWorktree(Project root) async {
     final vm = _vm;
     final namespace = await vm.worktreeNamespace(root.id);
@@ -508,6 +556,10 @@ class _CockpitPageState extends State<CockpitPage> {
                             onDelete: _deleteProject,
                             onCreateWorktree: _createWorktree,
                             onRemoveWorktree: _removeWorktree,
+                            onMergeWorktree: _mergeWorktree,
+                            onSync: _syncProject,
+                            onPull: _pullProject,
+                            onPush: _pushProject,
                             onReorder: (moved, target, before) =>
                                 vm.reorderWorkspace(
                                   moved,
@@ -576,6 +628,13 @@ class _CockpitPageState extends State<CockpitPage> {
                             onTapFile: vm.openFile, // clique único = preview
                             onSelectFile:
                                 vm.selectFileInTree, // atualiza highlight
+                            onOpenDiff: (path) =>
+                                vm.openDiff(path, isPreview: false),
+                            onTapDiff: vm.openDiff, // clique único = preview
+                            isGitRepo:
+                                vm.selectedProject != null &&
+                                vm.isGitRepo(vm.selectedProject!.id),
+                            changedPaths: vm.changedAbsolutePaths(),
                             onOpenWith: vm.openWithDefaultApp,
                             onCreateInFolder: (sub, terminal) =>
                                 vm.newTabIn(sub, terminal: terminal),

@@ -26,6 +26,10 @@ class ProjectsRail extends StatefulWidget {
     required this.onDelete,
     required this.onCreateWorktree,
     required this.onRemoveWorktree,
+    required this.onMergeWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
     required this.onOpenSettings,
     required this.onReorder,
     this.cockpit,
@@ -63,6 +67,14 @@ class ProjectsRail extends StatefulWidget {
   /// Abre o fluxo de remover uma worktree (fork). A confirmação fica na page.
   final ValueChanged<Project> onRemoveWorktree;
 
+  /// Mergeia a branch do worktree (fork) no workspace pai.
+  final ValueChanged<Project> onMergeWorktree;
+
+  /// Ações git no workspace raiz (só repos git).
+  final ValueChanged<Project> onSync;
+  final ValueChanged<Project> onPull;
+  final ValueChanged<Project> onPush;
+
   /// Abre a tela de Configurações (engrenagem no rodapé).
   final VoidCallback onOpenSettings;
 
@@ -96,6 +108,7 @@ class _ProjectsRailState extends State<ProjectsRail> {
           git: widget.gitInfo(forks[i].id),
           onTap: () => widget.onSelect(forks[i].id),
           onRemove: () => widget.onRemoveWorktree(forks[i]),
+          onMerge: () => widget.onMergeWorktree(forks[i]),
         ),
     ];
   }
@@ -181,6 +194,9 @@ class _ProjectsRailState extends State<ProjectsRail> {
                                 onDelete: () => widget.onDelete(project),
                                 onCreateWorktree: () =>
                                     widget.onCreateWorktree(project),
+                                onSync: () => widget.onSync(project),
+                                onPull: () => widget.onPull(project),
+                                onPush: () => widget.onPush(project),
                               ),
                             ),
                             // Worktrees (forks) penduradas abaixo do workspace,
@@ -292,6 +308,9 @@ class _ProjectItem extends StatelessWidget {
     required this.onConfigure,
     required this.onDelete,
     required this.onCreateWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
   });
 
   final Project project;
@@ -303,6 +322,9 @@ class _ProjectItem extends StatelessWidget {
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
   final VoidCallback onCreateWorktree;
+  final VoidCallback onSync;
+  final VoidCallback onPull;
+  final VoidCallback onPush;
 
   @override
   Widget build(BuildContext context) {
@@ -374,6 +396,9 @@ class _ProjectItem extends StatelessWidget {
               onConfigure: onConfigure,
               onDelete: onDelete,
               onCreateWorktree: onCreateWorktree,
+              onSync: onSync,
+              onPull: onPull,
+              onPush: onPush,
             ),
           ],
         ),
@@ -396,6 +421,7 @@ class _WorktreeItem extends StatelessWidget {
     required this.git,
     required this.onTap,
     required this.onRemove,
+    required this.onMerge,
   });
 
   final Project worktree;
@@ -408,6 +434,7 @@ class _WorktreeItem extends StatelessWidget {
   final GitInfo? git;
   final VoidCallback onTap;
   final VoidCallback onRemove;
+  final VoidCallback onMerge;
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +482,11 @@ class _WorktreeItem extends StatelessWidget {
                       hasNotification: notifications > 0,
                     ),
                     const SizedBox(width: 2),
-                    _ForkMenuButton(branch: worktree.name, onRemove: onRemove),
+                    _ForkMenuButton(
+                      branch: worktree.name,
+                      onRemove: onRemove,
+                      onMerge: onMerge,
+                    ),
                   ],
                 ),
               ),
@@ -469,15 +500,25 @@ class _WorktreeItem extends StatelessWidget {
 
 /// Menu ⋮ compacto do fork — só "Remover" (plan/42, decisão 13).
 class _ForkMenuButton extends StatelessWidget {
-  const _ForkMenuButton({required this.branch, required this.onRemove});
+  const _ForkMenuButton({
+    required this.branch,
+    required this.onRemove,
+    required this.onMerge,
+  });
 
   final String branch;
   final VoidCallback onRemove;
+  final VoidCallback onMerge;
 
   Future<void> _show(BuildContext context) async {
     final pick = await showAppMenu<String>(
       context,
       items: const [
+        AppMenuItem(
+          value: 'merge',
+          label: 'Merge to Parent',
+          icon: Icons.merge_type,
+        ),
         AppMenuItem(
           value: 'copy',
           label: 'Copy branch',
@@ -491,6 +532,7 @@ class _ForkMenuButton extends StatelessWidget {
         ),
       ],
     );
+    if (pick == 'merge') onMerge();
     if (pick == 'copy') {
       await Clipboard.setData(ClipboardData(text: branch));
     }
@@ -712,6 +754,9 @@ class _MenuButton extends StatelessWidget {
     required this.onConfigure,
     required this.onDelete,
     required this.onCreateWorktree,
+    required this.onSync,
+    required this.onPull,
+    required this.onPush,
   });
 
   /// Id do workspace (`projectId`) — copiável pra usar na CLI `cockpit`
@@ -721,11 +766,20 @@ class _MenuButton extends StatelessWidget {
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
   final VoidCallback onCreateWorktree;
+  final VoidCallback onSync;
+  final VoidCallback onPull;
+  final VoidCallback onPush;
 
   Future<void> _show(BuildContext context) async {
     final pick = await showAppMenu<String>(
       context,
       items: [
+        // Ações de sincronização só em repo git.
+        if (canCreateWorktree) ...const [
+          AppMenuItem(value: 'sync', label: 'Sync', icon: Icons.sync),
+          AppMenuItem(value: 'pull', label: 'Pull', icon: Icons.arrow_downward),
+          AppMenuItem(value: 'push', label: 'Push', icon: Icons.arrow_upward),
+        ],
         // "Criar worktree" só aparece quando o workspace é um repo git.
         if (canCreateWorktree)
           const AppMenuItem(
@@ -751,6 +805,9 @@ class _MenuButton extends StatelessWidget {
         ),
       ],
     );
+    if (pick == 'sync') onSync();
+    if (pick == 'pull') onPull();
+    if (pick == 'push') onPush();
     if (pick == 'worktree') onCreateWorktree();
     if (pick == 'copy-id') {
       await Clipboard.setData(ClipboardData(text: workspaceId));

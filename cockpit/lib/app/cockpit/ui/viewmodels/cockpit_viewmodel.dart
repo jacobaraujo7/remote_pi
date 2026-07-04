@@ -12,6 +12,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
@@ -37,6 +39,7 @@ import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/user_home.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
@@ -78,6 +81,8 @@ class CockpitViewModel extends ChangeNotifier {
     this._contentSearcher,
     this._taskTerminals,
     this._scrollback,
+    this._gitRunner,
+    this._gitDiff,
   );
 
   final ProjectRepository _projects;
@@ -99,6 +104,8 @@ class CockpitViewModel extends ChangeNotifier {
   final ContentSearcher _contentSearcher;
   final TaskTerminalStore _taskTerminals;
   final TerminalScrollbackStore _scrollback;
+  final GitCommandRunner _gitRunner;
+  final GitDiffReader _gitDiff;
 
   List<LaunchableApp> _availableApps = const [];
 
@@ -499,6 +506,132 @@ class CockpitViewModel extends ChangeNotifier {
       _disposeSession(emptyId);
     } else {
       // Adiciona nova aba.
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(tabs: [...p.tabs, viewer.id], active: viewer.id),
+      );
+    }
+    notifyListeners();
+  }
+
+  // === Git diff viewer (feature "more git") ===
+
+  /// `true` se o workspace [projectId] é um repo git (tem [GitInfo]).
+  bool isGitRepo(String projectId) => _gitInfo[projectId] != null;
+
+  /// Status git (relativo → status) dos arquivos com mudança do projeto
+  /// [projectId], excluindo ignorados — insumo do filtro "source control".
+  Map<String, GitFileStatus> changedFiles(String projectId) {
+    final info = _gitInfo[projectId];
+    if (info == null) return const {};
+    return info.files;
+  }
+
+  /// Caminhos **absolutos** com mudança git do projeto selecionado (exclui
+  /// ignorados) — alimenta a árvore podada do modo Source Control.
+  List<String> changedAbsolutePaths() {
+    final project = selectedProject;
+    if (project == null) return const [];
+    var root = project.path;
+    if (root.endsWith('/')) root = root.substring(0, root.length - 1);
+    final out = <String>[];
+    changedFiles(project.id).forEach((rel, status) {
+      if (status == GitFileStatus.ignored) return;
+      out.add('$root/$rel');
+    });
+    return out;
+  }
+
+  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
+  /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
+  Future<void> openDiff(String path, {bool isPreview = true}) async {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    final paneId = projectId == null ? null : _focused[projectId];
+    if (projectId == null || tree == null || paneId == null) return;
+    final leaf = findLeaf(tree, paneId);
+    if (leaf == null) return;
+    final root = _projectById(projectId)?.path;
+    if (root == null) return;
+
+    // Já aberto? Seleciona (e fixa se não é preview).
+    DiffViewerSession? previewCandidate;
+    for (final tabId in leaf.tabs) {
+      final s = _sessions[tabId];
+      if (s is DiffViewerSession) {
+        if (s.path == path) {
+          if (!isPreview && s.isPreview) s.pin();
+          _trees[projectId] = updateLeaf(
+            tree,
+            paneId,
+            (p) => p.copyWith(active: tabId),
+          );
+          notifyListeners();
+          return;
+        }
+        if (isPreview && s.isPreview && previewCandidate == null) {
+          previewCandidate = s;
+        }
+      }
+    }
+
+    final diff = await _gitDiff.read(root, path);
+
+    // Reutiliza a aba de preview de diff, se houver.
+    if (isPreview && previewCandidate != null) {
+      previewCandidate
+        ..path = path
+        ..diff = diff
+        ..notifyListeners();
+      _trees[projectId] = updateLeaf(
+        tree,
+        paneId,
+        (p) => p.copyWith(active: previewCandidate!.id),
+      );
+      notifyListeners();
+      return;
+    }
+
+    final viewer = DiffViewerSession(
+      id: _nid('d'),
+      projectId: projectId,
+      path: path,
+      diff: diff,
+      isPreview: isPreview,
+    );
+    _sessions[viewer.id] = viewer;
+
+    final current = _trees[projectId] ?? tree;
+    final lf = findLeaf(current, paneId);
+    final activeTabId = lf?.active;
+    final activeTab = activeTabId != null ? _sessions[activeTabId] : null;
+    final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
+
+    if (isPreview && activeTab is DiffViewerSession && activeTab.isPreview) {
+      // Preview substitui preview.
+      final oldId = activeTabId;
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(
+          tabs: [...p.tabs.where((t) => t != oldId), viewer.id],
+          active: viewer.id,
+        ),
+      );
+      _disposeSession(oldId!);
+    } else if (lf != null &&
+        only is AgentSession &&
+        only.status == AgentStatus.empty) {
+      // Placeholder vazio → substitui.
+      final emptyId = lf.tabs.first;
+      _trees[projectId] = updateLeaf(
+        current,
+        paneId,
+        (p) => p.copyWith(tabs: [viewer.id], active: viewer.id),
+      );
+      _disposeSession(emptyId);
+    } else {
       _trees[projectId] = updateLeaf(
         current,
         paneId,
@@ -1141,6 +1274,48 @@ class CockpitViewModel extends ChangeNotifier {
     final root = _projectById(fork.parentId);
     if (root == null) return false;
     return _worktreeMgr.isBranchMerged(root.path, fork.name);
+  }
+
+  // === Git commands (Sync / Pull / Push) — feature "more git" ===
+
+  /// Sync = `git pull` e, se OK, `git push` no repo em [repoPath]. Stream ao vivo.
+  GitRun gitSync(String repoPath) => _gitRunner.syncPullPush(repoPath);
+
+  /// `git pull` no repo em [repoPath].
+  GitRun gitPull(String repoPath) => _gitRunner.run(repoPath, const ['pull']);
+
+  /// `git push` no repo em [repoPath].
+  GitRun gitPush(String repoPath) => _gitRunner.run(repoPath, const ['push']);
+
+  /// Mergeia a branch do worktree [fork] no checkout do workspace pai. Em
+  /// sucesso, remove o worktree (reusa [removeWorktree] → kill+close) e seleciona
+  /// o pai. Devolve o handle ao vivo pro dialog de processo.
+  GitMergeOutcome mergeWorktreeToParent(Project fork) {
+    final parentId = fork.parentId;
+    if (parentId == null) return _mergeError('Not a worktree.');
+    final root = _projectById(parentId);
+    if (root == null) return _mergeError('Parent workspace not found.');
+
+    final outcome = _gitRunner.mergeIntoParent(root.path, fork.path, fork.name);
+    // Ao terminar com sucesso, limpa o worktree e volta pro pai. A remoção passa
+    // pela reconciliação de [removeWorktree] (mata processos, fecha panes).
+    outcome.status.then((status) async {
+      if (status != GitMergeStatus.merged) return;
+      await removeWorktree(fork.id);
+      selectProject(root.id);
+    });
+    return outcome;
+  }
+
+  /// Handle de merge já finalizado em erro, com uma linha explicativa — pro
+  /// dialog quando nem chegamos a rodar o git (pai/worktree ausente).
+  GitMergeOutcome _mergeError(String message) {
+    final controller = StreamController<String>()..add(message);
+    unawaited(controller.close());
+    return GitMergeOutcome(
+      status: Future.value(GitMergeStatus.error),
+      output: controller.stream,
+    );
   }
 
   void selectProject(String id) {
@@ -2102,6 +2277,17 @@ class CockpitViewModel extends ChangeNotifier {
           view: view,
         );
         return true;
+      case 'diff':
+        final path = desc['path'] as String?;
+        if (path == null) return false;
+        final diff = await _gitDiff.read(project.path, path);
+        _sessions[id] = DiffViewerSession(
+          id: id,
+          projectId: project.id,
+          path: path,
+          diff: diff,
+        );
+        return true;
       case 'empty':
         _makeEmptyWithId(id, project.id);
         return true;
@@ -2238,7 +2424,8 @@ class CockpitViewModel extends ChangeNotifier {
     final newSessions = <String, dynamic>{};
     for (final entry in sessionsJson.entries) {
       final desc = Map<String, dynamic>.from(entry.value as Map);
-      if (desc['type'] == 'viewer') continue; // worktree não replica viewers
+      // worktree não replica viewers nem diffs (efêmeros)
+      if (desc['type'] == 'viewer' || desc['type'] == 'diff') continue;
       // Zera qualquer estado de continuação — o worktree é um workspace novo,
       // sessões começam do zero. `sessionPath` (agente) e `claude_sid`
       // (terminal: dispararia `claude --resume <sid>` do pai) reanexariam a
@@ -2316,6 +2503,9 @@ class CockpitViewModel extends ChangeNotifier {
     }
     if (s is FileViewerSession) {
       return <String, dynamic>{'type': 'viewer', 'path': s.path};
+    }
+    if (s is DiffViewerSession) {
+      return <String, dynamic>{'type': 'diff', 'path': s.path};
     }
     if (s is TaskOutputSession) {
       // A task não roda de novo no restart, mas o output persiste: guarda o
