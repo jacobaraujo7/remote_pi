@@ -1548,7 +1548,11 @@ class CockpitViewModel extends ChangeNotifier {
     final tree = _activeTree;
     if (projectId == null || tree == null) return;
     final empty = _makeEmpty(projectId);
-    final newLeaf = LeafPane(id: _nid('pane'), tabs: [empty.id], active: empty.id);
+    final newLeaf = LeafPane(
+      id: _nid('pane'),
+      tabs: [empty.id],
+      active: empty.id,
+    );
     _setActiveTree(splitLeaf(tree, paneId, dir, newLeaf, splitId: _nid('sp')));
     _focused[projectId] = newLeaf.id;
     notifyListeners();
@@ -2009,6 +2013,11 @@ class CockpitViewModel extends ChangeNotifier {
         'waiting' => TerminalStatus.waiting,
         _ => TerminalStatus.idle,
       },
+      // `UserPromptSubmit` marca o INÍCIO de um turno novo — o único `working`
+      // que sempre vale, mesmo logo após um `idle` (ex.: mensagem enfileirada).
+      // Os demais `working` (Pre/PostToolUse) são atividade mid-turn e podem ser
+      // descartados se chegarem fora de ordem depois do fim do turno.
+      isTurnStart: u.event == 'UserPromptSubmit',
       sessionId: u.sessionId,
       transcriptPath: u.transcriptPath,
     );

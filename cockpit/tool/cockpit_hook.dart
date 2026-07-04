@@ -40,6 +40,12 @@ Future<void> main() async {
     final payload = jsonEncode(<String, dynamic>{
       'paneId': paneId,
       'st': status,
+      // Evento cru — o app usa pra distinguir INÍCIO de turno (UserPromptSubmit)
+      // de atividade mid-turn (Pre/PostToolUse) e descartar um 'working' tardio
+      // que chega fora de ordem depois do 'idle' (Stop), evitando o spinner
+      // eterno. Cada hook é um processo separado abrindo seu próprio socket, sem
+      // ordem garantida entre eles.
+      'ev': event,
       'sid': (decoded['session_id'] ?? '').toString(),
       'tx': (decoded['transcript_path'] ?? '').toString(),
       // Token só importa no TCP (loopback é acessível por qualquer processo

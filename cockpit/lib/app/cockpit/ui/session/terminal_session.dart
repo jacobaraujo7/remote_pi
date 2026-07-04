@@ -128,10 +128,26 @@ class TerminalSession extends PaneItem {
 
   Timer? _notifyDebounce;
 
+  /// `true` entre o início do turno (`UserPromptSubmit`) e o seu fim (`Stop` →
+  /// idle). Um `working` de atividade mid-turn (Pre/PostToolUse) só é válido com
+  /// um turno ativo — se chega sem turno ativo logo após um `idle`, é um hook
+  /// tardio/reordenado do turno que já acabou e é descartado (senão o spinner
+  /// fica girando pra sempre).
+  bool _turnActive = false;
+  DateTime? _lastIdleAt;
+
+  /// Janela em que um `working` mid-turn órfão (sem turno ativo) pós-`idle` é
+  /// tratado como reordenação. Generosa (a real reordenação chega em ms); turnos
+  /// novos legítimos vêm como `UserPromptSubmit` (isTurnStart), que nunca é
+  /// filtrado — então a janela não atrapalha follow-ups enfileirados.
+  static const Duration _staleWorkingGuard = Duration(seconds: 5);
+
   /// Aplica um status reportado pelo `cockpit-hook` (via [TerminalStatusServer]).
   /// [sessionId]/[transcriptPath] são capturados pra futura persistência.
+  /// [isTurnStart] = evento `UserPromptSubmit` (início de turno).
   void applyClaudeStatus({
     required TerminalStatus status,
+    bool isTurnStart = false,
     String? sessionId,
     String? transcriptPath,
   }) {
@@ -139,12 +155,29 @@ class TerminalSession extends PaneItem {
     if (transcriptPath != null && transcriptPath.isNotEmpty) {
       this.transcriptPath = transcriptPath;
     }
+
+    // Ciclo de vida do turno a partir da semântica do evento.
+    if (isTurnStart) _turnActive = true;
+    if (status == TerminalStatus.idle) _turnActive = false;
+
+    // Guard anti-spinner-eterno: descarta um `working` mid-turn que chega SEM
+    // turno ativo e logo após um `idle` — é o Pre/PostToolUse do turno que
+    // acabou, entregue fora de ordem depois do `Stop`.
+    if (status == TerminalStatus.working &&
+        !isTurnStart &&
+        !_turnActive &&
+        _lastIdleAt != null &&
+        DateTime.now().difference(_lastIdleAt!) < _staleWorkingGuard) {
+      return;
+    }
+
     _setStatus(status);
   }
 
   void _setStatus(TerminalStatus next) {
     if (next == _status) return;
     _status = next;
+    if (next == TerminalStatus.idle) _lastIdleAt = DateTime.now();
     notifyListeners();
     // Debounce ~50ms antes de notificar: absorve flicker idle→working numa
     // repintura de TUI (mesma técnica do iTerm2). Só notifica em idle/waiting.
@@ -259,7 +292,8 @@ class TerminalSession extends PaneItem {
         _altDepth--;
       }
     }
-    if (!wasMain || _altDepth != 0) return; // tocou alt-screen → descarta chunk.
+    // tocou alt-screen → descarta chunk.
+    if (!wasMain || _altDepth != 0) return;
 
     _record0.write(data);
     if (_record0.length > _kMaxRecordChars) {
@@ -301,7 +335,9 @@ class TerminalSession extends PaneItem {
     _notifyDebounce?.cancel();
     _saveDebounce?.cancel();
     _startupTimer?.cancel();
-    unawaited(_flush()); // best-effort: persiste o estado final (inclui app-quit).
+    unawaited(
+      _flush(),
+    ); // best-effort: persiste o estado final (inclui app-quit).
     await _sub?.cancel();
     await _gateway.kill();
     super.dispose();

@@ -4,6 +4,7 @@ class ClaudeStatusUpdate {
   const ClaudeStatusUpdate({
     required this.paneId,
     required this.status,
+    this.event,
     this.sessionId,
     this.transcriptPath,
   });
@@ -13,6 +14,12 @@ class ClaudeStatusUpdate {
 
   /// `working` | `waiting` | `idle` (wire string).
   final String status;
+
+  /// Nome cru do evento de hook do Claude Code (`UserPromptSubmit`, `PreToolUse`,
+  /// `Stop`, ...), quando enviado pelo helper. Usado pra distinguir início de
+  /// turno de atividade mid-turn e descartar `working` reordenado. `null` em
+  /// helpers antigos (pré-`ev`).
+  final String? event;
 
   /// session_id do claude (pra futura persistência/`--resume`).
   final String? sessionId;

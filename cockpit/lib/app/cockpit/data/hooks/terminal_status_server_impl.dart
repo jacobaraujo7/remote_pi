@@ -144,10 +144,12 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
       if (paneId.isEmpty || status.isEmpty) return null;
       final sid = (decoded['sid'] ?? '').toString();
       final tx = (decoded['tx'] ?? '').toString();
+      final ev = (decoded['ev'] ?? '').toString();
       _onUpdate?.call(
         ClaudeStatusUpdate(
           paneId: paneId,
           status: status,
+          event: ev.isEmpty ? null : ev,
           sessionId: sid.isEmpty ? null : sid,
           transcriptPath: tx.isEmpty ? null : tx,
         ),
