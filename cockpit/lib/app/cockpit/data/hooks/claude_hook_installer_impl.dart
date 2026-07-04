@@ -44,9 +44,14 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
     try {
       final helperPath = await _ensureHelper(home);
       if (helperPath == null) {
-        return const Failure<void, String>('helper cockpit-hook não encontrado');
+        return const Failure<void, String>(
+          'helper cockpit-hook não encontrado',
+        );
       }
       await _installHooks(home: home, helperPath: helperPath);
+      // CLI interna `cockpit`: materializa o binário e, se veio, instala a skill
+      // que ensina o agente a usá-lo. Best-effort — não é fatal pro boot.
+      await _ensureCli(home);
       return const Success<void, String>(null);
     } catch (e) {
       return Failure<void, String>('$e');
@@ -58,10 +63,41 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
   /// não está no bundle (ex.: dev sem o passo de build) e não há cópia prévia.
   Future<String?> _ensureHelper(String home) async {
     final name = Platform.isWindows ? 'cockpit-hook.exe' : 'cockpit-hook';
-    final destDir = Directory('$home/.cockpit/bin');
-    final dest = File('${destDir.path}/$name');
+    return _materialize(home, bundledName: name, destName: name);
+  }
 
-    final bundled = _bundledHelper(name);
+  /// Materializa a CLI interna `cockpit` em `~/.cockpit/bin/cockpit[.exe]` (o
+  /// fonte é empacotado como `cockpit-cli` pra não colidir com `cockpit.app`) e,
+  /// se materializou, roda `cockpit install-skill` (idempotente) pra a skill
+  /// nascer instalada. Silencioso: falha aqui não pode derrubar o boot.
+  Future<void> _ensureCli(String home) async {
+    final bundledName = Platform.isWindows ? 'cockpit-cli.exe' : 'cockpit-cli';
+    final destName = Platform.isWindows ? 'cockpit.exe' : 'cockpit';
+    final path = await _materialize(
+      home,
+      bundledName: bundledName,
+      destName: destName,
+    );
+    if (path == null) return;
+    try {
+      await Process.run(path, <String>['install-skill']);
+    } catch (_) {
+      /* best-effort */
+    }
+  }
+
+  /// Copia um binário empacotado ([bundledName]) para `~/.cockpit/bin/[destName]`.
+  /// Recopia só se o tamanho difere. Devolve o caminho, ou `null` se não está no
+  /// bundle (ex.: dev sem o passo de build) e não há cópia prévia.
+  Future<String?> _materialize(
+    String home, {
+    required String bundledName,
+    required String destName,
+  }) async {
+    final destDir = Directory('$home/.cockpit/bin');
+    final dest = File('${destDir.path}/$destName');
+
+    final bundled = _bundledHelper(bundledName);
     if (bundled != null && await bundled.exists()) {
       final srcLen = await bundled.length();
       final upToDate = await dest.exists() && await dest.length() == srcLen;

@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Directory, FileSystemEvent;
+import 'dart:io' show Directory, FileSystemEvent, Platform;
 import 'dart:math' show max;
+
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
@@ -259,9 +261,9 @@ class CockpitViewModel extends ChangeNotifier {
   /// `true` se existe ao menos uma aba de agente **real** (não o placeholder
   /// vazio `AgentStatus.empty`). Usado pra impedir desligar `enableAgent` com
   /// agentes em uso.
-  bool get hasAgentTabsInUse => _sessions.values
-      .whereType<AgentSession>()
-      .any((a) => a.status != AgentStatus.empty);
+  bool get hasAgentTabsInUse => _sessions.values.whereType<AgentSession>().any(
+    (a) => a.status != AgentStatus.empty,
+  );
 
   /// Estado git do projeto (branch + sujos), ou `null` se não for repo git.
   GitInfo? gitInfo(String projectId) => _gitInfo[projectId];
@@ -347,7 +349,9 @@ class CockpitViewModel extends ChangeNotifier {
 
     final lf = findLeaf(tree, paneId);
     final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
-    if (lf != null && only is AgentSession && only.status == AgentStatus.empty) {
+    if (lf != null &&
+        only is AgentSession &&
+        only.status == AgentStatus.empty) {
       // Pane só com placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -792,7 +796,8 @@ class CockpitViewModel extends ChangeNotifier {
   Future<void> init() async {
     // Servidor de status do `cockpit-hook` (claude nas abas reporta turno aqui).
     // Await: no Windows o `hookEnv` depende da porta ligada antes de spawnar abas.
-    await _statusServer.start(_onClaudeStatus);
+    // O mesmo socket atende a CLI interna `cockpit` (`_onCockpitCommand`).
+    await _statusServer.start(_onClaudeStatus, onCommand: _onCockpitCommand);
     _projectList.addAll(await _projects.all());
     // Carrega os layouts salvos (mas não reconstrói nada ainda — lazy).
     for (final project in _projectList) {
@@ -1536,6 +1541,8 @@ class CockpitViewModel extends ChangeNotifier {
       spawnEnv: <String, String>{
         'COCKPIT_PANE_ID': id,
         ..._statusServer.hookEnv,
+        // PATH escopado → o binário `cockpit` (CLI interna) resolve só nas abas.
+        ..._cliPathEnv(),
       },
     );
     // claude rodando na aba reporta fim de turno via socket → mesma notificação
@@ -1645,6 +1652,96 @@ class CockpitViewModel extends ChangeNotifier {
     if (s.claudeSessionId != hadSid && s.claudeSessionId != null) {
       _scheduleSave(s.projectId);
     }
+  }
+
+  /// Atende um comando da CLI interna `cockpit` (via o mesmo socket do
+  /// [TerminalStatusServer]). Roda **fora** da árvore de widgets — não toca
+  /// `BuildContext`, só lê/muta o estado da VM. Retorna rápido (o `insertText`
+  /// só enfileira o write no PTY).
+  Future<CockpitCommandResult> _onCockpitCommand(CockpitCommand c) async {
+    switch (c.cmd) {
+      // `send` e `send-key` chegam unificados como `write` (a CLI já resolveu o
+      // texto/tecla em bytes UTF-8, transmitidos em base64 pra não quebrar o
+      // framing de uma-linha-por-conexão).
+      case 'write':
+        final id = c.tabId;
+        if (id == null || id.isEmpty) {
+          return const CockpitCommandResult.fail(
+            'tabId ausente (use --tab-id ou rode dentro de um terminal do Cockpit)',
+          );
+        }
+        final s = _sessions[id];
+        if (s == null) {
+          return CockpitCommandResult.fail('pane "$id" não existe');
+        }
+        if (s is! TerminalSession) {
+          return CockpitCommandResult.fail('pane "$id" não é um terminal');
+        }
+        final raw = (c.args['data'] ?? '').toString();
+        String text;
+        try {
+          text = utf8.decode(base64.decode(raw));
+        } catch (_) {
+          return const CockpitCommandResult.fail(
+            'data inválido (base64 esperado)',
+          );
+        }
+        s.insertText(text);
+        return const CockpitCommandResult.ok();
+
+      case 'list-panes':
+        final panes = _sessions.values
+            .map(
+              (s) => <String, dynamic>{
+                'id': s.id,
+                'kind': _paneKind(s),
+                'title': s.title,
+                'workspaceId': s.projectId,
+                'working': s.isWorking,
+              },
+            )
+            .toList();
+        return CockpitCommandResult.ok(panes);
+
+      case 'list-workspaces':
+        final ws = _projectList
+            .map(
+              (p) => <String, dynamic>{
+                'id': p.id,
+                'name': p.name,
+                'panes': _sessions.values
+                    .where((s) => s.projectId == p.id)
+                    .length,
+              },
+            )
+            .toList();
+        return CockpitCommandResult.ok(ws);
+
+      default:
+        return CockpitCommandResult.fail('comando desconhecido: "${c.cmd}"');
+    }
+  }
+
+  String _paneKind(PaneItem s) {
+    if (s is TerminalSession) return 'terminal';
+    if (s is AgentSession) return 'agent';
+    if (s is FileViewerSession) return 'file';
+    if (s is TaskOutputSession) return 'task';
+    return 'other';
+  }
+
+  /// Env de PATH escopado: prepend `~/.cockpit/bin` (onde o binário `cockpit` é
+  /// materializado no boot) ao PATH **só dos terminais do Cockpit** — a CLI fica
+  /// visível dentro das abas e invisível fora, sem poluir o PATH global.
+  Map<String, String> _cliPathEnv() {
+    final home = remotePiHome();
+    if (home == null) return const <String, String>{};
+    final binDir = '$home/.cockpit/bin';
+    final sep = Platform.isWindows ? ';' : ':';
+    final existing = Platform.environment['PATH'] ?? '';
+    return <String, String>{
+      'PATH': existing.isEmpty ? binDir : '$binDir$sep$existing',
+    };
   }
 
   void _onAgentTurnEnd(AgentSession s) {

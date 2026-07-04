@@ -248,6 +248,7 @@
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				AA00BB11CC22DD33EE44FF55 /* Build cockpit-hook helper */,
+				AA00BB11CC22DD33EE44FF56 /* Build cockpit CLI */,
 				9C0C19829D5D7BCE8BC49018 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
@@ -393,6 +394,22 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"$PROJECT_DIR\"/build_hook.sh\n";
+		};
+		AA00BB11CC22DD33EE44FF56 /* Build cockpit CLI */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/../tool/cockpit_cli.dart",
+			);
+			name = "Build cockpit CLI";
+			outputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(PRODUCT_NAME).app/Contents/Resources/cockpit-cli",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$PROJECT_DIR\"/build_cli.sh\n";
 		};
 		3399D490228B24CF009A79C7 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
