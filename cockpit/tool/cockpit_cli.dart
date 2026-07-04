@@ -7,6 +7,8 @@
 // Verbos:
 //   cockpit send      [--tab-id <id>] <texto>     digita texto literal (sem \r)
 //   cockpit send-key  [--tab-id <id>] <Key>...    pressiona tecla(s) nomeada(s)
+//   cockpit open      [--tab-id <id>] <arquivo>   abre o arquivo no viewer
+//   cockpit <arquivo>                             atalho de `open`
 //   cockpit list-panes      [--json]              panes ativos
 //   cockpit list-workspaces [--json]              workspaces (projetos) abertos
 //   cockpit install-skill   [--force]             instala a skill do Claude Code
@@ -46,6 +48,8 @@ Future<void> main(List<String> argv) async {
     case 'send-key':
     case 'send-keys':
       await _cmdSendKey(args);
+    case 'open':
+      await _cmdOpen(args);
     case 'list-panes':
       await _cmdList('list-panes', args);
     case 'list-workspaces':
@@ -53,8 +57,10 @@ Future<void> main(List<String> argv) async {
     case 'install-skill':
       await _cmdInstallSkill(args);
     default:
-      stderr.writeln('cockpit: comando desconhecido "$cmd" (veja --help)');
-      exit(2);
+      // Atalho: `cockpit <arquivo>` (sem verbo) abre o arquivo — o token
+      // desconhecido é tratado como caminho. `cockpit open <arquivo>` é a
+      // forma explícita.
+      await _cmdOpen([cmd, ...args]);
   }
 }
 
@@ -86,6 +92,42 @@ Future<void> _cmdSendKey(List<String> args) async {
     buf.write(resolved);
   }
   await _writeToPane(parsed.tabId, buf.toString());
+}
+
+Future<void> _cmdOpen(List<String> args) async {
+  final parsed = _Flags.parse(args);
+  if (parsed.positionals.isEmpty) {
+    stderr.writeln('cockpit open: falta o caminho do arquivo');
+    exit(2);
+  }
+  // O app tem cwd próprio — resolve pro caminho absoluto no cwd deste pane
+  // (onde a CLI está rodando) antes de mandar.
+  final abs = _resolvePath(parsed.positionals.first);
+  final tabId = parsed.tabId ?? Platform.environment['COCKPIT_PANE_ID'];
+  final req = <String, dynamic>{
+    'cmd': 'open',
+    'args': <String, dynamic>{'path': abs},
+  };
+  if (tabId != null && tabId.isNotEmpty) req['tabId'] = tabId;
+  final resp = await _request(req);
+  if (resp['ok'] != true) {
+    stderr.writeln('cockpit: ${resp['error'] ?? 'falhou'}');
+    exit(1);
+  }
+  exit(0);
+}
+
+/// Expande `~` e resolve caminhos relativos contra o cwd atual → absoluto.
+String _resolvePath(String path) {
+  var p = path;
+  if (p == '~' || p.startsWith('~/')) {
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    if (home != null && home.isNotEmpty) {
+      p = p == '~' ? home : '$home/${p.substring(2)}';
+    }
+  }
+  return File(p).absolute.path;
 }
 
 Future<void> _cmdList(String cmd, List<String> args) async {
@@ -329,6 +371,8 @@ void _printHelp(IOSink out) {
 USO:
   cockpit send      [--tab-id <id>] <texto>    digita texto literal (sem Enter)
   cockpit send-key  [--tab-id <id>] <Key>...   pressiona tecla(s) nomeada(s)
+  cockpit open      [--tab-id <id>] <arquivo>  abre o arquivo no viewer do app
+  cockpit <arquivo>                            atalho de `open` (ex.: cockpit .zprofile)
   cockpit list-panes      [--json]             lista panes ativos
   cockpit list-workspaces [--json]             lista workspaces (projetos)
   cockpit install-skill   [--force]            instala a skill do Claude Code
@@ -346,7 +390,9 @@ TECLAS (send-key):
 EXEMPLOS:
   cockpit send "echo oi" && cockpit send-key Enter
   cockpit send-key C-c
-  cockpit send --tab-id t3 "ls" ; cockpit send-key --tab-id t3 Enter''',
+  cockpit send --tab-id t3 "ls" ; cockpit send-key --tab-id t3 Enter
+  cockpit .zprofile          # abre o arquivo no viewer (relativo ao cwd do pane)
+  cockpit open ~/.gitconfig''',
   );
 }
 
@@ -375,6 +421,10 @@ Cockpit (não está no PATH global).
 - `cockpit send-key [--tab-id <id>] <Key>...` — pressiona tecla(s): `Enter`, `Tab`,
   `Escape`, `Space`, `BSpace`, `Up`/`Down`/`Left`/`Right`, `Home`/`End`,
   `PageUp`/`PageDown`, `Delete`, e `C-<letra>` (ex.: `C-c` = Ctrl+C).
+- `cockpit open [--tab-id <id>] <arquivo>` — abre o arquivo no viewer do app
+  (aba ao lado do terminal). `cockpit <arquivo>` é o atalho. O caminho é
+  resolvido no cwd do pane (relativo, `~` e absoluto funcionam). Qualquer tipo
+  abre como texto — inclusive sem extensão (`.zprofile`, `Makefile`).
 - `cockpit list-panes [--json]` — panes ativos: `id`, `kind`, `title`,
   `workspaceId`, `working`.
 - `cockpit list-workspaces [--json]` — projetos abertos: `id`, `name`, `panes`.

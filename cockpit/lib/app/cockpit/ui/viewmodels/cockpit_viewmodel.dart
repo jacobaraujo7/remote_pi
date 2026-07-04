@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Directory, FileSystemEvent, Platform;
+import 'dart:io' show Directory, File, FileSystemEvent, Platform;
 import 'dart:math' show max;
 
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
@@ -1786,6 +1786,39 @@ class CockpitViewModel extends ChangeNotifier {
             .toList();
         return CockpitCommandResult.ok(panes);
 
+      // `cockpit open <path>` — abre um arquivo no viewer. A CLI já resolveu
+      // pro caminho absoluto (o cwd do pane ≠ cwd do app). Abre no workspace do
+      // pane que emitiu (trazendo-o pra frente se não for o ativo) e como aba
+      // ao lado do próprio terminal (mesma folha).
+      case 'open':
+        final path = (c.args['path'] ?? '').toString();
+        if (path.isEmpty) {
+          return const CockpitCommandResult.fail('path ausente');
+        }
+        if (!await File(path).exists()) {
+          return CockpitCommandResult.fail('arquivo não encontrado: "$path"');
+        }
+        final from = c.tabId;
+        String? targetProject;
+        String? targetLeaf;
+        if (from != null && from.isNotEmpty) {
+          final s = _sessions[from];
+          if (s != null) {
+            targetProject = s.projectId;
+            targetLeaf = _leafOfTab(targetProject, from);
+          }
+        }
+        if (targetProject != null && targetProject != _selectedProjectId) {
+          selectProject(targetProject);
+        }
+        if (_selectedProjectId == null) {
+          return const CockpitCommandResult.fail(
+            'nenhum workspace ativo pra abrir o arquivo',
+          );
+        }
+        await openFile(path, inPane: targetLeaf, isPreview: false);
+        return const CockpitCommandResult.ok();
+
       case 'list-workspaces':
         final ws = _projectList
             .map(
@@ -1803,6 +1836,18 @@ class CockpitViewModel extends ChangeNotifier {
       default:
         return CockpitCommandResult.fail('comando desconhecido: "${c.cmd}"');
     }
+  }
+
+  /// Id da folha (coluna de splits) que contém a aba [tabId] no projeto
+  /// [projectId], ou `null` se não achar. Usado pra abrir o arquivo ao lado do
+  /// terminal que emitiu o `cockpit open`.
+  String? _leafOfTab(String projectId, String tabId) {
+    final tree = _trees[projectId];
+    if (tree == null) return null;
+    for (final leaf in leaves(tree)) {
+      if (leaf.tabs.contains(tabId)) return leaf.id;
+    }
+    return null;
   }
 
   String _paneKind(PaneItem s) {
