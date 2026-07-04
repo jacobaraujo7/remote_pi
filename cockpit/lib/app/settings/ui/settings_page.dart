@@ -6,6 +6,7 @@ import 'package:cockpit/app/core/ui/widgets/macos_notification_instructions_dial
 import 'package:cockpit/app/settings/domain/cron_schedule.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
+import 'package:cockpit/app/core/data/setup/storage_location.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/settings/domain/entities/cron_job.dart';
 import 'package:cockpit/app/settings/domain/entities/daemon_info.dart';
@@ -375,6 +376,7 @@ class _GeneralPanel extends StatelessWidget {
                   ],
                 ),
               ),
+              const _StorageSection(),
             ],
           ),
         ),
@@ -408,6 +410,216 @@ class _GeneralPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+// Storage (General) — pasta de dados escolhível + reset
+// ---------------------------------------------------------------------------
+
+/// Seção "Storage": mostra onde o Cockpit guarda seu estado, deixa o usuário
+/// apontar pra outra pasta (ex.: um diretório sincronizado) e oferece um reset
+/// de fábrica. Trocar a pasta ou resetar **exige reiniciar** — a UI informa e
+/// oferece fechar o app na hora.
+class _StorageSection extends StatefulWidget {
+  const _StorageSection();
+
+  @override
+  State<_StorageSection> createState() => _StorageSectionState();
+}
+
+class _StorageSectionState extends State<_StorageSection> {
+  String? _root; // raiz efetiva (pasta que o usuário "vê")
+  bool _custom = false;
+  bool _loading = true;
+  bool _busy = false; // durante copy/pick, evita cliques repetidos
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final root = await StorageLocation.effectiveRoot();
+    final custom = await StorageLocation.isCustom();
+    if (!mounted) return;
+    setState(() {
+      _root = root;
+      _custom = custom;
+      _loading = false;
+    });
+  }
+
+  Future<void> _changeFolder() async {
+    if (_busy) return;
+    final picked = await FilePicker.platform.getDirectoryPath(
+      dialogTitle: 'Choose a folder for Cockpit data',
+    );
+    if (picked == null || !mounted) return;
+    setState(() => _busy = true);
+    // Copia os dados atuais pra nova pasta (se estiver vazia) — evita a
+    // surpresa de "meus projetos sumiram" após o restart.
+    await StorageLocation.migrateHiveTo(picked);
+    await StorageLocation.setOverrideRoot(picked);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _promptRestart(
+      'Cockpit will use this folder from the next launch:\n$picked',
+    );
+  }
+
+  Future<void> _useDefault() async {
+    if (_busy) return;
+    await StorageLocation.setOverrideRoot(null);
+    if (!mounted) return;
+    await _promptRestart(
+      'Cockpit will use the default system location from the next launch. '
+      'Your data in the custom folder is left untouched.',
+    );
+  }
+
+  Future<void> _reset() async {
+    final confirmed = await _confirmReset();
+    if (confirmed != true || !mounted) return;
+    await StorageLocation.resetAll();
+    if (!mounted) return;
+    await _promptRestart(
+      'All Cockpit data was cleared. Restart to start fresh.',
+      quitOnly: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return _Section(
+      label: 'Storage',
+      child: _Card(
+        children: [
+          _Row(
+            title: 'Storage location',
+            description: _loading
+                ? 'Loading…'
+                : 'Cockpit keeps its projects, layouts and settings here. '
+                      'Point it at a synced folder to back it up.\n${_root ?? '—'}',
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_custom) ...[
+                  GhostButton(
+                    onPressed: _loading || _busy ? null : _useDefault,
+                    child: const Text('Use default'),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                OutlineButton(
+                  onPressed: _loading || _busy ? null : _changeFolder,
+                  child: Text(_busy ? 'Working…' : 'Change…'),
+                ),
+              ],
+            ),
+          ),
+          _Row(
+            title: 'Reset Cockpit',
+            description:
+                'Delete all local data — projects, layouts, settings and '
+                'terminal history — and return to the default location.',
+            trailing: DestructiveButton(
+              onPressed: _loading ? null : _reset,
+              child: Text('Reset…', style: TextStyle(color: colors.error)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Confirmação destrutiva do reset.
+  Future<bool?> _confirmReset() {
+    return showDialog<bool>(
+      context: context,
+      barrierColor: const Color(0x99000000),
+      builder: (context) {
+        final colors = context.colors;
+        return AlertDialog(
+          title: Text(
+            'Reset Cockpit?',
+            style: context.typo.title.copyWith(
+              fontSize: 15,
+              color: colors.text,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Text(
+              'This permanently deletes all local Cockpit data — projects, '
+              'layouts, settings and terminal history. This cannot be undone. '
+              'Cockpit will close so you can start fresh.',
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text2,
+              ),
+            ),
+          ),
+          actions: [
+            GhostButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancel'),
+            ),
+            DestructiveButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Reset', style: TextStyle(color: colors.error)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Informa que a mudança só vale no próximo boot e oferece fechar agora.
+  /// [quitOnly] esconde o "Later" (reset já apagou tudo — continuar seria
+  /// esquisito), mas nunca força o fechamento sem o clique do usuário.
+  Future<void> _promptRestart(String message, {bool quitOnly = false}) {
+    return showDialog<void>(
+      context: context,
+      barrierColor: const Color(0x99000000),
+      builder: (context) {
+        final colors = context.colors;
+        return AlertDialog(
+          title: Text(
+            'Restart required',
+            style: context.typo.title.copyWith(
+              fontSize: 15,
+              color: colors.text,
+            ),
+          ),
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Text(
+              message,
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text2,
+              ),
+            ),
+          ),
+          actions: [
+            if (!quitOnly)
+              GhostButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Later'),
+              ),
+            PrimaryButton(
+              // Encerra abrupto de propósito: descarta escritas pendentes nas
+              // boxes antigas (já migradas/apagadas), sem recriar arquivos no
+              // caminho velho via o save de window_state no onWindowClose.
+              onPressed: () => exit(0),
+              child: const Text('Quit Cockpit'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

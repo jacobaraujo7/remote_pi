@@ -7,22 +7,16 @@ import 'package:cockpit/app/cockpit/data/hooks/claude_hook_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
+import 'package:cockpit/app/core/data/setup/storage_location.dart';
 import 'package:cockpit/app/core/env.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
-import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
-
-/// Subdiretório raiz das boxes do Hive. Em debug usa `cockpit-debug` para não
-/// colidir com as boxes da build de produção (que costuma ficar aberta em
-/// paralelo durante o desenvolvimento). Todas as boxes — inclusive a
-/// `window_state` — herdam esse diretório via `Hive.initFlutter`.
-const String hiveSubdir = kDebugMode ? 'cockpit-debug' : 'cockpit';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,10 +30,13 @@ Future<void> main() async {
   await PiProcessRegistry.cleanOrphans();
   await LspProcessRegistry.cleanOrphans();
 
-  // Subdiretório próprio; em debug separado da build de produção. As boxes das
-  // features são abertas pelos próprios builders async (ver buildCockpitModule);
-  // aqui só a de settings, que o SettingsController precisa antes do 1º frame.
-  await Hive.initFlutter(hiveSubdir);
+  // Raiz do Hive resolvida via StorageLocation: a pasta padrão do sistema OU a
+  // que o usuário escolheu nas Configurações (ponteiro fixo em
+  // `~/.cockpit/storage_root`). Subdiretório próprio (`cockpit`/`cockpit-debug`)
+  // separa debug de produção. As boxes das features são abertas pelos próprios
+  // builders async (ver buildCockpitModule); aqui só a de settings, que o
+  // SettingsController precisa antes do 1º frame.
+  Hive.init(await StorageLocation.hiveDir());
   final settingsBox = await Hive.openBox<dynamic>(HiveSettingsStore.boxName);
 
   // Preferências carregadas ANTES do primeiro frame → o app já abre no tema

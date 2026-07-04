@@ -599,7 +599,7 @@ class _TabState extends State<_Tab> {
             ),
           const AppMenuItem(
             value: 'copy-id',
-            label: 'Copy tab id',
+            label: 'Copy Id',
             icon: Icons.content_copy,
           ),
         ],

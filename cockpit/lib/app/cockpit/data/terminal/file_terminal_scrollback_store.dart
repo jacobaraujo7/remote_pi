@@ -2,24 +2,21 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:cockpit/app/core/data/setup/storage_location.dart';
 
 /// [TerminalScrollbackStore] em arquivo, sob o applicationSupport do app
-/// (`.../terminal_scrollback/<projectId>/<sessionId>.log`, UTF-8). A raiz já é
-/// namespaceada pelo `hiveSubdir` (`cockpit`/`cockpit-debug`), então debug e
-/// release não se misturam.
+/// (`.../terminal_scrollback/<projectId>/<sessionId>.log`, UTF-8). Localização
+/// resolvida por [StorageLocation.scrollbackDir] — **cache local**, não segue a
+/// pasta escolhida pelo usuário (não faz sentido sincronizar logs pesados), mas
+/// é apagado no reset.
 ///
 /// Store **burra**: o ring buffer e o tracking de alt-screen vivem no
 /// [TerminalSession]; aqui só há IO. Escrita atômica via `.tmp` + `rename`.
 class FileTerminalScrollbackStore implements TerminalScrollbackStore {
   const FileTerminalScrollbackStore();
 
-  static const String _dirName = 'terminal_scrollback';
-
-  Future<Directory> _root() async {
-    final support = await getApplicationSupportDirectory();
-    return Directory('${support.path}/$_dirName');
-  }
+  Future<Directory> _root() async =>
+      Directory(await StorageLocation.scrollbackDir());
 
   File _fileIn(Directory root, String projectId, String sessionId) =>
       File('${root.path}/$projectId/$sessionId.log');
