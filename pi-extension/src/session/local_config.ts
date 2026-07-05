@@ -132,14 +132,27 @@ export function loadLocalConfig(cwd: string): LocalConfig {
 
 export function saveLocalConfig(cwd: string, patch: Partial<LocalConfig>): void {
   const p = pathFor(cwd);
-  mkdirSync(dirname(p), { recursive: true });
   const current = loadLocalConfig(cwd);
   const next: LocalConfig = { ...current, ...patch };
   // Always persist auto_start_relay explicitly (default true) so future reads
   // never need to guess. Backward-compat: legacy files without the field
   // are treated as true on read; we lock that intent in on first save.
   if (typeof next.auto_start_relay !== "boolean") next.auto_start_relay = true;
-  writeFileSync(p, JSON.stringify(next, null, 2));
+  // Best-effort persistence: a read-only config.json is a legitimate deployment
+  // (NixOS/Home Manager symlink into the immutable Nix store, read-only root,
+  // EPERM). The name/config sync is cosmetic — it must NEVER crash the pi
+  // process with an uncaughtException. `saveLocalConfig` is reached via
+  // fire-and-forget async paths (`void _syncNameFromPi()` from `turn_start` /
+  // `session_start`), so a sync throw from `mkdirSync`/`writeFileSync` sails
+  // past the runner's per-handler try/catch and takes down pi. Guard both fs
+  // calls together so a partial attempt can't throw past the caller.
+  try {
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, JSON.stringify(next, null, 2));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[remote-pi] could not persist local config ${p}: ${message}`);
+  }
 }
 
 /**
