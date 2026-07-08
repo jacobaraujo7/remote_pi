@@ -104,6 +104,16 @@ Future<void> _setupWindow(Box<dynamic> winBox) async {
       await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
     }
     await windowManager.show();
+
+    // Linux/window_manager can show a 10x10 window despite WindowOptions.size.
+    // Re-apply visible bounds after show; harmless on macOS/Windows.
+    if (x != null && y != null) {
+      await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
+    } else {
+      await windowManager.setSize(Size(w, h));
+      await windowManager.center();
+    }
+
     await windowManager.focus();
   });
 }
