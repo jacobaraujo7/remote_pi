@@ -205,7 +205,14 @@ class ChatViewModel extends ViewModel<ChatState> {
     final nowOnline = s is StatusOnline;
     _lastStatus = s;
     // Auto re-sync on a fresh online edge so the chat catches up.
-    if (nowOnline && !wasOnline) _sync.requestSync();
+    if (nowOnline && !wasOnline) {
+      // WS retry can snap ConnectionManager to a stale cwd — re-align
+      // before SessionSync so history + sends target THIS chat.
+      if (_conn.activeRoomId != _activeRoomId) {
+        _conn.switchRoom(_activeRoomId);
+      }
+      _sync.requestSync();
+    }
     _recompute();
   }
 

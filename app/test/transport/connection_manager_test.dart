@@ -1446,6 +1446,7 @@ void _registerRoomsTests() {
       expect(cm.activeRoomId, 'main');
       cm.switchRoom('room-xyz');
       expect(cm.activeRoomId, 'room-xyz');
+      expect(cm.activePeer?.roomId, 'room-xyz');
 
       // Same room is a no-op.
       cm.switchRoom('room-xyz');
@@ -1453,6 +1454,45 @@ void _registerRoomsTests() {
 
       cm.dispose();
     });
+
+    test(
+      'WS retry keeps switchRoom cwd — stale peer.roomId must not clobber',
+      () async {
+        const peerB = PeerRecord(
+          remoteEpk: 'epk_test',
+          sessionName: 'test session',
+          relayUrl: 'ws://localhost:8080',
+          pairedAt: '2026-01-01T00:00:00Z',
+          roomId: 'channel-B',
+        );
+        var idx = 0;
+        final ch1 = _ControllableChannel();
+        final ch2 = _ControllableChannel();
+        final cm = ConnectionManager(
+          factory: (_, _) async => idx++ == 0 ? ch1 : ch2,
+          storage: _FakeStorage([peerB]),
+          emitDebounce: Duration.zero,
+        );
+        await cm.connectTo(peerB);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(cm.activeRoomId, 'channel-B');
+
+        cm.switchRoom('channel-A');
+        expect(cm.activeRoomId, 'channel-A');
+        expect(cm.activePeer?.roomId, 'channel-A');
+
+        await ch1.closeStream();
+        // First retry backoff is 1s.
+        await Future<void>.delayed(const Duration(milliseconds: 1100));
+
+        expect(cm.activeRoomId, 'channel-A',
+            reason: 'retry must not snap back to stale peer.roomId');
+        expect(cm.activePeer?.roomId, 'channel-A');
+        expect(cm.status, isA<StatusOnline>());
+
+        cm.dispose();
+      },
+    );
   });
 }
 

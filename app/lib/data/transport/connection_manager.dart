@@ -483,7 +483,6 @@ class ConnectionManager extends Service {
     final token = CancelToken();
     _connectCancel = token;
     _connectInFlight = true;
-    _activePeer = peer;
     // Plan 17 fix — set the destination room from the persisted
     // PeerRecord BEFORE emitting StatusOnline so the very first send
     // after connect goes to the right (peer, room) on the relay. If
@@ -491,9 +490,22 @@ class ConnectionManager extends Service {
     // `_activeRoomId = 'main'` and rely on the discovery flow in
     // `_onControl` to learn the real room from a subsequent
     // `room_announced` push and then update _activeRoomId + persist.
-    final boundRoom = peer.roomId ?? 'main';
-    if (boundRoom != _activeRoomId) {
-      _activeRoomId = boundRoom;
+    //
+    // Same-peer reconnect (WS retry after backgrounding): the `peer`
+    // argument is often a stale capture from `_watchChannel` while
+    // `switchRoom` already moved `_activeRoomId` for the cwd the user
+    // is viewing. Trust the live selection — never clobber it from a
+    // lagging peer.roomId (fixes header=cwd-A, messages/sync=cwd-B).
+    final samePeer = _activePeer?.remoteEpk == peer.remoteEpk;
+    if (samePeer) {
+      _activePeer = peer.copyWith(roomId: _activeRoomId);
+    } else {
+      _activePeer = peer;
+      final boundRoom = peer.roomId ?? 'main';
+      if (boundRoom != _activeRoomId) {
+        _activeRoomId = boundRoom;
+      }
+      _activePeer = peer.copyWith(roomId: _activeRoomId);
     }
     _emit(const StatusConnecting());
 
