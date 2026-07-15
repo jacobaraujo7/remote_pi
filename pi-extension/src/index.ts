@@ -67,7 +67,6 @@ import { formatPeerInventory } from "./session/peer_inventory.js";
 import { MeshNode } from "./session/mesh_node.js";
 import {
   handleSessionCompact,
-  handleSessionNew,
   handleModelSet,
   handleThinkingSet,
   handleListModels,
@@ -3714,37 +3713,70 @@ export function _routeClientMessageFrom(
       break;
     case "session_new": {
       const actionCtx = _lastCtx as ActionCtx | null;
-      if (process.env["REMOTE_PI_DAEMON"] === "1" && !actionCtx?.newSession) {
-        // Headless RPC daemon has no ExtensionCommandContext, so ctx.newSession
-        // is unavailable. Ack, clear remote-pi's mirror, then exit with a
-        // private code; the supervisor restarts once without --continue, which
-        // creates a fresh Pi session. Later restarts resume that fresh session.
+      const daemonMode = process.env["REMOTE_PI_DAEMON"] === "1";
+      // Fresh Pi session via the supervisor: ack, clear remote-pi's mirror, then
+      // exit with the private code so the supervisor relaunches without
+      // --continue → a genuinely fresh session. Used when there's NO command ctx
+      // AND as recovery when the captured _lastCtx has gone STALE after an
+      // external session replacement (compact, a /new typed in the TUI,
+      // reload/resume). Reusing a stale ctx throws "stale after session
+      // replacement", which previously surfaced to the app as a hard failure
+      // ("session_new failed") and left New Context wedged.
+      const restartFresh = () => {
         sender.send({ type: "action_ok", in_reply_to: msg.id, action: "session_new" });
         _resetSessionForNew(msg.id);
         setTimeout(() => process.exit(EXIT_DAEMON_FRESH_SESSION), 100);
+      };
+      if (!actionCtx?.newSession) {
+        if (daemonMode) {
+          restartFresh();
+          break;
+        }
+        sender.send({
+          type: "action_error",
+          in_reply_to: msg.id,
+          action: "session_new",
+          error: "newSession unavailable (no command ctx yet)",
+        });
         break;
       }
-      void handleSessionNew(
-        actionCtx,
-        sender,
-        msg,
-        (freshCtx) => {
-          // newSession just made the captured _lastCtx STALE (the SDK throws
-          // if it's reused). Re-capture the fresh command-capable ctx the SDK
-          // passes to withSession so later command ops (another New session,
-          // list_models) run on the current session, not the stale one. The
-          // runtime object also carries ui/abort/cwd, so storing it in the
-          // narrowly-typed _lastCtx slot is sound (mirrors the read-site casts).
-          _lastCtx = freshCtx as unknown as typeof _lastCtx;
-        },
-      ).then((created) => {
-        // Pi-side reset is durable only here: handleSessionNew swaps the SDK
-        // session, but the app's session_sync log (_messageBuffer) and the
-        // session clock (_sessionStartedAt) live in this module. Reset them +
-        // fan out an empty history so every owner drops the stale conversation
-        // — not just the sender, who also clears locally on action_ok.
-        if (created) _resetSessionForNew(msg.id);
-      });
+      // Fast path: drive newSession in-process on the (hopefully fresh) command
+      // ctx, re-capturing the replacement ctx via withSession so later command
+      // ops target the current session. If the ctx turns out stale, recover by
+      // restarting fresh (daemon) instead of failing the action.
+      void (async () => {
+        try {
+          const result = await actionCtx.newSession({
+            withSession: async (freshCtx) => {
+              _lastCtx = freshCtx as unknown as typeof _lastCtx;
+            },
+          });
+          if (result?.cancelled) {
+            sender.send({
+              type: "action_error",
+              in_reply_to: msg.id,
+              action: "session_new",
+              error: "cancelled by extension hook",
+            });
+            return;
+          }
+          sender.send({ type: "action_ok", in_reply_to: msg.id, action: "session_new" });
+          _resetSessionForNew(msg.id);
+        } catch (e) {
+          const emsg = String((e as Error)?.message ?? e ?? "");
+          const stale = /stale|session replacement or reload/i.test(emsg);
+          if (daemonMode && stale) {
+            restartFresh();
+            return;
+          }
+          sender.send({
+            type: "action_error",
+            in_reply_to: msg.id,
+            action: "session_new",
+            error: emsg || "session_new failed",
+          });
+        }
+      })();
       break;
     }
     case "model_set":
