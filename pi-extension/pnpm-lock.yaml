@@ -18,6 +18,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.79.10
         version: 0.79.10(@modelcontextprotocol/sdk@1.29.0(zod@4.4.3))(ws@8.21.0)(zod@4.4.3)
+      '@earendil-works/pi-tui':
+        specifier: ^0.79.10
+        version: 0.79.10
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)

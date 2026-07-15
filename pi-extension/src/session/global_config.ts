@@ -3,10 +3,9 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { ipcAddress, usesNamedPipe } from "./ipc.js";
 
-const HOME_PI_REMOTE = join(homedir(), ".pi", "remote");
+const HOME_PI_REMOTE = join((process.env["REMOTE_PI_HOME"] || homedir()), ".pi", "remote");
 const SESSIONS_DIR = join(HOME_PI_REMOTE, "sessions");
 const SKILLS_DIR = join(HOME_PI_REMOTE, "skills");
-
 /**
  * Fixed UDS session name. The local mesh is single per machine — every Pi
  * process on the host shares this broker. Previous versions exposed
