@@ -92,7 +92,6 @@ import {
   loadLocalConfig,
   localConfigExists,
   saveLocalConfig,
-  sanitizeSegment,
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
@@ -3744,9 +3743,12 @@ export function _routeClientMessageFrom(
       // ctx, re-capturing the replacement ctx via withSession so later command
       // ops target the current session. If the ctx turns out stale, recover by
       // restarting fresh (daemon) instead of failing the action.
+      // Capture the method past the guard above: TS drops the `!actionCtx?.newSession`
+      // narrowing inside the async closure, so bind it to a local const first.
+      const newSession = actionCtx.newSession;
       void (async () => {
         try {
-          const result = await actionCtx.newSession({
+          const result = await newSession({
             withSession: async (freshCtx) => {
               _lastCtx = freshCtx as unknown as typeof _lastCtx;
             },
