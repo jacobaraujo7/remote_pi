@@ -5,7 +5,10 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 
 Future<void> _toggleMaximize() async {
-  if (await windowManager.isMaximized()) {
+  if (Platform.isMacOS) {
+    final isFull = await windowManager.isFullScreen();
+    await windowManager.setFullScreen(!isFull);
+  } else if (await windowManager.isMaximized()) {
     await windowManager.unmaximize();
   } else {
     await windowManager.maximize();
