@@ -71,6 +71,7 @@ class SyncService extends Service {
   // session index (durable, for Home) and exposed in-memory (for the chat
   // pill, no box-key matching needed).
   bool _working = false;
+  bool _sawRemoteWorking = false;
   // Id of the user message the in-flight reply is answering — the `cancel`
   // target while working. Null when idle.
   String? _workingReplyTo;
@@ -92,7 +93,10 @@ class SyncService extends Service {
     this.pendingSendTimeout = const Duration(seconds: 20),
   }) {
     _connSub = _conn.statusStream.listen(_onStatus);
-    _roomsSub = _conn.roomsStream.listen((_) => _writeRuntime());
+    _roomsSub = _conn.roomsStream.listen((_) {
+      _writeRuntime();
+      _syncTurnStateFromRoomMeta();
+    });
     _presenceSub = _conn.presenceStream.listen((_) => _writeRuntime());
     _onStatus(_conn.status); // replay current
   }
@@ -146,6 +150,7 @@ class SyncService extends Service {
     _chunkBuffer.clear();
     _chunkReplyTo = '';
     _workingReplyTo = null;
+    _sawRemoteWorking = false;
     _setQueuedText(null);
     // Session switch: the previous chat's in-flight sends are no longer ours
     // to confirm — drop their backstops so a stale timer can't fire later.
@@ -326,8 +331,11 @@ class SyncService extends Service {
     final epk = _activeEpk;
     if (epk == null) return;
     final room = _activeRoomId;
-    // Session wiped → any optimistic sends are moot; disarm their backstops.
+    // Session wiped → any optimistic sends/streaming/working state are moot.
     _cancelAllSendTimers();
+    _discardStreamingState();
+    _setQueuedText(null);
+    _setWorking(false);
     await _enqueue(() async {
       if (_activeEpk != epk || _activeRoomId != room) return;
       final box = await _boxes.msgsBox(epk, room);
@@ -871,6 +879,21 @@ class SyncService extends Service {
     if (!_queuedController.isClosed) _queuedController.add(text);
   }
 
+  void _syncTurnStateFromRoomMeta() {
+    final epk = _activeEpk;
+    if (epk == null) return;
+    final remoteWorking = _conn.isRoomWorking(epk, _activeRoomId);
+    if (remoteWorking) {
+      _sawRemoteWorking = true;
+      return;
+    }
+    if (_sawRemoteWorking && _working) {
+      _discardStreamingState();
+      _setWorking(false);
+    }
+    _sawRemoteWorking = false;
+  }
+
   void _setWorking(bool on, {String? preview, String? replyTo}) {
     _setActivity(
       on ? SessionActivity.working : SessionActivity.idle,
@@ -885,6 +908,7 @@ class SyncService extends Service {
       if (replyTo != null) _workingReplyTo = replyTo;
     } else {
       _workingReplyTo = null;
+      _sawRemoteWorking = false;
     }
     if (_working == on) return;
     _working = on;

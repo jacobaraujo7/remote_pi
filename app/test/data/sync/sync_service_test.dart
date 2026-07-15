@@ -17,16 +17,26 @@ import 'package:app/protocol/protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 
-class _FakeChannel implements IChannel {
+class _FakeChannel implements IChannel, IControlLink {
   final _ctrl = StreamController<ServerMessage>.broadcast();
+  final _control = StreamController<ControlInbound>.broadcast();
   final List<ClientMessage> sent = [];
   @override
   Stream<ServerMessage> get serverMessages => _ctrl.stream;
   @override
+  Stream<ControlInbound> get controlFrames => _control.stream;
+  @override
   Future<void> send(ClientMessage msg) async => sent.add(msg);
   @override
-  Future<void> close() => _ctrl.close();
+  void sendControl(Map<String, dynamic> json) {}
+  @override
+  Future<void> close() async {
+    await _ctrl.close();
+    await _control.close();
+  }
+
   void push(ServerMessage m) => _ctrl.add(m);
+  void pushControl(ControlInbound m) => _control.add(m);
 }
 
 class _FakeStorage extends PairingStorage {
@@ -59,6 +69,7 @@ void main() {
     final conn = ConnectionManager(
       factory: (_, _) async => ch,
       storage: _FakeStorage(),
+      emitDebounce: Duration.zero,
     );
     final boxes = LocalBoxes();
     final sync = SyncService(
@@ -608,19 +619,67 @@ void main() {
     s.sync.dispose();
   });
 
-  test('clearActiveSession wipes the rows + index', () async {
-    final s = await setup();
-    s.ch.push(UserInput(id: 'u1', text: 'hi'));
-    await _settle();
-    expect(messages(s.epk), hasLength(1));
+  test(
+    'clearActiveSession wipes rows, index, and in-memory turn state',
+    () async {
+      final s = await setup();
+      s.ch.push(UserInput(id: 'u1', text: 'hi'));
+      await _settle();
+      expect(messages(s.epk), hasLength(1));
+      expect(s.sync.isWorking, isTrue);
+      expect(s.sync.streaming, isNotNull);
 
-    await s.sync.clearActiveSession();
-    await _settle();
-    expect(messages(s.epk), isEmpty);
-    expect(index(s.epk), isNull);
-    s.conn.dispose();
-    s.sync.dispose();
-  });
+      await s.sync.clearActiveSession();
+      await _settle();
+      expect(messages(s.epk), isEmpty);
+      expect(index(s.epk), isNull);
+      expect(s.sync.isWorking, isFalse);
+      expect(s.sync.streaming, isNull);
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
+  test(
+    'relay working=false clears stale active-chat local working state',
+    () async {
+      final s = await setup();
+      s.ch.push(UserInput(id: 'u1', text: 'hi'));
+      await _settle();
+      expect(s.sync.isWorking, isTrue);
+
+      s.ch.pushControl(
+        RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1),
+      );
+      s.ch.pushControl(
+        RoomMetaUpdated(
+          peer: s.epk,
+          roomId: 'main',
+          working: true,
+          hasModel: false,
+          hasThinking: false,
+        ),
+      );
+      await _settle();
+      expect(s.sync.isWorking, isTrue);
+
+      s.ch.pushControl(
+        RoomMetaUpdated(
+          peer: s.epk,
+          roomId: 'main',
+          working: false,
+          hasModel: false,
+          hasThinking: false,
+        ),
+      );
+      await _settle();
+      expect(s.conn.isRoomWorking(s.epk, 'main'), isFalse);
+      expect(s.sync.isWorking, isFalse);
+      expect(s.sync.streaming, isNull);
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
 
   // Plan/32 safety net — a sent message whose echo never comes back must not
   // spin forever; the optimistic bubble is removed SILENTLY after the timeout.

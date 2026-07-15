@@ -205,7 +205,14 @@ class ChatViewModel extends ViewModel<ChatState> {
     final nowOnline = s is StatusOnline;
     _lastStatus = s;
     // Auto re-sync on a fresh online edge so the chat catches up.
-    if (nowOnline && !wasOnline) _sync.requestSync();
+    if (nowOnline && !wasOnline) {
+      // WS retry can snap ConnectionManager to a stale cwd — re-align
+      // before SessionSync so history + sends target THIS chat.
+      if (_conn.activeRoomId != _activeRoomId) {
+        _conn.switchRoom(_activeRoomId);
+      }
+      _sync.requestSync();
+    }
     _recompute();
   }
 
@@ -268,7 +275,14 @@ class ChatViewModel extends ViewModel<ChatState> {
   Future<void> approveTool(String toolCallId, ApproveDecision decision) =>
       _sync.approveTool(toolCallId, decision);
 
-  Future<void> clearActiveSession() => _sync.clearActiveSession();
+  Future<void> clearActiveSession() async {
+    _messages = const [];
+    _streaming = null;
+    _working = false;
+    _queuedText = null;
+    _recompute();
+    await _sync.clearActiveSession();
+  }
 
   Future<void> reconnect() async {
     final peer = _activePeer;
