@@ -697,28 +697,83 @@ function _attachBridgeIfReady(): void {
     .catch(() => { /* best-effort — UDS mesh works regardless */ });
 }
 
+/**
+ * Prefer an explicit ctx, then the always-fresh session_start ctx, then the
+ * last command ctx. Relay/async paths must not rely on `_lastCtx` alone —
+ * the SDK marks captured command ctxs stale after session replacement.
+ * @see https://github.com/jacobaraujo7/remote_pi/issues/55
+ */
+function _liveCtx(
+  preferred?: { ui?: unknown } | null,
+): { ui?: unknown } | null {
+  return preferred ?? _lastEventCtx ?? _lastCtx ?? null;
+}
+
+/**
+ * Read `ctx.ui` without letting a stale-ctx getter become an uncaughtException.
+ * Optional chaining does NOT protect against a throwing getter.
+ */
+function _ctxUi(preferred?: { ui?: unknown } | null): {
+  setStatus?: (k: string, v: string | undefined) => void;
+  setTitle?: (t: string) => void;
+  notify?: (message: string, level?: string) => void;
+} | null {
+  const target = _liveCtx(preferred);
+  if (!target) return null;
+  try {
+    return (target.ui as {
+      setStatus?: (k: string, v: string | undefined) => void;
+      setTitle?: (t: string) => void;
+      notify?: (message: string, level?: string) => void;
+    } | null | undefined) ?? null;
+  } catch {
+    // Stale after newSession/fork/switchSession/reload — caller no-ops.
+    return null;
+  }
+}
+
+/** Best-effort TUI notify; never throws (relay reconnect must not crash pi). */
+function _safeNotify(message: string, level: "info" | "warning" | "error" = "info"): void {
+  try {
+    const ui = _ctxUi();
+    if (ui && typeof ui.notify === "function") ui.notify(message, level);
+  } catch {
+    /* never let notify take down the process */
+  }
+}
+
 /** Refreshes the Pi TUI footer slots from current module state. Safe no-op when ctx lacks ui. */
 function _refreshFooter(ctx?: { ui?: { setStatus?: unknown; setTitle?: unknown } } | null): void {
-  const target = ctx ?? _lastCtx;
-  const ui = target?.ui as (
-    { setStatus?: (k: string, v: string | undefined) => void; setTitle?: (t: string) => void } | undefined
-  );
+  // Prefer live session_start ctx over capturable-stale command ctx (issue #55).
+  let ui: {
+    setStatus?: (k: string, v: string | undefined) => void;
+    setTitle?: (t: string) => void;
+  } | null;
+  try {
+    ui = _ctxUi(ctx);
+  } catch {
+    return;
+  }
   if (!ui || typeof ui.setStatus !== "function" || typeof ui.setTitle !== "function") return;
-  const state: FooterState = {
-    session: _sessionName ?? undefined,
-    peerCount: _sessionPeerCount,
-    relayOn: _state !== "idle",
-    // `devicePaired` now reflects "any owner currently attached" — picks one
-    // shortid representatively (multi-owner UX detail surfaces in the
-    // `/remote-pi status` line, not the footer slot).
-    devicePaired: _anyPeerActive() ? _peerShort : undefined,
-    hasPairings: _hasGlobalPairings,
-    agentName: _meshNode?.name(),
-  };
-  updateFooter(
-    { ui: { setStatus: ui.setStatus.bind(ui), setTitle: ui.setTitle.bind(ui) } },
-    state,
-  );
+  try {
+    const state: FooterState = {
+      session: _sessionName ?? undefined,
+      peerCount: _sessionPeerCount,
+      relayOn: _state !== "idle",
+      // `devicePaired` now reflects "any owner currently attached" — picks one
+      // shortid representatively (multi-owner UX detail surfaces in the
+      // `/remote-pi status` line, not the footer slot).
+      devicePaired: _anyPeerActive() ? _peerShort : undefined,
+      hasPairings: _hasGlobalPairings,
+      agentName: _meshNode?.name(),
+    };
+    updateFooter(
+      { ui: { setStatus: ui.setStatus.bind(ui), setTitle: ui.setTitle.bind(ui) } },
+      state,
+    );
+  } catch {
+    // setStatus/setTitle can also throw if the runner went stale mid-call.
+  }
 }
 
 // Epoch ms when the state machine entered 'started' (last /remote-pi start).
@@ -1353,7 +1408,7 @@ export function _onPeerDisconnect(appPeerId?: string): void {
   // starts cleanly.
   _currentTurnId = null;
   _refreshFooter();
-  _lastCtx?.ui.notify("[remote-pi] All app peers disconnected, listening for reconnect", "info");
+  _safeNotify("[remote-pi] All app peers disconnected, listening for reconnect", "info");
   // Auto-listener stays up — same listener catches the reconnect on any peer.
 }
 
@@ -1378,18 +1433,20 @@ function _attachOwner(
   // Drop any stale channel for this owner before re-attaching.
   if (_activePeers.has(appPeerId)) _detachPeerChannel(appPeerId);
 
+  // Prefer always-fresh session_start ctx for async relay routing — `_lastCtx`
+  // is a captured command ctx that goes stale after session replacement (#55).
   const channel = new PlainPeerChannel(
     relay,
     appPeerId,
     _myRoomId ?? undefined,
-    (msg) => _routeClientMessageFrom(channel, msg, _lastCtx ?? _noopCtx),
+    (msg) => _routeClientMessageFrom(channel, msg, (_liveCtx() as typeof _noopCtx) ?? _noopCtx),
     () => _onPeerDisconnect(appPeerId),
   );
 
   _attachPeerChannel(appPeerId, channel);
   _refreshFooter();
 
-  _lastCtx?.ui.notify(
+  _safeNotify(
     `[remote-pi] Owner attached: peer=${peerShort}, name=${peerName} ` +
     `(${_activePeers.size} active)`,
     "info",
@@ -1458,7 +1515,8 @@ function _installAutoListener(relay: RelayClient): () => void {
       // The PlainPeerChannel listener for this owner won't have seen the
       // line that triggered the attach (we already consumed it); route
       // it explicitly via the new channel so the sender gets a reply.
-      _routeClientMessageFrom(channel, inner, _lastCtx ?? _noopCtx);
+      // Use _liveCtx (session_start-fresh) — not bare _lastCtx (#55).
+      _routeClientMessageFrom(channel, inner, (_liveCtx() as typeof _noopCtx) ?? _noopCtx);
       return;
     }
 
@@ -1597,7 +1655,7 @@ let _lastCtx: Pick<ExtensionContext, "ui" | "abort" | "cwd"> | null = null;
 // (an app Quick Action OR a `/new` typed in the Pi TUI). It carries only
 // base-ctx methods (no newSession — that's command-ctx only), so command ops
 // keep using `_lastCtx`.
-let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort"> | null = null;
+let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort" | "ui"> | null = null;
 const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 
 // A single Pi process can load this extension TWICE in the SAME session:
@@ -1938,6 +1996,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // down — the race that left a mute `Backoffice` behind when the Cockpit
     // fired switch_session right after boot.
     _disposed = true;
+    // Drop captured ctxs immediately. On module-reuse hosts the same instance
+    // survives session replacement; leaving `_lastCtx` pointing at the now-
+    // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
+    // (issue #55). session_start re-binds `_lastEventCtx` for the new session.
+    _lastCtx = null;
+    _lastEventCtx = null;
     if (_meshNode) {
       try { await _meshNode.close(); } catch { /* best-effort */ }
       _meshNode = null;
@@ -3353,7 +3417,7 @@ function _wakeAgent(
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
-    _lastCtx?.ui.notify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
+    _safeNotify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
     return { ok: false, detail };
   }
 }
@@ -3403,7 +3467,7 @@ function _deliverMeshMessageToAgent(
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
-    _lastCtx?.ui.notify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
+    _safeNotify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
   }
 }
 
@@ -3582,8 +3646,16 @@ function _abortCurrentTurn(
   for (const candidate of candidates) {
     if (!candidate || candidate === _noopCtx) continue;
     if (typeof candidate.abort !== "function") continue;
-    candidate.abort();
-    return true;
+    try {
+      candidate.abort();
+      return true;
+    } catch (err) {
+      // Only skip SDK stale-ctx throws and try the next candidate. Real abort
+      // failures rethrow so the cancel handler can report action_error.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/stale|session replacement or reload/i.test(msg)) continue;
+      throw err;
+    }
   }
 
   return false;

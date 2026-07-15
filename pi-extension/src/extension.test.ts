@@ -2348,6 +2348,59 @@ describe("routeClientMessage cancel handling", () => {
     expect(freshAbort).toHaveBeenCalledTimes(1);
   });
 
+  test("owner reconnect after session replacement does not throw on stale _lastCtx.ui (#55)", async () => {
+    // Regression: _refreshFooter/_attachOwner used captured _lastCtx.ui; after
+    // session replacement the SDK ui getter throws via assertActive and the
+    // uncaught exception killed the whole pi process on peer reconnect.
+    const freshNotify = vi.fn();
+    const freshSetStatus = vi.fn();
+    const freshSetTitle = vi.fn();
+
+    await _pairForTestWithCtx("owner-stale-ui", {
+      ui: { notify: vi.fn(), setStatus: vi.fn(), setTitle: vi.fn() },
+      cwd: "/tmp/remote-pi-stale-ui",
+    });
+
+    // Plant a command ctx whose ui GETTER throws (real SDK stale-ctx behaviour).
+    // The status handler assigns _lastCtx = ctx before touching ui.
+    const status = captureHandler("remote-pi status");
+    const staleCtx = {
+      cwd: "/tmp/remote-pi-stale-ui",
+      get ui() {
+        throw new Error("This extension ctx is stale after session replacement or reload.");
+      },
+    };
+    await expect(status("", staleCtx as ReturnType<typeof makeMockCtx>)).rejects.toThrow(/stale/);
+
+    // Rebind the always-fresh session_start ctx (module-reuse path after /new).
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart({ type: "session_start" }, {
+      abort: vi.fn(),
+      compact: vi.fn(),
+      ui: { notify: freshNotify, setStatus: freshSetStatus, setTitle: freshSetTitle },
+    } as unknown as {
+      abort: ReturnType<typeof vi.fn>;
+      compact: ReturnType<typeof vi.fn>;
+      ui: { notify: ReturnType<typeof vi.fn>; setStatus: ReturnType<typeof vi.fn>; setTitle: ReturnType<typeof vi.fn> };
+    });
+
+    // Drop the owner, then reconnect via the known-peer auto-listener path
+    // (the exact stack in the bug: onMsg → _attachOwner → _refreshFooter).
+    _onPeerDisconnect("owner-stale-ui");
+    expect(_hasActivePeerForTest("owner-stale-ui")).toBe(false);
+
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "owner-stale-ui",
+      ct: Buffer.from(JSON.stringify({ type: "ping", id: "ping-stale-ui" })).toString("base64"),
+    }));
+    await new Promise<void>((r) => setImmediate(r));
+
+    expect(_hasActivePeerForTest("owner-stale-ui")).toBe(true);
+    // Footer refresh preferred the fresh session_start ui, not the throwing one.
+    expect(freshSetStatus).toHaveBeenCalled();
+    expect(freshNotify).toHaveBeenCalled();
+  });
+
   test("cancel is handled before the strict pi binding guard", async () => {
     const freshAbort = vi.fn();
 
