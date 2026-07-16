@@ -9,6 +9,7 @@ import 'package:cockpit/app/core/domain/contracts/lsp_client.dart';
 import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/system_permissions.dart';
+import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/core/env.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 
@@ -38,9 +39,18 @@ import 'package:flutter_modular/flutter_modular.dart';
 ///   features — o cockpit usa no checklist do agente (`SetupViewModel`) e o
 ///   settings para ocultar abas remotas até o ambiente estar instalado e para a
 ///   aba de Notificações. [EnvironmentProbeImpl] resolve o [PiSpawnConfig] daqui.
-Module buildCoreModule({required PiSpawnConfig config}) => createModule(
+///
+/// - [TerminalProfileResolver]: descoberta dos shells disponíveis (plano 50).
+///   Compartilhado — o cockpit resolve o perfil ao abrir uma aba (o `+` e seu
+///   seletor) e o settings lista os perfis para escolher o padrão. Chega **já
+///   aquecido** do `buildAppModule` (a descoberta é async; `register` não é).
+Module buildCoreModule({
+  required PiSpawnConfig config,
+  required TerminalProfileResolver terminalProfiles,
+}) => createModule(
   register: (c) => c
     ..addInstance<PiSpawnConfig>(config)
+    ..addInstance<TerminalProfileResolver>(terminalProfiles)
     ..addInstance<LspClientFactory>(const LspClientFactoryImpl())
     ..addLazySingleton<LspServerPool>(LspServerPool.new)
     ..add<PairingGatewayFactory>(PairingGatewayFactoryImpl.new)

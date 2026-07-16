@@ -23,7 +23,6 @@ import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart'
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
 import 'package:cockpit/app/cockpit/data/terminal/file_terminal_scrollback_store.dart';
-import 'package:cockpit/app/cockpit/data/terminal/terminal_profile_resolver_impl.dart';
 import 'package:cockpit/app/cockpit/data/terminal/pty_terminal_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/data/update/auto_updater_self_updater.dart';
 import 'package:cockpit/app/cockpit/data/update/noop_self_updater.dart';
@@ -49,7 +48,6 @@ import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/update_checker.dart';
@@ -99,14 +97,6 @@ Future<Module> buildCockpitModule() async {
   final settingsBox = await Hive.openBox<dynamic>(HiveSettingsStore.boxName);
   final appVersion = (await PackageInfo.fromPlatform()).version;
 
-  // Plano 50: descobre os perfis de terminal (POSIX: login shell; Windows:
-  // PowerShell/cmd/distros WSL) e injeta a instância **já aquecida** — o `+`
-  // resolve o padrão de forma síncrona ao criar a aba. Precisa ser `addInstance`
-  // (não `.new`): o cache é por instância, e um lazySingleton nasceria frio.
-  // Best-effort — `discover()` nunca lança.
-  final terminalProfiles = TerminalProfileResolverImpl();
-  await terminalProfiles.discover();
-
   // Notificações do SO — init pede permissão; falha não pode derrubar o boot.
   final notifier = LocalNotifier();
   try {
@@ -140,7 +130,6 @@ Future<Module> buildCockpitModule() async {
         ..addLazySingleton<GitDiffReader>(GitDiffReaderImpl.new)
         ..addInstance<SessionHistory>(const SessionHistoryImpl())
         ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())
-        ..addInstance<TerminalProfileResolver>(terminalProfiles)
         ..addInstance<TerminalScrollbackStore>(
           const FileTerminalScrollbackStore(),
         )

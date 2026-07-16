@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/domain/contracts/terminal_profile_resolver.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/executable_resolver.dart';
 import 'package:cockpit/app/core/utils/login_shell.dart';
 

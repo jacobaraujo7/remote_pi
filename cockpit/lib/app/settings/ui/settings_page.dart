@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/core/domain/entities/setup_check.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/ui/widgets/macos_notification_instructions_dialog.dart';
 import 'package:cockpit/app/settings/domain/cron_schedule.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
@@ -43,6 +45,7 @@ class SettingsPage extends StatefulWidget {
 enum _Category {
   general,
   appearance,
+  terminal,
   languages,
   notifications,
   connectivity,
@@ -96,6 +99,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   child: switch (category) {
                     _Category.general => const _GeneralPanel(),
                     _Category.appearance => const _AppearancePanel(),
+                    _Category.terminal => const _TerminalPanel(),
                     _Category.languages => const _LanguagesPanel(),
                     _Category.notifications => const _NotificationsPanel(),
                     _Category.connectivity => const _ConnectivityPanel(),
@@ -182,6 +186,15 @@ class _CategoryNav extends StatelessWidget {
             selected: selected == _Category.appearance,
             onTap: () => onSelect(_Category.appearance),
           ),
+          // Só no Windows: é onde há escolha real de shell (PowerShell/cmd/WSL).
+          // No POSIX o terminal é o login shell do usuário — nada a configurar.
+          if (Platform.isWindows)
+            _NavItem(
+              icon: Icons.terminal_outlined,
+              label: 'Terminal',
+              selected: selected == _Category.terminal,
+              onTap: () => onSelect(_Category.terminal),
+            ),
           _NavItem(
             icon: Icons.code,
             label: 'Language',
@@ -627,6 +640,128 @@ class _StorageSectionState extends State<_StorageSection> {
 
 // Aparência
 // ---------------------------------------------------------------------------
+/// **Terminal** (plano 50) — escolhe o shell que o `+` abre por padrão.
+///
+/// Só existe no Windows (a aba é ocultada fora dele): no POSIX o terminal é o
+/// login shell do usuário e não há escolha a fazer.
+///
+/// O padrão é gravado **por id** (`defaultTerminalProfileId`), nunca o objeto:
+/// os perfis são re-descobertos a cada boot. Sem escolha (ou com um id que
+/// sumiu — uma distro WSL desinstalada), o `effectiveDefault` cai no fallback da
+/// plataforma, que é o PowerShell — e é ele que aparece marcado aqui, porque é o
+/// que de fato vai abrir.
+class _TerminalPanel extends StatelessWidget {
+  const _TerminalPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    // `inject` e não construtor: este painel não é um ViewModel, e o resolver é
+    // um bind root-owned do core (sem estado de página). Cache já aquecido no
+    // boot — `cachedProfiles` é síncrono.
+    final resolver = inject<TerminalProfileResolver>();
+    final profiles = resolver.cachedProfiles;
+    // O que o `+` abre HOJE — já resolve config ausente/inválida no fallback.
+    final effective = resolver.effectiveDefault(
+      controller.settings.defaultTerminalProfileId,
+    );
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Section(
+                label: 'Default terminal',
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: 'Shell',
+                      description:
+                          'Which shell new terminal tabs open. The arrow next '
+                          'to + still opens any other one, just for that tab.',
+                      trailing: _TerminalProfileDropdown(
+                        profiles: profiles,
+                        value: effective,
+                        onChanged: (p) =>
+                            controller.setDefaultTerminalProfileId(p.id),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Sem WSL instalado a lista tem só PowerShell e cmd. Dizer isso é
+              // melhor que deixar o usuário achar que a detecção falhou.
+              if (!profiles.any(
+                (p) => p.id.startsWith(TerminalProfile.wslPrefix),
+              ))
+                Padding(
+                  padding: const EdgeInsets.only(left: 4, right: 4),
+                  child: Text(
+                    'No WSL distros found. Install one (wsl.exe --install) and '
+                    'restart Cockpit to see it listed here.',
+                    style: context.typo.label.copyWith(
+                      color: context.colors.text3,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TerminalProfileDropdown extends StatelessWidget {
+  const _TerminalProfileDropdown({
+    required this.profiles,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final List<TerminalProfile> profiles;
+  final TerminalProfile value;
+  final ValueChanged<TerminalProfile> onChanged;
+
+  /// Mesmo mapa do seletor do `+` — `IconData` é do Flutter, então não mora no
+  /// `TerminalProfile` (agnóstico de UI por design).
+  static IconData _iconFor(TerminalProfile p) {
+    if (p.id.startsWith(TerminalProfile.wslPrefix)) return Icons.dns_outlined;
+    if (p.id == TerminalProfile.cmdId) return Icons.terminal_outlined;
+    return Icons.code;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _DropdownChip(
+      icon: _iconFor(value),
+      label: value.label,
+      onTap: () async {
+        final picked = await showAppMenu<String>(
+          context,
+          minWidth: 200,
+          items: [
+            for (final p in profiles)
+              AppMenuItem(
+                value: p.id,
+                label: p.label,
+                icon: _iconFor(p),
+                selected: p.id == value.id,
+              ),
+          ],
+        );
+        if (picked == null) return;
+        final profile = profiles.where((p) => p.id == picked).firstOrNull;
+        if (profile != null) onChanged(profile);
+      },
+    );
+  }
+}
+
 class _AppearancePanel extends StatelessWidget {
   const _AppearancePanel();
 

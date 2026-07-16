@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 
 /// Descobre os [TerminalProfile] disponíveis na plataforma (plano 50).
 /// Best-effort e cacheável (vida do processo); nunca lança.

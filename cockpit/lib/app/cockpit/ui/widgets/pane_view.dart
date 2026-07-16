@@ -13,6 +13,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_composer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_setup_checklist.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/empty_pane.dart';
@@ -343,7 +344,15 @@ class _TabStripState extends State<_TabStrip> {
                                     widget.onHistoryAgent(pane.tabs[i]),
                               ),
                             ),
-                          _TabAdd(onTap: widget.onCreateTab),
+                          // Windows: "+" e a seta formam um grupo — a divisória
+                          // fica só no fim dele. Ausente no POSIX (lá só existe
+                          // o login shell, sem escolha a fazer).
+                          _TabAdd(
+                            onTap: widget.onCreateTab,
+                            trailingBorder: !widget.vm.showTerminalProfilePicker,
+                          ),
+                          if (widget.vm.showTerminalProfilePicker)
+                            _TabProfilePicker(vm: widget.vm),
                         ],
                       ),
                     ),
@@ -900,9 +909,13 @@ class _TabCloseState extends State<_TabClose> {
 
 /// "+" — abre direto uma aba "Novo" (placeholder); o tipo (agente/terminal) é
 /// escolhido dentro da aba.
+///
+/// A borda direita é omitida quando o [_TabProfilePicker] vem logo depois: os
+/// dois formam **um grupo** ("+ ⌄"), e a divisória fica só no fim dele.
 class _TabAdd extends StatelessWidget {
-  const _TabAdd({required this.onTap});
+  const _TabAdd({required this.onTap, this.trailingBorder = true});
   final VoidCallback onTap;
+  final bool trailingBorder;
 
   @override
   Widget build(BuildContext context) {
@@ -918,9 +931,83 @@ class _TabAdd extends StatelessWidget {
             height: 40,
             padding: const EdgeInsets.symmetric(horizontal: 9),
             decoration: BoxDecoration(
-              border: Border(right: BorderSide(color: colors.border)),
+              border: trailingBorder
+                  ? Border(right: BorderSide(color: colors.border))
+                  : null,
             ),
             child: Icon(Icons.add, size: 14, color: colors.text4),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Seta ao lado do "+" — escolhe **qual** terminal abrir (PowerShell / cmd /
+/// distros WSL). Plano 50, fatia 3.
+///
+/// **Só no Windows** (ver `CockpitViewModel.showTerminalProfilePicker`): no
+/// POSIX o único perfil é o login shell do usuário, e um menu de uma opção só
+/// não significa escolha.
+///
+/// Escolher aqui é **pontual**: abre uma aba com aquele perfil e não mexe no
+/// padrão global (esse é o papel das Configurações → Terminal).
+class _TabProfilePicker extends StatelessWidget {
+  const _TabProfilePicker({required this.vm});
+
+  final CockpitViewModel vm;
+
+  /// Ícone por perfil. Mapeado aqui e não no domínio: `IconData` é do Flutter, e
+  /// o `TerminalProfile` é deliberadamente agnóstico de UI.
+  static IconData _iconFor(TerminalProfile p) {
+    if (p.id.startsWith(TerminalProfile.wslPrefix)) return Icons.dns_outlined;
+    if (p.id == TerminalProfile.cmdId) return Icons.terminal_outlined;
+    return Icons.code;
+  }
+
+  Future<void> _open(BuildContext context) async {
+    final defaultId = vm.defaultTerminalProfile.id;
+    final profiles = vm.terminalProfiles;
+    final chosen = await showAppMenu<String>(
+      context,
+      minWidth: 180,
+      items: [
+        for (final p in profiles)
+          AppMenuItem(
+            value: p.id,
+            label: p.label,
+            icon: _iconFor(p),
+            // Marca o que o "+" abriria — o padrão efetivo.
+            selected: p.id == defaultId,
+          ),
+      ],
+    );
+    if (chosen == null) return; // menu dispensado
+    // `context` NÃO é tocado após o await (regra do CLAUDE.md): a ação toda vive
+    // na VM, que sobrevive à pane.
+    final profile = profiles.where((p) => p.id == chosen).firstOrNull;
+    if (profile == null) return; // re-descoberta mudou a lista no meio do caminho
+    vm.newTabIn('', terminal: true, profile: profile);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Tooltip(
+      tooltip: (context) =>
+          const TooltipContainer(child: Text('New terminal…')),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _open(context),
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.only(right: 7),
+            decoration: BoxDecoration(
+              border: Border(right: BorderSide(color: colors.border)),
+            ),
+            child: Icon(Icons.expand_more, size: 14, color: colors.text4),
           ),
         ),
       ),

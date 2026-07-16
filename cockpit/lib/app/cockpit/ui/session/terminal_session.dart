@@ -3,7 +3,7 @@ import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';

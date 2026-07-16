@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 
 /// Pseudo-terminal nativo (PTY) rodando um shell. Contrato no domínio; a impl
 /// (`data/terminal/`) usa `flutter_pty` (forkpty no macOS/Linux, ConPTY no

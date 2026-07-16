@@ -1,4 +1,5 @@
 import 'package:cockpit/app/core/core_module.dart';
+import 'package:cockpit/app/core/data/terminal/terminal_profile_resolver_impl.dart';
 import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/core/env.dart';
@@ -19,7 +20,13 @@ void main() {
     'core add<T>(Impl.new) resolve PiSpawnConfig (core→core), incl. create()',
     () {
       const config = PiSpawnConfig(executable: 'pi');
-      final boot = bootstrapModule(buildCoreModule(config: config));
+      final boot = bootstrapModule(
+        buildCoreModule(
+          config: config,
+          // Irrelevante aqui; só satisfaz o grafo (cache frio, sem uso).
+          terminalProfiles: TerminalProfileResolverImpl(),
+        ),
+      );
 
       final pairing = boot.injector.get<PairingGatewayFactory>();
       final revoke = boot.injector.get<RevokeGatewayFactory>();

@@ -20,8 +20,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/terminal_profile_resolver.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
@@ -235,6 +235,16 @@ class CockpitViewModel extends ChangeNotifier {
   /// de plataforma. Síncrono — o cache do resolver é aquecido no boot (`main`).
   TerminalProfile get defaultTerminalProfile =>
       _terminalProfiles.effectiveDefault(_defaultTerminalProfileId);
+
+  /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
+  List<TerminalProfile> get terminalProfiles => _terminalProfiles.cachedProfiles;
+
+  /// O seletor de terminal deve aparecer? **Só no Windows** — é lá que existe
+  /// escolha real (PowerShell/cmd/WSL). No POSIX o perfil é o login shell do
+  /// usuário: um item só, escolher não significa nada. Também exige 2+ perfis,
+  /// senão o menu teria uma opção única.
+  bool get showTerminalProfilePicker =>
+      Platform.isWindows && terminalProfiles.length > 1;
 
   /// Paleta dos avatares de projeto (cores do design).
   static const List<int> _palette = <int>[
@@ -1505,13 +1515,19 @@ class CockpitViewModel extends ChangeNotifier {
   /// projeto ativo, na pane focada — **sem dialog**. Usada pelo menu de contexto
   /// da árvore de arquivos. Se a pane focada está num placeholder "Novo" vazio,
   /// substitui-o; senão, anexa uma aba nova e a ativa.
-  void newTabIn(String subRelative, {required bool terminal}) {
+  void newTabIn(
+    String subRelative, {
+    required bool terminal,
+    // Plano 50: perfil específico (seletor ao lado do `+`). `null` = padrão
+    // efetivo. Ignorado quando `terminal` é `false`.
+    TerminalProfile? profile,
+  }) {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     if (projectId == null || tree == null) return;
     final paneId = _focused[projectId] ?? leaves(tree).first.id;
     final leaf = findLeaf(tree, paneId) ?? leaves(tree).first;
-    final s = _spawn(subRelative, terminal: terminal);
+    final s = _spawn(subRelative, terminal: terminal, profile: profile);
 
     final active = _sessions[leaf.active];
     final replaceEmpty =
@@ -1875,7 +1891,11 @@ class CockpitViewModel extends ChangeNotifier {
     _focused[projectId] = leaf.id;
   }
 
-  PaneItem _spawn(String subRelative, {required bool terminal}) {
+  PaneItem _spawn(
+    String subRelative, {
+    required bool terminal,
+    TerminalProfile? profile,
+  }) {
     final project = selectedProject!;
     // Cockpit (terminal-only, sem pasta): shell sempre no HOME do usuário,
     // ignorando `subRelative`. Nunca spawna agente aqui (a UI força terminal).
@@ -1885,6 +1905,7 @@ class CockpitViewModel extends ChangeNotifier {
         project.id,
         userHome() ?? '',
         title: 'Terminal',
+        profile: profile,
       );
     }
     final cwd = subRelative.isEmpty
@@ -1894,7 +1915,8 @@ class CockpitViewModel extends ChangeNotifier {
       subRelative.isEmpty ? project.name : _basename(subRelative),
     );
     return terminal
-        ? _buildTerminal(_nid('t'), project.id, cwd, title: title)
+        ? _buildTerminal(_nid('t'), project.id, cwd, title: title,
+            profile: profile)
         : _buildAgent(_nid('a'), project, cwd, title: title);
   }
 
