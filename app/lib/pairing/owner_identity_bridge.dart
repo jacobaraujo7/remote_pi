@@ -58,25 +58,37 @@ class OwnerIdentityBridge extends ChangeNotifier {
   /// guard logic.
   Uint8List? get currentOwnerPk => _current?.ownerPk;
 
-  /// Check sync availability, load (or generate) the Owner identity.
+  /// Load (or generate) the Owner identity.
   /// Idempotent — repeated calls are cheap once `_current` is populated.
+  ///
+  /// The `isSyncAvailable()` pre-flight is deliberately NOT a gate here
+  /// (issue #39): on iOS it used to mirror the ubiquity token, which is
+  /// always nil without an iCloud entitlement, so every App Store user
+  /// hard-locked on "Sync required" regardless of their iCloud Keychain
+  /// state. The real capability check is the load/save path — the store
+  /// throws [SyncUnavailable] when the platform sync surface genuinely
+  /// can't hold the key (e.g. Android Block Store without backup), and
+  /// only that verdict sends the router to /sync-required.
   Future<OwnerIdentityBootResult> boot() async {
-    if (!await _store.isSyncAvailable()) {
-      return const SyncUnavailableResult();
-    }
     try {
       final loaded = await _store.load();
       if (loaded != null) {
         _current = loaded;
         return IdentityReady(loaded, generated: false);
       }
+    } on SyncUnavailable {
+      return const SyncUnavailableResult();
     } on IdentityStoreError {
       // Load failed — fall through and generate a fresh identity.
     }
 
-    final generated = await _generateAndSave();
-    _current = generated;
-    return IdentityReady(generated, generated: true);
+    try {
+      final generated = await _generateAndSave();
+      _current = generated;
+      return IdentityReady(generated, generated: true);
+    } on SyncUnavailable {
+      return const SyncUnavailableResult();
+    }
   }
 
   Future<OwnerIdentity> _generateAndSave() async {

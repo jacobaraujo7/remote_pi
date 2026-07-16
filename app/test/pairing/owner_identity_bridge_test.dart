@@ -76,7 +76,75 @@ Future<OwnerIdentity> _freshIdentity() async {
   );
 }
 
+/// Reproduces the issue #39 shape: the pre-flight reports "unavailable"
+/// (on iOS the old ubiquity-token check was ALWAYS false in App Store
+/// builds) while the real read/write path works fine — iCloud Keychain
+/// needs no entitlement.
+class _FalsePreflightStore implements OwnerIdentityStore {
+  final InMemoryOwnerIdentityStore _inner;
+  _FalsePreflightStore(this._inner);
+
+  @override
+  Future<bool> isSyncAvailable() async => false;
+  @override
+  Future<OwnerIdentity?> load() => _inner.load();
+  @override
+  Future<void> save(OwnerIdentity identity) => _inner.save(identity);
+  @override
+  Future<void> delete() => _inner.delete();
+  @override
+  Stream<OwnerIdentity> watch() => _inner.watch();
+}
+
 void main() {
+  group('OwnerIdentityBridge.boot — issue #39 (pre-flight must not gate)', () {
+    test('boot succeeds when pre-flight is false but load/save work', () async {
+      // Fresh install: no stored identity, pre-flight lies "unavailable".
+      final store = _FalsePreflightStore(InMemoryOwnerIdentityStore());
+      final bridge = OwnerIdentityBridge(
+        store,
+        PairingStorage(_FakeSecureStorage()),
+      );
+
+      final result = await bridge.boot();
+
+      expect(result, isA<IdentityReady>());
+      expect((result as IdentityReady).generated, isTrue);
+      expect(bridge.currentOwnerPk, isNotNull);
+    });
+
+    test('boot loads an existing identity even with a false pre-flight',
+        () async {
+      final id = await _freshIdentity();
+      final store = _FalsePreflightStore(InMemoryOwnerIdentityStore(initial: id));
+      final bridge = OwnerIdentityBridge(
+        store,
+        PairingStorage(_FakeSecureStorage()),
+      );
+
+      final result = await bridge.boot();
+
+      expect(result, isA<IdentityReady>());
+      expect((result as IdentityReady).generated, isFalse);
+      expect(bridge.currentOwnerPk, id.ownerPk);
+    });
+
+    test(
+        'boot still gates when the real load/save path throws '
+        'SyncUnavailable (Android Block Store parity)', () async {
+      final store = InMemoryOwnerIdentityStore(syncAvailable: false);
+      final bridge = OwnerIdentityBridge(
+        store,
+        PairingStorage(_FakeSecureStorage()),
+      );
+
+      final result = await bridge.boot();
+
+      expect(result, isA<SyncUnavailableResult>());
+      expect(bridge.currentOwnerPk, isNull);
+    });
+  });
+
   group('OwnerIdentityBridge.startWatching — initial emit race fix', () {
     test(
         'subscribing BEFORE boot() does NOT wipe peers (initial emit adopted '
