@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -14,6 +15,7 @@ class _NoopGateway implements TerminalGateway {
   @override
   void start({
     required String workingDirectory,
+    required TerminalProfile profile,
     int rows = 25,
     int columns = 80,
     Map<String, String> extraEnv = const <String, String>{},
@@ -33,6 +35,12 @@ TerminalSession _session() => TerminalSession(
   projectId: 'p1',
   workingDirectory: '/tmp',
   gateway: _NoopGateway(),
+  profile: const TerminalProfile(
+    id: 'login-shell',
+    label: 'sh (login)',
+    executable: '/bin/sh',
+    args: ['-l'],
+  ),
 );
 
 void main() {

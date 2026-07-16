@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
+import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
@@ -23,6 +24,7 @@ class TerminalSession extends PaneItem {
     required this.projectId,
     required this.workingDirectory,
     required TerminalGateway gateway,
+    required this.profile,
     String? title,
     Map<String, String> spawnEnv = const <String, String>{},
     TerminalScrollbackStore? scrollbackStore,
@@ -53,6 +55,7 @@ class TerminalSession extends PaneItem {
     // decodificar em streaming (trata multibyte partido entre chunks).
     _gateway.start(
       workingDirectory: workingDirectory,
+      profile: profile,
       rows: 25,
       columns: 80,
       extraEnv: spawnEnv,
@@ -101,6 +104,11 @@ class TerminalSession extends PaneItem {
   /// `true` enquanto o harness está processando um turno (acende o spinner).
   @override
   bool get isWorking => _status == TerminalStatus.working;
+
+  /// Perfil que subiu esta aba (login shell, PowerShell, `Ubuntu (WSL)`…).
+  /// Guardado pra fatia 3 (dropdown do `+`) e pra restauração da aba no perfil
+  /// em que ela nasceu.
+  final TerminalProfile profile;
 
   /// Session-id e transcript do `claude` rodando nesta aba, capturados do OSC.
   /// Em memória nesta feature; servem à feature futura de persistir/retomar a

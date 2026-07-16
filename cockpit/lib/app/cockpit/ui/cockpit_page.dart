@@ -151,6 +151,11 @@ class _CockpitPageState extends State<CockpitPage> {
   void _syncNotifications() {
     _vm.setNotificationsEnabled(_settings!.settings.notificationsEnabled);
     _vm.setSoundEnabled(_settings!.settings.soundEnabled);
+    // Plano 50: perfil de terminal padrão do `+` — mesmo motivo (app-scoped →
+    // VM page-scoped). Vale pra abas criadas daqui pra frente.
+    _vm.setDefaultTerminalProfileId(
+      _settings!.settings.defaultTerminalProfileId,
+    );
   }
 
   /// Espelha o toggle "Show Cockpit terminal" (Configurações › General) para a

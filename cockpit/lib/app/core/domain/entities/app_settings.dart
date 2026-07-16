@@ -30,6 +30,7 @@ class AppSettings {
     this.railVisible = false,
     this.treeVisible = false,
     this.showCockpit = true,
+    this.defaultTerminalProfileId,
   });
 
   final AppThemeMode themeMode;
@@ -107,6 +108,13 @@ class AppSettings {
   /// `HiveSettingsStore.load`).
   final bool showCockpit;
 
+  /// `id` do [TerminalProfile] padrão do `+` (plano 50), persistido sob
+  /// `terminal.default_profile_id`. `null` = **comportamento atual**: o
+  /// resolver cai no fallback de plataforma (Windows: PowerShell — cmd no ARM;
+  /// POSIX: login shell). Guardamos só o `id` estável: os perfis são
+  /// re-descobertos a cada boot, e um `id` que sumiu degrada pro fallback.
+  final String? defaultTerminalProfileId;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? interfaceFont,
@@ -131,6 +139,8 @@ class AppSettings {
     bool? railVisible,
     bool? treeVisible,
     bool? showCockpit,
+    String? defaultTerminalProfileId,
+    bool clearDefaultTerminalProfileId = false,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -157,6 +167,9 @@ class AppSettings {
       railVisible: railVisible ?? this.railVisible,
       treeVisible: treeVisible ?? this.treeVisible,
       showCockpit: showCockpit ?? this.showCockpit,
+      defaultTerminalProfileId: clearDefaultTerminalProfileId
+          ? null
+          : (defaultTerminalProfileId ?? this.defaultTerminalProfileId),
     );
   }
 
@@ -185,6 +198,10 @@ class AppSettings {
     // Sempre gravado: a migração distingue "install novo" (chave presente) de
     // "upgrade sem a flag" (chave ausente → liga automático).
     'showCockpit': showCockpit,
+    // Só quando escolhido: a AUSÊNCIA da chave é o "sem padrão" → fallback de
+    // plataforma. Nada a migrar (plano 50).
+    if (defaultTerminalProfileId != null)
+      'terminal.default_profile_id': defaultTerminalProfileId,
   };
 
   factory AppSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -222,6 +239,7 @@ class AppSettings {
       railVisible: json['railVisible'] as bool? ?? false,
       treeVisible: json['treeVisible'] as bool? ?? false,
       showCockpit: json['showCockpit'] as bool? ?? true,
+      defaultTerminalProfileId: str(json['terminal.default_profile_id']),
     );
   }
 }

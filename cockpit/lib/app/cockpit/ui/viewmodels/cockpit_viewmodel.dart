@@ -20,6 +20,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/terminal_profile_resolver.dart';
+import 'package:cockpit/app/cockpit/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
@@ -69,6 +71,7 @@ class CockpitViewModel extends ChangeNotifier {
     this._notifier,
     this._fileSystem,
     this._terminalFactory,
+    this._terminalProfiles,
     this._fileReader,
     this._layoutStore,
     this._gitReader,
@@ -92,6 +95,7 @@ class CockpitViewModel extends ChangeNotifier {
   final Notifier _notifier;
   final FileSystemReader _fileSystem;
   final TerminalGatewayFactory _terminalFactory;
+  final TerminalProfileResolver _terminalProfiles;
   final FileReader _fileReader;
   final WorkspaceLayoutStore _layoutStore;
   final GitStatusReader _gitReader;
@@ -219,6 +223,18 @@ class CockpitViewModel extends ChangeNotifier {
   /// com a janela focada). A `CockpitPage` empurra o valor do controller.
   bool _soundEnabled = true;
   void setSoundEnabled(bool value) => _soundEnabled = value;
+
+  /// Espelha `AppSettings.defaultTerminalProfileId` (plano 50). A `CockpitPage`
+  /// empurra o valor do controller app-scoped. `null` = sem escolha → o resolver
+  /// cai no fallback de plataforma (comportamento atual).
+  String? _defaultTerminalProfileId;
+  void setDefaultTerminalProfileId(String? id) =>
+      _defaultTerminalProfileId = id;
+
+  /// Perfil que o `+` abre agora: o configurado (se ainda existe) ou o fallback
+  /// de plataforma. Síncrono — o cache do resolver é aquecido no boot (`main`).
+  TerminalProfile get defaultTerminalProfile =>
+      _terminalProfiles.effectiveDefault(_defaultTerminalProfileId);
 
   /// Paleta dos avatares de projeto (cores do design).
   static const List<int> _palette = <int>[
@@ -1890,12 +1906,16 @@ class CockpitViewModel extends ChangeNotifier {
     String? replay,
     String? startupCommand,
     String? manualLabel,
+    // Plano 50: `null` = o padrão efetivo (o que o `+` abre hoje). A fatia 3
+    // (dropdown do `+`) passa um perfil específico sem mexer no padrão global.
+    TerminalProfile? profile,
   }) {
     final t = TerminalSession(
       id: id,
       projectId: projectId,
       workingDirectory: cwd,
       gateway: _terminalFactory.create(),
+      profile: profile ?? defaultTerminalProfile,
       title: title,
       // Persistência do scrollback: grava a saída pra replay no próximo boot.
       scrollbackStore: _scrollback,

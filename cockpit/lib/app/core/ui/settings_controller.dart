@@ -42,6 +42,18 @@ class SettingsController extends ChangeNotifier {
     _apply(_settings.copyWith(terminalFont: font, clearTerminalFont: empty));
   }
 
+  /// Define (ou limpa, se `null`/vazio) o perfil de terminal padrão do `+`
+  /// (plano 50). Limpar = voltar ao fallback de plataforma.
+  void setDefaultTerminalProfileId(String? id) {
+    final empty = id == null || id.trim().isEmpty;
+    _apply(
+      _settings.copyWith(
+        defaultTerminalProfileId: id,
+        clearDefaultTerminalProfileId: empty,
+      ),
+    );
+  }
+
   void setSyntaxTheme(SyntaxThemeId id) =>
       _apply(_settings.copyWith(syntaxTheme: id));
 
