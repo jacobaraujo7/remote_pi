@@ -234,24 +234,49 @@ PlatformProvidedMenuItemType? _providedType(MenuBarRole role) => switch (role) {
 // WindowMenuBar — barra desenhada na janela (Windows/Linux).
 // ===========================================================================
 
-/// Barra de menu **desenhada dentro da janela**, para Windows/Linux (que não têm
-/// barra de menu do SO alcançável pelo Flutter). Usa o `Menubar` do design
-/// system, então casa com o tema do app e com a janela sem moldura. No macOS
-/// não renderiza nada — lá a barra é a nativa via [AppMenuBar]. Pensado para ir
-/// **dentro da barra de título** (estilo VS Code), ao lado do título.
+/// Menu **desenhado dentro da janela**, para Windows/Linux (que não têm barra de
+/// menu do SO alcançável pelo Flutter). Usa o `Menubar` do design system, então
+/// casa com o tema do app e com a janela sem moldura. No macOS não renderiza
+/// nada — lá a barra é a nativa via [AppMenuBar]. Vai **dentro da barra de
+/// título**, ao lado do título.
+///
+/// **Um botão só (hambúrguer), não uma fileira de menus.** A barra de título do
+/// Windows/Linux é disputada: os botões de janela (minimizar/maximizar/fechar)
+/// moram nela, à direita, e `File`/`View`/`Window` lado a lado espremiam o
+/// título e encostavam neles. O macOS não tem esse problema (a barra é do SO,
+/// fora da janela) — por isso o aperto é só aqui. Então os menus de topo viram
+/// **submenus** de um único botão: clique → popup com `Cockpit`/`File`/`View`/
+/// `Window`, cada um abrindo os próprios itens.
+///
+/// O modelo ([MenuBarMenu]) não muda: só este renderer aninha um nível a mais.
+/// A barra nativa do macOS segue plana, como o SO espera.
 class WindowMenuBar extends StatelessWidget {
-  const WindowMenuBar({super.key, required this.menus});
+  const WindowMenuBar({
+    super.key,
+    required this.menus,
+    this.renderOnMacOS = false,
+  });
 
   final List<MenuBarMenu> menus;
 
+  /// Só pros testes: força o desenho no macOS (a suíte roda em mac, e sem isto
+  /// o widget seria um `SizedBox` e nada seria exercitado).
+  @visibleForTesting
+  final bool renderOnMacOS;
+
   @override
   Widget build(BuildContext context) {
-    if (Platform.isMacOS) return const SizedBox.shrink();
+    if (Platform.isMacOS && !renderOnMacOS) return const SizedBox.shrink();
     return Menubar(
       border: false,
-      children: menus
-          .map((m) => _windowMenu(context, m))
-          .toList(growable: false),
+      children: <MenuItem>[
+        MenuButton(
+          subMenu: menus
+              .map((m) => _windowMenu(context, m))
+              .toList(growable: false),
+          child: const Icon(Icons.menu, size: 16),
+        ),
+      ],
     );
   }
 }
