@@ -49,6 +49,7 @@ void main() {
                     const Success(null),
                 onRename: (path, newName) async => const Success(null),
                 onDelete: (path) async => const Success(null),
+                onMove: (path, targetDir) async => const Success(null),
               ),
             ),
           ),

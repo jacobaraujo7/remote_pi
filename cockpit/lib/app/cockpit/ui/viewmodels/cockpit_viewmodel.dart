@@ -941,6 +941,24 @@ class CockpitViewModel extends ChangeNotifier {
     return r;
   }
 
+  /// Move [path] pra **dentro** de [targetDir] (drag-and-drop na árvore),
+  /// mantendo o nome. As abas abertas seguem o novo caminho, como no rename.
+  Future<Result<void, String>> movePath(String path, String targetDir) async {
+    final name = path.split('/').where((p) => p.isNotEmpty).lastOrNull;
+    if (name == null) return const Failure('Invalid path.');
+    if (_parentOf(path) == targetDir) return const Success(null); // já está lá
+    if (_isUnder(targetDir, path)) {
+      return const Failure('Cannot move a folder into itself.');
+    }
+    final to = _join(targetDir, name);
+    final r = await _fileMutator.rename(path, to);
+    if (r.isSuccess) {
+      await _retargetSessions(path, to);
+      _bumpFileTree();
+    }
+    return r;
+  }
+
   /// Manda [path] pra lixeira. **Fecha antes** as abas do arquivo (ou de tudo
   /// dentro da pasta), sem prompt de salvar — a deleção sobrepõe.
   Future<Result<void, String>> deletePath(String path) async {
