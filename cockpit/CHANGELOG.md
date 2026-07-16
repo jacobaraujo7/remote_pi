@@ -4,7 +4,57 @@ Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
 As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
 `latest.json` (VPS) deriva deste arquivo.
 
-## [Unreleased]
+<!--
+  ATENÇÃO: o CI publica as notas da release a partir da PRIMEIRA seção `## `
+  deste arquivo, e só as 20 primeiras linhas não-vazias dela
+  (`awk '/^## /{n++} n==1' | tail -n +2 | sed '/^$/d' | head -20` em
+  .github/workflows/cockpit-release.yml). Então: a seção da versão que está
+  saindo fica no TOPO, e cabe em 20 linhas — não deixe um `## [Unreleased]`
+  vazio na frente (as notas sairiam vazias) nem escreva demais (sai cortado no
+  meio da frase).
+-->
+
+## [1.8.5] — 2026-07-16
+
+Correções de Windows: o updater não reoferece mais a mesma versão, e o
+PowerShell 7 aparece na lista de terminais.
+
+### Fixed
+- **Updater reoferecia a mesma versão pra sempre.** O VERSIONINFO levava o build
+  number (`1.8.4+21`) e o appcast anuncia a versão marketing (`1.8.4`); o
+  WinSparkle lê o `+` como texto e trata `1.8.4+21` como um pré-lançamento de
+  `1.8.4`. Agora o VERSIONINFO publica só `x.y.z`.
+- **PowerShell 7 não aparecia** no seletor do `+` nem nas Configurações: era
+  tratado como substituto do `powershell.exe`, o alias MSIX escapava da detecção
+  e o PTY duplicava o executável na linha de comando. "PowerShell 7" e "Windows
+  PowerShell" agora são perfis separados.
+- **Arrastar a janela pela barra de título com o dedo** não movia nada em telas
+  de toque.
+- Espaçamento do menu hambúrguer no Windows.
+
+### Known issues
+- **Teclado virtual não abre ao tocar** num campo. Não é do app: o Windows
+  recusa exibi-lo mesmo pedido via COM, e nem o Notepad o levanta nesta
+  configuração — ligue em *Configurações › Hora e idioma › Digitação › Teclado
+  de toque*.
+
+## [1.8.4] — 2026-07-16
+
+### Added
+- **Seletor de terminal (plano 50):** seta ao lado do `+` para escolher qual
+  shell abrir, e Configurações › Terminal para definir o padrão (só Windows, onde
+  há escolha real). Descoberta de PowerShell/cmd/distros WSL.
+- Barra de menu do Windows/Linux recolhida num **menu hambúrguer**.
+
+### Fixed
+- **Self-update do Windows travado:** o WinSparkle não baixa sozinho nem avisa
+  que baixou, então o card ficava eternamente em "Downloading v…" e o clique era
+  no-op. O card agora vai direto para "click to install".
+- **IME/acentuação no terminal do Windows:** o fork do xterm não passava o
+  `viewId` no `TextInputConfiguration`, o `TextInput.setClient` era rejeitado e a
+  digitação morria — o contorno era desligar o IME e ler teclas cruas.
+
+## [1.8.3] — 2026-07-04
 
 ### Added
 - **Self-update (plano 47):** Cockpit agora se atualiza sozinho no macOS e no
@@ -13,10 +63,6 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   reiniciar. **Linux** segue no aviso + download manual (`latest.json`). O CI
   passa a publicar `appcast-macos.xml` e `appcast-windows.xml` (assinados EdDSA)
   ao lado do `latest.json`.
-
-> Nota de release: o Sparkle compara o **build number** (`CFBundleVersion`, o
-> `+n`) — incremente o `+n` no `pubspec.yaml` a cada release ou o macOS não
-> detecta a versão nova.
 
 ## [1.1.0] — 2026-06-12
 
