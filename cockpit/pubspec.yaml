@@ -133,13 +133,22 @@ dependencies:
   auto_updater: ^1.0.0
 
 dependency_overrides:
-  # Fork do xterm com render procedural de Block Elements (U+2580–259F) e Box
-  # Drawing (U+2500–257F): o xterm 4.0 pinta esses glifos com a fonte (no
-  # tamanho natural, não esticados pra célula), deixando frestas entre células
-  # — half-blocks de arte de pixel (mascote do Claude) saem listrados e bordas
-  # de TUI não conectam. O fork desenha os blocos/bordas proceduralmente,
-  # preenchendo a célula exata, como os terminais nativos. PR para o upstream
-  # (TerminalStudio/xterm.dart) pendente; voltar pro pub.dev quando mergeado.
+  # Fork do xterm, por dois motivos:
+  #
+  # 1. Render procedural de Block Elements (U+2580–259F) e Box Drawing
+  #    (U+2500–257F): o xterm 4.0 pinta esses glifos com a fonte (no tamanho
+  #    natural, não esticados pra célula), deixando frestas entre células —
+  #    half-blocks de arte de pixel (mascote do Claude) saem listrados e bordas
+  #    de TUI não conectam. O fork desenha os blocos/bordas proceduralmente,
+  #    preenchendo a célula exata, como os terminais nativos.
+  # 2. `viewId` no `TextInputConfiguration` do `CustomTextEdit`: sem ele o
+  #    `TextInput.setClient` é rejeitado ("Could not set client, view ID is
+  #    null") e o IME nunca anexa — no Windows isso mata a digitação. Era a razão
+  #    do `hardwareKeyboardOnly: Platform.isWindows` no `pane_view`, agora
+  #    removido.
+  #
+  # PR para o upstream (TerminalStudio/xterm.dart) pendente; voltar pro pub.dev
+  # quando mergeado. O SHA exato fica no `pubspec.lock` (`resolved-ref`).
   xterm:
     git:
       url: https://github.com/jacobaraujo7/xterm.dart

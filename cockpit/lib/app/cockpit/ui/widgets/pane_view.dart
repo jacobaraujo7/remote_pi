@@ -1254,7 +1254,6 @@ class _PaneBodyState extends State<_PaneBody> {
           child: TerminalPane(
             terminal: item.terminal,
             focusNode: _terminalFocus,
-            hardwareKeyboardOnly: Platform.isWindows,
             onKeyEvent: (_) => KeyEventResult.ignored,
             theme: cockpitTerminalThemeFor(Theme.of(context).brightness),
             textStyle: termStyle,
@@ -1281,11 +1280,6 @@ class _PaneBodyState extends State<_PaneBody> {
             child: TerminalPane(
               terminal: item.terminal,
               focusNode: _terminalFocus,
-              // Windows: o caminho de IME/TextInput do xterm quebra no desktop
-              // ("Could not set client, view ID is null") e impede digitar. O
-              // modo só-hardware ignora o TextInput e lê KeyEvents crus. No
-              // macOS mantemos o IME (melhor pra acentos/composição).
-              hardwareKeyboardOnly: Platform.isWindows,
               // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
               // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
               onKeyEvent: (event) => _onTerminalKey(event, item),
