@@ -643,6 +643,7 @@ class _CockpitPageState extends State<CockpitPage> {
                                 : vm.createFileIn(parentDir, name),
                             onRename: vm.renamePath,
                             onDelete: vm.deletePath,
+                            onMove: vm.movePath,
                             searchPanel: vm.selectedProject == null
                                 ? null
                                 : ContentSearchPanel(

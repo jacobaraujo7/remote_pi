@@ -13,8 +13,10 @@ class WorktreeManagerImpl implements WorktreeManager {
   final GitBinary _gitBinary;
 
   /// Onde as worktrees criadas pelo Cockpit moram, relativo à raiz do repo
-  /// (decisão 2).
-  static const String worktreesSubdir = '.pi/remote/worktrees';
+  /// (decisão 2). Migrado de `.pi/remote/worktrees` → `.cockpit/worktrees`;
+  /// worktrees antigas seguem funcionando (a descoberta é via
+  /// `git worktree list`, não por caminho).
+  static const String worktreesSubdir = '.cockpit/worktrees';
 
   Future<String> _resolveGit() => _gitBinary.resolve();
 
@@ -79,6 +81,11 @@ class WorktreeManagerImpl implements WorktreeManager {
           WorktreeOpError('A branch with that name already exists.'),
         );
       }
+      // Guard rail: garante `.cockpit/worktrees/` no `.gitignore` do repo ANTES
+      // de materializar a worktree. Sob `.pi/` a pasta era ignorada de graça
+      // (repos pi já ignoram `.pi`); sob `.cockpit/` isso não vale, e sem o
+      // ignore o checkout apareceria como `untracked` no status do usuário.
+      await _ensureIgnored(repoPath);
       final target = '$repoPath/$worktreesSubdir/$name';
       // Branch nova a partir do HEAD atual do repo (sem ref explícito).
       final res = await Process.run(git, [
@@ -105,6 +112,37 @@ class WorktreeManagerImpl implements WorktreeManager {
       );
     } catch (e) {
       return Failure(WorktreeOpError('Failed to create worktree: $e'));
+    }
+  }
+
+  /// Guard rail: garante que `.cockpit/worktrees/` está no `.gitignore` da
+  /// raiz do repo ANTES de criar a worktree — sem isso a pasta aninhada
+  /// apareceria como untracked no repo principal. Só o subdir de worktrees é
+  /// ignorado (não `.cockpit/` inteiro: o `tasks.json` de lá é comitável).
+  /// Append idempotente; falha de IO não bloqueia a criação (best-effort).
+  Future<void> _ensureIgnored(String repoPath) async {
+    const entry = '$worktreesSubdir/';
+    try {
+      final file = File('$repoPath/.gitignore');
+      if (await file.exists()) {
+        final lines = (await file.readAsString()).split('\n');
+        final ignored = lines.any((l) {
+          final t = l.trim();
+          return t == entry || t == '/$entry' || t == worktreesSubdir;
+        });
+        if (ignored) return;
+        final content = await file.readAsString();
+        final sep = content.isEmpty || content.endsWith('\n') ? '' : '\n';
+        await file.writeAsString(
+          '$sep$entry\n',
+          mode: FileMode.append,
+          flush: true,
+        );
+      } else {
+        await file.writeAsString('$entry\n', flush: true);
+      }
+    } on FileSystemException {
+      // Best-effort: um .gitignore ilegível não deve impedir o worktree.
     }
   }
 

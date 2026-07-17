@@ -237,6 +237,13 @@ class PtyTaskRunner implements TaskRunnerGateway {
       exitCode: code,
     );
     unawaited(task.outSub?.cancel());
+    // Banner visual de fim no terminal do debug tab: pula uma linha e escreve
+    // "finished" pra sinalizar ao usuário que o processo encerrou (o PTY não
+    // emite mais nada depois do exit). Vai antes do close pra ser entregue ao
+    // terminal e persistido no scrollback junto do resto do output.
+    if (!task.out.isClosed) {
+      task.out.add(utf8.encode('\r\n\r\nfinished\r\n'));
+    }
     unawaited(task.out.close());
     _emit(ended);
   }

@@ -116,13 +116,16 @@ class _FileViewerState extends State<FileViewer> {
     _ => null,
   };
 
-  /// Linguagem pro highlight: extensão (texto), `markdown` ou `xml` (svg).
-  String? get _language => switch (widget.session.view) {
-    FileViewText(:final language) => language,
-    FileViewMarkdown() => 'markdown',
-    FileViewSvg() => 'xml',
-    _ => null,
-  };
+  /// Linguagem pro highlight: nome de arquivo especial (`.env*`), extensão
+  /// (texto), `markdown` ou `xml` (svg).
+  String? get _language =>
+      filenameLanguageOf(widget.session.path) ??
+      switch (widget.session.view) {
+        FileViewText(:final language) => language,
+        FileViewMarkdown() => 'markdown',
+        FileViewSvg() => 'xml',
+        _ => null,
+      };
 
   /// Tem modo renderizado além da fonte (markdown/svg) → mostra o switch
   /// Preview/Source. Demais textos/códigos entram direto em edição (sem toggle).
@@ -176,7 +179,7 @@ class _FileViewerState extends State<FileViewer> {
   @override
   void didUpdateWidget(FileViewer old) {
     super.didUpdateWidget(old);
-    
+
     // Se o path mudou (preview reutilizado), força rebuild total.
     if (widget.session.path != _lastObservedPath) {
       final oldPath = _lastObservedPath;
@@ -231,7 +234,9 @@ class _FileViewerState extends State<FileViewer> {
           _ctrl!.text = text;
           _baseline = text;
           // O disco mudou (agente editou) → mantém o LSP em sync.
-          if (_lspOn) unawaited(_vm?.lspChangeDocument(widget.session.path, text));
+          if (_lspOn) {
+            unawaited(_vm?.lspChangeDocument(widget.session.path, text));
+          }
         }
       });
     }
@@ -385,7 +390,8 @@ class _FileViewerState extends State<FileViewer> {
     final int delta;
     if (down) {
       // Insere \n + bloco logo após a linha final; empurra o cursor pra cópia.
-      newText = '${text.substring(0, lineEnd)}\n$block${text.substring(lineEnd)}';
+      newText =
+          '${text.substring(0, lineEnd)}\n$block${text.substring(lineEnd)}';
       delta = block.length + 1;
     } else {
       // Insere bloco + \n antes da linha inicial; cursor fica na cópia de cima
@@ -697,8 +703,9 @@ class _FileViewerState extends State<FileViewer> {
       child: Column(
         children: [
           Expanded(child: body),
-          // Barra inferior: breadcrumb do caminho à esquerda + ações
-          // (Save/Discard/Format/preview) à direita quando editável.
+          // Barra inferior: breadcrumb do caminho à esquerda + o switch
+          // Preview/Source à direita (só com render). As ações Save/Discard/
+          // Format vivem no menu File — não são repetidas aqui.
           _Toolbar(
             leading: _Breadcrumb(
               path: context.read<CockpitViewModel>().displayPath(
@@ -713,12 +720,6 @@ class _FileViewerState extends State<FileViewer> {
             dirty: _dirty,
             saving: _saving,
             onToggle: _toggleEditing,
-            onSave: () => _save().whenComplete(_refocusEditor),
-            onDiscard: () {
-              _discard();
-              _refocusEditor();
-            },
-            onFormat: () => _format().whenComplete(_refocusEditor),
           ),
         ],
       ),
@@ -779,7 +780,8 @@ class _FileViewerState extends State<FileViewer> {
             focusNode: _focus,
             revealLine: widget.session.revealLine,
             revealTick: widget.session.revealTick,
-            revealMatchStart: _findIndex >= 0 && _findIndex < _findMatches.length
+            revealMatchStart:
+                _findIndex >= 0 && _findIndex < _findMatches.length
                 ? _findMatches[_findIndex].start
                 : null,
             revealMatchTick: _findRevealTick,
@@ -825,9 +827,6 @@ class _Toolbar extends StatelessWidget {
     required this.dirty,
     required this.saving,
     required this.onToggle,
-    required this.onSave,
-    required this.onDiscard,
-    required this.onFormat,
   });
 
   /// Conteúdo à esquerda da barra (o breadcrumb do caminho).
@@ -844,9 +843,6 @@ class _Toolbar extends StatelessWidget {
   final bool dirty;
   final bool saving;
   final VoidCallback onToggle;
-  final VoidCallback onSave;
-  final VoidCallback onDiscard;
-  final VoidCallback onFormat;
 
   @override
   Widget build(BuildContext context) {
@@ -874,31 +870,6 @@ class _Toolbar extends StatelessWidget {
                 ),
               ),
             ),
-          if (editing) ...[
-            _BarButton(
-              icon: Icons.auto_fix_high,
-              label: 'Format',
-              tooltip: 'Format (⇧⌘F)',
-              enabled: !saving,
-              onTap: onFormat,
-            ),
-            const SizedBox(width: 2),
-            _BarButton(
-              icon: Icons.undo,
-              label: 'Discard',
-              tooltip: 'Discard changes',
-              enabled: dirty && !saving,
-              onTap: onDiscard,
-            ),
-            const SizedBox(width: 2),
-            _BarButton(
-              icon: saving ? Icons.hourglass_empty : Icons.save_outlined,
-              label: 'Save',
-              tooltip: 'Save (⌘S)',
-              enabled: dirty && !saving,
-              onTap: onSave,
-            ),
-          ],
           if (hasPreview) ...[
             const SizedBox(width: 4),
             _Segmented(
@@ -960,49 +931,6 @@ class _Segmented extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [seg(leftLabel, leftActive), seg(rightLabel, !leftActive)],
-        ),
-      ),
-    );
-  }
-}
-
-class _BarButton extends StatelessWidget {
-  const _BarButton({
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.enabled,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final color = enabled ? colors.text : colors.text4;
-    return Tooltip(
-      tooltip: (context) => TooltipContainer(child: Text(tooltip)),
-      child: HoverTap(
-        borderRadius: BorderRadius.circular(5),
-        onTap: enabled ? onTap : () {},
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: context.typo.tab.copyWith(color: color, fontSize: 12),
-              ),
-            ],
-          ),
         ),
       ),
     );

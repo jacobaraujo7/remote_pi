@@ -62,7 +62,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
 import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -205,6 +205,11 @@ UpdateTarget _updateTarget(String version) {
 /// artefato em background por conta própria. O WinSparkle exige o clique do
 /// usuário pra baixar+instalar — ver doc do [AutoUpdaterSelfUpdater].
 SelfUpdater _buildSelfUpdater(UpdateTarget target) {
+  // Em debug/profile (flutter run) o Sparkle é veneno: o bundle id é o mesmo do
+  // app instalado, o check acha release novo e o Autoupdate MATA o processo pra
+  // instalar/relançar — o run morre com "Lost connection to device" sem erro.
+  // Self-update só faz sentido no build release distribuído.
+  if (!kReleaseMode) return const NoopSelfUpdater();
   final feed = target.selfUpdateFeedUrl;
   if (feed == null) return const NoopSelfUpdater();
   return AutoUpdaterSelfUpdater(feedUrl: feed, autoDownloads: Platform.isMacOS);

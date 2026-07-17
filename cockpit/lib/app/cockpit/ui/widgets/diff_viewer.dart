@@ -8,6 +8,8 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// Extensão (minúscula) de [path] para alimentar o syntax highlight, ou `null`
 /// quando não há extensão reconhecível.
 String? _languageOf(String path) {
+  final special = filenameLanguageOf(path);
+  if (special != null) return special;
   final name = path.split(RegExp(r'[/\\]')).last;
   final dot = name.lastIndexOf('.');
   if (dot <= 0 || dot == name.length - 1) return null;

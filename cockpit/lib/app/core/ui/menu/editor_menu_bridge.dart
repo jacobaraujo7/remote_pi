@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 /// Ponte **reativa** entre o editor de arquivo focado e o menu **File**
 /// (Save/Discard/Format). O `FileViewer` focado publica aqui suas capacidades
@@ -61,6 +62,13 @@ class EditorMenuBridge extends ChangeNotifier {
     _onSave = _onDiscard = _onFormat = null;
     if (!_canSave && !_canDiscard && !_canFormat) return;
     _canSave = _canDiscard = _canFormat = false;
-    notifyListeners();
+    // O clear típico vem do dispose() do FileViewer, no meio do finalizeTree
+    // (árvore travada) — notificar síncrono aí crasha com "widget tree was
+    // locked". Fora de idle, adia pro fim do frame.
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      notifyListeners();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
+    }
   }
 }

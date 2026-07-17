@@ -35,6 +35,7 @@ class FileTreePanel extends StatefulWidget {
     required this.onCreate,
     required this.onRename,
     required this.onDelete,
+    required this.onMove,
     this.width = 300,
     this.footer,
     this.searchPanel,
@@ -111,6 +112,10 @@ class FileTreePanel extends StatefulWidget {
 
   /// Manda [path] pra lixeira (a confirmação/condições ficam no painel).
   final Future<Result<void, String>> Function(String path) onDelete;
+
+  /// Move [path] pra dentro de [targetDir] (drag-and-drop na árvore).
+  final Future<Result<void, String>> Function(String path, String targetDir)
+  onMove;
 
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
@@ -248,18 +253,18 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   Future<void> _requestDelete(String path) async {
     final name = path.split('/').where((p) => p.isNotEmpty).last;
-    // macOS manda pra Lixeira (reversível) → sem confirmação, como o Finder.
-    // Nas demais é permanente → confirma antes.
-    if (!Platform.isMacOS) {
-      final ok = await showConfirmDialog(
-        context,
-        title: 'Delete?',
-        message: 'Permanently delete “$name”? This can’t be undone.',
-        confirmLabel: 'Delete',
-        danger: true,
-      );
-      if (!ok || !mounted) return;
-    }
+    // Confirma sempre. No macOS o destino é a Lixeira (reversível); nas demais
+    // plataformas a deleção é permanente — a mensagem reflete a diferença.
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Delete?',
+      message: Platform.isMacOS
+          ? 'Move “$name” to the Trash?'
+          : 'Permanently delete “$name”? This can’t be undone.',
+      confirmLabel: 'Delete',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
     final r = await widget.onDelete(path);
     if (!mounted) return;
     r.fold((_) {
@@ -267,6 +272,22 @@ class _FileTreePanelState extends State<FileTreePanel> {
         setState(() => _selectedPath = null);
       }
     }, (e) => showInfoDialog(context, title: 'Could not delete', message: e));
+  }
+
+  // ---- mover (drag-and-drop) ------------------------------------------------
+
+  /// Drop de [path] numa pasta [targetDir]: move mantendo o nome. A validação
+  /// (mesma pasta = no-op, pasta dentro de si mesma) fica na VM; falha vira
+  /// dialog. A seleção segue o novo caminho.
+  Future<void> _requestMove(String path, String targetDir) async {
+    final r = await widget.onMove(path, targetDir);
+    if (!mounted) return;
+    r.fold((_) {
+      if (_selectedPath != null && _isUnder(_selectedPath!, path)) {
+        final name = path.split('/').where((p) => p.isNotEmpty).last;
+        setState(() => _selectedPath = '$targetDir/$name');
+      }
+    }, (e) => showInfoDialog(context, title: 'Could not move', message: e));
   }
 
   // ---- atalhos de teclado ---------------------------------------------------
@@ -333,6 +354,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
       onCancelRename: _cancelRename,
       onCommitRename: _commitRename,
       onRequestDelete: _requestDelete,
+      onRequestMove: _requestMove,
       onShowDiff: widget.onOpenDiff,
       gitStatusOf: widget.gitStatusOf,
       listChildren: widget.listChildren,
@@ -436,18 +458,27 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 : Focus(
                     focusNode: _treeFocus,
                     onKeyEvent: _onTreeKey,
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: 8,
-                        horizontal: 6,
-                      ),
-                      child: _DirView(
-                        path: widget.rootPath,
-                        rootPath: widget.rootPath,
-                        depth: 0,
-                        refreshToken: _refreshToken,
-                        edit: edit,
-                      ),
+                    // Soltar no espaço vazio da árvore move pra RAIZ do
+                    // workspace (as pastas, mais internas, capturam antes).
+                    child: DragTarget<String>(
+                      onWillAcceptWithDetails: (d) =>
+                          d.data != widget.rootPath,
+                      onAcceptWithDetails: (d) =>
+                          _requestMove(d.data, widget.rootPath),
+                      builder: (context, candidates, _) =>
+                          SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(
+                              vertical: 8,
+                              horizontal: 6,
+                            ),
+                            child: _DirView(
+                              path: widget.rootPath,
+                              rootPath: widget.rootPath,
+                              depth: 0,
+                              refreshToken: _refreshToken,
+                              edit: edit,
+                            ),
+                          ),
                     ),
                   ),
           ),
@@ -479,6 +510,7 @@ class _TreeEdit {
     required this.onCancelRename,
     required this.onCommitRename,
     required this.onRequestDelete,
+    required this.onRequestMove,
     required this.onShowDiff,
     required this.gitStatusOf,
     required this.listChildren,
@@ -508,6 +540,9 @@ class _TreeEdit {
   final Future<String?> Function(String path, String newName) onCommitRename;
 
   final ValueChanged<String> onRequestDelete;
+
+  /// Drop de um caminho arrastado numa pasta-alvo → move pra dentro dela.
+  final void Function(String path, String targetDir) onRequestMove;
 
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
   final Future<List<FileNode>> Function(String path) listChildren;
@@ -577,11 +612,18 @@ class _DirViewState extends State<_DirView> {
           ),
         for (final node in children)
           if (node.isDirectory)
-            _Folder(
-              node: node,
-              depth: widget.depth,
-              refreshToken: widget.refreshToken,
-              edit: edit,
+            // Arrastável (mover pra outra pasta / citar no composer) e também
+            // alvo de drop (o DragTarget fica dentro do _Folder, na linha).
+            Draggable<String>(
+              data: node.path,
+              dragAnchorStrategy: pointerDragAnchorStrategy,
+              feedback: _FileChip(name: node.name),
+              child: _Folder(
+                node: node,
+                depth: widget.depth,
+                refreshToken: widget.refreshToken,
+                edit: edit,
+              ),
             )
           else
             // Arrasta o arquivo até o input (vira `@<rel>`).
@@ -650,10 +692,23 @@ class _FolderState extends State<_Folder> {
   Widget build(BuildContext context) {
     final edit = widget.edit;
     final expanded = _expanded || _forceExpand;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _Row(
+    // Alvo de drop: soltar um caminho arrastado aqui move-o pra DENTRO da
+    // pasta. Recusa a si mesma e descendentes (não dá pra mover pra dentro
+    // de si); o highlight de hover indica o alvo válido.
+    final row = DragTarget<String>(
+      onWillAcceptWithDetails: (d) =>
+          d.data != widget.node.path &&
+          !widget.node.path.startsWith('${d.data}/'),
+      onAcceptWithDetails: (d) =>
+          edit.onRequestMove(d.data, widget.node.path),
+      builder: (context, candidates, _) => Container(
+        decoration: candidates.isNotEmpty
+            ? BoxDecoration(
+                color: context.colors.panel2,
+                borderRadius: BorderRadius.circular(5),
+              )
+            : null,
+        child: _Row(
           depth: widget.depth,
           isFolder: true,
           expanded: expanded,
@@ -676,6 +731,13 @@ class _FolderState extends State<_Folder> {
             setState(() => _expanded = !_expanded);
           },
         ),
+      ),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        row,
         if (expanded)
           _DirView(
             path: widget.node.path,

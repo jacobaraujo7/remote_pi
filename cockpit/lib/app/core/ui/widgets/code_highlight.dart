@@ -29,6 +29,123 @@ const Map<String, String> _extToLanguage = {
   'xhtml': 'xml',
 };
 
+/// Language id resolvido pelo **nome do arquivo**, para casos onde a extensão
+/// sozinha não identifica a linguagem (dotfiles compostos): `.env` não tem
+/// extensão e `.env.local`/`.env.qa` extraem `local`/`qa`. `null` quando o nome
+/// não é especial — o caller cai no fluxo normal por extensão.
+String? filenameLanguageOf(String path) {
+  final name = path.split(RegExp(r'[/\\]')).last.toLowerCase();
+  if (name == '.env' || name.startsWith('.env.')) return 'dotenv';
+  // go.mod não tem grammar no package (ext `mod` cai em plaintext); go.sum
+  // pega carona (versões/strings — o resto fica neutro).
+  if (name == 'go.mod' || name == 'go.sum') return 'gomod';
+  // O grammar `dockerfile` existe no package; o que falta é detecção —
+  // `Dockerfile` não tem extensão e `Dockerfile.dev`/`app.Dockerfile` extraem
+  // `dev`/`dockerfile` (este último até funcionaria, mas normaliza aqui).
+  if (name == 'dockerfile' ||
+      name == 'containerfile' ||
+      name.startsWith('dockerfile.') ||
+      name.endsWith('.dockerfile')) {
+    return 'dockerfile';
+  }
+  return null;
+}
+
+/// Gramáticas próprias (fora do catálogo do package `highlight`), registradas
+/// uma vez no singleton antes do primeiro parse.
+bool _customLanguagesRegistered = false;
+
+void _ensureCustomLanguages() {
+  if (_customLanguagesRegistered) return;
+  _customLanguagesRegistered = true;
+  hl.highlight.registerLanguage('dotenv', _dotenvMode());
+  hl.highlight.registerLanguage('gomod', _goModMode());
+}
+
+/// Gramática go.mod/go.sum: diretivas no começo da linha (`module`, `require`,
+/// `replace`, …) como keyword, versões `vX.Y.Z` como number, strings, `=>` do
+/// replace e comentário `//`. Mesma restrição do dotenv: sem lookahead em
+/// `begin`.
+hl.Mode _goModMode() {
+  return hl.Mode(
+    contains: [
+      hl.Mode(className: 'comment', begin: r'//', end: r'$', relevance: 0),
+      hl.Mode(
+        className: 'keyword',
+        begin:
+            r'^[ \t]*(module|go|toolchain|require|replace|exclude|retract|use)\b',
+        relevance: 0,
+      ),
+      hl.Mode(className: 'string', begin: '"', end: '"', relevance: 0),
+      hl.Mode(className: 'number', begin: r'\bv\d+\.[^\s/]+', relevance: 0),
+      hl.Mode(className: 'keyword', begin: r'=>', relevance: 0),
+    ],
+  );
+}
+
+/// Gramática dotenv: comentário `#`, `export` opcional, chave (`attr`) até o
+/// `=`, valor até o fim da linha com strings aspadas e interpolação
+/// `$VAR`/`${VAR}` (`variable`). Estrutura espelha o grammar `properties` do
+/// package: o begin externo valida a linha `chave=` inteira, `returnBegin`
+/// devolve o cursor e os modes internos consomem keyword/chave, com `starts`
+/// encadeando separador → valor. **Atenção**: lookahead `(?=...)` em `begin`
+/// não casa no port Dart do highlight.js — por isso os modes internos
+/// consomem os tokens direto (sem lookahead), validados pelo begin externo.
+hl.Mode _dotenvMode() {
+  final interpolation = hl.Mode(
+    className: 'variable',
+    variants: [
+      hl.Mode(begin: r'\$\{[A-Za-z_][A-Za-z0-9_]*\}'),
+      hl.Mode(begin: r'\$[A-Za-z_][A-Za-z0-9_]*'),
+    ],
+    relevance: 0,
+  );
+  final comment = hl.Mode(
+    className: 'comment',
+    begin: r'#',
+    end: r'$',
+    relevance: 0,
+  );
+  final value = hl.Mode(
+    end: r'$',
+    relevance: 0,
+    contains: [
+      hl.Mode(
+        className: 'string',
+        begin: '"',
+        end: '"',
+        contains: [
+          hl.Mode(begin: r'\\.'),
+          interpolation,
+        ],
+      ),
+      hl.Mode(className: 'string', begin: "'", end: "'"),
+      interpolation,
+      comment,
+    ],
+  );
+  return hl.Mode(
+    contains: [
+      comment,
+      hl.Mode(
+        begin: r'^[ \t]*(export[ \t]+)?[A-Za-z_][A-Za-z0-9_.-]*[ \t]*=',
+        returnBegin: true,
+        relevance: 0,
+        contains: [
+          hl.Mode(className: 'keyword', begin: r'export[ \t]+', relevance: 0),
+          hl.Mode(
+            className: 'attr',
+            begin: r'[A-Za-z_][A-Za-z0-9_.-]+',
+            endsParent: true,
+            relevance: 0,
+          ),
+        ],
+        starts: hl.Mode(end: r'[ \t]*=[ \t]*', relevance: 0, starts: value),
+      ),
+    ],
+  );
+}
+
 /// Teto pra ligar o highlight. Acima disso o parse + a árvore de spans não
 /// compensam (e o reader já corta arquivos em 2MB); cai no texto puro.
 const int _kMaxHighlightChars = 200 * 1024;
@@ -131,10 +248,7 @@ TextSpan? buildCodeSpan(
       children: _applyOverlays(<_Leaf>[_Leaf(source, null)], overlays),
     );
   }
-  return TextSpan(
-    style: baseStyle,
-    children: _applyOverlays(leaves, overlays),
-  );
+  return TextSpan(style: baseStyle, children: _applyOverlays(leaves, overlays));
 }
 
 /// Sobreposições a fundir sobre os spans de syntax: sublinhado de diagnostics
@@ -183,6 +297,7 @@ List<_Leaf>? _leavesOf(String source, String? language, SyntaxColors palette) {
   if (language == null || language.isEmpty) return null;
   if (source.length > _kMaxHighlightChars) return null;
 
+  _ensureCustomLanguages();
   final lang = _extToLanguage[language.toLowerCase()] ?? language.toLowerCase();
   final nodes = hl.highlight.parse(source, language: lang).nodes;
   if (nodes == null || nodes.isEmpty) return null;

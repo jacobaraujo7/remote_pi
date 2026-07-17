@@ -69,7 +69,10 @@ class TerminalSession extends PaneItem {
           _record(data); // grava o scrollback pra replay no próximo boot.
           _trackCwd(data); // rastreia o cwd vivo (OSC 7) pra restaurar nele.
         });
-    terminal.onOutput = (data) => _gateway.write(utf8.encode(data));
+    terminal.onOutput = (data) {
+      _maybeInterrupt(data);
+      _gateway.write(utf8.encode(data));
+    };
     terminal.onResize = (width, height, pixelWidth, pixelHeight) =>
         _gateway.resize(height, width);
     // Programas mudam o título da janela via OSC 0/2 (ex.: shell mostra o cwd,
@@ -180,6 +183,24 @@ class TerminalSession extends PaneItem {
     }
 
     _setStatus(status);
+  }
+
+  /// Detecta o **interrupt** do harness na entrada do usuário. O Claude Code
+  /// (e demais harnesses) interrompem o turno com um `ESC` cru; e o Claude
+  /// Code **não emite `Stop` num interrupt do usuário** — só quando o turno
+  /// termina sozinho. Sem isto, o último hook recebido seria um `working`
+  /// (Pre/PostToolUse) e o spinner giraria pra sempre. Um `ESC` cru (`\x1b`
+  /// sozinho, sem sequência de seta/função) enquanto `working` zera o status
+  /// otimista. Se não era interrupt de fato, o `_staleWorkingGuard` descarta o
+  /// `working` mid-turn tardio, e um `UserPromptSubmit` legítimo reacende.
+  void _maybeInterrupt(String data) {
+    if (data == '\x1b' && _status == TerminalStatus.working) {
+      _turnActive = false;
+      _notifyDebounce?.cancel();
+      _status = TerminalStatus.idle;
+      _lastIdleAt = DateTime.now();
+      notifyListeners();
+    }
   }
 
   void _setStatus(TerminalStatus next) {
