@@ -1510,6 +1510,55 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pane focada do projeto ativo + seu leaf, ou `null` se não há projeto ativo
+  /// nem pane. Se nada está explicitamente focado, cai na primeira pane da árvore.
+  (String, LeafPane)? _focusedLeaf() {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) return null;
+    final panes = leaves(tree);
+    if (panes.isEmpty) return null;
+    final paneId = _focused[projectId] ?? panes.first.id;
+    final leaf = findLeaf(tree, paneId);
+    return leaf == null ? null : (paneId, leaf);
+  }
+
+  /// Seleciona a aba de índice [index] (0-based) na pane focada — o atalho
+  /// ⌘1…⌘8. No-op se o índice está fora do range (⌘5 numa pane de 3 abas não
+  /// faz nada) ou se não há pane focada.
+  void selectTabByIndex(int index) {
+    final focused = _focusedLeaf();
+    if (focused == null) return;
+    final (paneId, leaf) = focused;
+    if (index < 0 || index >= leaf.tabs.length) return;
+    selectTab(paneId, leaf.tabs[index]);
+  }
+
+  /// Seleciona a **última** aba da pane focada — o atalho ⌘9, na convenção de
+  /// browsers/iTerm ("pula pra última", não pra 9ª). No-op se a pane não tem aba.
+  void selectLastTab() {
+    final focused = _focusedLeaf();
+    if (focused == null) return;
+    final (paneId, leaf) = focused;
+    if (leaf.tabs.isEmpty) return;
+    selectTab(paneId, leaf.tabs.last);
+  }
+
+  /// Move o foco pra pane vizinha na direção [move] — os atalhos ⌘⌥ + setas.
+  /// No-op se há só uma pane ou não existe vizinha naquela direção (fica onde
+  /// está, sem ciclar). Deriva a vizinhança da árvore via [neighborLeaf].
+  void focusPaneToward(PaneMove move) {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) return;
+    final panes = leaves(tree);
+    if (panes.length < 2) return;
+    final current = _focused[projectId] ?? panes.first.id;
+    final target = neighborLeaf(tree, current, move);
+    if (target == null || target == current) return;
+    focus(target);
+  }
+
   /// Abre uma aba "Novo" (placeholder vazio) na pane — o usuário escolhe ali
   /// dentro se quer um agente ou um terminal (via [fillEmpty]). Mesma cara da
   /// aba inicial de um workspace recém-aberto.

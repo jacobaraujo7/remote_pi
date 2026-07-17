@@ -14,6 +14,19 @@ import 'package:window_manager/window_manager.dart';
 // Definição única do menu do app (fonte de verdade para os dois renderers).
 // ===========================================================================
 
+/// Teclas 1…8 dos atalhos "Select Tab" (⌘1…⌘8). O ⌘9 é tratado à parte como
+/// "Last Tab" (convenção de browsers/iTerm: pula pra última aba, não pra 9ª).
+const List<LogicalKeyboardKey> _tabDigitKeys = <LogicalKeyboardKey>[
+  LogicalKeyboardKey.digit1,
+  LogicalKeyboardKey.digit2,
+  LogicalKeyboardKey.digit3,
+  LogicalKeyboardKey.digit4,
+  LogicalKeyboardKey.digit5,
+  LogicalKeyboardKey.digit6,
+  LogicalKeyboardKey.digit7,
+  LogicalKeyboardKey.digit8,
+];
+
 /// Monta a árvore de menus do app. Referencia só o `core`: o [controller]
 /// (zoom/tamanho da interface) e as pontes globais de `app_intents.dart` (abrir
 /// configurações/projeto, checar updates) — resolvidas pelo `CockpitPage`, então
@@ -129,6 +142,48 @@ List<MenuBarMenu> buildAppMenus(
         ),
         onSelected: workspace.hasWorkspace ? workspace.splitDown : null,
       ),
+      const MenuSeparator(),
+      // Seleção de aba (⌘1…⌘9) vive no menu de propósito: no macOS só o menu
+      // **nativo** captura atalho de forma confiável quando o terminal/campo tem
+      // foco (um `CallbackShortcuts` de página é engolido pelo widget focado).
+      // Já o "Focus Pane" (⌘⌥ + setas) NÃO leva acelerador de menu: setas não
+      // funcionam como key equivalent no macOS (o campo focado consome a seta
+      // antes do menu), então quem trata a tecla é um handler global do
+      // HardwareKeyboard no `CockpitPage`. Aqui ficam só os itens clicáveis (com
+      // o hint da tecla no rótulo, já que o menu não desenha acelerador nenhum).
+      MenuBarMenu('Focus Pane', <MenuNode>[
+        MenuAction(
+          'Left  (⌘⌥←)',
+          onSelected: workspace.hasWorkspace ? workspace.focusPaneLeft : null,
+        ),
+        MenuAction(
+          'Right  (⌘⌥→)',
+          onSelected: workspace.hasWorkspace ? workspace.focusPaneRight : null,
+        ),
+        MenuAction(
+          'Up  (⌘⌥↑)',
+          onSelected: workspace.hasWorkspace ? workspace.focusPaneUp : null,
+        ),
+        MenuAction(
+          'Down  (⌘⌥↓)',
+          onSelected: workspace.hasWorkspace ? workspace.focusPaneDown : null,
+        ),
+      ]),
+      MenuBarMenu('Select Tab', <MenuNode>[
+        for (var i = 0; i < _tabDigitKeys.length; i++)
+          MenuAction(
+            'Tab ${i + 1}',
+            accelerator: MenuAccelerator(_tabDigitKeys[i]),
+            onSelected: workspace.hasWorkspace
+                ? () => workspace.selectTab(i)
+                : null,
+          ),
+        MenuAction(
+          'Last Tab',
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.digit9),
+          onSelected: workspace.hasWorkspace ? workspace.selectLastTab : null,
+        ),
+      ]),
       const MenuSeparator(),
       MenuAction(
         'Zoom In',

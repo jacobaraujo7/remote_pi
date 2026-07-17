@@ -183,6 +183,64 @@ List<String> reorderTabs(List<String> tabs, String tabId, int index) {
   return out;
 }
 
+// ---- navegação direcional entre panes (atalhos ⌘⌥ + setas) ------------------
+
+/// Direção do movimento de foco entre panes.
+enum PaneMove { left, right, up, down }
+
+/// Id do leaf **vizinho** a partir de [fromLeafId] na direção [move], ou `null`
+/// se não há pane naquela direção. Deriva da árvore de splits (sem geometria em
+/// pixels): sobe até o ancestral do eixo certo em que o leaf de origem está no
+/// lado "de partida", cruza pro irmão e desce escolhendo o leaf mais próximo da
+/// borda compartilhada. Setas ←→ andam em splits verticais (lado a lado); ↑↓ em
+/// splits horizontais (empilhados).
+String? neighborLeaf(PaneNode root, String fromLeafId, PaneMove move) {
+  final path = _pathTo(root, fromLeafId);
+  if (path == null) return null;
+  final axis = (move == PaneMove.left || move == PaneMove.right)
+      ? SplitDir.vertical
+      : SplitDir.horizontal;
+  // Direita/baixo = ir do lado `a` pro `b`; esquerda/cima = de `b` pro `a`.
+  final towardB = move == PaneMove.right || move == PaneMove.down;
+  // Do leaf pra cima: o primeiro ancestral no eixo certo cujo lado bate é a
+  // fronteira com o vizinho. Ancestrais de eixo/lado errados = já estamos na
+  // borda em relação a eles → continua subindo.
+  for (final step in path.reversed) {
+    if (step.split.dir != axis) continue;
+    if (towardB && step.tookA) return _descendNearest(step.split.b, axis, true);
+    if (!towardB && !step.tookA) {
+      return _descendNearest(step.split.a, axis, false);
+    }
+  }
+  return null;
+}
+
+/// Caminho da raiz até o leaf [id]: cada passo é o [SplitPane] atravessado e se
+/// descemos pelo lado `a` ([tookA] = true) ou `b`. `null` se o leaf não existe.
+List<({SplitPane split, bool tookA})>? _pathTo(PaneNode node, String id) {
+  switch (node) {
+    case LeafPane():
+      return node.id == id ? const [] : null;
+    case SplitPane(:final a, :final b):
+      final viaA = _pathTo(a, id);
+      if (viaA != null) return [(split: node, tookA: true), ...viaA];
+      final viaB = _pathTo(b, id);
+      if (viaB != null) return [(split: node, tookA: false), ...viaB];
+      return null;
+  }
+}
+
+/// Desce numa subárvore até um leaf, colando na borda compartilhada: no [axis]
+/// do movimento escolhe o lado perto da fronteira ([preferA] = pega `a`); no
+/// eixo cruzado pega `a` (determinístico — sem geometria pra desempatar).
+String _descendNearest(PaneNode node, SplitDir axis, bool preferA) {
+  var n = node;
+  while (n is SplitPane) {
+    n = n.dir == axis ? (preferA ? n.a : n.b) : n.a;
+  }
+  return (n as LeafPane).id;
+}
+
 /// Remove a folha [id]; se ela for filha de um split, o irmão toma o lugar.
 PaneNode removeLeaf(PaneNode node, String id) {
   switch (node) {

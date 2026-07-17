@@ -16,7 +16,13 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyRepeatEvent,
+        LogicalKeyboardKey;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 
@@ -76,6 +82,12 @@ class _CockpitPageState extends State<CockpitPage> {
     _workspaceMenu = context.read<WorkspaceMenuBridge>();
     _menuVm = context.read<CockpitViewModel>()..addListener(_syncWorkspaceMenu);
     _syncWorkspaceMenu();
+    // Navegação direcional entre panes (⌘⌥ + setas). Vai por um handler global
+    // do HardwareKeyboard — e NÃO pelo menu — porque no macOS as setas não
+    // funcionam como *key equivalent* de menu (o campo/terminal focado consome a
+    // seta antes do menu). O handler global vê o evento antes da distribuição por
+    // foco, então pega mesmo com um terminal focado. Ver [_handlePaneNavKey].
+    HardwareKeyboard.instance.addHandler(_handlePaneNavKey);
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
@@ -129,6 +141,12 @@ class _CockpitPageState extends State<CockpitPage> {
       onSplitDown: () => _splitFocused(SplitDir.horizontal),
       onToggleRail: vm.toggleRail,
       onToggleFiles: vm.toggleTree,
+      onSelectTab: vm.selectTabByIndex,
+      onSelectLastTab: vm.selectLastTab,
+      onFocusPaneLeft: () => vm.focusPaneToward(PaneMove.left),
+      onFocusPaneRight: () => vm.focusPaneToward(PaneMove.right),
+      onFocusPaneUp: () => vm.focusPaneToward(PaneMove.up),
+      onFocusPaneDown: () => vm.focusPaneToward(PaneMove.down),
     );
   }
 
@@ -181,8 +199,37 @@ class _CockpitPageState extends State<CockpitPage> {
     _lastLspCommands = Map<String, String>.of(next);
   }
 
+  /// Handler global de teclado pra navegação direcional entre panes. Roda antes
+  /// da distribuição por foco (por isso pega ⌘⌥+seta mesmo com terminal focado,
+  /// onde o menu nativo do macOS falharia). Consome (retorna `true`) só o combo
+  /// exato ⌘⌥ (macOS) / Ctrl+⌥ (Win/Linux) + seta; qualquer outra tecla passa.
+  bool _handlePaneNavKey(KeyEvent event) {
+    if (event is! KeyDownEvent && event is! KeyRepeatEvent) return false;
+    final move = switch (event.logicalKey) {
+      LogicalKeyboardKey.arrowLeft => PaneMove.left,
+      LogicalKeyboardKey.arrowRight => PaneMove.right,
+      LogicalKeyboardKey.arrowUp => PaneMove.up,
+      LogicalKeyboardKey.arrowDown => PaneMove.down,
+      _ => null,
+    };
+    if (move == null) return false;
+    final pressed = HardwareKeyboard.instance.logicalKeysPressed;
+    final primary =
+        pressed.contains(LogicalKeyboardKey.metaLeft) ||
+        pressed.contains(LogicalKeyboardKey.metaRight) ||
+        pressed.contains(LogicalKeyboardKey.controlLeft) ||
+        pressed.contains(LogicalKeyboardKey.controlRight);
+    final alt =
+        pressed.contains(LogicalKeyboardKey.altLeft) ||
+        pressed.contains(LogicalKeyboardKey.altRight);
+    if (!primary || !alt) return false;
+    _menuVm?.focusPaneToward(move);
+    return true;
+  }
+
   @override
   void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handlePaneNavKey);
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
     _settings?.removeListener(_syncCockpit);

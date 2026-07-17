@@ -17,6 +17,12 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   VoidCallback? _onSplitDown;
   VoidCallback? _onToggleRail;
   VoidCallback? _onToggleFiles;
+  void Function(int index)? _onSelectTab;
+  VoidCallback? _onSelectLastTab;
+  VoidCallback? _onFocusPaneLeft;
+  VoidCallback? _onFocusPaneRight;
+  VoidCallback? _onFocusPaneUp;
+  VoidCallback? _onFocusPaneDown;
 
   bool get hasWorkspace => _hasWorkspace;
 
@@ -35,6 +41,12 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   void splitDown() => _onSplitDown?.call();
   void toggleRail() => _onToggleRail?.call();
   void toggleFiles() => _onToggleFiles?.call();
+  void selectTab(int index) => _onSelectTab?.call(index);
+  void selectLastTab() => _onSelectLastTab?.call();
+  void focusPaneLeft() => _onFocusPaneLeft?.call();
+  void focusPaneRight() => _onFocusPaneRight?.call();
+  void focusPaneUp() => _onFocusPaneUp?.call();
+  void focusPaneDown() => _onFocusPaneDown?.call();
 
   /// O `CockpitPage` publica o estado atual. Callbacks são sempre atualizados;
   /// só notifica (→ menu/settings reconstroem) quando [hasWorkspace] ou
@@ -49,6 +61,12 @@ class WorkspaceMenuBridge extends ChangeNotifier {
     VoidCallback? onSplitDown,
     VoidCallback? onToggleRail,
     VoidCallback? onToggleFiles,
+    void Function(int index)? onSelectTab,
+    VoidCallback? onSelectLastTab,
+    VoidCallback? onFocusPaneLeft,
+    VoidCallback? onFocusPaneRight,
+    VoidCallback? onFocusPaneUp,
+    VoidCallback? onFocusPaneDown,
   }) {
     _onNewAgent = onNewAgent;
     _onNewTerminal = onNewTerminal;
@@ -56,6 +74,12 @@ class WorkspaceMenuBridge extends ChangeNotifier {
     _onSplitDown = onSplitDown;
     _onToggleRail = onToggleRail;
     _onToggleFiles = onToggleFiles;
+    _onSelectTab = onSelectTab;
+    _onSelectLastTab = onSelectLastTab;
+    _onFocusPaneLeft = onFocusPaneLeft;
+    _onFocusPaneRight = onFocusPaneRight;
+    _onFocusPaneUp = onFocusPaneUp;
+    _onFocusPaneDown = onFocusPaneDown;
     if (hasWorkspace == _hasWorkspace &&
         agentTabsInUse == _agentTabsInUse &&
         agentsAllowed == _agentsAllowed) {
