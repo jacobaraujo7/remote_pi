@@ -173,6 +173,7 @@ const {
   _getLockedNameForTest,
   _resetCwdLockForTest,
   _handleControl,
+  _deliverMeshMessageToAgentForTest,
   CTRL_PREFIX,
 } = await import("./index.js");
 const { acquireCwdLock } = await import("./session/cwd_lock.js");
@@ -833,6 +834,63 @@ describe("/remote-pi revoke", () => {
 // `_getActivePeerCountForTest` import so it isn't flagged as unused even
 // when only some tests in this file consume it.
 void _getActivePeerCountForTest;
+
+// ── agent-network mesh delivery ──────────────────────────────────────────────
+
+describe("agent-network mesh delivery", () => {
+  test("holds messages until agent_end listeners finish and starts one turn for the batch", async () => {
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    _setPiForTest({ sendMessage, sendUserMessage: () => undefined });
+    harness.handler("agent_start")({ type: "agent_start" });
+
+    _deliverMeshMessageToAgentForTest({
+      id: "mesh-message-1",
+      from: "/work/repo@reviewer",
+      re: null,
+      body: { status: "first" },
+    });
+    _deliverMeshMessageToAgentForTest({
+      id: "mesh-message-2",
+      from: "/work/repo@worker",
+      re: "mesh-message-1",
+      body: { status: "second" },
+    });
+    await Promise.resolve();
+
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    harness.handler("agent_end")({ type: "agent_end" });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    harness.handler("agent_start")({ type: "agent_start" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    harness.handler("agent_end")({ type: "agent_end" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage.mock.calls[0]).toEqual([
+      expect.objectContaining({
+        customType: "remote-pi:mesh-message",
+        display: true,
+        content: expect.stringContaining("mesh-message-1"),
+      }),
+      { triggerTurn: false },
+    ]);
+    expect(sendMessage.mock.calls[1]).toEqual([
+      expect.objectContaining({
+        customType: "remote-pi:mesh-message",
+        display: true,
+        content: expect.stringContaining("mesh-message-2"),
+      }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    ]);
+
+    harness.handler("agent_end")({ type: "agent_end" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  });
+});
 
 // ── user_input mirroring (local terminal / RPC) ───────────────────────────────
 

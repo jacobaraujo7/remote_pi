@@ -805,6 +805,12 @@ let _lastConsumedSteerText: string | null = null;
 type AndroidQueuedItem = QueuedMessageItem & { editable: true };
 let _queuedItems: AndroidQueuedItem[] = [];
 
+type MeshEnvelope = { id: string; from: string; re: string | null; body: unknown };
+let _pendingMeshMessages: MeshEnvelope[] = [];
+let _agentRunActive = false;
+let _agentRunGeneration = 0;
+let _meshDrainScheduled = false;
+
 function _queuedStateMessage(): ServerMessage {
   const first = _queuedItems[0];
   return {
@@ -1904,6 +1910,11 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     });
   });
 
+  pi.on("agent_start", () => {
+    _agentRunActive = true;
+    _agentRunGeneration += 1;
+  });
+
   pi.on("message_start", (event) => {
     const message = event?.message as BufferMsg | undefined;
     if (!_anyPeerActive() || message?.role !== "user") return;
@@ -1988,6 +1999,18 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _flushPendingReceivedImagePreviews();
     _lastConsumedSteerText = null;
     _maybeDrainQueuedItem();
+
+    // agent_end listeners finish before pi-agent-core clears its active run.
+    // Defer mesh delivery to the next event-loop turn so triggerTurn cannot
+    // collide with the prompt that emitted this event. A queued continuation
+    // may start first; its generation keeps the older timer from clearing the
+    // new run's busy flag.
+    const endedGeneration = _agentRunGeneration;
+    setTimeout(() => {
+      if (_agentRunGeneration !== endedGeneration) return;
+      _agentRunActive = false;
+      _scheduleMeshMessageDrain();
+    }, 0);
   });
 
   // plan/34: the broker no longer gates delivery on busy state, so we no
@@ -3585,12 +3608,59 @@ function _wakeAgent(
  * Wake: we inject a CUSTOM message (role:"custom"), not a user message. The
  * SDK's `convertToLlm` maps custom → a user-role LLM message, so the agent
  * still sees + replies to it, but `message_end` does NOT buffer role:"custom",
- * so it never replays as `user_input` on session_sync. `triggerTurn` runs the
- * turn; `id` lets the LLM echo it via `agent_send(..., re=<id>)`.
+ * so it never replays as `user_input` on session_sync. Mesh messages are held
+ * until the current `agent_end` listeners finish, then appended as one batch
+ * before a single turn starts. This avoids calling `prompt()` during the gap
+ * where Pi has stopped streaming but the current agent run is still active.
+ * `id` lets the LLM echo it via
+ * `agent_send(..., re=<id>)`.
  */
-function _deliverMeshMessageToAgent(
-  env: { id: string; from: string; re: string | null; body: unknown },
-): void {
+function _meshMessageForAgent(env: MeshEnvelope) {
+  const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
+  const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
+  const footer = env.re
+    ? "(This is a reply to a previous message of yours.)"
+    : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
+  return {
+    customType: "remote-pi:mesh-message",
+    content: `${header}\n${bodyText}\n\n${footer}`,
+    display: true,
+  };
+}
+
+function _scheduleMeshMessageDrain(): void {
+  if (_meshDrainScheduled || _pendingMeshMessages.length === 0) return;
+  _meshDrainScheduled = true;
+  queueMicrotask(() => {
+    _meshDrainScheduled = false;
+    const pi = _pi;
+    if (_agentRunActive || !pi || _pendingMeshMessages.length === 0) return;
+
+    const batch = _pendingMeshMessages.splice(0);
+    let delivered = 0;
+    _agentRunActive = true;
+    try {
+      batch.forEach((env, index) => {
+        const isLast = index === batch.length - 1;
+        pi.sendMessage(
+          _meshMessageForAgent(env),
+          isLast
+            ? { triggerTurn: true, deliverAs: "followUp" }
+            : { triggerTurn: false },
+        );
+        delivered += 1;
+      });
+    } catch (err) {
+      _agentRunActive = false;
+      _pendingMeshMessages = [...batch.slice(delivered), ..._pendingMeshMessages];
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[remote-pi] queued mesh delivery failed: ${detail}`);
+      _safeNotify(`[remote-pi] failed to process queued mesh messages: ${detail}`, "error");
+    }
+  });
+}
+
+function _deliverMeshMessageToAgent(env: MeshEnvelope): void {
   const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
   const toolCallId = `mesh_${env.id}`;
   _broadcastToActive({
@@ -3603,25 +3673,17 @@ function _deliverMeshMessageToAgent(
   });
   _broadcastToActive({ type: "tool_result", tool_call_id: toolCallId, result: { from: env.from, message: bodyText } });
 
-  const label = `agent-network message from "${env.from}"`;
   if (!_pi) {
-    console.error(`[remote-pi] ${label}: agent session not bound yet — message dropped`);
+    console.error(`[remote-pi] agent-network message from "${env.from}": agent session not bound yet — message dropped`);
     return;
   }
-  const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
-  const footer = env.re
-    ? "(This is a reply to a previous message of yours.)"
-    : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
-  try {
-    _pi.sendMessage(
-      { customType: "remote-pi:mesh-message", content: `${header}\n${bodyText}\n\n${footer}`, display: true },
-      { triggerTurn: true },
-    );
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
-    _safeNotify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
-  }
+  _pendingMeshMessages.push(env);
+  _scheduleMeshMessageDrain();
+}
+
+/** Test-only entry point for verifying mesh-to-agent delivery semantics. */
+export function _deliverMeshMessageToAgentForTest(env: MeshEnvelope): void {
+  _deliverMeshMessageToAgent(env);
 }
 
 /**
