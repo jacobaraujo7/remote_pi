@@ -71,6 +71,9 @@ submit real, espelhando o contrato `extension_ui_request` /
   `tool_request`/`tool_result` do `ask_user` já é replayado). Fica pra próximo.
 - No primeiro corte: `editor` vira `input` simples no mobile (customText/notes);
   editor multi-linha com diff fica pra próximo.
+- **elaborate mode não exposto**: o wire suporta `mode: submit|elaborate`, mas o
+  app sempre envia `submit` no v1 (não há botão "elaborate/refine" no modal). O
+  bridge repassa qualquer `mode`; só falta UI pra escolher elaborate.
 
 ## Arquitetura
 
@@ -79,16 +82,23 @@ submit real, espelhando o contrato `extension_ui_request` /
 ServerMessage `extension_ui_request` (espelha `RpcExtensionUIRequest`):
 
 ```jsonc
-{ "type": "extension_ui_request", "id": "<req-id>",
+{ "type": "extension_ui_request", "id": "<flow-id>",
   "method": "select", "title": "...", "options": ["A", "B"],
-  "ask": { /* opcional — envelope pi-ask */
+  "ask": { /* opcional — envelope pi-ask, TODAS as questões num frame só */
     "flow_id": "<flow-id>", "tool_call_id": "<tcid>|null", "source": "tool",
-    "title": "...|null", "question_index": 0, "total_questions": 2,
-    "question": { "id": "...", "label": "...", "prompt": "...",
-                  "type": "single|multi|preview", "required": true,
-                  "options": [{ "value": "...", "label": "...",
-                                "description": "...", "preview": "...", "freeform": false }] } } }
+    "title": "...|null",
+    "questions": [{ "id": "...", "label": "...", "prompt": "...",
+                    "type": "single|multi|preview", "required": true,
+                    "options": [{ "value": "...", "label": "...",
+                                  "description": "...", "preview": "...", "freeform": false }] }] } }
 ```
+
+> **Mudança vs rascunho original**: o rascunho previa **um request por questão**
+> (`question_index`/`total_questions`/`question`). A implementação enviou **um
+> request por flow** com array `questions` — modal único no mobile, menos
+> round-trips. Consequência: o caminho degradado (cliente estrito sem envelope)
+> só funciona de fato pra flows de **1 questão** — com N questões, a resposta
+> simples cobre uma só e o pi-ask rejeita por required faltante (ver Riscos).
 
 ClientMessage `extension_ui_response` (espelha `RpcExtensionUIResponse`):
 
@@ -108,13 +118,19 @@ ClientMessage `extension_ui_response` (espelha `RpcExtensionUIResponse`):
 
 Subscreve `pi.events` (feature-detect; inert sem pi-ask):
 
-- `@eko24ive/pi-ask:started` → emite **um** `extension_ui_request` por questão,
-  method conforme o tipo (`single`→`select`; `multi`→`select` com envelope
-  `ask` indicando multi; `preview`→`select` com envelope; custom/freeform→
-  `input`). Mantém map `requestId → { flowId, questionId, label→value }`.
-- `@eko24ive/pi-ask:completed` → emite `notify` (info) pra o app dispensar.
-- `@eko24ive/pi-ask:submit-result` → ack de volta pro sender (erro imediato de
-  answer inválida).
+- `@eko24ive/pi-ask:started` → emite **um** `extension_ui_request` por **flow**
+  (method `select` base + envelope `ask` com o array `questions` completo).
+  Mantém map `requestId → { flowId, label→value }` pro caminho degradado.
+- `@eko24ive/pi-ask:completed` → emite `notify` com o mesmo `id` (o app trata
+  como "dispensa este request").
+- `@eko24ive/pi-ask:submit-result` erro → emite `notify` warning **reusando o
+  `flowId` como `id`** (mesmo id do request aberto) + `notify_type:"warning"`.
+  O app correlaciona pelo id e expõe a mensagem como `pendingUiError` → o modal
+  permanece aberto e habilita retry. O `completed` (dismiss, `notify_type`
+  ausente/info) é o que fecha o modal. Sucesso (ok:true) é no-op aqui.
+- **TTL de flow**: cada flow em `activeFlows` ganha um timer de 10min
+  (`FLOW_TTL_MS`) — pi-ask dispõe flows no `session_shutdown` **sem** emitir
+  `completed`, então sem isso o map vazava uma entrada por flow abandonado.
 
 Handler `extension_ui_response` no router (`_routeClientMessageFrom`):
 
@@ -134,7 +150,9 @@ Handler `extension_ui_response` no router (`_routeClientMessageFrom`):
   notes); senão → render SDK simples (select/confirm/input).
 - **Fallback**: `tool_request{tool:"ask_user"}` sem `extension_ui_request`
   correlato → render informativo "responda no desktop" (sem submit), pois sem
-  bridge não há canal de resposta.
+  bridge não há canal de resposta. **DEFERIDO na v1**: com o bridge ativo o
+  `ask_user` sempre chega como `extension_ui_request`; o caminho "bare
+  tool_request" é quase inalcançável e criaria segundo trigger path.
 - Submit → `extension_ui_response` ClientMessage.
 
 ## Passos
@@ -169,25 +187,44 @@ celular → confirmar resolução no desktop.
 
 ## Definition of Done
 
-- [ ] pi-extension: `pnpm typecheck && pnpm test` verdes.
-- [ ] app: `flutter test` verde nos testes novos.
+- [x] pi-extension: `pnpm typecheck && pnpm test` verdes (2026-07-18: typecheck
+      ok + 10 vitest verdes; 5 falhas pré-existentes não relacionadas — symlink
+      Windows em daemon/* e rooms.test.ts). Re-verificado após os fixes
+      pós-review (submit-result id=flowId + TTL de flow): typecheck + 10 tests
+      verdes.
+- [ ] app: `flutter test` verde nos testes novos (pendente — Flutter ausente no
+      ambiente de autoria; despachar pro pane App).
 - [ ] Smoke: `ask_user` respondido do celular resolve o fluxo no desktop;
       multi-owner first-response-wins.
-- [ ] Sem pi-ask: nada quebra (bridge inert).
-- [ ] PR referencia a tensão de design e a decisão (contrato upstream + envelope
+- [x] Sem pi-ask: nada quebra (bridge inert) — coberto por vitest; smoke real
+      pendente junto com o item acima.
+- [x] PR referencia a tensão de design e a decisão (contrato upstream + envelope
       `ask`).
 
 ## Riscos
 
 1. **Fidelidade do mapeamento**: multi/preview/notes não cabem no contract base;
    mitigado pelo envelope `ask` (app renderiza rico).
-2. **Estado do bridge**: map `requestId → flow/label-value` precisa cleanup
-   (timeout ~30s) pra não vazar.
+2. ~~**Estado do bridge**: map `requestId → flow/label-value` precisa cleanup
+   pra não vazar.~~ **Resolvido**: TTL de 10min por flow (`FLOW_TTL_MS`) limpa
+   entries de flows abandonados (session_shutdown dispõe sem `completed`).
 3. **Multi-owner**: primeiro response vence (pi-ask idempotente via flag
    `completed`); outros owners recebem `completed`/`notify` e dispensam.
 4. **Aceitação upstream**: o envelope `ask` diverge do "espelhar estrito";
    justificar no PR. Reversível (revert de 1 campo) se o maintainer preferir
    mirror estrito.
+5. **Caminho degradado limitado a 1 questão**: com todas as questões num frame
+   só, cliente estrito (sem envelope) responde só a primeira; flows
+   multi-questão travam no required faltante e o submit-result warning é
+   descartado na v1. Documentar como limitação conhecida no PR.
+6. ~~**Modal vs answer inválida**: fechar otimista no submit + rejeição =
+   dead end.~~ **Resolvido**: o app **não** fecha o modal otimista no submit.
+   Ele permanece em estado "submitting" e só fecha no `completed` dismiss.
+   Rejeição (submit-result warning, id casado) vira `pendingUiError` → o sheet
+   re-habilita Submit/Cancel e mostra a mensagem pra retry. Backstop de 25s no
+   sheet reseta o spinner se nenhum `completed`/error chegar (relay drop).
+7. **Keyboard inset (v1)**: modal é Stack overlay, não rota — teclado pode
+   cobrir a action bar inferior. Aceito como limitação v1.
 
 ## Próximo plano possível
 
