@@ -19,6 +19,8 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:flutter/services.dart'
     show
+        Clipboard,
+        ClipboardData,
         HardwareKeyboard,
         KeyDownEvent,
         KeyEvent,
@@ -420,6 +422,16 @@ class _CockpitPageState extends State<CockpitPage> {
           label: 'Open with…',
           icon: Icons.folder_open,
         ),
+        AppMenuItem(
+          value: _RootMenuAction.copyAbsolutePath,
+          label: 'Copy Absolute Path',
+          icon: Icons.content_copy_outlined,
+        ),
+        AppMenuItem(
+          value: _RootMenuAction.copyRelativePath,
+          label: 'Copy Relative Path',
+          icon: Icons.content_copy_outlined,
+        ),
       ],
     );
     if (action == null || !mounted) return;
@@ -479,6 +491,14 @@ class _CockpitPageState extends State<CockpitPage> {
         vm.newTabIn(sub, terminal: false);
       case _RootMenuAction.reveal:
         vm.openWithDefaultApp(root.path);
+      case _RootMenuAction.copyAbsolutePath:
+        await Clipboard.setData(ClipboardData(text: root.path));
+      case _RootMenuAction.copyRelativePath:
+        // Relativo à pasta-mãe do workspace (o `sub` já computado); numa root
+        // que É a própria raiz (single-root) cai no basename.
+        await Clipboard.setData(
+          ClipboardData(text: sub.isEmpty ? root.name : sub),
+        );
     }
   }
 
@@ -1160,4 +1180,6 @@ enum _RootMenuAction {
   newTerminal,
   newAgent,
   reveal,
+  copyAbsolutePath,
+  copyRelativePath,
 }
