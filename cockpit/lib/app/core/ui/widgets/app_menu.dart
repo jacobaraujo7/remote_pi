@@ -5,16 +5,29 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// direita quando [selected] e cor de erro quando [danger] (ação destrutiva).
 class AppMenuItem<T> {
   const AppMenuItem({
-    required this.value,
+    required T this.value,
     required this.label,
     this.icon,
     this.selected = false,
     this.danger = false,
     this.enabled = true,
     this.children,
-  });
+  }) : isDivider = false;
 
-  final T value;
+  /// Separador visual entre grupos de itens ([MenuDivider] do shadcn). Nunca é
+  /// clicável nem devolve valor.
+  const AppMenuItem.divider()
+    : value = null,
+      label = '',
+      icon = null,
+      selected = false,
+      danger = false,
+      enabled = false,
+      children = null,
+      isDivider = true;
+
+  /// Nulo apenas em [AppMenuItem.divider] — o construtor padrão exige `T`.
+  final T? value;
   final String label;
   final IconData? icon;
   final bool selected;
@@ -27,6 +40,8 @@ class AppMenuItem<T> {
   /// (nativo do shadcn). O `value` do PRÓPRIO item nunca é devolvido — só o
   /// dos filhos escolhidos.
   final List<AppMenuItem<T>>? children;
+
+  final bool isDivider;
 }
 
 /// Popover de menu atualmente aberto. O `showPopover` do shadcn **não** fecha
@@ -91,69 +106,72 @@ Future<T?> showAppMenu<T>(
       child: DropdownMenu(
         children: [
           for (final item in items)
-            MenuButton(
-              enabled: item.enabled,
-              leading: item.icon != null
-                  ? Icon(
-                      item.icon,
-                      size: 15,
-                      color: !item.enabled
-                          ? colors.text4
-                          : (item.danger ? colors.error : colors.text3),
-                    )
-                  : null,
-              trailing: item.selected
-                  ? Icon(Icons.check, size: 14, color: colors.accentText)
-                  : null,
-              // Com submenu, o clique no pai não escolhe nada — só abre os
-              // filhos. O fechamento do filho usa o context do MENU raiz
-              // (não o do popover do submenu) pra resolver o future certo.
-              subMenu: item.children == null
-                  ? null
-                  : [
-                      for (final child in item.children!)
-                        MenuButton(
-                          enabled: child.enabled,
-                          leading: child.icon != null
-                              ? Icon(
-                                  child.icon,
-                                  size: 15,
-                                  color: !child.enabled
-                                      ? colors.text4
-                                      : colors.text3,
-                                )
-                              : null,
-                          onPressed: (_) {
-                            closeOverlay<T>(menuContext, child.value);
-                          },
-                          child: Text(
-                            child.label,
-                            overflow: TextOverflow.ellipsis,
-                            style: menuContext.typo.body.copyWith(
-                              fontSize: 13,
-                              color: !child.enabled
-                                  ? colors.text4
-                                  : colors.text,
+            if (item.isDivider)
+              const MenuDivider()
+            else
+              MenuButton(
+                enabled: item.enabled,
+                leading: item.icon != null
+                    ? Icon(
+                        item.icon,
+                        size: 15,
+                        color: !item.enabled
+                            ? colors.text4
+                            : (item.danger ? colors.error : colors.text3),
+                      )
+                    : null,
+                trailing: item.selected
+                    ? Icon(Icons.check, size: 14, color: colors.accentText)
+                    : null,
+                // Com submenu, o clique no pai não escolhe nada — só abre os
+                // filhos. O fechamento do filho usa o context do MENU raiz
+                // (não o do popover do submenu) pra resolver o future certo.
+                subMenu: item.children == null
+                    ? null
+                    : [
+                        for (final child in item.children!)
+                          MenuButton(
+                            enabled: child.enabled,
+                            leading: child.icon != null
+                                ? Icon(
+                                    child.icon,
+                                    size: 15,
+                                    color: !child.enabled
+                                        ? colors.text4
+                                        : colors.text3,
+                                  )
+                                : null,
+                            onPressed: (_) {
+                              closeOverlay<T>(menuContext, child.value);
+                            },
+                            child: Text(
+                              child.label,
+                              overflow: TextOverflow.ellipsis,
+                              style: menuContext.typo.body.copyWith(
+                                fontSize: 13,
+                                color: !child.enabled
+                                    ? colors.text4
+                                    : colors.text,
+                              ),
                             ),
                           ),
-                        ),
-                    ],
-              onPressed: item.children != null
-                  ? null
-                  : (ctx) {
-                      closeOverlay<T>(ctx, item.value);
-                    },
-              child: Text(
-                item.label,
-                overflow: TextOverflow.ellipsis,
-                style: menuContext.typo.body.copyWith(
-                  fontSize: 13,
-                  color: !item.enabled
-                      ? colors.text4
-                      : (item.danger ? colors.error : colors.text),
+                      ],
+                onPressed: item.children != null
+                    ? null
+                    : (ctx) {
+                        closeOverlay<T>(ctx, item.value);
+                      },
+                child: Text(
+                  item.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: menuContext.typo.body.copyWith(
+                    fontSize: 13,
+                    color: !item.enabled
+                        ? colors.text4
+                        : (item.danger ? colors.error : colors.text),
+                  ),
                 ),
               ),
-            ),
         ],
       ),
     ),

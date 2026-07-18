@@ -1,6 +1,8 @@
+import 'realm.dart';
+
 /// Natureza de um workspace no rail.
 ///
-/// - [project]: um workspace normal ancorado numa pasta (id == path).
+/// - [project]: um workspace normal ancorado numa pasta.
 /// - [systemTerminal]: o workspace sintético "Cockpit" — sem pasta, terminal-only,
 ///   injetado em runtime (nunca persistido). Serviços de path (git, árvore, tasks,
 ///   worktrees) não sobem para ele; o terminal abre no `$HOME` do usuário.
@@ -18,15 +20,16 @@ class Project {
     required this.path,
     required this.colorValue,
     required this.createdAt,
+    this.realmId = Realm.defaultId,
     this.parentId,
     this.order = 0,
     this.imagePath,
     this.kind = WorkspaceKind.project,
   });
 
-  /// Id sentinela do workspace de sistema "Cockpit". Não é um caminho absoluto,
-  /// então nunca colide com o `id == path` de um projeto real, e o repositório
-  /// Hive nunca o retorna (só é injetado em runtime).
+  /// Id sentinela do workspace de sistema "Cockpit". Não é um UUID, então nunca
+  /// colide com o id de um projeto real, e o repositório Hive nunca o retorna
+  /// (só é injetado em runtime).
   static const String cockpitId = '__cockpit__';
 
   /// Constrói o workspace sintético "Cockpit" (terminal-only, sem pasta).
@@ -60,6 +63,11 @@ class Project {
   /// é uma worktree (fork). Define o aninhamento no rail.
   final String? parentId;
 
+  /// Realm (conjunto de workspaces) a que este workspace pertence. O rail só
+  /// exibe os do realm ativo. O mesmo [path] pode existir como workspaces
+  /// distintos em realms diferentes — por isso [id] é um UUID, não o path.
+  final String realmId;
+
   /// Posição manual no rail (drag-drop de workspaces). Só relevante para
   /// workspaces raiz — worktrees herdam a do pai e aninham embaixo dele.
   /// Persistido; default `0` (dados antigos caem na ordem por [createdAt]).
@@ -87,6 +95,7 @@ class Project {
     String? name,
     int? colorValue,
     int? order,
+    String? realmId,
     Object? imagePath = unchanged,
   }) => Project(
     id: id,
@@ -94,6 +103,7 @@ class Project {
     path: path,
     colorValue: colorValue ?? this.colorValue,
     createdAt: createdAt,
+    realmId: realmId ?? this.realmId,
     parentId: parentId,
     order: order ?? this.order,
     imagePath: imagePath == unchanged ? this.imagePath : imagePath as String?,

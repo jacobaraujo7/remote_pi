@@ -604,6 +604,42 @@ class _CockpitPageState extends State<CockpitPage> {
     );
   }
 
+  /// Destinos de "Move to realm" do kebab: todos os realms menos o atual do
+  /// workspace; destino que já tem o mesmo path vem desabilitado. Com um realm
+  /// só, lista vazia → item nem aparece.
+  List<RealmTarget> _moveTargets(CockpitViewModel vm, String projectId) {
+    if (vm.realms.length < 2) return const [];
+    final matches = vm.projects.where((p) => p.id == projectId);
+    if (matches.isEmpty) return const [];
+    final project = matches.first;
+    return [
+      for (final realm in vm.realms)
+        if (realm.id != project.realmId)
+          (
+            id: realm.id,
+            name: realm.name,
+            enabled: !vm.pathExistsInRealm(project.path, realm.id),
+          ),
+    ];
+  }
+
+  /// "New realm…" do dropdown do footer: pede o nome e já troca pro realm novo
+  /// (nasce vazio — o rail mostra o estado vazio pra adicionar workspaces).
+  Future<void> _createRealm() async {
+    final vm = _vm;
+    final name = await showRealmNameDialog(
+      context,
+      title: 'New realm',
+      confirmLabel: 'Create',
+      takenNames: vm.realms.map((r) => r.name).toSet(),
+    );
+    if (name == null) return;
+    final realm = await vm.createRealm(name);
+    await vm.switchRealm(realm.id);
+  }
+
+  Future<void> _manageRealms() => showRealmManagerDialog(context, vm: _vm);
+
   /// "Fechar" o workspace (confirma → remove da lista local + encerra agentes).
   /// **Não deleta** a pasta no disco — só sai do cockpit.
   Future<void> _deleteProject(Project project) async {
@@ -803,6 +839,17 @@ class _CockpitPageState extends State<CockpitPage> {
                                 ),
                             onOpenSettings: () =>
                                 context.pushNamed(RoutePaths.settings),
+                            realms: vm.realms,
+                            activeRealm: vm.activeRealm,
+                            onSwitchRealm: (id) =>
+                                unawaited(vm.switchRealm(id)),
+                            onCreateRealm: _createRealm,
+                            onManageRealms: _manageRealms,
+                            moveTargetsOf: (projectId) =>
+                                _moveTargets(vm, projectId),
+                            onMoveToRealm: (projectId, realmId) => unawaited(
+                              vm.moveWorkspaceToRealm(projectId, realmId),
+                            ),
                             cockpit: vm.cockpitWorkspace,
                             onSelectCockpit: () =>
                                 vm.selectProject(Project.cockpitId),
@@ -856,9 +903,10 @@ class _CockpitPageState extends State<CockpitPage> {
                             rootPath: vm.selectedProject?.path ?? '',
                             // Roots derivadas (multi-root = seções por repo).
                             roots: [
-                              for (final r in vm.selectedProject == null
-                                  ? const <String>[]
-                                  : vm.rootsOf(vm.selectedProject!.id))
+                              for (final r
+                                  in vm.selectedProject == null
+                                      ? const <String>[]
+                                      : vm.rootsOf(vm.selectedProject!.id))
                                 WorkspaceRoot(
                                   path: r,
                                   name: r.split('/').last,

@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
 import 'package:hive/hive.dart';
 
 /// Persiste projetos numa Box do Hive, um `Map` por id (sem TypeAdapters —
@@ -12,9 +13,14 @@ class HiveProjectRepository implements ProjectRepository {
 
   static const String boxName = 'projects';
 
-  /// Chave reservada (não-Map) pro último workspace selecionado. Não colide com
-  /// ids de projeto (caminhos absolutos) e o `all()` a ignora (`whereType<Map>`).
-  static const String _lastSelectedKey = '__last_selected__';
+  /// Prefixo das chaves reservadas (não-Map) do último workspace selecionado,
+  /// **uma por realm** (`__last_selected__::<realmId>`). Não colide com ids de
+  /// projeto (UUIDs) e o `all()` as ignora (`whereType<Map>`). A chave legada
+  /// sem sufixo é migrada pro realm Default pelo `ProjectSchemaMigrator`.
+  static const String lastSelectedPrefix = '__last_selected__';
+
+  static String _lastSelectedKey(String realmId) =>
+      '$lastSelectedPrefix::$realmId';
 
   @override
   Future<List<Project>> all() async {
@@ -39,17 +45,17 @@ class HiveProjectRepository implements ProjectRepository {
   Future<void> remove(String id) => _box.delete(id);
 
   @override
-  Future<String?> loadLastSelected() async {
-    final v = _box.get(_lastSelectedKey);
+  Future<String?> loadLastSelected(String realmId) async {
+    final v = _box.get(_lastSelectedKey(realmId));
     return v is String ? v : null;
   }
 
   @override
-  Future<void> saveLastSelected(String? id) async {
+  Future<void> saveLastSelected(String realmId, String? id) async {
     if (id == null) {
-      await _box.delete(_lastSelectedKey);
+      await _box.delete(_lastSelectedKey(realmId));
     } else {
-      await _box.put(_lastSelectedKey, id);
+      await _box.put(_lastSelectedKey(realmId), id);
     }
   }
 
@@ -61,6 +67,7 @@ class HiveProjectRepository implements ProjectRepository {
     'createdAt': p.createdAt.millisecondsSinceEpoch,
     'order': p.order,
     'image': p.imagePath,
+    'realm': p.realmId,
   };
 
   Project? _fromMap(Map<dynamic, dynamic> map) {
@@ -78,6 +85,8 @@ class HiveProjectRepository implements ProjectRepository {
       // Ausente em dados de versões anteriores → 0 (ordena por createdAt).
       order: (map['order'] as num?)?.toInt() ?? 0,
       imagePath: map['image'] as String?,
+      // Ausente em dados pré-realm → Default (o migrador normalmente já gravou).
+      realmId: map['realm'] as String? ?? Realm.defaultId,
     );
   }
 }

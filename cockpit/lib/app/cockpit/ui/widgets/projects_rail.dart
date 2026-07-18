@@ -1,7 +1,6 @@
-import 'dart:io' show Platform;
-
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/update_card.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/workspace_avatar.dart';
@@ -15,8 +14,12 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// branch (`null` = pasta sem git). Multi-root tem 2+; single-root, 1.
 typedef RailRoot = ({String path, String name, String? branch});
 
+/// Destino possível de "Move to realm" no kebab: [enabled] = `false` quando o
+/// path do workspace já existe no realm alvo (um path por realm).
+typedef RealmTarget = ({String id, String name, bool enabled});
+
 /// Rail esquerda (~252px): cabeçalho "Sessions", lista de projetos (avatar +
-/// nome + git + contador de notificações), rodapé com a máquina.
+/// nome + git + contador de notificações), rodapé com o seletor de realm.
 class ProjectsRail extends StatefulWidget {
   const ProjectsRail({
     super.key,
@@ -42,6 +45,13 @@ class ProjectsRail extends StatefulWidget {
     required this.onPush,
     required this.onOpenSettings,
     required this.onReorder,
+    required this.realms,
+    required this.activeRealm,
+    required this.onSwitchRealm,
+    required this.onCreateRealm,
+    required this.onManageRealms,
+    required this.moveTargetsOf,
+    required this.onMoveToRealm,
     this.cockpit,
     required this.onSelectCockpit,
     this.width = 252,
@@ -78,6 +88,18 @@ class ProjectsRail extends StatefulWidget {
   /// Basename da root que originou um fork (só em pai multi-root; senão
   /// `null`) — vira o sufixo `(backend)` no item da worktree.
   final String? Function(String forkId) forkOriginName;
+
+  /// Realms na ordem do dropdown do footer; [activeRealm] é o recorte exibido.
+  final List<Realm> realms;
+  final Realm activeRealm;
+  final void Function(String realmId) onSwitchRealm;
+  final VoidCallback onCreateRealm;
+  final VoidCallback onManageRealms;
+
+  /// Destinos de "Move to realm" pro kebab do workspace (todos os realms menos
+  /// o atual do projeto). Vazio (0 ou 1 realm) esconde o item do menu.
+  final List<RealmTarget> Function(String projectId) moveTargetsOf;
+  final void Function(String projectId, String realmId) onMoveToRealm;
   final ValueChanged<String> onSelect;
   final Future<bool> Function() onAdd;
   final ValueChanged<Project> onConfigure;
@@ -236,6 +258,9 @@ class _ProjectsRailState extends State<ProjectsRail> {
                                 onSync: (r) => widget.onSync(project, r),
                                 onPull: (r) => widget.onPull(project, r),
                                 onPush: (r) => widget.onPush(project, r),
+                                moveTargets: widget.moveTargetsOf(project.id),
+                                onMoveToRealm: (realmId) =>
+                                    widget.onMoveToRealm(project.id, realmId),
                               ),
                             ),
                             // Worktrees (forks) penduradas abaixo do workspace,
@@ -258,21 +283,13 @@ class _ProjectsRailState extends State<ProjectsRail> {
             ),
             child: Row(
               children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: BoxDecoration(
-                    color: colors.online,
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: colors.online, blurRadius: 8)],
-                  ),
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    Platform.localHostname,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typo.label.copyWith(color: colors.text2),
+                  child: _RealmSelector(
+                    realms: widget.realms,
+                    active: widget.activeRealm,
+                    onSwitch: widget.onSwitchRealm,
+                    onCreate: widget.onCreateRealm,
+                    onManage: widget.onManageRealms,
                   ),
                 ),
                 _SmallIcon(
@@ -352,6 +369,8 @@ class _ProjectItem extends StatelessWidget {
     required this.onSync,
     required this.onPull,
     required this.onPush,
+    required this.moveTargets,
+    required this.onMoveToRealm,
   });
 
   final Project project;
@@ -373,6 +392,10 @@ class _ProjectItem extends StatelessWidget {
   final void Function(String rootPath) onSync;
   final void Function(String rootPath) onPull;
   final void Function(String rootPath) onPush;
+
+  /// Realms de destino do "Move to realm" (vazio esconde o item).
+  final List<RealmTarget> moveTargets;
+  final void Function(String realmId) onMoveToRealm;
 
   @override
   Widget build(BuildContext context) {
@@ -455,6 +478,8 @@ class _ProjectItem extends StatelessWidget {
               onSync: onSync,
               onPull: onPull,
               onPush: onPush,
+              moveTargets: moveTargets,
+              onMoveToRealm: onMoveToRealm,
             ),
           ],
         ),
@@ -896,6 +921,8 @@ class _MenuButton extends StatelessWidget {
     required this.onSync,
     required this.onPull,
     required this.onPush,
+    required this.moveTargets,
+    required this.onMoveToRealm,
   });
 
   /// Id do workspace (`projectId`) — copiável pra usar na CLI `cockpit`
@@ -912,6 +939,11 @@ class _MenuButton extends StatelessWidget {
   final void Function(String rootPath) onSync;
   final void Function(String rootPath) onPull;
   final void Function(String rootPath) onPush;
+
+  /// Realms de destino do "Move to realm" (vazio = 0/1 realm → item oculto).
+  /// Destino com o mesmo path já presente vem desabilitado (um path por realm).
+  final List<RealmTarget> moveTargets;
+  final void Function(String realmId) onMoveToRealm;
 
   /// Item de ação git: single-root executa direto (`<ação>|<root>`); multi-root
   /// abre submenu com uma entrada por root (roots sem git desabilitadas).
@@ -947,6 +979,20 @@ class _MenuButton extends StatelessWidget {
           _gitItem('push', 'Push', Icons.arrow_upward),
           _gitItem('worktree', 'Create worktree', Icons.call_split),
         ],
+        if (moveTargets.isNotEmpty)
+          AppMenuItem(
+            value: 'realm', // nunca devolvido — só os filhos
+            label: 'Move to realm',
+            icon: Icons.public,
+            children: [
+              for (final t in moveTargets)
+                AppMenuItem(
+                  value: 'realm|${t.id}',
+                  label: t.name,
+                  enabled: t.enabled,
+                ),
+            ],
+          ),
         const AppMenuItem(
           value: 'copy-id',
           label: 'Copy workspace id',
@@ -969,12 +1015,13 @@ class _MenuButton extends StatelessWidget {
     final sep = pick.indexOf('|');
     if (sep > 0) {
       final action = pick.substring(0, sep);
-      final rootPath = pick.substring(sep + 1);
-      if (rootPath.isEmpty) return;
-      if (action == 'sync') onSync(rootPath);
-      if (action == 'pull') onPull(rootPath);
-      if (action == 'push') onPush(rootPath);
-      if (action == 'worktree') onCreateWorktree(rootPath);
+      final arg = pick.substring(sep + 1); // root path (git) ou realm id
+      if (arg.isEmpty) return;
+      if (action == 'sync') onSync(arg);
+      if (action == 'pull') onPull(arg);
+      if (action == 'push') onPush(arg);
+      if (action == 'worktree') onCreateWorktree(arg);
+      if (action == 'realm') onMoveToRealm(arg);
       return;
     }
     if (pick == 'copy-id') {
@@ -1043,6 +1090,100 @@ class _SmallIcon extends StatelessWidget {
           width: 26,
           height: 26,
           child: Icon(icon, size: 16, color: colors.text3),
+        ),
+      ),
+    );
+  }
+}
+
+/// Seletor de realm do rodapé: dot verde + nome do realm ativo + chevron.
+/// Clique abre o dropdown com todos os realms (check no ativo), "New realm…"
+/// e "Manage realms…". Substituiu o hostname da máquina (que virava lixo de
+/// DHCP tipo `708cf2c41346`).
+class _RealmSelector extends StatelessWidget {
+  const _RealmSelector({
+    required this.realms,
+    required this.active,
+    required this.onSwitch,
+    required this.onCreate,
+    required this.onManage,
+  });
+
+  final List<Realm> realms;
+  final Realm active;
+  final void Function(String realmId) onSwitch;
+  final VoidCallback onCreate;
+  final VoidCallback onManage;
+
+  Future<void> _open(BuildContext context) async {
+    final pick = await showAppMenu<String>(
+      context,
+      minWidth: 180,
+      items: [
+        for (final realm in realms)
+          AppMenuItem(
+            value: 'r|${realm.id}',
+            label: realm.name,
+            icon: Icons.public,
+            selected: realm.id == active.id,
+          ),
+        const AppMenuItem.divider(),
+        const AppMenuItem(
+          value: '__new__',
+          label: 'New realm…',
+          icon: Icons.add,
+        ),
+        const AppMenuItem(
+          value: '__manage__',
+          label: 'Manage realms…',
+          icon: Icons.tune,
+        ),
+      ],
+    );
+    if (pick == null) return;
+    if (pick == '__new__') {
+      onCreate();
+    } else if (pick == '__manage__') {
+      onManage();
+    } else if (pick.startsWith('r|')) {
+      onSwitch(pick.substring(2));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: HoverTap(
+        borderRadius: BorderRadius.circular(5),
+        onTap: () => _open(context),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 7,
+                height: 7,
+                decoration: BoxDecoration(
+                  color: colors.online,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: colors.online, blurRadius: 8)],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  active.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.typo.label.copyWith(color: colors.text2),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(Icons.expand_more, size: 14, color: colors.text3),
+            ],
+          ),
         ),
       ),
     );

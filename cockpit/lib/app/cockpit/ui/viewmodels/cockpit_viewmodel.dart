@@ -37,8 +37,11 @@ import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/realm_repository.dart';
 import 'package:cockpit/app/cockpit/domain/entities/launchable_app.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
+import 'package:cockpit/app/cockpit/domain/value_objects/uid.dart';
 import 'package:cockpit/app/cockpit/domain/entities/session_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
@@ -94,9 +97,11 @@ class CockpitViewModel extends ChangeNotifier {
     this._scrollback,
     this._gitRunner,
     this._gitDiff,
+    this._realmRepo,
   );
 
   final ProjectRepository _projects;
+  final RealmRepository _realmRepo;
   final RpcGatewayFactory _factory;
   final FolderLister _folders;
   final SessionHistory _history;
@@ -124,6 +129,12 @@ class CockpitViewModel extends ChangeNotifier {
   final List<Project> _projectList = <Project>[];
   String? _selectedProjectId;
   final Map<String, PaneItem> _sessions = <String, PaneItem>{};
+
+  /// Realms (conjuntos de workspaces) e o recorte ativo. [_projectList] guarda
+  /// os workspaces de TODOS os realms (sessões de realms ocultos seguem vivas);
+  /// só o filtro de exibição ([rootProjects]) muda com [_activeRealmId].
+  final List<Realm> _realmList = <Realm>[];
+  String _activeRealmId = Realm.defaultId;
 
   /// Espelha `AppSettings.showCockpit` (app-scoped, empurrado pela `CockpitPage`).
   /// Governa se o workspace de sistema "Cockpit" é injetado. Default `true`;
@@ -295,12 +306,33 @@ class CockpitViewModel extends ChangeNotifier {
   // ---- getters --------------------------------------------------------------
   List<Project> get projects => List<Project>.unmodifiable(_projectList);
 
-  /// Só os workspaces raiz **reais** (sem worktrees e sem o Cockpit sintético) —
-  /// o nível de topo da lista de projetos do rail. O Cockpit é renderizado num
-  /// slot próprio via [cockpitWorkspace] e fica de fora de reorder/menu/persist.
+  /// Realms na ordem de exibição do dropdown do footer.
+  List<Realm> get realms => List<Realm>.unmodifiable(_realmList);
+
+  String get activeRealmId => _activeRealmId;
+
+  Realm get activeRealm => _realmList.firstWhere(
+    (r) => r.id == _activeRealmId,
+    orElse: () => Realm(
+      id: Realm.defaultId,
+      name: 'Default',
+      createdAt: DateTime.fromMillisecondsSinceEpoch(0),
+    ),
+  );
+
+  /// Só os workspaces raiz **reais do realm ativo** (sem worktrees e sem o
+  /// Cockpit sintético) — o nível de topo da lista de projetos do rail. O
+  /// Cockpit é renderizado num slot próprio via [cockpitWorkspace] e fica de
+  /// fora de reorder/menu/persist. Workspaces de outros realms permanecem em
+  /// [_projectList] (sessões vivas), só saem do recorte exibido.
   List<Project> get rootProjects {
     final roots = _projectList
-        .where((p) => p.parentId == null && !p.isSystemTerminal)
+        .where(
+          (p) =>
+              p.parentId == null &&
+              !p.isSystemTerminal &&
+              p.realmId == _activeRealmId,
+        )
         .toList();
     // Ordem manual do usuário (drag-drop); createdAt como desempate/fallback.
     roots.sort((a, b) {
@@ -1146,6 +1178,13 @@ class CockpitViewModel extends ChangeNotifier {
     // Await: no Windows o `hookEnv` depende da porta ligada antes de spawnar abas.
     // O mesmo socket atende a CLI interna `cockpit` (`_onCockpitCommand`).
     await _statusServer.start(_onClaudeStatus, onCommand: _onCockpitCommand);
+    // Realms antes dos projetos: o filtro do rail e a seleção inicial dependem
+    // do realm ativo. `all()` garante o Default.
+    _realmList.addAll(await _realmRepo.all());
+    _activeRealmId = await _realmRepo.loadActive();
+    if (!_realmList.any((r) => r.id == _activeRealmId)) {
+      _activeRealmId = Realm.defaultId; // realm ativo sumiu (dado corrompido)
+    }
     _projectList.addAll(await _projects.all());
     // Carrega os layouts salvos (mas não reconstrói nada ainda — lazy).
     for (final project in _projectList) {
@@ -1182,20 +1221,32 @@ class CockpitViewModel extends ChangeNotifier {
     );
   }
 
-  /// Workspace a pré-selecionar no boot:
-  /// 1. o último selecionado, se ainda existir (inclui o próprio Cockpit);
+  /// Workspace a pré-selecionar no boot (dentro do **realm ativo**):
+  /// 1. o último selecionado do realm, se ainda existir e seguir no realm
+  ///    (inclui o próprio Cockpit);
   /// 2. senão, o Cockpit (1º boot de instalação nova: sem `lastSelected`);
-  /// 3. senão, o primeiro workspace real; `null` se não houver nenhum.
+  /// 3. senão, o primeiro workspace do realm; `null` se não houver nenhum.
   Future<String?> _initialSelection() async {
     try {
-      final last = await _projects.loadLastSelected();
-      if (last != null && _projectById(last) != null) return last;
+      final last = await _projects.loadLastSelected(_activeRealmId);
+      if (last != null && _visibleInActiveRealm(last)) return last;
     } catch (_) {
       // erro ao ler a preferência → segue pro fallback.
     }
     if (cockpitWorkspace != null) return Project.cockpitId;
     final roots = rootProjects;
     return roots.isEmpty ? null : roots.first.id;
+  }
+
+  /// `true` se [id] pode ser selecionado com o realm ativo atual: o Cockpit
+  /// sintético (presente em todos os realms) ou um workspace/fork cuja raiz
+  /// pertence ao realm ativo.
+  bool _visibleInActiveRealm(String id) {
+    final p = _projectById(id);
+    if (p == null) return false;
+    if (p.isSystemTerminal) return true;
+    final root = p.parentId == null ? p : _projectById(p.parentId!);
+    return root != null && root.realmId == _activeRealmId;
   }
 
   /// Adiciona o workspace de sistema "Cockpit" a [_projectList] (runtime, nunca
@@ -1253,6 +1304,149 @@ class CockpitViewModel extends ChangeNotifier {
   Future<void> openWithDefaultApp(String path) =>
       _launcher.openWithDefaultApp(path);
 
+  // ---- realms ---------------------------------------------------------------
+  /// Troca o recorte do rail pro realm [id], **sem reiniciar nada**: sessões de
+  /// workspaces do realm anterior seguem vivas (notificações inclusas); só a
+  /// lista exibida e a seleção mudam. Restaura a última seleção do realm novo
+  /// (fallback: Cockpit → primeiro workspace → nenhum).
+  Future<void> switchRealm(String id) async {
+    if (_activeRealmId == id || !_realmList.any((r) => r.id == id)) return;
+    _activeRealmId = id;
+    unawaited(_realmRepo.saveActive(id));
+    String? next;
+    try {
+      final last = await _projects.loadLastSelected(id);
+      if (last != null && _visibleInActiveRealm(last)) next = last;
+    } catch (_) {
+      // preferência ilegível → fallback abaixo.
+    }
+    if (next == null && cockpitWorkspace != null) next = Project.cockpitId;
+    if (next == null) {
+      final roots = rootProjects;
+      next = roots.isEmpty ? null : roots.first.id;
+    }
+    if (next == null) {
+      _selectedProjectId = null;
+      _startGitWatch(null);
+    } else if (next != _selectedProjectId) {
+      _selectedProjectId = next;
+      _clearFocusedNotification();
+      unawaited(_activateProject(next));
+      _startGitWatch(next);
+      unawaited(_refreshGit(next));
+      unawaited(_refreshWorktrees(_rootOf(next)));
+    }
+    notifyListeners();
+  }
+
+  /// Cria um realm novo (não troca o ativo — a UI decide se troca em seguida).
+  Future<Realm> createRealm(String name) async {
+    final nextOrder = _realmList.isEmpty
+        ? 0
+        : _realmList.map((r) => r.order).reduce(max) + 1;
+    final realm = Realm(
+      id: newUid(),
+      name: name.trim(),
+      createdAt: DateTime.now(),
+      order: nextOrder,
+    );
+    _realmList.add(realm);
+    await _realmRepo.save(realm);
+    notifyListeners();
+    return realm;
+  }
+
+  Future<void> renameRealm(String id, String name) async {
+    final idx = _realmList.indexWhere((r) => r.id == id);
+    if (idx < 0 || name.trim().isEmpty) return;
+    final renamed = _realmList[idx].copyWith(name: name.trim());
+    _realmList[idx] = renamed;
+    await _realmRepo.save(renamed);
+    notifyListeners();
+  }
+
+  /// Exclui o realm [id]. Workspaces dele **nunca são apagados**: migram pro
+  /// Default. O Default em si é indelével. Se o realm ativo for o excluído,
+  /// troca pro Default antes.
+  Future<void> deleteRealm(String id) async {
+    if (id == Realm.defaultId) return;
+    final idx = _realmList.indexWhere((r) => r.id == id);
+    if (idx < 0) return;
+    for (var i = 0; i < _projectList.length; i++) {
+      final p = _projectList[i];
+      if (p.realmId != id) continue;
+      final moved = p.copyWith(realmId: Realm.defaultId);
+      _projectList[i] = moved;
+      if (p.parentId == null && !p.isSystemTerminal) {
+        await _projects.save(moved); // forks são runtime, não persistem
+      }
+    }
+    if (_activeRealmId == id) await switchRealm(Realm.defaultId);
+    _realmList.removeWhere((r) => r.id == id);
+    await _realmRepo.remove(id);
+    await _projects.saveLastSelected(id, null); // limpa ponteiro órfão
+    notifyListeners();
+  }
+
+  /// Move um workspace raiz pra outro realm. Bloqueia se o path já existir por
+  /// lá (invariante: um path por realm). Se o movido era o selecionado, a
+  /// seleção cai pro fallback do realm atual.
+  Future<void> moveWorkspaceToRealm(String workspaceId, String realmId) async {
+    if (!_realmList.any((r) => r.id == realmId)) return;
+    final idx = _projectList.indexWhere((p) => p.id == workspaceId);
+    if (idx < 0) return;
+    final p = _projectList[idx];
+    if (p.parentId != null || p.isSystemTerminal || p.realmId == realmId) {
+      return;
+    }
+    if (pathExistsInRealm(p.path, realmId)) return;
+    _projectList[idx] = p.copyWith(realmId: realmId);
+    await _projects.save(_projectList[idx]);
+    // Forks acompanham a raiz (runtime; a reconciliação também os refaria).
+    for (var i = 0; i < _projectList.length; i++) {
+      final f = _projectList[i];
+      if (f.parentId == workspaceId) {
+        _projectList[i] = f.copyWith(realmId: realmId);
+      }
+    }
+    // Sumiu do recorte atual e estava selecionado (ou um fork dele)?
+    final sel = _selectedProjectId;
+    if (realmId != _activeRealmId &&
+        sel != null &&
+        _rootOf(sel) == workspaceId) {
+      final roots = rootProjects;
+      final next = cockpitWorkspace != null
+          ? Project.cockpitId
+          : (roots.isEmpty ? null : roots.first.id);
+      _selectedProjectId = next;
+      if (next != null) {
+        unawaited(_activateProject(next));
+        _startGitWatch(next);
+      } else {
+        _startGitWatch(null);
+      }
+    }
+    notifyListeners();
+  }
+
+  /// `true` se [path] já é um workspace raiz do realm [realmId] — usado pelo
+  /// guard do move e pra UI desabilitar o destino no submenu.
+  bool pathExistsInRealm(String path, String realmId) => _projectList.any(
+    (o) =>
+        o.parentId == null &&
+        !o.isSystemTerminal &&
+        o.realmId == realmId &&
+        o.path == path,
+  );
+
+  /// Nº de workspaces raiz do realm — mostrado no dialog de gerenciar.
+  int workspaceCountInRealm(String realmId) => _projectList
+      .where(
+        (p) =>
+            p.parentId == null && !p.isSystemTerminal && p.realmId == realmId,
+      )
+      .length;
+
   // ---- projects -------------------------------------------------------------
   /// Cria (ou seleciona, se já existir) um workspace pra [path]. [name] e
   /// [colorValue] permitem sobrescrever os defaults (fluxo "Criar Workspace",
@@ -1263,10 +1457,12 @@ class CockpitViewModel extends ChangeNotifier {
     int? colorValue,
     String? imagePath,
   }) async {
+    // Dedup **dentro do realm ativo** — o mesmo path pode existir como
+    // workspaces distintos em realms diferentes (ids são UUIDs).
     for (final existing in _projectList) {
-      if (existing.path == path) {
+      if (existing.path == path && existing.realmId == _activeRealmId) {
         _selectedProjectId = existing.id;
-        unawaited(_projects.saveLastSelected(existing.id));
+        unawaited(_projects.saveLastSelected(_activeRealmId, existing.id));
         notifyListeners();
         return existing;
       }
@@ -1286,18 +1482,19 @@ class CockpitViewModel extends ChangeNotifier {
         ? 0
         : roots.map((p) => p.order).reduce(max) + 1;
     final project = Project(
-      id: path, // o caminho é único e estável entre reinícios
+      id: newUid(), // opaco e estável; o vínculo com o disco é o `path`
       name: resolvedName,
       path: path,
       colorValue: colorValue ?? _palette[rootCount % _palette.length],
       createdAt: DateTime.now(),
       order: nextOrder,
       imagePath: imagePath,
+      realmId: _activeRealmId,
     );
     _projectList.add(project);
     _selectedProjectId = project.id;
     await _projects.save(project);
-    unawaited(_projects.saveLastSelected(project.id));
+    unawaited(_projects.saveLastSelected(_activeRealmId, project.id));
     await _activateProject(project.id); // sem layout salvo → pane vazia
     unawaited(_refreshGit(project.id));
     unawaited(_refreshWorktrees(project.id)); // pode já ter worktrees no disco
@@ -1670,9 +1867,25 @@ class CockpitViewModel extends ChangeNotifier {
 
   void selectProject(String id) {
     if (_selectedProjectId == id) return;
+    // Seleção vinda de fora do recorte atual (clique em notificação, CLI
+    // `cockpit open`, restauração): troca o realm ativo junto — selecionar um
+    // workspace de outro realm sem trazê-lo deixaria o rail "sem seleção".
+    final target = _projectById(id);
+    if (target != null && !target.isSystemTerminal) {
+      final root = target.parentId == null
+          ? target
+          : _projectById(target.parentId!);
+      if (root != null &&
+          root.realmId != _activeRealmId &&
+          _realmList.any((r) => r.id == root.realmId)) {
+        _activeRealmId = root.realmId;
+        unawaited(_realmRepo.saveActive(root.realmId));
+      }
+    }
     _selectedProjectId = id;
-    // Persiste o workspace (raiz) pra pré-selecionar na próxima abertura.
-    unawaited(_projects.saveLastSelected(_rootOf(id)));
+    // Persiste o workspace (raiz) pra pré-selecionar na próxima abertura —
+    // por realm: cada realm lembra a própria última seleção.
+    unawaited(_projects.saveLastSelected(_activeRealmId, _rootOf(id)));
     _clearFocusedNotification();
     unawaited(_activateProject(id)); // reconstrói (lazy) se ainda não ativo
     _startGitWatch(id); // segue o working tree do novo projeto ao vivo
@@ -1760,8 +1973,7 @@ class CockpitViewModel extends ChangeNotifier {
     // expande a root e os pais (uma vez, via a geração). Só quando o arquivo é
     // do projeto ativo (fora dele não há árvore pra revelar).
     final sel = _sessions[agentId];
-    if (sel is FileViewerSession &&
-        isInsideProject(sel.projectId, sel.path)) {
+    if (sel is FileViewerSession && isInsideProject(sel.projectId, sel.path)) {
       _selectedFileInTree = sel.path;
       _treeRevealPath = sel.path;
       _treeRevealGen++;
@@ -2453,6 +2665,10 @@ class CockpitViewModel extends ChangeNotifier {
                 // (que o claude/OSC reescrevem) nem pelo cwd (volátil).
                 'label': s.manualLabel,
                 'workspaceId': s.projectId,
+                // Raiz do workspace no disco. `workspaceId` é um UUID opaco
+                // desde a migração dos realms — quem precisa do caminho (ex.:
+                // scripts que casavam por sufixo) usa este campo.
+                'workspacePath': _projectById(s.projectId)?.path,
                 'working': s.isWorking,
               },
             )
@@ -3328,14 +3544,20 @@ class CockpitViewModel extends ChangeNotifier {
     for (final rootPath in rootsOf(rootId)) {
       final wts = await _worktreeMgr.list(rootPath);
       for (final Worktree w in wts) {
-        _forkOrigin[w.path] = rootPath;
+        // Id namespaced pela raiz: o mesmo repo pode ser workspace em 2+
+        // realms (paths iguais), e cada cópia reconcilia os próprios forks —
+        // `w.path` cru colidiria entre elas. Estável entre reboots (rootId é
+        // UUID persistido; w.path vem do git).
+        final forkId = '$rootId::${w.path}';
+        _forkOrigin[forkId] = rootPath;
         forks.add(
           Project(
-            id: w.path, // o caminho é o id estável do fork
+            id: forkId,
             name: w.branch,
             path: w.path,
             colorValue: root.colorValue,
             createdAt: root.createdAt,
+            realmId: root.realmId, // segue o realm da raiz
             parentId: rootId,
             order: root.order, // aninha junto do pai
           ),
@@ -3363,7 +3585,17 @@ class CockpitViewModel extends ChangeNotifier {
     // Forks novos → entram em _projectList + carregam layout salvo (decisão 18).
     for (final fresh in forks.where((f) => !oldIds.contains(f.id))) {
       _projectList.add(fresh);
-      _savedLayouts[fresh.id] = await _layoutStore.load(fresh.id);
+      var layout = await _layoutStore.load(fresh.id);
+      // Layout de fork pré-realm era keyed pelo path cru do worktree (o id
+      // antigo). Adota e re-keya on-the-fly — migração lazy, uma vez por fork.
+      if (layout == null) {
+        layout = await _layoutStore.load(fresh.path);
+        if (layout != null) {
+          await _layoutStore.save(fresh.id, layout);
+          await _layoutStore.remove(fresh.path);
+        }
+      }
+      _savedLayouts[fresh.id] = layout;
     }
     _worktrees[rootId] = forks;
 

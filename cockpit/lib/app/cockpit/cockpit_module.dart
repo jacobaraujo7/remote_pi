@@ -16,7 +16,9 @@ import 'package:cockpit/app/cockpit/data/filesystem/worktree_manager_impl.dart';
 import 'package:cockpit/app/cockpit/data/notifications/local_notifier.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_dismissed_update_store.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_project_repository.dart';
+import 'package:cockpit/app/cockpit/data/repositories/hive_realm_repository.dart';
 import 'package:cockpit/app/cockpit/data/repositories/hive_workspace_layout_store.dart';
+import 'package:cockpit/app/cockpit/data/repositories/project_schema_migrator.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_rpc_process_factory.dart';
 import 'package:cockpit/app/cockpit/data/setup/environment_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
@@ -42,6 +44,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/realm_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/self_updater.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
@@ -92,6 +95,10 @@ Future<Module> buildCockpitModule() async {
   final layoutBox = await Hive.openBox<dynamic>(
     HiveWorkspaceLayoutStore.boxName,
   );
+  final realmBox = await Hive.openBox<dynamic>(HiveRealmRepository.boxName);
+  // Schema pré-realm (id == path) → UUID + realm. Idempotente; roda antes de
+  // qualquer bind ler as boxes.
+  await const ProjectSchemaMigrator().run(projectBox, layoutBox);
   // Updates dispensados moram na box de settings (mesma do SettingsController);
   // `openBox` é idempotente → devolve a instância já aberta pelo `main`.
   final settingsBox = await Hive.openBox<dynamic>(HiveSettingsStore.boxName);
@@ -110,6 +117,7 @@ Future<Module> buildCockpitModule() async {
     register: (c) {
       c
         ..addInstance<ProjectRepository>(HiveProjectRepository(projectBox))
+        ..addInstance<RealmRepository>(HiveRealmRepository(realmBox))
         ..addInstance<WorkspaceLayoutStore>(HiveWorkspaceLayoutStore(layoutBox))
         ..addInstance<DismissedUpdateStore>(
           HiveDismissedUpdateStore(settingsBox),
