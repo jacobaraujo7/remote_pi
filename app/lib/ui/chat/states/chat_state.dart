@@ -51,6 +51,11 @@ class ChatReady extends ChatState {
   /// reuses the same instance across recomputes until it changes).
   final ExtensionUiRequest? pendingUiRequest;
 
+  /// Plan/51 — last submit-result error for [pendingUiRequest] (null when none
+  /// or resolved). Shown in the modal so the user can retry instead of hitting a
+  /// dead end when pi-ask rejects an answer.
+  final String? pendingUiError;
+
   String? get queuedText =>
       queuedMessages.isEmpty ? null : queuedMessages.first.text;
 
@@ -64,6 +69,7 @@ class ChatReady extends ChatState {
     this.isWorking = false,
     this.queuedMessages = const [],
     this.pendingUiRequest,
+    this.pendingUiError,
   });
 
   ChatReady copyWith({
@@ -80,6 +86,8 @@ class ChatReady extends ChatState {
     bool clearQueuedMessages = false,
     ExtensionUiRequest? pendingUiRequest,
     bool clearPendingUiRequest = false,
+    String? pendingUiError,
+    bool clearPendingUiError = false,
   }) =>
       ChatReady(
         messages: messages ?? this.messages,
@@ -97,6 +105,9 @@ class ChatReady extends ChatState {
         pendingUiRequest: clearPendingUiRequest
             ? null
             : (pendingUiRequest ?? this.pendingUiRequest),
+        pendingUiError: clearPendingUiError
+            ? null
+            : (pendingUiError ?? this.pendingUiError),
       );
 
   @override
@@ -110,7 +121,8 @@ class ChatReady extends ChatState {
       other.peerPresence.runtimeType == peerPresence.runtimeType &&
       other.isWorking == isWorking &&
       other.queuedMessages == queuedMessages &&
-      other.pendingUiRequest == pendingUiRequest;
+      other.pendingUiRequest == pendingUiRequest &&
+      other.pendingUiError == pendingUiError;
 
   @override
   int get hashCode => Object.hash(
@@ -123,6 +135,7 @@ class ChatReady extends ChatState {
         isWorking,
         queuedMessages,
         pendingUiRequest,
+        pendingUiError,
       );
 }
 

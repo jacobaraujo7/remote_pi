@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
@@ -15,11 +17,16 @@ import 'package:flutter/material.dart';
 /// a selected value can't be combined, so custom text wins when present.
 class ExtensionUiSheet extends StatefulWidget {
   final ExtensionUiRequest request;
+  /// Plan/51 — submit-result rejection message for [request] (null when none /
+  /// resolved). Surfaced so the user can retry instead of hitting a dead end
+  /// when pi-ask rejects an answer.
+  final String? error;
   final Future<void> Function(ExtensionUiResponse) onRespond;
 
   const ExtensionUiSheet({
     super.key,
     required this.request,
+    this.error,
     required this.onRespond,
   });
 
@@ -36,11 +43,42 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
   String? _singleValue;
   final TextEditingController _textController = TextEditingController();
   bool _submitting = false;
+  // Plan/51 — backstop so a submit/cancel that never gets a `completed`/error
+  // (relay drop, pi-ask gone) doesn't strand the user on a spinner forever.
+  Timer? _submitTimeout;
+  bool _awaitHint = false;
 
   AskEnrichmentWire? get _ask => widget.request.ask;
 
   @override
+  void didUpdateWidget(covariant ExtensionUiSheet oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Either a different request replaced this one, or an error/clear arrived
+    // for the same request — in both cases stop spinning so the user can act.
+    if (widget.request.id != oldWidget.request.id ||
+        widget.error != oldWidget.error) {
+      _submitTimeout?.cancel();
+      setState(() {
+        _submitting = false;
+        _awaitHint = false;
+      });
+    }
+  }
+
+  void _armSubmitTimeout() {
+    _submitTimeout?.cancel();
+    _submitTimeout = Timer(const Duration(seconds: 25), () {
+      if (!mounted || !_submitting) return;
+      setState(() {
+        _submitting = false;
+        _awaitHint = true;
+      });
+    });
+  }
+
+  @override
   void dispose() {
+    _submitTimeout?.cancel();
     for (final c in _custom.values) {
       c.dispose();
     }
@@ -77,15 +115,23 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
 
   Future<void> _submit() async {
     if (!_canSubmit || _submitting) return;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _awaitHint = false;
+    });
+    _armSubmitTimeout();
     await widget.onRespond(_buildResponse());
-    // The ChatViewModel clears the pending request → this sheet leaves the
-    // tree. Nothing to pop here.
+    // The modal stays open until the ChatViewModel clears the pending request
+    // on the `completed` dismiss notify (or surfaces an error for retry).
   }
 
   Future<void> _cancel() async {
     if (_submitting) return;
-    setState(() => _submitting = true);
+    setState(() {
+      _submitting = true;
+      _awaitHint = false;
+    });
+    _armSubmitTimeout();
     final ask = _ask;
     await widget.onRespond(
       ExtensionUiResponse(
@@ -379,29 +425,53 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
   }
 
   Widget _buildActions(BuildContext context) {
+    final colors = context.colors;
+    final showError = widget.error != null && widget.error!.isNotEmpty;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: _submitting ? null : _cancel,
-                child: const Text('Cancel'),
+            if (showError)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  widget.error!,
+                  style: TextStyle(color: colors.error, fontSize: 13),
+                ),
+              )
+            else if (_awaitHint)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'No response from Pi yet — retry or cancel.',
+                  style: TextStyle(fontSize: 13),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: FilledButton(
-                onPressed: (_canSubmit && !_submitting) ? _submit : null,
-                child: _submitting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Text('Submit'),
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _submitting ? null : _cancel,
+                    child: const Text('Cancel'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: FilledButton(
+                    onPressed: (_canSubmit && !_submitting) ? _submit : null,
+                    child: _submitting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Submit'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

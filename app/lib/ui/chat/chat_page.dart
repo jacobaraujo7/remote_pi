@@ -83,9 +83,12 @@ class ChatPage extends StatelessWidget {
 
     // Plan/51 — an interactive extension_ui_request (ask_user via pi-ask)
     // renders as a full-screen modal layered ABOVE the Scaffold. Purely
-    // reactive: when the pending request clears (submit/cancel/completed)
-    // the overlay leaves the tree — no route lifecycle to manage.
-    final uiRequest = state is ChatReady ? state.pendingUiRequest : null;
+    // reactive: the overlay leaves the tree when the pending request clears
+    // (completed dismiss) — no route lifecycle to manage. `error` carries a
+    // submit-result rejection so the modal can offer a retry instead of a dead
+    // end.
+    final ready = state is ChatReady ? state : null;
+    final uiRequest = ready?.pendingUiRequest;
     if (uiRequest == null) return scaffold;
     return Stack(
       children: [
@@ -93,6 +96,7 @@ class ChatPage extends StatelessWidget {
         Positioned.fill(
           child: ExtensionUiSheet(
             request: uiRequest,
+            error: ready?.pendingUiError,
             onRespond: vm.respondExtensionUi,
           ),
         ),

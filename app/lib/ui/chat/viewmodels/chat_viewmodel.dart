@@ -48,6 +48,10 @@ class ChatViewModel extends ViewModel<ChatState> {
   List<QueuedMsg> _queuedMessages = const [];
   // Plan/51 — interactive extension_ui_request awaiting an answer (ask_user).
   ExtensionUiRequest? _pendingUiRequest;
+  // Plan/51 — last submit-result error for the pending request (null when none
+  // / resolved). Surfaced to the modal so the user can retry instead of staring
+  // at a closed/dismissed flow that's still blocked on desktop.
+  String? _pendingUiError;
   RuntimeRecord _runtime = const RuntimeRecord();
   bool _pairingRevoked = false;
   String? _peerOfflineReason;
@@ -241,17 +245,32 @@ class ChatViewModel extends ViewModel<ChatState> {
   }
 
   /// Plan/51 — interactive extension_ui_request arrived (ask_user via pi-ask).
-  /// A `notify` whose id matches the open request dismisses it (the pi-ask flow
-  /// completed); any other request opens/replaces the modal.
+  ///
+  /// A `notify` whose id matches the open request is either:
+  ///  - a `completed` dismiss (notify_type absent/info) → close the modal, OR
+  ///  - a submit-result warning (notify_type warning/error) → keep the modal
+  ///    open and surface the message so the user can retry.
+  /// Any non-notify request opens/replaces the modal (and clears a prior error).
   void _onExtensionUiRequest(ExtensionUiRequest req) {
     if (req.method == ExtensionUiMethod.notify) {
-      if (_pendingUiRequest != null && req.id == _pendingUiRequest!.id) {
-        _pendingUiRequest = null;
+      final matchesOpen =
+          _pendingUiRequest != null && req.id == _pendingUiRequest!.id;
+      if (matchesOpen) {
+        final isWarning =
+            req.notifyType == 'warning' || req.notifyType == 'error';
+        if (isWarning) {
+          _pendingUiError = (req.message?.isNotEmpty ?? false)
+              ? req.message
+              : 'Answer was not accepted.';
+        } else {
+          _pendingUiRequest = null;
+          _pendingUiError = null;
+        }
       }
-      // Stand-alone notifies (submit-result warnings) are ignored in v1 —
-      // the `completed` dismiss covers the resolved case; see plan/51 risks.
+      // Unmatched notifies (stand-alone notices) are ignored in v1.
     } else {
       _pendingUiRequest = req;
+      _pendingUiError = null;
     }
     _recompute();
   }
@@ -288,6 +307,7 @@ class ChatViewModel extends ViewModel<ChatState> {
       isWorking: isWorking,
       queuedMessages: _queuedMessages,
       pendingUiRequest: _pendingUiRequest,
+      pendingUiError: _pendingUiError,
     );
   }
 
@@ -307,12 +327,16 @@ class ChatViewModel extends ViewModel<ChatState> {
   Future<void> approveTool(String toolCallId, ApproveDecision decision) =>
       _sync.approveTool(toolCallId, decision);
 
-  /// Plan/51 — submit (or cancel) an interactive extension_ui_request. Clears
-  /// the pending request optimistically so the modal closes right away; the
-  /// bridge relays the answer to pi-ask and a `completed` notify dismisses any
-  /// other owner still showing the modal.
+  /// Plan/51 — submit (or cancel) an interactive extension_ui_request.
+  ///
+  /// Does NOT clear the pending request optimistically: pi-ask may reject the
+  /// answer (`invalid_answer`) without emitting `completed`, which would close
+  /// the modal and leave the flow blocked on desktop (dead end). The modal stays
+  /// open in a "submitting" state and closes only on the `completed` dismiss
+  /// notify. A rejected answer surfaces as [_pendingUiError] for retry. We do
+  /// clear any prior error here so a retry stops showing the old message.
   Future<void> respondExtensionUi(ExtensionUiResponse resp) async {
-    _pendingUiRequest = null;
+    _pendingUiError = null;
     _recompute();
     await _sync.respondExtensionUi(resp);
   }
