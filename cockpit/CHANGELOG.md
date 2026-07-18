@@ -14,6 +14,24 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.10.0] — 2026-07-17
+
+Workspaces multi-root pra quem trabalha com multirepo, mais git no Source
+Control e novas ações de worktree.
+
+### Added
+- **Workspace multi-root:** pasta sem `.git` com repositórios dentro vira um
+  workspace só — cada repo é uma root na árvore, com branch e status próprios;
+  Sync/Pull/Push/worktree escolhem a root num submenu.
+- **Source Control:** botão-direito no arquivo — View Diff, Commit (com dialog
+  de mensagem validado), Unstage ou Discard; deletados aparecem riscados.
+- **Worktrees:** "Update from Parent" (traz a branch do pai) e "Fork Worktree"
+  (nova worktree a partir da branch do fork).
+
+### Fixed
+- Tooltips e menus de contexto abrindo fora do lugar (agora seguem o cursor e
+  respeitam o tamanho da interface).
+
 ## [1.9.0] — 2026-07-17
 
 Atalhos de teclado pra navegar o workspace, além de vários acertos no terminal,
