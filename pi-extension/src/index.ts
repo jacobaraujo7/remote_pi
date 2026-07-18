@@ -62,6 +62,10 @@ import type {
 } from "./protocol/types.js";
 import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
 import { PlainPeerChannel } from "./transport/peer_channel.js";
+import {
+  createExtensionUiBridge,
+  type ExtensionUiBridge,
+} from "./extension_ui_bridge.js";
 import { roomIdFor } from "./rooms.js";
 import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
@@ -1039,6 +1043,10 @@ let _currentTurnId: string | null = null;
 // Module-level pi reference
 let _pi: ExtensionAPI | null = null;
 
+// Plan/51 — Bridge to pi-ask's clarification-flow events. null until the
+// extension factory wires it (and null if the SDK exposes no events bus).
+let _extensionUiBridge: ExtensionUiBridge | null = null;
+
 let _stopAutoListener: (() => void) | null = null;
 
 // Cached keypair (loaded once, reused across start/pair cycles)
@@ -1823,6 +1831,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   applied.add(pi);
 
   _pi = pi;
+
+  // Plan/51 — bridge @eko24ive/pi-ask clarification flows to the paired app.
+  // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
+  // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
+  // Pi that doesn't use the extension.
+  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
@@ -3908,6 +3922,10 @@ export function _routeClientMessageFrom(
         message: `Abort failed: ${String(err)}`,
       });
     }
+    return;
+  }
+  if (msg.type === "extension_ui_response") {
+    _extensionUiBridge?.respond(msg);
     return;
   }
   if (!_pi) return;
