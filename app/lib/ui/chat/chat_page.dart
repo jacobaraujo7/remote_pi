@@ -14,6 +14,7 @@ import 'package:app/ui/chat/widgets/input_bar.dart';
 import 'package:app/ui/chat/widgets/message_bubble.dart';
 import 'package:app/ui/chat/widgets/streaming_bubble.dart';
 import 'package:app/ui/chat/widgets/tool_request_card.dart';
+import 'package:app/ui/chat/widgets/extension_ui_sheet.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -60,7 +61,7 @@ class ChatPage extends StatelessWidget {
     final vm = context.watch<ChatViewModel>();
     final state = vm.state;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: Column(
@@ -78,6 +79,24 @@ class ChatPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    // Plan/51 — an interactive extension_ui_request (ask_user via pi-ask)
+    // renders as a full-screen modal layered ABOVE the Scaffold. Purely
+    // reactive: when the pending request clears (submit/cancel/completed)
+    // the overlay leaves the tree — no route lifecycle to manage.
+    final uiRequest = state is ChatReady ? state.pendingUiRequest : null;
+    if (uiRequest == null) return scaffold;
+    return Stack(
+      children: [
+        scaffold,
+        Positioned.fill(
+          child: ExtensionUiSheet(
+            request: uiRequest,
+            onRespond: vm.respondExtensionUi,
+          ),
+        ),
+      ],
     );
   }
 

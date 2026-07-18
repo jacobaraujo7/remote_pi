@@ -45,6 +45,12 @@ class ChatReady extends ChatState {
   final bool isWorking;
   final List<QueuedMsg> queuedMessages;
 
+  /// Plan/51 — an interactive extension_ui_request (ask_user via pi-ask)
+  /// awaiting an answer. Non-null → the chat renders a full-screen modal.
+  /// Cleared on submit/cancel/completed. Identity compared (the ViewModel
+  /// reuses the same instance across recomputes until it changes).
+  final ExtensionUiRequest? pendingUiRequest;
+
   String? get queuedText =>
       queuedMessages.isEmpty ? null : queuedMessages.first.text;
 
@@ -57,6 +63,7 @@ class ChatReady extends ChatState {
     this.peerPresence = const PresenceUnknown(),
     this.isWorking = false,
     this.queuedMessages = const [],
+    this.pendingUiRequest,
   });
 
   ChatReady copyWith({
@@ -71,6 +78,8 @@ class ChatReady extends ChatState {
     bool clearStreaming = false,
     bool clearPeerOffline = false,
     bool clearQueuedMessages = false,
+    ExtensionUiRequest? pendingUiRequest,
+    bool clearPendingUiRequest = false,
   }) =>
       ChatReady(
         messages: messages ?? this.messages,
@@ -85,6 +94,9 @@ class ChatReady extends ChatState {
         queuedMessages: clearQueuedMessages
             ? const []
             : (queuedMessages ?? this.queuedMessages),
+        pendingUiRequest: clearPendingUiRequest
+            ? null
+            : (pendingUiRequest ?? this.pendingUiRequest),
       );
 
   @override
@@ -97,7 +109,8 @@ class ChatReady extends ChatState {
       other.peerOfflineReason == peerOfflineReason &&
       other.peerPresence.runtimeType == peerPresence.runtimeType &&
       other.isWorking == isWorking &&
-      other.queuedMessages == queuedMessages;
+      other.queuedMessages == queuedMessages &&
+      other.pendingUiRequest == pendingUiRequest;
 
   @override
   int get hashCode => Object.hash(
@@ -109,6 +122,7 @@ class ChatReady extends ChatState {
         peerPresence.runtimeType,
         isWorking,
         queuedMessages,
+        pendingUiRequest,
       );
 }
 

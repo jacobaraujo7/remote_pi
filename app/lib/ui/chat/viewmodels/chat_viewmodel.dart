@@ -33,6 +33,7 @@ class ChatViewModel extends ViewModel<ChatState> {
   StreamSubscription<bool>? _workingSub;
   StreamSubscription<List<QueuedMsg>>? _queuedSub;
   StreamSubscription<SessionEvent>? _eventSub;
+  StreamSubscription<ExtensionUiRequest>? _uiReqSub;
   StreamSubscription<Map<String, List<RoomInfo>>>? _roomsSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
 
@@ -45,6 +46,8 @@ class ChatViewModel extends ViewModel<ChatState> {
   StreamingMessage? _streaming;
   bool _working = false;
   List<QueuedMsg> _queuedMessages = const [];
+  // Plan/51 — interactive extension_ui_request awaiting an answer (ask_user).
+  ExtensionUiRequest? _pendingUiRequest;
   RuntimeRecord _runtime = const RuntimeRecord();
   bool _pairingRevoked = false;
   String? _peerOfflineReason;
@@ -61,6 +64,7 @@ class ChatViewModel extends ViewModel<ChatState> {
     _workingSub = _sync.workingStream.listen(_onWorking);
     _queuedSub = _sync.queuedStream.listen(_onQueued);
     _eventSub = _sync.events.listen(_onEvent);
+    _uiReqSub = _sync.extensionUiRequestStream.listen(_onExtensionUiRequest);
     _roomsSub = _conn.roomsStream.listen((_) => _recompute());
     _statusSub = _conn.statusStream.listen(_onStatus);
     // ignore: discarded_futures
@@ -236,6 +240,22 @@ class ChatViewModel extends ViewModel<ChatState> {
     _recompute();
   }
 
+  /// Plan/51 — interactive extension_ui_request arrived (ask_user via pi-ask).
+  /// A `notify` whose id matches the open request dismisses it (the pi-ask flow
+  /// completed); any other request opens/replaces the modal.
+  void _onExtensionUiRequest(ExtensionUiRequest req) {
+    if (req.method == ExtensionUiMethod.notify) {
+      if (_pendingUiRequest != null && req.id == _pendingUiRequest!.id) {
+        _pendingUiRequest = null;
+      }
+      // Stand-alone notifies (submit-result warnings) are ignored in v1 —
+      // the `completed` dismiss covers the resolved case; see plan/51 risks.
+    } else {
+      _pendingUiRequest = req;
+    }
+    _recompute();
+  }
+
   void _recompute() {
     if (_disposed) return;
     emit(_compose());
@@ -267,6 +287,7 @@ class ChatViewModel extends ViewModel<ChatState> {
       peerPresence: peerPresence,
       isWorking: isWorking,
       queuedMessages: _queuedMessages,
+      pendingUiRequest: _pendingUiRequest,
     );
   }
 
@@ -285,6 +306,16 @@ class ChatViewModel extends ViewModel<ChatState> {
 
   Future<void> approveTool(String toolCallId, ApproveDecision decision) =>
       _sync.approveTool(toolCallId, decision);
+
+  /// Plan/51 — submit (or cancel) an interactive extension_ui_request. Clears
+  /// the pending request optimistically so the modal closes right away; the
+  /// bridge relays the answer to pi-ask and a `completed` notify dismisses any
+  /// other owner still showing the modal.
+  Future<void> respondExtensionUi(ExtensionUiResponse resp) async {
+    _pendingUiRequest = null;
+    _recompute();
+    await _sync.respondExtensionUi(resp);
+  }
 
   Future<void> clearActiveSession() async {
     _messages = const [];
@@ -314,6 +345,7 @@ class ChatViewModel extends ViewModel<ChatState> {
     _workingSub?.cancel();
     _queuedSub?.cancel();
     _eventSub?.cancel();
+    _uiReqSub?.cancel();
     _roomsSub?.cancel();
     _statusSub?.cancel();
     super.dispose();
