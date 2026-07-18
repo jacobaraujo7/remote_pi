@@ -14,6 +14,29 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.11.0] — 2026-07-18
+
+Melhorias na árvore de Files (criação e reveal), no multi-root e na CLI interna.
+
+### Added
+- **New file/folder ciente da seleção:** cria dentro da pasta selecionada, na
+  pasta-mãe do arquivo selecionado, ou na raiz quando nada está selecionado.
+  Clicar numa área vazia da árvore deseleciona.
+- **Revelar na árvore:** selecionar uma tab de arquivo destaca o arquivo no
+  painel Files e expande as pastas-pai até ele.
+- **Copy Absolute/Relative Path** no menu de contexto de cada repo (multi-root).
+
+### Changed
+- **CLI interna (`cockpit`):** nomenclatura alinhada pra *tab* — `list-tabs`,
+  `read-tab`, `$COCKPIT_TAB_ID`. Os antigos `list-panes`/`read-pane`/
+  `$COCKPIT_PANE_ID` seguem como aliases de compatibilidade.
+
+### Fixed
+- **Multi-root:** New file/New folder agora funcionam por repo (antes o botão do
+  header não criava nada num workspace multirepo).
+- **Multi-root:** o chip “N roots · M” contava divergência de upstream como se
+  fosse alteração; agora conta só arquivos modificados.
+
 ## [1.10.1] — 2026-07-18
 
 ### Fixed
