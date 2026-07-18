@@ -4,11 +4,18 @@ import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 
 /// Roda comandos `git` via `Process.start` pra **streaming ao vivo** (stdout e
 /// stderr mesclados por linha). O caminho do `git` vem do [GitBinary]
 /// compartilhado. Não remove worktrees — em um merge bem-sucedido, o
 /// `CockpitViewModel` faz a limpeza (reusa `removeWorktree`).
+///
+/// Todos os spawns passam [envWithNodeOnPath] no `environment`: o app GUI é
+/// lançado pelo Finder/Dock com uma PATH mínima (sem `~/.nvm`, Homebrew, etc.),
+/// então um **hook de git** (ex.: `pre-commit` chamando `npx`/`node`) falharia
+/// com "command not found". Prefixar o bin do `node` cobre `node`/`npm`/`npx`,
+/// que moram no mesmo diretório — mesmo tratamento do terminal/tasks/LSP.
 class GitCommandRunnerImpl implements GitCommandRunner {
   GitCommandRunnerImpl(this._gitBinary);
 
@@ -124,7 +131,11 @@ class GitCommandRunnerImpl implements GitCommandRunner {
   /// `true` se o working tree em [path] tem mudanças (staged ou não).
   Future<bool> _isDirty(String path) async {
     final git = await _gitBinary.resolve();
-    final res = await Process.run(git, ['-C', path, 'status', '--porcelain']);
+    final res = await Process.run(
+      git,
+      ['-C', path, 'status', '--porcelain'],
+      environment: await envWithNodeOnPath(),
+    );
     if (res.exitCode != 0) return false; // não-git → nada a bloquear
     return (res.stdout as String).trim().isNotEmpty;
   }
@@ -141,7 +152,11 @@ class GitCommandRunnerImpl implements GitCommandRunner {
     if (header != null && !controller.isClosed) controller.add(header);
     try {
       final git = await _gitBinary.resolve();
-      final proc = await Process.start(git, ['-C', repoPath, ...args]);
+      final proc = await Process.start(
+        git,
+        ['-C', repoPath, ...args],
+        environment: await envWithNodeOnPath(),
+      );
       final done = <Future<void>>[];
       for (final stream in [proc.stdout, proc.stderr]) {
         done.add(

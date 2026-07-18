@@ -14,6 +14,14 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.10.1] — 2026-07-18
+
+### Fixed
+- **Commit falhava em repositórios com hook de `pre-commit`** que chama
+  `npx`/`node` (ex.: `lint-staged`, `husky`, `simple-git-hooks`): o app roda com
+  um PATH mínimo e o hook não achava o `npx` ("command not found"). O Source
+  Control agora passa o mesmo PATH com `node` do terminal/tasks — o hook resolve.
+
 ## [1.10.0] — 2026-07-17
 
 Workspaces multi-root pra quem trabalha com multirepo, mais git no Source
