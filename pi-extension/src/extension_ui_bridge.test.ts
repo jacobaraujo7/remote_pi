@@ -191,14 +191,18 @@ describe("extension_ui_bridge", () => {
     bus.emit("@eko24ive/pi-ask:submit-result", {
       version: 1,
       requestId: "r1",
+      flowId: "tool:tc_1",
       ok: false,
       error: "invalid_answer",
       message: "Unknown option value.",
     });
 
     expect(sent).toHaveLength(1);
+    // The warning reuses the flowId as its id so the app can correlate it to
+    // its open modal (distinguished from the `completed` dismiss by notify_type).
     expect(sent[0]).toMatchObject({
       type: "extension_ui_request",
+      id: "tool:tc_1",
       method: "notify",
       notify_type: "warning",
       message: "Unknown option value.",

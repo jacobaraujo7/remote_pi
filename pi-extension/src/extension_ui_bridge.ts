@@ -35,6 +35,11 @@ const PI_ASK_COMPLETED = "@eko24ive/pi-ask:completed";
 const PI_ASK_SUBMIT = "@eko24ive/pi-ask:submit";
 const PI_ASK_SUBMIT_RESULT = "@eko24ive/pi-ask:submit-result";
 
+/** Drop a flow from `activeFlows` if pi-ask never resolves it (e.g. a flow
+ *  disposed on session_shutdown — pi-ask does not emit `completed` for those).
+ *  Bounds memory; generous vs. a human answer time. */
+const FLOW_TTL_MS = 10 * 60 * 1000;
+
 /** Minimal view of `pi.events` this bridge needs. */
 type EventBus = ExtensionAPI["events"];
 
@@ -79,6 +84,28 @@ export function createExtensionUiBridge(
   // option value, and so completed/submit-result can be tolerated if they arrive
   // after the app already answered.
   const activeFlows = new Map<string, ActiveFlow>();
+  // Per-flow TTL timers (FLOW_TTL_MS). pi-ask disposes flows on session_shutdown
+  // WITHOUT emitting `completed`, so without this the `activeFlows` map would
+  // leak one entry per abandoned flow. Bounded, defensive.
+  const flowTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  function clearFlowTtl(flowId: string): void {
+    const t = flowTimers.get(flowId);
+    if (t !== undefined) {
+      clearTimeout(t);
+      flowTimers.delete(flowId);
+    }
+  }
+  function armFlowTtl(flowId: string): void {
+    clearFlowTtl(flowId);
+    flowTimers.set(
+      flowId,
+      setTimeout(() => {
+        activeFlows.delete(flowId);
+        flowTimers.delete(flowId);
+      }, FLOW_TTL_MS),
+    );
+  }
 
   const unsubStarted = events.on(PI_ASK_STARTED, (raw: unknown) => {
     const event = parseStartedEvent(raw);
@@ -91,6 +118,7 @@ export function createExtensionUiBridge(
       questions: event.questions,
     };
     activeFlows.set(flow.flowId, flow);
+    armFlowTtl(flow.flowId);
     broadcast(requestForFlow(flow));
   });
 
@@ -98,6 +126,7 @@ export function createExtensionUiBridge(
     const e = raw as { version?: number; flowId?: unknown } | null;
     if (!e || e.version !== 1 || typeof e.flowId !== "string") return;
     const flowId = e.flowId;
+    clearFlowTtl(flowId);
     activeFlows.delete(flowId);
     // Same id as the originating request (the flowId). The app treats a `notify`
     // whose id matches an open interactive request as "that flow resolved —
@@ -110,13 +139,17 @@ export function createExtensionUiBridge(
     });
   });
 
-  // submit-result is per-request feedback. On error (invalid answer / flow gone)
-  // surface a warning so the submitting owner knows the flow did not advance.
-  // Success is covered by the `completed` notify above, so ok is a no-op here.
+  // submit-result is per-request feedback. On error (invalid answer / flow
+  // gone) surface a warning so the submitting owner can retry. The notify reuses
+  // the flowId as its id (same as the originating request) so the app correlates
+  // it to its open modal; notify_type "warning" distinguishes it from the
+  // `completed` dismiss (same id, absent/other notify_type). Success is covered
+  // by `completed`, so ok is a no-op here.
   const unsubResult = events.on(PI_ASK_SUBMIT_RESULT, (raw: unknown) => {
     const e = raw as {
       version?: number;
       requestId?: unknown;
+      flowId?: unknown;
       ok?: unknown;
       error?: unknown;
       message?: unknown;
@@ -128,10 +161,10 @@ export function createExtensionUiBridge(
         : typeof e.error === "string"
           ? e.error
           : "Clarification answer was not accepted.";
+    const flowId = typeof e.flowId === "string" ? e.flowId : null;
     broadcast({
       type: "extension_ui_request",
-      // Notify, not correlated to an open request: it's a transient warning.
-      id: `ask-error:${cryptoRandomId()}`,
+      id: flowId ?? `ask-error:${cryptoRandomId()}`,
       method: "notify",
       message,
       notify_type: "warning",
@@ -215,6 +248,8 @@ export function createExtensionUiBridge(
       unsubStarted();
       unsubCompleted();
       unsubResult();
+      for (const t of flowTimers.values()) clearTimeout(t);
+      flowTimers.clear();
       activeFlows.clear();
     },
   };
