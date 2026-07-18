@@ -4,30 +4,44 @@
 // (`COCKPIT_STATUS_SOCK` no POSIX; `COCKPIT_STATUS_PORT`+`COCKPIT_STATUS_TOKEN`
 // no Windows), discriminando `type:"cmd"` no wire (request/response).
 //
+// Nomenclatura: a unidade que a CLI endereça é uma **tab** (uma sessão de
+// terminal/agente). Um **pane** é a folha do split que agrupa várias tabs — a
+// CLI não o endereça. Por isso o vocabulário é "tab"; `list-panes`/`read-pane`
+// e `COCKPIT_PANE_ID` ficam como **aliases legados** dos novos `list-tabs`/
+// `read-tab`/`COCKPIT_TAB_ID`.
+//
 // Verbos:
 //   cockpit send      [--tab-id <id>] <texto>     digita texto literal (sem \r)
 //   cockpit send-key  [--tab-id <id>] <Key>...    pressiona tecla(s) nomeada(s)
 //   cockpit open      [--tab-id <id>] <arquivo>   abre o arquivo no viewer
 //   cockpit <arquivo>                             atalho de `open`
-//   cockpit read-pane [<label|tab-id>] [--lines N] [--offset N] [--from-start]
-//                                                 lê o output de um pane
+//   cockpit read-tab  [<label|tab-id>] [--lines N] [--offset N] [--from-start]
+//                                                 lê o output de uma tab
+//                                                 (alias: read-pane)
 //   cockpit read-task <task-id> [--lines N] [--offset N] [--from-start]
 //                                                 lê o output de uma task
-//   cockpit list-panes      [--json]              panes ativos
+//   cockpit list-tabs       [--json]              tabs ativas (alias: list-panes)
 //   cockpit list-workspaces [--json]              workspaces (projetos) abertos
 //   cockpit install-skill   [--force]             instala a skill do Claude Code
 //   cockpit --help | --version
 //
-// `--tab-id` default = $COCKPIT_PANE_ID (o pane que emitiu). Pane ids (t0, t1…)
-// são sequenciais e **resetam a cada boot do app** → descubra-os com list-panes
-// antes de mirar cross-pane.
+// `--tab-id` default = $COCKPIT_TAB_ID (a tab que emitiu; fallback: o legado
+// $COCKPIT_PANE_ID). Tab ids (t0, t1…) são sequenciais e **resetam a cada boot
+// do app** → descubra-os com list-tabs antes de mirar cross-tab.
 //
 // Compilar: dart compile exe tool/cockpit_cli.dart -o <dest>/cockpit-cli
 
 import 'dart:convert';
 import 'dart:io';
 
-const String _version = '0.2.0';
+const String _version = '0.3.0';
+
+/// Id da própria tab: `COCKPIT_TAB_ID` (novo) com fallback pro legado
+/// `COCKPIT_PANE_ID`. O app injeta os dois; o fallback cobre binário novo com
+/// app antigo (só PANE_ID) e vice-versa.
+String? _selfTabId() =>
+    Platform.environment['COCKPIT_TAB_ID'] ??
+    Platform.environment['COCKPIT_PANE_ID'];
 
 Future<void> main(List<String> argv) async {
   final args = List<String>.from(argv);
@@ -54,11 +68,15 @@ Future<void> main(List<String> argv) async {
       await _cmdSendKey(args);
     case 'open':
       await _cmdOpen(args);
-    case 'list-panes':
+    case 'list-tabs':
+    case 'list-panes': // alias legado
+      // Mantém o comando de wire 'list-panes' (protocolo estável); só o nome do
+      // verbo mudou na superfície.
       await _cmdList('list-panes', args);
     case 'list-workspaces':
       await _cmdList('list-workspaces', args);
-    case 'read-pane':
+    case 'read-tab':
+    case 'read-pane': // alias legado
       await _cmdRead('read-pane', args);
     case 'read-task':
       await _cmdRead('read-task', args);
@@ -81,7 +99,7 @@ Future<void> _cmdSend(List<String> args) async {
     stderr.writeln('cockpit send: missing text to send');
     exit(2);
   }
-  await _writeToPane(parsed.tabId, text);
+  await _writeToTab(parsed.tabId, text);
 }
 
 Future<void> _cmdSendKey(List<String> args) async {
@@ -99,7 +117,7 @@ Future<void> _cmdSendKey(List<String> args) async {
     }
     buf.write(resolved);
   }
-  await _writeToPane(parsed.tabId, buf.toString());
+  await _writeToTab(parsed.tabId, buf.toString());
 }
 
 Future<void> _cmdOpen(List<String> args) async {
@@ -111,7 +129,7 @@ Future<void> _cmdOpen(List<String> args) async {
   // O app tem cwd próprio — resolve pro caminho absoluto no cwd deste pane
   // (onde a CLI está rodando) antes de mandar.
   final abs = _resolvePath(parsed.positionals.first);
-  final tabId = parsed.tabId ?? Platform.environment['COCKPIT_PANE_ID'];
+  final tabId = parsed.tabId ?? _selfTabId();
   final req = <String, dynamic>{
     'cmd': 'open',
     'args': <String, dynamic>{'path': abs},
@@ -155,6 +173,7 @@ Future<void> _cmdList(String cmd, List<String> args) async {
     exit(0);
   }
   if (cmd == 'list-panes') {
+    // (comando de wire estável; a superfície é `list-tabs`)
     for (final e in data.cast<Map>()) {
       final flag = e['working'] == true ? '●' : ' ';
       // Rótulo manual (nome estável) vence o título dinâmico; `⚲` sinaliza que
@@ -171,21 +190,23 @@ Future<void> _cmdList(String cmd, List<String> args) async {
     }
   } else {
     for (final e in data.cast<Map>()) {
+      // `tabs` é o campo novo; `panes` fica como fallback (app antigo).
+      final n = e['tabs'] ?? e['panes'] ?? 0;
       stdout.writeln(
         '${_pad(e['id']?.toString(), 10)} '
-        '${_pad('${e['panes'] ?? 0} panes', 10)} ${e['name'] ?? ''}',
+        '${_pad('$n tabs', 10)} ${e['name'] ?? ''}',
       );
     }
   }
   exit(0);
 }
 
-Future<void> _writeToPane(String? tabIdFlag, String text) async {
-  final tabId = tabIdFlag ?? Platform.environment['COCKPIT_PANE_ID'];
+Future<void> _writeToTab(String? tabIdFlag, String text) async {
+  final tabId = tabIdFlag ?? _selfTabId();
   if (tabId == null || tabId.isEmpty) {
     stderr.writeln(
       'cockpit: no target — pass --tab-id <id> or run inside a Cockpit '
-      'terminal (COCKPIT_PANE_ID is unset). Use `cockpit list-panes`.',
+      'terminal (COCKPIT_TAB_ID is unset). Use `cockpit list-tabs`.',
     );
     exit(2);
   }
@@ -222,8 +243,8 @@ Future<void> _cmdRead(String cmd, List<String> args) async {
       if (parsed.fromStart) 'fromStart': true,
     },
   };
-  // Sem alvo posicional, o server cai no próprio pane (COCKPIT_PANE_ID).
-  final tabId = parsed.tabId ?? Platform.environment['COCKPIT_PANE_ID'];
+  // Sem alvo posicional, o server cai na própria tab ($COCKPIT_TAB_ID).
+  final tabId = parsed.tabId ?? _selfTabId();
   if (tabId != null && tabId.isNotEmpty) req['tabId'] = tabId;
   final resp = await _request(req);
   if (resp['ok'] != true) {
@@ -470,30 +491,35 @@ void _printHelp(IOSink out) {
   out.writeln(
     r'''cockpit — Cockpit's internal CLI (visible only inside the app's terminals)
 
+A **tab** is a terminal/agent session (what this CLI addresses). A **pane** is
+the split leaf that groups tabs — not addressed here. `list-panes`/`read-pane`
+are legacy aliases of `list-tabs`/`read-tab`.
+
 USAGE:
   cockpit send      [--tab-id <id>] <text>     type literal text (no Enter)
   cockpit send-key  [--tab-id <id>] <Key>...   press named key(s)
   cockpit open      [--tab-id <id>] <file>     open the file in the app's viewer
   cockpit <file>                               shortcut for `open` (e.g. cockpit .zprofile)
-  cockpit read-pane [<label|tab-id>]           read a pane's rendered output
+  cockpit read-tab  [<label|tab-id>]           read a tab's rendered output (alias: read-pane)
   cockpit read-task <task-id>                  read a task's output (even w/o tab)
-  cockpit list-panes      [--json]             list active panes
+  cockpit list-tabs       [--json]             list active tabs (alias: list-panes)
   cockpit list-workspaces [--json]             list workspaces (projects)
   cockpit install-skill   [--force]            install the Claude Code skill
   cockpit --help | --version
 
-READ (read-pane / read-task):
+READ (read-tab / read-task):
   --lines N     how many lines (default 100, server cap 2000)
   --offset N    skip N lines from the anchor (pagination)
   --from-start  anchor at the start of the buffer (default: tail/end)
   Output is always chronological (top→bottom); flags only pick the window.
-  read-pane without a target reads the CURRENT pane; a target may be a stable
-  pane label or a tab-id.
+  read-tab without a target reads the CURRENT tab; a target may be a stable
+  tab label or a tab-id.
 
 TARGET:
-  --tab-id <id>   target pane. Default = $COCKPIT_PANE_ID (the current pane).
-                  Ids (t0, t1…) reset on every app boot → find them with
-                  `cockpit list-panes` before targeting another pane (cross-pane).
+  --tab-id <id>   target tab. Default = $COCKPIT_TAB_ID (the current tab;
+                  legacy fallback $COCKPIT_PANE_ID). Ids (t0, t1…) reset on every
+                  app boot → find them with `cockpit list-tabs` before targeting
+                  another tab (cross-tab).
 
 KEYS (send-key):
   Enter Tab Escape Space BSpace Up Down Left Right Home End
@@ -503,10 +529,10 @@ EXAMPLES:
   cockpit send "echo hi" && cockpit send-key Enter
   cockpit send-key C-c
   cockpit send --tab-id t3 "ls" ; cockpit send-key --tab-id t3 Enter
-  cockpit .zprofile          # opens the file in the viewer (relative to pane cwd)
+  cockpit .zprofile          # opens the file in the viewer (relative to tab cwd)
   cockpit open ~/.gitconfig
-  cockpit read-pane Extension --lines 50       # last 50 lines of pane "Extension"
-  cockpit read-pane t4 --lines 200 --from-start
+  cockpit read-tab Extension --lines 50        # last 50 lines of tab "Extension"
+  cockpit read-tab t4 --lines 200 --from-start
   cockpit read-task test --lines 80            # tail of task "test" output''',
   );
 }
@@ -520,15 +546,21 @@ String _pad(String? s, int n) {
 
 const String _skillMarkdown = r'''---
 name: cockpit-cli
-description: Drive Cockpit's multiplexed terminals from inside a pane. Use when you (an agent running in a Cockpit terminal) need to type text or press keys into your own or another pane, read another pane's or a task's output, or list the open panes/workspaces. Triggers on tmux-like control needs: send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover pane ids.
+description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to type text or press keys into your own or another tab, read another tab's or a task's output, or list the open tabs/workspaces. Triggers on tmux-like control needs: send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab ids.
 ---
 
 # cockpit — Cockpit's internal CLI
 
 You are running inside a **Cockpit** terminal (an IDE that multiplexes
 terminals). The `cockpit` command talks to the app and lets you **inject
-text/keys** into any pane and **list** panes/workspaces. It only exists inside
+text/keys** into any tab and **list** tabs/workspaces. It only exists inside
 Cockpit tabs (it is not on the global PATH).
+
+> **Tab vs pane.** A **tab** is a single terminal/agent session — that's the
+> unit this CLI addresses (`--tab-id`). A **pane** is the split leaf that can
+> hold several tabs; the CLI does not address it. `list-panes`/`read-pane` and
+> `$COCKPIT_PANE_ID` are **legacy aliases** of `list-tabs`/`read-tab`/
+> `$COCKPIT_TAB_ID` — prefer the new names.
 
 ## Verbs
 
@@ -538,37 +570,40 @@ Cockpit tabs (it is not on the global PATH).
   `PageUp`/`PageDown`, `Delete`, and `C-<letter>` (e.g. `C-c` = Ctrl+C).
 - `cockpit open [--tab-id <id>] <file>` — open the file in the app's viewer
   (tab next to the terminal). `cockpit <file>` is the shortcut. The path is
-  resolved against the pane cwd (relative, `~` and absolute all work). Any type
+  resolved against the tab cwd (relative, `~` and absolute all work). Any type
   opens as text — including extensionless ones (`.zprofile`, `Makefile`).
-- `cockpit read-pane [<label|tab-id>] [--lines N] [--offset N] [--from-start]`
-  — read a pane's **rendered output** as plain text (no ANSI escapes; covers
-  TUIs on the alt-screen too). Without a target it reads your **own** pane; a
-  target may be a stable pane `label` or a tab-id. Default window: the **last
-  100 lines** (tail). `--lines N` sets the window size (server cap 2000);
-  `--from-start` anchors at the beginning of the buffer instead of the end;
-  `--offset N` skips N lines from the chosen anchor (pagination: read the last
-  100, then `--lines 100 --offset 100` for the 100 before those). Output is
-  always chronological (top→bottom) — the flags only pick the window.
+- `cockpit read-tab [<label|tab-id>] [--lines N] [--offset N] [--from-start]`
+  (alias: `read-pane`) — read a tab's **rendered output** as plain text (no
+  ANSI escapes; covers TUIs on the alt-screen too). Without a target it reads
+  your **own** tab; a target may be a stable tab `label` or a tab-id. Default
+  window: the **last 100 lines** (tail). `--lines N` sets the window size
+  (server cap 2000); `--from-start` anchors at the beginning of the buffer
+  instead of the end; `--offset N` skips N lines from the chosen anchor
+  (pagination: read the last 100, then `--lines 100 --offset 100` for the 100
+  before those). Output is always chronological (top→bottom) — the flags only
+  pick the window.
 - `cockpit read-task <task-id> [--lines N] [--offset N] [--from-start]` — same
   windowed read, but for a **task run's** output (the Task Run feature). Works
   even if no task-output tab is open. The task id is the task's `key`/id (e.g.
   from `.cockpit/tasks.json` or the task list in the UI).
-- `cockpit list-panes [--json]` — active panes: `id`, `kind`, `title`
-  (dynamic), `label` (manual stable name, or null), `workspaceId`, `working`.
-  Resolve a pane by its stable `label`, not the dynamic `title`.
-- `cockpit list-workspaces [--json]` — open projects: `id`, `name`, `panes`.
+- `cockpit list-tabs [--json]` (alias: `list-panes`) — active tabs: `id`,
+  `kind`, `title` (dynamic), `label` (manual stable name, or null),
+  `workspaceId`, `working`. Resolve a tab by its stable `label`, not the
+  dynamic `title`.
+- `cockpit list-workspaces [--json]` — open projects: `id`, `name`, `tabs`.
 
 ## Target (--tab-id)
 
-Without `--tab-id`, the command acts on **your own pane** (via `$COCKPIT_PANE_ID`).
-To drive **another** pane, pass `--tab-id <id>`.
+Without `--tab-id`, the command acts on **your own tab** (via `$COCKPIT_TAB_ID`,
+legacy fallback `$COCKPIT_PANE_ID`). To drive **another** tab, pass
+`--tab-id <id>`.
 
 > Ids (`t0`, `t1`…) are sequential and **change on every app boot**. Never
-> guess an id: run `cockpit list-panes` first and use the `id` from there.
+> guess an id: run `cockpit list-tabs` first and use the `id` from there.
 
 ## Usage pattern
 
-To run a command in a pane, **send the text and then Enter** (`send` does not
+To run a command in a tab, **send the text and then Enter** (`send` does not
 add a line break):
 
 ```sh
@@ -576,44 +611,44 @@ cockpit send "npm test"
 cockpit send-key Enter
 ```
 
-Cross-pane (drive another tab):
+Cross-tab (drive another tab):
 
 ```sh
-cockpit list-panes                       # find the target id, e.g. t4
+cockpit list-tabs                        # find the target id, e.g. t4
 cockpit send --tab-id t4 "git status"
 cockpit send-key --tab-id t4 Enter
 ```
 
-Interrupt a stuck process in another pane:
+Interrupt a stuck process in another tab:
 
 ```sh
 cockpit send-key --tab-id t4 C-c
 ```
 
-Read what another pane printed (e.g. check on a worker, debug a failure):
+Read what another tab printed (e.g. check on a worker, debug a failure):
 
 ```sh
-cockpit read-pane t4 --lines 50            # last 50 lines of t4
-cockpit read-pane Extension                # by stable label (last 100 lines)
-cockpit read-pane t4 --lines 100 --offset 100   # the 100 lines before those
-cockpit read-task test --lines 80          # tail of task "test" output
+cockpit read-tab t4 --lines 50            # last 50 lines of t4
+cockpit read-tab Extension                # by stable label (last 100 lines)
+cockpit read-tab t4 --lines 100 --offset 100   # the 100 lines before those
+cockpit read-task test --lines 80         # tail of task "test" output
 ```
 
-Typical loop — dispatch work to a pane, wait, then read the result:
+Typical loop — dispatch work to a tab, wait, then read the result:
 
 ```sh
 cockpit send --tab-id t4 "npm test" && cockpit send-key --tab-id t4 Enter
-# poll `cockpit list-panes --json` until t4 shows "working": false, then:
-cockpit read-pane t4 --lines 60
+# poll `cockpit list-tabs --json` until t4 shows "working": false, then:
+cockpit read-tab t4 --lines 60
 ```
 
 ## Common errors
 
 - "COCKPIT_STATUS_SOCK is unset" → you are not inside a Cockpit terminal.
-- "pane ... does not exist" → stale id (app reboot). Run `list-panes` again.
-- "pane ... is not a terminal" → the target is an agent/file tab, not a shell.
-- "has no readable output" → read-pane target is an agent/file tab; only
-  terminal and task-output panes are readable.
+- "tab ... does not exist" → stale id (app reboot). Run `list-tabs` again.
+- "tab ... is not a terminal" → the target is an agent/file tab, not a shell.
+- "has no readable output" → read-tab target is an agent/file tab; only
+  terminal and task-output tabs are readable.
 - "no output recorded for task ..." → the task never ran this app boot (or the
   id is wrong).
 ''';

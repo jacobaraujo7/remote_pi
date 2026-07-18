@@ -2257,9 +2257,12 @@ class CockpitViewModel extends ChangeNotifier {
       replay: replay,
       // Restauração: comando a digitar no shell novo (ex.: `claude --resume`).
       startupCommand: startupCommand,
-      // Injeta no env da PTY: roteamento (paneId) + transporte (socket/porta).
+      // Injeta no env da PTY: roteamento (id da tab) + transporte (socket/porta).
       // O `cockpit-hook` do claude herda e reporta status de turno de volta.
+      // `COCKPIT_TAB_ID` é o nome correto (o que a CLI endereça é uma tab);
+      // `COCKPIT_PANE_ID` fica como alias legado (hook + binários antigos).
       spawnEnv: <String, String>{
+        'COCKPIT_TAB_ID': id,
         'COCKPIT_PANE_ID': id,
         ..._statusServer.hookEnv,
         // PATH escopado → o binário `cockpit` (CLI interna) resolve só nas abas.
@@ -2400,10 +2403,10 @@ class CockpitViewModel extends ChangeNotifier {
         }
         final s = _sessions[id];
         if (s == null) {
-          return CockpitCommandResult.fail('pane "$id" does not exist');
+          return CockpitCommandResult.fail('tab "$id" does not exist');
         }
         if (s is! TerminalSession) {
-          return CockpitCommandResult.fail('pane "$id" is not a terminal');
+          return CockpitCommandResult.fail('tab "$id" is not a terminal');
         }
         final raw = (c.args['data'] ?? '').toString();
         String text;
@@ -2475,7 +2478,9 @@ class CockpitViewModel extends ChangeNotifier {
               (p) => <String, dynamic>{
                 'id': p.id,
                 'name': p.name,
-                'panes': _sessions.values
+                // Nº de tabs (sessões) abertas nesse workspace. Campo era 'panes'
+                // (enganoso — sempre foi contagem de tabs, não de folhas-pane).
+                'tabs': _sessions.values
                     .where((s) => s.projectId == p.id)
                     .length,
               },
@@ -2507,7 +2512,7 @@ class CockpitViewModel extends ChangeNotifier {
           }
           s = _sessions[id];
           if (s == null) {
-            return CockpitCommandResult.fail('pane "$id" does not exist');
+            return CockpitCommandResult.fail('tab "$id" does not exist');
           }
         }
         final term = switch (s) {
@@ -2517,7 +2522,7 @@ class CockpitViewModel extends ChangeNotifier {
         };
         if (term == null) {
           return CockpitCommandResult.fail(
-            'pane "${s.id}" (${_paneKind(s)}) has no readable output',
+            'tab "${s.id}" (${_paneKind(s)}) has no readable output',
           );
         }
         return CockpitCommandResult.ok(readTerminalWindow(term, c.args));
@@ -2555,12 +2560,12 @@ class CockpitViewModel extends ChangeNotifier {
     if (byLabel.length == 1) return Success(byLabel.first);
     if (byLabel.length > 1) {
       return Failure(
-        'label "$target" is ambiguous (${byLabel.length} panes) — '
-        'use a tab-id from `cockpit list-panes`',
+        'label "$target" is ambiguous (${byLabel.length} tabs) — '
+        'use a tab-id from `cockpit list-tabs`',
       );
     }
     return Failure(
-      'no pane with id or label "$target" (see `cockpit list-panes`)',
+      'no tab with id or label "$target" (see `cockpit list-tabs`)',
     );
   }
 
