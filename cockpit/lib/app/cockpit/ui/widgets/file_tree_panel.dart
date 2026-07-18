@@ -337,6 +337,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
     if (_pending != null) setState(() => _pending = null);
   }
 
+  /// Expande a seção de uma root (multi-root) se estiver colapsada — necessário
+  /// antes de criar nela, pra o `_DirView`-alvo montar e o input inline aparecer.
+  void _expandRoot(String rootPath) {
+    if (_collapsedRoots.contains(rootPath)) {
+      setState(() => _collapsedRoots.remove(rootPath));
+    }
+  }
+
   /// Commit do input de criação. Devolve a mensagem de erro (mantém o input) ou
   /// `null` no sucesso (limpa — a árvore recarrega pela revisão da VM).
   Future<String?> _commitCreate(
@@ -558,8 +566,13 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       () => _sourceControlTree = !_sourceControlTree,
                     ),
                   ),
-                // "New file/folder" só no modo Files (o source control é leitura).
+                // "New file/folder" só no modo Files (o source control é
+                // leitura). Em **multi-root** (2+ roots) o alvo seria ambíguo
+                // ("em qual repo?") e o container não tem `_DirView` pro input
+                // inline renderizar — então some daqui e vai pra cada
+                // `_RootHeader` (mira `root.path`, que tem árvore).
                 if (widget.rootPath.isNotEmpty &&
+                    widget.roots.length <= 1 &&
                     tab == _RightPaneTab.files) ...[
                   _HeaderIcon(
                     icon: Icons.note_add_outlined,
@@ -644,6 +657,19 @@ class _FileTreePanelState extends State<FileTreePanel> {
                                           }),
                                           onContextMenu:
                                               widget.onRootContextMenu,
+                                          // New file/folder DESTA root: garante a
+                                          // seção expandida (senão o _DirView-alvo
+                                          // não monta e o input não aparece) e
+                                          // dispara o create mirando root.path.
+                                          showCreate: tab == _RightPaneTab.files,
+                                          onNewFile: () {
+                                            _expandRoot(root.path);
+                                            _startCreate(root.path, false);
+                                          },
+                                          onNewFolder: () {
+                                            _expandRoot(root.path);
+                                            _startCreate(root.path, true);
+                                          },
                                         ),
                                         if (!_collapsedRoots.contains(
                                           root.path,
@@ -680,12 +706,15 @@ class _FileTreePanelState extends State<FileTreePanel> {
 /// Cabeçalho de seção de uma **root** (multi-root): seta de colapso + nome +
 /// branch + contagem de sujos. Botão-direito abre o menu de contexto da root
 /// (git ops direcionadas — o alvo é o próprio cabeçalho, sem perguntar).
-class _RootHeader extends StatelessWidget {
+class _RootHeader extends StatefulWidget {
   const _RootHeader({
     required this.root,
     required this.collapsed,
     required this.onToggle,
     this.onContextMenu,
+    this.showCreate = false,
+    this.onNewFile,
+    this.onNewFolder,
   });
 
   final WorkspaceRoot root;
@@ -693,65 +722,99 @@ class _RootHeader extends StatelessWidget {
   final VoidCallback onToggle;
   final void Function(WorkspaceRoot root, Offset globalPosition)? onContextMenu;
 
+  /// Mostra os ícones New file/New folder (revelados no hover) — só no modo
+  /// Files. Cada um cria DENTRO desta root.
+  final bool showCreate;
+  final VoidCallback? onNewFile;
+  final VoidCallback? onNewFolder;
+
+  @override
+  State<_RootHeader> createState() => _RootHeaderState();
+}
+
+class _RootHeaderState extends State<_RootHeader> {
+  bool _hovered = false;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final typo = context.typo;
+    final root = widget.root;
     final git = root.git;
     final dirty = git?.dirtyCount ?? 0;
-    return GestureDetector(
-      onSecondaryTapDown: onContextMenu == null
-          ? null
-          : (d) => onContextMenu!(root, d.globalPosition),
-      child: HoverTap(
-        hoverColor: colors.panel,
-        borderRadius: BorderRadius.circular(5),
-        onTap: onToggle,
-        padding: const EdgeInsets.only(left: 4, right: 6),
-        child: SizedBox(
-          height: 28,
-          child: Row(
-            children: [
-              Icon(
-                collapsed
-                    ? Icons.keyboard_arrow_right
-                    : Icons.keyboard_arrow_down,
-                size: 15,
-                color: colors.text3,
-              ),
-              const SizedBox(width: 2),
-              // Nome da root inteiro, sempre — quem trunca é a branch.
-              Text(
-                root.name,
-                style: typo.body.copyWith(
-                  fontSize: 12.5,
-                  color: colors.text,
-                  fontWeight: FontWeight.w600,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onSecondaryTapDown: widget.onContextMenu == null
+            ? null
+            : (d) => widget.onContextMenu!(root, d.globalPosition),
+        child: HoverTap(
+          hoverColor: colors.panel,
+          borderRadius: BorderRadius.circular(5),
+          onTap: widget.onToggle,
+          padding: const EdgeInsets.only(left: 4, right: 6),
+          child: SizedBox(
+            height: 28,
+            child: Row(
+              children: [
+                Icon(
+                  widget.collapsed
+                      ? Icons.keyboard_arrow_right
+                      : Icons.keyboard_arrow_down,
+                  size: 15,
+                  color: colors.text3,
                 ),
-              ),
-              if (git != null) ...[
-                const SizedBox(width: 8),
-                Icon(Icons.call_split, size: 10, color: colors.warn),
-                const SizedBox(width: 3),
-                Flexible(
-                  child: Text(
-                    git.branch,
-                    overflow: TextOverflow.ellipsis,
-                    style: typo.mono.copyWith(fontSize: 10, color: colors.warn),
-                  ),
-                ),
-              ],
-              const Spacer(),
-              if (dirty > 0)
+                const SizedBox(width: 2),
+                // Nome da root inteiro, sempre — quem trunca é a branch.
                 Text(
-                  '$dirty',
-                  style: typo.mono.copyWith(
-                    fontSize: 10,
-                    color: colors.edited,
-                    fontWeight: FontWeight.w700,
+                  root.name,
+                  style: typo.body.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
-            ],
+                if (git != null) ...[
+                  const SizedBox(width: 8),
+                  Icon(Icons.call_split, size: 10, color: colors.warn),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      git.branch,
+                      overflow: TextOverflow.ellipsis,
+                      style: typo.mono.copyWith(
+                        fontSize: 10,
+                        color: colors.warn,
+                      ),
+                    ),
+                  ),
+                ],
+                const Spacer(),
+                // Ícones de criação (hover) — descendentes com onTap próprio, então
+                // o tap vai neles, não no toggle do header.
+                if (widget.showCreate && _hovered) ...[
+                  _HeaderIcon(
+                    icon: Icons.note_add_outlined,
+                    tooltip: 'New file',
+                    onTap: () => widget.onNewFile?.call(),
+                  ),
+                  _HeaderIcon(
+                    icon: Icons.create_new_folder_outlined,
+                    tooltip: 'New folder',
+                    onTap: () => widget.onNewFolder?.call(),
+                  ),
+                ] else if (dirty > 0)
+                  Text(
+                    '$dirty',
+                    style: typo.mono.copyWith(
+                      fontSize: 10,
+                      color: colors.edited,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),
