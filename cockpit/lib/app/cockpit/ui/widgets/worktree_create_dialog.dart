@@ -13,6 +13,9 @@ Future<void> showWorktreeCreateDialog(
   required String rootName,
   required WorktreeNamespace namespace,
   required Future<String?> Function(String name) onCreate,
+  // "Fork Worktree": mesmo dialog, copy própria — a base é a branch do fork
+  // ([rootName]), não o HEAD do pai.
+  bool fork = false,
 }) {
   return showDialog<void>(
     context: context,
@@ -21,6 +24,7 @@ Future<void> showWorktreeCreateDialog(
       rootName: rootName,
       namespace: namespace,
       onCreate: onCreate,
+      fork: fork,
     ),
   );
 }
@@ -30,9 +34,11 @@ class _WorktreeCreateDialog extends StatefulWidget {
     required this.rootName,
     required this.namespace,
     required this.onCreate,
+    required this.fork,
   });
 
   final String rootName;
+  final bool fork;
   final WorktreeNamespace namespace;
   final Future<String?> Function(String name) onCreate;
 
@@ -107,7 +113,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Create worktree',
+            widget.fork ? 'Fork worktree' : 'Create worktree',
             style: context.typo.title.copyWith(
               fontSize: 15,
               color: colors.text,
@@ -115,8 +121,10 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
           ),
           const SizedBox(height: 4),
           Text(
-            'New feature in ${widget.rootName} — new branch from the '
-            'current HEAD.',
+            widget.fork
+                ? 'New worktree branched from ${widget.rootName}.'
+                : 'New feature in ${widget.rootName} — new branch from the '
+                      'current HEAD.',
             style: context.typo.label.copyWith(color: colors.text3),
           ),
         ],
@@ -160,7 +168,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
           onPressed: _canCreate ? _submit : null,
           child: _submitting
               ? const CircularProgressIndicator(size: 16, color: Colors.white)
-              : const Text('Create'),
+              : Text(widget.fork ? 'Fork' : 'Create'),
         ),
       ],
     );

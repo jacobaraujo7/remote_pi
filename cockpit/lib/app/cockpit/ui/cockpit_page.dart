@@ -531,6 +531,7 @@ class _CockpitPageState extends State<CockpitPage> {
       context,
       rootName: base.name,
       namespace: namespace,
+      fork: true,
       onCreate: (name) async {
         final res = await vm.forkWorktree(base.id, name);
         return res.fold((_) => null, (e) => e.message);
