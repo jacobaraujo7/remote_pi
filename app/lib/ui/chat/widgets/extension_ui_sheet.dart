@@ -236,7 +236,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       itemCount: ask.questions.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 24),
+      separatorBuilder: (_, _) => const SizedBox(height: 24),
       itemBuilder: (context, i) => _buildQuestion(context, ask.questions[i]),
     );
   }
