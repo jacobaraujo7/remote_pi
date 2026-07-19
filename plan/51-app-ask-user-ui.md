@@ -192,8 +192,15 @@ celular → confirmar resolução no desktop.
       Windows em daemon/* e rooms.test.ts). Re-verificado após os fixes
       pós-review (submit-result id=flowId + TTL de flow): typecheck + 10 tests
       verdes.
-- [ ] app: `flutter test` verde nos testes novos (pendente — Flutter ausente no
-      ambiente de autoria; despachar pro pane App).
+- [x] app: `flutter test` verde nos testes novos (2026-07-18, Flutter 3.44.6
+      instalado em `~/flutter`: `extension_ui_test.dart` + `test/ui/chat/` =
+      112/112; suíte completa 527 pass, 1 falha ambiental pré-existente —
+      `speech_service_test.dart` assume host macOS, rodamos em Windows).
+      `flutter analyze`: 0 erros; 3 infos no `extension_ui_sheet.dart`
+      (`unnecessary_underscores` + Radio `groupValue`/`onChanged` deprecados).
+      Re-verificado 2026-07-19 pós-review-2: `flutter analyze` **0 issues**
+      (Radio migrado pra `RadioGroup`), suíte completa 536 pass / mesma 1 falha
+      ambiental.
 - [ ] Smoke: `ask_user` respondido do celular resolve o fluxo no desktop;
       multi-owner first-response-wins.
 - [x] Sem pi-ask: nada quebra (bridge inert) — coberto por vitest; smoke real
@@ -214,9 +221,12 @@ celular → confirmar resolução no desktop.
    justificar no PR. Reversível (revert de 1 campo) se o maintainer preferir
    mirror estrito.
 5. **Caminho degradado limitado a 1 questão**: com todas as questões num frame
-   só, cliente estrito (sem envelope) responde só a primeira; flows
-   multi-questão travam no required faltante e o submit-result warning é
-   descartado na v1. Documentar como limitação conhecida no PR.
+   só, cliente estrito (sem envelope) responde só a primeira. Correção
+   (2026-07-19, schema do pi-ask): `required` é **advisory only — nunca
+   bloqueia submissão**, então flow multi-questão respondido parcialmente
+   **resolve** (com aviso no resultado), não trava. Limitação real: cliente
+   estrito perde as questões 2..N. Documentado no PR. Cancel degradado (sem
+   envelope) agora roteia via `activeFlows` pelo request id (review-2).
 6. ~~**Modal vs answer inválida**: fechar otimista no submit + rejeição =
    dead end.~~ **Resolvido**: o app **não** fecha o modal otimista no submit.
    Ele permanece em estado "submitting" e só fecha no `completed` dismiss.
@@ -225,8 +235,41 @@ celular → confirmar resolução no desktop.
    sheet reseta o spinner se nenhum `completed`/error chegar (relay drop).
 7. **Keyboard inset (v1)**: modal é Stack overlay, não rota — teclado pode
    cobrir a action bar inferior. Aceito como limitação v1.
+8. **Warning de submit-result é broadcast** (limitação v1): em multi-owner, a
+   rejeição causada pelo owner A aparece também no modal do owner B (mesmo
+   id). Inofensivo — o `completed` dismissa ambos — mas registrado.
+
+### Review-2 (2026-07-19) — fixes aplicados no PR #64
+
+- 🔴 Submit não habilitava em resposta só-texto (sem `onChanged` → sem
+  rebuild). Fix: `onChanged: setState` nos TextFields (rico + degradado) +
+  widget tests.
+- `ExtensionUiSheet` agora é keyado por `ValueKey(request.id)` — estado
+  (seleções/custom text) não vaza entre flows com question ids repetidos.
+- Cancel de cliente estrito (sem envelope `ask`) roteia via `activeFlows`.
+- Questão **sem opções** (schema permite — puro texto) não é mais dropada:
+  bridge emite `method: "input"` degradado; app responde via customText.
+- `didUpdateWidget` só reseta o spinner quando **erro chega** (não quando é
+  limpo no início do retry) — evitava double-submit.
+- Factory faz `dispose()` do bridge anterior antes de recriar (leak de
+  subscriptions em re-run).
+- `respondExtensionUi` sem canal vivo falha rápido (`Not connected…`) em vez
+  de esperar o backstop de 25s.
+- Chip `required` (advisory, cor accent) e migração Radio → `RadioGroup`
+  (analyze 0 issues).
+- Testes novos: +3 vitest bridge (13 total), widget tests do sheet (6) e
+  routing do viewmodel (3).
 
 ## Próximo plano possível
 
 - Replay/resolução de flows ask em `session_sync`.
 - `editor` rico no mobile (multi-linha com preview de diff).
+- **Fallback `ask_user` próprio do remote-pi** (sem pi-ask instalado): registrar
+  a tool via feature-detect (só quando pi-ask ausente, evitando colisão de
+  nome), reusar o wire `extension_ui_request` + envelope `ask` já construído, e
+  correr desktop `ctx.ui.select/input` vs resposta do phone (first-response-
+  wins). Custo: reimplementa fatia do pi-ask (multi-questão, validação, render
+  TUI) — só vale se a dependência do pi-ask virar fricção real. Decisão atual
+  (2026-07-18): **docs-only** — README raiz recomenda `@eko24ive/pi-ask` como
+  companion; sem pi-ask o agente pergunta em texto puro no chat (respondível do
+  celular, sem bloqueio).
