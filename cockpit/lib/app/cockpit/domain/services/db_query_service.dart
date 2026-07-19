@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_driver.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/nosql_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 
@@ -8,11 +9,12 @@ import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 /// store, resolve senha no cofre (nunca expõe pro chamador), escolhe o driver
 /// e serializa execuções (pré-requisito do slot global do anaki na Wave 3).
 class DbQueryService {
-  DbQueryService(this._store, this._secrets, this._registry);
+  DbQueryService(this._store, this._secrets, this._registry, this._nosql);
 
   final DbConnectionStore _store;
   final DbSecrets _secrets;
   final DbDriverRegistry _registry;
+  final NoSqlRunner _nosql;
 
   /// Limite default de linhas quando nem chamada nem `.dbq` especificam.
   static const defaultLimit = 200;
@@ -94,6 +96,42 @@ class DbQueryService {
       );
     }
     return last!;
+  });
+
+  /// Redis (CLI-only): envia `parts` e devolve o reply JSON-serializável.
+  Future<Object?> redisCommand({
+    required String workspaceRoot,
+    required String workspaceId,
+    required String connName,
+    required List<String> parts,
+  }) => _serialized(() async {
+    final conn = await _resolve(workspaceRoot, connName);
+    if (conn.engine != DbEngine.redis) {
+      throw DbQueryException(
+        'unsupported_engine',
+        '"$connName" is a ${conn.engine.label} connection, not Redis.',
+      );
+    }
+    final password = await _passwordFor(conn, workspaceId);
+    return _nosql.redis(conn, parts, password: password);
+  });
+
+  /// Mongo (CLI-only): roda `command` (runCommand) e devolve o doc JSON.
+  Future<Object?> mongoCommand({
+    required String workspaceRoot,
+    required String workspaceId,
+    required String connName,
+    required Map<String, dynamic> command,
+  }) => _serialized(() async {
+    final conn = await _resolve(workspaceRoot, connName);
+    if (conn.engine != DbEngine.mongo) {
+      throw DbQueryException(
+        'unsupported_engine',
+        '"$connName" is a ${conn.engine.label} connection, not MongoDB.',
+      );
+    }
+    final password = await _passwordFor(conn, workspaceId);
+    return _nosql.mongo(conn, command, password: password);
   });
 
   /// Chave do cofre pra senha da conexão — única por workspace+nome.

@@ -2,8 +2,10 @@ import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_driver.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/nosql_runner.dart';
 import 'package:cockpit/app/cockpit/data/db/db_connection_store_impl.dart';
 import 'package:cockpit/app/cockpit/data/db/db_driver_registry_impl.dart';
+import 'package:cockpit/app/cockpit/data/db/nosql_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/data/db/db_secrets_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/app_launcher_impl.dart';
@@ -141,6 +143,7 @@ Future<Module> buildCockpitModule() async {
         ..addInstance<DbConnectionStore>(const DbConnectionStoreImpl())
         ..addInstance<DbSecrets>(const DbSecretsImpl())
         ..addInstance<DbDriverRegistry>(const DbDriverRegistryImpl())
+        ..addInstance<NoSqlRunner>(const NoSqlRunnerImpl())
         ..addLazySingleton<DbQueryService>(DbQueryService.new)
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<ContentSearcher>(const ContentSearcherImpl())

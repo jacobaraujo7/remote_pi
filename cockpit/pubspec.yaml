@@ -149,6 +149,9 @@ dependencies:
   anaki_postgres: ^0.1.0
   anaki_mysql: ^0.1.0
   anaki_mssql: ^0.1.0
+  # NoSQL/cache — acesso APENAS via CLI por enquanto (sem UI); ver plano 51.
+  anaki_redis: ^0.1.0
+  anaki_mongodb: ^0.1.0
 
 dependency_overrides:
   # anakiORM (plano 51) — TEMPORÁRIO: rastreia os fixes em andamento do repo
@@ -165,6 +168,10 @@ dependency_overrides:
     path: /Users/jacob/Projects/anakiORM/packages/anaki_mysql
   anaki_mssql:
     path: /Users/jacob/Projects/anakiORM/packages/anaki_mssql
+  anaki_redis:
+    path: /Users/jacob/Projects/anakiORM/packages/anaki_redis
+  anaki_mongodb:
+    path: /Users/jacob/Projects/anakiORM/packages/anaki_mongodb
 
   # Fork do xterm, por dois motivos:
   #

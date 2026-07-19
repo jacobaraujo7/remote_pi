@@ -3030,6 +3030,44 @@ class CockpitViewModel extends ChangeNotifier {
           return CockpitCommandResult.ok(result.toJson());
         });
 
+      // `cockpit redis` — comando de cache CLI-only (plano 51). `args.parts`
+      // é a lista do comando (`['GET','foo']`). Reply cru em JSON.
+      case 'redis-cmd':
+        return _dbCommand(c, (project) async {
+          final parts = [
+            for (final p in (c.args['parts'] as List? ?? const []))
+              '$p',
+          ];
+          final reply = await _dbService.redisCommand(
+            workspaceRoot: project.path,
+            workspaceId: project.id,
+            connName: (c.args['db'] ?? '').toString(),
+            parts: parts,
+          );
+          return CockpitCommandResult.ok(reply);
+        });
+
+      // `cockpit mongo` — CLI-only: `args.command` é o JSON do runCommand.
+      case 'mongo-cmd':
+        return _dbCommand(c, (project) async {
+          final raw = (c.args['command'] ?? '{}').toString();
+          final Map<String, dynamic> command;
+          try {
+            command = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          } catch (_) {
+            return const CockpitCommandResult.fail(
+              'query_failed: invalid JSON command',
+            );
+          }
+          final reply = await _dbService.mongoCommand(
+            workspaceRoot: project.path,
+            workspaceId: project.id,
+            connName: (c.args['db'] ?? '').toString(),
+            command: command,
+          );
+          return CockpitCommandResult.ok(reply);
+        });
+
       default:
         return CockpitCommandResult.fail('unknown command: "${c.cmd}"');
     }

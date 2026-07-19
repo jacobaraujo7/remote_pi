@@ -88,7 +88,10 @@ class _DbPanelState extends State<DbPanel> {
       anchor,
       items: [
         const AppMenuItem(value: 'edit', label: 'Edit…', icon: Icons.edit),
-        const AppMenuItem(value: 'dbq', label: 'New query', icon: Icons.add),
+        // "New query" só faz sentido pros SQL (abre tab `.dbq`). Redis/Mongo
+        // são CLI-only.
+        if (conn.engine.isSql)
+          const AppMenuItem(value: 'dbq', label: 'New query', icon: Icons.add),
         const AppMenuItem.divider(),
         const AppMenuItem(
           value: 'delete',
@@ -148,7 +151,8 @@ class _DbPanelState extends State<DbPanel> {
     final ok = await showConfirmDialog(
       context,
       title: 'Delete connection',
-      message: 'Remove "${conn.name}" from this workspace? '
+      message:
+          'Remove "${conn.name}" from this workspace? '
           'Any saved password is discarded. .dbq files that reference it '
           'are not touched.',
       confirmLabel: 'Delete',
@@ -261,22 +265,26 @@ class _ConnectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final typo = context.typo;
+    // Redis/Mongo são CLI-only: sem árvore de schema, sem chevron.
+    final browsable = conn.engine.isSql;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 1),
           child: HoverTap(
-            onTap: onToggle,
+            onTap: browsable ? onToggle : null,
             padding: const EdgeInsets.fromLTRB(4, 5, 6, 5),
             child: Row(
               children: [
                 Icon(
-                  expanded ? Icons.expand_more : Icons.chevron_right,
-                  size: 15,
+                  browsable
+                      ? (expanded ? Icons.expand_more : Icons.chevron_right)
+                      : Icons.circle,
+                  size: browsable ? 15 : 5,
                   color: colors.text4,
                 ),
-                const SizedBox(width: 2),
+                SizedBox(width: browsable ? 2 : 7),
                 Icon(Icons.storage, size: 12, color: colors.text4),
                 const SizedBox(width: 7),
                 Expanded(
@@ -302,6 +310,10 @@ class _ConnectionTile extends StatelessWidget {
                           if (conn.origin == DbConnectionOrigin.local) ...[
                             const SizedBox(width: 6),
                             const _Chip('local'),
+                          ],
+                          if (!browsable) ...[
+                            const SizedBox(width: 6),
+                            const _Chip('CLI only'),
                           ],
                         ],
                       ),
@@ -331,7 +343,7 @@ class _ConnectionTile extends StatelessWidget {
             ),
           ),
         ),
-        if (expanded)
+        if (expanded && browsable)
           _SchemaTree(conn: conn, onNewQuery: onNewQuery),
       ],
     );
@@ -415,11 +427,7 @@ class _SchemaTreeState extends State<_SchemaTree> {
                         child: HoverTap(
                           onTap: () => widget.onNewQuery(t),
                           padding: const EdgeInsets.all(2),
-                          child: Icon(
-                            Icons.add,
-                            size: 12,
-                            color: colors.text4,
-                          ),
+                          child: Icon(Icons.add, size: 12, color: colors.text4),
                         ),
                       ),
                     ],

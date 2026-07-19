@@ -4,7 +4,9 @@ enum DbEngine {
   sqlite,
   postgres,
   mysql,
-  mssql;
+  mssql,
+  redis,
+  mongo;
 
   /// Label user-facing (inglês, regra do app).
   String get label => switch (this) {
@@ -12,6 +14,8 @@ enum DbEngine {
     DbEngine.postgres => 'Postgres',
     DbEngine.mysql => 'MySQL',
     DbEngine.mssql => 'SQL Server',
+    DbEngine.redis => 'Redis',
+    DbEngine.mongo => 'MongoDB',
   };
 
   /// Porta default do engine (0 = não se aplica).
@@ -20,7 +24,29 @@ enum DbEngine {
     DbEngine.postgres => 5432,
     DbEngine.mysql => 3306,
     DbEngine.mssql => 1433,
+    DbEngine.redis => 6379,
+    DbEngine.mongo => 27017,
   };
+
+  /// Engines SQL (query tabular + `.dbq` + árvore de schema no painel). Os
+  /// não-SQL (Redis/Mongo) são **CLI-only** por ora — sem tab nem browse.
+  bool get isSql => switch (this) {
+    DbEngine.sqlite ||
+    DbEngine.postgres ||
+    DbEngine.mysql ||
+    DbEngine.mssql => true,
+    DbEngine.redis || DbEngine.mongo => false,
+  };
+
+  /// Scheme da URL (difere do [name] no Mongo: `mongodb://`).
+  String get scheme => this == DbEngine.mongo ? 'mongodb' : name;
+
+  static DbEngine? fromScheme(String scheme) {
+    for (final e in DbEngine.values) {
+      if (e.scheme == scheme) return e;
+    }
+    return null;
+  }
 }
 
 /// De onde a conexão veio — decide o que o `save()` do store persiste e os
@@ -78,7 +104,7 @@ class DbConnection {
     return DbConnection(
       name: name,
       engine: engine,
-      url: '${engine.name}://$auth$host:$p/${Uri.encodeComponent(database)}',
+      url: '${engine.scheme}://$auth$host:$p/${Uri.encodeComponent(database)}',
       savePassword: savePassword,
       origin: origin,
     );
@@ -117,6 +143,7 @@ class DbConnection {
   String get database => _uri.pathSegments.isEmpty
       ? ''
       : Uri.decodeComponent(_uri.pathSegments.first);
+
   /// Só a parte de usuário do userinfo — NUNCA o trecho `:senha` (URLs
   /// editadas na mão podem trazê-lo; incluí-lo aqui gerava username com senha
   /// embutida e senha com `:` extra no wire — handoff 2026-07-18).
@@ -158,10 +185,10 @@ class DbConnection {
 
   static DbEngine _engineFromUrl(String url) {
     if (url.startsWith('sqlite:')) return DbEngine.sqlite;
-    final scheme = Uri.parse(url).scheme;
-    return DbEngine.values.firstWhere(
-      (e) => e.name == scheme,
-      orElse: () => throw FormatException('Unsupported database URL: $url'),
-    );
+    final engine = DbEngine.fromScheme(Uri.parse(url).scheme);
+    if (engine == null) {
+      throw FormatException('Unsupported database URL: $url');
+    }
+    return engine;
   }
 }

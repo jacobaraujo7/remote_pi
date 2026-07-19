@@ -15,5 +15,8 @@ class DbDriverRegistryImpl implements DbDriverRegistry {
     DbEngine.postgres ||
     DbEngine.mysql ||
     DbEngine.mssql => const AnakiDbDriver(),
+    // Redis/Mongo não são SQL → acesso CLI via NoSqlCommandService, não pelo
+    // contrato DbDriver.
+    DbEngine.redis || DbEngine.mongo => null,
   };
 }

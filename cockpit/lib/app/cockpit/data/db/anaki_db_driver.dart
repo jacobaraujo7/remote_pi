@@ -143,6 +143,14 @@ class AnakiDbDriver implements DbDriver {
           // `?trustcert=true` pra dev com cert self-signed.
           trustCert: params['trustcert'] == 'true',
         );
+      case DbEngine.redis:
+      case DbEngine.mongo:
+        // Não-SQL: nunca chega aqui (registry devolve null; o CLI usa o
+        // NoSqlCommandService). Fecha o switch exaustivo.
+        throw DbQueryException(
+          'unsupported_engine',
+          '${conn.engine.label} is not a SQL engine.',
+        );
     }
   }
 
@@ -244,6 +252,12 @@ class AnakiDbDriver implements DbDriver {
                   ') pk ON pk.COLUMN_NAME = c.COLUMN_NAME '
                   "WHERE c.TABLE_NAME = '$t' "
                   'ORDER BY c.ORDINAL_POSITION';
+      case DbEngine.redis:
+      case DbEngine.mongo:
+        throw const DbQueryException(
+          'unsupported_engine',
+          'Schema introspection is SQL-only.',
+        );
     }
   }
 

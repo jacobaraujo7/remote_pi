@@ -85,6 +85,10 @@ Future<void> main(List<String> argv) async {
       await _cmdRead('read-task', args);
     case 'db':
       await _cmdDb(args);
+    case 'redis':
+      await _cmdRedis(args);
+    case 'mongo':
+      await _cmdMongo(args);
     case 'install-skill':
       await _cmdInstallSkill(args);
     default:
@@ -495,6 +499,108 @@ Future<void> _cmdDb(List<String> args) async {
   _dbFail('error', raw);
 }
 
+/// `cockpit redis --db <conn> <COMMAND> [args...]` — Redis/cache (CLI-only).
+/// Saída: 1 linha JSON `{"ok": <reply>}` / `{"error":{kind,message}}`.
+Future<void> _cmdRedis(List<String> args) async {
+  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    stdout.writeln(
+      'cockpit redis --db <conn> <COMMAND> [args...]\n'
+      '  e.g. cockpit redis --db cache GET session:42\n'
+      '  Output: one JSON line. Connection registered in the Database panel.',
+    );
+    exit(args.isEmpty ? 2 : 0);
+  }
+  String? db;
+  String? workspace;
+  String? tabId;
+  final parts = <String>[];
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    if (a == '--db') {
+      db = ++i < args.length ? args[i] : null;
+    } else if (a.startsWith('--db=')) {
+      db = a.substring(5);
+    } else if (a == '--workspace') {
+      workspace = ++i < args.length ? args[i] : null;
+    } else if (a.startsWith('--workspace=')) {
+      workspace = a.substring(12);
+    } else if (a == '--tab-id') {
+      tabId = ++i < args.length ? args[i] : null;
+    } else {
+      parts.add(a);
+    }
+  }
+  if (db == null) _dbFail('error', 'missing --db <conn>');
+  if (parts.isEmpty) _dbFail('error', 'missing Redis command');
+  await _nosqlRequest('redis-cmd', {
+    'db': db,
+    'parts': parts,
+    'workspace': ?workspace,
+  }, tabId);
+}
+
+/// `cockpit mongo --db <conn> --command '<json>'` — MongoDB (CLI-only). O
+/// comando é um documento runCommand (`{"find":"users","filter":{}}`).
+Future<void> _cmdMongo(List<String> args) async {
+  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    stdout.writeln(
+      "cockpit mongo --db <conn> --command '<json>'\n"
+      "  e.g. cockpit mongo --db app --command '{\"find\":\"users\",\"filter\":{}}'\n"
+      '  The command is a MongoDB runCommand document. Output: one JSON line.',
+    );
+    exit(args.isEmpty ? 2 : 0);
+  }
+  String? db;
+  String? command;
+  String? workspace;
+  String? tabId;
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    String? take(String flag) {
+      if (a == flag) return ++i < args.length ? args[i] : null;
+      if (a.startsWith('$flag=')) return a.substring(flag.length + 1);
+      return null;
+    }
+
+    db = take('--db') ?? db;
+    command = take('--command') ?? command;
+    workspace = take('--workspace') ?? workspace;
+    tabId = take('--tab-id') ?? tabId;
+  }
+  if (db == null) _dbFail('error', 'missing --db <conn>');
+  if (command == null || command.trim().isEmpty) {
+    _dbFail('error', "missing --command '<json>'");
+  }
+  await _nosqlRequest('mongo-cmd', {
+    'db': db,
+    'command': command,
+    'workspace': ?workspace,
+  }, tabId);
+}
+
+/// Envia um comando NoSQL e imprime `{"ok": ...}` / `{"error": ...}`.
+Future<void> _nosqlRequest(
+  String wire,
+  Map<String, dynamic> cmdArgs,
+  String? tabId,
+) async {
+  final req = <String, dynamic>{'cmd': wire, 'args': cmdArgs};
+  final tid = tabId ?? _selfTabId();
+  if (tid != null && tid.isNotEmpty) req['tabId'] = tid;
+  final resp = await _request(req, timeout: const Duration(seconds: 60));
+  if (resp['ok'] == true) {
+    stdout.writeln(jsonEncode({'ok': resp['data']}));
+    exit(0);
+  }
+  final raw = (resp['error'] ?? 'failed').toString();
+  final sep = raw.indexOf(': ');
+  final kind = sep > 0 ? raw.substring(0, sep) : '';
+  if (_dbErrorKinds.contains(kind)) {
+    _dbFail(kind, raw.substring(sep + 2));
+  }
+  _dbFail('error', raw);
+}
+
 Never _dbFail(String kind, String message) {
   stdout.writeln(
     jsonEncode({
@@ -714,7 +820,9 @@ USAGE:
   cockpit list-tabs       [--json]             list active tabs (alias: list-panes)
   cockpit list-workspaces [--json]             list workspaces (projects)
   cockpit list-tasks      [--json]             list this workspace's tasks (Task Run)
-  cockpit db <list|schema|query|run|execute>   workspace databases (see `cockpit db --help`)
+  cockpit db <list|schema|query|run|execute>   SQL databases (see `cockpit db --help`)
+  cockpit redis --db <conn> <CMD> [args...]    Redis/cache command (CLI-only)
+  cockpit mongo --db <conn> --command <json>   MongoDB runCommand (CLI-only)
   cockpit install-skill   [--force]            install the Claude Code skill
   cockpit --help | --version
 
@@ -831,6 +939,13 @@ Cockpit tabs (it is not on the global PATH).
     should see the result too: the app shows it as a query tab and re-runs it
     every time you save the file.
   - Outside a Cockpit tab, add `--workspace <id|path>`.
+- `cockpit redis --db <conn> <CMD> [args...]` — Redis/cache command
+  (CLI-only; no UI tab). One JSON line reply. e.g.
+  `cockpit redis --db cache HGETALL user:42`. Covers Redis/Valkey/KeyDB.
+- `cockpit mongo --db <conn> --command '<json>'` — MongoDB runCommand
+  (CLI-only). The command is a runCommand document, e.g.
+  `cockpit mongo --db app --command '{"find":"users","filter":{"active":true}}'`.
+  Output: one JSON line `{"ok": <reply>}` / `{"error":{kind,message}}`.
 - `cockpit read-tab [<label|tab-id>] [--lines N] [--offset N] [--from-start]`
   (alias: `read-pane`) — read a tab's **rendered output** as plain text (no
   ANSI escapes; covers TUIs on the alt-screen too). Without a target it reads
