@@ -221,13 +221,11 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
       padding: const EdgeInsets.only(left: 12, right: 8),
       child: Row(
         children: [
-          Icon(Icons.search, size: 14, color: colors.text3),
-          const SizedBox(width: 8),
           Text(
             'SEARCH',
             style: typo.label.copyWith(
-              fontSize: 11,
-              letterSpacing: 0.6,
+              fontSize: 10,
+              letterSpacing: 1.1,
               color: colors.text3,
             ),
           ),

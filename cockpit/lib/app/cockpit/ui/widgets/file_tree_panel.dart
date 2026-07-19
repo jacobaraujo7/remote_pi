@@ -676,49 +676,54 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     selected: dbMode,
                     onTap: () => setState(() => _tab = _RightPaneTab.database),
                   ),
-                const Spacer(),
-                if (scMode)
-                  _HeaderIcon(
-                    key: const ValueKey('source-control-view-toggle'),
-                    icon: _sourceControlTree
-                        ? Icons.view_list_outlined
-                        : Icons.account_tree_outlined,
-                    tooltip: _sourceControlTree
-                        ? 'View as List'
-                        : 'View as Tree',
-                    onTap: () => setState(
-                      () => _sourceControlTree = !_sourceControlTree,
-                    ),
-                  ),
-                // "New file/folder" só no modo Files (o source control é
-                // leitura). O alvo é [_headerCreateTarget]: pasta/arquivo
-                // selecionado, senão a raiz (single-root). Em **multi-root** sem
-                // seleção o alvo é ambíguo ("em qual repo?") → `null` e o botão
-                // some daqui (a criação por-root vive em cada `_RootHeader`).
-                if (tab == _RightPaneTab.files &&
-                    (_headerCreateTarget()?.isNotEmpty ?? false)) ...[
-                  _HeaderIcon(
+              ],
+            ),
+          ),
+          // Título da aba ativa + ações contextuais ao lado, no padrão do
+          // painel Database (a barra de tabs acima fica só com as tabs).
+          if (widget.rootPath.isNotEmpty && tab == _RightPaneTab.files)
+            _PanelHeader(
+              title: 'FILES',
+              actions: [
+                // "New file/folder" só quando há alvo: pasta/arquivo
+                // selecionado, senão a raiz (single-root). Em **multi-root**
+                // sem seleção o alvo é ambíguo ("em qual repo?") → `null` e o
+                // botão some (a criação por-root vive em cada `_RootHeader`).
+                if (_headerCreateTarget()?.isNotEmpty ?? false) ...[
+                  _PanelHeaderAction(
                     icon: Icons.note_add_outlined,
                     tooltip: 'New file',
                     onTap: () => _headerCreate(false),
                   ),
-                  _HeaderIcon(
+                  _PanelHeaderAction(
                     icon: Icons.create_new_folder_outlined,
                     tooltip: 'New folder',
                     onTap: () => _headerCreate(true),
                   ),
                 ],
-                // Refresh é da aba Files (relê a árvore) — nas outras abas ele
-                // não faz nada, então só aparece aqui (a Database tem o dela).
-                if (tab == _RightPaneTab.files)
-                  _HeaderIcon(
-                    icon: Icons.refresh,
-                    tooltip: 'Refresh',
-                    onTap: () => setState(() => _localRefresh++),
-                  ),
+                _PanelHeaderAction(
+                  icon: Icons.refresh,
+                  tooltip: 'Refresh',
+                  onTap: () => setState(() => _localRefresh++),
+                ),
               ],
             ),
-          ),
+          if (widget.rootPath.isNotEmpty && scMode)
+            _PanelHeader(
+              title: 'SOURCE CONTROL',
+              actions: [
+                _PanelHeaderAction(
+                  key: const ValueKey('source-control-view-toggle'),
+                  icon: _sourceControlTree
+                      ? Icons.view_list_outlined
+                      : Icons.account_tree_outlined,
+                  tooltip: _sourceControlTree ? 'View as List' : 'View as Tree',
+                  onTap: () => setState(
+                    () => _sourceControlTree = !_sourceControlTree,
+                  ),
+                ),
+              ],
+            ),
           Expanded(
             child: widget.rootPath.isEmpty
                 ? Center(
@@ -2161,6 +2166,62 @@ Color? _gitColor(AppColors colors, GitFileStatus? status) {
       return colors.gitDeleted;
     case GitFileStatus.conflict:
       return colors.gitConflict;
+  }
+}
+
+/// Cabeçalho de painel no padrão da aba Database: título em caps à esquerda e
+/// ações contextuais à direita (Files e Source Control usam este).
+class _PanelHeader extends StatelessWidget {
+  const _PanelHeader({required this.title, this.actions = const []});
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 4),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: context.typo.label.copyWith(
+              fontSize: 10,
+              letterSpacing: 1.1,
+              color: colors.text3,
+            ),
+          ),
+          const Spacer(),
+          ...actions,
+        ],
+      ),
+    );
+  }
+}
+
+/// Ação de [_PanelHeader]: ícone 14px com hover, no padrão do header Database.
+class _PanelHeaderAction extends StatelessWidget {
+  const _PanelHeaderAction({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppTooltip(
+      message: tooltip,
+      child: HoverTap(
+        onTap: onTap,
+        padding: const EdgeInsets.all(3),
+        child: Icon(icon, size: 14, color: colors.text3),
+      ),
+    );
   }
 }
 
