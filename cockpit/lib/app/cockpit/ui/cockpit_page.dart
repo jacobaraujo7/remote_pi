@@ -25,7 +25,8 @@ import 'package:flutter/services.dart'
         KeyDownEvent,
         KeyEvent,
         KeyRepeatEvent,
-        LogicalKeyboardKey;
+        LogicalKeyboardKey,
+        PhysicalKeyboardKey;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -92,6 +93,7 @@ class _CockpitPageState extends State<CockpitPage> {
     // seta antes do menu). O handler global vê o evento antes da distribuição por
     // foco, então pega mesmo com um terminal focado. Ver [_handlePaneNavKey].
     HardwareKeyboard.instance.addHandler(_handlePaneNavKey);
+    HardwareKeyboard.instance.addHandler(_realmKeyHandler);
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
@@ -234,6 +236,7 @@ class _CockpitPageState extends State<CockpitPage> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handlePaneNavKey);
+    HardwareKeyboard.instance.removeHandler(_realmKeyHandler);
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
     _settings?.removeListener(_syncCockpit);
@@ -767,29 +770,31 @@ class _CockpitPageState extends State<CockpitPage> {
         _focusContentSearch,
     const SingleActivator(LogicalKeyboardKey.keyF, control: true, shift: true):
         _focusContentSearch,
-    // ⌘` / Ctrl+`: próximo realm; com Shift: anterior. O logical key de ⇧` no
-    // macOS chega como `~` (charactersIgnoringModifiers não ignora Shift),
-    // então registramos backquote E tilde pro caminho com Shift.
-    const SingleActivator(LogicalKeyboardKey.backquote, meta: true):
-        _nextRealm,
-    const SingleActivator(LogicalKeyboardKey.backquote, control: true):
-        _nextRealm,
-    const SingleActivator(LogicalKeyboardKey.backquote, meta: true, shift: true):
-        _previousRealm,
-    const SingleActivator(
-      LogicalKeyboardKey.backquote,
-      control: true,
-      shift: true,
-    ): _previousRealm,
-    const SingleActivator(LogicalKeyboardKey.tilde, meta: true, shift: true):
-        _previousRealm,
-    const SingleActivator(LogicalKeyboardKey.tilde, control: true, shift: true):
-        _previousRealm,
   };
 
-  void _nextRealm() => unawaited(_vm.cycleRealm(1));
-
-  void _previousRealm() => unawaited(_vm.cycleRealm(-1));
+  /// ⌘`/Ctrl+` próximo realm; com Shift, anterior. Handler **global** no
+  /// [HardwareKeyboard] (registrado no initState), não um `CallbackShortcuts`:
+  ///
+  /// - `CallbackShortcuts` só recebe teclas com o foco primário DENTRO da
+  ///   subtree — ciclar o realm destrói o nó focado (terminal/agente da árvore
+  ///   antiga), o foco cai pro scope raiz e o atalho morria após o 1º uso;
+  /// - casa pela **physical key**: a logical de ⇧` no macOS vira `~` (e a
+  ///   combinação ⌘⇧ não batia com backquote nem tilde de forma confiável) —
+  ///   pela física, Shift só decide a direção.
+  ///
+  /// Só `KeyDownEvent` (repeat não re-dispara); com Alt junto, ignora.
+  bool _realmKeyHandler(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.physicalKey != PhysicalKeyboardKey.backquote) {
+      return false;
+    }
+    final keys = HardwareKeyboard.instance;
+    if ((!keys.isMetaPressed && !keys.isControlPressed) || keys.isAltPressed) {
+      return false;
+    }
+    unawaited(_vm.cycleRealm(keys.isShiftPressed ? -1 : 1));
+    return true;
+  }
 
   @override
   Widget build(BuildContext context) {
