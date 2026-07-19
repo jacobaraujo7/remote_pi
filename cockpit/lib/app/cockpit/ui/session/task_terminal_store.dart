@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Mantém **um emulador [Terminal] por task**, alimentado continuamente pelo
 /// output do runner — independente de haver ou não uma aba aberta. É isso que

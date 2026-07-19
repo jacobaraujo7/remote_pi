@@ -1,36 +1,20 @@
-// Fork do `TerminalPainter` do xterm (src/ui/painter.dart) pro cockpit. Trazido
-// pra dentro pra controlarmos a **pintura de célula** — o último pedaço que ainda
-// vivia no pacote. Reusa `palette_builder`, `paragraph_cache` e os glifos
-// procedurais (`builtin_glyphs`) do xterm via impl imports; só a lógica que
-// precisamos mexer fica aqui.
-//
-// Mudança vs. o original: **sublinhado desenhado por nós**. O xterm passa
-// `underline: true` pro `TextStyle` da fonte e desenha um `Paragraph` por
-// caractere — o sublinhado sai segmentado e grosso por célula, "riscando" o texto
-// e atrapalhando a leitura (links/títulos do Claude). Aqui o glifo é pintado sem
-// decoração e o sublinhado vira uma hairline fina, crisp (`isAntiAlias=false`) e
-// contínua (+1px de largura emenda com a célula seguinte), no rodapé da célula.
-//
-// ignore_for_file: implementation_imports
 import 'dart:ui';
 import 'package:flutter/painting.dart';
 
-import 'package:xterm/src/ui/builtin_glyphs.dart';
-import 'package:xterm/src/ui/palette_builder.dart';
-import 'package:xterm/src/ui/paragraph_cache.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/builtin_glyphs.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/palette_builder.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/paragraph_cache.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Encapsulates the logic for painting various terminal elements.
-class CockpitTerminalPainter {
-  CockpitTerminalPainter({
+class TerminalPainter {
+  TerminalPainter({
     required TerminalTheme theme,
     required TerminalStyle textStyle,
     required TextScaler textScaler,
-    required double devicePixelRatio,
   }) : _textStyle = textStyle,
        _theme = theme,
-       _textScaler = textScaler,
-       _devicePixelRatio = devicePixelRatio;
+       _textScaler = textScaler;
 
   /// A lookup table from terminal colors to Flutter colors.
   late var _colorPalette = PaletteBuilder(_theme).build();
@@ -70,30 +54,6 @@ class CockpitTerminalPainter {
     _paragraphCache.clear();
   }
 
-  /// Densidade física da tela (pode mudar ao arrastar a janela entre monitores).
-  /// O [cellSize] é encaixado nesse grid (ver [_snapToDevicePixel]); o glifo
-  /// (Paragraph) é independente de DPR, então o cache de parágrafo não precisa
-  /// ser limpo aqui — só re-medimos a célula.
-  double get devicePixelRatio => _devicePixelRatio;
-  double _devicePixelRatio;
-  set devicePixelRatio(double value) {
-    if (value == _devicePixelRatio) return;
-    _devicePixelRatio = value;
-    _cellSize = _measureCharSize();
-  }
-
-  /// Arredonda uma dimensão lógica pro pixel físico mais próximo. Assim a largura
-  /// de célula × DPR vira inteiro → toda origem de célula (`i * cellWidth`) cai
-  /// num pixel inteiro do device. É o que iTerm2/Ghostty fazem; sem isso a
-  /// métrica fracionária do xterm perde fatias de cobertura → blocos pálidos e
-  /// costurados, texto mais borrado.
-  double _snapToDevicePixel(double logical) {
-    final dpr = _devicePixelRatio;
-    if (dpr <= 0) return logical;
-    final snapped = (logical * dpr).roundToDouble() / dpr;
-    return snapped <= 0 ? logical : snapped;
-  }
-
   Size _measureCharSize() {
     const test = 'mmmmmmmmmm';
 
@@ -106,8 +66,8 @@ class CockpitTerminalPainter {
     paragraph.layout(ParagraphConstraints(width: double.infinity));
 
     final result = Size(
-      _snapToDevicePixel(paragraph.maxIntrinsicWidth / test.length),
-      _snapToDevicePixel(paragraph.height),
+      paragraph.maxIntrinsicWidth / test.length,
+      paragraph.height,
     );
 
     paragraph.dispose();
@@ -206,14 +166,10 @@ class CockpitTerminalPainter {
   @pragma('vm:prefer-inline')
   void paintCellForeground(Canvas canvas, Offset offset, CellData cellData) {
     final charCode = cellData.content & CellContent.codepointMask;
-    final cellFlags = cellData.flags;
-    final underlined = cellFlags & CellFlags.underline != 0;
-
-    // Célula vazia (nunca escrita): nada — nem sublinhado, pra a linha não vazar
-    // pra além do texto. Espaços de verdade (0x20) têm content != 0 e caem no
-    // caminho normal, então o sublinhado emenda entre palavras.
     if (charCode == 0) return;
 
+    // Block Elements / Box Drawing: paint procedurally so they fill the cell
+    // exactly and tile without gaps, instead of relying on the font glyph.
     if (paintBuiltinGlyph(
       canvas,
       offset,
@@ -221,7 +177,6 @@ class CockpitTerminalPainter {
       charCode,
       _resolveForegroundColor(cellData),
     )) {
-      if (underlined) _paintUnderline(canvas, offset, cellData);
       return;
     }
 
@@ -229,18 +184,27 @@ class CockpitTerminalPainter {
     var paragraph = _paragraphCache.getLayoutFromCache(cacheKey);
 
     if (paragraph == null) {
+      final cellFlags = cellData.flags;
+
       final color = _resolveForegroundColor(cellData);
 
-      // Sem `underline:` aqui de propósito — nós o desenhamos em
-      // [_paintUnderline], contínuo e fino. (Por isso some o workaround
-      // 0x20→0xA0 do original: a fonte não pinta mais sublinhado.)
       final style = _textStyle.toTextStyle(
         color: color,
         bold: cellFlags & CellFlags.bold != 0,
         italic: cellFlags & CellFlags.italic != 0,
+        underline: cellFlags & CellFlags.underline != 0,
       );
 
-      final char = String.fromCharCode(charCode);
+      // Flutter does not draw an underline below a space which is not between
+      // other regular characters. As only single characters are drawn, this
+      // will never produce an underline below a space in the terminal. As a
+      // workaround the regular space CodePoint 0x20 is replaced with
+      // the CodePoint 0xA0. This is a non breaking space and a underline can be
+      // drawn below it.
+      var char = String.fromCharCode(charCode);
+      if (cellFlags & CellFlags.underline != 0 && charCode == 0x20) {
+        char = String.fromCharCode(0xA0);
+      }
 
       paragraph = _paragraphCache.performAndCacheLayout(
         char,
@@ -251,28 +215,6 @@ class CockpitTerminalPainter {
     }
 
     canvas.drawParagraph(paragraph, offset);
-
-    if (underlined) _paintUnderline(canvas, offset, cellData);
-  }
-
-  /// Sublinhado próprio: hairline fina, crisp e contínua no rodapé da célula.
-  /// Substitui a decoração por-célula da fonte (segmentada/grossa). `+1` na
-  /// largura emenda com a célula seguinte; `isAntiAlias=false` mantém 1px nítido.
-  @pragma('vm:prefer-inline')
-  void _paintUnderline(Canvas canvas, Offset offset, CellData cellData) {
-    final thickness = (_cellSize.height / 14).clamp(1.0, 2.0).floorToDouble();
-    final paint = Paint()
-      ..color = _resolveForegroundColor(cellData)
-      ..isAntiAlias = false;
-    canvas.drawRect(
-      Rect.fromLTWH(
-        offset.dx,
-        offset.dy + _cellSize.height - thickness,
-        _cellSize.width + 1,
-        thickness,
-      ),
-      paint,
-    );
   }
 
   /// The effective foreground color of [cellData], honoring the inverse and

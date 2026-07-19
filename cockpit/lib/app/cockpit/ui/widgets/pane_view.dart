@@ -37,7 +37,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Folha do multiplexador: tab strip + corpo (agente: transcript+composer / empty;
 /// terminal: TerminalView). O foco aparece **só na aba ativa**.

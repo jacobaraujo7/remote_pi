@@ -1,48 +1,26 @@
-// Fork do `RenderTerminal` do xterm (src/ui/render.dart), trazido pra dentro do
-// cockpit pra ganharmos controle do *renderer* sem manter um fork do pacote
-// inteiro. O "cérebro" (parser ANSI + buffer) continua sendo o do xterm; aqui só
-// trocamos o *pintor*.
-//
-// Única mudança funcional vs. o original: **cache de `ui.Picture` por linha**.
-// O xterm re-grava cada célula visível (drawRect do fundo + drawParagraph do
-// glifo) a cada frame — ~10k draw calls por frame quando um harness despeja
-// saída, daí a lentidão. Aqui gravamos cada *linha* num `Picture` chaveado pelo
-// hash do conteúdo: linhas estáveis viram um único `drawPicture` (barato na GPU)
-// e só as linhas que mudaram são re-gravadas. Cursor, seleção e highlights
-// continuam pintados por cima, ao vivo (não entram no cache da linha), então
-// selecionar/piscar cursor não invalida nada.
-//
-// Reusamos o `CockpitTerminalPainter` do xterm (que já tem cache de parágrafo, glifos
-// procedurais de bloco/borda do nosso fork e resolução correta de cor/flags) —
-// não há por que reescrever a pintura de célula, que está correta.
-//
-// ignore_for_file: implementation_imports
 import 'dart:math' show max;
 import 'dart:ui';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
-import 'package:xterm/src/core/buffer/cell_offset.dart';
-import 'package:xterm/src/core/buffer/line.dart';
-import 'package:xterm/src/core/buffer/range.dart';
-import 'package:xterm/src/core/buffer/segment.dart';
-import 'package:xterm/src/core/mouse/button.dart';
-import 'package:xterm/src/core/mouse/button_state.dart';
-import 'package:xterm/src/terminal.dart';
-import 'package:xterm/src/ui/controller.dart';
-import 'package:xterm/src/ui/cursor_type.dart';
-import 'package:xterm/src/ui/selection_mode.dart';
-import 'package:xterm/src/ui/terminal_size.dart';
-import 'package:xterm/src/ui/terminal_text_style.dart';
-import 'package:xterm/src/ui/terminal_theme.dart';
-
-import 'cockpit_terminal_painter.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/buffer/cell_offset.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/buffer/range.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/buffer/segment.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/mouse/button.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/mouse/button_state.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/terminal.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/cursor_type.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/painter.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/selection_mode.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/terminal_size.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/terminal_text_style.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/terminal_theme.dart';
 
 typedef EditableRectCallback = void Function(Rect rect, Rect caretRect);
 
-class CockpitTerminalRender extends RenderBox
-    with RelayoutWhenSystemFontsChangeMixin {
-  CockpitTerminalRender({
+class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
+  RenderTerminal({
     required Terminal terminal,
     required TerminalController controller,
     required ViewportOffset offset,
@@ -54,7 +32,6 @@ class CockpitTerminalRender extends RenderBox
     required FocusNode focusNode,
     required TerminalCursorType cursorType,
     required bool alwaysShowCursor,
-    required double devicePixelRatio,
     EditableRectCallback? onEditableRect,
     String? composingText,
   }) : _terminal = terminal,
@@ -67,11 +44,10 @@ class CockpitTerminalRender extends RenderBox
        _alwaysShowCursor = alwaysShowCursor,
        _onEditableRect = onEditableRect,
        _composingText = composingText,
-       _painter = CockpitTerminalPainter(
+       _painter = TerminalPainter(
          theme: theme,
          textStyle: textStyle,
          textScaler: textScaler,
-         devicePixelRatio: devicePixelRatio,
        );
 
   Terminal _terminal;
@@ -80,7 +56,6 @@ class CockpitTerminalRender extends RenderBox
     if (attached) _terminal.removeListener(_onTerminalChange);
     _terminal = terminal;
     if (attached) _terminal.addListener(_onTerminalChange);
-    _lineCache.clear();
     _resizeTerminalIfNeeded();
     markNeedsLayout();
   }
@@ -120,30 +95,19 @@ class CockpitTerminalRender extends RenderBox
   set textStyle(TerminalStyle value) {
     if (value == _painter.textStyle) return;
     _painter.textStyle = value;
-    _lineCache
-        .clear(); // glifos mudam de tamanho/forma → pictures velhas inválidas
     markNeedsLayout();
   }
 
   set textScaler(TextScaler value) {
     if (value == _painter.textScaler) return;
     _painter.textScaler = value;
-    _lineCache.clear();
     markNeedsLayout();
   }
 
   set theme(TerminalTheme value) {
     if (value == _painter.theme) return;
     _painter.theme = value;
-    _lineCache.clear(); // cores mudam → re-gravar tudo
     markNeedsPaint();
-  }
-
-  set devicePixelRatio(double value) {
-    if (value == _painter.devicePixelRatio) return;
-    _painter.devicePixelRatio = value; // re-snap do cellSize → relayout
-    _lineCache.clear();
-    markNeedsLayout();
   }
 
   FocusNode _focusNode;
@@ -185,10 +149,7 @@ class CockpitTerminalRender extends RenderBox
 
   TerminalSize? _viewportSize;
 
-  final CockpitTerminalPainter _painter;
-
-  /// Cache de uma `Picture` por conteúdo de linha (ver nota no topo do arquivo).
-  final _lineCache = _LinePictureCache(maxSize: 512);
+  final TerminalPainter _painter;
 
   var _stickToBottom = true;
 
@@ -233,12 +194,6 @@ class CockpitTerminalRender extends RenderBox
   }
 
   @override
-  void dispose() {
-    _lineCache.clear(); // libera os Pictures nativos
-    super.dispose();
-  }
-
-  @override
   bool hitTestSelf(Offset position) {
     return true;
   }
@@ -246,7 +201,6 @@ class CockpitTerminalRender extends RenderBox
   @override
   void systemFontsDidChange() {
     _painter.clearFontCache();
-    _lineCache.clear();
     super.systemFontsDidChange();
   }
 
@@ -268,7 +222,9 @@ class CockpitTerminalRender extends RenderBox
       _terminal.buffer.lines.length * _painter.cellSize.height;
 
   /// The distance from the top of the terminal to the top of the viewport.
+  // double get _scrollOffset => _offset.pixels;
   double get _scrollOffset {
+    // return _offset.pixels ~/ _painter.cellSize.height * _painter.cellSize.height;
     return _offset.pixels;
   }
 
@@ -458,23 +414,11 @@ class CockpitTerminalRender extends RenderBox
     final effectLastLine = lastLine.clamp(0, lines.length - 1);
 
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
-      final line = lines[i];
-      final dy = (i * charHeight + _lineOffset).truncateToDouble();
-
-      // Cache por conteúdo: a Picture é gravada em (0,0) e reposicionada no draw,
-      // então linhas com o mesmo conteúdo (ex.: várias linhas em branco) e a
-      // mesma linha em frames seguintes reaproveitam a mesma Picture.
-      final key = _hashLine(line);
-      var picture = _lineCache.get(key);
-      if (picture == null) {
-        picture = _recordLine(line);
-        _lineCache.put(key, picture);
-      }
-
-      canvas.save();
-      canvas.translate(offset.dx, offset.dy + dy);
-      canvas.drawPicture(picture);
-      canvas.restore();
+      _painter.paintLine(
+        canvas,
+        offset.translate(0, (i * charHeight + _lineOffset).truncateToDouble()),
+        lines[i],
+      );
     }
 
     if (_terminal.buffer.absoluteCursorY >= effectFirstLine &&
@@ -508,30 +452,6 @@ class CockpitTerminalRender extends RenderBox
         effectLastLine,
       );
     }
-  }
-
-  /// Grava uma única linha (fundo + glifos) num `Picture`, em (0,0). Reusa o
-  /// `CockpitTerminalPainter` do xterm, então herda cache de parágrafo e glifos
-  /// procedurais sem reimplementar nada.
-  Picture _recordLine(BufferLine line) {
-    final recorder = PictureRecorder();
-    final canvas = Canvas(recorder);
-    _painter.paintLine(canvas, Offset.zero, line);
-    return recorder.endRecording();
-  }
-
-  /// Hash FNV-1a sobre as células da linha (4 ints por célula no buffer do
-  /// xterm). Barato comparado a re-gravar a linha; é o que decide se a Picture
-  /// cacheada ainda vale.
-  int _hashLine(BufferLine line) {
-    final data = line.data;
-    final count = line.length * 4;
-    var hash = 0x811c9dc5;
-    for (var i = 0; i < count; i++) {
-      hash = (hash ^ data[i]) & 0xffffffff;
-      hash = (hash * 0x01000193) & 0xffffffff;
-    }
-    return hash;
   }
 
   /// Paints the text that is currently being composed in IME to [canvas] at
@@ -626,37 +546,5 @@ class CockpitTerminalRender extends RenderBox
     );
 
     _painter.paintHighlight(canvas, startOffset, end - start, color);
-  }
-}
-
-/// LRU mínimo de `Picture` por linha. Um `Map` em Dart preserva a ordem de
-/// inserção, então a chave mais antiga é a primeira; ao acessar, reinserimos pra
-/// promover a MRU. Pictures evictadas/limpas são `dispose()`-adas (recurso
-/// nativo — não some sozinho).
-class _LinePictureCache {
-  _LinePictureCache({required this.maxSize});
-
-  final int maxSize;
-  final _map = <int, Picture>{};
-
-  Picture? get(int key) {
-    final picture = _map.remove(key);
-    if (picture != null) _map[key] = picture; // promove a MRU
-    return picture;
-  }
-
-  void put(int key, Picture picture) {
-    _map[key] = picture;
-    if (_map.length > maxSize) {
-      final oldestKey = _map.keys.first;
-      _map.remove(oldestKey)?.dispose();
-    }
-  }
-
-  void clear() {
-    for (final picture in _map.values) {
-      picture.dispose();
-    }
-    _map.clear();
   }
 }

@@ -1,25 +1,15 @@
-// Fork do `TerminalGestureHandler` do xterm (src/ui/gesture/gesture_handler.dart).
-// Forkado só porque o original tipa `terminalView` como o `TerminalViewState` do
-// xterm — precisamos do nosso [CockpitTerminalState] pra alcançar o
-// [CockpitTerminalRender]. A lógica (tap/drag/double-tap → seleção; encaminhar
-// mouse pro terminal) é idêntica. O `TerminalGestureDetector` é view-agnóstico,
-// então o reusamos direto do pacote.
-//
-// ignore_for_file: implementation_imports
 import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart' show HardwareKeyboard;
 import 'package:flutter/widgets.dart';
-import 'package:xterm/src/core/mouse/button.dart';
-import 'package:xterm/src/core/mouse/button_state.dart';
-import 'package:xterm/src/core/mouse/mode.dart';
-import 'package:xterm/src/ui/controller.dart';
-import 'package:xterm/src/ui/gesture/gesture_detector.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/mouse/button.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/mouse/button_state.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/terminal_view.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/gesture/gesture_detector.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/pointer_input.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/render.dart';
 
-import 'cockpit_terminal.dart';
-import 'cockpit_terminal_render.dart';
-
-class CockpitTerminalGestureHandler extends StatefulWidget {
-  const CockpitTerminalGestureHandler({
+class TerminalGestureHandler extends StatefulWidget {
+  const TerminalGestureHandler({
     super.key,
     required this.terminalView,
     required this.terminalController,
@@ -34,7 +24,7 @@ class CockpitTerminalGestureHandler extends StatefulWidget {
     this.readOnly = false,
   });
 
-  final CockpitTerminalState terminalView;
+  final TerminalViewState terminalView;
 
   final TerminalController terminalController;
 
@@ -57,15 +47,13 @@ class CockpitTerminalGestureHandler extends StatefulWidget {
   final bool readOnly;
 
   @override
-  State<CockpitTerminalGestureHandler> createState() =>
-      _CockpitTerminalGestureHandlerState();
+  State<TerminalGestureHandler> createState() => _TerminalGestureHandlerState();
 }
 
-class _CockpitTerminalGestureHandlerState
-    extends State<CockpitTerminalGestureHandler> {
-  CockpitTerminalState get terminalView => widget.terminalView;
+class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
+  TerminalViewState get terminalView => widget.terminalView;
 
-  CockpitTerminalRender get renderTerminal => terminalView.renderTerminal;
+  RenderTerminal get renderTerminal => terminalView.renderTerminal;
 
   DragStartDetails? _lastDragStartDetails;
 
@@ -83,6 +71,7 @@ class _CockpitTerminalGestureHandlerState
       onTertiaryTapUp: onSecondaryTapUp,
       onLongPressStart: onLongPressStart,
       onLongPressMoveUpdate: onLongPressMoveUpdate,
+      // onLongPressUp: onLongPressUp,
       onDragStart: onDragStart,
       onDragUpdate: onDragUpdate,
       onDoubleTapDown: onDoubleTapDown,
@@ -90,19 +79,9 @@ class _CockpitTerminalGestureHandlerState
     );
   }
 
-  /// Seleção local (overlay do nosso renderer) só é permitida quando a app
-  /// **não** dona o mouse, ou quando ⌥ está segurado (escape hatch pra copiar,
-  /// igual iTerm). Com a app no comando (claude/vim), os cliques vão pra ela e a
-  /// seleção é dela — não pintamos uma segunda por cima.
-  bool get _localSelectionAllowed =>
-      terminalView.widget.terminal.mouseMode == MouseMode.none ||
-      HardwareKeyboard.instance.isAltPressed;
-
-  // O forward de mouse pra TUI (down/motion/up) é feito pelo [TerminalPane], que
-  // é a única autoridade — ele vê os eventos crus de ponteiro e sabe encaminhar
-  // o arraste como motion. Aqui NÃO encaminhamos tap (evita reportar o clique
-  // duas vezes pra app). Mantemos só o callback de foco no onTapDown.
-  static const bool _shouldSendTapEvent = false;
+  bool get _shouldSendTapEvent =>
+      !widget.readOnly &&
+      widget.terminalController.shouldSendPointerInput(PointerInput.tap);
 
   void _tapDown(
     GestureTapDownCallback? callback,
@@ -110,6 +89,7 @@ class _CockpitTerminalGestureHandlerState
     TerminalMouseButton button, {
     bool forceCallback = false,
   }) {
+    // Check if the terminal should and can handle the tap down event.
     var handled = false;
     if (_shouldSendTapEvent) {
       handled = renderTerminal.mouseEvent(
@@ -118,6 +98,7 @@ class _CockpitTerminalGestureHandlerState
         details.localPosition,
       );
     }
+    // If the event was not handled by the terminal, use the supplied callback.
     if (!handled || forceCallback) {
       callback?.call(details);
     }
@@ -129,6 +110,7 @@ class _CockpitTerminalGestureHandlerState
     TerminalMouseButton button, {
     bool forceCallback = false,
   }) {
+    // Check if the terminal should and can handle the tap up event.
     var handled = false;
     if (_shouldSendTapEvent) {
       handled = renderTerminal.mouseEvent(
@@ -137,6 +119,7 @@ class _CockpitTerminalGestureHandlerState
         details.localPosition,
       );
     }
+    // If the event was not handled by the terminal, use the supplied callback.
     if (!handled || forceCallback) {
       callback?.call(details);
     }
@@ -144,7 +127,7 @@ class _CockpitTerminalGestureHandlerState
 
   void onTapDown(TapDownDetails details) {
     // onTapDown is special, as it will always call the supplied callback.
-    // The CockpitTerminal depends on it to bring the terminal into focus.
+    // The TerminalView depends on it to bring the terminal into focus.
     _tapDown(
       widget.onTapDown,
       details,
@@ -174,28 +157,24 @@ class _CockpitTerminalGestureHandlerState
   }
 
   void onDoubleTapDown(TapDownDetails details) {
-    // Com a app no comando do mouse, o duplo-clique vira seleção de palavra DELA
-    // (via taps encaminhados) — não pintamos uma local por cima.
-    if (!_localSelectionAllowed) return;
     renderTerminal.selectWord(details.localPosition);
   }
 
   void onLongPressStart(LongPressStartDetails details) {
-    if (!_localSelectionAllowed) return;
     _lastLongPressStartDetails = details;
     renderTerminal.selectWord(details.localPosition);
   }
 
   void onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
-    if (!_localSelectionAllowed) return;
     renderTerminal.selectWord(
       _lastLongPressStartDetails!.localPosition,
       details.localPosition,
     );
   }
 
+  // void onLongPressUp() {}
+
   void onDragStart(DragStartDetails details) {
-    if (!_localSelectionAllowed) return;
     _lastDragStartDetails = details;
 
     details.kind == PointerDeviceKind.mouse
@@ -204,7 +183,6 @@ class _CockpitTerminalGestureHandlerState
   }
 
   void onDragUpdate(DragUpdateDetails details) {
-    if (!_localSelectionAllowed || _lastDragStartDetails == null) return;
     renderTerminal.selectCharacters(
       _lastDragStartDetails!.localPosition,
       details.localPosition,

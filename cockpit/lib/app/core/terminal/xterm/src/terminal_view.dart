@@ -1,39 +1,28 @@
-// Fork do `TerminalView` do xterm (src/terminal_view.dart) pro cockpit. Cópia
-// quase literal: toda a fiação de teclado/IME/gestos/scroll/atalhos é a do xterm
-// (madura, sem regressão). A ÚNICA diferença é instanciar o nosso
-// [CockpitTerminalRender] (com cache de Picture por linha) em vez do
-// `RenderTerminal` original — ver cockpit_terminal_render.dart.
-//
-// Precisamos forkar o view (e não só o render) porque o `_TerminalView` privado
-// do xterm cria o `RenderTerminal` concreto lá dentro: não há ponto de injeção
-// pra trocar o render mantendo o view do pacote.
-//
-// ignore_for_file: implementation_imports
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:xterm/src/core/buffer/cell_offset.dart';
-import 'package:xterm/src/core/input/keys.dart';
-import 'package:xterm/src/terminal.dart';
-import 'package:xterm/src/ui/controller.dart';
-import 'package:xterm/src/ui/cursor_type.dart';
-import 'package:xterm/src/ui/custom_text_edit.dart';
-import 'package:xterm/src/ui/input_map.dart';
-import 'package:xterm/src/ui/keyboard_listener.dart';
-import 'package:xterm/src/ui/keyboard_visibility.dart';
-import 'package:xterm/src/ui/scroll_handler.dart';
-import 'package:xterm/src/ui/shortcut/actions.dart';
-import 'package:xterm/src/ui/shortcut/shortcuts.dart';
-import 'package:xterm/src/ui/terminal_text_style.dart';
-import 'package:xterm/src/ui/terminal_theme.dart';
-import 'package:xterm/src/ui/themes.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/buffer/cell_offset.dart';
 
-import 'cockpit_terminal_gesture.dart';
-import 'cockpit_terminal_render.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/core/input/keys.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/terminal.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/cursor_type.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/custom_text_edit.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/gesture/gesture_handler.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/input_map.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/keyboard_listener.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/keyboard_visibility.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/render.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/scroll_handler.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/shortcut/actions.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/shortcut/shortcuts.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/terminal_text_style.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/terminal_theme.dart';
+import 'package:cockpit/app/core/terminal/xterm/src/ui/themes.dart';
 
-class CockpitTerminal extends StatefulWidget {
-  const CockpitTerminal(
+class TerminalView extends StatefulWidget {
+  const TerminalView(
     this.terminal, {
     super.key,
     this.controller,
@@ -154,10 +143,10 @@ class CockpitTerminal extends StatefulWidget {
   final bool simulateScroll;
 
   @override
-  State<CockpitTerminal> createState() => CockpitTerminalState();
+  State<TerminalView> createState() => TerminalViewState();
 }
 
-class CockpitTerminalState extends State<CockpitTerminal> {
+class TerminalViewState extends State<TerminalView> {
   late FocusNode _focusNode;
 
   late final ShortcutManager _shortcutManager;
@@ -174,15 +163,8 @@ class CockpitTerminalState extends State<CockpitTerminal> {
 
   late ScrollController _scrollController;
 
-  /// True quando a app (claude/vim) declarou mouse reporting com scroll
-  /// (`MouseMode.reportScroll`): nesse caso **ela** dona o scroll, então
-  /// desligamos o nosso `Scrollable` (vira `NeverScrollableScrollPhysics`) e
-  /// deixamos o [TerminalPane] encaminhar o wheel pra app. Atualizado por um
-  /// listener no terminal porque o mouse mode muda via sequência de escape.
-  bool _appOwnsScroll = false;
-
-  CockpitTerminalRender get renderTerminal =>
-      _viewportKey.currentContext!.findRenderObject() as CockpitTerminalRender;
+  RenderTerminal get renderTerminal =>
+      _viewportKey.currentContext!.findRenderObject() as RenderTerminal;
 
   @override
   void initState() {
@@ -192,28 +174,11 @@ class CockpitTerminalState extends State<CockpitTerminal> {
     _shortcutManager = ShortcutManager(
       shortcuts: widget.shortcuts ?? defaultTerminalShortcuts,
     );
-    _appOwnsScroll = widget.terminal.mouseMode.reportScroll;
-    widget.terminal.addListener(_onTerminalMouseModeMaybeChanged);
     super.initState();
   }
 
-  /// O mouse mode da app muda via escape (DECSET 1000/1002/1006…), processado em
-  /// `terminal.write`, que notifica os listeners. Só reconstruímos quando o bit
-  /// de "app dona o scroll" realmente vira — não a cada frame de output.
-  void _onTerminalMouseModeMaybeChanged() {
-    final owns = widget.terminal.mouseMode.reportScroll;
-    if (owns != _appOwnsScroll) {
-      setState(() => _appOwnsScroll = owns);
-    }
-  }
-
   @override
-  void didUpdateWidget(CockpitTerminal oldWidget) {
-    if (oldWidget.terminal != widget.terminal) {
-      oldWidget.terminal.removeListener(_onTerminalMouseModeMaybeChanged);
-      widget.terminal.addListener(_onTerminalMouseModeMaybeChanged);
-      _appOwnsScroll = widget.terminal.mouseMode.reportScroll;
-    }
+  void didUpdateWidget(TerminalView oldWidget) {
     if (oldWidget.focusNode != widget.focusNode) {
       if (oldWidget.focusNode == null) {
         _focusNode.dispose();
@@ -238,7 +203,6 @@ class CockpitTerminalState extends State<CockpitTerminal> {
 
   @override
   void dispose() {
-    widget.terminal.removeListener(_onTerminalMouseModeMaybeChanged);
     if (widget.focusNode == null) {
       _focusNode.dispose();
     }
@@ -257,11 +221,8 @@ class CockpitTerminalState extends State<CockpitTerminal> {
     Widget child = Scrollable(
       key: _scrollableKey,
       controller: _scrollController,
-      // App dona o scroll (claude/vim com mouse reporting) → não rolamos o nosso
-      // scrollback; o wheel é encaminhado pra app pelo [TerminalPane].
-      physics: _appOwnsScroll ? const NeverScrollableScrollPhysics() : null,
       viewportBuilder: (context, offset) {
-        return _CockpitTerminalLeaf(
+        return _TerminalView(
           key: _viewportKey,
           terminal: widget.terminal,
           controller: _controller,
@@ -274,30 +235,19 @@ class CockpitTerminalState extends State<CockpitTerminal> {
           focusNode: _focusNode,
           cursorType: widget.cursorType,
           alwaysShowCursor: widget.alwaysShowCursor,
-          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
           onEditableRect: _onEditableRect,
           composingText: _composingText,
         );
       },
     );
 
-    // Quando a app dona o scroll (claude/vim com mouse reporting), o [TerminalPane]
-    // é a única autoridade do wheel — ele encaminha em ambos os buffers. Nesse
-    // modo NÃO montamos o TerminalScrollGestureHandler do xterm: no alt-buffer ele
-    // criaria um segundo `Scrollable` (InfiniteScrollView) que disputa o mesmo
-    // pointer signal com o nosso `Listener` — a disputa dos dois scrollables era o
-    // que travava o scroll (e pesava no gesture arena). Fora desse modo (shell
-    // normal, `less`/`man` sem mouse reporting) o handler do xterm segue ativo pra
-    // rolar o scrollback / simular setas no alt-buffer.
-    if (!_appOwnsScroll) {
-      child = TerminalScrollGestureHandler(
-        terminal: widget.terminal,
-        simulateScroll: widget.simulateScroll,
-        getCellOffset: (offset) => renderTerminal.getCellOffset(offset),
-        getLineHeight: () => renderTerminal.lineHeight,
-        child: child,
-      );
-    }
+    child = TerminalScrollGestureHandler(
+      terminal: widget.terminal,
+      simulateScroll: widget.simulateScroll,
+      getCellOffset: (offset) => renderTerminal.getCellOffset(offset),
+      getLineHeight: () => renderTerminal.lineHeight,
+      child: child,
+    );
 
     if (!widget.hardwareKeyboardOnly) {
       child = CustomTextEdit(
@@ -343,7 +293,7 @@ class CockpitTerminalState extends State<CockpitTerminal> {
 
     child = KeyboardVisibilty(onKeyboardShow: _onKeyboardShow, child: child);
 
-    child = CockpitTerminalGestureHandler(
+    child = TerminalGestureHandler(
       terminalView: this,
       terminalController: _controller,
       onTapUp: _onTapUp,
@@ -498,8 +448,8 @@ class CockpitTerminalState extends State<CockpitTerminal> {
   }
 }
 
-class _CockpitTerminalLeaf extends LeafRenderObjectWidget {
-  const _CockpitTerminalLeaf({
+class _TerminalView extends LeafRenderObjectWidget {
+  const _TerminalView({
     super.key,
     required this.terminal,
     required this.controller,
@@ -512,7 +462,6 @@ class _CockpitTerminalLeaf extends LeafRenderObjectWidget {
     required this.focusNode,
     required this.cursorType,
     required this.alwaysShowCursor,
-    required this.devicePixelRatio,
     this.onEditableRect,
     this.composingText,
   });
@@ -539,15 +488,13 @@ class _CockpitTerminalLeaf extends LeafRenderObjectWidget {
 
   final bool alwaysShowCursor;
 
-  final double devicePixelRatio;
-
   final EditableRectCallback? onEditableRect;
 
   final String? composingText;
 
   @override
-  CockpitTerminalRender createRenderObject(BuildContext context) {
-    return CockpitTerminalRender(
+  RenderTerminal createRenderObject(BuildContext context) {
+    return RenderTerminal(
       terminal: terminal,
       controller: controller,
       offset: offset,
@@ -559,17 +506,13 @@ class _CockpitTerminalLeaf extends LeafRenderObjectWidget {
       focusNode: focusNode,
       cursorType: cursorType,
       alwaysShowCursor: alwaysShowCursor,
-      devicePixelRatio: devicePixelRatio,
       onEditableRect: onEditableRect,
       composingText: composingText,
     );
   }
 
   @override
-  void updateRenderObject(
-    BuildContext context,
-    CockpitTerminalRender renderObject,
-  ) {
+  void updateRenderObject(BuildContext context, RenderTerminal renderObject) {
     renderObject
       ..terminal = terminal
       ..controller = controller
@@ -582,7 +525,6 @@ class _CockpitTerminalLeaf extends LeafRenderObjectWidget {
       ..focusNode = focusNode
       ..cursorType = cursorType
       ..alwaysShowCursor = alwaysShowCursor
-      ..devicePixelRatio = devicePixelRatio
       ..onEditableRect = onEditableRect
       ..composingText = composingText;
   }

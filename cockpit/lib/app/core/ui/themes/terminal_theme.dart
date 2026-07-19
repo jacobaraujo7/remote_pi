@@ -1,5 +1,5 @@
 import 'package:flutter/widgets.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Tema **dark** do `TerminalView` (fundo `#18181B`, cursor accent, paleta ANSI
 /// dark). O fundo e a paleta de 16 cores são do emulador (nossos) — o oh-my-zsh

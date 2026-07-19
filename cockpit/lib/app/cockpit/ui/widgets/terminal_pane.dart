@@ -3,10 +3,10 @@ import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show HardwareKeyboard, KeyEvent;
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
-import 'cockpit_terminal.dart';
-import 'cockpit_terminal_render.dart';
+import 'package:cockpit/app/core/terminal/cockpit_terminal.dart';
+import 'package:cockpit/app/core/terminal/cockpit_terminal_render.dart';
 import 'terminal_link.dart';
 
 /// Envólucro do [CockpitTerminal] que adiciona **auto-scroll durante a

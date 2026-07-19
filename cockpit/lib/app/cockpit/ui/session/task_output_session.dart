@@ -1,5 +1,5 @@
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Aba **read-only** que visualiza o output de uma task. É leve e descartável:
 /// o [terminal] não é dela — vive no `TaskTerminalStore` —, então abrir/fechar

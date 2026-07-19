@@ -77,7 +77,12 @@ dependencies:
   # Wave 2 — aba de terminal: emulador + widget (xterm) + PTY nativo
   # (kyroon_pty: PTY em código nativo — forkpty no macOS/Linux, ConPTY no
   # Windows 10 1809+; mais estável e mantido que o flutter_pty antigo).
-  xterm: ^4.0.0
+  # xterm foi ABSORVIDO como módulo interno em lib/app/core/terminal/xterm/
+  # (2026-07-19): o upstream (TerminalStudio/xterm.dart) está parado, o projeto
+  # já mantinha fork git + view/render forkados no repo, e o app importava
+  # internals (src/). Emulador é Dart puro (zero nativo). Deps diretas do
+  # vendor: quiver (+ meta via SDK).
+  quiver: ^3.0.0
   kyroon_pty: ^1.0.4
 
   # Wave 2 — viewer de arquivo: renderiza SVG no pane (PNG/JPEG via Image.file).
@@ -154,26 +159,6 @@ dependencies:
 
 dependency_overrides:
 
-  # Fork do xterm, por dois motivos:
-  #
-  # 1. Render procedural de Block Elements (U+2580–259F) e Box Drawing
-  #    (U+2500–257F): o xterm 4.0 pinta esses glifos com a fonte (no tamanho
-  #    natural, não esticados pra célula), deixando frestas entre células —
-  #    half-blocks de arte de pixel (mascote do Claude) saem listrados e bordas
-  #    de TUI não conectam. O fork desenha os blocos/bordas proceduralmente,
-  #    preenchendo a célula exata, como os terminais nativos.
-  # 2. `viewId` no `TextInputConfiguration` do `CustomTextEdit`: sem ele o
-  #    `TextInput.setClient` é rejeitado ("Could not set client, view ID is
-  #    null") e o IME nunca anexa — no Windows isso mata a digitação. Era a razão
-  #    do `hardwareKeyboardOnly: Platform.isWindows` no `pane_view`, agora
-  #    removido.
-  #
-  # PR para o upstream (TerminalStudio/xterm.dart) pendente; voltar pro pub.dev
-  # quando mergeado. O SHA exato fica no `pubspec.lock` (`resolved-ref`).
-  xterm:
-    git:
-      url: https://github.com/jacobaraujo7/xterm.dart
-      ref: feat/builtin-block-glyphs
   gpt_markdown:
     git:
       url: https://github.com/jacobaraujo7/gpt_markdown
@@ -205,6 +190,9 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  # Usado só pelos testes vendorizados do emulador (core/terminal/xterm);
+  # os .mocks.dart já vêm gerados — sem build_runner.
+  mockito: ^5.4.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

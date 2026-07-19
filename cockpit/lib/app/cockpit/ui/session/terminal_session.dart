@@ -8,7 +8,7 @@ import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pasteboard/pasteboard.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Status de um `claude` (ou outro harness) rodando dentro de uma aba de
 /// terminal, reportado pelo `cockpit-hook` via socket (ver
