@@ -1835,7 +1835,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // Plan/51 — bridge @eko24ive/pi-ask clarification flows to the paired app.
   // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
   // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
-  // Pi that doesn't use the extension.
+  // Pi that doesn't use the extension. Dispose any prior bridge first so a
+  // factory re-run (new pi session) can't leak subscriptions or double-send.
+  _extensionUiBridge?.dispose();
   _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the

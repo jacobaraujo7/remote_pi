@@ -174,12 +174,15 @@ export function createExtensionUiBridge(
   function respond(msg: ExtensionUiResponseWire): void {
     const ask = msg.ask;
 
-    // Explicit cancel — with or without the ask envelope.
+    // Explicit cancel — with or without the ask envelope. A strict client
+    // (no envelope) only carries the request id, which IS the flowId by this
+    // bridge's contract; confirm via activeFlows before trusting it.
     if (
       ("cancelled" in msg && msg.cancelled === true) ||
       (ask !== undefined && ask.kind === "cancel")
     ) {
-      const flowId = ask?.flow_id ?? null;
+      const flowId =
+        ask?.flow_id ?? (activeFlows.has(msg.id) ? msg.id : null);
       if (!flowId) return;
       emitSubmit(msg.id, flowId, { kind: "cancel" });
       return;
@@ -267,6 +270,20 @@ function requestForFlow(flow: ActiveFlow): ServerMessage {
     title: flow.title,
     questions: flow.questions,
   };
+  // A pure-text question (pi-ask allows an empty options array) degrades to
+  // `input` — a strict client renders a text field instead of an empty select.
+  if (options.length === 0) {
+    return {
+      type: "extension_ui_request",
+      // One request per flow → reuse the flowId as the correlation id. The
+      // app's response carries the same id (and ask.flow_id) for routing.
+      id: flow.flowId,
+      method: "input",
+      title,
+      placeholder: first?.prompt,
+      ask,
+    };
+  }
   return {
     type: "extension_ui_request",
     // One request per flow → reuse the flowId as the correlation id. The app's
@@ -320,7 +337,8 @@ function parseQuestion(value: unknown): AskQuestionWire | null {
     if (!opt) return null;
     options.push(opt);
   }
-  if (options.length === 0) return null;
+  // Empty options is valid: pi-ask's schema has no minItems — a question can be
+  // pure text (custom answer only). The request degrades to `input` upstream.
   return {
     id: value.id,
     label: typeof value.label === "string" ? value.label : value.prompt,

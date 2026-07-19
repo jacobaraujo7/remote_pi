@@ -229,13 +229,63 @@ describe("extension_ui_bridge", () => {
 
     bus.emit("@eko24ive/pi-ask:started", { version: 1 }); // no flowId / questions
     bus.emit("@eko24ive/pi-ask:started", { version: 2, flowId: "x", questions: [] }); // wrong version
+    bus.emit("@eko24ive/pi-ask:started", { version: 1, flowId: "z", questions: [] }); // no questions
+
+    expect(sent).toHaveLength(0);
+  });
+
+  it("surfaces a zero-option (pure text) question as an input request", () => {
+    // pi-ask's schema has no minItems on options — a question can be answered
+    // by custom text alone. Must NOT be dropped (the mobile would stay silent).
+    const bus = fakeBus();
+    const sent: ServerMessage[] = [];
+    const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
+
     bus.emit("@eko24ive/pi-ask:started", {
       version: 1,
       flowId: "y",
-      questions: [{ id: "q", prompt: "p", type: "single", required: false, options: [] }], // empty options
+      questions: [{ id: "q", prompt: "Describe the goal", type: "single", required: false, options: [] }],
     });
 
-    expect(sent).toHaveLength(0);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      type: "extension_ui_request",
+      id: "y",
+      method: "input",
+      placeholder: "Describe the goal",
+    });
+
+    // Degraded reply (typed text, no matching label) lands as customText.
+    bridge.respond({ type: "extension_ui_response", id: "y", value: "ship it" });
+    const submits = bus.emitted.filter((e) => e.name === SUBMIT);
+    expect(submits).toHaveLength(1);
+    const data = submits[0]?.data as {
+      response: { answers: Record<string, unknown> };
+    };
+    expect(data.response.answers).toEqual({ q: { customText: "ship it" } });
+  });
+
+  it("routes a strict-client cancel (no ask envelope) via the request id", () => {
+    const bus = fakeBus();
+    const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+    bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+    bridge.respond({ type: "extension_ui_response", id: "tool:tc_1", cancelled: true });
+
+    const submits = bus.emitted.filter((e) => e.name === SUBMIT);
+    expect(submits).toHaveLength(1);
+    const data = submits[0]?.data as { flowId: string; response: { kind: string } };
+    expect(data.flowId).toBe("tool:tc_1");
+    expect(data.response).toEqual({ kind: "cancel" });
+  });
+
+  it("drops a strict-client cancel for an unknown flow id", () => {
+    const bus = fakeBus();
+    const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+    bridge.respond({ type: "extension_ui_response", id: "never-seen", cancelled: true });
+
+    expect(bus.emitted.filter((e) => e.name === SUBMIT)).toHaveLength(0);
   });
 
   it("drops a response for an unknown flow id (degraded path)", () => {
