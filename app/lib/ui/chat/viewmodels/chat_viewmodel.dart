@@ -335,10 +335,16 @@ class ChatViewModel extends ViewModel<ChatState> {
   /// open in a "submitting" state and closes only on the `completed` dismiss
   /// notify. A rejected answer surfaces as [_pendingUiError] for retry. We do
   /// clear any prior error here so a retry stops showing the old message.
+  /// A send that never left the device (no live channel) errors immediately —
+  /// no point spinning 25s toward the sheet's backstop.
   Future<void> respondExtensionUi(ExtensionUiResponse resp) async {
     _pendingUiError = null;
     _recompute();
-    await _sync.respondExtensionUi(resp);
+    final sent = await _sync.respondExtensionUi(resp);
+    if (!sent) {
+      _pendingUiError = 'Not connected — check the link to Pi and retry.';
+      _recompute();
+    }
   }
 
   Future<void> clearActiveSession() async {

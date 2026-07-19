@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 /// a selected value can't be combined, so custom text wins when present.
 class ExtensionUiSheet extends StatefulWidget {
   final ExtensionUiRequest request;
+
   /// Plan/51 — submit-result rejection message for [request] (null when none /
   /// resolved). Surfaced so the user can retry instead of hitting a dead end
   /// when pi-ask rejects an answer.
@@ -53,10 +54,14 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
   @override
   void didUpdateWidget(covariant ExtensionUiSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Either a different request replaced this one, or an error/clear arrived
-    // for the same request — in both cases stop spinning so the user can act.
-    if (widget.request.id != oldWidget.request.id ||
-        widget.error != oldWidget.error) {
+    // Either a different request replaced this one, or a rejection arrived for
+    // the same request — in both cases stop spinning so the user can act. An
+    // error being CLEARED (non-null → null) must not reset: that's the
+    // viewmodel wiping the old message at the start of a retry, and stopping
+    // there would re-enable the buttons mid-flight (double submit).
+    final errorArrived =
+        widget.error != oldWidget.error && widget.error != null;
+    if (widget.request.id != oldWidget.request.id || errorArrived) {
       _submitTimeout?.cancel();
       setState(() {
         _submitting = false;
@@ -106,8 +111,8 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
     }
     return switch (widget.request.method) {
       ExtensionUiMethod.select => _singleValue != null,
-      ExtensionUiMethod.input || ExtensionUiMethod.editor =>
-        _textController.text.trim().isNotEmpty,
+      ExtensionUiMethod.input ||
+      ExtensionUiMethod.editor => _textController.text.trim().isNotEmpty,
       ExtensionUiMethod.confirm => true,
       ExtensionUiMethod.notify => false,
     };
@@ -175,8 +180,10 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
     // Degraded: plain SDK response shape. The bridge maps the select label back
     // to the option value via its per-request table.
     return switch (widget.request.method) {
-      ExtensionUiMethod.select =>
-        ExtensionUiResponse(id: id, value: _singleValue ?? ''),
+      ExtensionUiMethod.select => ExtensionUiResponse(
+        id: id,
+        value: _singleValue ?? '',
+      ),
       ExtensionUiMethod.input || ExtensionUiMethod.editor =>
         ExtensionUiResponse(id: id, value: _textController.text),
       ExtensionUiMethod.confirm => ExtensionUiResponse(id: id, confirmed: true),
@@ -205,28 +212,37 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final ask = _ask;
-    final title =
-        widget.request.title ?? ask?.title ?? 'Clarification needed';
+    final title = widget.request.title ?? ask?.title ?? 'Clarification needed';
 
-    return Material(
-      color: colors.bg,
-      child: SafeArea(
-        child: Scaffold(
-          backgroundColor: colors.bg,
-          resizeToAvoidBottomInset: true,
-          appBar: AppBar(
+    // System back (Android) mirrors the close button: cancel the flow instead
+    // of popping the chat route underneath while the modal is still overlaid.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_submitting) _cancel();
+      },
+      child: Material(
+        color: colors.bg,
+        child: SafeArea(
+          child: Scaffold(
             backgroundColor: colors.bg,
-            elevation: 0,
-            scrolledUnderElevation: 0,
-            leading: IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Cancel',
-              onPressed: _submitting ? null : _cancel,
+            resizeToAvoidBottomInset: true,
+            appBar: AppBar(
+              backgroundColor: colors.bg,
+              elevation: 0,
+              scrolledUnderElevation: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.close),
+                tooltip: 'Cancel',
+                onPressed: _submitting ? null : _cancel,
+              ),
+              title: Text(title),
             ),
-            title: Text(title),
+            body: ask != null
+                ? _buildRich(context, ask)
+                : _buildDegraded(context),
+            bottomNavigationBar: _buildActions(context),
           ),
-          body: ask != null ? _buildRich(context, ask) : _buildDegraded(context),
-          bottomNavigationBar: _buildActions(context),
         ),
       ),
     );
@@ -254,6 +270,16 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(child: Text(q.prompt, style: text.titleMedium)),
+            // pi-ask marks `required` as advisory only (never blocks
+            // submission), so it renders as a hint, not a validation gate.
+            if (q.required)
+              Padding(
+                padding: const EdgeInsets.only(left: 8, top: 4),
+                child: Text(
+                  'required',
+                  style: text.labelSmall?.copyWith(color: colors.accent),
+                ),
+              ),
             if (multi)
               Padding(
                 padding: const EdgeInsets.only(left: 8, top: 4),
@@ -276,12 +302,17 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
         TextField(
           controller: _customFor(q.id),
           enabled: !_submitting,
+          // _canSubmit reads this text; without a rebuild per keystroke the
+          // Submit button would stay stale for text-only answers.
+          onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             hintText: 'Type your own…',
             isDense: true,
             border: const OutlineInputBorder(),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 12,
+            ),
           ),
         ),
       ],
@@ -307,7 +338,9 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? colors.accent.withValues(alpha: 0.10) : colors.surface,
+          color: selected
+              ? colors.accent.withValues(alpha: 0.10)
+              : colors.surface,
           border: Border.all(
             color: selected ? colors.accent : colors.border,
             width: selected ? 1.6 : 1,
@@ -322,11 +355,11 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
                 Icon(
                   multi
                       ? (selected
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank)
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank)
                       : (selected
-                          ? Icons.radio_button_checked
-                          : Icons.radio_button_unchecked),
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked),
                   size: 20,
                   color: selected ? colors.accent : colors.muted,
                 ),
@@ -351,9 +384,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
                 ),
               ),
             ],
-            if (isPreview &&
-                o.preview != null &&
-                o.preview!.isNotEmpty) ...[
+            if (isPreview && o.preview != null && o.preview!.isNotEmpty) ...[
               const SizedBox(height: 8),
               Container(
                 width: double.infinity,
@@ -392,32 +423,40 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
             const SizedBox(height: 16),
           ],
           switch (widget.request.method) {
-            ExtensionUiMethod.select => Column(
+            ExtensionUiMethod.select => RadioGroup<String>(
+              groupValue: _singleValue,
+              onChanged: (v) => setState(() => _singleValue = v),
+              child: Column(
                 children: [
                   for (final opt in widget.request.options)
                     RadioListTile<String>(
                       value: opt,
-                      groupValue: _singleValue,
                       title: Text(opt),
-                      onChanged: _submitting
-                          ? null
-                          : (v) => setState(() => _singleValue = v),
+                      enabled: !_submitting,
                     ),
                 ],
               ),
+            ),
             ExtensionUiMethod.input || ExtensionUiMethod.editor => TextField(
-                controller: _textController,
-                maxLines: 5,
-                enabled: !_submitting,
-                decoration: InputDecoration(
-                  hintText: widget.request.placeholder ?? '',
-                  border: const OutlineInputBorder(),
-                ),
+              controller: _textController,
+              maxLines: 5,
+              enabled: !_submitting,
+              // _canSubmit reads this text; rebuild per keystroke or the
+              // Submit button never enables.
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: widget.request.placeholder ?? '',
+                border: const OutlineInputBorder(),
               ),
-            ExtensionUiMethod.confirm =>
-              Text('Please confirm.', style: text.titleMedium),
-            ExtensionUiMethod.notify =>
-              Text(widget.request.message ?? '', style: text.bodyLarge),
+            ),
+            ExtensionUiMethod.confirm => Text(
+              'Please confirm.',
+              style: text.titleMedium,
+            ),
+            ExtensionUiMethod.notify => Text(
+              widget.request.message ?? '',
+              style: text.bodyLarge,
+            ),
           },
         ],
       ),

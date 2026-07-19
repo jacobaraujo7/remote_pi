@@ -94,7 +94,11 @@ class ChatPage extends StatelessWidget {
       children: [
         scaffold,
         Positioned.fill(
+          // Keyed by request id: a new flow must get a fresh State — question
+          // ids repeat across flows (e.g. "goal"), so reusing the State would
+          // leak old selections/custom text into the new modal.
           child: ExtensionUiSheet(
+            key: ValueKey(uiRequest.id),
             request: uiRequest,
             error: ready?.pendingUiError,
             onRespond: vm.respondExtensionUi,
