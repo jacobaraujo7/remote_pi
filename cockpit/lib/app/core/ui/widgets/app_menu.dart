@@ -80,6 +80,22 @@ Future<T?> showAppMenu<T>(
   final colors = context.colors;
   final anchored = globalPosition == null;
 
+  // Mesmo TapRegion group pro menu raiz e pro submenu: clique no submenu não
+  // conta como "fora" do menu raiz (senão o barrier dismissaria antes do item
+  // do submenu processar o clique).
+  final groupId = Object();
+
+  // Submenu aberto (no máximo um). O `subMenu` nativo do shadcn não serve
+  // aqui: ele ancora via `localToGlobal` no espaço da JANELA, mas o overlay
+  // vive dentro do `_AppZoom` — com "Interface size" ≠ 14 o submenu abria
+  // deslocado, proporcional à distância do canto superior esquerdo (mesmo bug
+  // do AppTooltip). Abrimos nós mesmos com `position` no espaço do overlay.
+  OverlayCompleter<void>? subMenu;
+  void closeSubMenu() {
+    if (subMenu?.isCompleted == false) subMenu!.remove();
+    subMenu = null;
+  }
+
   // O `globalPosition` do gesto vem em coordenadas da JANELA (físicas), mas o
   // overlay dos popovers vive dentro do `_AppZoom` (FittedBox do "Interface
   // size") — com zoom ≠ 1.0 o ponto cru desloca. `globalToLocal` do RenderBox
@@ -91,6 +107,65 @@ Future<T?> showAppMenu<T>(
     if (overlayBox is RenderBox) {
       position = overlayBox.globalToLocal(position);
     }
+  }
+
+  /// Abre os filhos de [item] ao lado do próprio item ([itemContext]), ancorado
+  /// no espaço do overlay (`localToGlobal(..., ancestor: overlay)`) — imune ao
+  /// zoom. A escolha de um filho resolve o future do MENU raiz ([menuContext]).
+  void openSubMenu(
+    BuildContext menuContext,
+    BuildContext itemContext,
+    AppMenuItem<T> item,
+  ) {
+    closeSubMenu();
+    final box = itemContext.findRenderObject();
+    final overlayBox = Overlay.of(itemContext).context.findRenderObject();
+    if (box is! RenderBox || overlayBox is! RenderBox) return;
+    // Top-right do item + respiro, no espaço do overlay.
+    final anchor = box.localToGlobal(
+      Offset(box.size.width, 0),
+      ancestor: overlayBox,
+    );
+    subMenu = showPopover<void>(
+      context: itemContext,
+      position: anchor + const Offset(4, -6),
+      follow: false,
+      alignment: Alignment.topLeft,
+      modal: false,
+      consumeOutsideTaps: false,
+      dismissBackdropFocus: false,
+      regionGroupId: groupId,
+      builder: (subContext) => ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+        child: DropdownMenu(
+          children: [
+            for (final child in item.children!)
+              MenuButton(
+                enabled: child.enabled,
+                leading: child.icon != null
+                    ? Icon(
+                        child.icon,
+                        size: 15,
+                        color: !child.enabled ? colors.text4 : colors.text3,
+                      )
+                    : null,
+                onPressed: (_) {
+                  closeSubMenu();
+                  closeOverlay<T>(menuContext, child.value);
+                },
+                child: Text(
+                  child.label,
+                  overflow: TextOverflow.ellipsis,
+                  style: subContext.typo.body.copyWith(
+                    fontSize: 13,
+                    color: !child.enabled ? colors.text4 : colors.text,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   final overlay = showPopover<T>(
@@ -105,6 +180,7 @@ Future<T?> showAppMenu<T>(
     alignment: Alignment.topLeft,
     anchorAlignment: anchored ? Alignment.bottomLeft : Alignment.topLeft,
     offset: anchored ? const Offset(0, 4) : null,
+    regionGroupId: groupId,
     builder: (menuContext) => ConstrainedBox(
       constraints: BoxConstraints(minWidth: minWidth, maxWidth: 320),
       // DropdownMenu embrulha os MenuButton num MenuGroup (exigido) + MenuPopup.
@@ -114,68 +190,53 @@ Future<T?> showAppMenu<T>(
             if (item.isDivider)
               const MenuDivider()
             else
-              MenuButton(
-                enabled: item.enabled,
-                leading:
-                    item.leading ??
-                    (item.icon != null
-                        ? Icon(
-                            item.icon,
-                            size: 15,
-                            color: !item.enabled
-                                ? colors.text4
-                                : (item.danger ? colors.error : colors.text3),
-                          )
-                        : null),
-                trailing: item.selected
-                    ? Icon(Icons.check, size: 14, color: colors.accentText)
-                    : null,
-                // Com submenu, o clique no pai não escolhe nada — só abre os
-                // filhos. O fechamento do filho usa o context do MENU raiz
-                // (não o do popover do submenu) pra resolver o future certo.
-                subMenu: item.children == null
-                    ? null
-                    : [
-                        for (final child in item.children!)
-                          MenuButton(
-                            enabled: child.enabled,
-                            leading: child.icon != null
-                                ? Icon(
-                                    child.icon,
-                                    size: 15,
-                                    color: !child.enabled
-                                        ? colors.text4
-                                        : colors.text3,
-                                  )
-                                : null,
-                            onPressed: (_) {
-                              closeOverlay<T>(menuContext, child.value);
-                            },
-                            child: Text(
-                              child.label,
-                              overflow: TextOverflow.ellipsis,
-                              style: menuContext.typo.body.copyWith(
-                                fontSize: 13,
-                                color: !child.enabled
-                                    ? colors.text4
-                                    : colors.text,
-                              ),
-                            ),
-                          ),
-                      ],
-                onPressed: item.children != null
-                    ? null
-                    : (ctx) {
-                        closeOverlay<T>(ctx, item.value);
-                      },
-                child: Text(
-                  item.label,
-                  overflow: TextOverflow.ellipsis,
-                  style: menuContext.typo.body.copyWith(
-                    fontSize: 13,
-                    color: !item.enabled
-                        ? colors.text4
-                        : (item.danger ? colors.error : colors.text),
+              // Wrapper hover-aware (o DropdownMenu só aceita MenuItem): o
+              // context do wrapper é a âncora do submenu, e o hover replica o
+              // comportamento nativo — item com filhos abre o submenu, item
+              // comum fecha o que estiver aberto.
+              _AppMenuEntry(
+                hasLeading: item.leading != null || item.icon != null,
+                onEnter: (itemContext) => item.children != null && item.enabled
+                    ? openSubMenu(menuContext, itemContext, item)
+                    : closeSubMenu(),
+                child: MenuButton(
+                  enabled: item.enabled,
+                  leading:
+                      item.leading ??
+                      (item.icon != null
+                          ? Icon(
+                              item.icon,
+                              size: 15,
+                              color: !item.enabled
+                                  ? colors.text4
+                                  : (item.danger ? colors.error : colors.text3),
+                            )
+                          : null),
+                  trailing: item.selected
+                      ? Icon(Icons.check, size: 14, color: colors.accentText)
+                      : (item.children != null
+                            ? Icon(
+                                Icons.chevron_right,
+                                size: 14,
+                                color: colors.text3,
+                              )
+                            : null),
+                  // Com filhos, o clique no pai não escolhe nada — só abre o
+                  // submenu (redundante com o hover, cobre toque/teclado).
+                  onPressed: item.children != null
+                      ? (ctx) => openSubMenu(menuContext, ctx, item)
+                      : (ctx) {
+                          closeOverlay<T>(ctx, item.value);
+                        },
+                  child: Text(
+                    item.label,
+                    overflow: TextOverflow.ellipsis,
+                    style: menuContext.typo.body.copyWith(
+                      fontSize: 13,
+                      color: !item.enabled
+                          ? colors.text4
+                          : (item.danger ? colors.error : colors.text),
+                    ),
                   ),
                 ),
               ),
@@ -183,6 +244,35 @@ Future<T?> showAppMenu<T>(
       ),
     ),
   );
+  // Fechar o menu raiz (escolha, ESC, clique fora ou outro menu abrindo via
+  // trackMenuOverlay) derruba o submenu junto.
+  overlay.future.whenComplete(closeSubMenu);
   trackMenuOverlay(overlay);
   return overlay.future;
+}
+
+/// Entrada do [showAppMenu]: um [MenuButton] com hover observável. Implementa
+/// [MenuItem] porque o `DropdownMenu` só aceita filhos dessa interface; o
+/// [onEnter] recebe o context DESTE widget (mesmo RenderBox do item), usado
+/// como âncora do submenu.
+class _AppMenuEntry extends StatelessWidget implements MenuItem {
+  const _AppMenuEntry({
+    required this.hasLeading,
+    required this.onEnter,
+    required this.child,
+  });
+
+  @override
+  final bool hasLeading;
+
+  final void Function(BuildContext itemContext) onEnter;
+  final Widget child;
+
+  @override
+  PopoverController? get popoverController => null;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(onEnter: (_) => onEnter(context), child: child);
+  }
 }
