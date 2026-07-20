@@ -49,6 +49,21 @@ enum DbEngine {
   }
 }
 
+/// Modo de acesso da conexão pro caminho **dos agentes (CLI)** — a GUI não é
+/// gated (humano clicando é intencional). `read` é o default: escrever via
+/// `cockpit db execute` exige opt-in explícito no cadastro.
+enum DbAccess {
+  /// Só leitura via CLI: `db execute` recusado e `db query`/`db run` passam
+  /// pelo gate de statement (SELECT-like apenas).
+  read,
+
+  /// Leitura e escrita liberadas via CLI.
+  readwrite;
+
+  static DbAccess fromName(String? name) =>
+      name == 'readwrite' ? DbAccess.readwrite : DbAccess.read;
+}
+
 /// De onde a conexão veio — decide o que o `save()` do store persiste e os
 /// chips do painel ("detected"/"local").
 enum DbConnectionOrigin {
@@ -74,6 +89,8 @@ class DbConnection {
     required this.url,
     this.savePassword = false,
     this.origin = DbConnectionOrigin.registered,
+    this.access = DbAccess.read,
+    this.agents = true,
   });
 
   /// Conexão sqlite a partir de um path (registrada ou detectada).
@@ -81,14 +98,21 @@ class DbConnection {
     String name,
     String path, {
     DbConnectionOrigin origin = DbConnectionOrigin.registered,
+    DbAccess access = DbAccess.read,
+    bool agents = true,
   }) => DbConnection(
     name: name,
     engine: DbEngine.sqlite,
     url: 'sqlite:$path',
     origin: origin,
+    access: access,
+    agents: agents,
   );
 
   /// Conexão de rede (postgres/mysql) a partir dos campos do dialog.
+  /// [password] embute `user:senha@` na URL — o caminho de quem NÃO usa o
+  /// cofre (savePassword off): a senha vive em texto plano no
+  /// `databases.json`, escolha consciente do usuário.
   factory DbConnection.network({
     required String name,
     required DbEngine engine,
@@ -96,17 +120,26 @@ class DbConnection {
     int? port,
     required String database,
     String user = '',
+    String? password,
     bool savePassword = false,
     DbConnectionOrigin origin = DbConnectionOrigin.registered,
+    DbAccess access = DbAccess.read,
+    bool agents = true,
   }) {
     final p = port ?? engine.defaultPort;
-    final auth = user.isEmpty ? '' : '${Uri.encodeComponent(user)}@';
+    final hasPass = password != null && password.isNotEmpty;
+    final auth = user.isEmpty && !hasPass
+        ? ''
+        : '${Uri.encodeComponent(user)}'
+              '${hasPass ? ':${Uri.encodeComponent(password)}' : ''}@';
     return DbConnection(
       name: name,
       engine: engine,
       url: '${engine.scheme}://$auth$host:$p/${Uri.encodeComponent(database)}',
       savePassword: savePassword,
       origin: origin,
+      access: access,
+      agents: agents,
     );
   }
 
@@ -123,6 +156,9 @@ class DbConnection {
       url: url,
       savePassword: json['savePassword'] as bool? ?? false,
       origin: origin,
+      // Ausente no JSON legado → read (seguro por padrão; escrever é opt-in).
+      access: DbAccess.fromName(json['access'] as String?),
+      agents: json['agents'] as bool? ?? true,
     );
   }
 
@@ -131,6 +167,13 @@ class DbConnection {
   final String url;
   final bool savePassword;
   final DbConnectionOrigin origin;
+
+  /// Modo de acesso do caminho dos agentes (CLI). Ver [DbAccess].
+  final DbAccess access;
+
+  /// `false` = invisível/recusada na CLI (`db list` omite, comandos falham);
+  /// GUI (painel, tab `.dbq`, browsers) segue vendo normalmente.
+  final bool agents;
 
   /// Path do arquivo sqlite (só [DbEngine.sqlite]); relativo à raiz do
   /// workspace quando registrado assim.
@@ -171,17 +214,27 @@ class DbConnection {
     'url': url,
     // Sempre explícito (true E false): omitir no false deixava o arquivo com
     // o `savePassword: true` antigo quando o usuário desligava o switch.
+    // Mesma regra pra access/agents.
     'savePassword': savePassword,
+    'access': access.name,
+    'agents': agents,
   };
 
-  DbConnection copyWith({String? name, String? url, bool? savePassword}) =>
-      DbConnection(
-        name: name ?? this.name,
-        engine: url == null ? engine : _engineFromUrl(url),
-        url: url ?? this.url,
-        savePassword: savePassword ?? this.savePassword,
-        origin: origin,
-      );
+  DbConnection copyWith({
+    String? name,
+    String? url,
+    bool? savePassword,
+    DbAccess? access,
+    bool? agents,
+  }) => DbConnection(
+    name: name ?? this.name,
+    engine: url == null ? engine : _engineFromUrl(url),
+    url: url ?? this.url,
+    savePassword: savePassword ?? this.savePassword,
+    origin: origin,
+    access: access ?? this.access,
+    agents: agents ?? this.agents,
+  );
 
   static DbEngine _engineFromUrl(String url) {
     if (url.startsWith('sqlite:')) return DbEngine.sqlite;

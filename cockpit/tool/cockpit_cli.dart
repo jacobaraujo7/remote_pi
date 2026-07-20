@@ -449,6 +449,7 @@ const _dbErrorKinds = {
   'unsupported_engine',
   'unknown_connection',
   'password_required',
+  'read_only_connection',
 };
 
 /// `cockpit db <list|schema|query|run|execute>` — database access for agents.
@@ -763,6 +764,12 @@ USAGE:
   cockpit db query   --db <name> --sql "<SELECT…>" [--limit N]   run a query
   cockpit db execute --db <name> --sql "<DML…>"    run DML, returns affectedRows
   cockpit db run <file.dbq>                        run a .dbq file (frontmatter picks the db)
+
+ACCESS:
+  Connections are read-only for agents by default: execute (and any write) is
+  rejected with kind "read_only_connection" until a human enables Read & write
+  on the connection in the Database panel. `db list` shows each connection's
+  "access" field.
 
 FLAGS:
   --workspace <id|path>   target workspace when not inside a Cockpit pane
@@ -1094,7 +1101,11 @@ Cockpit tabs (it is not on the global PATH).
     arrays (column order matches `columns`); `truncated: true` means the limit
     cut the cursor — raise `--limit` if you need more.
   - `cockpit db execute --db dev-local --sql "UPDATE …"` — returns
-    `affectedRows`.
+    `affectedRows`. **Connections are read-only for agents by default**: any
+    write is rejected with kind `read_only_connection` until the human enables
+    "Allow writes (agents)" on the connection in the Database panel — if you
+    hit it, ask the human instead of working around it. `db list` shows each
+    connection's `access` field (`read` | `readwrite`).
   - `cockpit db run <file.dbq>` — runs a `.dbq` file (SQL with `-- db:` /
     `-- limit:` comment frontmatter). Prefer writing a `.dbq` when the human
     should see the result too: the app shows it as a query tab and re-runs it

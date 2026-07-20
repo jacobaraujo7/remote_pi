@@ -334,6 +334,16 @@ class _ConnectionTile extends StatelessWidget {
                             const SizedBox(width: 6),
                             const _Chip('local'),
                           ],
+                          // Desvios do default (read + visível): só eles
+                          // ganham chip, senão vira ruído.
+                          if (conn.access == DbAccess.readwrite) ...[
+                            const SizedBox(width: 6),
+                            const _Chip('rw'),
+                          ],
+                          if (!conn.agents) ...[
+                            const SizedBox(width: 6),
+                            const _Chip('no agents'),
+                          ],
                         ],
                       ),
                       Text(

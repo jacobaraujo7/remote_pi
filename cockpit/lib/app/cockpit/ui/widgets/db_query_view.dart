@@ -331,7 +331,13 @@ class _DbQueryViewState extends State<DbQueryView> {
 
   Future<void> _pickConnection(BuildContext anchor) async {
     final vm = context.read<DatabaseViewModel>();
-    final conns = vm.connections;
+    // Só engines SQL — a tab `.dbq` executa SQL; Redis/Mongo têm views
+    // próprias (browse). Conexões com `agents: false` aparecem normalmente:
+    // o gate é só do caminho da CLI, a GUI vê tudo.
+    final conns = [
+      for (final c in vm.connections)
+        if (c.engine.isSql) c,
+    ];
     final picked = await showAppMenu<String>(
       anchor,
       items: [
@@ -345,7 +351,7 @@ class _DbQueryViewState extends State<DbQueryView> {
         if (conns.isEmpty)
           const AppMenuItem(
             value: '',
-            label: 'No connections — add one in the Database panel',
+            label: 'No SQL connections — add one in the Database panel',
             enabled: false,
           ),
       ],

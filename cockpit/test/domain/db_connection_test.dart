@@ -46,7 +46,10 @@ void main() {
       savePassword: true,
     );
     final json = c.toJson();
-    expect(json.keys, unorderedEquals(['name', 'url', 'savePassword']));
+    expect(
+      json.keys,
+      unorderedEquals(['name', 'url', 'savePassword', 'access', 'agents']),
+    );
     final back = DbConnection.fromJson(json);
     expect(back.name, c.name);
     expect(back.url, c.url);

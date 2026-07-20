@@ -311,12 +311,29 @@ class DatabaseViewModel extends ChangeNotifier {
 
   /// Testa uma conexão (inclusive não-salva, do dialog). `null` = OK; senão a
   /// mensagem de erro user-facing.
-  Future<String?> test(DbConnection conn, {String? password}) async {
+  ///
+  /// [password] é a digitada no dialog; vazia/nula, o teste cai pra senha já
+  /// guardada no cofre sob [storedPasswordName] (o nome ORIGINAL da conexão em
+  /// edição — a chave do cofre não muda até salvar um rename) e, por último,
+  /// pra senha embutida na URL — mesma cadeia da execução real.
+  Future<String?> test(
+    DbConnection conn, {
+    String? password,
+    String? storedPasswordName,
+  }) async {
     final driver = _registry.forEngine(conn.engine);
     if (driver == null) {
       return '${conn.engine.label} support arrives with the anakiORM '
           'integration.';
     }
+    var effective = (password == null || password.isEmpty) ? null : password;
+    final wsId = _workspaceId;
+    if (effective == null && storedPasswordName != null && wsId != null) {
+      effective = await _secrets.read(
+        DbQueryService.secretKey(wsId, storedPasswordName),
+      );
+    }
+    effective ??= conn.urlPassword;
     var target = conn;
     final root = _workspaceRoot;
     if (conn.engine == DbEngine.sqlite && root != null) {
@@ -326,7 +343,7 @@ class DatabaseViewModel extends ChangeNotifier {
       if (!absolute) target = conn.copyWith(url: 'sqlite:$root/$p');
     }
     try {
-      await driver.query(target, 'SELECT 1', limit: 1, password: password);
+      await driver.query(target, 'SELECT 1', limit: 1, password: effective);
       return null;
     } on DbQueryException catch (e) {
       return e.message;

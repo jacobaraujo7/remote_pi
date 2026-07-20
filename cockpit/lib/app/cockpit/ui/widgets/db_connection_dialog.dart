@@ -46,6 +46,11 @@ class DbConnectionDialog extends StatefulWidget {
 
 class _DbConnectionDialogState extends State<DbConnectionDialog> {
   late bool _savePassword = widget.initial?.savePassword ?? false;
+
+  /// Guardrails do caminho dos agentes (CLI): escrita opt-in + visibilidade.
+  /// GUI nunca é gated. Defaults seguros: read-only e visível.
+  late bool _allowWrites = widget.initial?.access == DbAccess.readwrite;
+  late bool _visibleToAgents = widget.initial?.agents ?? true;
   bool? _testOk;
   String? _testMessage;
   bool _testing = false;
@@ -74,6 +79,9 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
       _port.text = '${c.port}';
       _db.text = c.database;
       _user.text = c.user;
+      // Senha guardada na URL (savePassword off) é recuperável — prefill.
+      // A do cofre nunca aparece (placeholder `*******`).
+      if (!c.savePassword) _pass.text = c.urlPassword ?? '';
     }
   }
 
@@ -89,8 +97,14 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
     final name = _name.text.trim().isEmpty
         ? 'new-connection'
         : _name.text.trim();
+    final access = _allowWrites ? DbAccess.readwrite : DbAccess.read;
     if (_engine == DbEngine.sqlite) {
-      return DbConnection.sqlite(name, _file.text.trim());
+      return DbConnection.sqlite(
+        name,
+        _file.text.trim(),
+        access: access,
+        agents: _visibleToAgents,
+      );
     }
     return DbConnection.network(
       name: name,
@@ -99,7 +113,46 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
       port: int.tryParse(_port.text.trim()),
       database: _db.text.trim(),
       user: _user.text.trim(),
+      // Destino da senha pelo switch: OFF → embutida na URL (texto plano no
+      // databases.json, recuperável); ON → só no cofre (URL limpa).
+      password: _savePassword ? null : _pass.text,
       savePassword: _savePassword,
+      access: access,
+      agents: _visibleToAgents,
+    );
+  }
+
+  /// Linha switch + rótulo (+ hint à direita) — padrão do "Save Password".
+  Widget _switchRow(
+    String label,
+    bool value,
+    ValueChanged<bool> onChanged, {
+    String? hint,
+  }) {
+    final colors = context.colors;
+    final typo = context.typo;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Switch(value: value, onChanged: onChanged),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: typo.label.copyWith(fontSize: 12, color: colors.text2),
+          ),
+          if (hint != null) ...[
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hint,
+                overflow: TextOverflow.ellipsis,
+                style: typo.label.copyWith(fontSize: 10.5, color: colors.text4),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -133,9 +186,16 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
       _testOk = null;
       _testMessage = null;
     });
+    final initial = widget.initial;
     final error = await widget.viewModel.test(
       _build(),
       password: _pass.text.isEmpty ? null : _pass.text,
+      // Edição com senha no cofre: o teste usa a guardada quando o campo está
+      // vazio (o placeholder `*******` já diz que ela existe). Chave = nome
+      // ORIGINAL — rename só migra a senha ao salvar.
+      storedPasswordName: initial != null && initial.savePassword
+          ? initial.name
+          : null,
     );
     if (!mounted) return;
     setState(() {
@@ -303,19 +363,32 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
                   ],
                 ),
               ),
-              // Edição com senha já salva: placeholder `*******` sinaliza que
-              // existe senha no cofre; deixar vazio ao salvar MANTÉM a atual
-              // (só sobrescreve se digitar algo).
+              // Sempre habilitado: com "Save Password" OFF a senha vai
+              // embutida na URL (databases.json, texto plano, recuperável);
+              // ON, vai pro cofre — placeholder `*******` sinaliza que existe
+              // senha guardada e campo vazio ao salvar MANTÉM a atual.
               _field(
                 'Password',
                 _pass,
-                enabled: _savePassword,
                 obscure: true,
                 hint: _editing && widget.initial!.savePassword
                     ? '*******'
                     : null,
               ),
             ],
+            // Guardrails dos agentes (CLI). GUI nunca é bloqueada.
+            _switchRow(
+              'Allow writes (agents)',
+              _allowWrites,
+              (v) => setState(() => _allowWrites = v),
+              hint: 'off = agents can only read via CLI',
+            ),
+            _switchRow(
+              'Visible to agents',
+              _visibleToAgents,
+              (v) => setState(() => _visibleToAgents = v),
+              hint: 'off = hidden from the CLI, GUI only',
+            ),
             if (_testing || _testOk != null) ...[
               const SizedBox(height: 4),
               Row(

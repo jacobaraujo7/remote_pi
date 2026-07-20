@@ -189,8 +189,9 @@ class DbQueryService {
       final saved = await _secrets.read(secretKey(workspaceId, conn.name));
       if (saved != null) return saved;
     }
-    // Fallback: senha embutida na URL (json editado na mão) — o app nunca a
-    // escreve, mas respeita quando existe.
+    // Fallback: senha embutida na URL — o caminho de quem NÃO usa o cofre
+    // (dialog com "Save Password" off grava `user:senha@` no databases.json)
+    // ou json editado na mão.
     return conn.urlPassword;
   }
 

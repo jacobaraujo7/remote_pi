@@ -9,6 +9,7 @@ import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/dbq_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/sql_statements.dart';
+import 'package:cockpit/app/cockpit/domain/services/db_access_gate.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
 import 'package:cockpit/app/core/domain/result.dart';
@@ -299,23 +300,31 @@ class CockpitCliHandler {
         return _dbCommand(c, (project) async {
           final conns = await _db.connections(project.path);
           return CockpitCommandResult.ok([
+            // `agents: false` = invisível pros agentes (a GUI segue vendo).
             for (final conn in conns)
-              {
-                'name': conn.name,
-                'engine': conn.engine.label,
-                'target': conn.displayTarget,
-                'origin': conn.origin.name,
-              },
+              if (conn.agents)
+                {
+                  'name': conn.name,
+                  'engine': conn.engine.label,
+                  'target': conn.displayTarget,
+                  'origin': conn.origin.name,
+                  'access': conn.access.name,
+                },
           ]);
         });
 
       case 'db-schema':
         return _dbCommand(c, (project) async {
+          final (conn, connErr) = await _agentConn(
+            project,
+            (c.args['db'] ?? '').toString(),
+          );
+          if (connErr != null) return CockpitCommandResult.fail(connErr);
           final table = (c.args['table'] ?? '').toString();
           final result = await _db.schema(
             workspaceRoot: project.path,
             workspaceId: project.id,
-            connName: (c.args['db'] ?? '').toString(),
+            connName: conn!.name,
             table: table.isEmpty ? null : table,
           );
           return CockpitCommandResult.ok(result.toJson());
@@ -324,11 +333,29 @@ class CockpitCliHandler {
       case 'db-query':
       case 'db-execute':
         return _dbCommand(c, (project) async {
+          final (conn, connErr) = await _agentConn(
+            project,
+            (c.args['db'] ?? '').toString(),
+          );
+          if (connErr != null) return CockpitCommandResult.fail(connErr);
+          final sql = (c.args['sql'] ?? '').toString();
+          // Guardrail (conexão `read`): execute é recusado de cara; query
+          // passa pelo gate de statement (SELECT-like apenas).
+          if (conn!.access == DbAccess.read) {
+            if (c.cmd == 'db-execute') {
+              return const CockpitCommandResult.fail(
+                'read_only_connection: this connection is read-only for '
+                'agents — enable Read & write on it in the Database panel',
+              );
+            }
+            final violation = sqlReadViolation(sql);
+            if (violation != null) return CockpitCommandResult.fail(violation);
+          }
           final result = await _db.query(
             workspaceRoot: project.path,
             workspaceId: project.id,
-            connName: (c.args['db'] ?? '').toString(),
-            sql: (c.args['sql'] ?? '').toString(),
+            connName: conn.name,
+            sql: sql,
             limit: int.tryParse('${c.args['limit'] ?? ''}'),
             dml: c.cmd == 'db-execute',
           );
@@ -358,13 +385,27 @@ class CockpitCliHandler {
               'pick a database in the Cockpit tab or add the line manually',
             );
           }
+          final (conn, connErr) = await _agentConn(project, doc.db!);
+          if (connErr != null) return CockpitCommandResult.fail(connErr);
+          final statements = [
+            for (final st in splitSqlStatements(doc.sql)) st.text,
+          ];
+          // Conexão `read`: cada statement do script passa pelo gate.
+          if (conn!.access == DbAccess.read) {
+            for (final st in statements) {
+              final violation = sqlReadViolation(st);
+              if (violation != null) {
+                return CockpitCommandResult.fail(violation);
+              }
+            }
+          }
           // Mesma semântica de script da tab: statements em sequência,
           // resultado do último.
           final result = await _db.runStatements(
             workspaceRoot: project.path,
             workspaceId: project.id,
-            connName: doc.db!,
-            statements: [for (final st in splitSqlStatements(doc.sql)) st.text],
+            connName: conn.name,
+            statements: statements,
             limit: doc.limit,
           );
           return CockpitCommandResult.ok(result.toJson());
@@ -374,13 +415,22 @@ class CockpitCliHandler {
       // é a lista do comando (`['GET','foo']`). Reply cru em JSON.
       case 'redis-cmd':
         return _dbCommand(c, (project) async {
+          final (conn, connErr) = await _agentConn(
+            project,
+            (c.args['db'] ?? '').toString(),
+          );
+          if (connErr != null) return CockpitCommandResult.fail(connErr);
           final parts = [
             for (final p in (c.args['parts'] as List? ?? const [])) '$p',
           ];
+          if (conn!.access == DbAccess.read) {
+            final violation = redisReadViolation(parts);
+            if (violation != null) return CockpitCommandResult.fail(violation);
+          }
           final reply = await _db.redisCommand(
             workspaceRoot: project.path,
             workspaceId: project.id,
-            connName: (c.args['db'] ?? '').toString(),
+            connName: conn.name,
             parts: parts,
           );
           return CockpitCommandResult.ok(reply);
@@ -398,10 +448,19 @@ class CockpitCliHandler {
               'query_failed: invalid JSON command',
             );
           }
+          final (conn, connErr) = await _agentConn(
+            project,
+            (c.args['db'] ?? '').toString(),
+          );
+          if (connErr != null) return CockpitCommandResult.fail(connErr);
+          if (conn!.access == DbAccess.read) {
+            final violation = mongoReadViolation(command);
+            if (violation != null) return CockpitCommandResult.fail(violation);
+          }
           final reply = await _db.mongoCommand(
             workspaceRoot: project.path,
             workspaceId: project.id,
-            connName: (c.args['db'] ?? '').toString(),
+            connName: conn.name,
             command: command,
           );
           return CockpitCommandResult.ok(reply);
@@ -463,26 +522,43 @@ class CockpitCliHandler {
     }
   }
 
-  /// Valida a conexão alvo de um `browse`: existe no workspace e é do
-  /// [engine] esperado. `null` = ok; senão a mensagem de erro.
+  /// Resolve a conexão [connName] pro caminho **dos agentes**: conexões com
+  /// `agents: false` são tratadas como inexistentes (nem o nome vaza — a
+  /// lista de disponíveis também as omite). Devolve (conexão, null) ou
+  /// (null, mensagem de erro).
+  Future<(DbConnection?, String?)> _agentConn(
+    Project project,
+    String connName,
+  ) async {
+    if (connName.isEmpty) return (null, 'missing --db <name>');
+    final conns = [
+      for (final c in await _db.connections(project.path))
+        if (c.agents) c,
+    ];
+    for (final conn in conns) {
+      if (conn.name == connName) return (conn, null);
+    }
+    final available = conns.map((c) => c.name).join(', ');
+    return (
+      null,
+      'no connection named "$connName" '
+          '(available: ${available.isEmpty ? 'none' : available})',
+    );
+  }
+
+  /// Valida a conexão alvo de um `browse`: visível pra agentes e do [engine]
+  /// esperado. `null` = ok; senão a mensagem de erro.
   Future<String?> _checkBrowseConn(
     Project project,
     String connName,
     DbEngine engine,
   ) async {
-    if (connName.isEmpty) return 'missing --db <name>';
-    final conns = await _db.connections(project.path);
-    for (final conn in conns) {
-      if (conn.name == connName) {
-        return conn.engine == engine
-            ? null
-            : '"$connName" is a ${conn.engine.label} connection, '
-                  'not ${engine.label}';
-      }
-    }
-    final available = conns.map((c) => c.name).join(', ');
-    return 'no connection named "$connName" '
-        '(available: ${available.isEmpty ? 'none' : available})';
+    final (conn, err) = await _agentConn(project, connName);
+    if (err != null) return err;
+    return conn!.engine == engine
+        ? null
+        : '"$connName" is a ${conn.engine.label} connection, '
+              'not ${engine.label}';
   }
 
   /// Molde dos comandos `db-*`: resolve o workspace (decisão K do plano 51 —
