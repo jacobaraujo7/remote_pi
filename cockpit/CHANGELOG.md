@@ -16,7 +16,13 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
 
 ## [1.14.4] — 2026-07-20
 
-Drivers de DB com TLS de verdade (anakiORM atualizado).
+Drivers de DB com TLS de verdade (anakiORM atualizado) e tela de loading
+no boot.
+
+### Added
+- **Tela de loading no boot** (@jamesldr, #65): a janela abre na hora com
+  splash animado no tema salvo enquanto o setup roda atrás; falha no boot
+  mostra tela de erro com Retry em vez de fechar sem feedback.
 
 ### Fixed
 - **TLS nos drivers:** anaki_postgres 0.1.4 / anaki_mysql 0.1.5 compilados
