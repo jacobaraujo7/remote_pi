@@ -101,8 +101,21 @@ export function createExtensionUiBridge(
     flowTimers.set(
       flowId,
       setTimeout(() => {
-        activeFlows.delete(flowId);
+        if (!activeFlows.delete(flowId)) return; // already resolved
         flowTimers.delete(flowId);
+        // Tell the app the bridge forgot this flow instead of stranding its
+        // modal silently: a matching WARNING notify keeps the modal open with
+        // a retry hint. Rich clients can still retry (the response carries
+        // flow_id and pi-ask's flow may still be pending on the desktop);
+        // degraded clients at least get closure.
+        broadcast({
+          type: "extension_ui_request",
+          id: flowId,
+          method: "notify",
+          message:
+            "Clarification expired on the bridge — retry or answer on desktop.",
+          notify_type: "warning",
+        });
       }, FLOW_TTL_MS),
     );
   }
@@ -161,10 +174,21 @@ export function createExtensionUiBridge(
         : typeof e.error === "string"
           ? e.error
           : "Clarification answer was not accepted.";
-    const flowId = typeof e.flowId === "string" ? e.flowId : null;
+    const flowId =
+      typeof e.flowId === "string"
+        ? e.flowId
+        : activeFlows.size === 1
+          // Defensive: pi-ask always carries flowId. If it's ever absent, an
+          // unambiguous single active flow is a safe attribution; with zero or
+          // several, the warning is uncorrelatable and the app ignores
+          // unmatched notifies — drop it instead of broadcasting a random id
+          // no client can act on.
+          ? activeFlows.keys().next().value
+          : undefined;
+    if (!flowId) return;
     broadcast({
       type: "extension_ui_request",
-      id: flowId ?? `ask-error:${cryptoRandomId()}`,
+      id: flowId,
       method: "notify",
       message,
       notify_type: "warning",
@@ -206,6 +230,8 @@ export function createExtensionUiBridge(
     const question = flow.questions[0];
     if (!question) return;
     const label = "value" in msg ? String(msg.value) : "";
+    // NB: pi-ask's schema doesn't forbid duplicate labels — on a collision the
+    // first match wins. Inherent ambiguity of a label-only (degraded) client.
     const match = question.options.find((o) => o.label === label);
     const answers: Record<string, AskAnswerWire> = {
       [question.id]: match
@@ -379,15 +405,6 @@ function asString(value: unknown): string | undefined {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-function cryptoRandomId(): string {
-  // Prefer global crypto; fall back to Math.random for odd runtimes.
-  const g = globalThis as { crypto?: { randomUUID?: () => string } };
-  if (g.crypto && typeof g.crypto.randomUUID === "function") {
-    return g.crypto.randomUUID();
-  }
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 // Re-exported so callers (and tests) can build responses without re-deriving the

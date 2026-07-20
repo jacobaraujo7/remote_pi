@@ -1,5 +1,5 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createExtensionUiBridge } from "./extension_ui_bridge.js";
 import type { ExtensionUiResponseWire, ServerMessage } from "./protocol/types.js";
 
@@ -295,5 +295,122 @@ describe("extension_ui_bridge", () => {
     bridge.respond({ type: "extension_ui_response", id: "never-seen", value: "x" });
 
     expect(bus.emitted.filter((e) => e.name === SUBMIT)).toHaveLength(0);
+  });
+
+  it("forwards a BARE rich answer (no value/confirmed/cancelled) to pi-ask", () => {
+    // This is the shape the app actually sends for a rich submit: only the ask
+    // envelope, no discriminator. Routing must key off ask.kind alone.
+    const bus = fakeBus();
+    const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+    bridge.respond({
+      type: "extension_ui_response",
+      id: "tool:tc_1",
+      ask: {
+        flow_id: "tool:tc_1",
+        kind: "answer",
+        mode: "submit",
+        answers: { goal: { values: ["a"] } },
+      },
+    });
+
+    const submits = bus.emitted.filter((e) => e.name === SUBMIT);
+    expect(submits).toHaveLength(1);
+    expect(submits[0]?.data).toEqual({
+      version: 1,
+      requestId: "tool:tc_1",
+      flowId: "tool:tc_1",
+      response: {
+        kind: "answer",
+        mode: "submit",
+        answers: { goal: { values: ["a"] } },
+      },
+    });
+  });
+
+  it("attributes a flowId-less submit-result to a single active flow", () => {
+    // Defensive path: pi-ask always carries flowId, but if it's ever absent a
+    // lone active flow is an unambiguous target — the app CAN correlate this.
+    const bus = fakeBus();
+    const sent: ServerMessage[] = [];
+    createExtensionUiBridge(fakePi(bus), (m) => sent.push(m));
+
+    bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+    sent.length = 0;
+    bus.emit("@eko24ive/pi-ask:submit-result", {
+      version: 1,
+      requestId: "r1",
+      ok: false,
+      message: "Nope.",
+    });
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({
+      type: "extension_ui_request",
+      id: "tool:tc_1",
+      method: "notify",
+      notify_type: "warning",
+    });
+  });
+
+  it("drops a flowId-less submit-result when no flow is active (uncorrelatable)", () => {
+    const bus = fakeBus();
+    const sent: ServerMessage[] = [];
+    createExtensionUiBridge(fakePi(bus), (m) => sent.push(m));
+
+    bus.emit("@eko24ive/pi-ask:submit-result", {
+      version: 1,
+      requestId: "r1",
+      ok: false,
+      message: "Nope.",
+    });
+
+    // The app ignores unmatched notifies — broadcasting a random id is a no-op.
+    expect(sent).toHaveLength(0);
+  });
+
+  describe("flow TTL", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("warns the app (matching notify) when a flow's TTL expires", () => {
+      vi.useFakeTimers();
+      const bus = fakeBus();
+      const sent: ServerMessage[] = [];
+      const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      sent.length = 0;
+
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({
+        type: "extension_ui_request",
+        id: "tool:tc_1",
+        method: "notify",
+        notify_type: "warning",
+      });
+      // ...and the flow is gone: a degraded response through the SAME bridge
+      // is dropped (rich responses still work — they carry flow_id).
+      bridge.respond({ type: "extension_ui_response", id: "tool:tc_1", value: "Alpha" });
+      expect(bus.emitted.filter((e) => e.name === SUBMIT)).toHaveLength(0);
+    });
+
+    it("does NOT warn when the flow resolved before the TTL", () => {
+      vi.useFakeTimers();
+      const bus = fakeBus();
+      const sent: ServerMessage[] = [];
+      createExtensionUiBridge(fakePi(bus), (m) => sent.push(m));
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      bus.emit("@eko24ive/pi-ask:completed", { version: 1, flowId: "tool:tc_1" });
+      sent.length = 0;
+
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+
+      expect(sent).toHaveLength(0);
+    });
   });
 });

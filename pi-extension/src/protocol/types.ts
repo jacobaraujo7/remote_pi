@@ -70,7 +70,13 @@ export interface AskEnrichmentWire {
   questions: AskQuestionWire[];
 }
 
-/** pi-ask RemoteAskAnswer — one question's answered parts. */
+/** pi-ask RemoteAskAnswer — one question's answered parts.
+ *
+ *  CASING EXCEPTION: inside the `ask` envelope the keys mirror pi-ask's own
+ *  schema VERBATIM (camelCase: `presentedType`, `requestedType`, `customText`,
+ *  `optionNotes`) so the bridge can forward the response to pi-ask's submit
+ *  event without a remap pass. The snake_case convention of this protocol
+ *  applies at the frame level (`flow_id`, `tool_call_id`, `notify_type`). */
 export interface AskAnswerWire {
   values?: string[];
   customText?: string;
@@ -154,6 +160,16 @@ export type ExtensionUiResponseWire =
       id: string;
       cancelled: true;
       ask?: AskResponseEnrichmentWire;
+    }
+  // Rich pi-ask answer: a client that rendered the full flow from the `ask`
+  // envelope submits ONLY the envelope — no value/confirmed/cancelled
+  // discriminator (the structured `answers` supersede them). This is the
+  // shape the app actually sends for rich submits; routing keys off
+  // `ask.kind` before any discriminator is read.
+  | {
+      type: "extension_ui_response";
+      id: string;
+      ask: AskResponseEnrichmentWire;
     };
 
 export type ClientMessage =
