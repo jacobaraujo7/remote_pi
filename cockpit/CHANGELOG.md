@@ -14,7 +14,7 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
-## [1.14.4] — 2026-07-20
+## [1.14.5] — 2026-07-20
 
 Drivers de DB com TLS de verdade (anakiORM atualizado) e tela de loading
 no boot.
