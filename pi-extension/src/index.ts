@@ -2097,6 +2097,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    // session_shutdown disposes per-session pi-ask subscriptions. A host that
+    // reuses this module instance does NOT re-run the factory, so rebind the
+    // bridge here; fresh-module hosts already created theirs in the factory.
+    if (!_extensionUiBridge) {
+      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+    }
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2188,6 +2194,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // down — the race that left a mute `Backoffice` behind when the Cockpit
     // fired switch_session right after boot.
     _disposed = true;
+    // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
+    // the outgoing session is replaced so stale listeners cannot leak or
+    // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
+    // module instances create their bridge in the factory.
+    _extensionUiBridge?.dispose();
+    _extensionUiBridge = null;
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
