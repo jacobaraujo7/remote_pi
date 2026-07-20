@@ -23,6 +23,7 @@ class _FakeChannel implements IChannel, IControlLink {
   final _ctrl = StreamController<ServerMessage>.broadcast();
   final _control = StreamController<ControlInbound>.broadcast();
   final List<ClientMessage> sent = [];
+  Object? sendError;
   @override
   Stream<ServerMessage> get serverMessages => _ctrl.stream;
   @override
@@ -30,7 +31,12 @@ class _FakeChannel implements IChannel, IControlLink {
   @override
   void sendControl(Map<String, dynamic> json) {}
   @override
-  Future<void> send(ClientMessage msg) async => sent.add(msg);
+  Future<void> send(ClientMessage msg) async {
+    final error = sendError;
+    if (error != null) throw error;
+    sent.add(msg);
+  }
+
   @override
   Future<void> close() async {
     await _ctrl.close();
@@ -269,4 +275,32 @@ void main() {
       conn.dispose();
     },
   );
+
+  test('send exception becomes a retryable modal error', () async {
+    final h = await harness();
+
+    h.ch.push(_request('tool:f1'));
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    h.ch.sent.clear(); // discard harness startup SessionSync
+    h.ch.sendError = StateError('socket closed');
+
+    await expectLater(
+      h.vm.respondExtensionUi(
+        ExtensionUiResponse(id: 'tool:f1', cancelled: true),
+      ),
+      completes,
+    );
+
+    final state = h.vm.state as ChatReady;
+    expect(state.pendingUiRequest?.id, 'tool:f1', reason: 'modal stays open');
+    expect(
+      state.pendingUiError,
+      'Not connected — check the link to Pi and retry.',
+    );
+    expect(h.ch.sent, isEmpty);
+
+    h.vm.dispose();
+    h.sync.dispose();
+    h.conn.dispose();
+  });
 }

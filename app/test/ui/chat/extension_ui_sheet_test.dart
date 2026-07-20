@@ -181,4 +181,19 @@ void main() {
     await pumpSheet(tester, request: _richRequest());
     expect(find.text('required'), findsOneWidget);
   });
+
+  testWidgets('defensive degraded notify renders its message once', (
+    tester,
+  ) async {
+    await pumpSheet(
+      tester,
+      request: const ExtensionUiRequest(
+        id: 'notify:1',
+        method: ExtensionUiMethod.notify,
+        message: 'Clarification resolved.',
+      ),
+    );
+
+    expect(find.text('Clarification resolved.'), findsOneWidget);
+  });
 }

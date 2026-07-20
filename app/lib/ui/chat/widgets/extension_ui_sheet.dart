@@ -457,10 +457,10 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
               'Please confirm.',
               style: text.titleMedium,
             ),
-            ExtensionUiMethod.notify => Text(
-              widget.request.message ?? '',
-              style: text.bodyLarge,
-            ),
+            // ChatViewModel consumes notify requests without opening this
+            // sheet. Keep the defensive enum branch empty; [message] above
+            // already renders it once if this path ever becomes reachable.
+            ExtensionUiMethod.notify => const SizedBox.shrink(),
           },
         ],
       ),

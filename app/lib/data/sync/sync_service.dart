@@ -329,14 +329,19 @@ class SyncService extends Service {
   /// Plan/51 — respond to an interactive extension_ui_request (ask_user).
   /// The ChatViewModel builds the [ExtensionUiResponse] (value/confirmed/
   /// cancelled + optional `ask` envelope); the SyncService just ships it.
-  /// Returns false when there is no live channel (nothing was sent) so the
-  /// caller can surface the failure immediately instead of waiting on the
-  /// sheet's 25s backstop.
+  /// Returns false when there is no live channel or the send fails so the
+  /// caller can surface a retryable failure immediately instead of waiting on
+  /// the sheet's 25s backstop.
   Future<bool> respondExtensionUi(ExtensionUiResponse resp) async {
     final ch = _conn.channel;
     if (ch == null) return false;
-    await ch.send(resp);
-    return true;
+    try {
+      await ch.send(resp);
+      return true;
+    } catch (error) {
+      debugPrint('[extension-ui] failed to send response: $error');
+      return false;
+    }
   }
 
   Future<void> approveTool(String toolCallId, ApproveDecision decision) async {
