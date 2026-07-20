@@ -35,7 +35,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const String _version = '0.4.0';
+const String _version = '0.5.0';
 
 /// Id da própria tab: `COCKPIT_TAB_ID` (novo) com fallback pro legado
 /// `COCKPIT_PANE_ID`. O app injeta os dois; o fallback cobre binário novo com
@@ -89,6 +89,8 @@ Future<void> main(List<String> argv) async {
       await _cmdRedis(args);
     case 'mongo':
       await _cmdMongo(args);
+    case 'new-tab':
+      await _cmdNewTab(args);
     case 'install-skill':
       await _cmdInstallSkill(args);
     default:
@@ -149,6 +151,79 @@ Future<void> _cmdOpen(List<String> args) async {
     stderr.writeln('cockpit: ${resp['error'] ?? 'failed'}');
     exit(1);
   }
+  exit(0);
+}
+
+/// `cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]` — cria uma
+/// aba de terminal no app. `--cwd` default = o cwd atual; `--title` vira o
+/// rótulo estável da aba (endereçável por `read-tab <title>`); sem `--split` a
+/// aba nasce na mesma pane; `h`/`right` divide lado a lado, `v`/`down` empilha
+/// (semântica tmux). Imprime o id da tab criada (`t12`) no stdout.
+Future<void> _cmdNewTab(List<String> args) async {
+  String? cwd;
+  String? title;
+  String? split;
+  String? tabId;
+  var json = false;
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    String? take(String flag) {
+      if (a == flag) return ++i < args.length ? args[i] : null;
+      if (a.startsWith('$flag=')) return a.substring(flag.length + 1);
+      return null;
+    }
+
+    if (a == '--help' || a == '-h') {
+      stdout.writeln(
+        'cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]\n'
+        '  --cwd    working directory (default: current directory)\n'
+        '  --title  stable tab label (read-tab/send can target it)\n'
+        '  --split  h|right = side by side, v|down = stacked; omit = new tab\n'
+        '           in the same pane\n'
+        '  Prints the new tab id (e.g. t12).',
+      );
+      exit(0);
+    }
+    if (a == '--json') {
+      json = true;
+      continue;
+    }
+    cwd = take('--cwd') ?? cwd;
+    title = take('--title') ?? title;
+    split = take('--split') ?? split;
+    tabId = take('--tab-id') ?? tabId;
+  }
+  final String? wireSplit;
+  switch (split?.toLowerCase()) {
+    case null:
+      wireSplit = null;
+    case 'h' || 'horizontal' || 'right':
+      wireSplit = 'right';
+    case 'v' || 'vertical' || 'down':
+      wireSplit = 'down';
+    default:
+      stderr.writeln(
+        'cockpit new-tab: invalid --split "$split" (use h|right or v|down)',
+      );
+      exit(2);
+  }
+  final req = <String, dynamic>{
+    'cmd': 'new-tab',
+    'args': <String, dynamic>{
+      'cwd': _resolvePath(cwd ?? Directory.current.path),
+      if (title != null && title.isNotEmpty) 'title': title,
+      'split': ?wireSplit,
+    },
+  };
+  final tid = tabId ?? _selfTabId();
+  if (tid != null && tid.isNotEmpty) req['tabId'] = tid;
+  final resp = await _request(req);
+  if (resp['ok'] != true) {
+    stderr.writeln('cockpit: ${resp['error'] ?? 'failed'}');
+    exit(1);
+  }
+  final data = (resp['data'] as Map?) ?? const {};
+  stdout.writeln(json ? jsonEncode(data) : (data['tabId'] ?? '').toString());
   exit(0);
 }
 
@@ -884,6 +959,8 @@ USAGE:
   cockpit list-tabs       [--json]             list active tabs (alias: list-panes)
   cockpit list-workspaces [--json]             list workspaces (projects)
   cockpit list-tasks      [--json]             list this workspace's tasks (Task Run)
+  cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]
+                                               open a new terminal tab (prints its id)
   cockpit db <list|schema|query|run|execute>   SQL databases (see `cockpit db --help`)
   cockpit redis [browse] --db <conn> ...       Redis command / open key table
   cockpit mongo [browse] --db <conn> ...       MongoDB runCommand / open browser
@@ -928,8 +1005,17 @@ KEYS (send-key):
   Enter Tab Escape Space BSpace Up Down Left Right Home End
   PageUp PageDown Delete   |   C-<letter> (e.g. C-c = Ctrl+C)
 
+NEW-TAB:
+  --cwd <dir>     working directory (default: current directory)
+  --title <name>  stable tab label (send/read-tab can target it by name)
+  --split h|v     h (or right) = side by side; v (or down) = stacked.
+                  Omit to open as a new tab in the same pane.
+  Anchored at the emitting tab's pane/workspace. Prints the new tab id.
+
 EXAMPLES:
   cockpit send "echo hi" && cockpit send-key Enter
+  id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+  cockpit send --tab-id "$id" "npm test" && cockpit send-key --tab-id "$id" Enter
   cockpit send-key C-c
   cockpit send --tab-id t3 "ls" ; cockpit send-key --tab-id t3 Enter
   cockpit .zprofile          # opens the file in the viewer (relative to tab cwd)
@@ -958,7 +1044,7 @@ String _basename(String path) {
 
 const String _skillMarkdown = r'''---
 name: cockpit-cli
-description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to type text or press keys into your own or another tab, read another tab's or a task's output, list the open tabs/workspaces/tasks, or query the workspace's databases (SQL over registered connections / .dbq files). Triggers on tmux-like control needs — send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids — and on database needs: run a SQL query, inspect a schema, list connections, execute a .dbq file.
+description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to open a new terminal tab or split pane, type text or press keys into your own or another tab, read another tab's or a task's output, list the open tabs/workspaces/tasks, or query the workspace's databases (SQL over registered connections / .dbq files). Triggers on tmux-like control needs — split-window/new-window, send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids — and on database needs: run a SQL query, inspect a schema, list connections, execute a .dbq file.
 ---
 
 # cockpit — Cockpit's internal CLI
@@ -980,6 +1066,17 @@ Cockpit tabs (it is not on the global PATH).
 - `cockpit send-key [--tab-id <id>] <Key>...` — press key(s): `Enter`, `Tab`,
   `Escape`, `Space`, `BSpace`, `Up`/`Down`/`Left`/`Right`, `Home`/`End`,
   `PageUp`/`PageDown`, `Delete`, and `C-<letter>` (e.g. `C-c` = Ctrl+C).
+- `cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]` — open a new
+  **terminal tab** in the app and print its id (`t12`). `--cwd` defaults to
+  your current directory; `--title` sets the stable tab label (so `send`/
+  `read-tab` can target it by name). Without `--split` the tab opens in the
+  same pane (next to yours); `--split h` (or `right`) splits side by side,
+  `--split v` (or `down`) stacks — tmux semantics. Capture the id to drive it:
+
+  ```sh
+  id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+  cockpit send --tab-id "$id" "npm test" && cockpit send-key --tab-id "$id" Enter
+  ```
 - `cockpit open [--tab-id <id>] <file>` — open the file in the app's viewer
   (tab next to the terminal). `cockpit <file>` is the shortcut. The path is
   resolved against the tab cwd (relative, `~` and absolute all work). Any type

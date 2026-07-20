@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io' show File, FileSystemException;
+import 'dart:io' show Directory, File, FileSystemException;
 
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
@@ -21,6 +21,7 @@ import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_terminal_store.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_read_window.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
+import 'package:cockpit/app/cockpit/ui/states/pane_node.dart' show SplitDir;
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 
 /// Atende os comandos da CLI interna `cockpit` (mesmo socket do
@@ -136,6 +137,54 @@ class CockpitCliHandler {
         }
         await _vm.openFile(path, inPane: targetLeaf, isPreview: false);
         return const CockpitCommandResult.ok();
+
+      // `cockpit new-tab` — cria uma aba de terminal. A CLI já resolveu o cwd
+      // pro absoluto. Ancora no workspace/pane da tab emissora (trazendo o
+      // workspace pra frente, mesma regra do `open`); `split` = right|down
+      // divide a pane em vez de anexar a aba. Devolve `{tabId}` da tab criada.
+      case 'new-tab':
+        final cwd = (c.args['cwd'] ?? '').toString();
+        if (cwd.isEmpty) {
+          return const CockpitCommandResult.fail('missing cwd');
+        }
+        if (!await Directory(cwd).exists()) {
+          return CockpitCommandResult.fail('directory not found: "$cwd"');
+        }
+        final split = (c.args['split'] ?? '').toString();
+        // Wire usa a geometria (right|down), não os nomes do SplitDir — o
+        // enum é contra-intuitivo (vertical = lado a lado).
+        final SplitDir? splitDir;
+        switch (split) {
+          case '':
+            splitDir = null;
+          case 'right':
+            splitDir = SplitDir.vertical;
+          case 'down':
+            splitDir = SplitDir.horizontal;
+          default:
+            return CockpitCommandResult.fail(
+              'invalid split "$split" (expected right or down)',
+            );
+        }
+        final title = (c.args['title'] ?? '').toString();
+        final sender = c.tabId == null ? null : _vm.session(c.tabId!);
+        String? anchorLeaf;
+        if (sender != null) {
+          if (sender.projectId != _vm.selectedProjectId) {
+            _vm.selectProject(sender.projectId);
+          }
+          anchorLeaf = _vm.leafOfTab(sender.projectId, sender.id);
+        }
+        final created = _vm.newTerminalTab(
+          cwd: cwd,
+          title: title.isEmpty ? null : title,
+          inPane: anchorLeaf,
+          splitDir: splitDir,
+        );
+        return switch (created) {
+          Success(:final value) => CockpitCommandResult.ok({'tabId': value}),
+          Failure(:final error) => CockpitCommandResult.fail(error),
+        };
 
       case 'list-workspaces':
         final ws = _vm.projects

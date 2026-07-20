@@ -2207,6 +2207,67 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cria uma aba de **terminal** com [cwd] absoluto — usada pela CLI interna
+  /// (`cockpit new-tab`), que não passa pelo dialog nem por subpasta relativa.
+  /// [inPane] ancora a criação numa folha específica (a da tab emissora);
+  /// `null` = pane focada. [splitDir] `null` = nova aba na mesma pane; senão
+  /// divide a pane âncora naquela direção. [title] vira o rótulo manual
+  /// (estável, endereçável por `read-tab <label>`); sem título, a aba segue o
+  /// título automático. Devolve o id da tab criada, ou a mensagem de erro.
+  Result<String, String> newTerminalTab({
+    required String cwd,
+    String? title,
+    String? inPane,
+    SplitDir? splitDir,
+  }) {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) {
+      return const Failure('no active workspace to create the terminal in');
+    }
+    final anchorId = inPane ?? _focused[projectId] ?? leaves(tree).first.id;
+    final leaf = findLeaf(tree, anchorId) ?? leaves(tree).first;
+
+    final s = _buildTerminal(
+      _nid('t'),
+      projectId,
+      cwd,
+      title: title ?? _sanitizeName(_basename(cwd)),
+    );
+    if (title != null && title.trim().isNotEmpty) {
+      s.setManualLabel(title);
+    }
+
+    if (splitDir == null) {
+      // Mesma pane: anexa como aba nova (substituindo o placeholder "Novo",
+      // se for a aba ativa — mesma regra do `newTabIn`).
+      final active = _sessions[leaf.active];
+      final replaceEmpty =
+          active is AgentSession && active.status == AgentStatus.empty;
+      _setActiveTree(
+        updateLeaf(tree, leaf.id, (p) {
+          if (replaceEmpty) {
+            final tabs = p.tabs
+                .map((t) => t == leaf.active ? s.id : t)
+                .toList();
+            return p.copyWith(tabs: tabs, active: s.id);
+          }
+          return p.copyWith(tabs: [...p.tabs, s.id], active: s.id);
+        }),
+      );
+      if (replaceEmpty) _disposeSession(leaf.active);
+      _focused[projectId] = leaf.id;
+    } else {
+      final newLeaf = LeafPane(id: _nid('pane'), tabs: [s.id], active: s.id);
+      _setActiveTree(
+        splitLeaf(tree, leaf.id, splitDir, newLeaf, splitId: _nid('sp')),
+      );
+      _focused[projectId] = newLeaf.id;
+    }
+    notifyListeners();
+    return Success(s.id);
+  }
+
   /// `true` se a aba ativa da pane [paneId] é um terminal. O split espelha esse
   /// tipo (terminal→terminal), então o call site usa isso pra decidir se pergunta
   /// a subpasta (agente) ou abre direto na raiz (terminal).
