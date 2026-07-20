@@ -59,6 +59,10 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
     // error being CLEARED (non-null → null) must not reset: that's the
     // viewmodel wiping the old message at the start of a retry, and stopping
     // there would re-enable the buttons mid-flight (double submit).
+    // NB: chat_page keys this sheet by ValueKey(request.id), so a different
+    // request id never reaches didUpdateWidget (a fresh State is created
+    // instead) — the id check below is defensive only; the live transition is
+    // "error arrived for the same request".
     final errorArrived =
         widget.error != oldWidget.error && widget.error != null;
     if (widget.request.id != oldWidget.request.id || errorArrived) {
