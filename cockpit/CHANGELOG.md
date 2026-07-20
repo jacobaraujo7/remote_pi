@@ -14,6 +14,17 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.14.3] — 2026-07-20
+
+Switch de SSL/TLS no dialog de conexão do Database.
+
+### Added
+- **Use SSL/TLS:** switch no dialog de conexão grava a forma certa por
+  engine (Postgres `sslmode=require`, MySQL `ssl-mode=REQUIRED`, MSSQL
+  `encrypt=true`, Mongo `tls=true`, Redis `rediss://`); OFF remove a chave
+  preservando os demais query params. SRV (Atlas) implica TLS (switch
+  travado). Necessário pra bancos gerenciados (RDS `rds.force_ssl` etc).
+
 ## [1.14.2] — 2026-07-20
 
 Fix no parse de URL do Database.

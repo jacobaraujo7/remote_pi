@@ -44,6 +44,8 @@ enum DbEngine {
   static DbEngine? fromScheme(String scheme) {
     // Atlas/SRV: variante oficial do scheme Mongo (DNS seed list).
     if (scheme == 'mongodb+srv') return DbEngine.mongo;
+    // Redis sobre TLS: o "liga TLS" do Redis é o scheme, não query param.
+    if (scheme == 'rediss') return DbEngine.redis;
     for (final e in DbEngine.values) {
       if (e.scheme == scheme) return e;
     }
@@ -129,11 +131,15 @@ class DbConnection {
     bool agents = true,
     bool srv = false,
     String query = '',
+    bool tls = false,
   }) {
     // SRV (Atlas): scheme `mongodb+srv` e URL sem porta (proibida no formato).
-    final scheme = srv ? 'mongodb+srv' : engine.scheme;
+    // Redis liga TLS pelo scheme (`rediss://`), os demais por query param.
+    final scheme = srv
+        ? 'mongodb+srv'
+        : (engine == DbEngine.redis && tls ? 'rediss' : engine.scheme);
     final p = srv ? '' : ':${port ?? engine.defaultPort}';
-    final q = query.isEmpty ? '' : '?$query';
+    final q = _mergeTlsQuery(engine, query, tls: tls, srv: srv);
     final hasPass = password != null && password.isNotEmpty;
     final auth = user.isEmpty && !hasPass
         ? ''
@@ -219,6 +225,29 @@ class DbConnection {
   /// Query string da URL (`retryWrites=true&...`) — preservada na edição.
   String get urlQuery => _uri.query;
 
+  /// Se a conexão está configurada com TLS — o que o switch "Use SSL/TLS" do
+  /// dialog lê/escreve. A representação é por engine: query param (Postgres/
+  /// MySQL/MSSQL/Mongo) ou scheme (`rediss://`); SRV implica TLS.
+  bool get useTls => switch (engine) {
+    DbEngine.sqlite => false,
+    DbEngine.redis => url.startsWith('rediss://'),
+    DbEngine.mongo =>
+      isSrv ||
+          _uri.queryParameters['tls'] == 'true' ||
+          _uri.queryParameters['ssl'] == 'true',
+    DbEngine.postgres => const {
+      'require',
+      'verify-ca',
+      'verify-full',
+    }.contains(_uri.queryParameters['sslmode']),
+    DbEngine.mysql => const {
+      'REQUIRED',
+      'VERIFY_CA',
+      'VERIFY_IDENTITY',
+    }.contains((_uri.queryParameters['ssl-mode'] ?? '').toUpperCase()),
+    DbEngine.mssql => _uri.queryParameters['encrypt'] == 'true',
+  };
+
   /// Alvo curto pra exibição na lista do painel (path ou host:porta; SRV não
   /// tem porta).
   String get displayTarget => engine == DbEngine.sqlite
@@ -251,6 +280,40 @@ class DbConnection {
     access: access ?? this.access,
     agents: agents ?? this.agents,
   );
+
+  /// Query param que liga TLS por engine (`null` = não é por query: Redis é
+  /// pelo scheme `rediss://`, sqlite não tem TLS).
+  static (String, String)? _tlsParam(DbEngine engine) => switch (engine) {
+    DbEngine.postgres => ('sslmode', 'require'),
+    DbEngine.mysql => ('ssl-mode', 'REQUIRED'),
+    DbEngine.mssql => ('encrypt', 'true'),
+    DbEngine.mongo => ('tls', 'true'),
+    DbEngine.sqlite || DbEngine.redis => null,
+  };
+
+  /// Reconstrói a query string preservando os params existentes e aplicando o
+  /// switch de TLS: ON grava o param do engine, OFF o remove (default do
+  /// driver). SRV já implica TLS — não escreve param redundante.
+  static String _mergeTlsQuery(
+    DbEngine engine,
+    String query, {
+    required bool tls,
+    required bool srv,
+  }) {
+    final map = query.isEmpty
+        ? <String, String>{}
+        : Map.of(Uri.splitQueryString(query));
+    final param = _tlsParam(engine);
+    if (param != null) map.remove(param.$1);
+    if (engine == DbEngine.mongo) map.remove('ssl'); // alias legado do tls
+    if (tls && !srv && param != null) map[param.$1] = param.$2;
+    if (map.isEmpty) return '';
+    final pairs = map.entries.map(
+      (e) =>
+          '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+    );
+    return '?${pairs.join('&')}';
+  }
 
   /// Torna parseável uma URL editada na mão com senha SEM percent-encoding
   /// (`user:8nJM9g8%?FC(@host` → o `Uri.parse` lê a senha como porta e

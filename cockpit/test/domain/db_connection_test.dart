@@ -121,6 +121,96 @@ void main() {
     expect(c.urlPassword, '8nJM9g8%?FC(');
   });
 
+  test('tls ON grava o param por engine; OFF remove preservando o resto', () {
+    final pg = DbConnection.network(
+      name: 'pg',
+      engine: DbEngine.postgres,
+      host: 'h',
+      database: 'd',
+      tls: true,
+    );
+    expect(pg.url, contains('sslmode=require'));
+    expect(pg.useTls, isTrue);
+
+    final my = DbConnection.network(
+      name: 'my',
+      engine: DbEngine.mysql,
+      host: 'h',
+      database: 'd',
+      tls: true,
+    );
+    expect(my.url, contains('ssl-mode=REQUIRED'));
+    expect(my.useTls, isTrue);
+
+    final ms = DbConnection.network(
+      name: 'ms',
+      engine: DbEngine.mssql,
+      host: 'h',
+      database: 'd',
+      tls: true,
+    );
+    expect(ms.url, contains('encrypt=true'));
+    expect(ms.useTls, isTrue);
+
+    final mongo = DbConnection.network(
+      name: 'mg',
+      engine: DbEngine.mongo,
+      host: 'h',
+      database: 'd',
+      tls: true,
+    );
+    expect(mongo.url, contains('tls=true'));
+    expect(mongo.useTls, isTrue);
+
+    // OFF: remove só a chave de TLS, preserva os demais params.
+    final off = DbConnection.network(
+      name: 'pg',
+      engine: DbEngine.postgres,
+      host: 'h',
+      database: 'd',
+      query: 'sslmode=require&application_name=cockpit',
+    );
+    expect(off.url, isNot(contains('sslmode')));
+    expect(off.url, contains('application_name=cockpit'));
+    expect(off.useTls, isFalse);
+  });
+
+  test('redis liga TLS pelo scheme rediss://', () {
+    final r = DbConnection.network(
+      name: 'r',
+      engine: DbEngine.redis,
+      host: 'h',
+      database: '0',
+      tls: true,
+    );
+    expect(r.url, startsWith('rediss://'));
+    expect(r.useTls, isTrue);
+    // fromJson reconhece o scheme de volta.
+    final parsed = DbConnection.fromJson({'name': 'r', 'url': r.url});
+    expect(parsed.engine, DbEngine.redis);
+    expect(parsed.useTls, isTrue);
+  });
+
+  test('srv implica TLS sem escrever param redundante', () {
+    final c = DbConnection.fromJson({
+      'name': 'atlas',
+      'url': 'mongodb+srv://u:p@c.mongodb.net/?retryWrites=true',
+    });
+    expect(c.useTls, isTrue);
+    final resaved = DbConnection.network(
+      name: c.name,
+      engine: c.engine,
+      host: c.host,
+      database: c.database,
+      srv: true,
+      query: c.urlQuery,
+      tls: true,
+    );
+    expect(resaved.url, startsWith('mongodb+srv://'));
+    expect(resaved.url, contains('retryWrites=true'));
+    expect(resaved.url, isNot(contains('tls=true')));
+  });
+
   test('url de engine desconhecido lança FormatException', () {
     expect(
       () => DbConnection.fromJson({'name': 'x', 'url': 'oracle://h/db'}),

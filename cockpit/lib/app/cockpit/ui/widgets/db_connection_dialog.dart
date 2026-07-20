@@ -47,6 +47,11 @@ class DbConnectionDialog extends StatefulWidget {
 class _DbConnectionDialogState extends State<DbConnectionDialog> {
   late bool _savePassword = widget.initial?.savePassword ?? false;
 
+  /// Switch "Use SSL/TLS" — vira query param/scheme por engine na URL. SRV
+  /// (Atlas) implica TLS: switch travado em ON.
+  late bool _useTls = widget.initial?.useTls ?? false;
+  bool get _isSrv => widget.initial?.isSrv ?? false;
+
   /// Guardrails do caminho dos agentes (CLI): escrita opt-in + visibilidade.
   /// GUI nunca é gated. Defaults seguros: read-only e visível.
   late bool _allowWrites = widget.initial?.access == DbAccess.readwrite;
@@ -122,8 +127,9 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
       // Edição de conexão Atlas: preserva o formato SRV e os query params da
       // URL original (o form não os expõe; reescrever pra mongodb://host:port
       // quebraria a conexão).
-      srv: widget.initial?.isSrv ?? false,
+      srv: _isSrv,
       query: widget.initial?.urlQuery ?? '',
+      tls: _useTls,
     );
   }
 
@@ -379,6 +385,16 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
                 hint: _editing && widget.initial!.savePassword
                     ? '*******'
                     : null,
+              ),
+              _switchRow(
+                'Use SSL/TLS',
+                _isSrv || _useTls,
+                (v) {
+                  if (!_isSrv) setState(() => _useTls = v);
+                },
+                hint: _isSrv
+                    ? 'implied by mongodb+srv'
+                    : 'managed DBs (RDS, Atlas…) usually require it',
               ),
             ],
             // Guardrails dos agentes (CLI). GUI nunca é bloqueada.
