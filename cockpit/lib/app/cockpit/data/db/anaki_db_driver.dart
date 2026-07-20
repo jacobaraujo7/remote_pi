@@ -131,6 +131,11 @@ class AnakiDbDriver implements DbDriver {
           username: conn.user,
           password: password ?? '',
           database: conn.database,
+          // `?ssl-mode=` da URL (REQUIRED etc); o driver espera minúsculo
+          // (disabled/preferred/required/verify_ca/verify_identity).
+          sslMode: Uri.parse(
+            conn.url,
+          ).queryParameters['ssl-mode']?.toLowerCase(),
         );
       case DbEngine.mssql:
         final params = Uri.parse(conn.url).queryParameters;
@@ -142,6 +147,12 @@ class AnakiDbDriver implements DbDriver {
           database: conn.database,
           // `?trustcert=true` pra dev com cert self-signed.
           trustCert: params['trustcert'] == 'true',
+          // `?encrypt=` do switch Use SSL/TLS; ausente = default do tiberius.
+          encrypt: switch (params['encrypt']) {
+            'true' => true,
+            'false' => false,
+            _ => null,
+          },
         );
       case DbEngine.redis:
       case DbEngine.mongo:

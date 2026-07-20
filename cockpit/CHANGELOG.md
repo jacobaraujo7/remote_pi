@@ -14,6 +14,17 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.14.4] — 2026-07-20
+
+Drivers de DB com TLS de verdade (anakiORM atualizado).
+
+### Fixed
+- **TLS nos drivers:** anaki_postgres 0.1.4 / anaki_mysql 0.1.5 compilados
+  com rustls — `sslmode=require` funciona (antes: "SQLx was built without
+  TLS support"). MySQL repassa `ssl-mode`, MSSQL repassa `encrypt`.
+- **FFI:** fix de colisão de símbolos quando vários drivers anaki carregam
+  no mesmo processo (sqlite/mssql/redis/mongodb 0.1.4).
+
 ## [1.14.3] — 2026-07-20
 
 Switch de SSL/TLS no dialog de conexão do Database.
