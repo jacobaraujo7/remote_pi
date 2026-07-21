@@ -14,6 +14,19 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.14.6] — 2026-07-20
+
+Correção de digitação de acentos no terminal.
+
+### Fixed
+- **Caracteres acentuados duplicados no terminal** (@pretodev, #66): o IME
+  podia reenviar o mesmo caractere já commitado (dead keys como `´` + vogal),
+  e cada reenvio ia pro PTY — `á` virava `ááá`. Agora cada commit é emitido
+  uma única vez.
+- **Build Linux com Clang novo:** warning legado do
+  `flutter_secure_storage_linux` (nlohmann/json antigo) não derruba mais o
+  build com `-Werror`.
+
 ## [1.14.5] — 2026-07-20
 
 Drivers de DB com TLS de verdade (anakiORM atualizado) e tela de loading
