@@ -106,7 +106,8 @@ class CockpitViewModel extends ChangeNotifier {
       ..isSystemTerminal = isSystemTerminal
       ..selectedProjectId = (() => _selectedProjectId)
       ..pollTargets = _gitPollTargets
-      ..onStructuralFsChange = _bumpFileTree;
+      ..onStructuralFsChange = _bumpFileTree
+      ..onPoll = _reconcileOpenWorktrees;
     git.addListener(notifyListeners);
     realmCtrl.addListener(notifyListeners);
   }
@@ -3375,6 +3376,23 @@ class CockpitViewModel extends ChangeNotifier {
       final doc = _serializeLayout(projectId);
       if (doc.isNotEmpty) unawaited(_layoutStore.save(projectId, doc));
     });
+  }
+
+  /// Reconcilia as worktrees de TODOS os workspaces raiz abertos contra o git —
+  /// disparado a cada tick do poll do [GitController]. Pega worktrees criadas ou
+  /// removidas por fora (outro terminal, o terminal do próprio fork) sem exigir
+  /// reabrir o workspace. [_refreshWorktrees] deduplica e só notifica se a lista
+  /// mudou, então o custo em repos parados é nulo.
+  void _reconcileOpenWorktrees() {
+    // Snapshot: [_refreshWorktrees] muda [_projectList] (após um await), então
+    // não iteramos a lista viva.
+    final roots = _projectList
+        .where((p) => p.parentId == null && !p.isSystemTerminal)
+        .map((p) => p.id)
+        .toList();
+    for (final rootId in roots) {
+      unawaited(_refreshWorktrees(rootId));
+    }
   }
 
   /// Reconcilia as worktrees de um workspace raiz contra o git (decisões 4, 5,

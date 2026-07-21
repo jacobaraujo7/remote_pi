@@ -44,6 +44,10 @@ class GitController extends ChangeNotifier {
   /// tree observado — o VM bumpa a revisão da árvore de arquivos.
   VoidCallback? onStructuralFsChange;
 
+  /// Disparado uma vez por tick do poll — o VM dono reconcilia as worktrees
+  /// (que o GitController não conhece) contra o git. Só notifica se a lista mudou.
+  VoidCallback? onPoll;
+
   // ---- estado ---------------------------------------------------------------
 
   /// Estado git por **root path** (branch + sujos). Para workspace single-root
@@ -293,6 +297,7 @@ class GitController extends ChangeNotifier {
       for (final id in pollTargets?.call() ?? const <String>[]) {
         unawaited(refresh(id));
       }
+      onPoll?.call();
     });
   }
 
