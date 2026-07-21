@@ -13,6 +13,8 @@ import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:flutter/foundation.dart';
 
+typedef DirectoryWatch = Stream<FileSystemEvent> Function(String path);
+
 /// Estado git do shell, extraído do `CockpitViewModel` (refactor 2026-07-19):
 /// info/árvore por **root path**, roots derivadas por projeto, watcher de
 /// filesystem do projeto selecionado, poll de segurança e comandos git.
@@ -21,10 +23,21 @@ import 'package:flutter/foundation.dart';
 /// (path/gates/alvos de poll) pelos campos de callback abaixo, logo após a
 /// construção. Worktrees e diff viewer seguem no VM (mexem em projeto/pane).
 class GitController extends ChangeNotifier {
-  GitController(this._reader, this._runner);
+  GitController(
+    this._reader,
+    this._runner, {
+    DirectoryWatch? directoryWatch,
+    Duration watchRetryDelay = const Duration(milliseconds: 500),
+  }) : _directoryWatch = directoryWatch ?? _defaultDirectoryWatch,
+       _watchRetryDelay = watchRetryDelay;
 
   final GitStatusReader _reader;
   final GitCommandRunner _runner;
+  final DirectoryWatch _directoryWatch;
+  final Duration _watchRetryDelay;
+
+  static Stream<FileSystemEvent> _defaultDirectoryWatch(String path) =>
+      Directory(path).watch(recursive: true);
 
   // ---- contexto injetado pelo VM dono (mesma vida page-scoped) -------------
 
@@ -70,6 +83,7 @@ class GitController extends ChangeNotifier {
   /// Recriado ao trocar de projeto; debounce junta rajadas de eventos.
   StreamSubscription<FileSystemEvent>? _gitWatch;
   Timer? _gitWatchDebounce;
+  Timer? _gitWatchRetry;
   String? _gitWatchPath;
 
   /// Debounce próprio da árvore de arquivos: eventos **estruturais**
@@ -248,6 +262,7 @@ class GitController extends ChangeNotifier {
     if (projectId != null && (isSystemTerminal?.call(projectId) ?? false)) {
       _gitWatch?.cancel();
       _gitWatchDebounce?.cancel();
+      _gitWatchRetry?.cancel();
       _gitWatch = null;
       _gitWatchPath = null;
       return;
@@ -256,34 +271,44 @@ class GitController extends ChangeNotifier {
     if (path == _gitWatchPath) return; // já observando este projeto
     _gitWatch?.cancel();
     _gitWatchDebounce?.cancel();
+    _gitWatchRetry?.cancel();
     _gitWatch = null;
     _gitWatchPath = path;
     if (path == null || projectId == null) return;
     try {
-      _gitWatch = Directory(path)
-          .watch(recursive: true)
-          .listen(
-            (event) => _onFsEvent(projectId, event),
-            // A subscription pode morrer sozinha (erro de FSEvents, limite de
-            // FDs, dir recriada). Sem isso o guard `path == _gitWatchPath`
-            // impediria o re-arm e as updates ao vivo parariam de vez — o poll
-            // ainda cobre, mas re-armamos pra manter a latência baixa.
-            onError: (_) => _rearmWatch(path),
-            onDone: () => _rearmWatch(path),
-            cancelOnError: true,
-          );
+      _gitWatch = _directoryWatch(path).listen(
+        (event) => _onFsEvent(projectId, event),
+        // A subscription pode morrer sozinha (erro de FSEvents/inotify, limite
+        // de FDs, dir recriada). O retry é atrasado: reabrir imediatamente uma
+        // pasta removida cria um loop de erro/re-arm que monopoliza o event loop
+        // (caso exato de remover a worktree selecionada no Linux release).
+        onError: (_) => _scheduleWatchRetry(path),
+        onDone: () => _scheduleWatchRetry(path),
+        cancelOnError: true,
+      );
     } catch (_) {
-      _gitWatchPath = null; // pasta inacessível → sem watcher (só poll/manual)
+      _scheduleWatchRetry(path);
     }
   }
 
-  /// Re-arma o watcher se a subscription do projeto [path] morreu enquanto ele
-  /// ainda é o observado. Zera o guard pra [watchProject] não sair cedo.
-  void _rearmWatch(String path) {
+  /// Re-arma o watcher com backoff se a subscription do projeto [path] morreu.
+  ///
+  /// No Linux, observar uma pasta inexistente falha de forma assíncrona e
+  /// imediata. Sem o atraso, `onError → watchProject → onError` vira um loop
+  /// apertado que impede a UI e até a continuação de `git worktree remove` de
+  /// rodarem. No disparo também recalculamos a seleção: durante o atraso a
+  /// worktree removida pode ter devolvido o foco ao workspace pai.
+  void _scheduleWatchRetry(String path) {
     if (_gitWatchPath != path) return; // já trocaram de projeto → ignora
     _gitWatch = null;
-    _gitWatchPath = null;
-    watchProject(selectedProjectId?.call());
+    _gitWatchRetry?.cancel();
+    _gitWatchRetry = Timer(_watchRetryDelay, () {
+      _gitWatchRetry = null;
+      if (_gitWatchPath != path) return;
+      final selected = selectedProjectId?.call();
+      _gitWatchPath = null; // libera o guard de [watchProject]
+      watchProject(selected);
+    });
   }
 
   /// (Re)inicia o poll periódico de git dos [pollTargets]. Ver [_gitPoll].
@@ -377,6 +402,7 @@ class GitController extends ChangeNotifier {
   void dispose() {
     _gitWatch?.cancel();
     _gitWatchDebounce?.cancel();
+    _gitWatchRetry?.cancel();
     _fileTreeWatchDebounce?.cancel();
     _gitPoll?.cancel();
     super.dispose();

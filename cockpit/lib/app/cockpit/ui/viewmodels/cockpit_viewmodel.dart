@@ -3452,7 +3452,14 @@ class CockpitViewModel extends ChangeNotifier {
       unawaited(git.refresh(f.id));
     }
 
-    if (switched) await _activateProject(_selectedProjectId!);
+    if (switched) {
+      // O watcher Linux da worktree recebe onDone assim que o `git worktree
+      // remove` apaga a pasta. Move-o explicitamente pro pai antes de qualquer
+      // restauração assíncrona; deixá-lo apontado pro path sumido fazia o
+      // recovery tentar observar a mesma pasta indefinidamente no build AOT.
+      git.watchProject(_selectedProjectId);
+      await _activateProject(_selectedProjectId!);
+    }
     if (switched || !listEquals(oldSig, newSig)) notifyListeners();
   }
 
