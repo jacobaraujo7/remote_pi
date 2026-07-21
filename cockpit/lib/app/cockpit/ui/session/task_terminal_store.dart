@@ -4,7 +4,8 @@ import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
-import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 
 /// Mantém **um emulador [Terminal] por task**, alimentado continuamente pelo
 /// output do runner — independente de haver ou não uma aba aberta. É isso que
@@ -37,7 +38,7 @@ class TaskTerminalStore {
   /// Teto do histórico persistido por task (~256 KB de output decodificado).
   static const int _kMaxRecordChars = 256 * 1024;
 
-  final _terminals = <String, Terminal>{};
+  final _terminals = <String, CockpitTerminalController>{};
   final _outSubs = <String, StreamSubscription<String>>{};
   final _lastPid = <String, int?>{};
   final _record = <String, StringBuffer>{};
@@ -48,11 +49,21 @@ class TaskTerminalStore {
   /// primeira criação, semeia de forma assíncrona o output salvo em disco.
   /// Terminal já existente da task, sem criar um vazio (leitura via CLI
   /// `cockpit read-task` — criar aqui registraria um buffer fantasma).
-  Terminal? existingTerminal(String taskId) => _terminals[taskId];
+  TerminalEngine _defaultEngine = TerminalEngine.ghostty;
 
-  Terminal terminalFor(String taskId) => _terminals.putIfAbsent(taskId, () {
-    final term = Terminal(maxLines: 10000);
-    term.onResize = (w, h, pw, ph) => _runner.resize(taskId, h, w);
+  /// Vale só para buffers criados depois da troca; tasks já existentes mantêm
+  /// o controller e o estado em memória.
+  void setDefaultEngine(TerminalEngine engine) => _defaultEngine = engine;
+
+  CockpitTerminalController? existingTerminal(String taskId) =>
+      _terminals[taskId];
+
+  CockpitTerminalController terminalFor(
+    String taskId, {
+    TerminalEngine? engine,
+  }) => _terminals.putIfAbsent(taskId, () {
+    final term = createTerminalController(engine ?? _defaultEngine);
+    term.onResize = (columns, rows) => _runner.resize(taskId, rows, columns);
     unawaited(_seed(taskId, term));
     return term;
   });
@@ -60,7 +71,7 @@ class TaskTerminalStore {
   /// Reproduz o output salvo no terminal recém-criado (restore). `\x1bc` (RIS)
   /// limpa qualquer modo residual em que a task morreu. No-op se um run já
   /// começou a escrever (corrida com o `_onRun`) ou não há nada salvo.
-  Future<void> _seed(String taskId, Terminal term) async {
+  Future<void> _seed(String taskId, CockpitTerminalController term) async {
     final raw = await _scrollback.load(
       projectId: _kTasksProject,
       sessionId: taskId,
@@ -68,7 +79,7 @@ class TaskTerminalStore {
     if (raw == null || raw.isEmpty) return;
     if (_outSubs.containsKey(taskId)) return; // run vivo já alimenta o terminal
     if (_record[taskId]?.isNotEmpty ?? false) return;
-    term.write('\x1bc$raw');
+    term.restore('\x1bc$raw');
     (_record[taskId] ??= StringBuffer()).write(raw);
   }
 
@@ -146,6 +157,9 @@ class TaskTerminalStore {
       s.cancel();
     }
     _outSubs.clear();
+    for (final terminal in _terminals.values) {
+      terminal.dispose();
+    }
     _terminals.clear();
   }
 }

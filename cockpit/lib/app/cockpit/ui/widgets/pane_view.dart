@@ -26,7 +26,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/terminal_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/themes/terminal_theme.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -1305,10 +1305,11 @@ class _PaneBodyState extends State<_PaneBody> {
         color: context.colors.panel,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
-          child: TerminalPane(
+          child: AdaptiveTerminalPane(
             terminal: item.terminal,
             focusNode: _terminalFocus,
             onKeyEvent: (_) => KeyEventResult.ignored,
+            readOnly: true,
             theme: cockpitTerminalThemeFor(Theme.of(context).brightness),
             textStyle: termStyle,
           ),
@@ -1331,12 +1332,13 @@ class _PaneBodyState extends State<_PaneBody> {
           color: context.colors.panel,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
-            child: TerminalPane(
+            child: AdaptiveTerminalPane(
               terminal: item.terminal,
               focusNode: _terminalFocus,
               // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
               // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
               onKeyEvent: (event) => _onTerminalKey(event, item),
+              onPaste: item.pasteFromClipboard,
               // Cmd+clique num caminho de arquivo do buffer → abre no FileViewer,
               // resolvido contra o cwd vivo do shell (OSC 7).
               onOpenFile: (path, {line}) =>

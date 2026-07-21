@@ -19,7 +19,8 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 version: 1.14.7+36
 
 environment:
-  sdk: ^3.11.5
+  sdk: ^3.12.0
+  flutter: ">=3.44.0"
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -85,6 +86,12 @@ dependencies:
   # jacobaraujo7/kyroon_pty v1.0.6 (ver plugins/cockpit_pty/pubspec.yaml).
   cockpit_pty:
     path: plugins/cockpit_pty
+
+  # Motor VT alternativo baseado no Ghostty. `libghostty` fornece os bindings
+  # nativos e `flterm` a view Flutter oficial do mesmo repositório. Pins exatos:
+  # ambos são pré-1.0 e mudam API em releases menores.
+  libghostty: 0.0.11
+  flterm: 0.0.4
 
   # Wave 2 — viewer de arquivo: renderiza SVG no pane (PNG/JPEG via Image.file).
   flutter_svg: ^2.0.10

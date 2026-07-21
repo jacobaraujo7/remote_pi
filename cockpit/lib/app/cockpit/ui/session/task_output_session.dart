@@ -1,5 +1,5 @@
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
-import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 
 /// Aba **read-only** que visualiza o output de uma task. É leve e descartável:
 /// o [terminal] não é dela — vive no `TaskTerminalStore` —, então abrir/fechar
@@ -26,7 +26,7 @@ class TaskOutputSession extends PaneItem {
   final String taskId;
 
   /// Terminal compartilhado (dono = `TaskTerminalStore`). **Não** dar dispose.
-  final Terminal terminal;
+  final CockpitTerminalController terminal;
 
   final String _label;
 

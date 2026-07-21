@@ -22,6 +22,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
@@ -277,6 +278,13 @@ class CockpitViewModel extends ChangeNotifier {
   /// de plataforma. Síncrono — o cache do resolver é aquecido no boot (`main`).
   TerminalProfile get defaultTerminalProfile =>
       _terminalProfiles.effectiveDefault(_defaultTerminalProfileId);
+
+  TerminalEngine _defaultTerminalEngine = TerminalEngine.ghostty;
+
+  void setDefaultTerminalEngine(TerminalEngine engine) {
+    _defaultTerminalEngine = engine;
+    _taskTerminals.setDefaultEngine(engine);
+  }
 
   /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
   List<TerminalProfile> get terminalProfiles =>
@@ -2665,6 +2673,7 @@ class CockpitViewModel extends ChangeNotifier {
     // Plano 50: `null` = o padrão efetivo (o que o `+` abre hoje). A fatia 3
     // (dropdown do `+`) passa um perfil específico sem mexer no padrão global.
     TerminalProfile? profile,
+    TerminalEngine? engine,
   }) {
     final t = TerminalSession(
       id: id,
@@ -2672,6 +2681,7 @@ class CockpitViewModel extends ChangeNotifier {
       workingDirectory: cwd,
       gateway: _terminalFactory.create(),
       profile: profile ?? defaultTerminalProfile,
+      engine: engine ?? _defaultTerminalEngine,
       title: title,
       // Persistência do scrollback: grava a saída pra replay no próximo boot.
       scrollbackStore: _scrollback,
@@ -3041,6 +3051,11 @@ class CockpitViewModel extends ChangeNotifier {
           // Re-arma a trava ANTES de o shell subir e re-emitir OSC-title: o nome
           // manual continua vencendo o título dinâmico após o reinício.
           manualLabel: desc['label'] as String?,
+          engine: _enumByName(
+            TerminalEngine.values,
+            desc['engine'],
+            TerminalEngine.xterm,
+          ),
         );
         return true;
       case 'viewer':
@@ -3105,7 +3120,14 @@ class CockpitViewModel extends ChangeNotifier {
           projectId: project.id,
           taskId: taskId,
           label: desc['label'] as String? ?? taskId,
-          terminal: _taskTerminals.terminalFor(taskId),
+          terminal: _taskTerminals.terminalFor(
+            taskId,
+            engine: _enumByName(
+              TerminalEngine.values,
+              desc['engine'],
+              TerminalEngine.xterm,
+            ),
+          ),
           workingDirectory: project.path,
         );
         return true;
@@ -3294,6 +3316,7 @@ class CockpitViewModel extends ChangeNotifier {
         'type': 'terminal',
         'sub': _subOf(s.workingDirectory, project.path),
         'title': s.title,
+        'engine': s.terminal.engine.name,
         // Rótulo manual travado (se houver): persiste com o descritor da aba,
         // que no restore é re-hidratado pela mesma chave de sessão → o nome
         // estável sobrevive ao reinício e à re-emissão de OSC-title do shell.
@@ -3331,6 +3354,7 @@ class CockpitViewModel extends ChangeNotifier {
         'type': 'task_output',
         'taskId': s.taskId,
         'label': s.label,
+        'engine': s.terminal.engine.name,
       };
     }
     final a = s as AgentSession;

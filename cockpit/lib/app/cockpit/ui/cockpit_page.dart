@@ -75,6 +75,12 @@ class _CockpitPageState extends State<CockpitPage> {
       if (!mounted) return;
       context.pushNamed(RoutePaths.settings);
     };
+    // O motor/perfil precisam chegar antes do init: ele já pode restaurar ou
+    // criar terminais, e a preferência do usuário deve valer desde o 1º buffer.
+    final initialSettings = context.read<SettingsController>().settings;
+    context.read<CockpitViewModel>()
+      ..setDefaultTerminalProfileId(initialSettings.defaultTerminalProfileId)
+      ..setDefaultTerminalEngine(initialSettings.terminalEngine);
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
@@ -179,6 +185,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _vm.setDefaultTerminalProfileId(
       _settings!.settings.defaultTerminalProfileId,
     );
+    _vm.setDefaultTerminalEngine(_settings!.settings.terminalEngine);
   }
 
   /// Espelha o toggle "Show Cockpit terminal" (Configurações › General) para a

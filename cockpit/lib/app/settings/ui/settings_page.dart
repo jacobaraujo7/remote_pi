@@ -190,15 +190,12 @@ class _CategoryNav extends StatelessWidget {
             selected: selected == _Category.appearance,
             onTap: () => onSelect(_Category.appearance),
           ),
-          // Só no Windows: é onde há escolha real de shell (PowerShell/cmd/WSL).
-          // No POSIX o terminal é o login shell do usuário — nada a configurar.
-          if (Platform.isWindows)
-            _NavItem(
-              icon: Icons.terminal_outlined,
-              label: 'Terminal',
-              selected: selected == _Category.terminal,
-              onTap: () => onSelect(_Category.terminal),
-            ),
+          _NavItem(
+            icon: Icons.terminal_outlined,
+            label: 'Terminal',
+            selected: selected == _Category.terminal,
+            onTap: () => onSelect(_Category.terminal),
+          ),
           _NavItem(
             icon: Icons.code,
             label: 'Language',
@@ -650,10 +647,7 @@ class _StorageSectionState extends State<_StorageSection> {
 
 // Aparência
 // ---------------------------------------------------------------------------
-/// **Terminal** (plano 50) — escolhe o shell que o `+` abre por padrão.
-///
-/// Só existe no Windows (a aba é ocultada fora dele): no POSIX o terminal é o
-/// login shell do usuário e não há escolha a fazer.
+/// **Terminal** — escolhe o motor VT e, no Windows, o shell padrão.
 ///
 /// O padrão é gravado **por id** (`defaultTerminalProfileId`), nunca o objeto:
 /// os perfis são re-descobertos a cada boot. Sem escolha (ou com um id que
@@ -689,17 +683,28 @@ class _TerminalPanel extends StatelessWidget {
                 child: _Card(
                   children: [
                     _Row(
-                      title: 'Shell',
+                      title: 'Engine',
                       description:
-                          'Which shell new terminal tabs open. The arrow next '
-                          'to + still opens any other one, just for that tab.',
-                      trailing: _TerminalProfileDropdown(
-                        profiles: profiles,
-                        value: effective,
-                        onChanged: (p) =>
-                            controller.setDefaultTerminalProfileId(p.id),
+                          'Used by new terminal tabs and task output buffers. '
+                          'Open tabs keep their current engine.',
+                      trailing: _TerminalEngineDropdown(
+                        value: controller.settings.terminalEngine,
+                        onChanged: controller.setTerminalEngine,
                       ),
                     ),
+                    if (Platform.isWindows)
+                      _Row(
+                        title: 'Shell',
+                        description:
+                            'Which shell new terminal tabs open. The arrow next '
+                            'to + still opens any other one, just for that tab.',
+                        trailing: _TerminalProfileDropdown(
+                          profiles: profiles,
+                          value: effective,
+                          onChanged: (p) =>
+                              controller.setDefaultTerminalProfileId(p.id),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -722,6 +727,37 @@ class _TerminalPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _TerminalEngineDropdown extends StatelessWidget {
+  const _TerminalEngineDropdown({required this.value, required this.onChanged});
+
+  final TerminalEngine value;
+  final ValueChanged<TerminalEngine> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    String label(TerminalEngine engine) => switch (engine) {
+      TerminalEngine.ghostty => 'Ghostty',
+      TerminalEngine.xterm => 'xterm',
+    };
+
+    return _DropdownChip(
+      icon: Icons.terminal,
+      label: label(value),
+      onTap: () async {
+        final picked = await showAppMenu<TerminalEngine>(
+          context,
+          minWidth: 180,
+          items: [
+            for (final engine in TerminalEngine.values)
+              AppMenuItem(value: engine, label: label(engine)),
+          ],
+        );
+        if (picked != null) onChanged(picked);
+      },
     );
   }
 }

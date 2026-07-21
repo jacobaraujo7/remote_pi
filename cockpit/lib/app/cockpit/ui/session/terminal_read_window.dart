@@ -1,6 +1,7 @@
 import 'dart:convert';
 
-import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 
 /// Extrai uma janela de linhas do buffer ativo de um [Terminal] pra CLI
 /// `cockpit read-pane`/`read-task` (cobre o alt-screen de TUIs — lê o que está
@@ -10,7 +11,7 @@ import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 /// do buffer; default = fim (tail). `offset` pula N linhas a partir da âncora.
 /// A saída é sempre cronológica — os args só escolhem a janela.
 Map<String, dynamic> readTerminalWindow(
-  Terminal term,
+  Object term,
   Map<String, dynamic> args,
 ) {
   const maxLines = 2000;
@@ -25,10 +26,17 @@ Map<String, dynamic> readTerminalWindow(
   };
   final fromStart = args['fromStart'] == true;
 
-  final buf = term.buffer.lines;
+  final buf = switch (term) {
+    final CockpitTerminalController controller => controller.plainLines(),
+    final xterm.Terminal terminal => [
+      for (var i = 0; i < terminal.buffer.lines.length; i++)
+        terminal.buffer.lines[i].getText(),
+    ],
+    _ => throw ArgumentError.value(term, 'term', 'unsupported terminal'),
+  };
   // Total efetivo: ignora o vazio do viewport abaixo da última linha escrita.
   var total = buf.length;
-  while (total > 0 && buf[total - 1].getText().isEmpty) {
+  while (total > 0 && buf[total - 1].isEmpty) {
     total--;
   }
 
@@ -39,7 +47,7 @@ Map<String, dynamic> readTerminalWindow(
   final out = StringBuffer();
   for (var i = start; i < end; i++) {
     if (i > start) out.write('\n');
-    out.write(buf[i].getText());
+    out.write(buf[i]);
   }
   return <String, dynamic>{
     'text': base64.encode(utf8.encode(out.toString())),

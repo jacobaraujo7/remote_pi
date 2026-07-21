@@ -52,8 +52,8 @@ nossa) e quem é pacote externo:
 
 | Motor | Onde | Origem / nota |
 |---|---|---|
-| **Emulador de terminal** (VT/ANSI) | `lib/app/core/terminal/xterm/` | **Nosso** — absorvido do fork do `xterm.dart` 4.0 (upstream morto); Dart puro. Testes em `test/core/terminal/xterm/` |
-| **Render do terminal** (view/painter/gesture, cache de Picture por linha) | `lib/app/core/terminal/cockpit_terminal*.dart` | **Nosso** — fork interno do view do xterm. Ver `core/terminal/CLAUDE.md` |
+| **Emulador de terminal** (VT/ANSI) | `libghostty` + `lib/app/core/terminal/xterm/` | Ghostty é o padrão de buffers novos; o xterm absorvido continua disponível e é usado por layouts legados |
+| **Render do terminal** | `flterm` + `lib/app/core/terminal/cockpit_terminal*.dart` | `flterm` renderiza Ghostty; a view/painter interna permanece integral para xterm. Ver `core/terminal/CLAUDE.md` |
 | **PTY** (spawn nativo de shell — forkpty/ConPTY) | `plugins/cockpit_pty/` | **Nosso** — plugin C/FFI absorvido do `kyroon_pty` v1.0.6, renomeado; não publicado |
 | **Markdown** (GFM + code do agente/viewer) | pacote `gpt_markdown` ^1.1.8 (pub.dev) | Externo (upstream ativo). O **frontmatter** YAML é nosso: `core/ui/widgets/markdown_frontmatter.dart` (pré-processamento no `AgentMarkdown`) |
 | **Syntax highlight** (léxico, ~190 linguagens) | pacote `highlight` ^0.7.0 + `core/ui/widgets/code_highlight.dart` (tema/integração) | Externo; decisão do plano LSP: highlight léxico mantido (LSP não colore) |
