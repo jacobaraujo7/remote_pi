@@ -135,7 +135,19 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
   KeyEventResult _onKeyEvent(FocusNode focusNode, KeyEvent event) {
     if (_currentEditingState.composing.isCollapsed) {
-      return widget.onKeyEvent(focusNode, event);
+      final result = widget.onKeyEvent(focusNode, event);
+
+      // A printable key delegated to text input starts a new transaction. The
+      // platform may not acknowledge our hidden-buffer reset before the next
+      // identical key, so editing values alone cannot distinguish that press
+      // from a duplicate IME callback.
+      if (result == KeyEventResult.ignored &&
+          (event is KeyDownEvent || event is KeyRepeatEvent) &&
+          event.character?.isNotEmpty == true) {
+        _committedText = null;
+      }
+
+      return result;
     }
 
     return KeyEventResult.skipRemainingHandlers;
