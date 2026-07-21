@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.14.6+35
+version: 1.14.7+36
 
 environment:
   sdk: ^3.11.5
@@ -151,8 +151,12 @@ dependencies:
   # cada arch escreve no próprio outputDirectory, sem colisão no lipo).
   anaki_orm: ^0.1.1
   anaki_sqlite: ^0.1.4
-  anaki_postgres: ^0.1.4
-  anaki_mysql: ^0.1.5
+  # Postgres 0.1.5 / MySQL 0.1.7: credenciais deixaram de ir por URL montada com
+  # `format!` (agora Pg/MySqlConnectOptions programático). A URL crua quebrava
+  # com senha contendo `? / #` — o sqlx reportava "invalid port number" — e
+  # corrompia senha com `%` (percent-decode silencioso).
+  anaki_postgres: ^0.1.5
+  anaki_mysql: ^0.1.7
   anaki_mssql: ^0.1.4
   # NoSQL/cache — acesso APENAS via CLI por enquanto (sem UI); ver plano 51.
   anaki_redis: ^0.1.4

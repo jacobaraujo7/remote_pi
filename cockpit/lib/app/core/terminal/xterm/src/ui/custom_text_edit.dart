@@ -134,6 +134,13 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   }
 
   KeyEventResult _onKeyEvent(FocusNode focusNode, KeyEvent event) {
+    // Arms the next commit as user-typed. Printable characters map to no
+    // terminal key (`keyToTerminalKey` returns null), so they fall through to
+    // the IME path — this only records that a physical key was pressed.
+    if (event is KeyDownEvent || event is KeyRepeatEvent) {
+      _sawKeyStroke = true;
+    }
+
     if (_currentEditingState.composing.isCollapsed) {
       final result = widget.onKeyEvent(focusNode, event);
 
@@ -226,6 +233,16 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   /// new composing range), which opens the next transaction.
   String? _committedText;
 
+  /// Whether a hardware key event arrived since the last commit.
+  ///
+  /// Content alone cannot tell an IME echo apart from a genuinely repeated
+  /// character: both reach [updateEditingValue] as a commit whose delta equals
+  /// the previous one, because the hidden buffer was reset in between and the
+  /// platform never acknowledges that reset. The keystroke does distinguish
+  /// them — the second `s` of "esse" carries one, an echo never does. Without
+  /// this gate the repeat is swallowed and words have to be typed around.
+  bool _sawKeyStroke = false;
+
   @override
   TextEditingValue? get currentTextEditingValue {
     return _currentEditingState;
@@ -239,6 +256,11 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   @override
   void updateEditingValue(TextEditingValue value) {
     _currentEditingState = value;
+
+    // Consumed by whichever branch handles this callback: the flag describes
+    // *this* value, not the next one.
+    final typed = _sawKeyStroke;
+    _sawKeyStroke = false;
 
     // Get input after composing is done
     if (!_currentEditingState.composing.isCollapsed) {
@@ -267,8 +289,10 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
       );
 
       // IMEs may repeat the same committed value after the terminal has asked
-      // them to restore the empty editing state. Emit that commit only once.
-      if (textDelta != _committedText) {
+      // them to restore the empty editing state. Emit that commit only once —
+      // unless a keystroke came with it, which makes it a real repeat ("esse")
+      // rather than an echo of the previous commit.
+      if (typed || textDelta != _committedText) {
         _committedText = textDelta;
         widget.onInsert(textDelta);
       }
