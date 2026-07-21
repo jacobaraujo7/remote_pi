@@ -117,6 +117,18 @@ void main() {
     });
   });
 
+  test('can insert after scrolling a partial margin', () {
+    final terminal = Terminal()..resize(10, 5);
+
+    terminal.buffer.setVerticalMargins(1, 3);
+    terminal.buffer.scrollUp(1);
+
+    terminal.buffer.setVerticalMargins(0, 1);
+    terminal.buffer.setCursor(0, 1);
+
+    expect(terminal.buffer.index, returnsNormally);
+  });
+
   group('Buffer.deleteLines()', () {
     test('works', () {
       final terminal = Terminal();

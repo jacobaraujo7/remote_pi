@@ -38,6 +38,22 @@ class IndexAwareCircularBuffer<T extends IndexedItem> {
   @pragma('vm:prefer-inline')
   void _adoptChild(int index, T child) {
     final cyclicIndex = _getCyclicIndex(index);
+
+    // Assignments used by Buffer.scrollUp/scrollDown move an item that is
+    // already in this buffer. Swap it with the displaced item so that neither
+    // object is temporarily stored in two slots with only one owner index.
+    if (identical(child._owner, this)) {
+      final oldIndex = child.index;
+      if (oldIndex == index) return;
+
+      final oldCyclicIndex = _getCyclicIndex(oldIndex);
+      final displacedChild = _array[cyclicIndex];
+      _array[cyclicIndex] = child.._move(index);
+      _array[oldCyclicIndex] = displacedChild;
+      displacedChild?._move(oldIndex);
+      return;
+    }
+
     _array[cyclicIndex]?._detach();
     _array[cyclicIndex] = child.._attach(this, index);
   }

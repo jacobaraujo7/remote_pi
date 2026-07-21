@@ -135,6 +135,53 @@ void main() {
       expect(cl[5], 50.indexed);
     });
 
+    test("setting an attached item preserves ownership during a shift", () {
+      final cl = IndexAwareCircularBuffer<IndexedValue<int>>(5);
+      final items = List.generate(7, IndexedValue.new);
+      cl.pushAll(items.take(5));
+
+      // Buffer.scrollUp performs this kind of in-place shift.
+      for (var i = 0; i < 4; i++) {
+        cl[i] = cl[i + 1];
+      }
+      cl[4] = items[5];
+
+      for (var i = 0; i < cl.length; i++) {
+        expect(cl[i].attached, isTrue);
+        expect(cl[i].index, i);
+      }
+
+      // Moving the shifted entries used to call _move on a detached item.
+      cl.insert(1, items[6]);
+
+      expect(cl.toList().map((item) => item.value), [6, 2, 3, 4, 5]);
+      for (var i = 0; i < cl.length; i++) {
+        expect(cl[i].attached, isTrue);
+        expect(cl[i].index, i);
+      }
+    });
+
+    test(
+      "setting attached items preserves ownership during a reverse shift",
+      () {
+        final cl = IndexAwareCircularBuffer<IndexedValue<int>>(5);
+        final items = List.generate(6, IndexedValue.new);
+        cl.pushAll(items.take(5));
+
+        // Buffer.scrollDown performs this kind of in-place reverse shift.
+        for (var i = 4; i > 0; i--) {
+          cl[i] = cl[i - 1];
+        }
+        cl[0] = items[5];
+
+        expect(cl.toList().map((item) => item.value), [5, 0, 1, 2, 3]);
+        for (var i = 0; i < cl.length; i++) {
+          expect(cl[i].attached, isTrue);
+          expect(cl[i].index, i);
+        }
+      },
+    );
+
     test("clear works", () {
       final cl = IndexAwareCircularBuffer<IndexedValue<int>>(10);
       cl.pushAll(
