@@ -108,13 +108,23 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
         await bundled.copy(dest.path);
         await _chmodExec(dest.path);
       }
-      return dest.path;
+      return _nativePath(dest.path);
     }
 
     // Dev / sem bundle: usa cópia pré-existente (colocada manualmente).
-    if (await dest.exists()) return dest.path;
+    if (await dest.exists()) return _nativePath(dest.path);
     return null;
   }
+
+  /// Normaliza separadores para o formato **nativo** da plataforma.
+  ///
+  /// No Windows `$home` (`USERPROFILE`) vem com `\` (ex.: `C:\Users\x`), mas os
+  /// caminhos aqui são montados concatenando com `/` literal — o resultado é um
+  /// caminho misto (`C:\Users\x/.cockpit/bin/cockpit-hook.exe`) que, gravado cru
+  /// no `command` do hook em `settings.json`, o Claude Code no Windows não
+  /// executa. Trocar `/` por `\` deixa o caminho consistente. Em POSIX é no-op.
+  String _nativePath(String path) =>
+      Platform.isWindows ? path.replaceAll('/', r'\') : path;
 
   /// Caminho do helper empacotado no app, por plataforma:
   /// - macOS: `…/Contents/MacOS/<app>` → `…/Contents/Resources/cockpit-hook`
