@@ -61,10 +61,11 @@ class AnakiDbDriver implements DbDriver {
   Future<DbResult> schema(
     DbConnection conn, {
     String? table,
+    String? schema,
     Duration timeout = _defaultTimeout,
     String? password,
   }) {
-    final sql = _schemaSql(conn.engine, table);
+    final sql = _schemaSql(conn.engine, table, schema);
     return _run(conn, password, timeout, (driver, watch) async {
       final rows = await driver.rawQuery(sql, null);
       return _toResult(rows, limit: 10000, watch: watch);
@@ -192,26 +193,39 @@ class AnakiDbDriver implements DbDriver {
     );
   }
 
-  /// SQL de introspecção normalizada por engine ([DbDriver.schema]). O nome da
-  /// tabela é interpolado — sanitizado por [_safeIdent] (o binding de params
-  /// do anaki é por `@nome` e reescreve o SQL; mais simples validar).
-  static String _schemaSql(DbEngine engine, String? table) {
+  /// SQL de introspecção normalizada por engine ([DbDriver.schema]). Nome da
+  /// tabela e do schema são interpolados — sanitizados por [_safeIdent] (o
+  /// binding de params do anaki é por `@nome` e reescreve o SQL; mais simples
+  /// validar).
+  ///
+  /// **Listagem de tabelas** (sem [table]) devolve colunas `table`, `schema`,
+  /// `type` — Postgres/MSSQL trazem TODOS os schemas de usuário (não só
+  /// `public`/`dbo`), pra tabelas fora do schema default não sumirem. MySQL usa
+  /// `DATABASE()` (schema = database) e SQLite não tem schema (`NULL`).
+  ///
+  /// **Listagem de colunas** (com [table]) restringe ao [schema] informado
+  /// (default do engine se nulo) — Postgres/MSSQL têm tabelas homônimas em
+  /// schemas distintos; sem o filtro elas se fundiriam.
+  static String _schemaSql(DbEngine engine, String? table, String? schema) {
     final t = table == null ? null : _safeIdent(table);
     switch (engine) {
       case DbEngine.sqlite:
         return t == null
-            ? 'SELECT name AS "table", type FROM sqlite_master '
+            ? 'SELECT name AS "table", NULL AS "schema", type '
+                  'FROM sqlite_master '
                   "WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%' "
                   'ORDER BY name'
             : 'SELECT name AS "column", type, '
                   '(CASE "notnull" WHEN 0 THEN 1 ELSE 0 END) AS nullable, '
                   'pk AS "primaryKey" FROM pragma_table_info(\'$t\')';
       case DbEngine.postgres:
+        final s = _safeIdent(schema ?? 'public');
         return t == null
-            ? 'SELECT table_name AS "table", '
+            ? 'SELECT table_name AS "table", table_schema AS "schema", '
                   "CASE table_type WHEN 'VIEW' THEN 'view' ELSE 'table' END "
                   'AS type FROM information_schema.tables '
-                  "WHERE table_schema = 'public' ORDER BY table_name"
+                  "WHERE table_schema NOT IN ('pg_catalog','information_schema')"
+                  ' ORDER BY table_schema, table_name'
             : 'SELECT c.column_name AS "column", c.data_type AS type, '
                   "CASE WHEN c.is_nullable = 'YES' THEN 1 ELSE 0 END "
                   'AS nullable, '
@@ -225,13 +239,13 @@ class AnakiDbDriver implements DbDriver {
                   '   ON kcu.constraint_name = tc.constraint_name '
                   '  AND kcu.table_schema = tc.table_schema '
                   " WHERE tc.constraint_type = 'PRIMARY KEY' "
-                  "  AND tc.table_schema = 'public' AND tc.table_name = '$t'"
+                  "  AND tc.table_schema = '$s' AND tc.table_name = '$t'"
                   ') pk ON pk.column_name = c.column_name '
-                  "WHERE c.table_schema = 'public' AND c.table_name = '$t' "
+                  "WHERE c.table_schema = '$s' AND c.table_name = '$t' "
                   'ORDER BY c.ordinal_position';
       case DbEngine.mysql:
         return t == null
-            ? 'SELECT table_name AS `table`, '
+            ? 'SELECT table_name AS `table`, table_schema AS `schema`, '
                   "CASE table_type WHEN 'VIEW' THEN 'view' ELSE 'table' END "
                   'AS type FROM information_schema.tables '
                   'WHERE table_schema = DATABASE() ORDER BY table_name'
@@ -242,11 +256,12 @@ class AnakiDbDriver implements DbDriver {
                   "WHERE table_schema = DATABASE() AND table_name = '$t' "
                   'ORDER BY ordinal_position';
       case DbEngine.mssql:
+        final s = _safeIdent(schema ?? 'dbo');
         return t == null
-            ? 'SELECT TABLE_NAME AS [table], '
+            ? 'SELECT TABLE_NAME AS [table], TABLE_SCHEMA AS [schema], '
                   "CASE TABLE_TYPE WHEN 'VIEW' THEN 'view' ELSE 'table' END "
                   'AS type FROM INFORMATION_SCHEMA.TABLES '
-                  'ORDER BY TABLE_NAME'
+                  'ORDER BY TABLE_SCHEMA, TABLE_NAME'
             : 'SELECT c.COLUMN_NAME AS [column], c.DATA_TYPE AS type, '
                   "CASE c.IS_NULLABLE WHEN 'YES' THEN 1 ELSE 0 END "
                   'AS nullable, '
@@ -259,9 +274,9 @@ class AnakiDbDriver implements DbDriver {
                   ' JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku '
                   '   ON ku.CONSTRAINT_NAME = tc.CONSTRAINT_NAME '
                   " WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY' "
-                  "  AND tc.TABLE_NAME = '$t'"
+                  "  AND tc.TABLE_SCHEMA = '$s' AND tc.TABLE_NAME = '$t'"
                   ') pk ON pk.COLUMN_NAME = c.COLUMN_NAME '
-                  "WHERE c.TABLE_NAME = '$t' "
+                  "WHERE c.TABLE_SCHEMA = '$s' AND c.TABLE_NAME = '$t' "
                   'ORDER BY c.ORDINAL_POSITION';
       case DbEngine.redis:
       case DbEngine.mongo:
@@ -272,7 +287,8 @@ class AnakiDbDriver implements DbDriver {
     }
   }
 
-  /// Identificador seguro pra interpolar (tabela): só palavra/dígito/underscore.
+  /// Identificador seguro pra interpolar (tabela/schema): só
+  /// palavra/dígito/underscore.
   static String _safeIdent(String name) {
     if (!RegExp(r'^[A-Za-z0-9_.$]+$').hasMatch(name)) {
       throw DbQueryException('query_failed', 'Invalid table name: "$name"');

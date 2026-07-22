@@ -55,6 +55,7 @@ class DbQueryService {
     required String workspaceId,
     required String connName,
     String? table,
+    String? schema,
   }) => _serialized(() async {
     final conn = await _resolve(workspaceRoot, connName);
     final driver = _driverFor(conn);
@@ -62,6 +63,7 @@ class DbQueryService {
     return driver.schema(
       _resolvePaths(workspaceRoot, conn),
       table: table,
+      schema: schema,
       password: password,
     );
   });

@@ -18,6 +18,16 @@ class SchemaColumn {
   final bool primaryKey;
 }
 
+/// Uma tabela (ou view) na árvore de schema. [schema] é o namespace do engine
+/// (`public`/`dbo`/database) — nulo em SQLite, que não tem schemas. A UI
+/// agrupa por [schema] quando há mais de um distinto.
+class SchemaTable {
+  const SchemaTable(this.name, {this.schema, this.isView = false});
+  final String name;
+  final String? schema;
+  final bool isView;
+}
+
 /// Estado de VISUALIZAÇÃO de uma tab `.dbq` que precisa sobreviver ao
 /// re-mount do widget (mover a tab pra outra pane destrói o State — mesma
 /// razão do Terminal viver na session). Mutável; o widget lê/escreve direto.
@@ -243,10 +253,10 @@ class DatabaseViewModel extends ChangeNotifier {
 
   /// Tabelas de uma conexão (introspecção normalizada, lazy — a árvore do
   /// painel chama ao expandir). Cacheado por nome de conexão até [reload].
-  final _tablesCache = <String, List<String>>{};
+  final _tablesCache = <String, List<SchemaTable>>{};
   final _columnsCache = <String, List<SchemaColumn>>{};
 
-  Future<List<String>> tables(DbConnection conn) async {
+  Future<List<SchemaTable>> tables(DbConnection conn) async {
     final cached = _tablesCache[conn.name];
     if (cached != null) return cached;
     final root = _workspaceRoot;
@@ -258,13 +268,32 @@ class DatabaseViewModel extends ChangeNotifier {
       connName: conn.name,
     );
     // A 1ª coluna do schema() é o nome ('table').
-    final names = [for (final row in rs.rows) '${row.first}'];
-    _tablesCache[conn.name] = names;
-    return names;
+    final ix = {
+      for (var i = 0; i < rs.columns.length; i++) rs.columns[i].name: i,
+    };
+    final iTable = ix['table'] ?? 0;
+    final iSchema = ix['schema'];
+    final iType = ix['type'];
+    final result = [
+      for (final row in rs.rows)
+        SchemaTable(
+          '${row[iTable]}',
+          schema: iSchema == null || row[iSchema] == null
+              ? null
+              : '${row[iSchema]}',
+          isView: iType != null && '${row[iType]}' == 'view',
+        ),
+    ];
+    _tablesCache[conn.name] = result;
+    return result;
   }
 
-  Future<List<SchemaColumn>> columns(DbConnection conn, String table) async {
-    final key = '${conn.name} $table';
+  Future<List<SchemaColumn>> columns(
+    DbConnection conn,
+    String table, {
+    String? schema,
+  }) async {
+    final key = '${conn.name} ${schema ?? ''} $table';
     final cached = _columnsCache[key];
     if (cached != null) return cached;
     final root = _workspaceRoot;
@@ -275,6 +304,7 @@ class DatabaseViewModel extends ChangeNotifier {
       workspaceId: wsId,
       connName: conn.name,
       table: table,
+      schema: schema,
     );
     final ix = {
       for (var i = 0; i < rs.columns.length; i++) rs.columns[i].name: i,
@@ -299,6 +329,13 @@ class DatabaseViewModel extends ChangeNotifier {
     DbEngine.mssql => '[${ident.replaceAll(']', ']]')}]',
     _ => '"${ident.replaceAll('"', '""')}"',
   };
+
+  /// Nome de tabela citado, prefixado pelo [schema] quando houver — tabela num
+  /// schema não-default (Postgres/MSSQL) só resolve qualificada.
+  static String qualifiedIdent(DbEngine engine, String? schema, String table) =>
+      schema == null || schema.isEmpty
+      ? quoteIdent(engine, table)
+      : '${quoteIdent(engine, schema)}.${quoteIdent(engine, table)}';
 
   /// Cria um `.dbq` já apontado pra [conn] na raiz do workspace e devolve o
   /// caminho absoluto (o painel abre via CockpitViewModel). [table] preenche

@@ -28,12 +28,17 @@ abstract interface class DbDriver {
   });
 
   /// Introspecção normalizada: sem [table], lista tabelas (colunas `table`,
-  /// `rows`?); com [table], lista colunas (`column`, `type`, `nullable`,
-  /// `primaryKey`). Cada engine traduz seu dialeto (sqlite_master /
+  /// `schema`, `type`); com [table], lista colunas (`column`, `type`,
+  /// `nullable`, `primaryKey`). Cada engine traduz seu dialeto (sqlite_master /
   /// information_schema) pra essa forma única.
+  ///
+  /// [schema] restringe a introspecção de colunas a um schema específico
+  /// (Postgres/MSSQL têm tabelas homônimas em schemas distintos). Nulo = schema
+  /// default do engine (`public`/`dbo`); ignorado por SQLite/MySQL.
   Future<DbResult> schema(
     DbConnection conn, {
     String? table,
+    String? schema,
     Duration timeout,
     String? password,
   });

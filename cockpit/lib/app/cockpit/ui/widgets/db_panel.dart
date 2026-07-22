@@ -147,15 +147,15 @@ class _DbPanelState extends State<DbPanel> {
     }
   }
 
-  void _newDbq(DbConnection conn, {String? table}) {
+  void _newDbq(DbConnection conn, {SchemaTable? table}) {
     // Untitled (VSCode-style): abre um buffer scratch — o arquivo só nasce no
-    // primeiro save. Tabela → já preenche o SELECT.
+    // primeiro save. Tabela → já preenche o SELECT (qualificada por schema).
     context.read<CockpitViewModel>().openScratchDbq(
       connName: conn.name,
       sql: table == null
           ? null
           : 'SELECT * FROM '
-                '${DatabaseViewModel.quoteIdent(conn.engine, table)} '
+                '${DatabaseViewModel.qualifiedIdent(conn.engine, table.schema, table.name)} '
                 'LIMIT 100;',
     );
   }
@@ -276,7 +276,7 @@ class _ConnectionTile extends StatelessWidget {
   onContextMenu;
 
   /// Cria um "New query" com SELECT * FROM <table>.
-  final void Function(String table) onNewQuery;
+  final void Function(SchemaTable table) onNewQuery;
 
   @override
   Widget build(BuildContext context) {
@@ -388,15 +388,23 @@ class _ConnectionTile extends StatelessWidget {
 class _SchemaTree extends StatefulWidget {
   const _SchemaTree({required this.conn, required this.onNewQuery});
   final DbConnection conn;
-  final void Function(String table) onNewQuery;
+  final void Function(SchemaTable table) onNewQuery;
 
   @override
   State<_SchemaTree> createState() => _SchemaTreeState();
 }
 
 class _SchemaTreeState extends State<_SchemaTree> {
-  late Future<List<String>> _tables;
+  late Future<List<SchemaTable>> _tables;
+
+  /// Tabelas abertas (colunas expandidas), chaveadas por schema+nome — nomes
+  /// homônimos em schemas distintos não colidem.
   final _openTables = <String>{};
+
+  /// Schemas recolhidos (só relevante quando há mais de um). Ausente = aberto.
+  final _collapsedSchemas = <String>{};
+
+  static String _key(SchemaTable t) => '${t.schema ?? ''}.${t.name}';
 
   @override
   void initState() {
@@ -406,11 +414,9 @@ class _SchemaTreeState extends State<_SchemaTree> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    final typo = context.typo;
     return Padding(
       padding: const EdgeInsets.only(left: 20, bottom: 4),
-      child: FutureBuilder<List<String>>(
+      child: FutureBuilder<List<SchemaTable>>(
         future: _tables,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) {
@@ -421,60 +427,139 @@ class _SchemaTreeState extends State<_SchemaTree> {
           }
           final tables = snap.data ?? const [];
           if (tables.isEmpty) return _hint('No tables.');
+
+          // Agrupa por schema só quando há mais de um distinto — caso comum
+          // (public/dbo/database único, ou SQLite) segue lista plana como antes.
+          final schemas = <String>{
+            for (final t in tables)
+              if (t.schema != null) t.schema!,
+          };
+          if (schemas.length <= 1) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [for (final t in tables) ..._tableRow(t)],
+            );
+          }
+
+          final bySchema = <String, List<SchemaTable>>{};
+          for (final t in tables) {
+            bySchema.putIfAbsent(t.schema ?? '', () => []).add(t);
+          }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final t in tables) ...[
-                HoverTap(
-                  onTap: () => setState(() {
-                    if (!_openTables.remove(t)) _openTables.add(t);
-                  }),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _openTables.contains(t)
-                            ? Icons.expand_more
-                            : Icons.chevron_right,
-                        size: 13,
-                        color: colors.text4,
-                      ),
-                      const SizedBox(width: 3),
-                      Icon(Icons.table_chart, size: 11, color: colors.text4),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          t,
-                          overflow: TextOverflow.ellipsis,
-                          style: typo.mono.copyWith(
-                            fontSize: 11.5,
-                            color: colors.text2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      AppTooltip(
-                        message: 'New query',
-                        child: HoverTap(
-                          onTap: () => widget.onNewQuery(t),
-                          padding: const EdgeInsets.all(2),
-                          child: Icon(Icons.add, size: 12, color: colors.text4),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_openTables.contains(t))
-                  _ColumnList(conn: widget.conn, table: t),
+              for (final entry in bySchema.entries) ...[
+                _schemaHeader(entry.key, entry.value.length),
+                if (!_collapsedSchemas.contains(entry.key))
+                  for (final t in entry.value) ..._tableRow(t, indent: true),
               ],
             ],
           );
         },
       ),
     );
+  }
+
+  Widget _schemaHeader(String schema, int count) {
+    final colors = context.colors;
+    final typo = context.typo;
+    final collapsed = _collapsedSchemas.contains(schema);
+    return HoverTap(
+      onTap: () => setState(() {
+        if (!_collapsedSchemas.remove(schema)) _collapsedSchemas.add(schema);
+      }),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: Row(
+        children: [
+          Icon(
+            collapsed ? Icons.chevron_right : Icons.expand_more,
+            size: 13,
+            color: colors.text4,
+          ),
+          const SizedBox(width: 3),
+          Icon(Icons.folder_outlined, size: 11, color: colors.text4),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              schema.isEmpty ? '(default)' : schema,
+              overflow: TextOverflow.ellipsis,
+              style: typo.mono.copyWith(
+                fontSize: 11,
+                color: colors.text3,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$count',
+            style: typo.label.copyWith(fontSize: 10, color: colors.text4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _tableRow(SchemaTable t, {bool indent = false}) {
+    final colors = context.colors;
+    final typo = context.typo;
+    final key = _key(t);
+    final open = _openTables.contains(key);
+    return [
+      Padding(
+        padding: EdgeInsets.only(left: indent ? 16 : 0),
+        child: HoverTap(
+          onTap: () => setState(() {
+            if (!_openTables.remove(key)) _openTables.add(key);
+          }),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+          child: Row(
+            children: [
+              Icon(
+                open ? Icons.expand_more : Icons.chevron_right,
+                size: 13,
+                color: colors.text4,
+              ),
+              const SizedBox(width: 3),
+              Icon(
+                t.isView ? Icons.visibility_outlined : Icons.table_chart,
+                size: 11,
+                color: colors.text4,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  t.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: typo.mono.copyWith(
+                    fontSize: 11.5,
+                    color: colors.text2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              AppTooltip(
+                message: 'New query',
+                child: HoverTap(
+                  onTap: () => widget.onNewQuery(t),
+                  padding: const EdgeInsets.all(2),
+                  child: Icon(Icons.add, size: 12, color: colors.text4),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      if (open)
+        Padding(
+          padding: EdgeInsets.only(left: indent ? 16 : 0),
+          child: _ColumnList(
+            conn: widget.conn,
+            table: t.name,
+            schema: t.schema,
+          ),
+        ),
+    ];
   }
 
   Widget _hint(String text, {bool error = false}) => Padding(
@@ -574,9 +659,10 @@ class _MongoCollectionsState extends State<_MongoCollections> {
 }
 
 class _ColumnList extends StatefulWidget {
-  const _ColumnList({required this.conn, required this.table});
+  const _ColumnList({required this.conn, required this.table, this.schema});
   final DbConnection conn;
   final String table;
+  final String? schema;
 
   @override
   State<_ColumnList> createState() => _ColumnListState();
@@ -591,6 +677,7 @@ class _ColumnListState extends State<_ColumnList> {
     _cols = context.read<DatabaseViewModel>().columns(
       widget.conn,
       widget.table,
+      schema: widget.schema,
     );
   }
 
