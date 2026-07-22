@@ -33,6 +33,7 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/gestures.dart' show HitTestResult;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
@@ -1562,6 +1563,22 @@ class _TerminalDropTargetState extends State<_TerminalDropTarget> {
     widget.session.insertText('${paths.join(' ')} ');
   }
 
+  /// Este DropTarget é o que está de fato sob o ponto do drop? Faz um hit-test
+  /// da posição global na árvore de render: `IndexedStack` só testa o filho
+  /// visível, então abas/workspaces empilhados atrás (mesmo rect) não entram no
+  /// caminho — desempata o broadcast do `desktop_drop` pro alvo certo.
+  bool _isHitTarget(Offset globalPosition) {
+    final ro = context.findRenderObject();
+    if (ro == null) return false;
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
+    return result.path.any((entry) => identical(entry.target, ro));
+  }
+
   @override
   Widget build(BuildContext context) {
     return DropTarget(
@@ -1572,12 +1589,16 @@ class _TerminalDropTargetState extends State<_TerminalDropTarget> {
         if (_dragOver) setState(() => _dragOver = false);
       },
       onDragDone: (detail) {
-        // `desktop_drop` emite `onDragDone` em TODO DropTarget montado (um por
-        // terminal, em todos os workspaces), não só no que está sob o cursor.
-        // Só o alvo com o ponteiro em cima teve `onDragEntered` → `_dragOver`.
-        // Sem esse gate, o caminho era inserido em todos os terminais.
-        if (!_dragOver) return;
-        setState(() => _dragOver = false);
+        if (_dragOver) setState(() => _dragOver = false);
+        // `desktop_drop` emite `onDragDone` em TODO DropTarget cujo box contém
+        // o ponto do drop. Como as abas de um pane (e os workspaces) ficam num
+        // `IndexedStack` — todas montadas no MESMO rect, só a ativa pintada —, o
+        // caminho caía em todos os terminais empilhados. Gate por `_dragOver`
+        // (hover) não serve: o enter/exit também dispara em todas as abas
+        // empilhadas e é resetado no drop. Um `IndexedStack` só faz hit-test do
+        // filho VISÍVEL, então testamos se ESTE alvo está no caminho de hit do
+        // ponto — só a aba/worksapce realmente sob o cursor passa.
+        if (!_isHitTarget(detail.globalPosition)) return;
         _onDrop(detail.files);
       },
       child: Stack(
