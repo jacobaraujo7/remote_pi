@@ -2585,6 +2585,23 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Soma [dFrac] ao `frac` ATUAL do split (drag do divisor). Diferente de
+  /// [resizeSplit] (valor absoluto), lê o frac corrente da árvore — que é
+  /// atualizado síncrono a cada evento — e acumula. Isso evita o divisor
+  /// "ficar pra trás" do mouse: vários `onPanUpdate` podem chegar antes do
+  /// rebuild, e cada um traz só um delta incremental; somar sobre um `aSize`
+  /// capturado no build descartava os deltas do mesmo frame.
+  void resizeSplitBy(String splitId, double dFrac) {
+    final tree = _activeTree;
+    if (tree == null) return;
+    final split = findSplit(tree, splitId);
+    if (split == null) return;
+    _setActiveTree(
+      setFrac(tree, splitId, (split.frac + dFrac).clamp(0.16, 0.84)),
+    );
+    notifyListeners();
+  }
+
   void toggleRail() {
     _railVisible = !_railVisible;
     _persistPanels();

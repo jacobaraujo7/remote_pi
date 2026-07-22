@@ -110,6 +110,17 @@ LeafPane? findLeaf(PaneNode node, String id) {
   return null;
 }
 
+/// Acha o [SplitPane] de id [id] na árvore (ou `null`). Usado pelo drag do
+/// divisor pra ler o `frac` ATUAL e somar o delta incremental sobre ele.
+SplitPane? findSplit(PaneNode node, String id) {
+  return switch (node) {
+    LeafPane() => null,
+    SplitPane() => node.id == id
+        ? node
+        : (findSplit(node.a, id) ?? findSplit(node.b, id)),
+  };
+}
+
 PaneNode setFrac(PaneNode node, String splitId, double frac) {
   return switch (node) {
     LeafPane() => node,

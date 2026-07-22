@@ -971,7 +971,11 @@ class _CockpitPageState extends State<CockpitPage> {
           dir: split.dir,
           onDelta: (delta) {
             if (total <= 0) return;
-            vm.resizeSplit(split.id, (aSize + delta) / total);
+            // Delta incremental → fração; acumula sobre o frac ATUAL da árvore
+            // (não o `aSize` do build, que fica velho entre eventos do mesmo
+            // frame e fazia o divisor atrasar em relação ao mouse). `total` é
+            // estável durante o arraste (o container não muda de tamanho).
+            vm.resizeSplitBy(split.id, delta / total);
           },
         );
         return Stack(
