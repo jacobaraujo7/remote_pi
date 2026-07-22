@@ -3389,6 +3389,7 @@ class CockpitViewModel extends ChangeNotifier {
     // origem (as ops de remove/merge/namespace rodam contra ela). Single-root
     // é o caso N=1: uma passada, comportamento histórico.
     final forks = <Project>[];
+    final seenForkIds = <String>{};
     for (final rootPath in rootsOf(rootId)) {
       final wts = await _worktreeMgr.list(rootPath);
       for (final Worktree w in wts) {
@@ -3397,6 +3398,10 @@ class CockpitViewModel extends ChangeNotifier {
         // `w.path` cru colidiria entre elas. Estável entre reboots (rootId é
         // UUID persistido; w.path vem do git).
         final forkId = '$rootId::${w.path}';
+        // Duas roots podem enxergar o mesmo worktree (ex.: worktree que também
+        // é root do workspace) — o primeiro avistamento vence, com a origem da
+        // root que o listou primeiro (ordem de rootsOf, alfabética).
+        if (!seenForkIds.add(forkId)) continue;
         _forkOrigin[forkId] = rootPath;
         forks.add(
           Project(
@@ -3432,6 +3437,9 @@ class CockpitViewModel extends ChangeNotifier {
     }
     // Forks novos → entram em _projectList + carregam layout salvo (decisão 18).
     for (final fresh in forks.where((f) => !oldIds.contains(f.id))) {
+      // Guarda contra refreshes concorrentes do mesmo root (vários call-sites
+      // disparam unawaited): o id pode já ter entrado por outra passada.
+      if (_projectList.any((p) => p.id == fresh.id)) continue;
       _projectList.add(fresh);
       var layout = await _layoutStore.load(fresh.id);
       // Layout de fork pré-realm era keyed pelo path cru do worktree (o id

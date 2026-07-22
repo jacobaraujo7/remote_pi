@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io'
     show
         Directory,
+        File,
         FileSystemEntity,
         FileSystemEntityType,
         FileSystemEvent,
@@ -201,7 +202,7 @@ class GitController extends ChangeNotifier {
     // watcher, o poll e o refresh manual/fim-de-turno.
     if (path == null || (isSystemTerminal?.call(projectId) ?? false)) return;
 
-    final roots = _deriveRoots(path);
+    final roots = deriveRoots(path);
     final oldRoots = _rootsByProject[projectId];
     final rootsChanged = !listEquals(oldRoots, roots);
     if (rootsChanged) {
@@ -327,7 +328,14 @@ class GitController extends ChangeNotifier {
   ///   `[path]` (single-root; monorepo é isso, N=1).
   /// - senão, filhas imediatas com `.git` → multi-root (assinatura de multirepo).
   /// - nenhuma → `[path]` (pasta comum, sem git — comportamento atual).
-  static List<String> _deriveRoots(String path) {
+  ///
+  /// Filha que é **worktree linkada de um repo-irmão** NÃO vira root: ela já
+  /// aparece como fork da irmã (via `git worktree list`); promovê-la a root
+  /// fazia o mesmo worktree ser descoberto duas vezes e duplicava o fork na
+  /// rail. Worktree de repo de **fora** do workspace segue sendo root (é a
+  /// única presença daquele repo aqui).
+  @visibleForTesting
+  static List<String> deriveRoots(String path) {
     if (path.isEmpty) return const [];
     if (FileSystemEntity.typeSync('$path/.git') !=
         FileSystemEntityType.notFound) {
@@ -348,8 +356,58 @@ class GitController extends ChangeNotifier {
       return [path]; // pasta ilegível → trata como comum
     }
     if (roots.isEmpty) return [path];
+    final linked = roots.where((r) => _isWorktreeOfSibling(r, roots)).toSet();
+    roots.removeWhere(linked.contains);
     roots.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return roots;
+  }
+
+  /// `true` se [candidate] é worktree linkada de outra entrada de [candidates]:
+  /// `.git` é **arquivo** (`gitdir: <path>`) e o `<path>` mora sob o `.git/`
+  /// de uma irmã. Comparação textual sobre paths normalizados com `/` — cobre
+  /// o layout que o próprio git escreve (gitdir absoluto por default).
+  static bool _isWorktreeOfSibling(String candidate, List<String> candidates) {
+    final gitPath = '$candidate/.git';
+    if (FileSystemEntity.typeSync(gitPath) != FileSystemEntityType.file) {
+      return false;
+    }
+    String content;
+    try {
+      content = File(gitPath).readAsStringSync();
+    } catch (_) {
+      return false;
+    }
+    final match = RegExp(
+      r'^gitdir:\s*(.+)$',
+      multiLine: true,
+    ).firstMatch(content);
+    if (match == null) return false;
+    var gitdir = match.group(1)!.trim().replaceAll('\\', '/');
+    final isAbsolute =
+        gitdir.startsWith('/') || RegExp(r'^[A-Za-z]:/').hasMatch(gitdir);
+    if (!isAbsolute) gitdir = _normalizePath('$candidate/$gitdir');
+    for (final other in candidates) {
+      if (other == candidate) continue;
+      if (gitdir == '$other/.git' || gitdir.startsWith('$other/.git/')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Resolve `.`/`..` de um path com separador `/` (pro gitdir relativo do
+  /// `--relative-paths`); não toca no filesystem.
+  static String _normalizePath(String path) {
+    final out = <String>[];
+    for (final seg in path.split('/')) {
+      if (seg == '.' || seg.isEmpty && out.isNotEmpty) continue;
+      if (seg == '..' && out.isNotEmpty && out.last != '..') {
+        out.removeLast();
+      } else {
+        out.add(seg);
+      }
+    }
+    return out.join('/');
   }
 
   /// Expande o mapa path→status (só arquivos) num índice que também cobre as
