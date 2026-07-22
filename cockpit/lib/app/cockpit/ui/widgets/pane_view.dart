@@ -1572,7 +1572,12 @@ class _TerminalDropTargetState extends State<_TerminalDropTarget> {
         if (_dragOver) setState(() => _dragOver = false);
       },
       onDragDone: (detail) {
-        if (_dragOver) setState(() => _dragOver = false);
+        // `desktop_drop` emite `onDragDone` em TODO DropTarget montado (um por
+        // terminal, em todos os workspaces), não só no que está sob o cursor.
+        // Só o alvo com o ponteiro em cima teve `onDragEntered` → `_dragOver`.
+        // Sem esse gate, o caminho era inserido em todos os terminais.
+        if (!_dragOver) return;
+        setState(() => _dragOver = false);
         _onDrop(detail.files);
       },
       child: Stack(
