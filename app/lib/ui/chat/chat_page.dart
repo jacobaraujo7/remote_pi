@@ -14,6 +14,7 @@ import 'package:app/ui/chat/widgets/input_bar.dart';
 import 'package:app/ui/chat/widgets/message_bubble.dart';
 import 'package:app/ui/chat/widgets/streaming_bubble.dart';
 import 'package:app/ui/chat/widgets/tool_request_card.dart';
+import 'package:app/ui/chat/widgets/extension_ui_sheet.dart';
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -60,7 +61,7 @@ class ChatPage extends StatelessWidget {
     final vm = context.watch<ChatViewModel>();
     final state = vm.state;
 
-    return Scaffold(
+    final scaffold = Scaffold(
       backgroundColor: context.colors.bg,
       body: SafeArea(
         child: Column(
@@ -78,6 +79,32 @@ class ChatPage extends StatelessWidget {
           ],
         ),
       ),
+    );
+
+    // Plan/51 — an interactive extension_ui_request (ask_user via pi-ask)
+    // renders as a full-screen modal layered ABOVE the Scaffold. Purely
+    // reactive: the overlay leaves the tree when the pending request clears
+    // (completed dismiss) — no route lifecycle to manage. `error` carries a
+    // submit-result rejection so the modal can offer a retry instead of a dead
+    // end.
+    final ready = state is ChatReady ? state : null;
+    final uiRequest = ready?.pendingUiRequest;
+    if (uiRequest == null) return scaffold;
+    return Stack(
+      children: [
+        scaffold,
+        Positioned.fill(
+          // Keyed by request id: a new flow must get a fresh State — question
+          // ids repeat across flows (e.g. "goal"), so reusing the State would
+          // leak old selections/custom text into the new modal.
+          child: ExtensionUiSheet(
+            key: ValueKey(uiRequest.id),
+            request: uiRequest,
+            error: ready?.pendingUiError,
+            onRespond: vm.respondExtensionUi,
+          ),
+        ),
+      ],
     );
   }
 

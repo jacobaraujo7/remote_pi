@@ -69,6 +69,10 @@ import type {
 } from "./protocol/types.js";
 import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
 import { PlainPeerChannel } from "./transport/peer_channel.js";
+import {
+  createExtensionUiBridge,
+  type ExtensionUiBridge,
+} from "./extension_ui_bridge.js";
 import { roomIdFor } from "./rooms.js";
 import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
@@ -1070,6 +1074,10 @@ let _currentTurnId: string | null = null;
 // Module-level pi reference
 let _pi: ExtensionAPI | null = null;
 
+// Plan/51 — Bridge to pi-ask's clarification-flow events. null until the
+// extension factory wires it (and null if the SDK exposes no events bus).
+let _extensionUiBridge: ExtensionUiBridge | null = null;
+
 let _stopAutoListener: (() => void) | null = null;
 
 // Cached keypair (loaded once, reused across start/pair cycles)
@@ -2029,6 +2037,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
 
   _pi = pi;
 
+  // Plan/51 — bridge @eko24ive/pi-ask clarification flows to the paired app.
+  // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
+  // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
+  // Pi that doesn't use the extension. Dispose any prior bridge first so a
+  // factory re-run (new pi session) can't leak subscriptions or double-send.
+  _extensionUiBridge?.dispose();
+  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
   try {
@@ -2286,6 +2302,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    // session_shutdown disposes per-session pi-ask subscriptions. A host that
+    // reuses this module instance does NOT re-run the factory, so rebind the
+    // bridge here; fresh-module hosts already created theirs in the factory.
+    if (!_extensionUiBridge) {
+      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+    }
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2382,6 +2404,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _rootLifecycleGeneration += 1;
     _relayLifecycleGeneration += 1;
     _meshJoinGeneration += 1;
+    // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
+    // the outgoing session is replaced so stale listeners cannot leak or
+    // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
+    // module instances create their bridge in the factory.
+    _extensionUiBridge?.dispose();
+    _extensionUiBridge = null;
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
@@ -4233,6 +4261,10 @@ export function _routeClientMessageFrom(
         message: `Abort failed: ${String(err)}`,
       });
     }
+    return;
+  }
+  if (msg.type === "extension_ui_response") {
+    _extensionUiBridge?.respond(msg);
     return;
   }
   if (!_pi) return;

@@ -45,6 +45,17 @@ class ChatReady extends ChatState {
   final bool isWorking;
   final List<QueuedMsg> queuedMessages;
 
+  /// Plan/51 — an interactive extension_ui_request (ask_user via pi-ask)
+  /// awaiting an answer. Non-null → the chat renders a full-screen modal.
+  /// Cleared on submit/cancel/completed. Identity compared (the ViewModel
+  /// reuses the same instance across recomputes until it changes).
+  final ExtensionUiRequest? pendingUiRequest;
+
+  /// Plan/51 — last submit-result error for [pendingUiRequest] (null when none
+  /// or resolved). Shown in the modal so the user can retry instead of hitting a
+  /// dead end when pi-ask rejects an answer.
+  final String? pendingUiError;
+
   String? get queuedText =>
       queuedMessages.isEmpty ? null : queuedMessages.first.text;
 
@@ -57,6 +68,8 @@ class ChatReady extends ChatState {
     this.peerPresence = const PresenceUnknown(),
     this.isWorking = false,
     this.queuedMessages = const [],
+    this.pendingUiRequest,
+    this.pendingUiError,
   });
 
   ChatReady copyWith({
@@ -71,6 +84,10 @@ class ChatReady extends ChatState {
     bool clearStreaming = false,
     bool clearPeerOffline = false,
     bool clearQueuedMessages = false,
+    ExtensionUiRequest? pendingUiRequest,
+    bool clearPendingUiRequest = false,
+    String? pendingUiError,
+    bool clearPendingUiError = false,
   }) =>
       ChatReady(
         messages: messages ?? this.messages,
@@ -85,6 +102,12 @@ class ChatReady extends ChatState {
         queuedMessages: clearQueuedMessages
             ? const []
             : (queuedMessages ?? this.queuedMessages),
+        pendingUiRequest: clearPendingUiRequest
+            ? null
+            : (pendingUiRequest ?? this.pendingUiRequest),
+        pendingUiError: clearPendingUiError
+            ? null
+            : (pendingUiError ?? this.pendingUiError),
       );
 
   @override
@@ -97,7 +120,9 @@ class ChatReady extends ChatState {
       other.peerOfflineReason == peerOfflineReason &&
       other.peerPresence.runtimeType == peerPresence.runtimeType &&
       other.isWorking == isWorking &&
-      other.queuedMessages == queuedMessages;
+      other.queuedMessages == queuedMessages &&
+      other.pendingUiRequest == pendingUiRequest &&
+      other.pendingUiError == pendingUiError;
 
   @override
   int get hashCode => Object.hash(
@@ -109,6 +134,8 @@ class ChatReady extends ChatState {
         peerPresence.runtimeType,
         isWorking,
         queuedMessages,
+        pendingUiRequest,
+        pendingUiError,
       );
 }
 

@@ -13,6 +13,165 @@ export type QueuedMessageItem = {
   created_at: number;
 };
 
+// ── Plan/51 — extension_ui_request bridge (mirror SDK RPC contract) ───────
+// The paired app renders interactive extension prompts (ask_user today, via
+// @eko24ive/pi-ask) natively instead of stranding the mobile user. The wire
+// mirrors the SDK's `pi --mode rpc` extension_ui_request/response contract
+// (RpcExtensionUIRequest/Response in dist/modes/rpc/rpc-types.d.ts) so the
+// mobile app and the Cockpit share one interactive-UI vocabulary. Casing is
+// snake_case to match the rest of the relay protocol (mirror is semantic, not
+// literal). pi-ask's richer schema (multi/preview/notes) rides in an optional
+// `ask` envelope; strict clients ignore it. Inert when pi-ask is absent.
+
+export type ExtensionUiMethod =
+  | "select"
+  | "confirm"
+  | "input"
+  | "editor"
+  | "notify";
+
+export type AskQuestionWireType = "single" | "multi" | "preview";
+
+export interface AskOptionWire {
+  value: string;
+  label: string;
+  description?: string;
+  /** Preview-pane content (preview questions only). */
+  preview?: string;
+  /** pi-ask addition: option allows freeform custom entry. */
+  freeform?: boolean;
+}
+
+export interface AskQuestionWire {
+  id: string;
+  label: string;
+  prompt: string;
+  type: AskQuestionWireType;
+  required: boolean;
+  /** pi-ask addition: type actually presented after live toggle / policy. */
+  presentedType?: AskQuestionWireType;
+  /** pi-ask addition: type originally requested by the model. */
+  requestedType?: AskQuestionWireType;
+  options: AskOptionWire[];
+}
+
+/** Optional pi-ask enrichment on an extension_ui_request — lets the app render
+ *  the full flow (multi/preview/notes) instead of the degraded SDK select. A
+ *  flow maps to ONE request carrying every question; the app renders a
+ *  full-screen modal and submits ONE response with all answers (pi-ask resolves
+ *  a flow in a single submit). When `ask` is absent the SDK method/options
+ *  drive rendering (future generic prompts). */
+export interface AskEnrichmentWire {
+  flow_id: string;
+  tool_call_id: string | null;
+  /** pi-ask RemoteAskSource: "tool" | "answer" | "answer:again" | "ask:replay". */
+  source: string;
+  title: string | null;
+  questions: AskQuestionWire[];
+}
+
+/** pi-ask RemoteAskAnswer — one question's answered parts.
+ *
+ *  CASING EXCEPTION: inside the `ask` envelope the keys mirror pi-ask's own
+ *  schema VERBATIM (camelCase: `presentedType`, `requestedType`, `customText`,
+ *  `optionNotes`) so the bridge can forward the response to pi-ask's submit
+ *  event without a remap pass. The snake_case convention of this protocol
+ *  applies at the frame level (`flow_id`, `tool_call_id`, `notify_type`). */
+export interface AskAnswerWire {
+  values?: string[];
+  customText?: string;
+  note?: string;
+  optionNotes?: Record<string, string>;
+}
+
+/** Optional pi-ask enrichment on an extension_ui_response — carries the
+ *  structured answer so multi/preview/notes survive the round-trip. */
+export type AskResponseEnrichmentWire =
+  | {
+      flow_id: string;
+      kind: "answer";
+      mode?: "submit" | "elaborate";
+      answers: Record<string, AskAnswerWire>;
+    }
+  | { flow_id: string; kind: "cancel" };
+
+/** ServerMessage: interactive extension prompt. Mirrors RpcExtensionUIRequest
+ *  (select/confirm/input/editor/notify). The `ask` envelope is present when the
+ *  prompt originates from a pi-ask flow, carrying the full question schema. */
+export type ExtensionUiRequestWire =
+  | {
+      type: "extension_ui_request";
+      id: string;
+      method: "select";
+      title: string;
+      options: string[];
+      ask?: AskEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_request";
+      id: string;
+      method: "confirm";
+      title: string;
+      message: string;
+      ask?: AskEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_request";
+      id: string;
+      method: "input";
+      title: string;
+      placeholder?: string;
+      ask?: AskEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_request";
+      id: string;
+      method: "editor";
+      title: string;
+      prefill?: string;
+      ask?: AskEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_request";
+      id: string;
+      method: "notify";
+      message: string;
+      notify_type?: "info" | "warning" | "error";
+    };
+
+/** ClientMessage: response to an extension_ui_request. Mirrors
+ *  RpcExtensionUIResponse (value / confirmed / cancelled). The `ask` envelope
+ *  carries pi-ask's structured answer when the app rendered the rich flow. */
+export type ExtensionUiResponseWire =
+  | {
+      type: "extension_ui_response";
+      id: string;
+      value: string;
+      ask?: AskResponseEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_response";
+      id: string;
+      confirmed: boolean;
+      ask?: AskResponseEnrichmentWire;
+    }
+  | {
+      type: "extension_ui_response";
+      id: string;
+      cancelled: true;
+      ask?: AskResponseEnrichmentWire;
+    }
+  // Rich pi-ask answer: a client that rendered the full flow from the `ask`
+  // envelope submits ONLY the envelope — no value/confirmed/cancelled
+  // discriminator (the structured `answers` supersede them). This is the
+  // shape the app actually sends for rich submits; routing keys off
+  // `ask.kind` before any discriminator is read.
+  | {
+      type: "extension_ui_response";
+      id: string;
+      ask: AskResponseEnrichmentWire;
+    };
+
 export type ClientMessage =
   | { type: "pair_request"; id: string; token: string; device_name: string }
   // Plan/30: optional `images` carry inline base64 attachments (one today).
@@ -38,7 +197,11 @@ export type ClientMessage =
   | { type: "session_compact"; id: string }
   | { type: "model_set"; id: string; provider: string; model_id: string }
   | { type: "thinking_set"; id: string; level: ThinkingLevel }
-  | { type: "list_models"; id: string };
+  | { type: "list_models"; id: string }
+  // Plan/51 — interactive extension prompt response (ask_user via pi-ask).
+  // Mirrors RpcExtensionUIResponse; the optional `ask` envelope carries
+  // pi-ask's structured answer so multi/preview/notes survive the round-trip.
+  | ExtensionUiResponseWire;
 
 /**
  * Plan/30 — one inline image attachment on a `user_message`. Mirrors the
@@ -169,7 +332,11 @@ export type ServerMessage =
   // highlight the selected row without a second round-trip.
   | { type: "action_ok"; in_reply_to: string; action: ActionName }
   | { type: "action_error"; in_reply_to: string; action: ActionName; error: string }
-  | { type: "models_list"; in_reply_to: string; models: WireModel[]; current?: WireModel };
+  | { type: "models_list"; in_reply_to: string; models: WireModel[]; current?: WireModel }
+  // Plan/51 — interactive extension prompt (ask_user via pi-ask). Mirrors
+  // RpcExtensionUIRequest (select/confirm/input/editor/notify); the optional
+  // `ask` envelope carries pi-ask's full question so the app renders richly.
+  | ExtensionUiRequestWire;
 
 /**
  * Plan/28 — Stable names for the typed actions the app can request. Kept

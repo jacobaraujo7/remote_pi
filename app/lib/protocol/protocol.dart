@@ -787,6 +787,10 @@ sealed class ServerMessage {
       'action_ok' => ActionOk.fromJson(json),
       'action_error' => ActionError.fromJson(json),
       'models_list' => ModelsList.fromJson(json),
+      // Plan/51 — interactive extension prompt (ask_user via pi-ask). Mirrors
+      // the SDK's extension_ui_request RPC contract; optional `ask` envelope
+      // carries pi-ask's full question so the app renders multi/preview/notes.
+      'extension_ui_request' => ExtensionUiRequest.fromJson(json),
       // forward-compat: unknown types are not fatal — callers catch and log
       _ => throw UnsupportedTypeException(type ?? ''),
     };
@@ -1375,4 +1379,275 @@ class Bye extends ServerMessage {
     'shutdown' => ByeReason.shutdown,
     _ => ByeReason.unknown,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Plan/51 — extension_ui_request bridge (mirror SDK RPC contract)
+//
+// Interactive extension prompts (ask_user today, via @eko24ive/pi-ask) are
+// rendered natively instead of stranding the mobile user. The wire mirrors the
+// SDK's `pi --mode rpc` extension_ui_request / extension_ui_response contract
+// (RpcExtensionUIRequest/Response), so the app and the Cockpit share one
+// interactive-UI vocabulary. pi-ask's richer schema (multi/preview/notes) rides
+// in an optional `ask` envelope; strict handling ignores it. Inert when pi-ask
+// is absent (the tool doesn't exist → no frames ever arrive).
+// ---------------------------------------------------------------------------
+
+/// `select` | `confirm` | `input` | `editor` | `notify` (SDK methods). `notify`
+/// is fire-and-forget; the rest expect an `extension_ui_response`.
+enum ExtensionUiMethod {
+  select('select'),
+  confirm('confirm'),
+  input('input'),
+  editor('editor'),
+  notify('notify');
+
+  final String wire;
+  const ExtensionUiMethod(this.wire);
+
+  static ExtensionUiMethod? fromWire(String? s) {
+    for (final m in values) {
+      if (m.wire == s) return m;
+    }
+    return null;
+  }
+}
+
+/// pi-ask AskQuestionType — `single` (one answer) | `multi` (several) |
+/// `preview` (options carry a preview pane).
+enum AskQuestionWireType {
+  single('single'),
+  multi('multi'),
+  preview('preview');
+
+  final String wire;
+  const AskQuestionWireType(this.wire);
+
+  static AskQuestionWireType? fromWire(String? s) {
+    for (final t in values) {
+      if (t.wire == s) return t;
+    }
+    return null;
+  }
+}
+
+class AskOptionWire {
+  final String value;
+  final String label;
+  final String? description;
+  final String? preview;
+  final bool freeform;
+
+  const AskOptionWire({
+    required this.value,
+    required this.label,
+    this.description,
+    this.preview,
+    this.freeform = false,
+  });
+
+  factory AskOptionWire.fromJson(Map<String, dynamic> j) {
+    final value = (j['value'] as String?) ?? (j['label'] as String?) ?? '';
+    final label = (j['label'] as String?) ?? value;
+    return AskOptionWire(
+      value: value,
+      label: label,
+      description: j['description'] as String?,
+      preview: j['preview'] as String?,
+      freeform: (j['freeform'] as bool?) ?? false,
+    );
+  }
+}
+
+class AskQuestionWire {
+  final String id;
+  final String label;
+  final String prompt;
+  final AskQuestionWireType type;
+  final bool required;
+  final AskQuestionWireType? presentedType;
+  final AskQuestionWireType? requestedType;
+  final List<AskOptionWire> options;
+
+  const AskQuestionWire({
+    required this.id,
+    required this.label,
+    required this.prompt,
+    required this.type,
+    required this.required,
+    this.presentedType,
+    this.requestedType,
+    this.options = const <AskOptionWire>[],
+  });
+
+  factory AskQuestionWire.fromJson(Map<String, dynamic> j) => AskQuestionWire(
+        id: j['id'] as String? ?? '',
+        label: (j['label'] as String?) ?? (j['prompt'] as String?) ?? '',
+        prompt: j['prompt'] as String? ?? '',
+        type: AskQuestionWireType.fromWire(j['type'] as String?) ??
+            AskQuestionWireType.single,
+        required: (j['required'] as bool?) ?? false,
+        presentedType:
+            AskQuestionWireType.fromWire(j['presentedType'] as String?),
+        requestedType:
+            AskQuestionWireType.fromWire(j['requestedType'] as String?),
+        options: (j['options'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((m) => AskOptionWire.fromJson(m.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+}
+
+/// Optional pi-ask enrichment on an `extension_ui_request`. When present, the
+/// app renders the full flow (multi/preview/notes) from [questions] instead of
+/// the degraded SDK method. One request carries the whole flow.
+class AskEnrichmentWire {
+  final String flowId;
+  final String? toolCallId;
+  final String source;
+  final String? title;
+  final List<AskQuestionWire> questions;
+
+  const AskEnrichmentWire({
+    required this.flowId,
+    this.toolCallId,
+    required this.source,
+    this.title,
+    this.questions = const <AskQuestionWire>[],
+  });
+
+  factory AskEnrichmentWire.fromJson(Map<String, dynamic> j) => AskEnrichmentWire(
+        flowId: j['flow_id'] as String? ?? '',
+        toolCallId: j['tool_call_id'] as String?,
+        source: (j['source'] as String?) ?? 'tool',
+        title: j['title'] as String?,
+        questions: (j['questions'] as List<dynamic>? ?? const <dynamic>[])
+            .whereType<Map>()
+            .map((m) => AskQuestionWire.fromJson(m.cast<String, dynamic>()))
+            .toList(growable: false),
+      );
+}
+
+/// ServerMessage: interactive extension prompt. Mirrors RpcExtensionUIRequest.
+/// `notifyType` is kept raw (info/warning/error) for forward-compat.
+class ExtensionUiRequest extends ServerMessage {
+  final String id;
+  final ExtensionUiMethod method;
+  final String? title;
+  final String? message; // confirm
+  final String? placeholder; // input
+  final String? prefill; // editor
+  final List<String> options; // select
+  final String? notifyType; // notify
+  final AskEnrichmentWire? ask;
+
+  const ExtensionUiRequest({
+    required this.id,
+    required this.method,
+    this.title,
+    this.message,
+    this.placeholder,
+    this.prefill,
+    this.options = const <String>[],
+    this.notifyType,
+    this.ask,
+  });
+
+  factory ExtensionUiRequest.fromJson(Map<String, dynamic> j) =>
+      ExtensionUiRequest(
+        id: j['id'] as String? ?? '',
+        method: ExtensionUiMethod.fromWire(j['method'] as String?) ??
+            ExtensionUiMethod.select,
+        title: j['title'] as String?,
+        message: j['message'] as String?,
+        placeholder: j['placeholder'] as String?,
+        prefill: j['prefill'] as String?,
+        options: (j['options'] as List<dynamic>? ?? const <dynamic>[])
+            .map((e) => e.toString())
+            .toList(growable: false),
+        notifyType: j['notify_type'] as String?,
+        ask: j['ask'] is Map<String, dynamic>
+            ? AskEnrichmentWire.fromJson(j['ask'] as Map<String, dynamic>)
+            : null,
+      );
+}
+
+/// pi-ask RemoteAskAnswer — one question's answered parts (outbound).
+class AskAnswerWire {
+  final List<String> values;
+  final String? customText;
+  final String? note;
+  final Map<String, String> optionNotes;
+
+  const AskAnswerWire({
+    this.values = const <String>[],
+    this.customText,
+    this.note,
+    this.optionNotes = const <String, String>{},
+  });
+
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{};
+    if (values.isNotEmpty) m['values'] = values;
+    if (customText != null && customText!.isNotEmpty) m['customText'] = customText;
+    if (note != null && note!.isNotEmpty) m['note'] = note;
+    if (optionNotes.isNotEmpty) m['optionNotes'] = optionNotes;
+    return m;
+  }
+}
+
+/// Optional pi-ask enrichment on an `extension_ui_response` (outbound). Carries
+/// the structured answer so multi/preview/notes survive the round-trip.
+class AskResponseEnrichmentWire {
+  final String flowId;
+  final bool isCancel;
+  /// 'submit' | 'elaborate' (null when cancel). Raw string for forward-compat.
+  final String? mode;
+  final Map<String, AskAnswerWire> answers;
+
+  const AskResponseEnrichmentWire({
+    required this.flowId,
+    this.isCancel = false,
+    this.mode,
+    this.answers = const <String, AskAnswerWire>{},
+  });
+
+  Map<String, dynamic> toJson() {
+    if (isCancel) return {'flow_id': flowId, 'kind': 'cancel'};
+    return <String, dynamic>{
+      'flow_id': flowId,
+      'kind': 'answer',
+      if (mode != null) 'mode': mode,
+      'answers': answers.map((k, v) => MapEntry(k, v.toJson())),
+    };
+  }
+}
+
+/// ClientMessage: response to an `extension_ui_request`. Mirrors
+/// RpcExtensionUIResponse (value / confirmed / cancelled) + optional `ask`
+/// envelope carrying pi-ask's structured answer.
+class ExtensionUiResponse extends ClientMessage {
+  final String id;
+  final String? value;
+  final bool? confirmed;
+  final bool cancelled;
+  final AskResponseEnrichmentWire? ask;
+
+  ExtensionUiResponse({
+    required this.id,
+    this.value,
+    this.confirmed,
+    this.cancelled = false,
+    this.ask,
+  });
+
+  @override
+  Map<String, dynamic> toJson() {
+    final m = <String, dynamic>{'type': 'extension_ui_response', 'id': id};
+    if (cancelled) m['cancelled'] = true;
+    if (value != null) m['value'] = value;
+    if (confirmed != null) m['confirmed'] = confirmed;
+    if (ask != null) m['ask'] = ask!.toJson();
+    return m;
+  }
 }
