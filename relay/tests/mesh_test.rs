@@ -6,7 +6,10 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+use base64::{
+    Engine as _,
+    engine::general_purpose::{STANDARD as B64, URL_SAFE_NO_PAD},
+};
 use ed25519_dalek::{Signer, SigningKey};
 use relay::{
     AppState, FirehoseMetrics, MeshAuthCache, MeshStore, PeerRegistry, PresenceManager,
@@ -68,27 +71,211 @@ fn pk_hash(pk: &[u8]) -> String {
     out
 }
 
-/// Builds a signed mesh envelope (wire format) using the given signing key
-/// and version. The blob is canonical-ish JSON (we don't enforce canonical
-/// for tests since we sign the bytes we produce here).
-fn make_envelope(sk: &SigningKey, version: u64) -> (Value, String) {
-    let pk_b64 = B64.encode(sk.verifying_key().to_bytes());
-    // Canonical-ish: keys sorted, no spaces. serde_json::to_vec preserves
-    // the order in serde_json::json! — we use a Map and insert in sorted order.
-    let blob_value = json!({
-        "issued_at": 1700000000000_u64,
-        "members": [],
-        "owner_pk": pk_b64,
+fn full_member(remote_epk: &str) -> Value {
+    json!({
+        "remote_epk": remote_epk,
+        "relay_url": "wss://relay.example.test",
+        "paired_at": "2025-01-01T00:00:00.000Z",
+    })
+}
+
+fn full_blob(owner_pk: &str, version: u64, members: Vec<Value>) -> Value {
+    json!({
+        "issued_at": 1_700_000_000_000_u64,
+        "members": members,
+        "owner_pk": owner_pk,
         "version": version,
-    });
-    let blob_bytes = serde_json::to_vec(&blob_value).unwrap();
+    })
+}
+
+fn sign_blob(sk: &SigningKey, blob_value: &Value) -> (Value, Vec<u8>) {
+    let blob_bytes = serde_json::to_vec(blob_value).unwrap();
     let sig = sk.sign(&blob_bytes);
     let envelope = json!({
         "blob": B64.encode(&blob_bytes),
         "sig": B64.encode(sig.to_bytes()),
     });
+    (envelope, blob_bytes)
+}
+
+/// Builds a signed mesh envelope (wire format) using the given signing key
+/// and version. The blob is canonical-ish JSON (we don't enforce canonical
+/// for tests since we sign the bytes we produce here).
+fn make_envelope(sk: &SigningKey, version: u64) -> (Value, String) {
+    let pk_b64 = B64.encode(sk.verifying_key().to_bytes());
+    let (envelope, _) = sign_blob(sk, &full_blob(&pk_b64, version, vec![]));
     let hash = pk_hash(&sk.verifying_key().to_bytes());
     (envelope, hash)
+}
+
+fn second_member_mut(blob: &mut Value) -> &mut serde_json::Map<String, Value> {
+    blob.get_mut("members")
+        .and_then(Value::as_array_mut)
+        .and_then(|members| members.get_mut(1))
+        .and_then(Value::as_object_mut)
+        .expect("full fixture must contain a second member object")
+}
+
+#[tokio::test]
+async fn url_safe_unpadded_owner_key_is_accepted_by_bytes() {
+    let (base, _dir) = spawn_relay().await;
+    let sk = SigningKey::from_bytes(&[2_u8; 32]);
+    let owner_pk_bytes = sk.verifying_key().to_bytes();
+    let owner_pk = URL_SAFE_NO_PAD.encode(owner_pk_bytes);
+    let member_pk = URL_SAFE_NO_PAD.encode([0xfb_u8; 32]);
+
+    let blob = full_blob(&owner_pk, 1, vec![full_member(&member_pk)]);
+    let (envelope, _) = sign_blob(&sk, &blob);
+    let hash = pk_hash(&owner_pk_bytes);
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(format!("{base}/mesh/{hash}"))
+        .json(&envelope)
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let stored: Value = client
+        .get(format!("{base}/mesh/{hash}"))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(stored["blob"], envelope["blob"]);
+}
+
+#[tokio::test]
+async fn empty_members_and_nullable_or_string_nickname_are_accepted() {
+    let (base, _dir) = spawn_relay().await;
+    let member_pk = B64.encode([0x31_u8; 32]);
+    let mut nullable_nickname = full_member(&member_pk);
+    nullable_nickname["nickname"] = Value::Null;
+    let mut string_nickname = full_member(&member_pk);
+    string_nickname["nickname"] = json!("Workstation");
+    let cases = [vec![], vec![nullable_nickname], vec![string_nickname]];
+    let client = reqwest::Client::new();
+
+    for (index, members) in cases.into_iter().enumerate() {
+        let sk = SigningKey::from_bytes(&[0x10_u8 + index as u8; 32]);
+        let owner_pk_bytes = sk.verifying_key().to_bytes();
+        let owner_pk = B64.encode(owner_pk_bytes);
+        let (envelope, _) = sign_blob(&sk, &full_blob(&owner_pk, 1, members));
+        let response = client
+            .post(format!("{base}/mesh/{}", pk_hash(&owner_pk_bytes)))
+            .json(&envelope)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            response.status(),
+            StatusCode::OK,
+            "compatibility case {index} must be accepted",
+        );
+    }
+}
+
+#[tokio::test]
+async fn malformed_member_shape_rejects_whole_upload() {
+    enum Malformation {
+        MissingIssuedAt,
+        NonIntegerIssuedAt,
+        MissingMembers,
+        NonArrayMembers,
+        MissingRemoteEpk,
+        MissingRelayUrl,
+        MissingPairedAt,
+        WrongTypedNickname,
+        InvalidMemberKey,
+        WrongLengthMemberKey,
+    }
+
+    let cases = [
+        ("missing issued_at", Malformation::MissingIssuedAt),
+        ("non-integer issued_at", Malformation::NonIntegerIssuedAt),
+        ("missing members", Malformation::MissingMembers),
+        ("non-array members", Malformation::NonArrayMembers),
+        ("missing remote_epk", Malformation::MissingRemoteEpk),
+        ("missing relay_url", Malformation::MissingRelayUrl),
+        ("missing paired_at", Malformation::MissingPairedAt),
+        ("wrong-typed nickname", Malformation::WrongTypedNickname),
+        ("invalid member key", Malformation::InvalidMemberKey),
+        (
+            "wrong-length member key",
+            Malformation::WrongLengthMemberKey,
+        ),
+    ];
+    let (base, _dir) = spawn_relay().await;
+    let client = reqwest::Client::new();
+    let valid_member_a = B64.encode([0x31_u8; 32]);
+    let valid_member_b = B64.encode([0x32_u8; 32]);
+
+    for (index, (label, malformation)) in cases.into_iter().enumerate() {
+        let sk = SigningKey::from_bytes(&[0x40_u8 + index as u8; 32]);
+        let owner_pk_bytes = sk.verifying_key().to_bytes();
+        let owner_pk = B64.encode(owner_pk_bytes);
+        let mut blob = full_blob(
+            &owner_pk,
+            1,
+            vec![full_member(&valid_member_a), full_member(&valid_member_b)],
+        );
+
+        match malformation {
+            Malformation::MissingIssuedAt => {
+                blob.as_object_mut().unwrap().remove("issued_at");
+            }
+            Malformation::NonIntegerIssuedAt => blob["issued_at"] = json!("not an integer"),
+            Malformation::MissingMembers => {
+                blob.as_object_mut().unwrap().remove("members");
+            }
+            Malformation::NonArrayMembers => blob["members"] = json!({}),
+            Malformation::MissingRemoteEpk => {
+                second_member_mut(&mut blob).remove("remote_epk");
+            }
+            Malformation::MissingRelayUrl => {
+                second_member_mut(&mut blob).remove("relay_url");
+            }
+            Malformation::MissingPairedAt => {
+                second_member_mut(&mut blob).remove("paired_at");
+            }
+            Malformation::WrongTypedNickname => {
+                second_member_mut(&mut blob).insert("nickname".into(), json!(false));
+            }
+            Malformation::InvalidMemberKey => {
+                second_member_mut(&mut blob).insert("remote_epk".into(), json!("not base64"));
+            }
+            Malformation::WrongLengthMemberKey => {
+                second_member_mut(&mut blob)
+                    .insert("remote_epk".into(), json!(B64.encode([7_u8; 31])));
+            }
+        }
+
+        let (envelope, _) = sign_blob(&sk, &blob);
+        let hash = pk_hash(&owner_pk_bytes);
+        let response = client
+            .post(format!("{base}/mesh/{hash}"))
+            .json(&envelope)
+            .send()
+            .await
+            .unwrap();
+        let status = response.status();
+        let body = response.text().await.unwrap();
+        assert_eq!(status, StatusCode::BAD_REQUEST, "case {label}: {body}");
+
+        let stored = client
+            .get(format!("{base}/mesh/{hash}"))
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(
+            stored.status(),
+            StatusCode::NOT_FOUND,
+            "case {label} must not store a contribution",
+        );
+    }
 }
 
 #[tokio::test]

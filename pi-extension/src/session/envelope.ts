@@ -15,6 +15,53 @@ export interface Envelope {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export const TRANSPORT_ERROR_REASONS = [
+  "offline",
+  "not_authorized",
+  "bad_envelope",
+] as const;
+
+export type TransportErrorReason = typeof TRANSPORT_ERROR_REASONS[number];
+
+export interface TransportErrorBody {
+  type: "transport_error";
+  reason: TransportErrorReason;
+}
+
+export function isUuid(value: unknown): value is string {
+  return typeof value === "string" && UUID_RE.test(value);
+}
+
+export function hasTransportErrorType(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.hasOwn(value, "type") &&
+    (value as Record<string, unknown>)["type"] === "transport_error"
+  );
+}
+
+export function asTransportErrorBody(
+  value: unknown,
+): TransportErrorBody | null {
+  if (
+    !hasTransportErrorType(value) ||
+    !Object.hasOwn(value as object, "reason")
+  ) {
+    return null;
+  }
+  const reason = (value as Record<string, unknown>)["reason"];
+  if (
+    reason !== "offline" &&
+    reason !== "not_authorized" &&
+    reason !== "bad_envelope"
+  ) {
+    return null;
+  }
+  return { type: "transport_error", reason };
+}
+
 /**
  * Generates a UUID v7 — time-ordered, monotonically increasing within the
  * same millisecond. Format:
@@ -80,11 +127,11 @@ export function parse(line: string): Envelope {
       }
     }
   }
-  if (typeof o["id"] !== "string" || !UUID_RE.test(o["id"] as string)) {
+  if (!isUuid(o["id"])) {
     throw new EnvelopeError("id must be UUID");
   }
   const re = o["re"];
-  if (re !== null && (typeof re !== "string" || !UUID_RE.test(re as string))) {
+  if (re !== null && !isUuid(re)) {
     throw new EnvelopeError("re must be null or UUID");
   }
   if (!("body" in o)) {

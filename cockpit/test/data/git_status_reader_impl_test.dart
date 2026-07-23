@@ -97,25 +97,24 @@ void main() {
     expect(info!.files['a file.txt'], GitFileStatus.untracked);
   });
 
-  test('pasta nova (untracked) colapsada → cobre descendentes', () async {
+  test('pasta nova (untracked) é enumerada arquivo a arquivo (-uall)', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git não disponível');
       return;
     }
-    // Diretório totalmente novo → git colapsa em "?? novo/".
+    // Diretório totalmente novo: com -uall o git NÃO colapsa em "?? novo/" —
+    // cada arquivo vira entrada própria (Source Control mostra arquivos reais,
+    // com diff; a pasta colore pela agregação de ancestrais).
     await Directory('${repo.path}/novo/sub').create(recursive: true);
     await write('novo/a.txt', '1');
     await write('novo/sub/b.txt', '2');
 
     final info = await reader.read(repo.path);
     expect(info, isNotNull);
-    expect(info!.untrackedDirs, contains('novo'));
-    // A própria pasta colapsada entra como untracked (colore a linha + ancestrais).
-    expect(info.files['novo'], GitFileStatus.untracked);
-    // Descendentes não enumerados, mas cobertos por isUntracked.
-    expect(info.isUntracked('novo/a.txt'), isTrue);
-    expect(info.isUntracked('novo/sub/b.txt'), isTrue);
-    expect(info.isUntracked('lib/app.dart'), isFalse);
+    expect(info!.files['novo/a.txt'], GitFileStatus.untracked);
+    expect(info.files['novo/sub/b.txt'], GitFileStatus.untracked);
+    expect(info.files.containsKey('novo'), isFalse);
+    expect(info.untrackedDirs, isEmpty);
   });
 
   test('coleta raízes ignoradas (.gitignore) sem contar como sujo', () async {

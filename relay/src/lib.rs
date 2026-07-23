@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod handlers;
+mod identity;
 pub mod mesh;
 pub mod metrics;
 pub mod peers;

@@ -130,7 +130,7 @@ Estas decisões foram **propositalmente adiadas**. Quando alguém quiser fechar,
 | Conta de usuário opcional | Quando aparecer dor multi-device |
 | Push notifications | v2, após MVP validado |
 | Multi-relay / federação | Provavelmente nunca. Só se relay público virar gargalo |
-| Apps nativos (Swift/Kotlin) em vez de Flutter | Provavelmente nunca. Reconsiderar só se Flutter limitar features críticas (ex: integração profunda iOS Keychain) |
+| Apps nativos (Swift/Kotlin) em vez de Flutter | Provavelmente nunca. Reconsiderar só se Flutter limitar features críticas (ex: integração profunda iOS Keychain). **Desktop: reconsiderado e mantido Flutter — decidido no plano 37, validado em produção (Cockpit 1.13.0; plano encerrado 2026-07-19)** |
 
 ---
 

@@ -7,11 +7,30 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 
+/// Botão verde do semáforo (macOS) e botão maximize (Win/Linux).
+/// No macOS segue a convenção nativa: verde = tela cheia (Space próprio).
 Future<void> _toggleMaximize() async {
   if (Platform.isMacOS) {
     final isFull = await windowManager.isFullScreen();
     await windowManager.setFullScreen(!isFull);
   } else if (await windowManager.isMaximized()) {
+    await windowManager.unmaximize();
+  } else {
+    await windowManager.maximize();
+  }
+}
+
+/// Duplo-clique na titlebar. No macOS o `maximize()` do window_manager é
+/// `NSWindow.zoom` — estica pro máximo da tela SEM entrar em tela cheia (não
+/// cria outra Mesa), que é o comportamento nativo do duplo-clique. No
+/// Windows/Linux maximize/unmaximize é o esperado mesmo.
+Future<void> _toggleZoom() async {
+  if (Platform.isMacOS && await windowManager.isFullScreen()) {
+    // Se já está em tela cheia (via botão verde), duplo-clique sai dela.
+    await windowManager.setFullScreen(false);
+    return;
+  }
+  if (await windowManager.isMaximized()) {
     await windowManager.unmaximize();
   } else {
     await windowManager.maximize();
@@ -152,7 +171,7 @@ class _DragToMoveAreaState extends State<_DragToMoveArea> {
     // restringe só o arrasto nativo.
     return GestureDetector(
       behavior: HitTestBehavior.translucent,
-      onDoubleTap: _toggleMaximize,
+      onDoubleTap: _toggleZoom,
       child: Listener(
         behavior: HitTestBehavior.translucent,
         onPointerDown: (e) => unawaited(_onDown(e)),

@@ -38,9 +38,9 @@ class WorkspaceRoot {
 /// **+pasta** e **Refresh**; criar/renomear é **inline** (linha-input na árvore),
 /// deletar manda pra lixeira (macOS) ou pede confirmação (demais).
 ///
-/// Workspace **multi-root** ([roots] com 2+ itens): cada root vira uma seção
-/// colapsável com cabeçalho próprio (nome + branch + sujeira); o Source
-/// Control agrega as mudanças de todas, seccionadas por root.
+/// Workspace **multi-root** ([roots] com 2+ itens): a árvore de Files segue
+/// única (raiz do workspace, com os arquivos da própria raiz visíveis); o
+/// Source Control agrega as mudanças de todas as roots, seccionadas por root.
 class FileTreePanel extends StatefulWidget {
   const FileTreePanel({
     super.key,
@@ -63,13 +63,17 @@ class FileTreePanel extends StatefulWidget {
     required this.onRename,
     required this.onDelete,
     required this.onMove,
+    required this.onCopy,
+    required this.onCut,
+    required this.onPaste,
+    required this.canPaste,
     this.width = 300,
     this.footer,
     this.searchPanel,
+    this.databasePanel,
     this.searchFocusSignal,
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
-    this.onRootContextMenu,
     this.onUnstageFile,
     this.onDiscardFile,
     this.onCommitFile,
@@ -95,14 +99,9 @@ class FileTreePanel extends StatefulWidget {
   /// painel confirma antes). `null` = sucesso.
   final Future<String?> Function(String absPath)? onDiscardFile;
 
-  /// Roots git do workspace (derivadas). 0–1 itens = single-root, layout de
-  /// hoje; 2+ = multi-root com seções por root.
+  /// Roots git do workspace (derivadas). Usadas só pelo **Source Control**
+  /// (2+ = mudanças seccionadas por root); a árvore de Files é sempre única.
   final List<WorkspaceRoot> roots;
-
-  /// Botão-direito no cabeçalho de uma root (multi-root): a page abre o menu
-  /// de contexto (Sync/Pull/Push/worktree/terminal). `null` = sem menu.
-  final void Function(WorkspaceRoot root, Offset globalPosition)?
-  onRootContextMenu;
 
   /// Notificado a cada Cmd+Shift+F → ativa a aba de busca (além de focar o
   /// campo, que o próprio [searchPanel] faz). `null` = sem projeto.
@@ -114,6 +113,10 @@ class FileTreePanel extends StatefulWidget {
   /// Subpane de Tasks (executor de build/dev), fixado entre o [searchPanel] e
   /// o [footer]. Null = sem projeto selecionado.
   final Widget? tasksPanel;
+
+  /// Painel de conexões de banco (aba Database, plano 51). Null = sem projeto
+  /// (a aba nem aparece no header).
+  final Widget? databasePanel;
 
   /// Painel de busca por conteúdo, fixado entre a árvore e o [footer]
   /// (Cmd+Shift+F). `null` quando não há projeto.
@@ -181,6 +184,18 @@ class FileTreePanel extends StatefulWidget {
   final Future<Result<void, String>> Function(String path, String targetDir)
   onMove;
 
+  /// Marca [path] pra copiar (Cmd+C / menu). O paste duplica.
+  final ValueChanged<String> onCopy;
+
+  /// Marca [path] pra recortar (Cmd+X / menu). O paste move.
+  final ValueChanged<String> onCut;
+
+  /// Cola o item do clipboard dentro de [targetDir] (Cmd+V / menu).
+  final Future<Result<void, String>> Function(String targetDir) onPaste;
+
+  /// Há algo no clipboard pra colar — habilita o item "Paste" e o Cmd+V.
+  final bool canPaste;
+
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
 
@@ -188,9 +203,10 @@ class FileTreePanel extends StatefulWidget {
   State<FileTreePanel> createState() => _FileTreePanelState();
 }
 
-/// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo ou
-/// source control. Ordem visual no header: Files · Search · Source Control.
-enum _RightPaneTab { files, search, sourceControl }
+/// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo,
+/// source control ou conexões de banco (plano 51). Ordem visual no header:
+/// Files · Search · Source Control · Database.
+enum _RightPaneTab { files, search, sourceControl, database }
 
 /// Intenção de criação inline pendente: dentro de [parentPath], arquivo ou pasta.
 class _PendingCreate {
@@ -242,9 +258,6 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// Caminho sendo renomeado inline (`null` = nenhum).
   String? _renaming;
 
-  /// Roots colapsadas na aba Files (multi-root). Chave = path da root.
-  final Set<String> _collapsedRoots = <String>{};
-
   final FocusNode _treeFocus = FocusNode(debugLabel: 'fileTree');
 
   @override
@@ -261,20 +274,11 @@ class _FileTreePanelState extends State<FileTreePanel> {
       widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
     }
     // Novo pedido de reveal (seleção de tab FileView): calcula os ancestrais do
-    // alvo, expande a root que o contém (multi-root) e publica o set pros folders.
+    // alvo e publica o set pros folders expandirem.
     if (widget.revealGen != oldWidget.revealGen &&
         widget.revealGen != _revealGen) {
-      final path = widget.revealPath;
       _revealGen = widget.revealGen;
-      _revealExpand = _ancestorDirs(path);
-      if (path != null) {
-        for (final r in widget.roots) {
-          if (path == r.path || path.startsWith('${r.path}/')) {
-            _collapsedRoots.remove(r.path);
-            break;
-          }
-        }
-      }
+      _revealExpand = _ancestorDirs(widget.revealPath);
       setState(() {});
     }
   }
@@ -401,29 +405,20 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   /// Pasta-alvo dos botões New file/New folder do **header**: a pasta
-  /// selecionada, a pasta-mãe do arquivo selecionado, ou a raiz quando nada está
-  /// selecionado. `null` = sem alvo válido (multi-root sem seleção → ambíguo, o
-  /// botão nem aparece; a criação por-root vive no [_RootHeader]).
+  /// selecionada, a pasta-mãe do arquivo selecionado, ou a raiz do workspace
+  /// quando nada está selecionado.
   String? _headerCreateTarget() {
     final sel = _selectedPath;
-    final rootFallback = widget.roots.length <= 1 ? widget.rootPath : null;
-    if (sel == null || sel.isEmpty) return rootFallback;
+    if (sel == null || sel.isEmpty) return widget.rootPath;
     if (_selectedIsFolder) return sel;
     final i = sel.lastIndexOf('/');
-    return i > 0 ? sel.substring(0, i) : rootFallback;
+    return i > 0 ? sel.substring(0, i) : widget.rootPath;
   }
 
-  /// Dispara o New file/folder do header no alvo resolvido, expandindo a root
-  /// que o contém (multi-root) pra o `_DirView`-raiz montar e revelar o input.
+  /// Dispara o New file/folder do header no alvo resolvido.
   void _headerCreate(bool isFolder) {
     final target = _headerCreateTarget();
     if (target == null || target.isEmpty) return;
-    for (final r in widget.roots) {
-      if (target == r.path || target.startsWith('${r.path}/')) {
-        _expandRoot(r.path);
-        break;
-      }
-    }
     _startCreate(target, isFolder);
   }
 
@@ -438,14 +433,6 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   void _cancelCreate() {
     if (_pending != null) setState(() => _pending = null);
-  }
-
-  /// Expande a seção de uma root (multi-root) se estiver colapsada — necessário
-  /// antes de criar nela, pra o `_DirView`-alvo montar e o input inline aparecer.
-  void _expandRoot(String rootPath) {
-    if (_collapsedRoots.contains(rootPath)) {
-      setState(() => _collapsedRoots.remove(rootPath));
-    }
   }
 
   /// Commit do input de criação. Devolve a mensagem de erro (mantém o input) ou
@@ -534,6 +521,39 @@ class _FileTreePanelState extends State<FileTreePanel> {
     }, (e) => showInfoDialog(context, title: 'Could not move', message: e));
   }
 
+  // ---- copiar / recortar / colar --------------------------------------------
+
+  /// Cola o clipboard dentro de [targetDir] (menu de pasta, ou resolvido pelo
+  /// atalho). Falha vira dialog; a árvore recarrega pela revisão da VM.
+  Future<void> _requestPaste(String targetDir) async {
+    final r = await widget.onPaste(targetDir);
+    if (!mounted) return;
+    r.fold(
+      (_) {},
+      (e) => showInfoDialog(context, title: 'Could not paste', message: e),
+    );
+  }
+
+  /// Pasta-alvo do paste via atalho: a pasta selecionada, a pasta-mãe do arquivo
+  /// selecionado, ou a raiz do workspace (mesma lógica do New file/folder).
+  String? _pasteTarget() => _headerCreateTarget();
+
+  void _copySelected() {
+    final p = _selectedPath;
+    if (p != null && !_editing) widget.onCopy(p);
+  }
+
+  void _cutSelected() {
+    final p = _selectedPath;
+    if (p != null && !_editing) widget.onCut(p);
+  }
+
+  void _pasteSelected() {
+    if (_editing || !widget.canPaste) return;
+    final target = _pasteTarget();
+    if (target != null && target.isNotEmpty) _requestPaste(target);
+  }
+
   // ---- atalhos de teclado ---------------------------------------------------
 
   bool get _editing => _pending != null || _renaming != null;
@@ -552,10 +572,32 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// bubbling até um `CallbackShortcuts` ancestral). Delete/Backspace apagam;
   /// Enter (macOS) / F2 (Win/Linux) renomeiam o selecionado.
   KeyEventResult _onTreeKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || _editing || _selectedPath == null) {
+    if (event is! KeyDownEvent || _editing) return KeyEventResult.ignored;
+    final key = event.logicalKey;
+
+    // Copiar / recortar / colar (Cmd no macOS, Ctrl no resto). Paste dispensa
+    // seleção (cai na raiz); copy/cut exigem um item selecionado.
+    final mod = HardwareKeyboard.instance;
+    final accel = Platform.isMacOS
+        ? mod.isMetaPressed
+        : mod.isControlPressed;
+    if (accel) {
+      if (key == LogicalKeyboardKey.keyC && _selectedPath != null) {
+        _copySelected();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyX && _selectedPath != null) {
+        _cutSelected();
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyV && widget.canPaste) {
+        _pasteSelected();
+        return KeyEventResult.handled;
+      }
       return KeyEventResult.ignored;
     }
-    final key = event.logicalKey;
+
+    if (_selectedPath == null) return KeyEventResult.ignored;
     final isDelete =
         key == LogicalKeyboardKey.delete ||
         (Platform.isMacOS && key == LogicalKeyboardKey.backspace);
@@ -601,6 +643,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
       onCommitRename: _commitRename,
       onRequestDelete: _requestDelete,
       onRequestMove: _requestMove,
+      onCopy: widget.onCopy,
+      onCut: widget.onCut,
+      onRequestPaste: _requestPaste,
+      canPaste: widget.canPaste,
       onShowDiff: widget.onOpenDiff,
       gitStatusOf: widget.gitStatusOf,
       listChildren: widget.listChildren,
@@ -616,8 +662,13 @@ class _FileTreePanelState extends State<FileTreePanel> {
     if (tab == _RightPaneTab.search && !hasSearch) {
       tab = _RightPaneTab.files;
     }
+    final hasDatabase = widget.databasePanel != null;
+    if (tab == _RightPaneTab.database && !hasDatabase) {
+      tab = _RightPaneTab.files;
+    }
     final scMode = tab == _RightPaneTab.sourceControl;
     final searchMode = tab == _RightPaneTab.search;
+    final dbMode = tab == _RightPaneTab.database;
 
     return Container(
       width: widget.width,
@@ -657,46 +708,60 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     onTap: () =>
                         setState(() => _tab = _RightPaneTab.sourceControl),
                   ),
-                const Spacer(),
-                if (scMode)
+                if (hasDatabase)
                   _HeaderIcon(
-                    key: const ValueKey('source-control-view-toggle'),
-                    icon: _sourceControlTree
-                        ? Icons.view_list_outlined
-                        : Icons.account_tree_outlined,
-                    tooltip: _sourceControlTree
-                        ? 'View as List'
-                        : 'View as Tree',
-                    onTap: () => setState(
-                      () => _sourceControlTree = !_sourceControlTree,
-                    ),
+                    key: const ValueKey('database-tab'),
+                    icon: Icons.storage,
+                    tooltip: 'Database',
+                    selected: dbMode,
+                    onTap: () => setState(() => _tab = _RightPaneTab.database),
                   ),
-                // "New file/folder" só no modo Files (o source control é
-                // leitura). O alvo é [_headerCreateTarget]: pasta/arquivo
-                // selecionado, senão a raiz (single-root). Em **multi-root** sem
-                // seleção o alvo é ambíguo ("em qual repo?") → `null` e o botão
-                // some daqui (a criação por-root vive em cada `_RootHeader`).
-                if (tab == _RightPaneTab.files &&
-                    (_headerCreateTarget()?.isNotEmpty ?? false)) ...[
-                  _HeaderIcon(
+              ],
+            ),
+          ),
+          // Título da aba ativa + ações contextuais ao lado, no padrão do
+          // painel Database (a barra de tabs acima fica só com as tabs).
+          if (widget.rootPath.isNotEmpty && tab == _RightPaneTab.files)
+            _PanelHeader(
+              title: 'FILES',
+              actions: [
+                // "New file/folder": pasta/arquivo selecionado, senão a raiz
+                // do workspace.
+                if (_headerCreateTarget()?.isNotEmpty ?? false) ...[
+                  _PanelHeaderAction(
                     icon: Icons.note_add_outlined,
                     tooltip: 'New file',
                     onTap: () => _headerCreate(false),
                   ),
-                  _HeaderIcon(
+                  _PanelHeaderAction(
                     icon: Icons.create_new_folder_outlined,
                     tooltip: 'New folder',
                     onTap: () => _headerCreate(true),
                   ),
                 ],
-                _HeaderIcon(
+                _PanelHeaderAction(
                   icon: Icons.refresh,
                   tooltip: 'Refresh',
                   onTap: () => setState(() => _localRefresh++),
                 ),
               ],
             ),
-          ),
+          if (widget.rootPath.isNotEmpty && scMode)
+            _PanelHeader(
+              title: 'SOURCE CONTROL',
+              actions: [
+                _PanelHeaderAction(
+                  key: const ValueKey('source-control-view-toggle'),
+                  icon: _sourceControlTree
+                      ? Icons.view_list_outlined
+                      : Icons.account_tree_outlined,
+                  tooltip: _sourceControlTree ? 'View as List' : 'View as Tree',
+                  onTap: () => setState(
+                    () => _sourceControlTree = !_sourceControlTree,
+                  ),
+                ),
+              ],
+            ),
           Expanded(
             child: widget.rootPath.isEmpty
                 ? Center(
@@ -708,6 +773,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                   )
                 : searchMode
                 ? (widget.searchPanel ?? const SizedBox.shrink())
+                : dbMode
+                ? (widget.databasePanel ?? const SizedBox.shrink())
                 : scMode
                 ? _ChangedTree(
                     rootPath: widget.rootPath,
@@ -743,63 +810,17 @@ class _FileTreePanelState extends State<FileTreePanel> {
                             vertical: 8,
                             horizontal: 6,
                           ),
-                            child: widget.roots.length > 1
-                                // Multi-root: uma seção colapsável por root,
-                                // cada uma com sua própria _DirView (paths
-                                // git relativos à root, não à pasta-mãe).
-                                ? Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.stretch,
-                                    children: [
-                                      for (final root in widget.roots) ...[
-                                        _RootHeader(
-                                          root: root,
-                                          collapsed: _collapsedRoots.contains(
-                                            root.path,
-                                          ),
-                                          onToggle: () => setState(() {
-                                            if (!_collapsedRoots.remove(
-                                              root.path,
-                                            )) {
-                                              _collapsedRoots.add(root.path);
-                                            }
-                                          }),
-                                          onContextMenu:
-                                              widget.onRootContextMenu,
-                                          // New file/folder DESTA root: garante a
-                                          // seção expandida (senão o _DirView-alvo
-                                          // não monta e o input não aparece) e
-                                          // dispara o create mirando root.path.
-                                          showCreate: tab == _RightPaneTab.files,
-                                          onNewFile: () {
-                                            _expandRoot(root.path);
-                                            _startCreate(root.path, false);
-                                          },
-                                          onNewFolder: () {
-                                            _expandRoot(root.path);
-                                            _startCreate(root.path, true);
-                                          },
-                                        ),
-                                        if (!_collapsedRoots.contains(
-                                          root.path,
-                                        ))
-                                          _DirView(
-                                            path: root.path,
-                                            rootPath: root.path,
-                                            depth: 1,
-                                            refreshToken: _refreshToken,
-                                            edit: edit,
-                                          ),
-                                      ],
-                                    ],
-                                  )
-                                : _DirView(
-                                    path: widget.rootPath,
-                                    rootPath: widget.rootPath,
-                                    depth: 0,
-                                    refreshToken: _refreshToken,
-                                    edit: edit,
-                                  ),
+                            // Árvore única da raiz do workspace, mesmo em
+                            // multi-root — a coloração git resolve a root dona
+                            // por caminho absoluto, e a divisão por repo vive
+                            // no Source Control (lá é onde importa).
+                            child: _DirView(
+                              path: widget.rootPath,
+                              rootPath: widget.rootPath,
+                              depth: 0,
+                              refreshToken: _refreshToken,
+                              edit: edit,
+                            ),
                           ),
                         ),
                     ),
@@ -808,125 +829,6 @@ class _FileTreePanelState extends State<FileTreePanel> {
           ?widget.tasksPanel,
           ?widget.footer,
         ],
-      ),
-    );
-  }
-}
-
-/// Cabeçalho de seção de uma **root** (multi-root): seta de colapso + nome +
-/// branch + contagem de sujos. Botão-direito abre o menu de contexto da root
-/// (git ops direcionadas — o alvo é o próprio cabeçalho, sem perguntar).
-class _RootHeader extends StatefulWidget {
-  const _RootHeader({
-    required this.root,
-    required this.collapsed,
-    required this.onToggle,
-    this.onContextMenu,
-    this.showCreate = false,
-    this.onNewFile,
-    this.onNewFolder,
-  });
-
-  final WorkspaceRoot root;
-  final bool collapsed;
-  final VoidCallback onToggle;
-  final void Function(WorkspaceRoot root, Offset globalPosition)? onContextMenu;
-
-  /// Mostra os ícones New file/New folder (revelados no hover) — só no modo
-  /// Files. Cada um cria DENTRO desta root.
-  final bool showCreate;
-  final VoidCallback? onNewFile;
-  final VoidCallback? onNewFolder;
-
-  @override
-  State<_RootHeader> createState() => _RootHeaderState();
-}
-
-class _RootHeaderState extends State<_RootHeader> {
-  bool _hovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final typo = context.typo;
-    final root = widget.root;
-    final git = root.git;
-    final dirty = git?.dirtyCount ?? 0;
-    return MouseRegion(
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onSecondaryTapDown: widget.onContextMenu == null
-            ? null
-            : (d) => widget.onContextMenu!(root, d.globalPosition),
-        child: HoverTap(
-          hoverColor: colors.panel,
-          borderRadius: BorderRadius.circular(5),
-          onTap: widget.onToggle,
-          padding: const EdgeInsets.only(left: 4, right: 6),
-          child: SizedBox(
-            height: 28,
-            child: Row(
-              children: [
-                Icon(
-                  widget.collapsed
-                      ? Icons.keyboard_arrow_right
-                      : Icons.keyboard_arrow_down,
-                  size: 15,
-                  color: colors.text3,
-                ),
-                const SizedBox(width: 2),
-                // Nome da root inteiro, sempre — quem trunca é a branch.
-                Text(
-                  root.name,
-                  style: typo.body.copyWith(
-                    fontSize: 12.5,
-                    color: colors.text,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (git != null) ...[
-                  const SizedBox(width: 8),
-                  Icon(Icons.call_split, size: 10, color: colors.warn),
-                  const SizedBox(width: 3),
-                  Flexible(
-                    child: Text(
-                      git.branch,
-                      overflow: TextOverflow.ellipsis,
-                      style: typo.mono.copyWith(
-                        fontSize: 10,
-                        color: colors.warn,
-                      ),
-                    ),
-                  ),
-                ],
-                const Spacer(),
-                // Ícones de criação (hover) — descendentes com onTap próprio, então
-                // o tap vai neles, não no toggle do header.
-                if (widget.showCreate && _hovered) ...[
-                  _HeaderIcon(
-                    icon: Icons.note_add_outlined,
-                    tooltip: 'New file',
-                    onTap: () => widget.onNewFile?.call(),
-                  ),
-                  _HeaderIcon(
-                    icon: Icons.create_new_folder_outlined,
-                    tooltip: 'New folder',
-                    onTap: () => widget.onNewFolder?.call(),
-                  ),
-                ] else if (dirty > 0)
-                  Text(
-                    '$dirty',
-                    style: typo.mono.copyWith(
-                      fontSize: 10,
-                      color: colors.edited,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -955,6 +857,10 @@ class _TreeEdit {
     required this.onCommitRename,
     required this.onRequestDelete,
     required this.onRequestMove,
+    required this.onCopy,
+    required this.onCut,
+    required this.onRequestPaste,
+    required this.canPaste,
     required this.onShowDiff,
     required this.gitStatusOf,
     required this.listChildren,
@@ -992,6 +898,16 @@ class _TreeEdit {
 
   /// Drop de um caminho arrastado numa pasta-alvo → move pra dentro dela.
   final void Function(String path, String targetDir) onRequestMove;
+
+  /// Copiar / recortar o caminho pro clipboard interno da árvore.
+  final ValueChanged<String> onCopy;
+  final ValueChanged<String> onCut;
+
+  /// Colar o item do clipboard dentro de [targetDir].
+  final void Function(String targetDir) onRequestPaste;
+
+  /// Habilita o item "Paste" no menu de contexto.
+  final bool canPaste;
 
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
   final Future<List<FileNode>> Function(String path) listChildren;
@@ -1101,6 +1017,11 @@ class _DirViewState extends State<_DirView> {
                 onCancelRename: edit.onCancelRename,
                 onDelete: () => edit.onRequestDelete(node.path),
                 onShowDiff: () => edit.onShowDiff(node.path),
+                onCopy: () => edit.onCopy(node.path),
+                onCut: () => edit.onCut(node.path),
+                // Arquivo cola na pasta-mãe.
+                onPaste: () => edit.onRequestPaste(widget.path),
+                canPaste: edit.canPaste,
               ),
             ),
       ],
@@ -1190,6 +1111,11 @@ class _FolderState extends State<_Folder> {
           onCommitRename: (name) => edit.onCommitRename(widget.node.path, name),
           onCancelRename: edit.onCancelRename,
           onDelete: () => edit.onRequestDelete(widget.node.path),
+          onCopy: () => edit.onCopy(widget.node.path),
+          onCut: () => edit.onCut(widget.node.path),
+          // Pasta cola dentro de si mesma.
+          onPaste: () => edit.onRequestPaste(widget.node.path),
+          canPaste: edit.canPaste,
           onTap: () {
             edit.onSelect(widget.node.path, true);
             setState(() => _expanded = !_expanded);
@@ -1237,6 +1163,10 @@ class _Row extends StatefulWidget {
     this.onCancelRename,
     this.onDelete,
     this.onShowDiff,
+    this.onCopy,
+    this.onCut,
+    this.onPaste,
+    this.canPaste = false,
   });
 
   final int depth;
@@ -1270,6 +1200,17 @@ class _Row extends StatefulWidget {
 
   /// "Show git diff" (só arquivos). `null` em pastas.
   final VoidCallback? onShowDiff;
+
+  /// Copiar / recortar este item pro clipboard interno da árvore.
+  final VoidCallback? onCopy;
+  final VoidCallback? onCut;
+
+  /// Colar o clipboard tendo este item como âncora (pasta → dentro dela;
+  /// arquivo → na pasta-mãe). `null` desabilita o item.
+  final VoidCallback? onPaste;
+
+  /// Há algo no clipboard — habilita o item "Paste" no menu.
+  final bool canPaste;
 
   @override
   State<_Row> createState() => _RowState();
@@ -1379,6 +1320,22 @@ class _RowState extends State<_Row> {
           icon: Icons.delete_outline,
         ),
         const AppMenuItem(
+          value: 'copy',
+          label: 'Copy',
+          icon: Icons.copy_all_outlined,
+        ),
+        const AppMenuItem(
+          value: 'cut',
+          label: 'Cut',
+          icon: Icons.content_cut,
+        ),
+        AppMenuItem(
+          value: 'paste',
+          label: 'Paste',
+          icon: Icons.content_paste,
+          enabled: widget.canPaste,
+        ),
+        const AppMenuItem(
           value: 'rel',
           label: 'Copy relative path',
           icon: Icons.content_copy_outlined,
@@ -1410,6 +1367,12 @@ class _RowState extends State<_Row> {
           widget.onStartRename?.call();
         case 'delete':
           widget.onDelete?.call();
+        case 'copy':
+          widget.onCopy?.call();
+        case 'cut':
+          widget.onCut?.call();
+        case 'paste':
+          widget.onPaste?.call();
         case 'rel':
           Clipboard.setData(ClipboardData(text: _relative));
         case 'abs':
@@ -2137,6 +2100,62 @@ Color? _gitColor(AppColors colors, GitFileStatus? status) {
       return colors.gitDeleted;
     case GitFileStatus.conflict:
       return colors.gitConflict;
+  }
+}
+
+/// Cabeçalho de painel no padrão da aba Database: título em caps à esquerda e
+/// ações contextuais à direita (Files e Source Control usam este).
+class _PanelHeader extends StatelessWidget {
+  const _PanelHeader({required this.title, this.actions = const []});
+  final String title;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 6, 4),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: context.typo.label.copyWith(
+              fontSize: 10,
+              letterSpacing: 1.1,
+              color: colors.text3,
+            ),
+          ),
+          const Spacer(),
+          ...actions,
+        ],
+      ),
+    );
+  }
+}
+
+/// Ação de [_PanelHeader]: ícone 14px com hover, no padrão do header Database.
+class _PanelHeaderAction extends StatelessWidget {
+  const _PanelHeaderAction({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return AppTooltip(
+      message: tooltip,
+      child: HoverTap(
+        onTap: onTap,
+        padding: const EdgeInsets.all(3),
+        child: Icon(icon, size: 14, color: colors.text3),
+      ),
+    );
   }
 }
 

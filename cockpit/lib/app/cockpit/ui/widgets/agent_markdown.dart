@@ -11,6 +11,7 @@ import 'package:flutter/material.dart' as m;
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
+import 'package:cockpit/app/core/ui/widgets/markdown_frontmatter.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Renderiza o Markdown (GFM + code) da resposta do agente, com a identidade
@@ -22,6 +23,14 @@ class AgentMarkdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Frontmatter YAML (agent.md / SKILL.md): split ANTES do render — feature
+    // que morava no fork do gpt_markdown (PR #139, não absorvido upstream) e
+    // foi portada pra cá quando voltamos ao pacote do pub.dev.
+    final split = MarkdownFrontmatter.split(
+      data.replaceAll('\r\n', '\n').replaceAll('\r', '\n'),
+    );
+    final frontmatter = split.frontmatter;
+    final body = frontmatter == null ? data : split.body.trim();
     final colors = context.colors;
     final typo = context.typo;
     final brightness = Theme.of(context).brightness;
@@ -57,21 +66,32 @@ class AgentMarkdown extends StatelessWidget {
           ),
         ],
       ),
-      child: GptMarkdown(
-        data,
-        style: typo.body.copyWith(color: colors.text),
-        // `code` inline — fundo sutil, mono.
-        highlightBuilder: (context, text, style) => Text(
-          text,
-          style: typo.mono.copyWith(
-            fontSize: 12,
-            color: colors.text,
-            backgroundColor: colors.panel3,
+      child: m.Column(
+        mainAxisSize: m.MainAxisSize.min,
+        crossAxisAlignment: m.CrossAxisAlignment.start,
+        children: [
+          if (frontmatter != null)
+            MarkdownFrontmatterTable(
+              frontmatter: frontmatter,
+              style: typo.body.copyWith(color: colors.text),
+            ),
+          GptMarkdown(
+            body,
+            style: typo.body.copyWith(color: colors.text),
+            // `code` inline — fundo sutil, mono.
+            highlightBuilder: (context, text, style) => Text(
+              text,
+              style: typo.mono.copyWith(
+                fontSize: 12,
+                color: colors.text,
+                backgroundColor: colors.panel3,
+              ),
+            ),
+            // Blocos ``` — card escuro com header (linguagem + copiar).
+            codeBuilder: (context, name, code, closed) =>
+                _CodeBlock(language: name, code: code),
           ),
-        ),
-        // Blocos ``` — card escuro com header (linguagem + copiar).
-        codeBuilder: (context, name, code, closed) =>
-            _CodeBlock(language: name, code: code),
+        ],
       ),
     );
   }

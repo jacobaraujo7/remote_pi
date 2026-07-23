@@ -121,9 +121,11 @@ Diferenças-chave vs cmux:
 
 Skill de referência: [`cockpit-cli`](file:///Users/jacob/.claude/skills/cockpit-cli/SKILL.md).
 
-Ideias futuras (não implementadas): worker faz **push** da conclusão via
-`cockpit send --tab-id <orch>` em vez de o orquestrador fazer poll (exige
-passar o tab-id do orquestrador no marker + ajustar `INSTRUCTIONS.md`).
+**Push de conclusão (implementado 2026-07-19)**: quando o dispatch roda de
+dentro de um pane do Cockpit, o script embute `[ORCH-REPLY:$COCKPIT_PANE_ID]`
+no prompt e o worker (per `INSTRUCTIONS.md`) manda a conclusão direto pro
+pane do orquestrador via `cockpit send --tab-id <orch>` + Enter — o `--wait`
+com polling continua como fallback pra worker que esquecer o push.
 
 ### Descobrir o surface ID por título
 

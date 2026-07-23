@@ -1,60 +1,158 @@
 import type { MeshEnvelope } from "./types.js";
 
-/**
- * HTTP client for the relay's `/mesh/<owner_pk_hash>` endpoints.
- *
- * Uses Node 20+ global `fetch` — no extra dependency. The constructor
- * expects the **canonical http(s):// form** of the relay URL — the same
- * value returned by `resolveRelayUrl()`. No scheme conversion is done
- * here; ws(s):// URLs would be passed through to `fetch` and fail.
- *
- * Spec: plan/24-mesh-membership.md "API HTTP" section.
- */
-export class MeshClient {
-  private readonly baseUrl: string;
+export class MeshFetchUnavailableError extends Error {
+  override readonly name = "MeshFetchUnavailableError";
+}
 
-  constructor(relayUrl: string) {
-    // Only strip trailing slashes for clean URL concatenation; scheme is
-    // assumed canonical (http(s)://) and is not rewritten.
-    this.baseUrl = relayUrl.replace(/\/+$/, "");
+export class MeshFetchInvalidResponseError extends Error {
+  override readonly name = "MeshFetchInvalidResponseError";
+}
+
+export interface MeshClientOptions {
+  /** Finite deadline covering response headers and body parsing. */
+  readonly requestTimeoutMs?: number;
+}
+
+const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
+const ED25519_SIGNATURE_BYTES = 64;
+
+function invalidResponse(): MeshFetchInvalidResponseError {
+  return new MeshFetchInvalidResponseError("mesh response is invalid");
+}
+
+function unavailable(): MeshFetchUnavailableError {
+  return new MeshFetchUnavailableError("mesh request is unavailable");
+}
+
+function decodeStrictBase64(raw: string): Uint8Array {
+  if (raw.length === 0) throw invalidResponse();
+  const hasStandardOnlyCharacters = /[+/]/.test(raw);
+  const hasUrlSafeOnlyCharacters = /[-_]/.test(raw);
+  if (hasStandardOnlyCharacters && hasUrlSafeOnlyCharacters) {
+    throw invalidResponse();
   }
 
-  /**
-   * `GET /mesh/<hash>?since=<version>`.
-   *
-   * `hash` is `sha256(owner_pk)` encoded as **lowercase hex** — the format
-   * the relay stores and the app publishes. Mismatched encodings yield a
-   * silent 404 forever.
-   *
-   * Status mapping:
-   *   - 200 → returns a `MeshEnvelope` with base64-decoded `blob` and `sig`.
-   *   - 304 / 404 → returns `null` (caller treats as "no update" or "owner
-   *     never published").
-   *   - Anything else → throws (caller logs + continues).
-   *
-   * Malformed 200 responses (missing fields, non-string blob/sig) also throw.
-   */
+  const firstPaddingIndex = raw.indexOf("=");
+  const body = firstPaddingIndex === -1 ? raw : raw.slice(0, firstPaddingIndex);
+  const padding = firstPaddingIndex === -1 ? "" : raw.slice(firstPaddingIndex);
+  const bodyPattern = hasUrlSafeOnlyCharacters
+    ? /^[A-Za-z0-9_-]+$/
+    : /^[A-Za-z0-9+/]+$/;
+  if (
+    !bodyPattern.test(body) ||
+    (padding !== "" && !/^={1,2}$/.test(padding))
+  ) {
+    throw invalidResponse();
+  }
+
+  const requiredPaddingLength = (4 - (body.length % 4)) % 4;
+  if (
+    requiredPaddingLength === 3 ||
+    (padding.length > 0 && padding.length !== requiredPaddingLength)
+  ) {
+    throw invalidResponse();
+  }
+
+  const normalizedBody = body.replaceAll("-", "+").replaceAll("_", "/");
+  const bytes = new Uint8Array(
+    Buffer.from(
+      normalizedBody + "=".repeat(requiredPaddingLength),
+      "base64",
+    ),
+  );
+  const canonicalPadded = Buffer.from(bytes).toString("base64");
+  const canonicalUnpadded = canonicalPadded.replace(/=+$/, "");
+  const normalizedInput = normalizedBody + padding;
+  if (
+    normalizedInput !== canonicalPadded &&
+    normalizedInput !== canonicalUnpadded
+  ) {
+    throw invalidResponse();
+  }
+  return bytes;
+}
+
+/** Finite-deadline HTTP client for Relay mesh membership envelopes. */
+export class MeshClient {
+  private readonly baseUrl: string;
+  private readonly requestTimeoutMs: number;
+
+  constructor(relayUrl: string, options: MeshClientOptions = {}) {
+    const requestTimeoutMs =
+      options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) {
+      throw new RangeError("requestTimeoutMs must be finite and positive");
+    }
+    this.baseUrl = relayUrl.replace(/\/+$/, "");
+    this.requestTimeoutMs = requestTimeoutMs;
+  }
+
   async get(hash: string, since?: number): Promise<MeshEnvelope | null> {
-    const qs = since !== undefined ? `?since=${encodeURIComponent(since)}` : "";
-    const url = `${this.baseUrl}/mesh/${encodeURIComponent(hash)}${qs}`;
-    const res = await fetch(url, { method: "GET" });
-    if (res.status === 200) {
-      const payload = (await res.json()) as unknown;
+    const query =
+      since !== undefined ? `?since=${encodeURIComponent(since)}` : "";
+    const url = `${this.baseUrl}/mesh/${encodeURIComponent(hash)}${query}`;
+    const controller = new AbortController();
+    let rejectOnAbort: (() => void) | null = null;
+    const aborted = new Promise<never>((_resolve, reject) => {
+      rejectOnAbort = () => reject(unavailable());
+      controller.signal.addEventListener("abort", rejectOnAbort, { once: true });
+    });
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.requestTimeoutMs,
+    );
+
+    try {
+      let response: Response;
+      try {
+        response = await Promise.race([
+          fetch(url, { method: "GET", signal: controller.signal }),
+          aborted,
+        ]);
+      } catch (error) {
+        if (error instanceof MeshFetchUnavailableError) throw error;
+        throw unavailable();
+      }
+
+      if (response.status === 304 || response.status === 404) return null;
+      if (
+        response.status === 408 ||
+        response.status === 425 ||
+        response.status === 429 ||
+        (response.status >= 500 && response.status <= 599)
+      ) {
+        throw unavailable();
+      }
+      if (response.status !== 200) throw invalidResponse();
+
+      let payload: unknown;
+      try {
+        payload = await Promise.race([response.json(), aborted]);
+      } catch (error) {
+        if (error instanceof SyntaxError) throw invalidResponse();
+        throw unavailable();
+      }
       if (
         !payload ||
         typeof payload !== "object" ||
         typeof (payload as { blob?: unknown }).blob !== "string" ||
         typeof (payload as { sig?: unknown }).sig !== "string"
       ) {
-        throw new Error(`mesh: malformed 200 response from ${url}`);
+        throw invalidResponse();
       }
-      const p = payload as { blob: string; sig: string };
-      return {
-        blob: Uint8Array.from(Buffer.from(p.blob, "base64")),
-        sig: Uint8Array.from(Buffer.from(p.sig, "base64")),
-      };
+
+      const body = payload as { blob: string; sig: string };
+      const blob = decodeStrictBase64(body.blob);
+      const sig = decodeStrictBase64(body.sig);
+      if (blob.length === 0 || sig.length !== ED25519_SIGNATURE_BYTES) {
+        throw invalidResponse();
+      }
+      return { blob, sig };
+    } finally {
+      clearTimeout(timeout);
+      if (rejectOnAbort) {
+        controller.signal.removeEventListener("abort", rejectOnAbort);
+      }
     }
-    if (res.status === 304 || res.status === 404) return null;
-    throw new Error(`mesh: unexpected status ${res.status} from ${url}`);
   }
 }

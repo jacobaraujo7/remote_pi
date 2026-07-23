@@ -45,6 +45,28 @@ Decisões fechadas (plano 37, 2026-06-05):
 > cada feature auto-contida (cresce sem editar arquivos compartilhados). O `app/`
 > (mobile) segue na arquitetura por camadas — não espelhe um no outro.
 
+## Motores (onde mora cada engine)
+
+Mapa dos motores que o Cockpit usa — quem é **nosso** (no repo, manutenção
+nossa) e quem é pacote externo:
+
+| Motor | Onde | Origem / nota |
+|---|---|---|
+| **Emulador de terminal** (VT/ANSI) | `libghostty` + `lib/app/core/terminal/xterm/` | Ghostty é o padrão de buffers novos; o xterm absorvido continua disponível e é usado por layouts legados |
+| **Render do terminal** | `flterm` + `lib/app/core/terminal/cockpit_terminal*.dart` | `flterm` renderiza Ghostty; a view/painter interna permanece integral para xterm. Ver `core/terminal/CLAUDE.md` |
+| **PTY** (spawn nativo de shell — forkpty/ConPTY) | `plugins/cockpit_pty/` | **Nosso** — plugin C/FFI absorvido do `kyroon_pty` v1.0.6, renomeado; não publicado |
+| **Markdown** (GFM + code do agente/viewer) | pacote `gpt_markdown` ^1.1.8 (pub.dev) | Externo (upstream ativo). O **frontmatter** YAML é nosso: `core/ui/widgets/markdown_frontmatter.dart` (pré-processamento no `AgentMarkdown`) |
+| **Syntax highlight** (léxico, ~190 linguagens) | pacote `highlight` ^0.7.0 + `core/ui/widgets/code_highlight.dart` (tema/integração) | Externo; decisão do plano LSP: highlight léxico mantido (LSP não colore) |
+| **LSP** (diagnostics/formatação — a camada "IDE") | `lib/app/core/data/lsp/` (cliente JSON-RPC genérico + pool por (lang, raiz)) | **Nosso** — fala com servidores externos achados no PATH |
+| **Agente** (`pi --mode rpc`) | `lib/app/cockpit/data/rpc/` (spawn/stream/kill) | Motor é o binário `pi`; nosso é o harness RPC. Protocolo em `docs/rpc-protocol.md` |
+| **DB drivers** (SQLite/Postgres/MySQL/MSSQL/Mongo/Redis) | pacotes `anaki_*` (Rust/FFI, do Jacob) + `lib/app/cockpit/data/db/` (Isolate workers + serviços) | Externo-mas-nosso (mantido pelo Jacob fora do repo) |
+| **Git** | `lib/app/cockpit/data/filesystem/git_*` (roda o binário `git`) | Motor é o git do sistema; nosso é o parser/orquestração |
+| **Mídia** (áudio/vídeo no viewer) | pacote `media_kit` (libmpv) | Externo |
+| **Self-update** | pacote `auto_updater` (Sparkle/WinSparkle) + `lib/app/cockpit/data/update/` | Externo + integração nossa (plano 47) |
+
+Zero `dependency_overrides` git no pubspec (limpeza 2026-07-19): o que era fork
+virou módulo/plugin interno; o resto vem do pub.dev.
+
 ## Comandos
 
 - `flutter pub get` — instala deps

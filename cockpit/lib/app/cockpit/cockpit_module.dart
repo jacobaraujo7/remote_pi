@@ -1,5 +1,13 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/db_driver.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/nosql_runner.dart';
+import 'package:cockpit/app/cockpit/data/db/db_connection_store_impl.dart';
+import 'package:cockpit/app/cockpit/data/db/db_driver_registry_impl.dart';
+import 'package:cockpit/app/cockpit/data/db/nosql_command_runner.dart';
+import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
+import 'package:cockpit/app/cockpit/data/db/db_secrets_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/app_launcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/content_searcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_reader_impl.dart';
@@ -60,6 +68,9 @@ import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/value_objects/update_target.dart';
 import 'package:cockpit/app/cockpit/ui/cockpit_page.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/git_controller.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/realm_controller.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/database_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_terminal_store.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
@@ -129,6 +140,13 @@ Future<Module> buildCockpitModule() async {
         ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
         ..addInstance<FileSystemMutator>(const FileSystemMutatorImpl())
         ..addInstance<FileReader>(const FileReaderImpl())
+        // DB tab (plano 51): conexões por workspace + drivers + motor
+        // compartilhado tab/CLI.
+        ..addInstance<DbConnectionStore>(const DbConnectionStoreImpl())
+        ..addInstance<DbSecrets>(const DbSecretsImpl())
+        ..addInstance<DbDriverRegistry>(const DbDriverRegistryImpl())
+        ..addInstance<NoSqlRunner>(const NoSqlRunnerImpl())
+        ..addLazySingleton<DbQueryService>(DbQueryService.new)
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<ContentSearcher>(const ContentSearcherImpl())
         ..addInstance<GitBinary>(GitBinary())
@@ -160,10 +178,15 @@ Future<Module> buildCockpitModule() async {
           // o construtor a partir dos binds acima. Os `init()`/`check()` (que
           // antes encadeavam no factory) agora rodam no `CockpitPage.initState`.
           provide: (s) => s
+            // Estado git extraído do CockpitViewModel (mesma vida da rota);
+            // o VM o recebe no construtor e injeta o contexto de shell.
+            ..addChangeNotifier<GitController>(GitController.new)
+            ..addChangeNotifier<RealmController>(RealmController.new)
             ..addChangeNotifier<CockpitViewModel>(CockpitViewModel.new)
             ..addChangeNotifier<SetupViewModel>(SetupViewModel.new)
             ..addChangeNotifier<TasksViewModel>(TasksViewModel.new)
-            ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new),
+            ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new)
+            ..addChangeNotifier<DatabaseViewModel>(DatabaseViewModel.new),
           child: (context, state) => const CockpitPage(),
         );
     },

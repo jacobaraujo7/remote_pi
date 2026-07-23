@@ -74,9 +74,17 @@ Future<void> main() async {
 String? _statusFor(String event, Map<dynamic, dynamic> json) {
   switch (event) {
     case 'UserPromptSubmit':
-    case 'PreToolUse':
     case 'PostToolUse':
       return 'working';
+    case 'PreToolUse':
+      // Ferramentas que por definição BLOQUEIAM esperando o usuário (formulário
+      // do plan mode, aprovação de plano) não emitem `Notification` — o último
+      // hook antes do bloqueio é este PreToolUse. Sem este desvio o app fica em
+      // `working` (spinner eterno) sem chime/notificação. O `PostToolUse` que
+      // chega quando o usuário responde volta pra `working` normalmente.
+      final tool = (json['tool_name'] ?? '').toString();
+      const blockingTools = <String>{'AskUserQuestion', 'ExitPlanMode'};
+      return blockingTools.contains(tool) ? 'waiting' : 'working';
     case 'Notification':
       // Notification cobre "precisa de aprovação" e "ocioso esperando input".
       final hint = '${json['notification_type'] ?? ''} ${json['message'] ?? ''}'

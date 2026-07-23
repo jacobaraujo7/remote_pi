@@ -15,6 +15,10 @@ abstract class FileSystemMutator {
   /// Renomeia/move [from] para [to] (arquivo ou pasta). Falha se [to] já existir.
   Future<Result<void, String>> rename(String from, String to);
 
+  /// Copia [from] para [to] (arquivo ou pasta, recursivo). Falha se [to] já
+  /// existir. Usado pelo copiar/colar da árvore de arquivos.
+  Future<Result<void, String>> copy(String from, String to);
+
   /// Move [path] para a lixeira (reversível). No macOS via Finder (`osascript`);
   /// nas demais plataformas, deleção permanente (a confirmação fica na UI).
   /// Idempotente: caminho inexistente é sucesso.

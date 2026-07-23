@@ -1,6 +1,6 @@
 ---
 name: agent-network
-description: Use when the remote-pi mesh tools (`list_peers`, `agent_send`, and — on Claude — `get_messages`) are available. You are an agent (a Claude session or a Pi coding agent) connected to the remote-pi agent mesh over a local broker. This skill teaches how to discover who's online (`list_peers`), how to send messages with a delivery ACK (`agent_send`), how incoming messages reach you (via `get_messages` on Claude, or delivered into your turn on Pi), how to reply (echo `re`), and how peer addresses work — `<cwd>@<name>` locally (echo verbatim, never compose), with a `<pc>:` prefix cross-PC.
+description: Use when the remote-pi mesh tools (`list_peers`, `agent_send`, and — on Claude — `get_messages`) are available. You are an agent (a Claude session or a Pi coding agent) connected to the remote-pi agent mesh over a local broker. This skill teaches how to discover who's online (`list_peers`), how to send messages with a delivery ACK (`agent_send`), how incoming messages reach you (via `get_messages` on Claude, or delivered into your turn on Pi), how to reply (echo `re`), and how to treat every peer address as an opaque routing key that must be echoed verbatim.
 ---
 
 # Agent Network (remote-pi mesh)
@@ -71,42 +71,26 @@ Synchronous (resolves in milliseconds — not another agent's turn). Use it:
 wake your turn. When your view feels stale, just call `list_peers` again — it's
 the authoritative snapshot. Don't expect `peer_joined`/`peer_left` events.
 
-**Each entry is an ADDRESS, not a bare name.** The form is `<cwd>@<name>`
-(with an optional `<pc>:` prefix for cross-PC peers). Read it by splitting on
-the `@`:
+**Each entry is a complete ADDRESS, not a bare name. Treat the entire value as
+an opaque routing key.** Local values may look like `<cwd>@<name>` and remote
+values may appear with a receiver-local PC alias, but that appearance is for
+presentation only. A PC alias can contain percent-encoded bytes such as `%3A`
+or `%25`, or a collision suffix containing `~`.
 
-- **after the `@` → the name** (`Orquestrador`, `App`, `backend`). It's a safe
-  token: it never contains a space, `/`, `:`, `#` or `@` — those are normalized
-  to `-` when the agent registers, so `"my agent"` becomes `my-agent`. (That's
-  why the `@` is unambiguous.)
-- **before the `@` → the folder path** (the agent's working directory, cwd).
+**Echo every address VERBATIM into `agent_send` (and as your `to` when
+replying).** Never split it on `:` or `@`, decode or re-encode `%` bytes, remove
+a `~` suffix, change case, normalize it, or construct it from a path, agent
+name, or PC label. Copy the exact whole string returned by `list_peers` or
+received in `from`. Parsing or rebuilding an address is unsafe for routing and
+must never be used for a security decision.
 
-Two agents named `backend` in different folders are therefore distinct
-addresses, and several agents can live in the **same** folder
-(`…/backend@backend`, `…/backend@reviewer`).
-
-**Who's in my project? Read the folder path.** Agents whose cwd is the same
-folder — or share a parent/child path — are very likely the same project. Use
-the path prefix to decide who to coordinate with; the bare name alone doesn't
-tell you the project. Example:
-
-```
-list_peers()
-→ /home/jo/backlog@Orquestrador
-  /home/jo/backlog/app@App
-  /home/jo/backlog/backend@Backend
-  /home/jo/other-thing@solo
-```
-
-`backlog@Orquestrador` sits at the repo root `…/backlog`; `…/backlog/app@App`
-and `…/backlog/backend@Backend` are **subfolders** of it → almost certainly the
-**same project** (an orchestrator plus its app/backend agents). `…/other-thing@solo`
-shares no prefix → a different project, probably leave it alone.
-
-**An address is an opaque routing key. Echo it VERBATIM into `agent_send` /
-`agent_request` (and as your `to` when replying). NEVER build one by hand** —
-don't concatenate cwd and name yourself; copy the exact string `list_peers`
-gave you. The broker composes addresses; everyone else only echoes them.
+The technical identity of a PC is its canonical 32-byte Ed25519 Pi public key.
+PC aliases are receiver-local presentation and routing labels only: each
+receiving PC allocates aliases for its siblings independently, so two PCs can
+list the same sibling under different aliases. Never use an alias as proof of
+identity or for authorization. The Relay currently permits a route when any
+correctly signed Owner blob lists both canonical Pi keys; that does not prove
+the Owner paired with or controls either Pi.
 
 You are excluded from the result — no need to filter yourself out.
 
@@ -136,7 +120,20 @@ inspect the status — it dictates what to do next.**
 |---|---|---|
 | `received` | Broker delivered the envelope. Delivery is reliable — even if the peer is mid-turn, its harness enqueues the message for the next turn. | Move on. Any reply arrives later. |
 | `denied` | Peer explicitly refused (or no such peer). | Do NOT retry. Report to the user. |
-| `timeout` | No ACK (~5s). Transport error — broker down, or peer vanished. | Treat as transient. Retry once after ~10s, then escalate. |
+| `timeout` | No ACK (~5s). Transport error — broker down, or peer vanished. | Treat a reasonless timeout as transient. Retry once after ~10s, then escalate. |
+
+For a trusted Relay failure on a cross-PC unicast, the public statuses remain
+unchanged and the closed transport reason is returned in `details`:
+
+- `offline` → `status: "timeout"`
+- `not_authorized` or `bad_envelope` → `status: "denied"`
+- genuine silence → `status: "timeout"` without a reason
+
+Do not blindly retry `not_authorized` or `bad_envelope`; fix authorization or
+the envelope instead. A trusted Relay error is consumed internally to settle
+the pending send (or legacy request), not delivered as an ordinary inbox
+reply. Forged or invalid reserved `_relay` / `transport_error` bodies do not
+gain that authority and cannot settle pending operations.
 
 For `to: "broadcast"` (or a name array), there's no single ACK — it's
 fire-and-forget (`status: "sent"`).
@@ -162,7 +159,7 @@ You **do not block** waiting for a reply. The model is event-driven:
 ### Walk-through
 
 ```
-agent_send({ to: "backend", body: { q: "what's the JWT shape?" } })
+agent_send({ to: "/Users/jo/acme/backend@backend", body: { q: "what's the JWT shape?" } })
 → Delivered to backend        # status received; remember the message id
 ```
 
@@ -182,7 +179,7 @@ You correlate by `re` — it matches the send you made. Now you have your answer
 When you receive:
 
 ```
-from=orchestrator  id=abc-uuid  re=(none)
+from=/home/jo/backlog@orchestrator  id=abc-uuid  re=(none)
 { "task": "Implement POST /auth/login" }
 ```
 
@@ -190,7 +187,7 @@ Reply with `re` set to that `id`, and `to` set to the sender's `from`:
 
 ```
 agent_send({
-  to: "orchestrator",
+  to: "/home/jo/backlog@orchestrator",
   body: { status: "done", files_changed: [...] },
   re: "abc-uuid"
 })
@@ -207,9 +204,9 @@ Fire multiple `agent_send` in one turn — each returns its own ACK. Replies
 arrive on future turns as peers finish.
 
 ```
-agent_send({ to: "backend",  body: { q: "JWT shape?" } })   // received
-agent_send({ to: "frontend", body: { q: "theme tokens?" } }) // received
-agent_send({ to: "infra",    body: { q: "ETA for Y?" } })    // received (queued if mid-turn)
+agent_send({ to: "/repo/api@backend", body: { q: "JWT shape?" } }) // received
+agent_send({ to: "/repo/web@frontend", body: { q: "theme tokens?" } }) // received
+agent_send({ to: "/repo/ops@infra", body: { q: "ETA for Y?" } }) // received (queued if mid-turn)
 ```
 
 Track which `id` maps to which question. Don't assume replies arrive in send
@@ -219,30 +216,13 @@ order — use `re` to identify what each reply answers.
 
 ## Cross-PC addressing (`<pc>:<cwd>@<name>`)
 
-When the Owner has paired multiple PCs, remote peers appear with a `<pc>:` prefix
-on the address:
-
-```
-list_peers() → /Users/jo/acme/backend@backend  casa:/Users/jo/acme/api@api
-```
-
-Send to a remote peer with its address verbatim:
-
-```
-agent_send({ to: "casa:/Users/jo/acme/api@api", body: { ... } })
-```
-
-The relay routes it across the mesh; `received | denied | timeout` semantics
-are identical to local. When you **reply** to a cross-PC message, use the
-sender's `from` verbatim (it already carries the `<pc>:` prefix) as your `to`.
-You never prefix your own address — the broker handles that.
-
-Cross-PC failure notes:
-- `denied` → the remote broker has no peer at that address (left, or stale cache
-  → call `list_peers` again).
-- `timeout` → the other PC is offline or the relay is unreachable. The relay
-  may also synthesise a `transport_error` reply (`from: "_relay"`,
-  `body.type: "transport_error"`) — treat exactly like timeout.
+When the Owner has paired multiple PCs, remote peers have a receiver-local
+`<pc>:` prefix. Send and reply with the complete address verbatim; never add
+your own prefix. Relay routing keeps the same `received | denied | timeout`
+semantics. A reasonless `denied` can mean a stale remote roster; refresh with
+`list_peers`. Trusted Relay reasons in `details` map `offline` to `timeout` and
+`not_authorized` / `bad_envelope` to `denied`; they settle the pending operation
+internally, not as inbox replies.
 
 ---
 
@@ -266,9 +246,10 @@ Cross-PC failure notes:
   up. Ignore. Don't reply to a reply.
 - **No messages ever arrive** → normal. You only receive when addressed. Keep
   working; don't poll the broker.
-- **`timeout` on send** → broker restarting (failover) or peer vanished. The
-  client reconnects transparently in ~500ms; retry once after a beat, then
-  escalate.
+- **Reasonless `timeout` on send** → broker restarting (failover), relay
+  silence, or a vanished peer. The client reconnects transparently in ~500ms;
+  retry once after a beat, then escalate. For a reason in `details`, follow the
+  mapping above; never blindly retry authorization or envelope failures.
 
 ---
 
@@ -287,13 +268,14 @@ inbox on a later turn. (Claude has no `agent_request` — use `agent_send`.)
 
 1. **Every turn**: read your inbox first — `get_messages()` on Claude; on Pi
    messages arrive as turn input automatically.
-2. **Discover**: `list_peers()` → addresses `<cwd>@<name>` (local) + `<pc>:…`
-   (cross-PC). Echo verbatim, never compose. Synchronous, self-excluded.
-   Presence is pull-based — join/leave don't wake you.
+2. **Discover**: `list_peers()` returns opaque, receiver-local addresses.
+   Echo them verbatim; never parse, decode, normalize, or compose them.
+   Presence is pull-based.
 3. **Send**: `agent_send({to, body, re?})` → inspect the status.
-4. **Unicast status**: `received | denied | timeout`. Delivery is reliable —
-   `received` even if the peer is mid-turn (its harness queues it); abandon on
-   `denied`; investigate on `timeout`. No retry-on-busy.
+4. **Unicast status**: `received | denied | timeout`. `received` queues work
+   even for a mid-turn peer; abandon on `denied`; investigate `timeout`.
+   Closed Relay reasons in `details` map `offline` to `timeout` and
+   `not_authorized` / `bad_envelope` to `denied`. No retry-on-busy.
 5. **Broadcast/multicast**: status `sent`. Fire-and-forget.
 6. **Reply**: set `re` to their `id`, `to` to their `from` (the full address,
    prefix and all). `re` is correlation only.
@@ -307,8 +289,8 @@ Re-read when in doubt.
 
 **Q: Can I send a message to myself?**
 A: No. `agent_send` refuses early (`status: "refused"`) when `to` matches your
-own address (or name), and the broker drops unicast self-loops as a second line
-of defense.
+own address (or a legacy bare self-name), and the broker drops unicast
+self-loops as a second line of defense.
 
 **Q: What if the peer never replies?**
 A: Then you never see a reply. Your send returned `received` (the broker handed

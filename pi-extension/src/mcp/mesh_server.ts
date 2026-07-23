@@ -19,6 +19,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { MeshNode } from "../session/mesh_node.js";
 import { loadLocalConfig, defaultAgentName, localConfigExists } from "../session/local_config.js";
+import { formatMeshAckResult } from "./mesh_result.js";
 import { sessionSockPath, sessionAuditPath, LOCAL_SESSION_NAME } from "../session/global_config.js";
 import { resolveRelayUrl } from "../config.js";
 import { acquireCwdLock, type AcquiredLock } from "../session/cwd_lock.js";
@@ -166,24 +167,7 @@ mcp.registerTool("agent_send", {
       return { content: [{ type: "text" as const, text: "Broadcast sent" }] };
     }
     const ack = await mesh.sendWithAck(to, body, re ?? null);
-    const note =
-      ack.status === "received" ? `Delivered to ${ack.target ?? to}` :
-      // plan/34 removed busy-drop: the current broker NEVER returns `busy`. So
-      // if we still see it, the broker LEADER in this mesh is an out-of-date
-      // process (e.g. a long-running Pi/agent that leads the local broker and
-      // predates the new build) — and that old code DROPPED this message. Be
-      // honest: this was NOT delivered. Fix = restart the leader agent.
-      ack.status === "busy" ?
-        `NOT delivered — "${to}" came back BUSY, which only happens when an ` +
-        `OUT-OF-DATE broker leader dropped the message (busy was removed in the ` +
-        `current version). Restart the agent that leads the local broker (the ` +
-        `oldest Pi/remote-pi process) so it picks up the new build, then resend.` :
-      ack.status === "denied" ? `${to} denied the message` :
-      `No ACK from ${to} (timeout) — peer may be offline`;
-    return {
-      content: [{ type: "text" as const, text: note }],
-      ...(ack.status === "received" ? {} : { isError: true }),
-    };
+    return formatMeshAckResult(to, ack);
   } catch (e) {
     return { content: [{ type: "text" as const, text: `send failed: ${String(e)}` }], isError: true };
   }

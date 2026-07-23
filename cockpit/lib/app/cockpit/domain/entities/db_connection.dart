@@ -1,0 +1,362 @@
+/// Engine de banco suportado pela DB tab (plano 51). A ordem é a do popup do
+/// "+" no painel Database; novos engines (MSSQL…) entram aqui + no registry.
+enum DbEngine {
+  sqlite,
+  postgres,
+  mysql,
+  mssql,
+  redis,
+  mongo;
+
+  /// Label user-facing (inglês, regra do app).
+  String get label => switch (this) {
+    DbEngine.sqlite => 'SQLite',
+    DbEngine.postgres => 'Postgres',
+    DbEngine.mysql => 'MySQL',
+    DbEngine.mssql => 'SQL Server',
+    DbEngine.redis => 'Redis',
+    DbEngine.mongo => 'MongoDB',
+  };
+
+  /// Porta default do engine (0 = não se aplica).
+  int get defaultPort => switch (this) {
+    DbEngine.sqlite => 0,
+    DbEngine.postgres => 5432,
+    DbEngine.mysql => 3306,
+    DbEngine.mssql => 1433,
+    DbEngine.redis => 6379,
+    DbEngine.mongo => 27017,
+  };
+
+  /// Engines SQL (query tabular + `.dbq` + árvore de schema no painel). Os
+  /// não-SQL (Redis/Mongo) são **CLI-only** por ora — sem tab nem browse.
+  bool get isSql => switch (this) {
+    DbEngine.sqlite ||
+    DbEngine.postgres ||
+    DbEngine.mysql ||
+    DbEngine.mssql => true,
+    DbEngine.redis || DbEngine.mongo => false,
+  };
+
+  /// Scheme da URL (difere do [name] no Mongo: `mongodb://`).
+  String get scheme => this == DbEngine.mongo ? 'mongodb' : name;
+
+  static DbEngine? fromScheme(String scheme) {
+    // Atlas/SRV: variante oficial do scheme Mongo (DNS seed list).
+    if (scheme == 'mongodb+srv') return DbEngine.mongo;
+    // Redis sobre TLS: o "liga TLS" do Redis é o scheme, não query param.
+    if (scheme == 'rediss') return DbEngine.redis;
+    for (final e in DbEngine.values) {
+      if (e.scheme == scheme) return e;
+    }
+    return null;
+  }
+}
+
+/// Modo de acesso da conexão pro caminho **dos agentes (CLI)** — a GUI não é
+/// gated (humano clicando é intencional). `read` é o default: escrever via
+/// `cockpit db execute` exige opt-in explícito no cadastro.
+enum DbAccess {
+  /// Só leitura via CLI: `db execute` recusado e `db query`/`db run` passam
+  /// pelo gate de statement (SELECT-like apenas).
+  read,
+
+  /// Leitura e escrita liberadas via CLI.
+  readwrite;
+
+  static DbAccess fromName(String? name) =>
+      name == 'readwrite' ? DbAccess.readwrite : DbAccess.read;
+}
+
+/// De onde a conexão veio — decide o que o `save()` do store persiste e os
+/// chips do painel ("detected"/"local").
+enum DbConnectionOrigin {
+  /// `.cockpit/databases.json` (versionado).
+  registered,
+
+  /// `.cockpit/databases.local.json` (gitignored, merge por cima).
+  local,
+
+  /// Arquivo sqlite achado no workspace (magic header) — não persiste.
+  detected,
+}
+
+/// Uma conexão de banco do workspace. A forma canônica de armazenamento é a
+/// **URL** (`sqlite:./app.db`, `postgres://user@host:5432/db?sslmode=require`)
+/// — particularidades por engine viajam como query params. **Nunca** carrega
+/// senha: o valor mora no cofre do SO (`DbSecrets`), aqui só o flag
+/// [savePassword].
+class DbConnection {
+  const DbConnection({
+    required this.name,
+    required this.engine,
+    required this.url,
+    this.savePassword = false,
+    this.origin = DbConnectionOrigin.registered,
+    this.access = DbAccess.read,
+    this.agents = true,
+  });
+
+  /// Conexão sqlite a partir de um path (registrada ou detectada).
+  factory DbConnection.sqlite(
+    String name,
+    String path, {
+    DbConnectionOrigin origin = DbConnectionOrigin.registered,
+    DbAccess access = DbAccess.read,
+    bool agents = true,
+  }) => DbConnection(
+    name: name,
+    engine: DbEngine.sqlite,
+    url: 'sqlite:$path',
+    origin: origin,
+    access: access,
+    agents: agents,
+  );
+
+  /// Conexão de rede (postgres/mysql) a partir dos campos do dialog.
+  /// [password] embute `user:senha@` na URL — o caminho de quem NÃO usa o
+  /// cofre (savePassword off): a senha vive em texto plano no
+  /// `databases.json`, escolha consciente do usuário.
+  factory DbConnection.network({
+    required String name,
+    required DbEngine engine,
+    required String host,
+    int? port,
+    required String database,
+    String user = '',
+    String? password,
+    bool savePassword = false,
+    DbConnectionOrigin origin = DbConnectionOrigin.registered,
+    DbAccess access = DbAccess.read,
+    bool agents = true,
+    bool srv = false,
+    String query = '',
+    bool tls = false,
+  }) {
+    // SRV (Atlas): scheme `mongodb+srv` e URL sem porta (proibida no formato).
+    // Redis liga TLS pelo scheme (`rediss://`), os demais por query param.
+    final scheme = srv
+        ? 'mongodb+srv'
+        : (engine == DbEngine.redis && tls ? 'rediss' : engine.scheme);
+    final p = srv ? '' : ':${port ?? engine.defaultPort}';
+    final q = _mergeTlsQuery(engine, query, tls: tls, srv: srv);
+    final hasPass = password != null && password.isNotEmpty;
+    final auth = user.isEmpty && !hasPass
+        ? ''
+        : '${Uri.encodeComponent(user)}'
+              '${hasPass ? ':${Uri.encodeComponent(password)}' : ''}@';
+    return DbConnection(
+      name: name,
+      engine: engine,
+      url: '$scheme://$auth$host$p/${Uri.encodeComponent(database)}$q',
+      savePassword: savePassword,
+      origin: origin,
+      access: access,
+      agents: agents,
+    );
+  }
+
+  /// Reconstrói do JSON do `databases.json` (`{name, url, savePassword?}`).
+  /// Lança [FormatException] em URL de engine desconhecido.
+  factory DbConnection.fromJson(
+    Map<String, Object?> json, {
+    DbConnectionOrigin origin = DbConnectionOrigin.registered,
+  }) {
+    final url = _normalizeUrl(json['url'] as String? ?? '');
+    return DbConnection(
+      name: json['name'] as String? ?? '',
+      engine: _engineFromUrl(url),
+      url: url,
+      savePassword: json['savePassword'] as bool? ?? false,
+      origin: origin,
+      // Ausente no JSON legado → read (seguro por padrão; escrever é opt-in).
+      access: DbAccess.fromName(json['access'] as String?),
+      agents: json['agents'] as bool? ?? true,
+    );
+  }
+
+  final String name;
+  final DbEngine engine;
+  final String url;
+  final bool savePassword;
+  final DbConnectionOrigin origin;
+
+  /// Modo de acesso do caminho dos agentes (CLI). Ver [DbAccess].
+  final DbAccess access;
+
+  /// `false` = invisível/recusada na CLI (`db list` omite, comandos falham);
+  /// GUI (painel, tab `.dbq`, browsers) segue vendo normalmente.
+  final bool agents;
+
+  /// Path do arquivo sqlite (só [DbEngine.sqlite]); relativo à raiz do
+  /// workspace quando registrado assim.
+  String get sqlitePath =>
+      url.startsWith('sqlite:') ? url.substring('sqlite:'.length) : url;
+
+  Uri get _uri => Uri.parse(url);
+  String get host => _uri.host;
+  int get port => _uri.hasPort ? _uri.port : engine.defaultPort;
+  String get database => _uri.pathSegments.isEmpty
+      ? ''
+      : Uri.decodeComponent(_uri.pathSegments.first);
+
+  /// Só a parte de usuário do userinfo — NUNCA o trecho `:senha` (URLs
+  /// editadas na mão podem trazê-lo; incluí-lo aqui gerava username com senha
+  /// embutida e senha com `:` extra no wire — handoff 2026-07-18).
+  String get user {
+    final ui = _uri.userInfo;
+    if (ui.isEmpty) return '';
+    final ix = ui.indexOf(':');
+    return Uri.decodeComponent(ix < 0 ? ui : ui.substring(0, ix));
+  }
+
+  /// Senha embutida na URL (`user:senha@`), se houver — fallback de resolução
+  /// quando não há senha no cofre. Nunca escrita de volta pelo app.
+  String? get urlPassword {
+    final ui = _uri.userInfo;
+    final ix = ui.indexOf(':');
+    return ix < 0 ? null : Uri.decodeComponent(ui.substring(ix + 1));
+  }
+
+  /// URL Mongo em formato SRV (Atlas, `mongodb+srv://`) — sem porta na URL e
+  /// resolução por DNS seed list. Preservado no round-trip do dialog.
+  bool get isSrv => url.startsWith('mongodb+srv://');
+
+  /// Query string da URL (`retryWrites=true&...`) — preservada na edição.
+  String get urlQuery => _uri.query;
+
+  /// Se a conexão está configurada com TLS — o que o switch "Use SSL/TLS" do
+  /// dialog lê/escreve. A representação é por engine: query param (Postgres/
+  /// MySQL/MSSQL/Mongo) ou scheme (`rediss://`); SRV implica TLS.
+  bool get useTls => switch (engine) {
+    DbEngine.sqlite => false,
+    DbEngine.redis => url.startsWith('rediss://'),
+    DbEngine.mongo =>
+      isSrv ||
+          _uri.queryParameters['tls'] == 'true' ||
+          _uri.queryParameters['ssl'] == 'true',
+    DbEngine.postgres => const {
+      'require',
+      'verify-ca',
+      'verify-full',
+    }.contains(_uri.queryParameters['sslmode']),
+    DbEngine.mysql => const {
+      'REQUIRED',
+      'VERIFY_CA',
+      'VERIFY_IDENTITY',
+    }.contains((_uri.queryParameters['ssl-mode'] ?? '').toUpperCase()),
+    DbEngine.mssql => _uri.queryParameters['encrypt'] == 'true',
+  };
+
+  /// Alvo curto pra exibição na lista do painel (path ou host:porta; SRV não
+  /// tem porta).
+  String get displayTarget => engine == DbEngine.sqlite
+      ? sqlitePath
+      : (isSrv ? host : '$host:$port');
+
+  Map<String, Object?> toJson() => {
+    'name': name,
+    'url': url,
+    // Sempre explícito (true E false): omitir no false deixava o arquivo com
+    // o `savePassword: true` antigo quando o usuário desligava o switch.
+    // Mesma regra pra access/agents.
+    'savePassword': savePassword,
+    'access': access.name,
+    'agents': agents,
+  };
+
+  DbConnection copyWith({
+    String? name,
+    String? url,
+    bool? savePassword,
+    DbAccess? access,
+    bool? agents,
+  }) => DbConnection(
+    name: name ?? this.name,
+    engine: url == null ? engine : _engineFromUrl(url),
+    url: url ?? this.url,
+    savePassword: savePassword ?? this.savePassword,
+    origin: origin,
+    access: access ?? this.access,
+    agents: agents ?? this.agents,
+  );
+
+  /// Query param que liga TLS por engine (`null` = não é por query: Redis é
+  /// pelo scheme `rediss://`, sqlite não tem TLS).
+  static (String, String)? _tlsParam(DbEngine engine) => switch (engine) {
+    DbEngine.postgres => ('sslmode', 'require'),
+    DbEngine.mysql => ('ssl-mode', 'REQUIRED'),
+    DbEngine.mssql => ('encrypt', 'true'),
+    DbEngine.mongo => ('tls', 'true'),
+    DbEngine.sqlite || DbEngine.redis => null,
+  };
+
+  /// Reconstrói a query string preservando os params existentes e aplicando o
+  /// switch de TLS: ON grava o param do engine, OFF o remove (default do
+  /// driver). SRV já implica TLS — não escreve param redundante.
+  static String _mergeTlsQuery(
+    DbEngine engine,
+    String query, {
+    required bool tls,
+    required bool srv,
+  }) {
+    final map = query.isEmpty
+        ? <String, String>{}
+        : Map.of(Uri.splitQueryString(query));
+    final param = _tlsParam(engine);
+    if (param != null) map.remove(param.$1);
+    if (engine == DbEngine.mongo) map.remove('ssl'); // alias legado do tls
+    if (tls && !srv && param != null) map[param.$1] = param.$2;
+    if (map.isEmpty) return '';
+    final pairs = map.entries.map(
+      (e) =>
+          '${Uri.encodeQueryComponent(e.key)}=${Uri.encodeQueryComponent(e.value)}',
+    );
+    return '?${pairs.join('&')}';
+  }
+
+  /// Torna parseável uma URL editada na mão com senha SEM percent-encoding
+  /// (`user:8nJM9g8%?FC(@host` → o `Uri.parse` lê a senha como porta e
+  /// estoura). Se o parse estrito falha, re-encoda o userinfo (trecho até o
+  /// último `@` da authority) e revalida; ainda inválida → o
+  /// [FormatException] sobe e a entrada é pulada pelo store.
+  static String _normalizeUrl(String url) {
+    try {
+      Uri.parse(url);
+      return url;
+    } on FormatException {
+      final sep = url.indexOf('://');
+      if (sep < 0) rethrow;
+      final start = sep + 3;
+      final pathIx = url.indexOf('/', start);
+      final authority = pathIx < 0
+          ? url.substring(start)
+          : url.substring(start, pathIx);
+      final at = authority.lastIndexOf('@');
+      if (at < 0) rethrow; // sem userinfo — o problema é outro
+      final userinfo = authority.substring(0, at);
+      final colon = userinfo.indexOf(':');
+      final user = colon < 0 ? userinfo : userinfo.substring(0, colon);
+      final pass = colon < 0 ? null : userinfo.substring(colon + 1);
+      final enc = pass == null
+          ? Uri.encodeComponent(user)
+          : '${Uri.encodeComponent(user)}:${Uri.encodeComponent(pass)}';
+      final rebuilt =
+          url.substring(0, start) +
+          enc +
+          authority.substring(at) +
+          (pathIx < 0 ? '' : url.substring(pathIx));
+      Uri.parse(rebuilt); // valida; inválida ainda → FormatException sobe
+      return rebuilt;
+    }
+  }
+
+  static DbEngine _engineFromUrl(String url) {
+    if (url.startsWith('sqlite:')) return DbEngine.sqlite;
+    final engine = DbEngine.fromScheme(Uri.parse(url).scheme);
+    if (engine == null) {
+      throw FormatException('Unsupported database URL: $url');
+    }
+    return engine;
+  }
+}

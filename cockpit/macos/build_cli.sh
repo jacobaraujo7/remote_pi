@@ -63,3 +63,9 @@ else
     -s "$IDENTITY" "$DEST"
 fi
 echo "[build_cli] bundle OK -> $DEST"
+
+# Nota (plano 51): os dylibs do anakiORM NÃO são copiados aqui. Os pacotes
+# `anaki_*` trazem os binários via **native assets** (hook/build.dart), e o
+# Flutter os empacota/assina no `flutter build` automaticamente. Se algum
+# engine falhar por binário ausente, é problema do pacote anaki (issue #4) —
+# não recriamos staging manual aqui.

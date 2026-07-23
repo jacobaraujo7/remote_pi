@@ -296,6 +296,18 @@ class _TaskRow extends StatelessWidget {
               color: colors.error,
               onTap: onStop,
             ),
+          ] else if (run.isTransitioning) ...[
+            // Starting/stopping: nada clicável — evita play/stop empilhados
+            // enquanto o spawn prepara ou o processo morre.
+            AppTooltip(
+              message: run.status == TaskRunStatus.starting
+                  ? 'Starting…'
+                  : 'Stopping…',
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: CircularProgressIndicator(size: 12),
+              ),
+            ),
           ] else ...[
             if (profileName != null)
               _ProfileChip(
@@ -333,6 +345,8 @@ class _StatusDot extends StatelessWidget {
     final colors = context.colors;
     final color = switch (status) {
       TaskRunStatus.idle => colors.text4,
+      TaskRunStatus.starting => colors.warn,
+      TaskRunStatus.stopping => colors.warn,
       TaskRunStatus.building => colors.warn,
       TaskRunStatus.running => colors.accent,
       TaskRunStatus.success => colors.online,

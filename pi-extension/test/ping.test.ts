@@ -33,6 +33,9 @@ vi.mock("../src/pairing/storage.js", async (importOriginal) => {
       secretKey: new Uint8Array(32),
     }),
     listPeers: vi.fn().mockResolvedValue([]),
+    snapshotOwnerPubkeys: vi.fn().mockRejectedValue(
+      new Error("strict Owner snapshot unavailable"),
+    ),
     addPeer: vi.fn(),
     removePeer: vi.fn(),
   };

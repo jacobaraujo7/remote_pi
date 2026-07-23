@@ -153,6 +153,11 @@ export class RelayClient extends EventEmitter {
     });
   }
 
+  /** True only while the authenticated Relay WebSocket is currently open. */
+  isOpen(): boolean {
+    return this.ws?.readyState === WebSocket.OPEN;
+  }
+
   /** Sends a raw line to the relay (caller is responsible for framing). */
   send(line: string): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {

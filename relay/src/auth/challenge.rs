@@ -6,6 +6,8 @@ use ed25519_dalek::{Signature, VerifyingKey};
 use rand::RngCore as _;
 use serde::{Deserialize, Serialize};
 
+use crate::identity::decode_ed25519_public_key;
+
 /// Max milliseconds to wait for a "hello" before closing the connection.
 pub const HELLO_TIMEOUT_MS: u64 = 5_000;
 
@@ -54,11 +56,10 @@ pub fn parse_hello(line: &str) -> Result<VerifyingKey, AuthError> {
     let msg: ClientAuthMsg = serde_json::from_str(line)?;
     match msg {
         ClientAuthMsg::Hello { pubkey } => {
-            let bytes = B64.decode(&pubkey)?;
-            let arr: [u8; 32] = bytes
-                .try_into()
-                .map_err(|_| AuthError::InvalidPubkey("expected 32 bytes".into()))?;
-            VerifyingKey::from_bytes(&arr).map_err(|e| AuthError::InvalidPubkey(e.to_string()))
+            let public_key = decode_ed25519_public_key(&pubkey)
+                .map_err(|error| AuthError::InvalidPubkey(error.to_string()))?;
+            VerifyingKey::from_bytes(&public_key)
+                .map_err(|error| AuthError::InvalidPubkey(error.to_string()))
         }
         _ => Err(AuthError::NoHello),
     }

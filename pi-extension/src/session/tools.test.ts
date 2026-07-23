@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest";
 import { registerAgentTools } from "./tools.js";
-import type { SessionPeer, AckResult } from "./peer.js";
+import { MeshTransportError, type SessionPeer, type AckResult } from "./peer.js";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
 // Captures tools registered via pi.registerTool so we can invoke them directly.
@@ -58,10 +58,10 @@ describe("agent_send tool (ACK protocol)", () => {
     expect(result.details).toMatchObject({ status: "received", ok: true, target: "backend" });
   });
 
-  test("plan/34: defensive busy ACK is framed as delivered (no retry-on-busy)", async () => {
-    // The broker no longer emits `busy` for new work, but if a stale/legacy
-    // ACK arrives, the tool must NOT tell the LLM to retry — it reads as
-    // delivered (the peer's harness enqueues mid-turn messages).
+  test("plan/34: defensive legacy busy reports the dropped delivery and recovery", async () => {
+    // The current broker no longer emits `busy`. A stale leader that still
+    // returns it dropped the message, so report non-delivery and the required
+    // restart/resend recovery rather than treating it as ordinary backpressure.
     const { pi, tools } = makeMockPi();
     const peer = makeMockPeer({
       sendWithAck: vi.fn().mockResolvedValue(
@@ -77,9 +77,11 @@ describe("agent_send tool (ACK protocol)", () => {
       undefined, undefined, {} as never,
     );
 
-    expect(
-      (result.content[0] as { type: "text"; text: string }).text,
-    ).toMatch(/delivered/i);
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+    expect(text).toMatch(/not delivered/i);
+    expect(text).toMatch(/out-of-date/i);
+    expect(text).toMatch(/restart/i);
+    expect(text).toMatch(/resend/i);
   });
 
   test("unicast denied peer → status=denied, ok=false", async () => {
@@ -101,7 +103,7 @@ describe("agent_send tool (ACK protocol)", () => {
     expect(result.details).toMatchObject({ status: "denied", ok: false });
   });
 
-  test("unicast timeout → status=timeout, ok=false", async () => {
+  test("true-silence timeout stays reasonless", async () => {
     const { pi, tools } = makeMockPi();
     const peer = makeMockPeer({
       sendWithAck: vi.fn().mockResolvedValue(
@@ -117,7 +119,68 @@ describe("agent_send tool (ACK protocol)", () => {
       undefined, undefined, {} as never,
     );
 
-    expect(result.details).toMatchObject({ status: "timeout", ok: false });
+    expect(result.details).toEqual({ status: "timeout", ok: false });
+  });
+
+  test.each([
+    {
+      label: "offline",
+      ack: {
+        status: "timeout",
+        id: "uuid-out",
+        error: "transport_error: offline",
+        reason: "offline",
+      } satisfies AckResult,
+    },
+    {
+      label: "not_authorized",
+      ack: {
+        status: "denied",
+        id: "uuid-out",
+        error: "transport_error: not_authorized",
+        reason: "not_authorized",
+      } satisfies AckResult,
+    },
+    {
+      label: "bad_envelope",
+      ack: {
+        status: "denied",
+        id: "uuid-out",
+        error: "transport_error: bad_envelope",
+        reason: "bad_envelope",
+      } satisfies AckResult,
+    },
+  ])("transport error $label preserves the full ACK reason", async ({ ack }) => {
+    const { pi, tools } = makeMockPi();
+    const peer = makeMockPeer({
+      sendWithAck: vi.fn().mockResolvedValue(ack),
+    });
+    registerAgentTools(pi, () => peer);
+    const tool = tools.get("agent_send")!;
+
+    const result = await tool.execute(
+      TOOL_CALL_ID,
+      { to: "backend", body: { x: 1 } },
+      undefined, undefined, {} as never,
+    );
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+
+    expect(result.details).toEqual({
+      status: ack.status,
+      ok: false,
+      error: ack.error,
+      reason: ack.reason,
+    });
+    expect(text).toContain(ack.error);
+    if (ack.reason === "offline") {
+      expect(text).toMatch(/timeout/i);
+      expect(text).toMatch(/relay/i);
+      expect(text).toMatch(/offline/i);
+    } else {
+      expect(text).toMatch(/do not|don't/i);
+      expect(text).toMatch(/blindly/i);
+      expect(text).toMatch(/retry/i);
+    }
   });
 
   test("forwards `re` for replies (correlation field)", async () => {
@@ -355,6 +418,30 @@ describe("agent_request tool (deprecated, still functional)", () => {
     expect(result.details).toMatchObject({
       error: expect.stringContaining("timed out"),
     });
+  });
+
+  test("MeshTransportError exposes the named reason in structured error and content", async () => {
+    const correlationId = "01976000-0000-7000-8000-000000000000";
+    const { pi, tools } = makeMockPi();
+    const peer = makeMockPeer({
+      request: vi.fn().mockRejectedValue(
+        new MeshTransportError("not_authorized", correlationId),
+      ),
+    });
+    registerAgentTools(pi, () => peer);
+    const tool = tools.get("agent_request")!;
+
+    const result = await tool.execute(
+      TOOL_CALL_ID,
+      { to: "backend", body: { q: "?" } },
+      undefined, undefined, {} as never,
+    );
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+
+    expect(result.details).toEqual({
+      error: "transport_error: not_authorized",
+    });
+    expect(text).toContain("transport_error: not_authorized");
   });
 
   test("self-request refused early → request not called", async () => {

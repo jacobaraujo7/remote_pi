@@ -31,7 +31,7 @@
 |---|---|---|
 | [`app/`](./app) | Flutter (iOS / Android) | Mobile client |
 | [`pi-extension/`](./pi-extension) | Node + TypeScript | Pi extension exposing `/remote-pi` |
-| [`relay/`](./relay) | Rust + Tokio | Stateless WebSocket relay |
+| [`relay/`](./relay) | Rust + Tokio | WebSocket routing + signed mesh membership storage |
 | [`site/`](./site) | NextJS | Landing page + legal pages |
 
 ## Architecture
@@ -47,22 +47,22 @@ Flutter app ──wss──► Relay (Rust) ◄──wss── Pi extension (Nod
 ```
 
 - **Pairing** via short-lived QR code; peers persisted in Keychain (mobile) and `~/.pi/remote/` (desktop)
-- **TLS in transit** on the WebSocket connection
-- **Ed25519 pairing authentication** — only paired devices can route messages through your peer slot on the relay (challenge-response handshake)
-- **The relay forwards opaque ciphertext** as far as routing is concerned, but the payload itself is **not end-to-end encrypted in the current version** — see [`relay/README.md`](./relay/README.md) for the security trade-offs
+- **Ed25519 authentication** — the Relay handshake proves possession of the connection key; App↔Pi pairing is enforced by the endpoints. For Pi↔Pi routing, the current Relay permits a route when a correctly signed Owner blob lists both Pi keys; that check does not prove the Owner paired with or controls either Pi
+- **TLS protects traffic in transit**, but current payloads are not E2E; see [`relay/README.md`](./relay/README.md) for the exact trust boundary
 
 ## Local agent mesh
 
 When multiple Pi agents run on the same machine, they discover each other through
 a **Unix Domain Socket broker** managed by the extension. One agent wins the
-leader election and binds the socket; the others connect as clients. After that,
-any agent can send a message or make a request to any other agent by name —
+leader election and binds the socket; the others connect as clients. For targets
+on that same machine, agents use the opaque addresses returned by `list_peers` —
 no relay, no network, no extra config.
 
-Two LLM-facing tools are exposed in the Pi chat:
+Three LLM-facing tools are exposed in the Pi chat:
 
-- `agent_send` — fire-and-forget message to another local agent
-- `agent_request` — request/response with timeout
+- `list_peers` — lists local and cross-PC addresses available to the agent
+- `agent_send` — sends a unicast message and waits for a delivery ACK. Compatible ACK values are `received`, `busy`, `denied`, and `timeout`; current brokers return `received`, `denied`, or `timeout`, while `busy` only indicates a dropped message from an old broker leader that must be restarted before resending. Broadcast is `sent` with no ACK. Asynchronous content replies use `re`
+- `agent_request` — request/response with timeout, available only as deprecated legacy behavior
 
 This lets you set up local multi-agent workflows (e.g. a `backend` agent asks a
 `frontend` agent for help) entirely on your machine, in parallel with the remote

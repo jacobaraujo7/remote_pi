@@ -43,16 +43,21 @@ class GitStatusReaderImpl implements GitStatusReader {
       }
 
       // Status por arquivo (`-z` = entradas separadas por NUL, paths crus sem
-      // aspas/escape). `--ignored` adiciona entradas `!!` (pastas ignoradas
-      // colapsadas — não recursa dentro, então é barato). Mapa path→status +
-      // set de raízes ignoradas; renames consomem o path antigo.
+      // aspas/escape). `-uall` enumera os arquivos DENTRO de pastas novas em
+      // vez da entrada colapsada `?? dir/` — senão a pasta aparece como
+      // "arquivo" no Source Control, sem diff. `--ignored=matching` adiciona
+      // entradas `!!` MANTENDO pastas ignoradas colapsadas (`!! build/`) — o
+      // default (traditional) combinado com `-uall` enumeraria o conteúdo de
+      // um node_modules inteiro. Mapa path→status + set de raízes ignoradas;
+      // renames consomem o path antigo.
       final statusRes = await Process.run(git, [
         '-C',
         path,
         'status',
         '--porcelain=v1',
         '-z',
-        '--ignored',
+        '-uall',
+        '--ignored=matching',
       ]);
       final (files, ignored, untrackedDirs) = statusRes.exitCode == 0
           ? _parsePorcelainZ(statusRes.stdout as String)

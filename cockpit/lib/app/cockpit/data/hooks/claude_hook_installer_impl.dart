@@ -23,8 +23,10 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
   static const String _markerValue = 'v1';
 
   /// Eventos de ciclo de vida que instrumentamos. working: UserPromptSubmit/
-  /// PreToolUse/PostToolUse; waiting/idle: Notification; idle: Stop/SessionStart/
-  /// SessionEnd. (Mapeamento real mora no `cockpit-hook`.)
+  /// PreToolUse/PostToolUse (exceto PreToolUse de ferramenta interativa —
+  /// AskUserQuestion/ExitPlanMode — que vira waiting); waiting/idle:
+  /// Notification; idle: Stop/SessionStart/SessionEnd. (Mapeamento real mora
+  /// no `cockpit-hook`.)
   static const List<String> _events = <String>[
     'UserPromptSubmit',
     'PreToolUse',
@@ -106,13 +108,25 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
         await bundled.copy(dest.path);
         await _chmodExec(dest.path);
       }
-      return dest.path;
+      return _hookPath(dest.path);
     }
 
     // Dev / sem bundle: usa cópia pré-existente (colocada manualmente).
-    if (await dest.exists()) return dest.path;
+    if (await dest.exists()) return _hookPath(dest.path);
     return null;
   }
+
+  /// Normaliza o caminho para o `command` do hook usando **forward slashes**.
+  ///
+  /// O Claude Code executa os hooks via `bash` (git-bash/MSYS) mesmo no Windows.
+  /// O `bash` trata `\` como escape, então um caminho com `\` (ex.:
+  /// `C:\Users\x\.cockpit\bin\cockpit-hook.exe`) vira `C:Usersx.cockpit...` e dá
+  /// `command not found`. Como `$home` (`USERPROFILE`) vem com `\` no Windows, o
+  /// caminho montado ficava misto/quebrado. Convertendo tudo para `/`
+  /// (`C:/Users/x/.cockpit/bin/cockpit-hook.exe`) o bash executa normalmente. Em
+  /// POSIX é no-op.
+  String _hookPath(String path) =>
+      Platform.isWindows ? path.replaceAll(r'\', '/') : path;
 
   /// Caminho do helper empacotado no app, por plataforma:
   /// - macOS: `…/Contents/MacOS/<app>` → `…/Contents/Resources/cockpit-hook`
@@ -157,6 +171,9 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
         ? Map<String, dynamic>.from(hooksRaw)
         : <String, dynamic>{};
 
+    // `helperPath` já vem normalizado com forward slashes por `_hookPath`
+    // (crítico no Windows: o Claude Code roda hooks via Git Bash, que trata
+    // `\` como escape e quebraria o caminho).
     final ourGroup = <String, dynamic>{
       'matcher': '',
       'hooks': <Map<String, dynamic>>[
@@ -192,11 +209,19 @@ class ClaudeHookInstallerImpl implements ClaudeHookInstaller {
     }
   }
 
-  /// Um matcher-group é nosso se algum hook interno carrega o marcador.
+  /// Um matcher-group é nosso se algum hook interno carrega o marcador **ou**
+  /// aponta pro helper `cockpit-hook`. O segundo critério limpa entries legados
+  /// (escritos por versões antigas do instalador, sem marcador, e/ou com caminho
+  /// em barra invertida que o Git Bash não resolvia) — senão acumulam a cada boot.
   bool _isOurs(dynamic group) {
     if (group is! Map) return false;
     final inner = group['hooks'];
     if (inner is! List) return false;
-    return inner.any((h) => h is Map && h[_marker] == _markerValue);
+    return inner.any((h) {
+      if (h is! Map) return false;
+      if (h[_marker] == _markerValue) return true;
+      final cmd = h['command'];
+      return cmd is String && cmd.contains('cockpit-hook');
+    });
   }
 }

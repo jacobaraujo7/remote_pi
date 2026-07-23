@@ -4,12 +4,23 @@
 /// Ciclo de vida de uma execução, refletido no badge do subpane.
 ///
 /// - [idle]: nunca rodou / foi resetada.
+/// - [starting]: play apertado, spawn em preparação (processo ainda não vivo).
 /// - [building]: recompilando (entrou num [ProgressPattern.begin]).
 /// - [running]: vivo e ocioso (watch) — voltou de um build.
+/// - [stopping]: stop apertado, aguardando o processo morrer.
 /// - [success]: oneShot terminou com exit 0.
 /// - [failed]: terminou com exit != 0.
 /// - [stopped]: morto pelo usuário (stop).
-enum TaskRunStatus { idle, building, running, success, failed, stopped }
+enum TaskRunStatus {
+  idle,
+  starting,
+  building,
+  running,
+  stopping,
+  success,
+  failed,
+  stopped,
+}
 
 /// Snapshot imutável do estado de uma task em execução.
 class TaskRun {
@@ -38,6 +49,11 @@ class TaskRun {
   /// `true` enquanto há processo vivo (building ou running).
   bool get isActive =>
       status == TaskRunStatus.building || status == TaskRunStatus.running;
+
+  /// `true` durante transições (starting/stopping) — a UI mostra progresso e
+  /// bloqueia play/stop pra não empilhar comandos.
+  bool get isTransitioning =>
+      status == TaskRunStatus.starting || status == TaskRunStatus.stopping;
 
   TaskRun copyWith({
     TaskRunStatus? status,

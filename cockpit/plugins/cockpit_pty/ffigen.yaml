@@ -1,0 +1,30 @@
+# Run with `dart run ffigen --config ffigen.yaml`.
+name: CockpitPtyBindings
+
+description: |
+  Bindings for `src/cockpit_pty.h`.
+
+  Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
+
+output: "lib/src/cockpit_pty_bindings_generated.dart"
+
+headers:
+  entry-points:
+    - "src/cockpit_pty.h"
+  include-directives:
+    - "src/cockpit_pty.h"
+    - "src/include/dart_api_dl.h"
+
+functions:
+  includes:
+    - Dart_InitializeApiDL
+
+preamble: |
+  // ignore_for_file: always_specify_types
+  // ignore_for_file: camel_case_types
+  // ignore_for_file: constant_identifier_names
+  // ignore_for_file: non_constant_identifier_names
+
+comments:
+  style: any
+  length: full

@@ -13,19 +13,17 @@ import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
-import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:flutter/services.dart'
     show
-        Clipboard,
-        ClipboardData,
         HardwareKeyboard,
         KeyDownEvent,
         KeyEvent,
         KeyRepeatEvent,
-        LogicalKeyboardKey;
+        LogicalKeyboardKey,
+        PhysicalKeyboardKey;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -77,6 +75,12 @@ class _CockpitPageState extends State<CockpitPage> {
       if (!mounted) return;
       context.pushNamed(RoutePaths.settings);
     };
+    // O motor/perfil precisam chegar antes do init: ele já pode restaurar ou
+    // criar terminais, e a preferência do usuário deve valer desde o 1º buffer.
+    final initialSettings = context.read<SettingsController>().settings;
+    context.read<CockpitViewModel>()
+      ..setDefaultTerminalProfileId(initialSettings.defaultTerminalProfileId)
+      ..setDefaultTerminalEngine(initialSettings.terminalEngine);
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
@@ -92,6 +96,7 @@ class _CockpitPageState extends State<CockpitPage> {
     // seta antes do menu). O handler global vê o evento antes da distribuição por
     // foco, então pega mesmo com um terminal focado. Ver [_handlePaneNavKey].
     HardwareKeyboard.instance.addHandler(_handlePaneNavKey);
+    HardwareKeyboard.instance.addHandler(_realmKeyHandler);
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
@@ -180,6 +185,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _vm.setDefaultTerminalProfileId(
       _settings!.settings.defaultTerminalProfileId,
     );
+    _vm.setDefaultTerminalEngine(_settings!.settings.terminalEngine);
   }
 
   /// Espelha o toggle "Show Cockpit terminal" (Configurações › General) para a
@@ -234,6 +240,7 @@ class _CockpitPageState extends State<CockpitPage> {
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_handlePaneNavKey);
+    HardwareKeyboard.instance.removeHandler(_realmKeyHandler);
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
     _settings?.removeListener(_syncCockpit);
@@ -365,144 +372,6 @@ class _CockpitPageState extends State<CockpitPage> {
             'The new name "${result.name}" will only be sent to agents '
             'after restarting the workspace or the application.',
       );
-    }
-  }
-
-  /// Menu de contexto do **cabeçalho de uma root** (workspace multi-root).
-  /// Git ops direcionadas — o alvo é a root clicada, sem perguntar (o outro
-  /// caminho, o kebab do workspace, pergunta a root via submenu).
-  Future<void> _showRootContextMenu(
-    WorkspaceRoot root,
-    Offset globalPosition,
-  ) async {
-    final vm = _vm;
-    final project = vm.selectedProject;
-    if (project == null) return;
-    final hasGit = root.git != null;
-    // "New agent here" só com agentes ligados (Settings → General → "Enable
-    // agents"); "New terminal here" segue sempre.
-    final agentsEnabled = context.read<SettingsController>().settings.enableAgent;
-    final action = await showAppMenu<_RootMenuAction>(
-      context,
-      globalPosition: globalPosition,
-      items: [
-        AppMenuItem(
-          value: _RootMenuAction.sync,
-          label: 'Sync',
-          icon: Icons.sync,
-          enabled: hasGit,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.pull,
-          label: 'Pull',
-          icon: Icons.arrow_downward,
-          enabled: hasGit,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.push,
-          label: 'Push',
-          icon: Icons.arrow_upward,
-          enabled: hasGit,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.worktree,
-          label: 'Create worktree',
-          icon: Icons.call_split,
-          enabled: hasGit,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.newTerminal,
-          label: 'New terminal here',
-          icon: Icons.terminal,
-        ),
-        if (agentsEnabled)
-          AppMenuItem(
-            value: _RootMenuAction.newAgent,
-            label: 'New agent here',
-            icon: Icons.smart_toy_outlined,
-          ),
-        AppMenuItem(
-          value: _RootMenuAction.reveal,
-          label: 'Open with…',
-          icon: Icons.folder_open,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.copyAbsolutePath,
-          label: 'Copy Absolute Path',
-          icon: Icons.content_copy_outlined,
-        ),
-        AppMenuItem(
-          value: _RootMenuAction.copyRelativePath,
-          label: 'Copy Relative Path',
-          icon: Icons.content_copy_outlined,
-        ),
-      ],
-    );
-    if (action == null || !mounted) return;
-    // Sub relativo da root dentro da pasta-mãe (pro cwd das abas novas).
-    final sub = root.path == project.path
-        ? ''
-        : root.path.startsWith('${project.path}/')
-        ? root.path.substring(project.path.length + 1)
-        : root.path;
-    switch (action) {
-      case _RootMenuAction.sync:
-        final run = vm.gitSync(root.path);
-        await showGitProcessDialog(
-          context,
-          title: 'Sync — ${root.name}',
-          output: run.output,
-          success: run.exitCode.then((c) => c == 0),
-        );
-      case _RootMenuAction.pull:
-        final run = vm.gitPull(root.path);
-        await showGitProcessDialog(
-          context,
-          title: 'Pull — ${root.name}',
-          output: run.output,
-          success: run.exitCode.then((c) => c == 0),
-        );
-      case _RootMenuAction.push:
-        final run = vm.gitPush(root.path);
-        await showGitProcessDialog(
-          context,
-          title: 'Push — ${root.name}',
-          output: run.output,
-          success: run.exitCode.then((c) => c == 0),
-        );
-      case _RootMenuAction.worktree:
-        final namespace = await vm.worktreeNamespace(
-          project.id,
-          rootPath: root.path,
-        );
-        if (!mounted) return;
-        await showWorktreeCreateDialog(
-          context,
-          rootName: root.name,
-          namespace: namespace,
-          onCreate: (name) async {
-            final res = await vm.createWorktree(
-              project.id,
-              name,
-              rootPath: root.path,
-            );
-            return res.fold((_) => null, (e) => e.message);
-          },
-        );
-      case _RootMenuAction.newTerminal:
-        vm.newTabIn(sub, terminal: true);
-      case _RootMenuAction.newAgent:
-        vm.newTabIn(sub, terminal: false);
-      case _RootMenuAction.reveal:
-        vm.openWithDefaultApp(root.path);
-      case _RootMenuAction.copyAbsolutePath:
-        await Clipboard.setData(ClipboardData(text: root.path));
-      case _RootMenuAction.copyRelativePath:
-        // Relativo à pasta-mãe do workspace (o `sub` já computado); numa root
-        // que É a própria raiz (single-root) cai no basename.
-        await Clipboard.setData(
-          ClipboardData(text: sub.isEmpty ? root.name : sub),
-        );
     }
   }
 
@@ -769,6 +638,30 @@ class _CockpitPageState extends State<CockpitPage> {
         _focusContentSearch,
   };
 
+  /// ⌘`/Ctrl+` próximo realm; com Shift, anterior. Handler **global** no
+  /// [HardwareKeyboard] (registrado no initState), não um `CallbackShortcuts`:
+  ///
+  /// - `CallbackShortcuts` só recebe teclas com o foco primário DENTRO da
+  ///   subtree — ciclar o realm destrói o nó focado (terminal/agente da árvore
+  ///   antiga), o foco cai pro scope raiz e o atalho morria após o 1º uso;
+  /// - casa pela **physical key**: a logical de ⇧` no macOS vira `~` (e a
+  ///   combinação ⌘⇧ não batia com backquote nem tilde de forma confiável) —
+  ///   pela física, Shift só decide a direção.
+  ///
+  /// Só `KeyDownEvent` (repeat não re-dispara); com Alt junto, ignora.
+  bool _realmKeyHandler(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.physicalKey != PhysicalKeyboardKey.backquote) {
+      return false;
+    }
+    final keys = HardwareKeyboard.instance;
+    if ((!keys.isMetaPressed && !keys.isControlPressed) || keys.isAltPressed) {
+      return false;
+    }
+    unawaited(_vm.cycleRealm(keys.isShiftPressed ? -1 : 1));
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
@@ -820,7 +713,7 @@ class _CockpitPageState extends State<CockpitPage> {
                                 (
                                   path: r,
                                   name: r.split('/').last,
-                                  branch: vm.gitInfoForRoot(r)?.branch,
+                                  git: vm.gitInfoForRoot(r),
                                 ),
                             ],
                             onSelect: vm.selectProject,
@@ -917,7 +810,6 @@ class _CockpitPageState extends State<CockpitPage> {
                                   git: vm.gitInfoForRoot(r),
                                 ),
                             ],
-                            onRootContextMenu: _showRootContextMenu,
                             onUnstageFile: vm.unstageFile,
                             onDiscardFile: vm.discardFile,
                             onCommitFile: vm.commitFile,
@@ -949,6 +841,10 @@ class _CockpitPageState extends State<CockpitPage> {
                             onRename: vm.renamePath,
                             onDelete: vm.deletePath,
                             onMove: vm.movePath,
+                            onCopy: vm.copyToClipboard,
+                            onCut: vm.cutToClipboard,
+                            onPaste: vm.pasteInto,
+                            canPaste: vm.canPaste,
                             searchPanel: vm.selectedProject == null
                                 ? null
                                 : ContentSearchPanel(
@@ -958,6 +854,12 @@ class _CockpitPageState extends State<CockpitPage> {
                                     focusSignal: _searchFocusSignal,
                                   ),
                             searchFocusSignal: _searchFocusSignal,
+                            databasePanel: vm.selectedProject == null
+                                ? null
+                                : DbPanel(
+                                    workspaceId: vm.selectedProject!.id,
+                                    workspaceRoot: vm.selectedProject!.path,
+                                  ),
                             tasksPanel: vm.selectedProject == null
                                 ? null
                                 : TasksPanel(
@@ -1073,7 +975,11 @@ class _CockpitPageState extends State<CockpitPage> {
           dir: split.dir,
           onDelta: (delta) {
             if (total <= 0) return;
-            vm.resizeSplit(split.id, (aSize + delta) / total);
+            // Delta incremental → fração; acumula sobre o frac ATUAL da árvore
+            // (não o `aSize` do build, que fica velho entre eventos do mesmo
+            // frame e fazia o divisor atrasar em relação ao mouse). `total` é
+            // estável durante o arraste (o container não muda de tamanho).
+            vm.resizeSplitBy(split.id, delta / total);
           },
         );
         return Stack(
@@ -1227,14 +1133,3 @@ class _LspStatusBarState extends State<_LspStatusBar> {
 }
 
 /// Ações do menu de contexto do cabeçalho de uma root (multi-root).
-enum _RootMenuAction {
-  sync,
-  pull,
-  push,
-  worktree,
-  newTerminal,
-  newAgent,
-  reveal,
-  copyAbsolutePath,
-  copyRelativePath,
-}

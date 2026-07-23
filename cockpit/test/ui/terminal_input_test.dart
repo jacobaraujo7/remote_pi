@@ -3,7 +3,7 @@
 
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 TerminalKeyboardEvent _event(
   TerminalKey key, {

@@ -1,47 +1,212 @@
 import { describe, expect, test } from "vitest";
-import { decodeB64Any, bytesEqual } from "./encoding.js";
+import {
+  MeshPublicKeyError,
+  allocateRoutingAliases,
+  bytesEqual,
+  canonicalizeEd25519PublicKey,
+  decodeEd25519PublicKey,
+  encodeEd25519PublicKey,
+  encodeRoutingAlias,
+  publicKeyFingerprint,
+  selectRoutingNickname,
+  toBase64UrlNoPad,
+} from "./encoding.js";
 
-describe("decodeB64Any", () => {
-  test("standard base64 with padding round-trips", () => {
-    const original = new Uint8Array([0x07, 0x3d, 0x36, 0xb8, 0xb8, 0xb0, 0xae]);
-    const encoded = Buffer.from(original).toString("base64"); // "Bz02uLiwrg=="
-    const decoded = decodeB64Any(encoded);
-    expect(decoded).toEqual(original);
+const TECHNICAL_KEY_BYTES = Uint8Array.from(
+  { length: 32 },
+  (_, index) => (index * 17 + 11) & 0xff,
+);
+const STANDARD_PADDED = "CxwtPk9gcYKTpLXG1+j5ChssPU5fcIGSo7TF1uf4CRo=";
+const STANDARD_UNPADDED = STANDARD_PADDED.slice(0, -1);
+const URL_SAFE_PADDED = STANDARD_PADDED.replaceAll("+", "-").replaceAll("/", "_");
+const URL_SAFE_UNPADDED = URL_SAFE_PADDED.slice(0, -1);
+const SPECIAL_ALPHABET_BYTES = Uint8Array.from(
+  { length: 32 },
+  (_, index) => [0xfb, 0xff, 0xfe][index % 3],
+);
+const SPECIAL_STANDARD = Buffer.from(SPECIAL_ALPHABET_BYTES).toString("base64");
+const SPECIAL_URL_SAFE = SPECIAL_STANDARD.replaceAll("+", "-").replaceAll("/", "_");
+
+describe("strict Ed25519 public-key encoding", () => {
+  test.each([
+    ["standard padded", STANDARD_PADDED],
+    ["standard unpadded", STANDARD_UNPADDED],
+    ["URL-safe padded", URL_SAFE_PADDED],
+    ["URL-safe unpadded", URL_SAFE_UNPADDED],
+  ])("canonicalizes %s input", (_label, raw) => {
+    expect(decodeEd25519PublicKey(raw, "member.remote_epk")).toEqual(
+      TECHNICAL_KEY_BYTES,
+    );
+    expect(canonicalizeEd25519PublicKey(raw, "member.remote_epk")).toBe(
+      STANDARD_PADDED,
+    );
   });
 
-  test("standard and URL-safe of the same bytes produce identical Uint8Arrays", () => {
-    // This is the exact incident pattern from plan/24 W3:
-    // app emits url-safe, pi-ext emits standard, comparing bytes must match.
-    const std = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
-    const urlSafe = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO_oMQ6yyQE";
-    expect(decodeB64Any(std)).toEqual(decodeB64Any(urlSafe));
+  test("strictly accepts both special characters in each base64 alphabet", () => {
+    expect(SPECIAL_STANDARD).toContain("+");
+    expect(SPECIAL_STANDARD).toContain("/");
+    expect(SPECIAL_URL_SAFE).toContain("-");
+    expect(SPECIAL_URL_SAFE).toContain("_");
+    expect(decodeEd25519PublicKey(SPECIAL_STANDARD)).toEqual(
+      SPECIAL_ALPHABET_BYTES,
+    );
+    expect(decodeEd25519PublicKey(SPECIAL_URL_SAFE)).toEqual(
+      SPECIAL_ALPHABET_BYTES,
+    );
   });
 
-  test("standard without padding still decodes", () => {
-    const padded = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
-    const unpadded = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE";
-    expect(decodeB64Any(padded)).toEqual(decodeB64Any(unpadded));
+  test("rejects invalid syntax, padding, trailing bits, and key lengths", () => {
+    const mixedAlphabet = SPECIAL_STANDARD.replace("+", "-");
+    const base64Alphabet =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    const finalSextet = STANDARD_UNPADDED.at(-1)!;
+    const finalSextetIndex = base64Alphabet.indexOf(finalSextet);
+    const nonZeroTrailingBits =
+      STANDARD_UNPADDED.slice(0, -1) + base64Alphabet[finalSextetIndex + 1];
+    const thirtyOneBytes = Buffer.from(new Uint8Array(31)).toString("base64");
+    const thirtyThreeBytes = Buffer.from(new Uint8Array(33)).toString("base64");
+
+    expect(finalSextetIndex % 4).toBe(0);
+    for (const raw of [
+      "",
+      " ",
+      ` ${STANDARD_PADDED}`,
+      `${STANDARD_PADDED} `,
+      "bad key",
+      mixedAlphabet,
+      `${STANDARD_UNPADDED.slice(0, 8)}=${STANDARD_UNPADDED.slice(9)}`,
+      `${STANDARD_PADDED}=`,
+      `${STANDARD_UNPADDED}==`,
+      nonZeroTrailingBits,
+      thirtyOneBytes,
+      thirtyThreeBytes,
+    ]) {
+      expect(() =>
+        canonicalizeEd25519PublicKey(raw, "member.remote_epk"),
+      ).toThrowError(MeshPublicKeyError);
+    }
   });
 
-  test("URL-safe with padding (mixed variant) decodes the same", () => {
-    const std = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
-    const urlSafeWithPad = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO_oMQ6yyQE=";
-    expect(decodeB64Any(std)).toEqual(decodeB64Any(urlSafeWithPad));
+  test("does not echo rejected key text in the error", () => {
+    const raw = "secret-looking-invalid-key";
+    try {
+      canonicalizeEd25519PublicKey(raw, "owner_pk");
+      throw new Error("expected key rejection");
+    } catch (error) {
+      expect(error).toBeInstanceOf(MeshPublicKeyError);
+      expect((error as Error).message).not.toContain(raw);
+      expect((error as MeshPublicKeyError).field).toBe("owner_pk");
+    }
   });
 
-  test("32-byte Ed25519 pubkey shape preserved across encodings", () => {
-    // Fabricate a 32-byte key, encode both ways, ensure decode lands at 32 B.
-    const raw = new Uint8Array(32);
-    for (let i = 0; i < 32; i++) raw[i] = (i * 7 + 3) & 0xff;
-    const std = Buffer.from(raw).toString("base64");
-    const url = std.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    expect(decodeB64Any(std)).toEqual(raw);
-    expect(decodeB64Any(url)).toEqual(raw);
-    expect(decodeB64Any(std).length).toBe(32);
+  test("encodes only exact 32-byte keys and exposes stable derived forms", () => {
+    expect(encodeEd25519PublicKey(TECHNICAL_KEY_BYTES)).toBe(STANDARD_PADDED);
+    expect(toBase64UrlNoPad(TECHNICAL_KEY_BYTES)).toBe(URL_SAFE_UNPADDED);
+    expect(publicKeyFingerprint(TECHNICAL_KEY_BYTES)).toBe("349e1858");
+    expect(() => encodeEd25519PublicKey(new Uint8Array(31))).toThrowError(
+      MeshPublicKeyError,
+    );
+    expect(() => encodeEd25519PublicKey(new Uint8Array(33))).toThrowError(
+      MeshPublicKeyError,
+    );
+  });
+});
+
+describe("routing aliases", () => {
+  const sharedPrefixBytesA = new Uint8Array(32);
+  const sharedPrefixBytesB = new Uint8Array(32);
+  sharedPrefixBytesB[31] = 1;
+  const sharedPrefixKeyA = Buffer.from(sharedPrefixBytesA).toString("base64");
+  const sharedPrefixKeyB = Buffer.from(sharedPrefixBytesB).toString("base64");
+  const sharedPrefixUrlA = toBase64UrlNoPad(sharedPrefixBytesA);
+  const sharedPrefixUrlB = toBase64UrlNoPad(sharedPrefixBytesB);
+
+  test("percent-encodes every unsafe UTF-8 byte with uppercase hex", () => {
+    expect(encodeRoutingAlias("A:B%~ é")).toBe(
+      "A%3AB%25%7E%20%C3%A9",
+    );
+    expect(encodeRoutingAlias("AZaz09._-")).toBe("AZaz09._-");
+    expect(encodeRoutingAlias("\u0000\n")).toBe("%00%0A");
   });
 
-  test("empty string decodes to empty bytes", () => {
-    expect(decodeB64Any("")).toEqual(new Uint8Array(0));
+  test("selects the raw nickname by encoded ASCII order, independent of input order", () => {
+    const candidates = ["z", "é", ":", ""];
+    expect(selectRoutingNickname(candidates)).toBe(":");
+    expect(selectRoutingNickname([...candidates].reverse())).toBe(":");
+    expect(selectRoutingNickname(["", ""])).toBeUndefined();
+  });
+
+  test("uses the canonical key fallback for an empty nickname and encodes once", () => {
+    const allocated = allocateRoutingAliases([
+      { pcPubkey: URL_SAFE_UNPADDED, nickname: "" },
+      { pcPubkey: SPECIAL_STANDARD, nickname: "A:B" },
+    ]);
+
+    expect(allocated.get(STANDARD_PADDED)).toBe("pc-CxwtPk9g");
+    expect(allocated.get(SPECIAL_STANDARD)).toBe("A%3AB");
+  });
+
+  test("suffixes every member of a colliding group and expands through all 43 key characters", () => {
+    expect(sharedPrefixUrlA).toHaveLength(43);
+    expect(sharedPrefixUrlA.slice(0, 42)).toBe(
+      sharedPrefixUrlB.slice(0, 42),
+    );
+
+    const allocated = allocateRoutingAliases([
+      { pcPubkey: sharedPrefixKeyB, nickname: "Mac" },
+      { pcPubkey: SPECIAL_STANDARD, nickname: "Other" },
+      { pcPubkey: sharedPrefixKeyA, nickname: "Mac" },
+    ]);
+
+    expect(allocated.get(sharedPrefixKeyA)).toBe(`Mac~${sharedPrefixUrlA}`);
+    expect(allocated.get(sharedPrefixKeyB)).toBe(`Mac~${sharedPrefixUrlB}`);
+    expect(allocated.get(SPECIAL_STANDARD)).toBe("Other");
+    expect(new Set(allocated.values()).size).toBe(allocated.size);
+  });
+
+  test("reserves fallback bases before resolving nickname collisions", () => {
+    const fallbackBase = `pc-${sharedPrefixUrlA.slice(0, 8)}`;
+    const allocated = allocateRoutingAliases([
+      { pcPubkey: sharedPrefixKeyA },
+      { pcPubkey: STANDARD_PADDED, nickname: fallbackBase },
+    ]);
+
+    expect(allocated.get(sharedPrefixKeyA)).toMatch(
+      new RegExp(`^${fallbackBase}~`),
+    );
+    expect(allocated.get(STANDARD_PADDED)).toMatch(
+      new RegExp(`^${fallbackBase}~`),
+    );
+    expect(new Set(allocated.values()).size).toBe(2);
+  });
+
+  test("is stable across input order and returns canonical-key entries", () => {
+    const inputs = [
+      { pcPubkey: URL_SAFE_UNPADDED, nickname: "same" },
+      { pcPubkey: SPECIAL_STANDARD, nickname: "same" },
+      { pcPubkey: sharedPrefixKeyB, nickname: "unique" },
+    ] as const;
+    const forward = [...allocateRoutingAliases(inputs).entries()];
+    const reverse = [
+      ...allocateRoutingAliases([...inputs].reverse()).entries(),
+    ];
+
+    expect(reverse).toEqual(forward);
+    expect(forward.map(([key]) => key)).toEqual(
+      [...forward.map(([key]) => key)].sort(),
+    );
+    expect(new Set(forward.map(([, alias]) => alias)).size).toBe(
+      forward.length,
+    );
+  });
+
+  test("rejects duplicate canonical identities even with different raw encodings", () => {
+    expect(() =>
+      allocateRoutingAliases([
+        { pcPubkey: STANDARD_PADDED, nickname: "one" },
+        { pcPubkey: URL_SAFE_UNPADDED, nickname: "two" },
+      ]),
+    ).toThrow(/duplicate routing identity/);
   });
 });
 

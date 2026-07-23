@@ -1,6 +1,8 @@
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use ed25519_dalek::{Signature, VerifyingKey};
 
+use crate::identity::{PublicKeyDecodeError, decode_ed25519_public_key};
+
 use super::types::{MeshEnvelope, MeshEnvelopeWire, MeshHeader};
 
 #[derive(Debug, thiserror::Error)]
@@ -11,14 +13,23 @@ pub enum VerifyError {
     BadBlobJson(String),
     #[error("owner_pk in blob is not a valid 32-byte Ed25519 key")]
     BadOwnerPk,
+    #[error("member remote_epk is not valid base64 or does not decode to 32 bytes")]
+    BadMemberPk,
     #[error("sig is not 64 bytes")]
     BadSigLength,
     #[error("Ed25519 signature verification failed")]
     SigFailed,
 }
 
+#[derive(Debug)]
+pub(crate) struct VerifiedMeshHeader {
+    pub(crate) header: MeshHeader,
+    pub(crate) owner_pk: [u8; 32],
+}
+
 /// Verifies the envelope's signature against the blob using the owner_pk
-/// embedded in the blob, and returns the parsed header (version + owner_pk).
+/// embedded in the blob, validates the complete member boundary, and returns
+/// the parsed header with the already-decoded Owner bytes.
 ///
 /// **Canonical-JSON contract**: the relay does NOT canonicalize the blob —
 /// it verifies the signature against exactly the bytes received. Clients are
@@ -26,30 +37,39 @@ pub enum VerifyError {
 /// lexicographically, no whitespace, JCS-style (RFC 8785 simplified).
 /// Different serializers may produce different bytes for the same logical
 /// object — agree on one canonical form across Dart, Rust, TypeScript.
-pub fn verify_envelope(env: &MeshEnvelope) -> Result<MeshHeader, VerifyError> {
-    let header: MeshHeader =
-        serde_json::from_slice(&env.blob).map_err(|e| VerifyError::BadBlobJson(e.to_string()))?;
+pub(crate) fn verify_envelope(env: &MeshEnvelope) -> Result<VerifiedMeshHeader, VerifyError> {
+    let header: MeshHeader = serde_json::from_slice(&env.blob)
+        .map_err(|error| VerifyError::BadBlobJson(error.to_string()))?;
 
-    let owner_pk_bytes = B64
-        .decode(&header.owner_pk)
-        .map_err(|e| VerifyError::BadBase64(format!("owner_pk: {e}")))?;
-    let owner_pk_arr: [u8; 32] = owner_pk_bytes
-        .as_slice()
-        .try_into()
-        .map_err(|_| VerifyError::BadOwnerPk)?;
-    let vk = VerifyingKey::from_bytes(&owner_pk_arr).map_err(|_| VerifyError::BadOwnerPk)?;
+    let owner_pk = match decode_ed25519_public_key(&header.owner_pk) {
+        Ok(owner_pk) => owner_pk,
+        Err(PublicKeyDecodeError::BadBase64) => {
+            return Err(VerifyError::BadBase64("owner_pk".to_string()));
+        }
+        Err(PublicKeyDecodeError::BadLength { .. }) => return Err(VerifyError::BadOwnerPk),
+    };
+    let verifying_key = VerifyingKey::from_bytes(&owner_pk).map_err(|_| VerifyError::BadOwnerPk)?;
 
-    let sig_arr: [u8; 64] = env
+    let signature_bytes: [u8; 64] = env
         .sig
         .as_slice()
         .try_into()
         .map_err(|_| VerifyError::BadSigLength)?;
-    let sig = Signature::from_bytes(&sig_arr);
+    let signature = Signature::from_bytes(&signature_bytes);
 
-    vk.verify_strict(&env.blob, &sig)
+    verifying_key
+        .verify_strict(&env.blob, &signature)
         .map_err(|_| VerifyError::SigFailed)?;
 
-    Ok(header)
+    if header
+        .members
+        .iter()
+        .any(|member| decode_ed25519_public_key(&member.remote_epk).is_err())
+    {
+        return Err(VerifyError::BadMemberPk);
+    }
+
+    Ok(VerifiedMeshHeader { header, owner_pk })
 }
 
 /// Decodes the wire envelope (base64 strings) into raw bytes.
@@ -85,15 +105,24 @@ mod tests {
         MeshEnvelope { blob, sig }
     }
 
-    fn make_blob(version: u64, owner_pk: &str) -> Vec<u8> {
-        // Canonical-ish: serde_json with field order — owner_pk + version.
+    fn make_blob_with_members(
+        version: u64,
+        owner_pk: &str,
+        members: Vec<serde_json::Value>,
+    ) -> Vec<u8> {
         // We don't strictly need canonicalization for the relay's verify path,
         // only consistent bytes. Tests sign whatever bytes they produce here.
         serde_json::to_vec(&serde_json::json!({
             "owner_pk": owner_pk,
             "version": version,
+            "issued_at": 1_700_000_000_000_u64,
+            "members": members,
         }))
         .unwrap()
+    }
+
+    fn make_blob(version: u64, owner_pk: &str) -> Vec<u8> {
+        make_blob_with_members(version, owner_pk, vec![])
     }
 
     #[test]
@@ -103,32 +132,41 @@ mod tests {
         let blob = make_blob(7, &pk_b64);
         let env = sign_envelope(&sk, blob);
 
-        let header = verify_envelope(&env).unwrap();
-        assert_eq!(header.version, 7);
-        assert_eq!(header.owner_pk, pk_b64);
+        let verified = verify_envelope(&env).unwrap();
+        assert_eq!(verified.header.version, 7);
+        assert_eq!(verified.header.owner_pk, pk_b64);
+        assert_eq!(verified.owner_pk, sk.verifying_key().to_bytes());
+    }
+
+    #[test]
+    fn rejects_invalid_member_key_after_signature_verification() {
+        let sk = SigningKey::generate(&mut rand::thread_rng());
+        let owner_pk = B64.encode(sk.verifying_key().to_bytes());
+        let blob = make_blob_with_members(
+            1,
+            &owner_pk,
+            vec![serde_json::json!({
+                "remote_epk": "not base64",
+                "relay_url": "wss://relay.example.test",
+                "paired_at": "2025-01-01T00:00:00.000Z",
+            })],
+        );
+        let envelope = sign_envelope(&sk, blob);
+
+        assert!(matches!(
+            verify_envelope(&envelope),
+            Err(VerifyError::BadMemberPk),
+        ));
     }
 
     #[test]
     fn rejects_tampered_blob() {
         let sk = SigningKey::generate(&mut rand::thread_rng());
         let pk_b64 = B64.encode(sk.verifying_key().to_bytes());
-        let mut env = sign_envelope(&sk, make_blob(7, &pk_b64));
-        // Flip a byte in the signed blob.
-        env.blob[0] ^= 0xff;
-        // Re-serialize JSON so it still parses cleanly but with bad bytes
-        // — actually the easier way: keep blob valid JSON but mismatch sig.
-        let original_blob = make_blob(7, &pk_b64);
-        let env2 = MeshEnvelope {
-            blob: original_blob,
-            sig: env.sig.clone(),
-        };
-        // env2 has a sig that was made over a different blob → sig fails.
-        let _ = env; // silence unused
-        // We want to assert verification fails; trick: swap blob with sig over different version.
-        let other_blob = make_blob(99, &pk_b64);
+        let signed = sign_envelope(&sk, make_blob(7, &pk_b64));
         let bad = MeshEnvelope {
-            blob: other_blob,
-            sig: env2.sig,
+            blob: make_blob(99, &pk_b64),
+            sig: signed.sig,
         };
         assert!(matches!(verify_envelope(&bad), Err(VerifyError::SigFailed)));
     }

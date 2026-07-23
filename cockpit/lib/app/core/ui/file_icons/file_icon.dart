@@ -8,10 +8,20 @@ import 'package:flutter_svg/flutter_svg.dart';
 ///
 /// Ex.: `app.module.ts` casa `module.ts` (angular) antes de `ts`; `.gitignore`
 /// casa pelo nome exato; `photo.PNG` é case-insensitive.
+/// Extensões do Cockpit que o material-icon-theme não conhece (o mapa `.g` é
+/// gerado — overrides manuais moram aqui). `.dbq` = arquivo de query da DB
+/// tab (plano 51).
+const Map<String, String> _extensionOverrides = {'dbq': 'database'};
+
 String fileIconName(String fileName) {
   final lower = fileName.toLowerCase();
   final byName = kFileNameIcons[lower];
   if (byName != null) return byName;
+  final lastDot = lower.lastIndexOf('.');
+  if (lastDot > 0) {
+    final byOverride = _extensionOverrides[lower.substring(lastDot + 1)];
+    if (byOverride != null) return byOverride;
+  }
 
   final parts = lower.split('.');
   for (var k = 1; k < parts.length; k++) {

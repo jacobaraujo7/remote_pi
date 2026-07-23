@@ -51,22 +51,23 @@ In terminal A (say it ended up named `agent-A`):
 Who else is connected in our agent session? List them.
 ```
 
-The LLM calls `agent_send` to `broker` with `{ type: "list_peers" }` and
-replies with the names it sees.
+The LLM calls `list_peers` and reports the complete routing addresses it sees.
 
 Then, still in terminal A:
 
 ```text
-Send a ping to agent-B and wait for a reply.
+Send a ping to agent-B using its listed address and ask it to reply later.
 ```
 
-Pi calls `agent_request({ to: "agent-B", body: { type: "ping" } })`. The
-message arrives in terminal B as a user-facing turn — terminal B's LLM
-answers, and the reply lands back in terminal A. Two agents, one prompt
-each, full round trip.
+Pi calls `agent_send({ to: "<exact address from list_peers>", body: {
+type: "ping" } })`. For unicast, the call waits only for the broker's delivery
+ACK. Terminal B receives the message as a user-facing turn and can answer later
+with `agent_send`, setting `re` to the ping's message id; that reply arrives in
+terminal A's inbox or a later turn. It does not block terminal A waiting for
+agent-B's content reply.
 
-(Replace `agent-B` with whatever name terminal B reports for itself — the
-wizard's default is the directory name plus a `#N` suffix on collision.)
+Copy the complete address exactly as listed. Do not build, parse, decode, or
+normalize it.
 
 ---
 
@@ -75,17 +76,25 @@ wizard's default is the directory name plus a `#N` suffix on collision.)
 Remote Pi adds two independent layers on top of Pi. You can use either, or
 both:
 
-### 1) Agent network (local, same machine)
+### 1) Agent network (local broker, optional cross-PC relay)
 
 Several Pi instances running side-by-side in different terminals can discover
 each other and exchange messages. Each instance is a peer in a named
-*session* and gets two tools the LLM can call directly:
+*session*. The LLM uses:
 
-- `agent_send` — fire-and-forget message to another agent
-- `agent_request` — send and await a reply (correlated by message id)
+- `list_peers` — discover current peer routing addresses
+- `agent_send` — unicast waits for the broker delivery ACK; broadcast is
+  fire-and-forget
 
-This is purely local: the agents talk over a Unix domain socket at
-`~/.pi/remote/sessions/<session-name>/broker.sock`. No network involved.
+The legacy Pi-only `agent_request` tool is deprecated because it blocks while
+waiting for another agent's content reply. Use `agent_send`, continue the
+current turn, and receive any later reply through the inbox/turn flow with
+`re` correlating it to the original message id.
+
+Peers on the same machine talk over a Unix domain socket at
+`~/.pi/remote/sessions/<session-name>/broker.sock`. When sibling PCs are paired,
+a leader-capable Extension or MCP participant bridges the opaque cross-PC
+addresses over the relay; local-only use stays on UDS when relay access is off.
 Useful for splitting work across roles (`backend`, `frontend`, `tests`,
 `orchestrator`, …) and letting them coordinate.
 
@@ -100,9 +109,12 @@ from your phone. The phone and the Pi process find each other through a
 **relay**: a small WebSocket server that ferries messages between them.
 Pairing is one-time and per device, via QR code.
 
-Communication: WebSocket over TLS to the relay (ciphertext in transit).
-The relay sees plaintext envelopes at rest and in forwarding — see
-[`PROTOCOL.md`](../PROTOCOL.md) for the trust model.
+Communication uses WebSocket over TLS to the relay. Fields such as `ct` are
+wire containers, not a systemwide end-to-end confidentiality guarantee: current
+Pi-forward, cross-PC, app, and control envelopes visible to the relay are not
+fully opaque or E2E encrypted. A relay operator can see routed plaintext
+protocol content and metadata; see [`PROTOCOL.md`](../PROTOCOL.md) for the exact
+trust boundaries.
 
 **Get the app** — all current download options (Google Play, App Store, and
 direct builds while public releases roll out):
@@ -149,9 +161,11 @@ Whether a model accepts images is surfaced as a `vision` flag on each
 `WireModel` (derived from the SDK's `Model.input` including `"image"`); the app
 greys out the attach button when the active model is text-only.
 
-The **relay is unchanged** — the image travels inside the same opaque `ct` blob
-as the rest of the message, so there's no binary channel (large files are a
-future track). Text-only messages are unaffected.
+The **relay is unchanged** — the image travels inside the same application
+message container as the text, so there's no binary channel (large files are a
+future track). Base64 or a field named `ct` is not an E2E confidentiality
+boundary; the current Relay visibility follows the trust model above. Text-only
+messages are unaffected.
 
 ---
 
@@ -164,7 +178,8 @@ pi install npm:remote-pi
 ```
 
 The extension self-registers the `/remote-pi` slash command and deploys an
-agent skill that teaches the LLM how to use `agent_send` / `agent_request`.
+agent skill that teaches the LLM how to use `list_peers`, `agent_send`, and the
+event-driven inbox/reply flow.
 
 To verify:
 
@@ -195,8 +210,9 @@ Behavior depends on whether there's a local config for this directory:
 
 The wizard asks three questions:
 
-1. **Agent name** — how other agents will address you in `agent_send` /
-   `agent_request`. Defaults to the directory name.
+1. **Agent name** — the presentation leaf name for this agent. Senders still
+   copy the complete opaque address returned by `list_peers`; they never build
+   an address from this name. Defaults to the directory name.
 2. **Default session** — the name of the agent-network room for this
    directory. Multiple terminals in the same directory join the same session.
 3. **Auto-start relay (for mobile app access)?** — `Yes` if you want
@@ -237,10 +253,28 @@ The shortid is the first 8 chars shown by `devices`.
 
 ## The relay
 
-The relay is the only network-touching piece of Remote Pi. It does **not**
-read messages — payloads are end-to-end encrypted between the Pi and the
-paired device — but it sees connection metadata: which keypair is online,
-which room/cwd identifiers exist, message timing, sizes.
+The relay is the network boundary. TLS protects transit, but the Relay can see
+routed plaintext protocol content and metadata; use a relay you trust or
+self-host. There is no systemwide or PC-mesh E2E guarantee. For Pi-to-Pi
+forwarding, the Relay currently permits a route when any correctly signed Owner
+blob lists both canonical Pi keys. That does not prove the Owner paired with or
+controls either Pi.
+
+### Upgrade order (Relay 0.3 first, then Extension 0.6)
+
+Upgrade the **Relay to 0.3 first**: an old Extension can consume the new
+Relay's UUID errors. Extension 0.6 carries a one-release legacy wire-label
+shim, so mixed new/old Extensions interoperate when both select the same unique
+colon-free signed nickname label, or when neither has one and both use the
+canonical standard-padded key prefix. Delimiter or collision cases, like
+divergent nickname views, are unsupported and may be silently dropped by the
+old receiver. Upgrade all Extension/MCP participants in one maintenance window.
+The shim does not replace the receiver-local aliases returned by `list_peers`;
+addresses remain opaque.
+
+Extension 0.6 accepts an old Relay's lowercase 32-hex trusted error ID only as
+a narrow shim for an old Relay or Relay rollback; that shim is not why
+Relay-first is safe.
 
 You have two options:
 
@@ -254,9 +288,7 @@ endpoint.)
 Caveats:
 
 - Shared infrastructure — availability is best-effort.
-- The operator could observe connection metadata as described above.
-- TLS + per-message encryption is the only protection; **there is no IP
-  allow-listing or VPN gating**.
+- **There is no IP allow-listing or VPN gating**.
 
 ### Option B — Self-host (recommended for privacy)
 
@@ -318,25 +350,42 @@ both pointing at the same relay.
 ## Agent network: deeper look
 
 Each session is one Unix-domain-socket broker plus N peers. The broker
-multiplexes messages by `to` name and broadcasts system events
+multiplexes messages by opaque `to` address and broadcasts system events
 (`peer_joined`, `peer_left`).
 
-Inside the LLM, the agent skill registers two tools:
+Inside the LLM, the agent skill uses `list_peers` for discovery and
+`agent_send` for delivery:
 
 ```jsonc
-// Fire-and-forget
-agent_send({
-  to: "backend",      // peer name (or array for multicast)
-  body: { task: "add /healthz endpoint" },
-  re: "<id>"          // optional — set when replying to a previous request
-})
+list_peers() // copy a complete address from this result
 
-// Send + await reply (default 30s timeout)
-agent_request({
-  to: "backend",
-  body: { question: "is the migration applied?" }
+agent_send({
+  to: "/repo/api@backend", // exact opaque address returned by list_peers
+  body: { task: "add /healthz endpoint" },
+  re: "<id>" // set to the received message id when replying
 })
 ```
+
+A unicast `agent_send` waits for the broker delivery ACK and returns the public
+status `received`, `denied`, or `timeout`; broadcast is fire-and-forget. A
+trusted Relay's closed transport reason is returned in `details` without
+changing those statuses: `offline` maps to `timeout`, while `not_authorized`
+and `bad_envelope` map to `denied`. Genuine silence is a reasonless `timeout`.
+Do not blindly retry authorization or envelope failures. Trusted Relay errors
+are consumed internally to settle pending sends; forged or invalid reserved
+bodies do not gain that authority.
+
+Mesh addresses are opaque routing values: echo them verbatim, including
+receiver-local PC aliases with percent-encoded bytes (such as `%3A` or `%25`)
+or collision suffixes containing `~`. Never parse, build, decode, or normalize
+an address for routing or security. A PC alias is receiver-local presentation
+and routing only, so different PCs may list the same sibling under different
+aliases. The canonical 32-byte Ed25519 Pi public key is the PC's technical
+identity; never use an alias as proof of identity.
+
+`agent_request` remains available only as a deprecated legacy Pi tool. Prefer
+`agent_send`, then handle any later inbox/turn reply whose `re` matches the
+original message id.
 
 The wire format is a 5-field envelope `{ from, to, id, re, body }` serialized
 as one JSON line per message. The leader's broker writes an `audit.jsonl`
@@ -568,10 +617,10 @@ release; report a bug if it recurs).
 on both sides. If you self-host behind a VPN, your phone must also be on the
 VPN (Tailscale on iOS/Android works fine).
 
-**`agent_request` keeps timing out.** Default timeout is 30 s. For tasks
-that legitimately take longer, the receiver should reply with `agent_send`
-including `re: "<original-id>"` so the requester can correlate. The skill
-explains this to the LLM automatically.
+**`agent_request` keeps timing out.** It is deprecated because it blocks the
+turn while waiting for another agent's content reply. Migrate to `agent_send`;
+a unicast waits only for the delivery ACK, and the receiver can reply later
+with `agent_send` including `re: "<original-id>"` for correlation.
 
 **Multiple terminals in the same directory.** Supported. They share the same
 agent-network session (UDS broker) and the relay handles each Pi process

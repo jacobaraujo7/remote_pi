@@ -8,9 +8,12 @@ import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icon.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icon_map.g.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('split tree', () {
     test('leaves enumera todas as folhas', () {
       final tree = SplitPane(
@@ -224,6 +227,18 @@ void main() {
       expect(open, isNot(closed));
       expect(folderIconName('xyz-unknown'), kDefaultFolderIcon);
       expect(folderIconName('xyz-unknown', open: true), kDefaultFolderOpenIcon);
+    });
+
+    test('assets usados pela árvore de arquivos estão no bundle', () async {
+      for (final asset in [
+        'folder-robot.svg',
+        'folder-src.svg',
+        'folder-packages.svg',
+        'zip.svg',
+      ]) {
+        final data = await rootBundle.load('assets/file_icons/$asset');
+        expect(data.lengthInBytes, greaterThan(0), reason: asset);
+      }
     });
   });
 

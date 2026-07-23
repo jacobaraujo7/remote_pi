@@ -1,5 +1,17 @@
 import { describe, expect, test } from "vitest";
-import { envelope, parse, serialize, uuidv7, EnvelopeError } from "./envelope.js";
+import {
+  asTransportErrorBody,
+  envelope,
+  EnvelopeError,
+  hasTransportErrorType,
+  isUuid,
+  parse,
+  serialize,
+  TRANSPORT_ERROR_REASONS,
+  type TransportErrorBody,
+  type TransportErrorReason,
+  uuidv7,
+} from "./envelope.js";
 
 describe("uuidv7", () => {
   test("returns valid UUID format", () => {
@@ -19,6 +31,58 @@ describe("uuidv7", () => {
     expect(a < b).toBe(true);
     expect(b < c).toBe(true);
   });
+});
+
+describe("shared UUID and transport-error grammar", () => {
+  const CLOSED_REASONS = [
+    "offline",
+    "not_authorized",
+    "bad_envelope",
+  ] as const;
+
+  test("accepts canonical hyphenated UUIDs without tightening the parser to v7", () => {
+    expect(isUuid("550e8400-e29b-41d4-a716-446655440000")).toBe(true);
+    expect(isUuid("01976000-0000-7000-8000-000000000000")).toBe(true);
+    expect(isUuid("01976000000070008000000000000000")).toBe(false);
+    expect(isUuid("not-a-uuid")).toBe(false);
+    expect(isUuid(null)).toBe(false);
+  });
+
+
+  test.each(CLOSED_REASONS)(
+    "normalizes the privileged %s body to its two protocol fields",
+    (reason) => {
+      const expected: TransportErrorBody = { type: "transport_error", reason };
+      expect(asTransportErrorBody({
+        type: "transport_error",
+        reason,
+        ignored: "must-not-cross-the-boundary",
+      })).toEqual(expected);
+    },
+  );
+
+  test.each([
+    null,
+    [],
+    {},
+    { type: "TRANSPORT_ERROR", reason: "offline" },
+    { type: "transport_error" },
+    { type: "transport_error", reason: "unknown" },
+    { type: "transport_error", reason: ["offline", "bad_envelope"] },
+    { type: "transport_error", reason: "offline,bad_envelope" },
+  ])("rejects malformed or non-closed transport-error body %#", (value) => {
+    expect(asTransportErrorBody(value)).toBeNull();
+  });
+
+  test("reserves any raw object with the exact transport_error type", () => {
+    expect(hasTransportErrorType({ type: "transport_error", reason: "unknown" })).toBe(true);
+    expect(hasTransportErrorType({ type: "transport_error" })).toBe(true);
+    expect(hasTransportErrorType({ type: "TRANSPORT_ERROR", reason: "offline" })).toBe(false);
+    expect(hasTransportErrorType("transport_error")).toBe(false);
+    expect(hasTransportErrorType(null)).toBe(false);
+  });
+
+
 });
 
 describe("serialize/parse roundtrip", () => {
@@ -68,6 +132,18 @@ describe("parse rejects malformed envelopes", () => {
   });
   test("re not UUID and not null", () => {
     expect(() => parse(JSON.stringify({ from: "a", to: "b", id: uuidv7(), re: "junk", body: 1 }))).toThrow(/re/);
+  });
+  test("legacy 32-hex Relay id and correlation", () => {
+    const legacyId = "01976000000070008000000000000000";
+    expect(() => parse(JSON.stringify({ from: "a", to: "b", id: legacyId, re: null, body: 1 }))).toThrow(/id/);
+    expect(() => parse(JSON.stringify({ from: "a", to: "b", id: uuidv7(), re: legacyId, body: 1 }))).toThrow(/re/);
+  });
+  test("keeps an opaque reserved body and null correlation parse-compatible", () => {
+    const body = { type: "transport_error", reason: "future_reason", detail: { opaque: true } };
+    expect(parse(JSON.stringify({ from: "a", to: "b", id: uuidv7(), re: null, body }))).toMatchObject({
+      re: null,
+      body,
+    });
   });
   test("missing body", () => {
     expect(() => parse(JSON.stringify({ from: "a", to: "b", id: uuidv7(), re: null }))).toThrow(/body/);

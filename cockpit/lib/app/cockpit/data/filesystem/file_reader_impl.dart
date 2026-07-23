@@ -68,6 +68,9 @@ class FileReaderImpl implements FileReader {
     }
 
     final bytes = await file.readAsBytes();
+    // Banco sqlite (magic header) nunca é texto útil — não abre como viewer;
+    // ele aparece como conexão "detected" no painel Database (plano 51).
+    if (_isSqlite(bytes)) return const FileViewUnsupported();
     // UTF-8 tolerante: bytes inválidos (latin-1, binário) viram U+FFFD em vez
     // de barrar o arquivo. Decisão explícita — abrir qualquer coisa como texto.
     final text = utf8.decode(bytes, allowMalformed: true);
@@ -100,6 +103,12 @@ class FileReaderImpl implements FileReader {
       return const Stream<void>.empty();
     }
   }
+
+  static const _sqliteMagic = 'SQLite format 3';
+
+  static bool _isSqlite(List<int> bytes) =>
+      bytes.length >= _sqliteMagic.length &&
+      String.fromCharCodes(bytes.take(_sqliteMagic.length)) == _sqliteMagic;
 
   String _ext(String path) {
     final name = path.split('/').last;

@@ -63,7 +63,7 @@ pub async fn post_mesh(
         .map_err(|e| MeshHttpError::BadRequest(format!("invalid json: {e}")))?;
     let env = decode_wire(&wire).map_err(|e| MeshHttpError::BadRequest(format!("decode: {e}")))?;
 
-    let header = verify_envelope(&env).map_err(|e| match e {
+    let verified = verify_envelope(&env).map_err(|e| match e {
         VerifyError::SigFailed => MeshHttpError::Forbidden("sig_invalid".into()),
         VerifyError::BadOwnerPk | VerifyError::BadSigLength => {
             MeshHttpError::Forbidden(e.to_string())
@@ -71,11 +71,8 @@ pub async fn post_mesh(
         other => MeshHttpError::BadRequest(other.to_string()),
     })?;
 
-    // Confirm the URL hash matches sha256(owner_pk).
-    let owner_pk_bytes = B64
-        .decode(&header.owner_pk)
-        .map_err(|e| MeshHttpError::BadRequest(format!("owner_pk base64: {e}")))?;
-    let computed_hash = owner_pk_hash(&owner_pk_bytes);
+    // Confirm the URL hash matches the Owner bytes verified with the signature.
+    let computed_hash = owner_pk_hash(&verified.owner_pk);
     if computed_hash != url_hash.to_lowercase() {
         return Err(MeshHttpError::Forbidden("owner_pk_hash mismatch".into()));
     }
@@ -87,8 +84,8 @@ pub async fn post_mesh(
 
     match store.upsert(
         &computed_hash,
-        &owner_pk_bytes,
-        header.version,
+        &verified.owner_pk,
+        verified.header.version,
         &env.blob,
         &env.sig,
         now_ms,
@@ -96,7 +93,7 @@ pub async fn post_mesh(
         Ok(()) => Ok((
             StatusCode::OK,
             Json(PostResponse {
-                version: header.version,
+                version: verified.header.version,
                 updated_at: now_ms,
             }),
         )),

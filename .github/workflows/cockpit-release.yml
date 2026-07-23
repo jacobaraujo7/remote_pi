@@ -256,7 +256,9 @@ jobs:
           sudo apt-get update
           # libmpv-dev: media_kit linka contra libmpv no Linux (plano 46).
           # Runtime declarado nos pacotes: deb libmpv2 / rpm mpv-libs.
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev rpm libmpv-dev
+          # libsecret-1-dev: flutter_secure_storage no Linux (senha de banco,
+          # plano 51). Runtime: libsecret-1-0.
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev rpm libmpv-dev libsecret-1-dev
           flutter --version
           dart pub global activate fastforge
 

@@ -1,6 +1,15 @@
 import type { Socket } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
-import { type Envelope, envelope, parse, serialize, EnvelopeError } from "./envelope.js";
+import {
+  type Envelope,
+  type TransportErrorReason,
+  asTransportErrorBody,
+  envelope,
+  hasTransportErrorType,
+  parse,
+  serialize,
+  EnvelopeError,
+} from "./envelope.js";
 import { joinOrLead, type ElectionResult } from "./leader_election.js";
 import { Broker } from "./broker.js";
 
@@ -48,12 +57,66 @@ export interface AckResult {
   id: string;
   /** Target name reported by broker (when ACK arrived). Undefined on timeout. */
   target?: string;
+  error?: `transport_error: ${TransportErrorReason}`;
+  reason?: TransportErrorReason;
+}
+
+export class MeshTransportError extends Error {
+  constructor(
+    readonly reason: TransportErrorReason,
+    readonly correlationId: string,
+  ) {
+    super(`transport_error: ${reason}`);
+    this.name = "MeshTransportError";
+  }
 }
 
 interface AckBody {
   type: "ack";
   status: "received" | "busy" | "denied";
   target: string;
+}
+
+function hasExactAckType(body: unknown): body is { type: "ack" } {
+  return typeof body === "object"
+    && body !== null
+    && Object.prototype.hasOwnProperty.call(body, "type")
+    && (body as { type: unknown }).type === "ack";
+}
+
+function expectedAckSender(destination: string): string {
+  // Local absolute paths may contain colons; only non-path aliases are remote.
+  if (
+    destination === "" ||
+    !destination.includes(":") ||
+    destination.startsWith("/") ||
+    /^[A-Za-z]:[\\/]/.test(destination) ||
+    destination.startsWith("\\\\")
+  ) {
+    return "broker";
+  }
+  const remote = /^([^:]+):.+$/.exec(destination);
+  return remote ? `${remote[1]}:broker` : "broker";
+}
+
+function asAckBody(body: unknown): AckBody | null {
+  if (!hasExactAckType(body)
+    || !Object.prototype.hasOwnProperty.call(body, "status")
+    || !Object.prototype.hasOwnProperty.call(body, "target")) {
+    return null;
+  }
+
+  const { status, target } = body as {
+    type: "ack";
+    status: unknown;
+    target: unknown;
+  };
+  if ((status !== "received" && status !== "busy" && status !== "denied")
+    || typeof target !== "string") {
+    return null;
+  }
+
+  return { type: "ack", status, target };
 }
 
 export class SessionPeer {
@@ -77,6 +140,7 @@ export class SessionPeer {
   }>();
   /** Map of in-flight send ids → ACK resolver. Used by `sendWithAck()`. */
   private readonly ackPending = new Map<string, {
+    expectedFrom: string;
     resolve: (result: AckResult) => void;
     timer: ReturnType<typeof setTimeout>;
   }>();
@@ -143,8 +207,8 @@ export class SessionPeer {
    * Unicast send + await broker ACK. Returns the ACK status:
    *   - `received` — peer was idle, envelope delivered, will be processed soon
    *   - `busy`     — peer mid-turn, envelope dropped; sender is owner of retry
-   *   - `denied`   — peer explicitly refused (reserved; no producer in MVP)
-   *   - `timeout`  — no ACK within `timeoutMs`; treat as transport error
+   *   - `denied`   — broker/Relay refused delivery (including authorization or envelope failure)
+   *   - `timeout`  — no ACK within `timeoutMs`, or trusted Relay says offline
    *
    * Only meaningful for unicast non-broadcast addresses. The peer's body-level
    * reply (if any) is asynchronous and arrives as a normal inbound envelope
@@ -162,7 +226,11 @@ export class SessionPeer {
         this.ackPending.delete(env.id);
         resolve({ status: "timeout", id: env.id });
       }, timeoutMs);
-      this.ackPending.set(env.id, { resolve, timer });
+      this.ackPending.set(env.id, {
+        expectedFrom: expectedAckSender(to),
+        resolve,
+        timer,
+      });
       this._writeEnvelope(env).catch(() => {
         const slot = this.ackPending.get(env.id);
         if (!slot) return;
@@ -175,7 +243,8 @@ export class SessionPeer {
 
   /**
    * Send + await reply. Resolves with the first inbound envelope whose `re`
-   * matches the outbound `id`. Rejects on timeout.
+   * matches the outbound `id`. Rejects on timeout, teardown/write failure, or
+   * a trusted Relay transport error.
    */
   async request(
     to: string,
@@ -349,29 +418,37 @@ export class SessionPeer {
       throw e;
     }
 
-    // Intercept broker ACKs first. Body shape `{type:"ack", status, target}`
-    // from broker correlates by `re` against pending `sendWithAck` ids. Even
-    // when no `sendWithAck` is waiting (e.g. message was sent via plain
-    // `send()` or legacy `request()`), the ACK envelope must be swallowed
-    // here — otherwise it would match `request()`'s pending map by `re` and
-    // resolve the request with the ACK body instead of the peer's real reply.
-    //
-    // Plan/25 Wave D: cross-PC ACKs arrive with prefixed sender
-    // (`<pcLabel>:broker`) since broker_remote rewrites `from` to include
-    // the source PC label. Accept both forms here so cross-PC senders
-    // resolve their `sendWithAck` Promise instead of timing out.
-    if (env.re && (env.from === "broker" || env.from.endsWith(":broker"))) {
-      const ackBody = env.body as { type?: string; status?: string; target?: string } | null;
-      if (ackBody && ackBody.type === "ack" && typeof ackBody.status === "string") {
-        const slot = this.ackPending.get(env.re);
-        if (slot) {
-          clearTimeout(slot.timer);
-          this.ackPending.delete(env.re);
-          const status = ackBody.status as AckBody["status"];
-          slot.resolve({ status, id: env.re, target: ackBody.target });
-        }
+    // Reserve every raw transport_error body before either pending map can
+    // correlate it. Only exact broker provenance plus a valid body may settle;
+    // forged or invalid reserved frames remain ordinary handler messages.
+    if (hasTransportErrorType(env.body)) {
+      const trusted = env.from === "broker" && env.re !== null
+        ? asTransportErrorBody(env.body)
+        : null;
+      if (trusted && env.re !== null) {
+        this._consumeAckTransportError(env.re, trusted.reason);
+        this._rejectRequestTransportError(env.re, trusted.reason);
         return;
       }
+      this._dispatchToHandlers(env);
+      return;
+    }
+
+    // Reserve exact broker ACKs before generic correlation or handler dispatch.
+    // The sender is bound when the send begins: local sends accept only
+    // `broker`, while remote alias sends accept only `<alias>:broker`.
+    const fromBroker = env.from === "broker" || env.from.endsWith(":broker");
+    if (fromBroker && hasExactAckType(env.body)) {
+      const ackBody = asAckBody(env.body);
+      if (env.re !== null && ackBody) {
+        const slot = this.ackPending.get(env.re);
+        if (slot && slot.expectedFrom === env.from) {
+          clearTimeout(slot.timer);
+          this.ackPending.delete(env.re);
+          slot.resolve({ status: ackBody.status, id: env.re, target: ackBody.target });
+        }
+      }
+      return;
     }
 
     // Correlate replies for `request()`.
@@ -386,6 +463,39 @@ export class SessionPeer {
     }
 
     // Otherwise dispatch to subscribers.
+    this._dispatchToHandlers(env);
+  }
+
+  private _consumeAckTransportError(
+    correlationId: string,
+    reason: TransportErrorReason,
+  ): void {
+    const pendingId = correlationId.toLowerCase();
+    const slot = this.ackPending.get(pendingId);
+    if (!slot) return;
+    clearTimeout(slot.timer);
+    this.ackPending.delete(pendingId);
+    slot.resolve({
+      status: reason === "offline" ? "timeout" : "denied",
+      id: pendingId,
+      error: `transport_error: ${reason}`,
+      reason,
+    });
+  }
+
+  private _rejectRequestTransportError(
+    correlationId: string,
+    reason: TransportErrorReason,
+  ): void {
+    const pendingId = correlationId.toLowerCase();
+    const slot = this.pending.get(pendingId);
+    if (!slot) return;
+    clearTimeout(slot.timer);
+    this.pending.delete(pendingId);
+    slot.reject(new MeshTransportError(reason, pendingId));
+  }
+
+  private _dispatchToHandlers(env: Envelope): void {
     for (const h of this.handlers) {
       try { h(env); } catch { /* handler errors don't break peer */ }
     }
@@ -424,6 +534,17 @@ export class SessionPeer {
   }
 
   private async _teardownConn(): Promise<void> {
+    for (const [id, slot] of this.pending) {
+      clearTimeout(slot.timer);
+      this.pending.delete(id);
+      slot.reject(new Error("peer leaving"));
+    }
+    for (const [id, slot] of this.ackPending) {
+      clearTimeout(slot.timer);
+      this.ackPending.delete(id);
+      slot.resolve({ status: "timeout", id });
+    }
+
     if (this.socket) {
       try { this.socket.destroy(); } catch { /* ignored */ }
       this.socket = null;
@@ -432,15 +553,5 @@ export class SessionPeer {
       try { await this.broker.close(); } catch { /* ignored */ }
       this.broker = null;
     }
-    for (const slot of this.pending.values()) {
-      clearTimeout(slot.timer);
-      slot.reject(new Error("peer leaving"));
-    }
-    this.pending.clear();
-    for (const slot of this.ackPending.values()) {
-      clearTimeout(slot.timer);
-      slot.resolve({ status: "timeout", id: "" });
-    }
-    this.ackPending.clear();
   }
 }

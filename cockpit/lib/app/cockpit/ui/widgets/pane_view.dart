@@ -5,6 +5,8 @@ import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
@@ -18,19 +20,25 @@ import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/empty_pane.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_query_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/terminal_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/themes/terminal_theme.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/gestures.dart' show HitTestResult;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Folha do multiplexador: tab strip + corpo (agente: transcript+composer / empty;
 /// terminal: TerminalView). O foco aparece **só na aba ativa**.
@@ -141,6 +149,8 @@ IconData _tabIcon(PaneItem? item) {
   if (item is TaskOutputSession) return Icons.play_circle_outline;
   if (item is FileViewerSession) return Icons.description_outlined;
   if (item is DiffViewerSession) return Icons.difference_outlined;
+  if (item is RedisBrowserSession) return Icons.grid_on_outlined;
+  if (item is MongoBrowserSession) return Icons.data_object_outlined;
   if (item is AgentSession && item.status == AgentStatus.empty) {
     return Icons.edit_outlined;
   }
@@ -350,7 +360,8 @@ class _TabStripState extends State<_TabStrip> {
                           // o login shell, sem escolha a fazer).
                           _TabAdd(
                             onTap: widget.onCreateTab,
-                            trailingBorder: !widget.vm.showTerminalProfilePicker,
+                            trailingBorder:
+                                !widget.vm.showTerminalProfilePicker,
                           ),
                           if (widget.vm.showTerminalProfilePicker)
                             _TabProfilePicker(vm: widget.vm),
@@ -728,6 +739,11 @@ class _TabState extends State<_Tab> {
             children: [
               if (s is FileViewerSession)
                 FileTypeIcon.file(s.title, size: 15)
+              // Browsers de banco usam o logo de marca do engine (plano 52/53).
+              else if (s is RedisBrowserSession)
+                const DbEngineIcon(DbEngine.redis, size: 14)
+              else if (s is MongoBrowserSession)
+                const DbEngineIcon(DbEngine.mongo, size: 14)
               else
                 Icon(
                   icon,
@@ -987,7 +1003,9 @@ class _TabProfilePicker extends StatelessWidget {
     // `context` NÃO é tocado após o await (regra do CLAUDE.md): a ação toda vive
     // na VM, que sobrevive à pane.
     final profile = profiles.where((p) => p.id == chosen).firstOrNull;
-    if (profile == null) return; // re-descoberta mudou a lista no meio do caminho
+    if (profile == null) {
+      return; // re-descoberta mudou a lista no meio do caminho
+    }
     vm.newTabIn('', terminal: true, profile: profile);
   }
 
@@ -1227,6 +1245,43 @@ class _PaneBodyState extends State<_PaneBody> {
       return DiffViewer(session: item);
     }
 
+    // Tabela Redis (plano 52): a tabela editável é a interface única da tab.
+    if (item is RedisBrowserSession) {
+      final vm = context.read<CockpitViewModel>();
+      return RedisTableView(
+        session: item,
+        active: widget.active,
+        focused: widget.focused,
+        workspaceRoot: vm.projectRootOf(item.projectId) ?? '',
+      );
+    }
+
+    // Collection browser Mongo (plano 53): filter bar + cards JSON + CRUD.
+    if (item is MongoBrowserSession) {
+      final vm = context.read<CockpitViewModel>();
+      return MongoCollectionView(
+        session: item,
+        active: widget.active,
+        focused: widget.focused,
+        workspaceRoot: vm.projectRootOf(item.projectId) ?? '',
+      );
+    }
+
+    // Tab de query `.dbq` (plano 51): editor SQL + grid de resultado. Reusa a
+    // FileViewerSession (preview/dirty/watch/persistência de graça); só o
+    // render diverge.
+    if (item is FileViewerSession &&
+        (item.scratch || item.path.toLowerCase().endsWith('.dbq'))) {
+      final vm = context.read<CockpitViewModel>();
+      return DbQueryView(
+        session: item,
+        active: widget.active,
+        focused: widget.focused,
+        workspaceRoot: vm.projectRootOf(item.projectId) ?? '',
+        onSave: (content) => vm.saveFile(item.id, content),
+      );
+    }
+
     // Viewer de arquivo (read-only): markdown / texto / imagem.
     if (item is FileViewerSession) {
       return FileViewer(
@@ -1251,10 +1306,11 @@ class _PaneBodyState extends State<_PaneBody> {
         color: context.colors.panel,
         child: Padding(
           padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
-          child: TerminalPane(
+          child: AdaptiveTerminalPane(
             terminal: item.terminal,
             focusNode: _terminalFocus,
             onKeyEvent: (_) => KeyEventResult.ignored,
+            readOnly: true,
             theme: cockpitTerminalThemeFor(Theme.of(context).brightness),
             textStyle: termStyle,
           ),
@@ -1277,12 +1333,13 @@ class _PaneBodyState extends State<_PaneBody> {
           color: context.colors.panel,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
-            child: TerminalPane(
+            child: AdaptiveTerminalPane(
               terminal: item.terminal,
               focusNode: _terminalFocus,
               // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
               // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
               onKeyEvent: (event) => _onTerminalKey(event, item),
+              onPaste: item.pasteFromClipboard,
               // Cmd+clique num caminho de arquivo do buffer → abre no FileViewer,
               // resolvido contra o cwd vivo do shell (OSC 7).
               onOpenFile: (path, {line}) =>
@@ -1506,6 +1563,22 @@ class _TerminalDropTargetState extends State<_TerminalDropTarget> {
     widget.session.insertText('${paths.join(' ')} ');
   }
 
+  /// Este DropTarget é o que está de fato sob o ponto do drop? Faz um hit-test
+  /// da posição global na árvore de render: `IndexedStack` só testa o filho
+  /// visível, então abas/workspaces empilhados atrás (mesmo rect) não entram no
+  /// caminho — desempata o broadcast do `desktop_drop` pro alvo certo.
+  bool _isHitTarget(Offset globalPosition) {
+    final ro = context.findRenderObject();
+    if (ro == null) return false;
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
+    return result.path.any((entry) => identical(entry.target, ro));
+  }
+
   @override
   Widget build(BuildContext context) {
     return DropTarget(
@@ -1517,6 +1590,15 @@ class _TerminalDropTargetState extends State<_TerminalDropTarget> {
       },
       onDragDone: (detail) {
         if (_dragOver) setState(() => _dragOver = false);
+        // `desktop_drop` emite `onDragDone` em TODO DropTarget cujo box contém
+        // o ponto do drop. Como as abas de um pane (e os workspaces) ficam num
+        // `IndexedStack` — todas montadas no MESMO rect, só a ativa pintada —, o
+        // caminho caía em todos os terminais empilhados. Gate por `_dragOver`
+        // (hover) não serve: o enter/exit também dispara em todas as abas
+        // empilhadas e é resetado no drop. Um `IndexedStack` só faz hit-test do
+        // filho VISÍVEL, então testamos se ESTE alvo está no caminho de hit do
+        // ponto — só a aba/worksapce realmente sob o cursor passa.
+        if (!_isHitTarget(detail.globalPosition)) return;
         _onDrop(detail.files);
       },
       child: Stack(

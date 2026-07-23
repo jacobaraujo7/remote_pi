@@ -35,7 +35,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-const String _version = '0.4.0';
+const String _version = '0.5.0';
 
 /// Id da própria tab: `COCKPIT_TAB_ID` (novo) com fallback pro legado
 /// `COCKPIT_PANE_ID`. O app injeta os dois; o fallback cobre binário novo com
@@ -83,6 +83,14 @@ Future<void> main(List<String> argv) async {
       await _cmdRead('read-pane', args);
     case 'read-task':
       await _cmdRead('read-task', args);
+    case 'db':
+      await _cmdDb(args);
+    case 'redis':
+      await _cmdRedis(args);
+    case 'mongo':
+      await _cmdMongo(args);
+    case 'new-tab':
+      await _cmdNewTab(args);
     case 'install-skill':
       await _cmdInstallSkill(args);
     default:
@@ -143,6 +151,79 @@ Future<void> _cmdOpen(List<String> args) async {
     stderr.writeln('cockpit: ${resp['error'] ?? 'failed'}');
     exit(1);
   }
+  exit(0);
+}
+
+/// `cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]` — cria uma
+/// aba de terminal no app. `--cwd` default = o cwd atual; `--title` vira o
+/// rótulo estável da aba (endereçável por `read-tab <title>`); sem `--split` a
+/// aba nasce na mesma pane; `h`/`right` divide lado a lado, `v`/`down` empilha
+/// (semântica tmux). Imprime o id da tab criada (`t12`) no stdout.
+Future<void> _cmdNewTab(List<String> args) async {
+  String? cwd;
+  String? title;
+  String? split;
+  String? tabId;
+  var json = false;
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    String? take(String flag) {
+      if (a == flag) return ++i < args.length ? args[i] : null;
+      if (a.startsWith('$flag=')) return a.substring(flag.length + 1);
+      return null;
+    }
+
+    if (a == '--help' || a == '-h') {
+      stdout.writeln(
+        'cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]\n'
+        '  --cwd    working directory (default: current directory)\n'
+        '  --title  stable tab label (read-tab/send can target it)\n'
+        '  --split  h|right = side by side, v|down = stacked; omit = new tab\n'
+        '           in the same pane\n'
+        '  Prints the new tab id (e.g. t12).',
+      );
+      exit(0);
+    }
+    if (a == '--json') {
+      json = true;
+      continue;
+    }
+    cwd = take('--cwd') ?? cwd;
+    title = take('--title') ?? title;
+    split = take('--split') ?? split;
+    tabId = take('--tab-id') ?? tabId;
+  }
+  final String? wireSplit;
+  switch (split?.toLowerCase()) {
+    case null:
+      wireSplit = null;
+    case 'h' || 'horizontal' || 'right':
+      wireSplit = 'right';
+    case 'v' || 'vertical' || 'down':
+      wireSplit = 'down';
+    default:
+      stderr.writeln(
+        'cockpit new-tab: invalid --split "$split" (use h|right or v|down)',
+      );
+      exit(2);
+  }
+  final req = <String, dynamic>{
+    'cmd': 'new-tab',
+    'args': <String, dynamic>{
+      'cwd': _resolvePath(cwd ?? Directory.current.path),
+      if (title != null && title.isNotEmpty) 'title': title,
+      'split': ?wireSplit,
+    },
+  };
+  final tid = tabId ?? _selfTabId();
+  if (tid != null && tid.isNotEmpty) req['tabId'] = tid;
+  final resp = await _request(req);
+  if (resp['ok'] != true) {
+    stderr.writeln('cockpit: ${resp['error'] ?? 'failed'}');
+    exit(1);
+  }
+  final data = (resp['data'] as Map?) ?? const {};
+  stdout.writeln(json ? jsonEncode(data) : (data['tabId'] ?? '').toString());
   exit(0);
 }
 
@@ -298,7 +379,10 @@ Future<void> _cmdRead(String cmd, List<String> args) async {
 
 // ---- transporte (socket) ----------------------------------------------------
 
-Future<Map<String, dynamic>> _request(Map<String, dynamic> req) async {
+Future<Map<String, dynamic>> _request(
+  Map<String, dynamic> req, {
+  Duration timeout = const Duration(seconds: 10),
+}) async {
   final env = Platform.environment;
   final sock = env['COCKPIT_STATUS_SOCK'];
   final port = int.tryParse(env['COCKPIT_STATUS_PORT'] ?? '');
@@ -333,7 +417,7 @@ Future<Map<String, dynamic>> _request(Map<String, dynamic> req) async {
       .transform(utf8.decoder)
       .join()
       .timeout(
-        const Duration(seconds: 10),
+        timeout,
         onTimeout: () {
           socket.destroy();
           return '';
@@ -352,6 +436,356 @@ Future<Map<String, dynamic>> _request(Map<String, dynamic> req) async {
   } catch (_) {
     return <String, dynamic>{'ok': false, 'error': 'resposta malformada'};
   }
+}
+
+// ---- db (plano 51) ----------------------------------------------------------
+
+/// Kinds estáveis que o app devolve prefixados em `fail("<kind>: <msg>")` —
+/// reconstruímos o JSON `{"error":{kind,message}}` do contrato da CLI.
+const _dbErrorKinds = {
+  'connection_failed',
+  'query_failed',
+  'timeout',
+  'unsupported_engine',
+  'unknown_connection',
+  'password_required',
+  'read_only_connection',
+};
+
+/// `cockpit db <list|schema|query|run|execute>` — database access for agents.
+/// Saída é SEMPRE uma linha JSON: `{"ok": …}` ou `{"error":{kind,message}}`
+/// (exit 1). Quem executa é o app (mesmo motor da tab `.dbq`); a credencial
+/// nunca passa por aqui. Workspace = pane atual, ou `--workspace <id|path>`.
+Future<void> _cmdDb(List<String> args) async {
+  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    _printDbHelp(args.isEmpty ? stderr : stdout);
+    exit(args.isEmpty ? 2 : 0);
+  }
+  final sub = args.removeAt(0);
+
+  String? db;
+  String? sql;
+  String? limit;
+  String? table;
+  String? workspace;
+  String? tabId;
+  final positionals = <String>[];
+  String? pending;
+  for (final a in args) {
+    if (pending != null) {
+      switch (pending) {
+        case '--db':
+          db = a;
+        case '--sql':
+          sql = a;
+        case '--limit':
+          limit = a;
+        case '--table':
+          table = a;
+        case '--workspace':
+          workspace = a;
+        case '--tab-id':
+          tabId = a;
+      }
+      pending = null;
+      continue;
+    }
+    if (const {
+      '--db',
+      '--sql',
+      '--limit',
+      '--table',
+      '--workspace',
+      '--tab-id',
+    }.contains(a)) {
+      pending = a;
+      continue;
+    }
+    final eq = a.indexOf('=');
+    if (a.startsWith('--') && eq > 0) {
+      final key = a.substring(0, eq);
+      final value = a.substring(eq + 1);
+      switch (key) {
+        case '--db':
+          db = value;
+        case '--sql':
+          sql = value;
+        case '--limit':
+          limit = value;
+        case '--table':
+          table = value;
+        case '--workspace':
+          workspace = value;
+        case '--tab-id':
+          tabId = value;
+        default:
+          _dbFail('error', 'unknown flag "$key" (see `cockpit db --help`)');
+      }
+      continue;
+    }
+    positionals.add(a);
+  }
+  if (pending != null) _dbFail('error', 'missing value for $pending');
+
+  final cmdArgs = <String, dynamic>{'workspace': ?workspace};
+  final String wire;
+  switch (sub) {
+    case 'list':
+      wire = 'db-list';
+    case 'schema':
+      wire = 'db-schema';
+      if (db == null) _dbFail('error', 'missing --db <name>');
+      cmdArgs['db'] = db;
+      final t = table ?? (positionals.isEmpty ? null : positionals.first);
+      if (t != null) cmdArgs['table'] = t;
+    case 'query':
+    case 'execute':
+      wire = sub == 'query' ? 'db-query' : 'db-execute';
+      if (db == null) _dbFail('error', 'missing --db <name>');
+      final statement = sql ?? positionals.join(' ');
+      if (statement.trim().isEmpty) {
+        _dbFail('error', 'missing --sql "<statement>"');
+      }
+      cmdArgs['db'] = db;
+      cmdArgs['sql'] = statement;
+      if (limit != null) cmdArgs['limit'] = limit;
+    case 'run':
+      wire = 'db-run';
+      if (positionals.isEmpty) _dbFail('error', 'missing <file.dbq>');
+      cmdArgs['path'] = _resolvePath(positionals.first);
+    default:
+      _dbFail('error', 'unknown subcommand "$sub" (see `cockpit db --help`)');
+  }
+
+  final req = <String, dynamic>{'cmd': wire, 'args': cmdArgs};
+  final tid = tabId ?? _selfTabId();
+  if (tid != null && tid.isNotEmpty) req['tabId'] = tid;
+  // Timeout folgado: o app corta a query em 30s; a folga cobre fila + IO.
+  final resp = await _request(req, timeout: const Duration(seconds: 60));
+  if (resp['ok'] == true) {
+    stdout.writeln(jsonEncode({'ok': resp['data']}));
+    exit(0);
+  }
+  final raw = (resp['error'] ?? 'failed').toString();
+  final sep = raw.indexOf(': ');
+  final kind = sep > 0 ? raw.substring(0, sep) : '';
+  if (_dbErrorKinds.contains(kind)) {
+    _dbFail(kind, raw.substring(sep + 2));
+  }
+  _dbFail('error', raw);
+}
+
+/// `cockpit redis --db <conn> <COMMAND> [args...]` — Redis/cache (CLI-only).
+/// Saída: 1 linha JSON `{"ok": <reply>}` / `{"error":{kind,message}}`.
+/// `cockpit redis browse --db <conn> [--pattern '<glob>']` abre a tabela de
+/// chaves no app (view pro humano — não devolve dados).
+Future<void> _cmdRedis(List<String> args) async {
+  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    stdout.writeln(
+      'cockpit redis --db <conn> <COMMAND> [args...]\n'
+      '  e.g. cockpit redis --db cache GET session:42\n'
+      '  Output: one JSON line. Connection registered in the Database panel.\n'
+      "cockpit redis browse --db <conn> [--pattern 'user:*']\n"
+      '  Opens the key table in the app, pre-filtered. Opens a view — '
+      'returns no data.',
+    );
+    exit(args.isEmpty ? 2 : 0);
+  }
+  if (args.first == 'browse') {
+    await _cmdBrowse('redis-browse', args.sublist(1));
+    return;
+  }
+  String? db;
+  String? workspace;
+  String? tabId;
+  final parts = <String>[];
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    if (a == '--db') {
+      db = ++i < args.length ? args[i] : null;
+    } else if (a.startsWith('--db=')) {
+      db = a.substring(5);
+    } else if (a == '--workspace') {
+      workspace = ++i < args.length ? args[i] : null;
+    } else if (a.startsWith('--workspace=')) {
+      workspace = a.substring(12);
+    } else if (a == '--tab-id') {
+      tabId = ++i < args.length ? args[i] : null;
+    } else {
+      parts.add(a);
+    }
+  }
+  if (db == null) _dbFail('error', 'missing --db <conn>');
+  if (parts.isEmpty) _dbFail('error', 'missing Redis command');
+  await _nosqlRequest('redis-cmd', {
+    'db': db,
+    'parts': parts,
+    'workspace': ?workspace,
+  }, tabId);
+}
+
+/// `cockpit mongo --db <conn> --command '<json>'` — MongoDB (CLI-only). O
+/// comando é um documento runCommand (`{"find":"users","filter":{}}`).
+/// `cockpit mongo browse --db <conn> <collection> [--filter '<json>']` abre o
+/// collection browser no app (view pro humano — não devolve documentos).
+Future<void> _cmdMongo(List<String> args) async {
+  if (args.isEmpty || args.first == '--help' || args.first == '-h') {
+    stdout.writeln(
+      "cockpit mongo --db <conn> --command '<json>'\n"
+      "  e.g. cockpit mongo --db app --command '{\"find\":\"users\",\"filter\":{}}'\n"
+      '  The command is a MongoDB runCommand document. Output: one JSON line.\n'
+      "cockpit mongo browse --db <conn> <collection> [--filter '<json>']\n"
+      '  Opens the collection browser in the app, pre-filtered. Opens a '
+      'view — returns no documents.',
+    );
+    exit(args.isEmpty ? 2 : 0);
+  }
+  if (args.first == 'browse') {
+    await _cmdBrowse('mongo-browse', args.sublist(1));
+    return;
+  }
+  String? db;
+  String? command;
+  String? workspace;
+  String? tabId;
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    String? take(String flag) {
+      if (a == flag) return ++i < args.length ? args[i] : null;
+      if (a.startsWith('$flag=')) return a.substring(flag.length + 1);
+      return null;
+    }
+
+    db = take('--db') ?? db;
+    command = take('--command') ?? command;
+    workspace = take('--workspace') ?? workspace;
+    tabId = take('--tab-id') ?? tabId;
+  }
+  if (db == null) _dbFail('error', 'missing --db <conn>');
+  if (command == null || command.trim().isEmpty) {
+    _dbFail('error', "missing --command '<json>'");
+  }
+  await _nosqlRequest('mongo-cmd', {
+    'db': db,
+    'command': command,
+    'workspace': ?workspace,
+  }, tabId);
+}
+
+/// `… browse` (plano 53): abre a view de browse no app. [wire] =
+/// `redis-browse` (`--pattern`) ou `mongo-browse` (positional `<collection>` +
+/// `--filter`).
+Future<void> _cmdBrowse(String wire, List<String> args) async {
+  String? db;
+  String? workspace;
+  String? tabId;
+  String? pattern;
+  String? filter;
+  final positionals = <String>[];
+  for (var i = 0; i < args.length; i++) {
+    final a = args[i];
+    String? take(String flag) {
+      if (a == flag) return ++i < args.length ? args[i] : null;
+      if (a.startsWith('$flag=')) return a.substring(flag.length + 1);
+      return null;
+    }
+
+    if (a == '--help' || a == '-h') {
+      stdout.writeln(
+        wire == 'redis-browse'
+            ? "cockpit redis browse --db <conn> [--pattern 'user:*']"
+            : "cockpit mongo browse --db <conn> <collection> "
+                  "[--filter '<json>']",
+      );
+      exit(0);
+    }
+    db = take('--db') ?? db;
+    workspace = take('--workspace') ?? workspace;
+    tabId = take('--tab-id') ?? tabId;
+    pattern = take('--pattern') ?? pattern;
+    filter = take('--filter') ?? filter;
+    if (!a.startsWith('--')) positionals.add(a);
+  }
+  if (db == null) _dbFail('error', 'missing --db <conn>');
+  final cmdArgs = <String, dynamic>{'db': db, 'workspace': ?workspace};
+  if (wire == 'mongo-browse') {
+    if (positionals.isEmpty) _dbFail('error', 'missing <collection>');
+    cmdArgs['collection'] = positionals.first;
+    if (filter != null) cmdArgs['filter'] = filter;
+  } else if (pattern != null) {
+    cmdArgs['pattern'] = pattern;
+  }
+  await _nosqlRequest(wire, cmdArgs, tabId);
+}
+
+/// Envia um comando NoSQL e imprime `{"ok": ...}` / `{"error": ...}`.
+Future<void> _nosqlRequest(
+  String wire,
+  Map<String, dynamic> cmdArgs,
+  String? tabId,
+) async {
+  final req = <String, dynamic>{'cmd': wire, 'args': cmdArgs};
+  final tid = tabId ?? _selfTabId();
+  if (tid != null && tid.isNotEmpty) req['tabId'] = tid;
+  final resp = await _request(req, timeout: const Duration(seconds: 60));
+  if (resp['ok'] == true) {
+    stdout.writeln(jsonEncode({'ok': resp['data']}));
+    exit(0);
+  }
+  final raw = (resp['error'] ?? 'failed').toString();
+  final sep = raw.indexOf(': ');
+  final kind = sep > 0 ? raw.substring(0, sep) : '';
+  if (_dbErrorKinds.contains(kind)) {
+    _dbFail(kind, raw.substring(sep + 2));
+  }
+  _dbFail('error', raw);
+}
+
+Never _dbFail(String kind, String message) {
+  stdout.writeln(
+    jsonEncode({
+      'error': {'kind': kind, 'message': message},
+    }),
+  );
+  exit(1);
+}
+
+void _printDbHelp(IOSink out) {
+  out.writeln(
+    r'''cockpit db — query the workspace's databases (agent-friendly JSON)
+
+Connections are registered per workspace in .cockpit/databases.json (Database
+panel in the app); SQLite files found in the repo are auto-detected. The app
+executes every statement — credentials never reach this CLI.
+
+USAGE:
+  cockpit db list                                  registered + detected connections
+  cockpit db schema  --db <name> [<table>]         tables, or a table's columns
+  cockpit db query   --db <name> --sql "<SELECT…>" [--limit N]   run a query
+  cockpit db execute --db <name> --sql "<DML…>"    run DML, returns affectedRows
+  cockpit db run <file.dbq>                        run a .dbq file (frontmatter picks the db)
+
+ACCESS:
+  Connections are read-only for agents by default: execute (and any write) is
+  rejected with kind "read_only_connection" until a human enables Read & write
+  on the connection in the Database panel. `db list` shows each connection's
+  "access" field.
+
+FLAGS:
+  --workspace <id|path>   target workspace when not inside a Cockpit pane
+  --limit N               row cap for query (default 200; "truncated" flags the cut)
+
+OUTPUT (single JSON line; exit 1 on error):
+  {"ok":{"columns":[{"name","type"}],"rows":[[…]],"rowCount":N,"truncated":false,"elapsedMs":12}}
+  {"error":{"kind":"unknown_connection","message":"…"}}
+
+.dbq FILES:
+  SQL with comment frontmatter — agents write them, the app renders them as a
+  query tab (editor + result grid) and re-runs on save:
+    -- db: dev-local
+    -- limit: 100
+    SELECT * FROM orders ORDER BY created_at DESC;''',
+  );
 }
 
 // ---- teclas nomeadas --------------------------------------------------------
@@ -532,6 +966,11 @@ USAGE:
   cockpit list-tabs       [--json]             list active tabs (alias: list-panes)
   cockpit list-workspaces [--json]             list workspaces (projects)
   cockpit list-tasks      [--json]             list this workspace's tasks (Task Run)
+  cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]
+                                               open a new terminal tab (prints its id)
+  cockpit db <list|schema|query|run|execute>   SQL databases (see `cockpit db --help`)
+  cockpit redis [browse] --db <conn> ...       Redis command / open key table
+  cockpit mongo [browse] --db <conn> ...       MongoDB runCommand / open browser
   cockpit install-skill   [--force]            install the Claude Code skill
   cockpit --help | --version
 
@@ -550,6 +989,15 @@ TASKS (list-tasks / read-task):
   read (ran this boot); ● marks tasks running right now. Task-output tabs in
   `list-tabs --json` also carry the task id as `taskId`.
 
+DATABASES (db):
+  Connections live per workspace in .cockpit/databases.json (+ auto-detected
+  SQLite files). Output is one JSON line — made for agents. Examples:
+    cockpit db list
+    cockpit db schema --db dev-local orders
+    cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"
+    cockpit db run reports/daily.dbq
+  Full reference: `cockpit db --help`.
+
 IDS:
   Workspace ids are opaque UUIDs — use `workspacePath` (list-tabs) / `path`
   (list-workspaces) when you need the folder on disk.
@@ -564,8 +1012,17 @@ KEYS (send-key):
   Enter Tab Escape Space BSpace Up Down Left Right Home End
   PageUp PageDown Delete   |   C-<letter> (e.g. C-c = Ctrl+C)
 
+NEW-TAB:
+  --cwd <dir>     working directory (default: current directory)
+  --title <name>  stable tab label (send/read-tab can target it by name)
+  --split h|v     h (or right) = side by side; v (or down) = stacked.
+                  Omit to open as a new tab in the same pane.
+  Anchored at the emitting tab's pane/workspace. Prints the new tab id.
+
 EXAMPLES:
   cockpit send "echo hi" && cockpit send-key Enter
+  id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+  cockpit send --tab-id "$id" "npm test" && cockpit send-key --tab-id "$id" Enter
   cockpit send-key C-c
   cockpit send --tab-id t3 "ls" ; cockpit send-key --tab-id t3 Enter
   cockpit .zprofile          # opens the file in the viewer (relative to tab cwd)
@@ -594,7 +1051,7 @@ String _basename(String path) {
 
 const String _skillMarkdown = r'''---
 name: cockpit-cli
-description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to type text or press keys into your own or another tab, read another tab's or a task's output, or list the open tabs/workspaces/tasks. Triggers on tmux-like control needs: send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids.
+description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to open a new terminal tab or split pane, type text or press keys into your own or another tab, read another tab's or a task's output, list the open tabs/workspaces/tasks, or query the workspace's databases (SQL over registered connections / .dbq files). Triggers on tmux-like control needs — split-window/new-window, send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids — and on database needs: run a SQL query, inspect a schema, list connections, execute a .dbq file.
 ---
 
 # cockpit — Cockpit's internal CLI
@@ -616,10 +1073,80 @@ Cockpit tabs (it is not on the global PATH).
 - `cockpit send-key [--tab-id <id>] <Key>...` — press key(s): `Enter`, `Tab`,
   `Escape`, `Space`, `BSpace`, `Up`/`Down`/`Left`/`Right`, `Home`/`End`,
   `PageUp`/`PageDown`, `Delete`, and `C-<letter>` (e.g. `C-c` = Ctrl+C).
+- `cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]` — open a new
+  **terminal tab** in the app and print its id (`t12`). `--cwd` defaults to
+  your current directory; `--title` sets the stable tab label (so `send`/
+  `read-tab` can target it by name). Without `--split` the tab opens in the
+  same pane (next to yours); `--split h` (or `right`) splits side by side,
+  `--split v` (or `down`) stacks — tmux semantics. Capture the id to drive it:
+
+  ```sh
+  id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+  cockpit send --tab-id "$id" "npm test" && cockpit send-key --tab-id "$id" Enter
+  ```
 - `cockpit open [--tab-id <id>] <file>` — open the file in the app's viewer
   (tab next to the terminal). `cockpit <file>` is the shortcut. The path is
   resolved against the tab cwd (relative, `~` and absolute all work). Any type
   opens as text — including extensionless ones (`.zprofile`, `Makefile`).
+- `cockpit db <list|schema|query|run|execute>` — query the workspace's
+  databases. Connections are registered in `.cockpit/databases.json` (Database
+  panel); SQLite files in the repo are auto-detected. Output is **one JSON
+  line**: `{"ok":{columns,rows,rowCount,truncated,elapsedMs}}` or
+  `{"error":{kind,message}}` (exit 1). The app executes everything — you never
+  see credentials. Examples:
+  - `cockpit db list` — available connections (name, engine, target).
+  - `cockpit db schema --db dev-local` / `… --db dev-local orders` — tables /
+    columns of a table.
+  - `cockpit db query --db dev-local --sql "SELECT …" [--limit N]` — rows are
+    arrays (column order matches `columns`); `truncated: true` means the limit
+    cut the cursor — raise `--limit` if you need more.
+  - `cockpit db execute --db dev-local --sql "UPDATE …"` — returns
+    `affectedRows`. **Connections are read-only for agents by default**: any
+    write is rejected with kind `read_only_connection` until the human enables
+    "Allow writes (agents)" on the connection in the Database panel — if you
+    hit it, ask the human instead of working around it. `db list` shows each
+    connection's `access` field (`read` | `readwrite`).
+  - `cockpit db run <file.dbq>` — runs a `.dbq` file (SQL with `-- db:` /
+    `-- limit:` comment frontmatter). Prefer writing a `.dbq` when the human
+    should see the result too: the app shows it as a query tab and re-runs it
+    every time you save the file.
+  - Outside a Cockpit tab, add `--workspace <id|path>`.
+- `cockpit redis --db <conn> <CMD> [args...]` — Redis/cache command. One
+  JSON line reply. e.g. `cockpit redis --db cache HGETALL user:42`. Covers
+  Redis/Valkey/KeyDB.
+- `cockpit mongo --db <conn> --command '<json>'` — MongoDB runCommand.
+  The command is a runCommand document, e.g.
+  `cockpit mongo --db app --command '{"find":"users","filter":{"active":true}}'`.
+  Output: one JSON line `{"ok": <reply>}` / `{"error":{kind,message}}`.
+  Documents use relaxed extended JSON (`{"$oid":…}`, `{"$date":…}`) both ways.
+- **Browse commands open a view for the human — they return no data.** Use
+  them to *show* what you found (after investigating with the commands above),
+  not to query:
+  - `cockpit redis browse --db <conn> [--pattern 'user:*']` — opens the
+    editable Redis key table, pre-filtered. On an already-open table the
+    pattern **replaces** the current filter.
+  - `cockpit mongo browse --db <conn> <collection> [--filter '<json>']` —
+    opens the Mongo collection browser (JSON document cards) pre-filtered.
+    The filter lands in the visible filter bar, editable by the human.
+- **Registering a connection** (`.cockpit/databases.json` at the workspace
+  root — the file behind `cockpit db list` and the Database panel):
+
+  ```json
+  {
+    "databases": [
+      {"name": "dev-local", "url": "sqlite:./app.db", "savePassword": false},
+      {"name": "app", "url": "postgres://user@localhost:5432/appdb", "savePassword": false},
+      {"name": "cache", "url": "redis://localhost:6379/0", "savePassword": false},
+      {"name": "docs", "url": "mongodb://localhost:27017/appdb", "savePassword": false}
+    ]
+  }
+  ```
+
+  The URL never carries the password — the human enters it in the Database
+  panel (stored in the OS keychain when `savePassword` is on). A personal,
+  gitignored overlay lives in `.cockpit/databases.local.json` (same shape,
+  merged on top by name). The panel picks up edits on reload; `cockpit db
+  list` confirms what's registered.
 - `cockpit read-tab [<label|tab-id>] [--lines N] [--offset N] [--from-start]`
   (alias: `read-pane`) — read a tab's **rendered output** as plain text (no
   ANSI escapes; covers TUIs on the alt-screen too). Without a target it reads

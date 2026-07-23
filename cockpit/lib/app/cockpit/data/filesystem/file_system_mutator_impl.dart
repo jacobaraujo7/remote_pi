@@ -65,6 +65,42 @@ class FileSystemMutatorImpl implements FileSystemMutator {
   }
 
   @override
+  Future<Result<void, String>> copy(String from, String to) async {
+    if (from == to) return const Success(null);
+    if (await _exists(to)) {
+      return Failure('Already exists: “${_basename(to)}”.');
+    }
+    try {
+      final type = await FileSystemEntity.type(from, followLinks: false);
+      switch (type) {
+        case FileSystemEntityType.directory:
+          await _copyDirectory(Directory(from), Directory(to));
+        case FileSystemEntityType.notFound:
+          return Failure('Not found: “${_basename(from)}”.');
+        default:
+          await File(from).copy(to);
+      }
+      return const Success(null);
+    } on FileSystemException catch (e) {
+      return Failure(e.message);
+    }
+  }
+
+  /// Copia [source] em [target] recursivamente (cria [target] e desce a árvore).
+  Future<void> _copyDirectory(Directory source, Directory target) async {
+    await target.create(recursive: true);
+    await for (final entity in source.list(followLinks: false)) {
+      final name = _basename(entity.path);
+      final destPath = '${target.path}/$name';
+      if (entity is Directory) {
+        await _copyDirectory(entity, Directory(destPath));
+      } else if (entity is File) {
+        await entity.copy(destPath);
+      }
+    }
+  }
+
+  @override
   Future<Result<void, String>> moveToTrash(String path) async {
     if (!await _exists(path)) return const Success(null); // idempotente
     if (Platform.isMacOS && useSystemTrash) return _macTrash(path);

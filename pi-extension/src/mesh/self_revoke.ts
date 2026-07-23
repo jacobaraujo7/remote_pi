@@ -1,46 +1,39 @@
 import { createHash } from "node:crypto";
-import type { MeshClient } from "./client.js";
+import {
+  MeshFetchInvalidResponseError,
+  MeshFetchUnavailableError,
+  type MeshClient,
+} from "./client.js";
+import {
+  bytesEqual,
+  decodeEd25519PublicKey,
+  encodeEd25519PublicKey,
+  publicKeyFingerprint,
+} from "./encoding.js";
+import {
+  buildTopologySnapshot,
+  type BoundOwnerMembership,
+  type MeshTopologySnapshot,
+} from "./siblings.js";
 import { verifyEnvelope } from "./verify.js";
-import { bytesEqual, decodeB64Any } from "./encoding.js";
 
-/**
- * Background poller that watches each Owner's `mesh_versions` envelope on
- * the relay and self-revokes this Pi from any Owner that no longer lists
- * it as a member.
- *
- * Behavior per sweep (one entry per unique Owner in peers.json):
- *   1. Compute `hash = sha256(ownerPk)` (lowercase hex) — the URL slug.
- *      MUST match the format the relay stores and the app publishes;
- *      mismatch results in silent 404 forever.
- *   2. GET /mesh/<hash>?since=<lastSeenVersion>
- *   3. `null` (304/404) → skip silently (no update, or owner never published)
- *   4. Verify Ed25519 signature against the embedded `owner_pk`
- *   5. Defense-in-depth: confirm the blob's `owner_pk` matches what we
- *      expected (otherwise a malicious relay could swap blobs across slots)
- *   6. Anti-rollback: drop versions < our last-seen for this Owner
- *   7. Membership check: decode every `members[].remote_epk` to bytes and
- *      compare against this Pi's pubkey bytes. Critical: comparing the
- *      base64 strings directly would falsely revoke when the app emits
- *      url-safe (`-`/`_`, no padding) and the Pi emits standard
- *      (`+`/`/`, padded) — same 32 bytes, different strings. See
- *      `encoding.ts` for the helpers and `plan/24` Wave 3 fix history.
- *   8. If not a member → `storage.removePeer(ownerEpk)` and fire
- *      `onRevoke(ownerEpk)` so the caller can tear down any live WS
- *      sessions for that Owner.
- *
- * Backward-compat: an Owner who never published a mesh blob returns 404
- * forever, which we treat as "no update". Old clients keep working
- * untouched until they upgrade.
- *
- * Spec: plan/24-mesh-membership.md Wave 3.
- */
+export interface SelfRevokeStorageSnapshotRecord {
+  readonly rawOwnerPubkey: unknown;
+  /** Storage-issued opaque provenance for this canonical Owner slot. */
+  readonly token: unknown;
+}
 
-/** Minimum storage surface the poller needs. Concrete impl lives in
- *  `src/pairing/storage.ts` — injecting it via constructor keeps the class
- *  testable without filesystem mocking. */
+export type SelfRevokeRemovalResult =
+  | { readonly outcome: "removed"; readonly nextToken: unknown }
+  | { readonly outcome: "stale" | "not_found" | "no_authority" };
+
 export interface SelfRevokeStorage {
-  listOwnerPubkeys(): Promise<string[]>;
-  removePeer(remoteEpk: string): Promise<boolean>;
+  snapshotOwnerPubkeys(): Promise<readonly SelfRevokeStorageSnapshotRecord[]>;
+  conditionalRemovePeer(
+    remoteEpk: string,
+    expectedToken: unknown,
+    canCommit?: () => boolean,
+  ): Promise<SelfRevokeRemovalResult>;
 }
 
 export interface SelfRevokeOptions {
@@ -48,21 +41,18 @@ export interface SelfRevokeOptions {
   storage: SelfRevokeStorage;
   /** This Pi's long-term Ed25519 pubkey, raw 32 bytes. */
   myPubkey: Uint8Array;
-  /** Polling cadence. Default 60s — matches the app side (plan/24 Q1). */
   intervalMs?: number;
-  /** Fired after `storage.removePeer` succeeds, so callers can tear down
-   *  any active WS channel for the revoked owner. Receives the base64
-   *  (standard) of the Owner pubkey that revoked us. */
-  onRevoke?: (ownerEpk: string) => void | Promise<void>;
-  /** Plan/25 Wave D: fired whenever the set of Pi-pubkeys present in any
-   *  Owner's mesh_versions changes (membership added, removed, or
-   *  relabeled). The callback receives the **union** of all current
-   *  Pi-pubkeys across every known Owner, minus this Pi's own pubkey,
-   *  so callers can keep `broker_remote.setSiblings()` in sync without
-   *  re-running discovery themselves. Fires once per `checkOnce()` sweep
-   *  only when the set genuinely differs from the previous sweep. */
-  onMembersChanged?: (siblings: SiblingInfo[]) => void | Promise<void>;
-  /** Logging surface — defaults to `console.*`. Tests inject a fake. */
+  /** Raw storage handle first; canonical runtime Owner identity second. */
+  onRevoke?: (
+    rawOwnerPubkey: string,
+    canonicalOwnerPubkey: string,
+  ) => void | Promise<void>;
+  onAuthoritativeOwners?: (
+    canonicalOwnerPubkeys: readonly string[],
+  ) => void | Promise<void>;
+  onTopologyChanged?: (
+    snapshot: MeshTopologySnapshot,
+  ) => void | Promise<void>;
   log?: {
     info(msg: string): void;
     warn(msg: string): void;
@@ -70,209 +60,432 @@ export interface SelfRevokeOptions {
   };
 }
 
-/** Sibling info surfaced by `onMembersChanged`. Stays bit-identical to the
- *  shape `BrokerRemote.setSiblings` accepts so callers can pass through. */
-export interface SiblingInfo {
-  pcLabel: string;
-  pcPubkey: string;
+interface OwnerSlot {
+  readonly canonicalOwnerPubkey: string;
+  readonly rawOwnerPubkeys: readonly {
+    readonly rawOwnerPubkey: string;
+    readonly token: unknown;
+  }[];
+  readonly ownerPk: Uint8Array;
+  readonly fingerprint: string;
+}
+
+interface PendingRevocation {
+  readonly version: number;
+  /** Floor that preceded this accepted-but-not-yet-applied revocation. */
+  readonly previousVersion: number | undefined;
+  readonly fingerprint: string;
+  readonly rawOwnerTokens: Map<string, unknown>;
 }
 
 const DEFAULT_INTERVAL_MS = 60_000;
 
-const FALLBACK_LABEL_LEN = 8;
+function compareAscii(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function rawOwnerFingerprint(rawOwner: unknown): string {
+  let fingerprintInput: string;
+  if (typeof rawOwner === "string") {
+    fingerprintInput = rawOwner;
+  } else {
+    try {
+      const serialized = JSON.stringify(rawOwner);
+      const type = rawOwner === null ? "null" : typeof rawOwner;
+      fingerprintInput = `${type}:${serialized ?? ""}`;
+    } catch {
+      fingerprintInput = `${typeof rawOwner}:unserializable`;
+    }
+  }
+  return createHash("sha256")
+    .update(fingerprintInput, "utf8")
+    .digest("hex")
+    .slice(0, 8);
+}
+
+function topologyEquals(
+  left: MeshTopologySnapshot | null,
+  right: MeshTopologySnapshot,
+): boolean {
+  if (!left) return false;
+  if (
+    left.self.pcPubkey !== right.self.pcPubkey ||
+    left.self.pcLabel !== right.self.pcLabel ||
+    left.self.legacyPcLabel !== right.self.legacyPcLabel ||
+    left.siblings.length !== right.siblings.length
+  ) return false;
+  return left.siblings.every((identity, index) => {
+    const other = right.siblings[index];
+    return other !== undefined &&
+      identity.pcPubkey === other.pcPubkey &&
+      identity.pcLabel === other.pcLabel &&
+      identity.legacyPcLabel === other.legacyPcLabel;
+  });
+}
 
 export class SelfRevoke {
   private readonly client: MeshClient;
   private readonly storage: SelfRevokeStorage;
-  /** Raw Ed25519 pubkey bytes (32 B). Membership checks decode each
-   *  `members[].remote_epk` and compare byte-wise — avoids the base64
-   *  encoding-variant trap (standard vs url-safe). */
   private readonly myPubkey: Uint8Array;
   private readonly intervalMs: number;
   private readonly onRevoke?: SelfRevokeOptions["onRevoke"];
-  private readonly onMembersChanged?: SelfRevokeOptions["onMembersChanged"];
+  private readonly onAuthoritativeOwners?: SelfRevokeOptions["onAuthoritativeOwners"];
+  private readonly onTopologyChanged?: SelfRevokeOptions["onTopologyChanged"];
   private readonly log: NonNullable<SelfRevokeOptions["log"]>;
-  /** Anti-rollback floor: never accept a version <= lastSeen per Owner. */
+  /**
+   * Accepted anti-rollback floor, deliberately independent from pending I/O.
+   * https://github.com/jacobaraujo7/remote_pi/issues/73: this in-memory floor
+   * resets on process restart, allowing pre-revocation membership replay.
+   */
   private readonly lastSeenVersion = new Map<string, number>();
-  /** Plan/25 Wave D: snapshot of the sibling union from the previous
-   *  sweep, used to detect changes without re-firing `onMembersChanged`
-   *  on every poll. Keyed by `pcPubkey`. */
-  private prevSiblings = new Map<string, SiblingInfo>();
-  /** Latest member raw data per owner, captured during `_checkOwner`.
-   *  Stored as `(pcPubkey, nickname?)` (NOT pre-resolved label) so
-   *  `_computeSiblingUnion` can pick the best nickname across owners
-   *  — nickname always wins over fallback, regardless of owner iteration
-   *  order. See `siblings.ts::discoverSiblings` for the same rule. */
-  private readonly membersByOwner = new Map<
-    string,
-    { pcPubkey: string; nickname?: string }[]
-  >();
+  private readonly pendingRevocations = new Map<string, PendingRevocation>();
+  private readonly membershipByOwner = new Map<string, BoundOwnerMembership>();
+  private previousTopology: MeshTopologySnapshot | null = null;
+  private sweepInFlight: Promise<void> | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Invalidates authority held by an async sweep when this producer stops/re-pairs. */
+  private lifecycleGeneration = 0;
 
   constructor(opts: SelfRevokeOptions) {
     this.client = opts.client;
     this.storage = opts.storage;
-    this.myPubkey = opts.myPubkey;
+    this.myPubkey = new Uint8Array(opts.myPubkey);
+    encodeEd25519PublicKey(this.myPubkey, "self public key");
     this.intervalMs = opts.intervalMs ?? DEFAULT_INTERVAL_MS;
     this.onRevoke = opts.onRevoke;
-    this.onMembersChanged = opts.onMembersChanged;
+    this.onAuthoritativeOwners = opts.onAuthoritativeOwners;
+    this.onTopologyChanged = opts.onTopologyChanged;
     this.log = opts.log ?? {
-      info: (msg) => console.info(msg),
-      warn: (msg) => console.warn(msg),
-      error: (msg) => console.error(msg),
+      info: (message) => console.info(message),
+      warn: (message) => console.warn(message),
+      error: (message) => console.error(message),
     };
   }
 
-  /** Starts the periodic sweep. Idempotent — a second call is a no-op.
-   *  Fires one sweep immediately so we don't wait `intervalMs` for the
-   *  first check. */
   start(): void {
     if (this.timer !== null) return;
-    void this.checkOnce();
-    this.timer = setInterval(() => { void this.checkOnce(); }, this.intervalMs);
+    void this.checkOnce().catch(() => this.log.error("[mesh] event=self_revoke_sweep_failed"));
+    this.timer = setInterval(() => {
+      void this.checkOnce().catch(() => this.log.error("[mesh] event=self_revoke_sweep_failed"));
+    }, this.intervalMs);
   }
 
-  /** Stops the periodic sweep. In-flight `checkOnce()` calls complete
-   *  normally — only the timer is cleared. */
   stop(): void {
+    this.invalidateStorageAuthority();
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
     }
   }
 
-  /** One sweep across all known Owners. Per-Owner errors are logged but
-   *  do not stop iteration — we want to keep checking other Owners even
-   *  if one relay times out or one envelope is malformed. */
-  async checkOnce(): Promise<void> {
-    const owners = await this.storage.listOwnerPubkeys();
-    for (const ownerEpk of owners) {
+  /** Called before a same-process pairing mutation enters the storage lane. */
+  invalidateStorageAuthority(): void {
+    this.lifecycleGeneration += 1;
+  }
+
+  /** Schedules one post-mutation authoritative sweep after any stale sweep exits. */
+  requestFreshCheck(): Promise<void> {
+    const prior = this.sweepInFlight;
+    if (!prior) return this.checkOnce();
+    return prior.catch(() => undefined).then(() => this.checkOnce());
+  }
+
+  checkOnce(): Promise<void> {
+    if (this.sweepInFlight) return this.sweepInFlight;
+    const generation = this.lifecycleGeneration;
+    const sweep = this._runSweep(generation).finally(() => {
+      if (this.sweepInFlight === sweep) this.sweepInFlight = null;
+    });
+    this.sweepInFlight = sweep;
+    return sweep;
+  }
+
+  private async _runSweep(generation: number): Promise<void> {
+    let snapshot: readonly SelfRevokeStorageSnapshotRecord[];
+    try {
+      snapshot = await this.storage.snapshotOwnerPubkeys();
+    } catch {
+      if (!this._hasAuthority(generation)) return;
+      this.log.error("[mesh] event=owner_list_unavailable");
+      await this._publishTopology(buildTopologySnapshot(this.myPubkey, this.membershipByOwner.values()), generation);
+      return;
+    }
+    if (!this._hasAuthority(generation)) return;
+
+    const slots = this._canonicalOwnerSlots(snapshot);
+    if (this.onAuthoritativeOwners) {
+      if (!this._hasAuthority(generation)) return;
       try {
-        await this._checkOwner(ownerEpk);
-      } catch (err) {
-        this.log.error(
-          `[mesh] self-revoke check failed for ${ownerEpk.slice(0, 8)}…: ${String(err)}`,
+        await this.onAuthoritativeOwners(
+          slots.map((slot) => slot.canonicalOwnerPubkey),
         );
-      }
-    }
-
-    // Plan/25 Wave D: fire onMembersChanged if the union of siblings
-    // across all owners changed since the last sweep. Built outside the
-    // per-owner loop so a single owner removing a member doesn't fire
-    // until we've seen the other owners (which may still list that Pi
-    // and keep it as a sibling overall).
-    if (this.onMembersChanged) {
-      const union = this._computeSiblingUnion();
-      if (this._siblingSetChanged(union)) {
-        this.prevSiblings = union;
-        try {
-          await this.onMembersChanged([...union.values()]);
-        } catch (err) {
-          this.log.error(`[mesh] onMembersChanged callback threw: ${String(err)}`);
+      } catch {
+        if (this._hasAuthority(generation)) {
+          this.log.error("[mesh] event=authoritative_owners_callback_failed");
         }
       }
+      if (!this._hasAuthority(generation)) return;
     }
+    await this._pruneStateNotIn(slots, generation);
+    if (!this._hasAuthority(generation)) return;
+    for (const slot of slots) {
+      const staleResponse = await this._checkOwnerSlot(slot, generation);
+      if (!this._hasAuthority(generation) || staleResponse) return;
+    }
+    await this._publishTopology(
+      buildTopologySnapshot(this.myPubkey, this.membershipByOwner.values()),
+      generation,
+    );
   }
 
-  private _computeSiblingUnion(): Map<string, SiblingInfo> {
-    const myB64 = Buffer.from(this.myPubkey).toString("base64");
-    // pcPubkey → first nickname seen across owners (undefined when no
-    // owner has labeled this Pi yet).
-    const nicknames = new Map<string, string | undefined>();
-    for (const members of this.membersByOwner.values()) {
-      for (const m of members) {
-        if (m.pcPubkey === myB64) continue;
-        if (nicknames.get(m.pcPubkey)) continue;  // existing nickname wins
-        if (m.nickname) {
-          nicknames.set(m.pcPubkey, m.nickname);
-        } else if (!nicknames.has(m.pcPubkey)) {
-          nicknames.set(m.pcPubkey, undefined);
-        }
+  private _hasAuthority(generation: number): boolean {
+    return generation === this.lifecycleGeneration;
+  }
+
+  private _canonicalOwnerSlots(
+    snapshot: readonly SelfRevokeStorageSnapshotRecord[],
+  ): OwnerSlot[] {
+    const rawHandlesByCanonical = new Map<string, Map<string, unknown>>();
+    const bytesByCanonical = new Map<string, Uint8Array>();
+    for (const record of snapshot) {
+      const rawOwner = record.rawOwnerPubkey;
+      if (typeof rawOwner !== "string") {
+        this.log.warn(`[mesh] event=invalid_owner_record owner_fp=${rawOwnerFingerprint(rawOwner)}`);
+        continue;
+      }
+      try {
+        const ownerPk = decodeEd25519PublicKey(rawOwner, "Owner record");
+        const canonical = encodeEd25519PublicKey(ownerPk);
+        const handles = rawHandlesByCanonical.get(canonical) ?? new Map<string, unknown>();
+        handles.set(rawOwner, record.token);
+        rawHandlesByCanonical.set(canonical, handles);
+        if (!bytesByCanonical.has(canonical)) bytesByCanonical.set(canonical, ownerPk);
+      } catch {
+        this.log.warn(`[mesh] event=invalid_owner_record owner_fp=${rawOwnerFingerprint(rawOwner)}`);
       }
     }
-    const out = new Map<string, SiblingInfo>();
-    for (const [pcPubkey, nickname] of nicknames) {
-      out.set(pcPubkey, {
-        pcPubkey,
-        pcLabel: nickname ?? pcPubkey.slice(0, FALLBACK_LABEL_LEN),
+    return [...rawHandlesByCanonical.entries()]
+      .sort(([left], [right]) => compareAscii(left, right))
+      .map(([canonicalOwnerPubkey, handles]) => {
+        const ownerPk = bytesByCanonical.get(canonicalOwnerPubkey)!;
+        return {
+          canonicalOwnerPubkey,
+          rawOwnerPubkeys: [...handles.entries()]
+            .sort(([left], [right]) => compareAscii(left, right))
+            .map(([rawOwnerPubkey, token]) => ({ rawOwnerPubkey, token })),
+          ownerPk,
+          fingerprint: publicKeyFingerprint(ownerPk),
+        };
       });
-    }
-    return out;
   }
 
-  private _siblingSetChanged(next: Map<string, SiblingInfo>): boolean {
-    if (next.size !== this.prevSiblings.size) return true;
-    for (const [pk, info] of next) {
-      const prior = this.prevSiblings.get(pk);
-      if (!prior) return true;
-      if (prior.pcLabel !== info.pcLabel) return true;
+  private async _pruneStateNotIn(
+    slots: readonly OwnerSlot[],
+    generation: number,
+  ): Promise<void> {
+    const currentOwners = new Set(slots.map((slot) => slot.canonicalOwnerPubkey));
+    for (const [owner, pending] of [...this.pendingRevocations]) {
+      if (currentOwners.has(owner)) continue;
+      for (const rawOwnerPubkey of [...pending.rawOwnerTokens.keys()]) {
+        if (!this._hasAuthority(generation)) return;
+        pending.rawOwnerTokens.delete(rawOwnerPubkey);
+        await this._invokeRevokeCallback(
+          rawOwnerPubkey,
+          owner,
+          pending.fingerprint,
+          generation,
+        );
+        if (!this._hasAuthority(generation)) return;
+      }
+      if (pending.rawOwnerTokens.size === 0) {
+        this.pendingRevocations.delete(owner);
+      }
+    }
+    for (const owner of this.membershipByOwner.keys()) {
+      if (!currentOwners.has(owner) && !this.pendingRevocations.has(owner)) {
+        this.membershipByOwner.delete(owner);
+      }
+    }
+    for (const owner of this.lastSeenVersion.keys()) {
+      if (!currentOwners.has(owner) && !this.pendingRevocations.has(owner)) {
+        this.lastSeenVersion.delete(owner);
+      }
+    }
+  }
+
+  private async _checkOwnerSlot(slot: OwnerSlot, generation: number): Promise<boolean> {
+    const since = this.lastSeenVersion.get(slot.canonicalOwnerPubkey);
+    const hash = createHash("sha256").update(slot.ownerPk).digest("hex");
+    let envelope;
+    try {
+      envelope = await this.client.get(hash, since);
+    } catch (error) {
+      if (!this._hasAuthority(generation)) return false;
+      const stale = await this._retryPending(slot, generation);
+      if (stale || !this._hasAuthority(generation)) return stale;
+      if (error instanceof MeshFetchUnavailableError) {
+        this.log.warn(`[mesh] event=owner_fetch_unavailable owner_fp=${slot.fingerprint}`);
+        return false;
+      }
+      this.membershipByOwner.delete(slot.canonicalOwnerPubkey);
+      const event = error instanceof MeshFetchInvalidResponseError ? "owner_fetch_invalid" : "owner_fetch_failed";
+      this.log.warn(`[mesh] event=${event} owner_fp=${slot.fingerprint}`);
+      return false;
+    }
+    if (!this._hasAuthority(generation)) return false;
+    if (!envelope) return this._retryPending(slot, generation);
+
+    let header;
+    try {
+      header = await verifyEnvelope(envelope);
+    } catch {
+      if (!this._hasAuthority(generation)) return false;
+      this.membershipByOwner.delete(slot.canonicalOwnerPubkey);
+      this.log.warn(`[mesh] event=owner_envelope_invalid owner_fp=${slot.fingerprint}`);
+      return this._retryPending(slot, generation);
+    }
+    if (!this._hasAuthority(generation)) return false;
+    if (!bytesEqual(header.ownerPk, slot.ownerPk)) {
+      this.membershipByOwner.delete(slot.canonicalOwnerPubkey);
+      this.log.warn(`[mesh] event=owner_slot_mismatch owner_fp=${slot.fingerprint}`);
+      return this._retryPending(slot, generation);
+    }
+
+    const lastSeen = this.lastSeenVersion.get(slot.canonicalOwnerPubkey);
+    if (lastSeen !== undefined && header.version <= lastSeen) {
+      this.log.warn(
+        `[mesh] event=owner_rollback owner_fp=${slot.fingerprint} received_version=${header.version} retained_version=${lastSeen}`,
+      );
+      return this._retryPending(slot, generation);
+    }
+
+    const membership: BoundOwnerMembership = {
+      ownerPubkey: encodeEd25519PublicKey(header.ownerPk),
+      members: header.members.map((member) => ({
+        pcPubkey: member.remoteEpk,
+        ...(member.nickname !== undefined ? { nickname: member.nickname } : {}),
+      })),
+    };
+    const selfPubkey = encodeEd25519PublicKey(this.myPubkey);
+    const stillMember = membership.members.some((member) => member.pcPubkey === selfPubkey);
+    if (!this._hasAuthority(generation)) return false;
+
+    if (stillMember) {
+      // A newer self-including envelope supersedes any older pending revoke.
+      this.pendingRevocations.delete(slot.canonicalOwnerPubkey);
+      this.lastSeenVersion.set(slot.canonicalOwnerPubkey, header.version);
+      this.membershipByOwner.set(slot.canonicalOwnerPubkey, membership);
+      return false;
+    }
+
+    const previousVersion = this.lastSeenVersion.get(slot.canonicalOwnerPubkey);
+    this.lastSeenVersion.set(slot.canonicalOwnerPubkey, header.version);
+    this.membershipByOwner.delete(slot.canonicalOwnerPubkey);
+    this.pendingRevocations.set(slot.canonicalOwnerPubkey, {
+      version: header.version,
+      previousVersion,
+      fingerprint: slot.fingerprint,
+      rawOwnerTokens: new Map(slot.rawOwnerPubkeys.map(({ rawOwnerPubkey, token }) => [rawOwnerPubkey, token])),
+    });
+    this.log.info(
+      `[mesh] event=self_revoked owner_fp=${slot.fingerprint} received_version=${header.version} since=${since ?? "none"} member_count=${header.members.length}`,
+    );
+    const stale = await this._retryPending(slot, generation);
+    if (stale) {
+      // This signed response authorized the old pairing snapshot only. Do not
+      // retain its floor, pending work, or topology contribution for a re-pair.
+      this.pendingRevocations.delete(slot.canonicalOwnerPubkey);
+      if (previousVersion === undefined) this.lastSeenVersion.delete(slot.canonicalOwnerPubkey);
+      else this.lastSeenVersion.set(slot.canonicalOwnerPubkey, previousVersion);
+      return true;
     }
     return false;
   }
 
-  private async _checkOwner(ownerEpk: string): Promise<void> {
-    const ownerPk = Uint8Array.from(Buffer.from(ownerEpk, "base64"));
-    // Lowercase hex per the cross-language contract (relay + app). Node's
-    // `digest('hex')` already produces lowercase by default.
-    const hash = createHash("sha256").update(ownerPk).digest("hex");
-    const since = this.lastSeenVersion.get(ownerEpk);
-
-    const env = await this.client.get(hash, since);
-    if (!env) return;  // 304 or 404 — nothing to do
-
-    const header = await verifyEnvelope(env);
-
-    // Defense-in-depth: a malicious relay could return a valid-but-different
-    // owner's envelope at our slot. The relay should reject this on upload
-    // (per plan/24), but we double-check here.
-    const headerOwnerB64 = Buffer.from(header.ownerPk).toString("base64");
-    if (headerOwnerB64 !== ownerEpk) {
-      this.log.warn(
-        `[mesh] owner_pk mismatch for slot ${ownerEpk.slice(0, 8)}…: blob says ${headerOwnerB64.slice(0, 8)}… — ignoring`,
+  /** Returns true only when storage proves the pending snapshot was re-paired. */
+  private async _retryPending(slot: OwnerSlot, generation: number): Promise<boolean> {
+    const pending = this.pendingRevocations.get(slot.canonicalOwnerPubkey);
+    if (!pending) return false;
+    for (const rawOwnerPubkey of [...pending.rawOwnerTokens.keys()]) {
+      if (!this._hasAuthority(generation)) return false;
+      let result: SelfRevokeRemovalResult;
+      try {
+        const expectedToken = pending.rawOwnerTokens.get(rawOwnerPubkey);
+        result = await this.storage.conditionalRemovePeer(
+          rawOwnerPubkey,
+          expectedToken,
+          () => this._hasAuthority(generation),
+        );
+      } catch {
+        if (this._hasAuthority(generation)) {
+          this.log.error(`[mesh] event=owner_storage_remove_failed owner_fp=${slot.fingerprint}`);
+        }
+        return false;
+      }
+      if (!this._hasAuthority(generation)) return false;
+      if (result.outcome === "stale") {
+        // The accepted revocation belonged to an old pairing snapshot. Its
+        // floor must not suppress a current replacement envelope, but the
+        // already-pruned topology stays fail-closed until that envelope wins.
+        this.pendingRevocations.delete(slot.canonicalOwnerPubkey);
+        if (pending.previousVersion === undefined) {
+          this.lastSeenVersion.delete(slot.canonicalOwnerPubkey);
+        } else {
+          this.lastSeenVersion.set(slot.canonicalOwnerPubkey, pending.previousVersion);
+        }
+        return true;
+      }
+      if (result.outcome === "no_authority") return false;
+      // The remaining terminal outcomes are exact local removal or an
+      // authoritative strict-read absence, applied fail-closed to this runtime.
+      // This intentionally does not claim durable cross-process re-pair provenance.
+      pending.rawOwnerTokens.delete(rawOwnerPubkey);
+      if (result.outcome === "removed") {
+        for (const remainingRawOwner of pending.rawOwnerTokens.keys()) {
+          pending.rawOwnerTokens.set(remainingRawOwner, result.nextToken);
+        }
+      }
+      await this._invokeRevokeCallback(
+        rawOwnerPubkey,
+        slot.canonicalOwnerPubkey,
+        pending.fingerprint,
+        generation,
       );
+      if (!this._hasAuthority(generation)) return false;
+    }
+    if (pending.rawOwnerTokens.size === 0) {
+      this.pendingRevocations.delete(slot.canonicalOwnerPubkey);
+    }
+    return false;
+  }
+
+  private async _invokeRevokeCallback(
+    rawOwnerPubkey: string,
+    canonicalOwnerPubkey: string,
+    fingerprint: string,
+    generation: number,
+  ): Promise<void> {
+    if (!this._hasAuthority(generation) || !this.onRevoke) return;
+    try {
+      await this.onRevoke(rawOwnerPubkey, canonicalOwnerPubkey);
+    } catch {
+      if (this._hasAuthority(generation)) {
+        this.log.error(`[mesh] event=owner_revoke_callback_failed owner_fp=${fingerprint}`);
+      }
+    }
+  }
+
+  private async _publishTopology(next: MeshTopologySnapshot, generation: number): Promise<void> {
+    if (!this._hasAuthority(generation) || topologyEquals(this.previousTopology, next)) return;
+    try {
+      if (this.onTopologyChanged) {
+        if (!this._hasAuthority(generation)) return;
+        await this.onTopologyChanged(next);
+      }
+    } catch {
+      if (this._hasAuthority(generation)) this.log.error("[mesh] event=topology_callback_failed");
       return;
     }
-
-    const lastSeen = this.lastSeenVersion.get(ownerEpk) ?? 0;
-    if (header.version < lastSeen) {
-      this.log.warn(
-        `[mesh] anti-rollback: dropped v${header.version} < lastSeen v${lastSeen} for ${ownerEpk.slice(0, 8)}…`,
-      );
-      return;
-    }
-    this.lastSeenVersion.set(ownerEpk, header.version);
-
-    // Plan/25 Wave D: capture raw nickname (NOT pre-resolved label) per
-    // owner. `_computeSiblingUnion` picks the best label across owners
-    // — nickname always beats fallback. Pre-resolving here was the bug
-    // that produced different pc_labels on different Pis when Owner A
-    // labeled but Owner B didn't.
-    this.membersByOwner.set(
-      ownerEpk,
-      header.members.map((m) => ({
-        pcPubkey: m.remoteEpk,
-        ...(m.nickname ? { nickname: m.nickname } : {}),
-      })),
-    );
-
-    // Decode every member's pubkey to bytes and compare against our own.
-    // The app may emit base64 url-safe (`-`/`_`, no padding) while the Pi
-    // emits standard (`+`/`/`, padded) — same bytes, different strings.
-    // String equality on those would falsely revoke us. See `encoding.ts`.
-    const stillMember = header.members.some((m) =>
-      bytesEqual(decodeB64Any(m.remoteEpk), this.myPubkey),
-    );
-    if (stillMember) return;
-
-    // Log the EXACT version observed (from the relay's blob) plus the
-    // `since` cursor we sent — disambiguates poll-time state from any
-    // SQLite snapshot the operator might take later.
-    this.log.info(
-      `[mesh] self-revoked from owner ${ownerEpk.slice(0, 8)}… ` +
-      `(received v${header.version}, since=${since ?? "<none>"}, ` +
-      `members=${header.members.length})`,
-    );
-    await this.storage.removePeer(ownerEpk);
-    if (this.onRevoke) await this.onRevoke(ownerEpk);
+    if (this._hasAuthority(generation)) this.previousTopology = next;
   }
 }

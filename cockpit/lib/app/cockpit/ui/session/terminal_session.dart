@@ -4,11 +4,13 @@ import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pasteboard/pasteboard.dart';
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Status de um `claude` (ou outro harness) rodando dentro de uma aba de
 /// terminal, reportado pelo `cockpit-hook` via socket (ver
@@ -30,25 +32,27 @@ class TerminalSession extends PaneItem {
     TerminalScrollbackStore? scrollbackStore,
     String? replay,
     String? startupCommand,
+    TerminalEngine engine = TerminalEngine.xterm,
   }) : _gateway = gateway,
        _scrollback = scrollbackStore,
        _title = title ?? 'New terminal' {
     // O `ShiftEnterInputHandler` (antes do padrão) faz Shift+Enter virar quebra
     // de linha nos harnesses (claude, codex, pi) em vez de submeter; ele lê o
     // estado do kitty keyboard protocol que `_kitty` rastreia pela saída do PTY.
-    terminal = Terminal(
-      maxLines: 10000,
-      inputHandler: CascadeInputHandler([
+    terminal = createTerminalController(
+      engine,
+      xtermInputHandler: CascadeInputHandler([
         ShiftEnterInputHandler(_kitty),
         defaultInputHandler,
       ]),
     );
 
-    // Replay do scrollback salvo (restauração): escreve o histórico ANTES de
-    // subir o shell, então a saída viva nasce logo abaixo. Síncrono → a ordem
-    // (histórico, depois prompt novo) é garantida. O `\x1bc` que limpa o estado
-    // (alt-screen residual) já vem embutido em `replay` (montado na VM).
-    if (replay != null && replay.isNotEmpty) terminal.write(replay);
+    // Replay do scrollback salvo (restauração): entra na fila ANTES de subir o
+    // shell, então a saída viva nasce logo abaixo. No Ghostty a fila só é
+    // aplicada após o primeiro resize da view, evitando interpretar posições
+    // gravadas numa grade provisória de 80 colunas. O `\x1bc` que limpa estado
+    // residual já vem embutido em `replay` (montado na VM).
+    if (replay != null && replay.isNotEmpty) terminal.restore(replay);
 
     // Sobe o shell e liga os dois lados. O `.cast<List<int>>()` re-vincula o
     // tipo do stream (o PTY emite Uint8List) para o `utf8.decoder` aceitar e
@@ -70,14 +74,14 @@ class TerminalSession extends PaneItem {
           _trackCwd(data); // rastreia o cwd vivo (OSC 7) pra restaurar nele.
         });
     terminal.onOutput = (data) {
-      _maybeInterrupt(data);
-      _gateway.write(utf8.encode(data));
+      final text = utf8.decode(data, allowMalformed: true);
+      _maybeInterrupt(text);
+      _gateway.write(data);
     };
-    terminal.onResize = (width, height, pixelWidth, pixelHeight) =>
-        _gateway.resize(height, width);
+    terminal.onResize = (columns, rows) => _gateway.resize(rows, columns);
     // Programas mudam o título da janela via OSC 0/2 (ex.: shell mostra o cwd,
     // `vim`/`ssh` mostram o arquivo/host). Refletimos isso no nome da aba.
-    terminal.onTitleChange = (osc) => rename(_shortTitle(osc));
+    terminal.onTitleChanged = (osc) => rename(_shortTitle(osc));
 
     // Restauração de aba que rodava um harness (ex.: `claude --resume <sid>`):
     // digita o comando no shell novo. Espera o shell de login (`-l`, que lê
@@ -263,7 +267,7 @@ class TerminalSession extends PaneItem {
   String? _cwd;
   String? get currentDirectory => _cwd;
   String _title;
-  late final Terminal terminal;
+  late final CockpitTerminalController terminal;
   StreamSubscription<String>? _sub;
 
   @override
@@ -300,7 +304,19 @@ class TerminalSession extends PaneItem {
       return;
     }
     final text = await Pasteboard.text;
-    if (text != null && text.isNotEmpty) terminal.paste(text);
+    if (text != null && text.isNotEmpty) {
+      terminal.paste(text);
+      return;
+    }
+    // Windows: `Pasteboard.image` só lê `CF_DIB`; muitos apps (browsers, algumas
+    // ferramentas de captura) põem a imagem só como PNG/formato registrado →
+    // devolve `null` e o `\x16` nunca ia, então a imagem não chegava no harness.
+    // Sem texto no clipboard, é provável ser uma imagem que não conseguimos ler
+    // — manda `\x16` mesmo assim pro harness (claude/codex/pi) ler o clipboard
+    // ele mesmo. macOS/Linux não precisam: lá o `Pasteboard.image` já funciona.
+    if (defaultTargetPlatform == TargetPlatform.windows) {
+      _gateway.write(const [0x16]);
+    }
   }
 
   /// Acumula a saída no registro de scrollback, rastreando alt-screen (não grava
@@ -369,6 +385,7 @@ class TerminalSession extends PaneItem {
     ); // best-effort: persiste o estado final (inclui app-quit).
     await _sub?.cancel();
     await _gateway.kill();
+    terminal.dispose();
     super.dispose();
   }
 }

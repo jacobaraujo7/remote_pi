@@ -52,6 +52,8 @@ List<ShortcutSection> buildShortcutCatalog() {
       ),
       AppShortcut('Select Tab 1–8', [cmd, '1–8']),
       AppShortcut('Select Last Tab', [cmd, '9']),
+      AppShortcut('Next Realm', [cmd, '`']),
+      AppShortcut('Previous Realm', [cmd, shift, '`']),
     ]),
     ShortcutSection('Navigation & Search', <AppShortcut>[
       AppShortcut('Go to File', [cmd, 'P']),

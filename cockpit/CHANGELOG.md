@@ -14,6 +14,134 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
   meio da frase).
 -->
 
+## [1.14.6] — 2026-07-20
+
+Correção de digitação de acentos no terminal.
+
+### Fixed
+- **Caracteres acentuados duplicados no terminal** (@pretodev, #66): o IME
+  podia reenviar o mesmo caractere já commitado (dead keys como `´` + vogal),
+  e cada reenvio ia pro PTY — `á` virava `ááá`. Agora cada commit é emitido
+  uma única vez.
+- **Build Linux com Clang novo:** warning legado do
+  `flutter_secure_storage_linux` (nlohmann/json antigo) não derruba mais o
+  build com `-Werror`.
+
+## [1.14.5] — 2026-07-20
+
+Drivers de DB com TLS de verdade (anakiORM atualizado) e tela de loading
+no boot.
+
+### Added
+- **Tela de loading no boot** (@jamesldr, #65): a janela abre na hora com
+  splash animado no tema salvo enquanto o setup roda atrás; falha no boot
+  mostra tela de erro com Retry em vez de fechar sem feedback.
+
+### Fixed
+- **TLS nos drivers:** anaki_postgres 0.1.4 / anaki_mysql 0.1.5 compilados
+  com rustls — `sslmode=require` funciona (antes: "SQLx was built without
+  TLS support"). MySQL repassa `ssl-mode`, MSSQL repassa `encrypt`.
+- **FFI:** fix de colisão de símbolos quando vários drivers anaki carregam
+  no mesmo processo (sqlite/mssql/redis/mongodb 0.1.4).
+- **New query:** o SELECT gerado pela árvore cita o nome da tabela na
+  sintaxe do engine (`"Tabela"`, backtick, `[colchete]`) — tabela CamelCase
+  no Postgres quebrava sem aspas.
+
+## [1.14.3] — 2026-07-20
+
+Switch de SSL/TLS no dialog de conexão do Database.
+
+### Added
+- **Use SSL/TLS:** switch no dialog de conexão grava a forma certa por
+  engine (Postgres `sslmode=require`, MySQL `ssl-mode=REQUIRED`, MSSQL
+  `encrypt=true`, Mongo `tls=true`, Redis `rediss://`); OFF remove a chave
+  preservando os demais query params. SRV (Atlas) implica TLS (switch
+  travado). Necessário pra bancos gerenciados (RDS `rds.force_ssl` etc).
+
+## [1.14.2] — 2026-07-20
+
+Fix no parse de URL do Database.
+
+### Fixed
+- **Senha crua na URL:** conexão com senha sem percent-encoding
+  (`user:8nJM9g8%?FC(@host`) falhava no parse e sumia da lista; agora o
+  userinfo é re-encodado automaticamente ao carregar.
+
+## [1.14.1] — 2026-07-20
+
+Fixes no painel Database (Mongo Atlas).
+
+### Fixed
+- **Mongo Atlas (`mongodb+srv://`):** URLs SRV agora são reconhecidas; antes
+  a entrada era tratada como engine desconhecido.
+- **Painel Database:** uma conexão inválida no `databases.json` zerava a
+  lista inteira; agora só a entrada com problema é pulada.
+- **Editar conexão Atlas:** o dialog preserva o formato SRV e os query
+  params da URL (antes reescrevia pra `mongodb://host:porta` e quebrava a
+  conexão).
+
+## [1.14.0] — 2026-07-20
+
+Motores internalizados (terminal, PTY, frontmatter), CLI cria abas de
+terminal e melhorias de multirepo/UI.
+
+### Added
+- **CLI `cockpit new-tab`:** agentes abrem abas de terminal (cwd, título,
+  split) de dentro dos panes.
+- **Multirepo:** Files volta à árvore única com seções por repo + popup de
+  branches no badge da rail.
+- **Guardrails de DB:** cada conexão define acesso read/readwrite e se fica
+  visível pros agentes na CLI (default: só leitura).
+
+### Changed
+- **Motores absorvidos pro repo:** emulador de terminal (xterm) virou módulo
+  interno; PTY nativo virou o plugin `cockpit_pty`; frontmatter YAML do
+  markdown agora é pré-processamento próprio. Zero forks git no pubspec —
+  markdown vem do pub.dev 1.1.8 (fix de links consecutivos incluso).
+
+### Fixed
+- Source Control mostrava pasta nova como arquivo; play/stop de Tasks sem
+  resposta imediata; submenu e tooltips desalinhados sob zoom da interface;
+  atalho ⌘`/⌘⇧` de realm parava após o primeiro uso.
+
+## [1.13.0] — 2026-07-19
+
+Novo: browsers visuais de Redis e MongoDB na tab Database — tabela de chaves
+editável e collection browser estilo Compass, com abertura via CLI.
+
+### Added
+- **Redis key table:** clique na conexão abre a tabela key/value/type/ttl —
+  edição inline (valor, TTL e rename de chave), compostos expandem com o valor
+  completo, criação dos 5 tipos, SCAN paginado com busca por pattern.
+- **Mongo collection browser:** collections no painel; documentos como cards
+  JSON com highlight, filter bar JSON, editar/inserir/deletar por `_id`.
+  Extended JSON (`$oid`/`$date`) preservado de ponta a ponta.
+- **CLI `cockpit redis|mongo browse`:** o agente abre a view já filtrada pro
+  humano (`--pattern` / `--filter`), sem expor credenciais.
+- Logos de marca (Redis/MongoDB) nas abas dos browsers.
+
+### Fixed
+- `cockpit mongo` agora devolve ObjectId/Date como extended JSON canônico
+  (antes saía hex/string ambíguos).
+
+## [1.12.0] — 2026-07-19
+
+Novo: acesso a bancos de dados direto no Cockpit — painel de conexões, tab de
+query `.dbq` e a CLI `cockpit db` para os agentes.
+
+### Added
+- **Painel Database:** conexões por workspace (`.cockpit/databases.json`),
+  SQLite detectado automaticamente, senha no cofre do SO. Árvore de schema
+  (tabelas → colunas) e logos de marca por engine.
+- **Tab de query `.dbq`:** editor SQL com highlight + grid de resultado (split
+  arrastável), Run por statement sob o cursor, resultado como tabela ou JSON
+  (copiável), buffers *untitled* (o arquivo nasce só ao salvar).
+- **Engines:** SQLite, Postgres, MySQL e SQL Server (via anakiORM).
+- **CLI `cockpit db list|schema|query|execute|run`** — JSON de uma linha para
+  os agentes; execução no app, credenciais nunca passam pela CLI.
+- **Redis e MongoDB via CLI** (`cockpit redis` / `cockpit mongo`) — acesso do
+  agente sem UI por enquanto.
+
 ## [1.11.0] — 2026-07-18
 
 Melhorias na árvore de Files (criação e reveal), no multi-root e na CLI interna.

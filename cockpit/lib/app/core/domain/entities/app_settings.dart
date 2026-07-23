@@ -6,6 +6,9 @@ enum AppThemeMode { system, light, dark }
 /// variante light/dark, resolvida pelo brilho do app.
 enum SyntaxThemeId { one, dracula, github }
 
+/// Motor VT usado por terminais criados daqui pra frente.
+enum TerminalEngine { ghostty, xterm }
+
 /// Preferências do app, persistidas localmente (Hive). Imutável; mudanças via
 /// [copyWith]. Fontes vazias (`null`) = usar os defaults do design.
 class AppSettings {
@@ -31,6 +34,7 @@ class AppSettings {
     this.treeVisible = false,
     this.showCockpit = true,
     this.defaultTerminalProfileId,
+    this.terminalEngine = TerminalEngine.ghostty,
   });
 
   final AppThemeMode themeMode;
@@ -115,6 +119,10 @@ class AppSettings {
   /// re-descobertos a cada boot, e um `id` que sumiu degrada pro fallback.
   final String? defaultTerminalProfileId;
 
+  /// Motor padrão de novas abas/buffers. Abas existentes guardam o próprio
+  /// motor no descritor de layout e não são recriadas ao trocar esta opção.
+  final TerminalEngine terminalEngine;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? interfaceFont,
@@ -141,6 +149,7 @@ class AppSettings {
     bool? showCockpit,
     String? defaultTerminalProfileId,
     bool clearDefaultTerminalProfileId = false,
+    TerminalEngine? terminalEngine,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -170,6 +179,7 @@ class AppSettings {
       defaultTerminalProfileId: clearDefaultTerminalProfileId
           ? null
           : (defaultTerminalProfileId ?? this.defaultTerminalProfileId),
+      terminalEngine: terminalEngine ?? this.terminalEngine,
     );
   }
 
@@ -202,6 +212,7 @@ class AppSettings {
     // plataforma. Nada a migrar (plano 50).
     if (defaultTerminalProfileId != null)
       'terminal.default_profile_id': defaultTerminalProfileId,
+    'terminal.engine': terminalEngine.name,
   };
 
   factory AppSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -240,6 +251,11 @@ class AppSettings {
       treeVisible: json['treeVisible'] as bool? ?? false,
       showCockpit: json['showCockpit'] as bool? ?? true,
       defaultTerminalProfileId: str(json['terminal.default_profile_id']),
+      terminalEngine: _enumByName(
+        TerminalEngine.values,
+        json['terminal.engine'],
+        TerminalEngine.ghostty,
+      ),
     );
   }
 }

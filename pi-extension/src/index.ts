@@ -30,7 +30,7 @@
  *   for integration tests.
  */
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
@@ -44,13 +44,20 @@ import {
   addPeer,
   getOrCreateEd25519Keypair,
   KeyringUnavailableError,
-  listOwnerPubkeys,
   listPeers,
   removePeer,
+  snapshotOwnerPubkeys,
+  conditionalRemovePeer,
   type PeerRecord,
 } from "./pairing/storage.js";
 import { MeshClient } from "./mesh/client.js";
+import {
+  canonicalizeEd25519PublicKey,
+  decodeEd25519PublicKey,
+  publicKeyFingerprint,
+} from "./mesh/encoding.js";
 import { SelfRevoke } from "./mesh/self_revoke.js";
+import type { MeshTopologySnapshot } from "./mesh/siblings.js";
 import type {
   ClientMessage,
   PairErrorCode,
@@ -229,15 +236,13 @@ let _currentThinking: ThinkingLevel | undefined = undefined;  // last-known thin
 let _meshNode: MeshNode | null = null;
 let _sessionName: string | null = null;
 let _sessionPeerCount = 0;
-// Set true by the `session_shutdown` handler. The daemon auto-init defers the
-// connect (`setTimeout(_cmdRoot, 0)`) and connecting is async, so a shutdown can
-// land WHILE this instance's `_cmdRoot` is still mid-connect (`_meshNode` not
-// assigned yet) — the handler would then find nothing to close, and the connect
-// would finish afterwards as an unreachable ghost. `_cmdRoot`/`_cmdJoin` check
-// this flag after each await and abort (closing any peer that already connected)
-// so a torn-down instance never lingers on the broker. Per-module (jiti
-// re-evaluates the module on every session replacement), so the replacement
-// instance starts fresh with `_disposed = false`.
+// Invalidates an in-flight MeshNode.connect() before it can publish globally.
+let _meshJoinGeneration = 0;
+// Set true by `session_shutdown`. Connecting is async, so shutdown can land
+// while `_cmdRoot` has not published either candidate yet. `_disposed` blocks
+// the outgoing continuation until a same-module `session_start` rearms it;
+// relay/mesh generations below permanently distinguish the old candidates from
+// that replacement lifecycle even after `_disposed` becomes false again.
 let _disposed = false;
 // True once the auto-init has run on the first session_start for this
 // process. Prevents re-running on session replacements (those re-init via
@@ -698,6 +703,17 @@ async function _deliverImageUserMessage(
  */
 function _attachBridgeIfReady(): void {
   if (!_meshNode || !_relay || !_relayUrl || !_cachedEd25519) return;
+  // A newly-created SelfRevoke producer must publish its own initial verified
+  // or fallback snapshot before any retained topology is allowed to attach.
+  if (_selfRevoke !== null) {
+    if (
+      _selfRevokeTopologyReadyEpoch !== _selfRevokeEpoch ||
+      _selfRevokeTopology === null
+    ) {
+      return;
+    }
+    if (!_meshNode.hasTopology()) _meshNode.setTopology(_selfRevokeTopology);
+  }
   void _meshNode
     .attachBridge({ relay: _relay, relayUrl: _relayUrl, keypair: _cachedEd25519 })
     .catch(() => { /* best-effort — UDS mesh works regardless */ });
@@ -939,17 +955,25 @@ export async function _stopForTest(ctx: unknown): Promise<void> {
   await _cmdStop(ctx as Parameters<typeof _cmdStop>[0]);
 }
 
-/** Test-only: read/reset the `_disposed` flag. In production it's per-module
- *  and never reset (a disposed instance is discarded), but tests share one
- *  module across cases, so they reset it to avoid cross-test pollution. */
+/** Test-only: read/reset the `_disposed` flag. Production clears it only when
+ *  a host reuses this module for a replacement session; tests share one module
+ *  across cases, so they also reset it to avoid cross-test pollution. */
 export function _getDisposedForTest(): boolean { return _disposed; }
 export function _setDisposedForTest(v: boolean): void { _disposed = v; }
 
 /** Test-only: reset the once-per-session auto-init gate so session_start re-runs it. */
 export function _resetAutoInitedForTest(): void { _autoInited = false; }
 
+/** Test-only: set the auto-init gate for lifecycle replacement tests. */
+export function _setAutoInitedForTest(value: boolean): void { _autoInited = value; }
+
 /** Test-only: true when this instance holds a live local-mesh node. */
 export function _hasMeshNodeForTest(): boolean { return _meshNode !== null; }
+
+/** Test-only: drive the current real SelfRevoke producer through one sweep. */
+export async function _checkSelfRevokeForTest(): Promise<void> {
+  await _selfRevoke?.checkOnce();
+}
 
 /** Test-only: the effective (possibly `#N`-suffixed) name the cwd-lock reserved. */
 export function _getLockedNameForTest(): string | null { return _lockedName; }
@@ -969,6 +993,13 @@ export function _resetCwdLockForTest(): void {
  */
 export async function _startRelayForTest(ctx: unknown): Promise<void> {
   await _cmdStart(ctx as Parameters<typeof _cmdStart>[0]);
+}
+
+/** Test-only: public marker for canceled-keypair cache regression checks. */
+export function _getCachedPublicKeyForTest(): string | null {
+  return _cachedEd25519
+    ? Buffer.from(_cachedEd25519.publicKey).toString("base64")
+    : null;
 }
 
 export function _setMessageBufferForTest(msgs: unknown[]): void {
@@ -1056,6 +1087,9 @@ let _cachedEd25519: Ed25519Keypair | null = null;
 // connection lifecycle: started in _cmdStart after the WS is up, stopped
 // in _goIdle when the relay is torn down.
 let _selfRevoke: SelfRevoke | null = null;
+let _selfRevokeEpoch = 0;
+let _selfRevokeTopologyReadyEpoch = -1;
+let _selfRevokeTopology: MeshTopologySnapshot | null = null;
 
 // Per-cwd lock acquired by the first `/remote-pi` invocation in this
 // process. Holds the UDS socket open until the process exits (OS auto-
@@ -1087,9 +1121,25 @@ function _getSyncLimit(): number {
 const RECONNECT_BACKOFFS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _reconnectAttempt = 0;
+// Every initial connect/reconnect candidate captures this generation. Stop,
+// relay-off, and an unexpected close invalidate older async continuations.
+let _relayLifecycleGeneration = 0;
+// Root startup has pre-candidate awaits (cwd lock, wizard) that relay/mesh
+// generations cannot safely represent: child startup intentionally advances
+// those generations. Stop/off/session replacement advance this separate epoch
+// so a queued root can never regain authority by creating a newer child.
+let _rootLifecycleGeneration = 0;
 // Coalesces concurrent `/remote-pi` startup paths inside ONE extension instance.
 // Separate Pi processes still keep the existing #N behavior via the cwd lock.
 let _cmdRootInFlight: Promise<void> | null = null;
+
+type RootRestartAuthority = Readonly<{
+  rootLifecycleGeneration: number;
+}>;
+
+function _isCurrentRootLifecycle(generation: number): boolean {
+  return !_disposed && generation === _rootLifecycleGeneration;
+}
 
 /** Test-only: exposes pending reconnect timer state. */
 export function _hasPendingReconnect(): boolean {
@@ -1196,9 +1246,108 @@ function _displayName(cwd: string): string {
 
 // ── Peer lookup helpers ───────────────────────────────────────────────────────
 
+interface InspectedPeerRecord {
+  readonly record: PeerRecord;
+  readonly rawHandle: string;
+  readonly runtimeKey: string | null;
+}
+
+function _rawOwnerFingerprint(rawValue: unknown): string {
+  let fingerprintInput: string;
+  if (typeof rawValue === "string") {
+    fingerprintInput = rawValue;
+  } else {
+    try {
+      const serialized = JSON.stringify(rawValue);
+      const type = rawValue === null ? "null" : typeof rawValue;
+      fingerprintInput = `${type}:${serialized ?? ""}`;
+    } catch {
+      fingerprintInput = `${typeof rawValue}:unserializable`;
+    }
+  }
+  return createHash("sha256")
+    .update(fingerprintInput, "utf8")
+    .digest("hex")
+    .slice(0, 8);
+}
+
+function _runtimeOwnerFingerprint(runtimeKey: string): string {
+  try {
+    return publicKeyFingerprint(
+      decodeEd25519PublicKey(runtimeKey, "Owner runtime key"),
+    );
+  } catch {
+    // Relay authentication guarantees canonical keys in production. This
+    // fallback keeps diagnostics metadata-only at defensive/test boundaries.
+    return _rawOwnerFingerprint(runtimeKey);
+  }
+}
+
+function _inspectPeerRecord(record: unknown): InspectedPeerRecord | null {
+  if (!record || typeof record !== "object") {
+    const fingerprint = _rawOwnerFingerprint(record);
+    console.warn(`[remote-pi] event=invalid_owner_record owner_fp=${fingerprint}`);
+    return null;
+  }
+
+  const candidate = record as Partial<Record<keyof PeerRecord, unknown>>;
+  const rawHandle = candidate.remote_epk;
+  if (typeof rawHandle !== "string") {
+    const fingerprint = _rawOwnerFingerprint(rawHandle);
+    console.warn(`[remote-pi] event=invalid_owner_record owner_fp=${fingerprint}`);
+    return null;
+  }
+
+  const safeRecord: PeerRecord = {
+    name: typeof candidate.name === "string" ? candidate.name : "Unknown Owner",
+    remote_epk: rawHandle,
+    paired_at: typeof candidate.paired_at === "string" ? candidate.paired_at : "",
+  };
+  try {
+    const runtimeKey = canonicalizeEd25519PublicKey(
+      rawHandle,
+      "stored Owner public key",
+    );
+    return { record: safeRecord, rawHandle, runtimeKey };
+  } catch {
+    const fingerprint = _rawOwnerFingerprint(rawHandle);
+    console.warn(`[remote-pi] event=invalid_owner_record owner_fp=${fingerprint}`);
+    return { record: safeRecord, rawHandle, runtimeKey: null };
+  }
+}
+
+function _reportRevocationByFingerprint(canonicalOwnerPubkey: string): void {
+  const fingerprint = _runtimeOwnerFingerprint(canonicalOwnerPubkey);
+  _pi?.sendMessage({
+    customType: "remote-pi:mesh-revoked",
+    content:
+      `🔒 Revoked by Owner ${fingerprint}…\n\n` +
+      `The mobile app for this Owner removed this PC from the mesh. ` +
+      `Re-pair via /remote-pi pair if this was unexpected.`,
+    display: true,
+  });
+}
+
+function _revokeActiveOwnerRuntime(canonicalOwnerPubkey: string): void {
+  if (!_activePeers.has(canonicalOwnerPubkey)) return;
+  _refreshPairingsCache();
+  _detachPeerChannel(canonicalOwnerPubkey);
+  _refreshFooter();
+  _reportRevocationByFingerprint(canonicalOwnerPubkey);
+}
+
 async function _findKnownPeer(appPeerIdStd: string): Promise<PeerRecord | null> {
-  const peers = await listPeers();
-  return peers.find((p) => p.remote_epk === appPeerIdStd) ?? null;
+  let runtimeKey: string;
+  try {
+    runtimeKey = canonicalizeEd25519PublicKey(appPeerIdStd, "Relay Owner key");
+  } catch {
+    return null;
+  }
+  for (const record of await listPeers()) {
+    const inspected = _inspectPeerRecord(record);
+    if (inspected?.runtimeKey === runtimeKey) return inspected.record;
+  }
+  return null;
 }
 
 // ── Transition helpers ────────────────────────────────────────────────────────
@@ -1213,6 +1362,9 @@ async function _findKnownPeer(appPeerIdStd: string): Promise<PeerRecord | null> 
  * by omitting the reason; app falls back to ping miss naturally.
  */
 function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
+  _rootLifecycleGeneration += 1;
+  _relayLifecycleGeneration += 1;
+
   // Broadcast bye to every still-attached owner so each app surfaces
   // "offline" immediately instead of waiting ~50s for a ping miss.
   if (byeReason && _state !== "idle" && _anyPeerActive()) {
@@ -1244,18 +1396,21 @@ function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
   _lastConsumedSteerText = null;
   _resetQueuedItems();
 
-  _relay?.close();
+  // Invalidate async producers and bridge ownership before closing the host
+  // Relay. A synchronous/delayed close callback must observe stale identity.
+  const producer = _selfRevoke;
+  _selfRevoke = null;
+  _selfRevokeEpoch += 1;
+  _selfRevokeTopologyReadyEpoch = -1;
+  _selfRevokeTopology = null;
+  producer?.stop();
+
+  _meshNode?.detachBridge();
+
+  const relay = _relay;
   _relay = null;
   _relayUrl = null;
-
-  // Stop the mesh poller — it's bound to the relay-up lifecycle so a new
-  // _cmdStart will spin up a fresh instance (with potentially a new relay
-  // URL if the user changed it via /remote-pi relay url).
-  _selfRevoke?.stop();
-  _selfRevoke = null;
-
-  // Cross-PC routing relies on _relay being up; tear it down here too.
-  _meshNode?.detachBridge();
+  relay?.close();
 
   // Preserve _sessionStartedAt + _messageBuffer across stop/start cycles.
   // The Pi agent session outlives the relay connection — `message_end` keeps
@@ -1278,9 +1433,11 @@ function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
  * existing auto-listener via `peers.json` lookup, so we don't need to track
  * the prior peer here; we just go back to `started` and wait.
  */
-function _onRelayClose(): void {
+function _onRelayClose(closedRelay: RelayClient): void {
+  if (_relay !== closedRelay) return; // delayed close from a replaced Relay
   if (_state === "idle") return;  // already torn down (e.g. /remote-pi stop)
 
+  _relayLifecycleGeneration += 1;
   _stopAutoListener?.();
   _stopAutoListener = null;
 
@@ -1308,32 +1465,54 @@ function _onRelayClose(): void {
   _refreshFooter();
   _emitRelayState();  // → reconnecting
 
-  _scheduleReconnect();
+  const reconnectUrl = _relayUrl;
+  if (reconnectUrl) {
+    _scheduleReconnect(_relayLifecycleGeneration, reconnectUrl);
+  }
 }
 
-function _scheduleReconnect(): void {
+function _isCurrentReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): boolean {
+  return (
+    lifecycleGeneration === _relayLifecycleGeneration &&
+    _state === "started" &&
+    _relay === null &&
+    _relayUrl === url
+  );
+}
+
+function _scheduleReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): void {
   if (_reconnectTimer !== null) return;  // already scheduled
-  if (!_cachedEd25519 || !_relayUrl) return;  // can't reconnect without these
-  if (_getState() === "idle") return;  // stopped while we were here
+  if (!_cachedEd25519) return;  // can't reconnect without the cached identity
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
 
   const idx = Math.min(_reconnectAttempt, RECONNECT_BACKOFFS_MS.length - 1);
   const delay = RECONNECT_BACKOFFS_MS[idx]!;
   _reconnectAttempt += 1;
 
+  // The timer belongs to the lifecycle that scheduled it. Re-check that exact
+  // generation + URL before constructing a candidate so a dequeued old timer
+  // cannot act on a newer stop/start lifecycle.
   _reconnectTimer = setTimeout(() => {
     _reconnectTimer = null;
-    void _attemptReconnect();
+    if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+    void _attemptReconnect(lifecycleGeneration, url);
   }, delay);
 }
 
-async function _attemptReconnect(): Promise<void> {
-  // `_state` may transition to "idle" between awaits via _goIdle; read via
-  // _getState() to defeat TS narrowing on the module-level let.
-  if (_getState() === "idle") return;
-  if (!_cachedEd25519 || !_relayUrl) return;
+async function _attemptReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): Promise<void> {
+  if (!_cachedEd25519) return;
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
 
   const edKp = _cachedEd25519;
-  const url = _relayUrl;
   // _relayUrl is stored in canonical http(s):// form — convert at the
   // WS boundary, same as _cmdStart.
   const relay = new RelayClient(toWebSocketUrl(url), edKp);
@@ -1347,21 +1526,23 @@ async function _attemptReconnect(): Promise<void> {
       ...(_myRoomMeta ? { roomMeta: _myRoomMeta } : {}),
     });
   } catch {
-    if (_getState() === "idle") return;
-    _scheduleReconnect();
+    // A reconnect candidate stays local until publication; every rejected
+    // candidate is deterministically closed before stale-return or retry.
+    try { relay.close(); } catch { /* best-effort rejected candidate cleanup */ }
+    if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+    _scheduleReconnect(lifecycleGeneration, url);
     return;
   }
 
-  if (_getState() === "idle") {
-    // Stop fired while connect was succeeding — drop the new relay.
-    relay.close();
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) {
+    try { relay.close(); } catch { /* best-effort stale candidate cleanup */ }
     return;
   }
 
   _relay = relay;
   _reconnectAttempt = 0;
 
-  relay.on("close", _onRelayClose);
+  relay.on("close", () => _onRelayClose(relay));
   _stopAutoListener = _installAutoListener(relay);
 
   // Plan/25 Wave B/C: relay is back; bring cross-PC routing back online.
@@ -1453,6 +1634,10 @@ export async function _handleControl(cmd: string): Promise<void> {
       return;
     case "relay:off":
       if (_getState() !== "idle") _goIdle("peer_stop");
+      else {
+        _rootLifecycleGeneration += 1;
+        _relayLifecycleGeneration += 1;
+      }
       _emitRelayState(true);
       return;
     case "relay:toggle":
@@ -1616,6 +1801,12 @@ function _attachOwner(
 //   • Anything else (unknown peer + non-pair) → emit `error: unknown_peer`
 
 function _installAutoListener(relay: RelayClient): () => void {
+  const listenerGeneration = _relayLifecycleGeneration;
+  const hasListenerAuthority = (): boolean =>
+    !_disposed &&
+    _state === "started" &&
+    _relay === relay &&
+    _relayLifecycleGeneration === listenerGeneration;
   const onMsg = async (line: string) => {
     let outer: { peer?: string; ct?: string };
     try { outer = JSON.parse(line) as { peer?: string; ct?: string }; }
@@ -1623,7 +1814,7 @@ function _installAutoListener(relay: RelayClient): () => void {
 
     if (!outer.peer || !outer.ct) return;
 
-    if (_state !== "started") return;
+    if (!hasListenerAuthority()) return;
     // Already-attached owners: their PlainPeerChannel handles routing.
     if (_activePeers.has(outer.peer)) return;
 
@@ -1643,7 +1834,7 @@ function _installAutoListener(relay: RelayClient): () => void {
     const appPeerId = outer.peer;
 
     if (inner.type === "pair_request") {
-      await _handlePairRequest(relay, appPeerId, inner);
+      await _handlePairRequest(relay, appPeerId, inner, hasListenerAuthority);
       return;
     }
 
@@ -1651,6 +1842,7 @@ function _installAutoListener(relay: RelayClient): () => void {
     // sends a non-pair message → attach + route through the new channel.
     // See pairing.md §Reconexão.
     const known = await _findKnownPeer(appPeerId);
+    if (!hasListenerAuthority()) return;
     if (known) {
       const channel = _attachOwner(relay, appPeerId, known.name);
       // The PlainPeerChannel listener for this owner won't have seen the
@@ -1706,6 +1898,7 @@ async function _handlePairRequest(
   relay: RelayClient,
   appPeerId: string,
   inner: Extract<ClientMessage, { type: "pair_request" }>,
+  hasListenerAuthority: () => boolean,
 ): Promise<void> {
   const sendInner = (msg: ServerMessage) => {
     const ct = Buffer.from(JSON.stringify(msg)).toString("base64");
@@ -1730,6 +1923,11 @@ async function _handlePairRequest(
     return;
   }
 
+  // A delayed signed revoke must lose authority before the same-process
+  // re-pair enters storage; the replacement owns a fresh token snapshot.
+  const producer = _selfRevoke;
+  const producerEpoch = _selfRevokeEpoch;
+  producer?.invalidateStorageAuthority();
   const pairedAt = new Date().toISOString();
   try {
     await addPeer({
@@ -1737,8 +1935,15 @@ async function _handlePairRequest(
       remote_epk: appPeerId,
       paired_at: pairedAt,
     });
+    if (!hasListenerAuthority()) return;
     _refreshPairingsCache();
+    if (producer && _selfRevoke === producer && _selfRevokeEpoch === producerEpoch) {
+      void producer.requestFreshCheck().catch(() => {
+        // The regular cadence retries; pairing itself already succeeded.
+      });
+    }
   } catch (err) {
+    if (!hasListenerAuthority()) return;
     sendError("internal_error", `Failed to persist peer: ${String(err)}`);
     return;
   }
@@ -2106,15 +2311,17 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
-    // instead REUSE the same module instance across ctx.newSession() — then the
-    // _disposed latch is never cleared (nothing else resets it), so the relay never
-    // reconnects and /remote-pi (via _cmdRoot) silently early-returns until a full
-    // Pi restart. Clearing the latch + re-running the idempotent connect path
-    // restores the relay automatically. No-op when a fresh instance IS created
-    // (_disposed=false there → never fires) and at first boot.
+    // instead REUSE the same module instance across ctx.newSession(). Rearm that
+    // instance, but retain the shutdown generations as replacement authority:
+    // `_cmdRoot` waits for any canceled outgoing root to drain, then starts exactly
+    // one fresh lifecycle only if no later stop/shutdown superseded this session.
+    // No-op when a fresh instance IS created and at first boot.
     if (_disposed) {
       _disposed = false;
-      void _cmdRoot(ctx);
+      const restartAuthority: RootRestartAuthority = {
+        rootLifecycleGeneration: _rootLifecycleGeneration,
+      };
+      void _cmdRoot(ctx, restartAuthority);
     }
     // Auto-start remote-pi on a fresh boot when the cwd's local config has
     // auto_start_relay enabled (default true). Covers BOTH interactive
@@ -2189,11 +2396,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // best-effort: every step is guarded so a partially-initialised instance
   // (e.g. shutdown lands mid-`_cmdRoot`) tears down without throwing.
   pi.on("session_shutdown", async () => {
-    // Mark disposed FIRST so an in-flight `_cmdRoot`/`_cmdJoin` (the deferred
-    // daemon connect) aborts instead of finishing as a ghost after we've torn
-    // down — the race that left a mute `Backoffice` behind when the Cockpit
-    // fired switch_session right after boot.
+    // Revoke async authority synchronously, before any teardown await. `_disposed`
+    // blocks the outgoing continuation immediately; the root and candidate
+    // generations keep queued work stale even if a same-module session_start
+    // clears `_disposed` before its promises settle.
     _disposed = true;
+    _rootLifecycleGeneration += 1;
+    _relayLifecycleGeneration += 1;
+    _meshJoinGeneration += 1;
     // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
     // the outgoing session is replaced so stale listeners cannot leak or
     // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
@@ -2206,20 +2416,29 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // (issue #55). session_start re-binds `_lastEventCtx` for the new session.
     _lastCtx = null;
     _lastEventCtx = null;
-    if (_meshNode) {
-      try { await _meshNode.close(); } catch { /* best-effort */ }
-      _meshNode = null;
-      _sessionName = null;
-      _sessionPeerCount = 0;
-    }
     // No bye reason: the process keeps running and the fresh instance re-joins
     // the SAME relay room, so an explicit offline→online flap would be wrong.
-    if (_state !== "idle") _goIdle();
+    // Revoke producer/Relay/bridge authority while the global node is still
+    // visible, before close() can begin its asynchronous UDS leave.
+    if (_state !== "idle") {
+      _goIdle();
+    } else {
+      _meshNode?.detachBridge();
+    }
+
+    const meshNode = _meshNode;
+    _meshNode = null;
+    _sessionName = null;
+    _sessionPeerCount = 0;
+    let meshClose: Promise<void> | null = null;
+    try { meshClose = meshNode?.close() ?? null; } catch { /* best-effort */ }
+
     if (_cwdLock) {
       try { _cwdLock.release(); } catch { /* best-effort */ }
       _cwdLock = null;
       _lockedName = null;
     }
+    try { await meshClose; } catch { /* best-effort */ }
   });
 
   // ── Commands ──────────────────────────────────────────────────────────────
@@ -2367,7 +2586,7 @@ function _cmdStatus(ctx: Pick<ExtensionContext, "ui">): void {
     relayLine = `⚪ Relay: off (${relayUrl}) — run /remote-pi to start`;
   } else if (_activePeers.size > 0) {
     const count = _activePeers.size;
-    const shortids = [..._activePeers.keys()].map((k) => k.slice(0, 8)).join(", ");
+    const shortids = [..._activePeers.keys()].map((peerId) => peerId.slice(0, 8)).join(", ");
     relayLine = `🟢 Relay: ${count} owner${count === 1 ? "" : "s"} online (${shortids}) (${relayUrl})`;
   } else {
     relayLine = _hasGlobalPairings
@@ -2413,14 +2632,33 @@ async function _cmdPeers(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
  * `/remote-pi` is intentionally the only command users need day-to-day:
  * idempotent connect + status display.
  */
-async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+async function _cmdRoot(
+  ctx: Pick<ExtensionContext, "ui" | "cwd">,
+  restartAuthority?: RootRestartAuthority,
+): Promise<void> {
+  const rootLifecycleGeneration = restartAuthority?.rootLifecycleGeneration
+    ?? _rootLifecycleGeneration;
+
   if (_cmdRootInFlight) {
-    await _cmdRootInFlight;
-    _cmdStatus(ctx);
-    return;
+    try {
+      await _cmdRootInFlight;
+    } catch (err) {
+      // Stale authority stops here. A current normal duplicate preserves the
+      // outgoing error, while a current replacement suppresses that old-session
+      // failure and falls through to start one fresh root below.
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+      if (!restartAuthority) throw err;
+    }
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+    if (!restartAuthority) {
+      _cmdStatus(ctx);
+      return;
+    }
   }
 
-  const run = _cmdRootInner(ctx);
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+
+  const run = _cmdRootInner(ctx, rootLifecycleGeneration);
   _cmdRootInFlight = run;
   try {
     await run;
@@ -2429,11 +2667,14 @@ async function _cmdRoot(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   }
 }
 
-async function _cmdRootInner(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
-  // This instance was torn down (session replacement) before its deferred
-  // auto-init ran — don't connect, or we'd resurrect a ghost the broker can't
-  // reach. The replacement instance (fresh module) drives the live connect.
-  if (_disposed) return;
+async function _cmdRootInner(
+  ctx: Pick<ExtensionContext, "ui" | "cwd">,
+  rootLifecycleGeneration: number,
+): Promise<void> {
+  // A root retains its startup epoch through every pre-candidate await. This is
+  // stronger than `_disposed`, which a same-module session_start intentionally
+  // clears while an outgoing continuation may still be pending.
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
 
   const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
   // Lock identity is (cwd, name). Several agents may run in the SAME folder; the
@@ -2451,9 +2692,16 @@ async function _cmdRootInner(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise
     for (let n = 1; n <= maxAttempts; n++) {
       const candidate = n === 1 ? requestedName : `${requestedName}#${n}`;
       const result = await acquireCwdLock(cwd, candidate);
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) {
+        if (result.ok) {
+          try { result.release(); } catch { /* best-effort stale lock cleanup */ }
+        }
+        return;
+      }
       if (result.ok) { _cwdLock = result; _lockedName = candidate; break; }
     }
     if (_cwdLock === null) {
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
       ctx.ui.notify(
         process.env["REMOTE_PI_DAEMON"] === "1"
           ? `[remote-pi] Daemon not started: another live agent already owns "${requestedName}" in this folder. Stop the old Pi process, then restart the daemon.`
@@ -2476,6 +2724,7 @@ async function _cmdRootInner(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise
       agent_name: baseDefault,
       use_relay: true,
     });
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
     if (!newConfig) {
       ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
       return;
@@ -2485,8 +2734,11 @@ async function _cmdRootInner(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise
       `[remote-pi] Config saved to ${cwd}/.pi/remote-pi/config.json`,
       "info",
     );
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
     await _cmdJoin(ctx);
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
     if (effectiveAutoStartRelay(newConfig)) await _cmdStart(ctx);
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
     _cmdStatus(ctx);
     return;
   }
@@ -2497,13 +2749,13 @@ async function _cmdRootInner(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise
   // the field's documented intent) — previously a false flag skipped the mesh
   // join entirely, leaving the agent (incl. daemons) fully idle.
   const config = loadLocalConfig(cwd);
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
   if (!_meshNode) await _cmdJoin(ctx);
-  // `_cmdJoin` aborts cleanly when a `session_shutdown` lands mid-connect, but
-  // returns void — so recheck here before bringing the relay up, or we'd start
-  // a ghost relay connection on an already-disposed instance (the replacement
-  // instance owns the live connect).
-  if (_disposed) return;
+  // `_cmdJoin` returns void on a canceled/failed join, so recheck both the
+  // root lifecycle and publication before bringing the Relay up.
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
   if (effectiveAutoStartRelay(config) && _state === "idle") await _cmdStart(ctx);
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
   _cmdStatus(ctx);
 }
 
@@ -2540,11 +2792,22 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     ctx.ui.notify("[remote-pi] Already started.", "warning");
     return;
   }
+  const lifecycleGeneration = ++_relayLifecycleGeneration;
+  const isCurrentCandidate = (): boolean => (
+    !_disposed &&
+    lifecycleGeneration === _relayLifecycleGeneration &&
+    _state === "idle" &&
+    _relay === null
+  );
 
   let edKp: Awaited<ReturnType<typeof getOrCreateEd25519Keypair>>;
   try {
     edKp = await getOrCreateEd25519Keypair();
   } catch (err) {
+    // Identity lookup is part of the candidate lifecycle. A later stop/off or
+    // session replacement must silence its stale rejection before any UI or
+    // error propagation touches the superseded context.
+    if (!isCurrentCandidate()) return;
     if (err instanceof KeyringUnavailableError) {
       // The platform keyring (macOS Keychain / Windows Credential Manager) is
       // locked/denied and there's no file identity to fall back to. We refuse
@@ -2562,6 +2825,10 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     }
     throw err;
   }
+  // Re-check immediately after the first await, before cache/config/model/UI
+  // mutation or Relay construction. `_disposed` alone is insufficient because
+  // same-module session_start intentionally clears it for the replacement.
+  if (!isCurrentCandidate()) return;
   _cachedEd25519 = edKp;
 
   const { url: relayUrl, source } = resolveRelayUrl();
@@ -2641,6 +2908,13 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   try {
     await relay.connect({ roomId, roomMeta });
   } catch (err) {
+    // A rejected local candidate is never published and must always be closed,
+    // regardless of whether this lifecycle is still authoritative.
+    try { relay.close(); } catch { /* best-effort rejected candidate cleanup */ }
+    // A stop, shutdown/replacement, relay-off, or newer start may supersede a
+    // candidate before its rejection arrives. Keep the outgoing context silent;
+    // only the authoritative attempt may report an error.
+    if (!isCurrentCandidate()) return;
     if (err instanceof RoomAlreadyOpenError) {
       ctx.ui.notify(
         "[remote-pi] Already running in this cwd. Stop the other terminal first.",
@@ -2652,18 +2926,11 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     return;
   }
 
-  // Race guard: a `session_shutdown` may have landed while we were awaiting the
-  // keypair or `relay.connect()` (the Cockpit fires switch_session right after
-  // boot, tearing down THIS instance mid-`_cmdStart`). At that point `_state` is
-  // still "idle" — `_cmdStart` only sets "started" below — so the shutdown
-  // handler's `_goIdle()` is skipped and CANNOT close this still-local `relay`.
-  // Without this guard the WS finishes connecting as a ghost that holds the
-  // relay room (keyed by pubkey + roomIdForCwd), and the replacement instance's
-  // own connect is refused with `room_already_open` — the agent never enters
-  // the cross-PC mesh. Close the fresh relay and bail; the replacement instance
-  // (fresh module) drives the real connect. Mirrors the `_cmdJoin` guard.
-  if (_disposed) {
-    try { relay.close(); } catch { /* best-effort */ }
+  // The candidate is local until this publication point. Session shutdown,
+  // stop/relay-off, or a newer start may have invalidated it while connect()
+  // was pending; never let that stale continuation resurrect the Relay.
+  if (!isCurrentCandidate()) {
+    try { relay.close(); } catch { /* best-effort stale candidate cleanup */ }
     return;
   }
 
@@ -2682,66 +2949,90 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   // message_end events for the lifetime of the Pi process, including turns
   // initiated from the terminal while the relay was disconnected.
 
-  relay.on("close", _onRelayClose);
+  relay.on("close", () => _onRelayClose(relay));
 
   _stopAutoListener = _installAutoListener(relay);
   _refreshFooter(ctx);
 
-  // Plan/24 Wave 3: poll mesh_versions to detect remote revocation. The
-  // poller is independent of WS (uses HTTP) and self-heals across relay
-  // reconnects, so a single start here per relay-up cycle is enough.
+  // SelfRevoke is the Pi path's single initial topology producer. Its first
+  // coalesced sweep always publishes verified membership or a safe fallback
+  // before the bridge may attach.
+  let createdProducer = false;
   if (_selfRevoke === null) {
-    _selfRevoke = new SelfRevoke({
+    createdProducer = true;
+    const producerEpoch = ++_selfRevokeEpoch;
+    _selfRevokeTopologyReadyEpoch = -1;
+    _selfRevokeTopology = null;
+    let producer!: SelfRevoke;
+    producer = new SelfRevoke({
       client: new MeshClient(relayUrl),
-      storage: { listOwnerPubkeys, removePeer },
+      storage: { snapshotOwnerPubkeys, conditionalRemovePeer },
       myPubkey: edKp.publicKey,
-      onRevoke: (ownerEpk) => {
-        // Multi-channel (W2D): drop only the revoked owner's channel.
-        // Other owners keep their session. Only fall back to full idle
-        // when there are zero attached owners left.
-        _refreshPairingsCache();
-        if (_activePeers.has(ownerEpk)) {
-          _detachPeerChannel(ownerEpk);
-          _refreshFooter();
+      onRevoke: (rawOwnerPubkey, canonicalOwnerPubkey) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
         }
-        // Surface the revocation inside the Pi chat panel via
-        // `pi.sendMessage` (same channel the QR pair-code uses). Plain
-        // `console.info` from the SelfRevoke poller bypasses the TUI
-        // widget and bleeds into the prompt area, garbling the layout
-        // — same issue we hit with the QR ASCII before plan/24 Wave 3.
-        // sendMessage with a customType keeps the line inline with
-        // the agent's transcript. The poller's own `log.info` keeps
-        // running for daemons/CI where no TUI is attached.
-        const short = ownerEpk.slice(0, 8);
-        _pi?.sendMessage({
-          customType: "remote-pi:mesh-revoked",
-          content:
-            `🔒 Revoked by Owner ${short}…\n\n` +
-            `The mobile app for this Owner removed this PC from the mesh. ` +
-            `Re-pair via /remote-pi pair if this was unexpected.`,
-          display: true,
-        });
+        _revokeActiveOwnerRuntime(canonicalOwnerPubkey);
+        void rawOwnerPubkey; // exact storage removal already happened upstream
       },
-      // Plan/25 Wave D: keep the cross-PC sibling list in sync with
-      // mesh_versions. The poller fires this whenever the union of Pi
-      // members across owners changes — adding/removing a sibling, or an
-      // owner relabeling a nickname. MeshNode.setSiblings is a no-op until
-      // the bridge is up (follower / relay down), so this is always safe.
-      onMembersChanged: (siblings) => {
-        _meshNode?.setSiblings(siblings);
+      onAuthoritativeOwners: (canonicalOwnerPubkeys) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
+        }
+        const presentOwners = new Set(canonicalOwnerPubkeys);
+        let effectFailed = false;
+        for (const canonicalOwnerPubkey of [..._activePeers.keys()]) {
+          if (
+            _selfRevoke !== producer ||
+            producerEpoch !== _selfRevokeEpoch
+          ) {
+            return;
+          }
+          if (presentOwners.has(canonicalOwnerPubkey)) continue;
+          try {
+            _revokeActiveOwnerRuntime(canonicalOwnerPubkey);
+          } catch {
+            effectFailed = true;
+          }
+        }
+        if (effectFailed) throw new Error("Owner runtime reconciliation failed");
       },
-      // Silent log: routine self-revoke audit and per-Owner fetch
-      // failures don't belong in the TUI chat panel. User-facing
-      // revocation events flow through `onRevoke` → `pi.sendMessage`.
+      onTopologyChanged: (snapshot) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
+        }
+        _selfRevokeTopology = snapshot;
+        _meshNode?.setTopology(snapshot);
+        _selfRevokeTopologyReadyEpoch = producerEpoch;
+        _attachBridgeIfReady();
+      },
       log: { info: () => {}, warn: () => {}, error: () => {} },
     });
-    _selfRevoke.start();
+    _selfRevoke = producer;
+    producer.start();
+    await producer.checkOnce();
+    if (
+      _disposed ||
+      _selfRevoke !== producer ||
+      producerEpoch !== _selfRevokeEpoch ||
+      _relay !== relay
+    ) {
+      return;
+    }
   }
 
-  // Plan/25 Wave B/C: bring up cross-PC routing if local broker is ready.
-  // No-op when we're a follower (the bridge needs the local Broker instance
-  // the leader hosts). Best-effort; failures don't surface.
-  _attachBridgeIfReady();
+  // Relay reconnect reuses the current producer's retained snapshot. Initial
+  // startup is callback-driven above, so it must not issue a second attach.
+  if (!createdProducer) _attachBridgeIfReady();
 
   _emitRelayState();  // → connected
   ctx.ui.notify(`[remote-pi] state: started (peer=${myShort}) — Connected to relay ${relayUrl}`, "info");
@@ -2841,23 +3132,34 @@ async function _cmdPair(ctx: Pick<ExtensionContext, "ui" | "cwd">, args = ""): P
  * `/remote-pi` again.
  */
 async function _cmdStop(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+  // Invalidate queued root work and local async candidates even when none has
+  // published yet.
+  _rootLifecycleGeneration += 1;
+  _meshJoinGeneration += 1;
   const meshUp = _meshNode !== null;
   const relayUp = _state !== "idle";
   if (!meshUp && !relayUp) {
+    _relayLifecycleGeneration += 1;
     ctx.ui.notify("[remote-pi] Already stopped — nothing to do.", "info");
     return;
   }
 
-  if (meshUp) {
-    try {
-      await _meshNode!.close();
-    } catch { /* best-effort */ }
-    _meshNode = null;
-    _sessionName = null;
-    _sessionPeerCount = 0;
+  // Preserve bye ordering, but revoke Relay/SelfRevoke/bridge authority while
+  // the global node is still visible and before close() begins UDS leave.
+  if (relayUp) {
+    _goIdle("peer_stop");
+  } else {
+    _relayLifecycleGeneration += 1;
+    _meshNode?.detachBridge();
   }
 
-  if (relayUp) _goIdle("peer_stop");
+  const meshNode = _meshNode;
+  _meshNode = null;
+  _sessionName = null;
+  _sessionPeerCount = 0;
+  let meshClose: Promise<void> | null = null;
+  try { meshClose = meshNode?.close() ?? null; } catch { /* best-effort */ }
+  try { await meshClose; } catch { /* best-effort */ }
 
   ctx.ui.notify("[remote-pi] Stopped (mesh + relay disconnected).", "info");
   _refreshFooter(ctx);
@@ -2869,10 +3171,13 @@ async function _cmdList(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
   // Multi-channel (W2D): each peer is either `online` (channel attached
   // right now) or `offline` (in peers.json but not connected). Replaces
   // the singleton " (active)" marker that only ever marked one peer.
-  const lines = peers.map((p) => {
-    const shortid = p.remote_epk.slice(0, 8);
-    const tag = _activePeers.has(p.remote_epk) ? " 🟢 online" : " ⚪ offline";
-    return `• ${shortid} — ${p.name}${tag}`;
+  const lines = peers.flatMap((record) => {
+    const inspected = _inspectPeerRecord(record);
+    if (!inspected) return [];
+    const tag = inspected.runtimeKey !== null && _activePeers.has(inspected.runtimeKey)
+      ? " 🟢 online"
+      : " ⚪ offline";
+    return `• ${inspected.rawHandle.slice(0, 8)} — ${inspected.record.name}${tag}`;
   }).join("\n");
   ctx.ui.notify(`[remote-pi] Paired devices:\n${lines}`, "info");
 }
@@ -2912,19 +3217,21 @@ async function _cmdRevoke(arg: string, ctx: Pick<ExtensionContext, "ui" | "cwd">
     return;
   }
 
-  const peers = await listPeers();
-  const matches = peers.filter((p) => p.remote_epk.startsWith(shortid));
+  const matches = (await listPeers())
+    .map(_inspectPeerRecord)
+    .filter((peer): peer is InspectedPeerRecord => peer !== null)
+    .filter((peer) => peer.rawHandle.startsWith(shortid));
 
   if (matches.length === 0) {
     ctx.ui.notify(
-      `[remote-pi] No peer matching '${shortid}'. Run /remote-pi list to see shortids.`,
+      "[remote-pi] No peer matching that shortid. Run /remote-pi devices to see shortids.",
       "warning",
     );
     return;
   }
 
   if (matches.length > 1) {
-    const collisions = matches.map((p) => p.remote_epk.slice(0, 8)).join(", ");
+    const collisions = matches.map((peer) => peer.rawHandle.slice(0, 8)).join(", ");
     ctx.ui.notify(
       `[remote-pi] Ambiguous shortid — ${matches.length} matches: ${collisions}. Use mais chars.`,
       "warning",
@@ -2933,22 +3240,20 @@ async function _cmdRevoke(arg: string, ctx: Pick<ExtensionContext, "ui" | "cwd">
   }
 
   const peer = matches[0]!;
-  await removePeer(peer.remote_epk);
+  await removePeer(peer.rawHandle);
   _refreshPairingsCache();
 
-  // Multi-channel (W2D): close just this owner's channel. Other connected
-  // owners keep their session — the relay stays `started`.
-  if (_activePeers.has(peer.remote_epk)) {
-    // Notify the revoked device explicitly before tearing the channel
-    // down — otherwise it would only know via ping miss.
-    const ch = _activePeers.get(peer.remote_epk);
-    try { ch?.send({ type: "bye", reason: "session_replaced" }); } catch { /* best-effort */ }
-    _detachPeerChannel(peer.remote_epk);
+  // Storage removal uses the exact saved representation; the active channel
+  // is indexed by its canonical identity.
+  if (peer.runtimeKey !== null && _activePeers.has(peer.runtimeKey)) {
+    const channel = _activePeers.get(peer.runtimeKey);
+    try { channel?.send({ type: "bye", reason: "session_replaced" }); } catch { /* best-effort */ }
+    _detachPeerChannel(peer.runtimeKey);
     _refreshFooter();
   }
 
   ctx.ui.notify(
-    `[remote-pi] Revoked: ${peer.name} (${peer.remote_epk.slice(0, 8)}…)`,
+    `[remote-pi] Revoked: ${peer.record.name} (${peer.rawHandle.slice(0, 8)}…)`,
     "info",
   );
 }
@@ -2957,11 +3262,19 @@ async function _shortidCompletions(
   prefix: string,
   valuePrefix = "",
 ): Promise<Array<{ value: string; label: string }>> {
-  const peers = await listPeers();
+  const peers = (await listPeers())
+    .map(_inspectPeerRecord)
+    .filter((peer): peer is InspectedPeerRecord => peer !== null);
   return peers
-    .map((p) => ({ shortid: p.remote_epk.slice(0, 8), name: p.name }))
-    .filter((x) => x.shortid.startsWith(prefix))
-    .map((x) => ({ value: `${valuePrefix}${x.shortid}`, label: `${x.shortid} (${x.name})` }));
+    .map((peer) => ({
+      shortid: peer.rawHandle.slice(0, 8),
+      name: peer.record.name,
+    }))
+    .filter((entry) => entry.shortid.startsWith(prefix))
+    .map((entry) => ({
+      value: `${valuePrefix}${entry.shortid}`,
+      label: `${entry.shortid} (${entry.name})`,
+    }));
 }
 
 function _cmdSetRelay(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
@@ -3737,6 +4050,7 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     ctx.ui.notify("[remote-pi] Already on the local mesh.", "warning");
     return;
   }
+  const joinGeneration = ++_meshJoinGeneration;
 
   ensureGlobalDirs();
   mkdirSync(join(skillsDir(), "..", "sessions", sessionName), { recursive: true });
@@ -3812,13 +4126,18 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     _refreshSessionPeerCount(peer, ctx);
   });
 
+  const isCurrentCandidate = (): boolean => (
+    !_disposed &&
+    joinGeneration === _meshJoinGeneration &&
+    _meshNode === null
+  );
+
   try {
     const assigned = await peer.connect();
-    // Race guard: a `session_shutdown` may have landed while `connect()` was
-    // in flight (the broker now has us registered, but this instance is being
-    // discarded). Leave immediately instead of publishing a ghost peer that
-    // the replacement instance would then collide with as `name#2`.
-    if (_disposed) {
+    // The candidate stays local until connect resolves. Shutdown, stop, or a
+    // newer join invalidates its generation; close it instead of publishing a
+    // ghost peer or allowing _cmdRoot to continue into Relay startup.
+    if (!isCurrentCandidate()) {
       try { await peer.close(); } catch { /* best-effort */ }
       return;
     }
@@ -3860,6 +4179,12 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     // again from `_cmdStart`).
     _attachBridgeIfReady();
   } catch (err) {
+    // A replacement/stop/newer join can invalidate this candidate before its
+    // failure arrives. Clean it up and never notify the outgoing session ctx.
+    if (!isCurrentCandidate()) {
+      try { await peer.close(); } catch { /* best-effort */ }
+      return;
+    }
     ctx.ui.notify(`[remote-pi] join failed: ${String(err)}`, "error");
   }
 }
@@ -4637,23 +4962,31 @@ export async function probeListPeers(
 if (_isDirectRun()) {
   const [, , subcmd, ...cliArgs] = process.argv;
   if (subcmd === "devices" || subcmd === "list") {
-    const peers = await listPeers();
+    const peers = (await listPeers())
+      .map(_inspectPeerRecord)
+      .filter((peer): peer is InspectedPeerRecord => peer !== null);
     if (peers.length === 0) { console.log("[remote-pi] No peers"); }
-    else { for (const p of peers) console.log(`• ${p.remote_epk.slice(0, 8)} — ${p.name}`); }
+    else {
+      for (const peer of peers) {
+        console.log(`• ${peer.rawHandle.slice(0, 8)} — ${peer.record.name}`);
+      }
+    }
   } else if (subcmd === "revoke") {
     const shortid = (cliArgs[0] ?? "").trim();
     if (!shortid) {
       console.log("Usage: revoke <shortid>");
     } else {
-      const peers = await listPeers();
-      const matches = peers.filter((p) => p.remote_epk.startsWith(shortid));
-      if (matches.length === 0) console.log(`No peer matching '${shortid}'`);
-      else if (matches.length > 1) console.log(`Ambiguous: ${matches.map((p) => p.remote_epk.slice(0, 8)).join(", ")}`);
+      const matches = (await listPeers())
+        .map(_inspectPeerRecord)
+        .filter((peer): peer is InspectedPeerRecord => peer !== null)
+        .filter((peer) => peer.rawHandle.startsWith(shortid));
+      if (matches.length === 0) console.log("No peer matching that shortid");
+      else if (matches.length > 1) console.log(`Ambiguous: ${matches.map((peer) => peer.rawHandle.slice(0, 8)).join(", ")}`);
       else {
         const peer = matches[0]!;
         const { removePeer } = await import("./pairing/storage.js");
-        await removePeer(peer.remote_epk);
-        console.log(`Revoked: ${peer.name} (${peer.remote_epk.slice(0, 8)}…)`);
+        await removePeer(peer.rawHandle);
+        console.log(`Revoked: ${peer.record.name} (${peer.rawHandle.slice(0, 8)}…)`);
       }
     }
   } else if (subcmd === "set-relay") {

@@ -67,6 +67,39 @@ void main() {
       expect(r.isFailure, isTrue);
     });
 
+    test('copy duplica o arquivo mantendo o original', () async {
+      final from = '${dir.path}/src.txt';
+      final to = '${dir.path}/copy.txt';
+      File(from).writeAsStringSync('conteudo');
+      final r = await mutator.copy(from, to);
+      expect(r.isSuccess, isTrue);
+      expect(File(from).readAsStringSync(), 'conteudo');
+      expect(File(to).readAsStringSync(), 'conteudo');
+    });
+
+    test('copy duplica pasta recursivamente', () async {
+      final from = '${dir.path}/tree';
+      final to = '${dir.path}/tree-copy';
+      Directory('$from/nested').createSync(recursive: true);
+      File('$from/a.txt').writeAsStringSync('a');
+      File('$from/nested/b.txt').writeAsStringSync('b');
+      final r = await mutator.copy(from, to);
+      expect(r.isSuccess, isTrue);
+      expect(Directory(from).existsSync(), isTrue); // original intacto
+      expect(File('$to/a.txt').readAsStringSync(), 'a');
+      expect(File('$to/nested/b.txt').readAsStringSync(), 'b');
+    });
+
+    test('copy falha se o destino já existir', () async {
+      final from = '${dir.path}/one.txt';
+      final to = '${dir.path}/two.txt';
+      File(from).writeAsStringSync('1');
+      File(to).writeAsStringSync('2');
+      final r = await mutator.copy(from, to);
+      expect(r.isFailure, isTrue);
+      expect(File(to).readAsStringSync(), '2'); // não sobrescreveu
+    });
+
     test(
       'moveToTrash em caminho inexistente é sucesso (idempotente)',
       () async {

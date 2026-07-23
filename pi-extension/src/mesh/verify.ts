@@ -1,5 +1,16 @@
 import { ed25519Verify } from "../pairing/crypto.js";
+import {
+  canonicalizeEd25519PublicKey,
+  decodeEd25519PublicKey,
+} from "./encoding.js";
 import type { MeshEnvelope, MeshHeader, MeshMember } from "./types.js";
+
+interface RawMeshMember {
+  readonly remoteEpk: string;
+  readonly relayUrl: string;
+  readonly pairedAt: string;
+  readonly nickname?: string;
+}
 
 /**
  * Verifies the Ed25519 signature on a mesh envelope and decodes the blob
@@ -20,8 +31,8 @@ export async function verifyEnvelope(env: MeshEnvelope): Promise<MeshHeader> {
   let parsed: unknown;
   try {
     parsed = JSON.parse(new TextDecoder().decode(env.blob));
-  } catch (e) {
-    throw new Error(`mesh: blob is not valid JSON: ${(e as Error).message}`);
+  } catch {
+    throw new Error("mesh: blob is not valid JSON");
   }
   if (!parsed || typeof parsed !== "object") {
     throw new Error("mesh: blob is not a JSON object");
@@ -41,37 +52,52 @@ export async function verifyEnvelope(env: MeshEnvelope): Promise<MeshHeader> {
     throw new Error("mesh: members missing or not an array");
   }
 
-  const ownerPk = Uint8Array.from(Buffer.from(o["owner_pk"] as string, "base64"));
-  if (ownerPk.length !== 32) {
-    throw new Error(`mesh: owner_pk wrong length (${ownerPk.length}, expected 32)`);
-  }
+  const rawMembers: RawMeshMember[] = (o["members"] as unknown[]).map(
+    (raw, index) => {
+      if (!raw || typeof raw !== "object") {
+        throw new Error(`mesh: members[${index}] is not an object`);
+      }
+      const member = raw as Record<string, unknown>;
+      if (typeof member["remote_epk"] !== "string") {
+        throw new Error(`mesh: members[${index}].remote_epk invalid`);
+      }
+      if (typeof member["relay_url"] !== "string") {
+        throw new Error(`mesh: members[${index}].relay_url invalid`);
+      }
+      if (typeof member["paired_at"] !== "string") {
+        throw new Error(`mesh: members[${index}].paired_at invalid`);
+      }
+      const nickname = member["nickname"];
+      if (
+        nickname !== undefined &&
+        nickname !== null &&
+        typeof nickname !== "string"
+      ) {
+        throw new Error(`mesh: members[${index}].nickname invalid`);
+      }
+      return {
+        remoteEpk: member["remote_epk"],
+        relayUrl: member["relay_url"],
+        pairedAt: member["paired_at"],
+        ...(typeof nickname === "string" ? { nickname } : {}),
+      };
+    },
+  );
 
+  const ownerPk = decodeEd25519PublicKey(o["owner_pk"], "owner_pk");
   if (!ed25519Verify(ownerPk, env.blob, env.sig)) {
     throw new Error("mesh: signature verification failed");
   }
 
-  const members: MeshMember[] = (o["members"] as unknown[]).map((raw, i) => {
-    if (!raw || typeof raw !== "object") {
-      throw new Error(`mesh: members[${i}] is not an object`);
-    }
-    const m = raw as Record<string, unknown>;
-    if (typeof m["remote_epk"] !== "string") {
-      throw new Error(`mesh: members[${i}].remote_epk invalid`);
-    }
-    if (typeof m["relay_url"] !== "string") {
-      throw new Error(`mesh: members[${i}].relay_url invalid`);
-    }
-    if (typeof m["paired_at"] !== "string") {
-      throw new Error(`mesh: members[${i}].paired_at invalid`);
-    }
-    const nickname = m["nickname"];
-    return {
-      remoteEpk: m["remote_epk"] as string,
-      relayUrl: m["relay_url"] as string,
-      pairedAt: m["paired_at"] as string,
-      ...(typeof nickname === "string" ? { nickname } : {}),
-    };
-  });
+  const members: MeshMember[] = rawMembers.map((member, index) => ({
+    remoteEpk: canonicalizeEd25519PublicKey(
+      member.remoteEpk,
+      `members[${index}].remote_epk`,
+    ),
+    relayUrl: member.relayUrl,
+    pairedAt: member.pairedAt,
+    ...(member.nickname !== undefined ? { nickname: member.nickname } : {}),
+  }));
 
   return {
     version: o["version"] as number,

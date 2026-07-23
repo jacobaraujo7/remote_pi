@@ -1,5 +1,18 @@
 # 37 — Desktop Cockpit: cliente visual do Pi via RPC
 
+> **✅ ENCERRADO (2026-07-19).** O plano cumpriu seu papel — o Cockpit existe,
+> roda em produção (1.13.0) e as Waves 1–4 estão entregues. **Mas a identidade
+> mudou no caminho**: o plano descrevia um cockpit *agent-centric* (grid de N
+> agentes `pi --mode rpc`); o produto virou um **multiplexador terminal-first**
+> (flag `enableAgent` default OFF, workspace de sistema terminal-only, e o
+> crescimento real foi em ambiente de trabalho: terminal/PTY, git, DB browsers,
+> tasks, LSP, CLI interna, realms). A Wave 2 foi implementada com escopo
+> diferente do previsto — árvore de `SplitPane`/`LeafPane` com tabs multiplexando
+> 7 tipos de conteúdo (agente, terminal, file viewer, diff, task output, Mongo,
+> Redis), não grid de agentes RPC. A parte agent-centric que sobrou órfã
+> (crash→restart por pane, seletor de modelo, `packages/pi_core`) migrou pra
+> seção "Próximos planos / evolução" — não é pendência deste plano.
+
 ## Contexto
 
 Hoje a tese do Remote Pi é "seus agentes no seu bolso" — o **mobile é o gateway
@@ -237,19 +250,19 @@ modificação do agente aparece após refresh; troca de pane troca a árvore.
 - [x] A/B/C — decisões confirmadas pelo usuário (2026-06-05; registradas acima)
 - [x] Scaffold — `cockpit/` criado (Flutter, pkg `cockpit`) + camadas espelhadas
       do `app/` com `CLAUDE.md` por camada; `scout-cockpit` + pane registrados
-- [~] 1 — `cockpit/` roda no macOS; `PiRpcProcess` em `data/rpc/`; single-pane com
-      streaming. **Código done + `analyze`/`test`/`build macos` verdes**; falta só
-      **aceite visual do usuário** (`flutter run -d macos`, clicar e ver o stream —
-      não automatizável headless). Dedup "mesma pasta 2x" movido pra Wave 2 (só
-      importa com panes; gateway já recusa 2º spawn na sessão viva)
-- [ ] 2 — ⏸️ Multiplexador N panes + sidebar de projetos; crash→restart por pane;
-      seletor de modelo (**em espera — revisar antes de iniciar**)
-- [ ] 3 — Árvore read-only + viewer + destaque de arquivos tocados pelo agente
-- [ ] 4 — Persistência de projetos/panes + atalhos de teclado + menu nativo
-- [ ] 5 — (futuro) `packages/pi_core` extraído; `app/` migrado pra depender dele
-      sem regressão (`flutter test` do app verde)
-- [ ] 6 — `00-decisions.md:133` atualizado: "desktop = Flutter, decidido (plano
-      37)", sem apagar a linha original (risca + nota, conforme regra do arquivo)
+- [x] 1 — `cockpit/` roda no macOS; `PiRpcProcess` em `data/rpc/`; single-pane com
+      streaming. Aceite visual cumprido pelo uso diário em produção
+- [x] 2 — Multiplexador entregue **com escopo diferente do planejado** (ver banner
+      de encerramento): árvore `SplitPane`/`LeafPane` + tabs multiplexando 7 tipos
+      de conteúdo, sidebar de projetos (rail + realms). Crash→restart por pane e
+      seletor de modelo por agente **não entraram** — migrados pra "Próximos"
+- [x] 3 — Árvore de arquivos + viewer entregues (e além: diff viewer, media view,
+      file finder, content search)
+- [x] 4 — Persistência (Hive, projetos/panes/layout), atalhos de teclado e menu
+      nativo (`PlatformMenuBar` + Menubar Win/Linux) entregues
+- [→] 5 — `packages/pi_core` compartilhado com `app/` — **movido pra "Próximos"**
+      (só faz sentido se/quando o modo agente RPC voltar ao centro)
+- [x] 6 — `00-decisions.md` atualizado (2026-07-19): desktop = Flutter, decidido
 
 ## Achados do spike (2026-06-05) — atenção pra Waves seguintes
 
@@ -299,6 +312,10 @@ contexto pras próximas waves:
 
 ## Próximos planos / evolução
 
+- **Restos agent-centric da Wave 2** (órfãos do encerramento, 2026-07-19):
+  crash→restart por pane de agente, seletor de modelo por agente, e
+  `packages/pi_core` (DoD 5). Reabrir só se o modo agente RPC (`enableAgent`)
+  voltar ao centro do produto.
 - **Reachability remota** — spawnar `pi --mode rpc -e <remote-pi dist>`: o agente
   do cockpit também entra no relay e fica alcançável do celular **de graça**
   (stdout pro cockpit, socket de relay pra mobile — canais distintos no mesmo

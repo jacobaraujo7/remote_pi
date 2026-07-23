@@ -9,7 +9,7 @@ import 'package:cockpit/app/core/utils/login_shell.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
-import 'package:kyroon_pty/kyroon_pty.dart';
+import 'package:cockpit_pty/cockpit_pty.dart';
 
 /// Executor de tasks num PTY nativo (`kyroon_pty`). Roda cada task via **login
 /// shell** (o shell de login do usuário + `-ilc "<cmd>"`, ver [resolveLoginShell])
@@ -19,6 +19,7 @@ import 'package:kyroon_pty/kyroon_pty.dart';
 class PtyTaskRunner implements TaskRunnerGateway {
   final _runs = StreamController<TaskRun>.broadcast();
   final _running = <String, _RunningTask>{};
+  final _starting = <String>{};
   final _lastState = <String, TaskRun>{};
   final _watchers = <String, StreamSubscription<FileSystemEvent>>{};
   final _watchDebounce = <String, Timer>{};
@@ -41,29 +42,56 @@ class PtyTaskRunner implements TaskRunnerGateway {
     List<String> adHocArgs = const [],
   }) async {
     if (_running.containsKey(def.id)) return; // idempotente
+    if (!_starting.add(def.id)) return; // spawn já em preparação
 
-    final profile = profileName == null
-        ? null
-        : def.profiles.firstWhere((p) => p.name == profileName);
-    final argv = [...def.resolveArgs(profile), ...adHocArgs];
-    final cmdLine = _join([def.command, ...argv]);
-
-    final env = {
-      ...await envWithNodeOnPath(),
-      if (profile != null) ...profile.env,
-      'TERM': 'xterm-256color',
-      'COLORTERM': 'truecolor',
-    };
-
-    final spawn = await _spawnFor(cmdLine);
-    final pty = Pty.start(
-      spawn.exe,
-      arguments: spawn.args,
-      workingDirectory: def.cwd.isEmpty ? null : def.cwd,
-      environment: env,
-      rows: 24,
-      columns: 80,
+    // Feedback imediato: o botão troca antes dos awaits de resolução
+    // (login shell / which node), que podem levar segundos.
+    _emit(
+      _lastState[def.id] = TaskRun(
+        taskId: def.id,
+        status: TaskRunStatus.starting,
+        profileName: profileName,
+      ),
     );
+
+    final Pty pty;
+    try {
+      final profile = profileName == null
+          ? null
+          : def.profiles.firstWhere((p) => p.name == profileName);
+      final argv = [...def.resolveArgs(profile), ...adHocArgs];
+      final cmdLine = _join([def.command, ...argv]);
+
+      final env = {
+        ...await envWithNodeOnPath(),
+        if (profile != null) ...profile.env,
+        // TERM fora do Windows: no PowerShell nativo o TERM quebra o auto-load
+        // do PSReadLine e o ConPTY já entrega o VT (ver pty_terminal_gateway).
+        if (!Platform.isWindows) 'TERM': 'xterm-256color',
+        'COLORTERM': 'truecolor',
+      };
+
+      final spawn = await _spawnFor(cmdLine);
+      pty = Pty.start(
+        spawn.exe,
+        arguments: spawn.args,
+        workingDirectory: def.cwd.isEmpty ? null : def.cwd,
+        environment: env,
+        rows: 24,
+        columns: 80,
+      );
+    } catch (_) {
+      _starting.remove(def.id);
+      _emit(
+        _lastState[def.id] = TaskRun(
+          taskId: def.id,
+          status: TaskRunStatus.failed,
+          profileName: profileName,
+        ),
+      );
+      rethrow;
+    }
+    _starting.remove(def.id);
     unawaited(PiProcessRegistry.register(pty.pid));
 
     final initial = TaskRun(
@@ -89,7 +117,11 @@ class PtyTaskRunner implements TaskRunnerGateway {
   Future<void> stop(String taskId) async {
     final task = _running[taskId];
     if (task == null) return;
+    if (task.stopping) return; // já em curso — não empilha kills
     task.stopping = true;
+    // Feedback imediato: o botão vira "stopping" antes do processo morrer
+    // (o stopped real chega no _onExit).
+    _transition(task, TaskRunStatus.stopping);
     try {
       task.pty.kill(ProcessSignal.sigterm);
     } catch (_) {}
@@ -264,6 +296,8 @@ class PtyTaskRunner implements TaskRunnerGateway {
   }
 
   void _transition(_RunningTask task, TaskRunStatus status) {
+    // Output tardio (progressPatterns) não pode reverter um stop em curso.
+    if (task.stopping && status != TaskRunStatus.stopping) return;
     if (task.state.status == status) return;
     task.state = task.state.copyWith(status: status);
     _emit(task.state);

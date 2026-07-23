@@ -17,13 +17,26 @@ pub struct MeshEnvelope {
     pub sig: Vec<u8>,
 }
 
-/// Header extracted from `blob` JSON. Members and other fields exist in the
-/// blob but are NOT inspected by the relay — only `version` and `owner_pk`
-/// are needed for verification + storage.
+/// Full member boundary extracted from a signed Owner blob. Fields beyond
+/// `remote_epk` are deserialized even though routing does not consume them so
+/// one malformed member invalidates the whole contribution.
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
-pub struct MeshHeader {
-    pub version: u64,
-    pub owner_pk: String, // base64 STANDARD
+pub(crate) struct MeshMemberHeader {
+    pub(crate) remote_epk: String,
+    pub(crate) relay_url: String,
+    pub(crate) paired_at: String,
+    pub(crate) nickname: Option<String>,
+}
+
+/// Required header extracted from the untouched signed `blob` JSON.
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub(crate) struct MeshHeader {
+    pub(crate) version: u64,
+    pub(crate) owner_pk: String,
+    pub(crate) issued_at: u64,
+    pub(crate) members: Vec<MeshMemberHeader>,
 }
 
 /// Stored row returned by `MeshStore::get`.

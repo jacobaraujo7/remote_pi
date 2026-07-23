@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { setTimeout as wait } from "node:timers/promises";
 import { tmpdir } from "node:os";
@@ -6,12 +7,13 @@ import { basename, join } from "node:path";
 import { createConnection } from "node:net";
 import { ipcAddress } from "./ipc.js";
 import { SessionPeer } from "./peer.js";
-import type { Envelope } from "./envelope.js";
+import { envelope, type Envelope } from "./envelope.js";
+import { BrokerRemote } from "./broker_remote.js";
 import { probeListPeers } from "../index.js";
-import { composeAddress, sanitizeMeshName, type PeerInfo } from "./broker.js";
+import { composeAddress, sanitizeMeshName, type PeerInfo, type RemoteRouter } from "./broker.js";
 import { migrateAgentName } from "./local_config.js";
 
-function tmpSock(): string {
+function uniqueSock(): string {
   // Per-test unique IPC address. POSIX → a `.sock` file in a fresh tmpdir;
   // Windows → a named pipe whose name embeds the unique tmpdir basename
   // (pipes are machine-global, so the suffix must be unique — plan/40).
@@ -19,10 +21,81 @@ function tmpSock(): string {
   return ipcAddress(`e2e-${basename(dir)}`, join(dir, "broker.sock"));
 }
 
+const tmpSock = uniqueSock;
+
 async function makePeer(sockPath: string, name: string, auditPath?: string): Promise<SessionPeer> {
   const peer = new SessionPeer({ sockPath, name, auditPath, defaultTimeoutMs: 3000 });
   await peer.start();
   return peer;
+}
+
+class FakePiForward extends EventEmitter {
+  readonly sent: { toPc: string; env: Envelope }[] = [];
+  private readonly queued: { toPc: string; env: Envelope }[] = [];
+  private readonly waiters: Array<(
+    sent: { toPc: string; env: Envelope },
+  ) => void> = [];
+
+  sendEnvelopeToPi(toPc: string, env: Envelope): void {
+    const sent = { toPc, env };
+    this.sent.push(sent);
+    const waiter = this.waiters.shift();
+    if (waiter) waiter(sent);
+    else this.queued.push(sent);
+  }
+
+  nextOutbound(): Promise<{ toPc: string; env: Envelope }> {
+    const sent = this.queued.shift();
+    return sent
+      ? Promise.resolve(sent)
+      : new Promise((resolve) => this.waiters.push(resolve));
+  }
+
+  clearOutbound(): void {
+    if (this.waiters.length > 0) {
+      throw new Error("cannot clear FakePiForward with pending waiters");
+    }
+    this.sent.length = 0;
+    this.queued.length = 0;
+  }
+}
+
+function capturingRemoteRouter(): {
+  router: RemoteRouter;
+  nextOutbound: () => Promise<Envelope>;
+} {
+  const queued: Envelope[] = [];
+  const waiters: Array<(env: Envelope) => void> = [];
+  return {
+    router: {
+      tryRouteOutbound: (env) => {
+        const waiter = waiters.shift();
+        if (waiter) waiter(env);
+        else queued.push(env);
+        return true;
+      },
+      listRemotePeers: () => [],
+      listRemotePeerInfos: () => [],
+    },
+    nextOutbound: () => {
+      const env = queued.shift();
+      return env ? Promise.resolve(env) : new Promise((resolve) => waiters.push(resolve));
+    },
+  };
+}
+
+async function flushUds(): Promise<void> {
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+function observe<T>(promise: Promise<T>): Promise<
+  { status: "resolved"; value: T } | { status: "rejected"; reason: unknown }
+> {
+  return promise.then(
+    (value) => ({ status: "resolved" as const, value }),
+    (reason: unknown) => ({ status: "rejected" as const, reason }),
+  );
 }
 
 describe("agent-network e2e", () => {
@@ -264,45 +337,662 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
     await orq.leave(); await backend.leave();
   });
 
+  test("sendWithAck to a local POSIX cwd containing a colon accepts the local broker ACK", async () => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const local = new SessionPeer({
+      sockPath: sock,
+      name: "agent",
+      cwd: "/tmp/a:b",
+      defaultTimeoutMs: 3000,
+    });
+    await local.start();
+
+    const ack = await orq.sendWithAck(local.address(), { task: "ping" });
+
+    expect(local.address()).toBe("/tmp/a:b@agent");
+    expect(ack).toMatchObject({ status: "received", target: local.address() });
+
+    await orq.leave();
+    await local.leave();
+  });
+
   test("sendWithAck resolves on cross-PC ACK (from=<pc>:broker)", async () => {
     const sock = tmpSock();
     const orq = await makePeer(sock, "orq");
     const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    broker.setRemoteRouter(capture.router);
 
-    // Kick off a sendWithAck that points to an unknown local target — without
-    // a sibling router the broker would silently drop. We want the ACK to
-    // come from a fake cross-PC broker, simulating broker_remote on Pi-B
-    // sending an ACK back via the relay → broker_remote on Pi-A → the local
-    // UDS broker (injectFromRemote injects the ACK envelope into the sender's
-    // socket).
-    const pendingAck = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1500);
-    // Give the outbound write time to register in ackPending before injecting.
-    await new Promise((r) => setTimeout(r, 30));
+    try {
+      const pendingAck = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1500);
+      const outbound = await capture.nextOutbound();
+      const crossPcAck: Envelope = {
+        from: "trab:broker",
+        to: orq.address(),
+        id: "01976000-0000-7000-8000-aaaaaaaaaaab",
+        re: outbound.id,
+        body: { type: "ack", status: "received", target: "agent-1" },
+      };
+      expect(broker.injectFromRemote(crossPcAck)).toBe("received");
 
-    // Locate the original send's id by inspecting ackPending — but it's
-    // private. Instead, capture the outbound envelope id by sniffing the
-    // last write on orq's socket. Simpler approach: peek via a wrapper.
-    // We just attach a no-op onMessage to ensure the envelope is delivered
-    // and assume the most recent uuid in ackPending is ours. Cleaner: use
-    // sendWithAck's return type's `id` after resolution. Since we need
-    // the id BEFORE resolution, take the path of injecting via broker:
-    const ackPendingMap = (orq as unknown as { ackPending: Map<string, unknown> }).ackPending;
-    const outboundId = [...ackPendingMap.keys()][0]!;
+      await expect(pendingAck).resolves.toMatchObject({
+        status: "received",
+        id: outbound.id,
+        target: "agent-1",
+      });
+    } finally {
+      broker.setRemoteRouter(null);
+      await orq.leave();
+    }
+  });
 
-    const crossPcAck: Envelope = {
-      from: "casa:broker",
-      to: "orq",
-      id: "01976000-0000-7000-8000-aaaaaaaaaaab",
-      re: outboundId,
-      body: { type: "ack", status: "received", target: "agent-1" },
-    };
-    expect(broker.injectFromRemote(crossPcAck)).toBe("received");
+  test("wrong remote ACK alias with the correct correlation id times out", async () => {
+    const sock = tmpSock();
+    const peer = await makePeer(sock, "orq");
+    const broker = peer.localBroker()!;
+    const capture = capturingRemoteRouter();
+    broker.setRemoteRouter(capture.router);
 
-    const result = await pendingAck;
-    expect(result.status).toBe("received");
-    expect(result.target).toBe("agent-1");
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const pending = peer.sendWithAck("trab:agent-1", { task: "ping" }, null, 1_000);
+      const outbound = await capture.nextOutbound();
+      expect(broker.injectFromRemote(envelope(
+        "casa:broker",
+        peer.address(),
+        { type: "ack", status: "received", target: "agent-1" },
+        outbound.id,
+      ))).toBe("received");
+      await flushUds();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(pending).resolves.toEqual({ status: "timeout", id: outbound.id });
+    } finally {
+      broker.setRemoteRouter(null);
+      await peer.leave();
+      vi.useRealTimers();
+    }
+  });
 
-    await orq.leave();
+  describe("ACK wire guard", () => {
+    const invalidExactAckBodies: ReadonlyArray<{
+      caseName: string;
+      body: Record<string, unknown>;
+    }> = [
+      {
+        caseName: "unsupported string status",
+        body: { type: "ack", status: "future_status", target: "agent-1" },
+      },
+      {
+        caseName: "non-string status",
+        body: { type: "ack", status: 42, target: "agent-1" },
+      },
+      {
+        caseName: "missing status",
+        body: { type: "ack", target: "agent-1" },
+      },
+      {
+        caseName: "missing target",
+        body: { type: "ack", status: "received" },
+      },
+      {
+        caseName: "non-string target",
+        body: { type: "ack", status: "received", target: 42 },
+      },
+    ];
+
+    test.each(invalidExactAckBodies)(
+      "sendWithAck ignores invalid exact prefixed-broker ACK: $caseName",
+      async ({ body }) => {
+        const sock = tmpSock();
+        const peer = await makePeer(sock, "orq");
+        const broker = peer.localBroker()!;
+        const capture = capturingRemoteRouter();
+        const handler = vi.fn();
+        peer.onMessage(handler);
+        broker.setRemoteRouter(capture.router);
+
+        try {
+          vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+          let settled = false;
+          const outcome = observe(
+            peer.sendWithAck("trab:agent-1", { task: "ack-guard" }, null, 1_000),
+          ).then((result) => {
+            settled = true;
+            return result;
+          });
+          const outbound = await capture.nextOutbound();
+
+          expect(broker.injectFromRemote(envelope(
+            "casa:broker",
+            peer.address(),
+            body,
+            outbound.id,
+          ))).toBe("received");
+          await flushUds();
+
+          expect(settled).toBe(false);
+          expect(handler).not.toHaveBeenCalled();
+          expect(vi.getTimerCount()).toBe(1);
+
+          await vi.advanceTimersByTimeAsync(1_000);
+          await expect(outcome).resolves.toEqual({
+            status: "resolved",
+            value: { status: "timeout", id: outbound.id },
+          });
+          expect(vi.getTimerCount()).toBe(0);
+        } finally {
+          broker.setRemoteRouter(null);
+          await peer.leave();
+          vi.useRealTimers();
+        }
+      },
+    );
+
+    test.each(invalidExactAckBodies)(
+      "request ignores invalid exact prefixed-broker ACK: $caseName",
+      async ({ body }) => {
+        const sock = tmpSock();
+        const peer = await makePeer(sock, "orq");
+        const broker = peer.localBroker()!;
+        const capture = capturingRemoteRouter();
+        const handler = vi.fn();
+        peer.onMessage(handler);
+        broker.setRemoteRouter(capture.router);
+
+        try {
+          vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+          let settled = false;
+          const outcome = observe(
+            peer.request("trab:agent-1", { task: "ack-guard" }, 1_000),
+          ).then((result) => {
+            settled = true;
+            return result;
+          });
+          const outbound = await capture.nextOutbound();
+
+          expect(broker.injectFromRemote(envelope(
+            "casa:broker",
+            peer.address(),
+            body,
+            outbound.id,
+          ))).toBe("received");
+          await flushUds();
+
+          expect(settled).toBe(false);
+          expect(handler).not.toHaveBeenCalled();
+          expect(vi.getTimerCount()).toBe(1);
+
+          await vi.advanceTimersByTimeAsync(1_000);
+          const result = await outcome;
+          expect(result.status).toBe("rejected");
+          if (result.status === "rejected") {
+            expect(result.reason).toMatchObject({
+              name: "Error",
+              message: "request to trab:agent-1 timed out after 1000ms",
+            });
+          }
+          expect(vi.getTimerCount()).toBe(0);
+        } finally {
+          broker.setRemoteRouter(null);
+          await peer.leave();
+          vi.useRealTimers();
+        }
+      },
+    );
+
+    test.each(["busy", "denied"] as const)(
+      "valid exact prefixed-broker ACK preserves %s status and target",
+      async (status) => {
+        const sock = tmpSock();
+        const peer = await makePeer(sock, "orq");
+        const broker = peer.localBroker()!;
+        const capture = capturingRemoteRouter();
+        broker.setRemoteRouter(capture.router);
+
+        try {
+          vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+          let result: Awaited<ReturnType<SessionPeer["sendWithAck"]>> | undefined;
+          const pending = peer.sendWithAck(
+            "trab:agent-1",
+            { task: "ack-compatibility" },
+            null,
+            1_000,
+          ).then((value) => {
+            result = value;
+            return value;
+          });
+          const outbound = await capture.nextOutbound();
+          const target = "agent-1";
+
+          expect(broker.injectFromRemote(envelope(
+            "trab:broker",
+            peer.address(),
+            { type: "ack", status, target },
+            outbound.id,
+          ))).toBe("received");
+          await flushUds();
+
+          const expected = { status, id: outbound.id, target };
+          expect(result).toEqual(expected);
+          await expect(pending).resolves.toEqual(expected);
+          expect(vi.getTimerCount()).toBe(0);
+        } finally {
+          broker.setRemoteRouter(null);
+          await peer.leave();
+          vi.useRealTimers();
+        }
+      },
+    );
+  });
+
+  test("trusted offline transport error immediately resolves sendWithAck with reason", async () => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    broker.setRemoteRouter(capture.router);
+
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let result: Awaited<ReturnType<SessionPeer["sendWithAck"]>> | undefined;
+      const pending = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1000)
+        .then((value) => { result = value; return value; });
+      const outbound = await capture.nextOutbound();
+
+      expect(broker.injectFromRemote({
+        from: "broker",
+        to: orq.address(),
+        id: "01976000-0000-7000-8000-000000000101",
+        re: outbound.id,
+        body: { type: "transport_error", reason: "offline" },
+      })).toBe("received");
+      await flushUds();
+
+      const expected = {
+        status: "timeout",
+        id: outbound.id,
+        error: "transport_error: offline",
+        reason: "offline",
+      };
+      expect(result).toEqual(expected);
+      await expect(pending).resolves.toEqual(expected);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      broker.setRemoteRouter(null);
+      await orq.leave();
+      vi.useRealTimers();
+    }
+  });
+
+
+
+  test.each(["not_authorized", "bad_envelope"] as const)(
+    "trusted %s transport error immediately resolves sendWithAck as denied",
+    async (reason) => {
+      const sock = tmpSock();
+      const orq = await makePeer(sock, "orq");
+      const broker = orq.localBroker()!;
+      const capture = capturingRemoteRouter();
+      broker.setRemoteRouter(capture.router);
+
+      try {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        let result: Awaited<ReturnType<SessionPeer["sendWithAck"]>> | undefined;
+        const pending = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1000)
+          .then((value) => { result = value; return value; });
+        const outbound = await capture.nextOutbound();
+
+        expect(broker.injectFromRemote({
+          from: "broker",
+          to: orq.address(),
+          id: reason === "not_authorized"
+            ? "01976000-0000-7000-8000-000000000102"
+            : "01976000-0000-7000-8000-000000000103",
+          re: outbound.id,
+          body: { type: "transport_error", reason },
+        })).toBe("received");
+        await flushUds();
+
+        const expected = {
+          status: "denied",
+          id: outbound.id,
+          error: `transport_error: ${reason}`,
+          reason,
+        };
+        expect(result).toEqual(expected);
+        await expect(pending).resolves.toEqual(expected);
+        expect(vi.getTimerCount()).toBe(0);
+      } finally {
+        broker.setRemoteRouter(null);
+        await orq.leave();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+
+  test("trusted broker transport error immediately rejects request once with MeshTransportError", async () => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    broker.setRemoteRouter(capture.router);
+
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let settlements = 0;
+      const pending = observe(orq.request("trab:agent-1", { task: "ping" }, 1000))
+        .then((outcome) => { settlements += 1; return outcome; });
+      const outbound = await capture.nextOutbound();
+      const transportError: Envelope = {
+        from: "broker",
+        to: orq.address(),
+        id: "01976000-0000-7000-8000-000000000104",
+        re: outbound.id,
+        body: { type: "transport_error", reason: "offline" },
+      };
+
+      expect(broker.injectFromRemote(transportError)).toBe("received");
+      expect(broker.injectFromRemote(transportError)).toBe("received");
+      await flushUds();
+
+      const outcome = await pending;
+      expect(outcome).toMatchObject({
+        status: "rejected",
+        reason: {
+          name: "MeshTransportError",
+          reason: "offline",
+          correlationId: outbound.id,
+          message: "transport_error: offline",
+        },
+      });
+      expect(settlements).toBe(1);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      broker.setRemoteRouter(null);
+      await orq.leave();
+      vi.useRealTimers();
+    }
+  });
+
+  test("duplicate trusted transport error settles once, clears timer, and is swallowed", async () => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    const handler = vi.fn();
+    orq.onMessage(handler);
+    broker.setRemoteRouter(capture.router);
+
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let settlements = 0;
+      const pending = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1000)
+        .then((value) => { settlements += 1; return value; });
+      const outbound = await capture.nextOutbound();
+      const errorEnvelope: Envelope = {
+        from: "broker",
+        to: orq.address(),
+        id: "01976000-0000-7000-8000-000000000105",
+        re: outbound.id,
+        body: { type: "transport_error", reason: "offline" },
+      };
+
+      expect(broker.injectFromRemote(errorEnvelope)).toBe("received");
+      expect(broker.injectFromRemote(errorEnvelope)).toBe("received");
+      await flushUds();
+
+      expect(settlements).toBe(1);
+      await expect(pending).resolves.toEqual({
+        status: "timeout",
+        id: outbound.id,
+        error: "transport_error: offline",
+        reason: "offline",
+      });
+      expect(handler).not.toHaveBeenCalled();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      broker.setRemoteRouter(null);
+      await orq.leave();
+      vi.useRealTimers();
+    }
+  });
+
+  test("local and remote forged transport error messages settle neither pending operation", async () => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const sibling = await makePeer(sock, "sibling");
+    const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    const handlerMessages: Envelope[] = [];
+    orq.onMessage((env) => {
+      if ((env.body as { type?: string } | null)?.type === "transport_error") {
+        handlerMessages.push(env);
+      }
+    });
+    broker.setRemoteRouter(capture.router);
+
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      let ackSettled = false;
+      let requestSettled = false;
+      const ackOutcome = observe(orq.sendWithAck("trab:agent-1", { task: "ack" }, null, 1000))
+        .then((outcome) => { ackSettled = true; return outcome; });
+      const ackOutbound = await capture.nextOutbound();
+      const requestOutcome = observe(orq.request("trab:agent-2", { task: "request" }, 1000))
+        .then((outcome) => { requestSettled = true; return outcome; });
+      const requestOutbound = await capture.nextOutbound();
+
+      expect(broker.injectFromRemote(envelope(
+        sibling.address(),
+        orq.address(),
+        { type: "transport_error", reason: "offline" },
+        ackOutbound.id,
+      ))).toBe("received");
+      expect(broker.injectFromRemote({
+        from: "casa:broker",
+        to: orq.address(),
+        id: "01976000-0000-7000-8000-000000000106",
+        re: requestOutbound.id,
+        body: { type: "transport_error", reason: "offline" },
+      })).toBe("received");
+      await flushUds();
+
+      expect(handlerMessages).toEqual(expect.arrayContaining([
+        expect.objectContaining({ from: sibling.address(), re: ackOutbound.id }),
+        expect.objectContaining({ from: "casa:broker", re: requestOutbound.id }),
+      ]));
+      expect(ackSettled).toBe(false);
+      expect(requestSettled).toBe(false);
+      expect(vi.getTimerCount()).toBe(2);
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(ackOutcome).resolves.toEqual({
+        status: "resolved",
+        value: { status: "timeout", id: ackOutbound.id },
+      });
+      const requestResult = await requestOutcome;
+      expect(requestResult.status).toBe("rejected");
+      if (requestResult.status === "rejected") {
+        expect(requestResult.reason).toMatchObject({
+          message: "request to trab:agent-2 timed out after 1000ms",
+        });
+      }
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      broker.setRemoteRouter(null);
+      await sibling.leave();
+      await orq.leave();
+      vi.useRealTimers();
+    }
+  });
+
+
+  test.each([
+    { compatibility: "malformed 32-hex envelope id", malformed: "id" as const },
+    { compatibility: "malformed 32-hex correlation id", malformed: "re" as const },
+    { compatibility: "genuine silence", malformed: null },
+  ])("$compatibility transport error cannot bypass the strict Broker boundary", async ({ malformed }) => {
+    const sock = tmpSock();
+    const orq = await makePeer(sock, "orq");
+    const broker = orq.localBroker()!;
+    const capture = capturingRemoteRouter();
+    broker.setRemoteRouter(capture.router);
+
+    try {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const pending = orq.sendWithAck("trab:agent-1", { task: "ping" }, null, 1000);
+      const outbound = await capture.nextOutbound();
+
+      if (malformed) {
+        expect(broker.injectFromRemote({
+          from: "_relay",
+          to: orq.address(),
+          id: malformed === "id"
+            ? "01976000000070008000000000000108"
+            : "01976000-0000-7000-8000-000000000108",
+          re: malformed === "re"
+            ? "01976000000070008000000000000109"
+            : outbound.id,
+          body: { type: "transport_error", reason: "offline" },
+        })).toBe("denied");
+        await flushUds();
+      }
+
+      await vi.advanceTimersByTimeAsync(1000);
+      await expect(pending).resolves.toEqual({ status: "timeout", id: outbound.id });
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      broker.setRemoteRouter(null);
+      await orq.leave();
+      vi.useRealTimers();
+    }
+  });
+
+  test("Relay offline errors cross BrokerRemote and real UDS with trusted legacy id normalization", async () => {
+    const sock = uniqueSock();
+    const peer = await makePeer(sock, "orq");
+    const broker = peer.localBroker()!;
+    const fakePi = new FakePiForward();
+    const selfKey = Buffer.alloc(32, 17).toString("base64");
+    const siblingKey = Buffer.alloc(32, 93).toString("base64");
+    let bridge: BrokerRemote | undefined;
+
+    try {
+      bridge = new BrokerRemote({
+        broker,
+        pi: fakePi as never,
+        topology: {
+          self: { pcLabel: "Mac", pcPubkey: selfKey, legacyPcLabel: "Mac" },
+          siblings: [{ pcLabel: "RTX4090", pcPubkey: siblingKey, legacyPcLabel: "RTX4090" }],
+        },
+        reannounceIntervalMs: 0,
+        log: () => undefined,
+      });
+      fakePi.emit(
+        "envelope",
+        envelope(
+          "old-rtx:_broker_remote",
+          "old-mac:_broker_remote",
+          {
+            type: "peers_update",
+            peers: ["remote-agent"],
+            peers_detailed: [
+              { cwd: "", name: "remote-agent", address: "remote-agent" },
+            ],
+          },
+        ),
+        siblingKey,
+      );
+      expect(bridge.getRemotePeers("RTX4090")).toEqual(["remote-agent"]);
+      fakePi.clearOutbound();
+
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+      type Ack = Awaited<ReturnType<SessionPeer["sendWithAck"]>>;
+      async function startSend(caseName: string): Promise<{
+        outbound: { toPc: string; env: Envelope };
+        pending: Promise<Ack>;
+        result: () => Ack | undefined;
+      }> {
+        let result: Ack | undefined;
+        const pending = peer.sendWithAck(
+          "RTX4090:remote-agent",
+          { case: caseName },
+          null,
+          1_000,
+        ).then((value) => {
+          result = value;
+          return value;
+        });
+        const outbound = await fakePi.nextOutbound();
+        expect(outbound.toPc).toBe(siblingKey);
+        expect(outbound.env.to).toBe("RTX4090:remote-agent");
+        return { outbound, pending, result: () => result };
+      }
+
+      const valid = await startSend("valid offline");
+      // Relay-first rollout: the Extension accepts the established Relay UUID
+      // form and injects it through the normal strict broker boundary.
+      fakePi.emit("envelope", {
+        from: "_relay",
+        to: `old-mac:${peer.address()}`,
+        id: "01976000-0000-7000-8000-000000000201",
+        re: valid.outbound.env.id,
+        body: { type: "transport_error", reason: "offline" },
+      } satisfies Envelope, "_relay");
+      await flushUds();
+      const expectedOffline = {
+        status: "timeout" as const,
+        id: valid.outbound.env.id,
+        error: "transport_error: offline" as const,
+        reason: "offline" as const,
+      };
+      expect(valid.result()).toEqual(expectedOffline);
+      await expect(valid.pending).resolves.toEqual(expectedOffline);
+
+      const malformed = await startSend("old malformed frame");
+      fakePi.emit("envelope", {
+        from: "_relay",
+        to: `Mac:${peer.address()}`,
+        id: "01976000000070008000000000000202",
+        re: malformed.outbound.env.id,
+        body: { type: "transport_error", reason: "offline" },
+      } satisfies Envelope, "_relay");
+      await flushUds();
+      expect(malformed.result()).toEqual({
+        status: "timeout",
+        id: malformed.outbound.env.id,
+        error: "transport_error: offline",
+        reason: "offline",
+      });
+      await expect(malformed.pending).resolves.toEqual({
+        status: "timeout",
+        id: malformed.outbound.env.id,
+        error: "transport_error: offline",
+        reason: "offline",
+      });
+
+      const silent = await startSend("genuine silence");
+      await flushUds();
+      expect(silent.result()).toBeUndefined();
+      await vi.advanceTimersByTimeAsync(1_000);
+      await expect(silent.pending).resolves.toEqual({
+        status: "timeout",
+        id: silent.outbound.env.id,
+      });
+
+      expect(fakePi.sent).toHaveLength(3);
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      bridge?.detach();
+      try {
+        await peer.leave();
+      } finally {
+        vi.useRealTimers();
+      }
+    }
   });
 
   test("plan/34: injectFromRemote delivers new work and replies alike (no busy)", async () => {
@@ -343,6 +1033,21 @@ describe("ACK protocol (plan/25 Wave 0)", () => {
     expect(backendInbox.length).toBe(2);
 
     await orq.leave(); await backend.leave();
+  });
+
+  test("injectFromRemote rejects malformed envelopes before claiming received", async () => {
+    const sock = tmpSock();
+    const peer = await makePeer(sock, "orq");
+    const broker = peer.localBroker()!;
+    const malformed = {
+      from: "casa:sender",
+      to: peer.address(),
+      id: "not-a-uuid",
+      re: null,
+      body: { task: "must not arrive" },
+    } as unknown as Envelope;
+    expect(broker.injectFromRemote(malformed)).toBe("denied");
+    await peer.leave();
   });
 
   test("injectFromRemote: unknown local peer → denied", async () => {
@@ -624,12 +1329,83 @@ describe("plan/38 — (cwd, name) mesh addressing (e2e)", () => {
     return peer;
   }
 
-  test("register with cwd → clean name() + address() = <cwd>@<name>", async () => {
+  test("register accepts absolute POSIX, Windows drive, and UNC cwd values", async () => {
     const sock = tmpSock();
-    const p = await makePeerCwd(sock, "backend", "/a/backend");
-    expect(p.name()).toBe("backend");
-    expect(p.address()).toBe("/a/backend@backend");
-    await p.leave();
+    const posixPeer = await makePeerCwd(sock, "posix", "/a/backend");
+    const windowsPeer = await makePeerCwd(sock, "windows", "C:\\work\\backend");
+    const uncPeer = await makePeerCwd(sock, "unc", "\\\\server\\share\\backend");
+    expect(posixPeer.address()).toBe("/a/backend@posix");
+    expect(windowsPeer.address()).toBe("C:\\work\\backend@windows");
+    expect(uncPeer.address()).toBe("\\\\server\\share\\backend@unc");
+    await posixPeer.leave();
+    await windowsPeer.leave();
+    await uncPeer.leave();
+  });
+
+  test("registration rejects relative, control-character, and oversized cwd atomically", async () => {
+    const sock = tmpSock();
+    const leader = await makePeer(sock, "leader");
+    const rejected = async (cwd: unknown): Promise<void> => {
+      await new Promise<void>((resolve, reject) => {
+        const client = createConnection({ path: sock });
+        const timer = setTimeout(() => {
+          client.destroy();
+          reject(new Error("invalid cwd registration was not rejected"));
+        }, 1_000);
+        client.on("error", () => undefined);
+        client.on("connect", () => client.write(JSON.stringify({ type: "register", name: "bad", cwd }) + "\n"));
+        client.on("close", () => {
+          clearTimeout(timer);
+          resolve();
+        });
+      });
+    };
+    await rejected("relative/path");
+    await rejected("casa:/shadow");
+    await rejected("/bad\npath");
+    await rejected("/bad\0path");
+    await rejected(`/${"x".repeat(4096)}`);
+    expect(leader.localBroker()!.peerNames()).toEqual(["leader"]);
+    await leader.leave();
+  });
+
+  test("registration enforces shared code-unit roster limits before mutating peers", async () => {
+    const sock = tmpSock();
+    const cwd = `/${"c".repeat(4095)}`;
+    const name = "n".repeat(255);
+    const exact = await makePeerCwd(sock, name, cwd);
+    expect(exact.address()).toHaveLength(4352);
+    await exact.leave();
+
+    const leader = await makePeerCwd(sock, "leader", "/workspace");
+    const rejected = async (name: string, rejectedCwd: string, takeover = false): Promise<void> => {
+      await new Promise<void>((resolve, reject) => {
+        const client = createConnection({ path: sock });
+        const timer = setTimeout(() => {
+          client.destroy();
+          reject(new Error("out-of-bounds registration was not rejected"));
+        }, 1_000);
+        client.on("error", () => undefined);
+        client.on("connect", () => client.write(JSON.stringify({
+          type: "register", name, cwd: rejectedCwd, takeover,
+        }) + "\n"));
+        client.on("close", () => { clearTimeout(timer); resolve(); });
+      });
+    };
+    await rejected("x", `/${"c".repeat(4096)}`); // cwd 4097
+    await rejected("n".repeat(257), "/workspace"); // name 257
+    await rejected("n".repeat(256), cwd); // composed address 4353
+
+    const multibyte = await makePeerCwd(sock, "😀".repeat(128), "/emoji");
+    expect(multibyte.name()).toHaveLength(256);
+    await multibyte.leave();
+
+    const original = await makePeerCwd(sock, "stable", "/takeover");
+    await rejected("x".repeat(257), "/takeover", true);
+    const roster = await leader.request("broker", { type: "list_peers" });
+    expect((roster.body as { peers?: string[] }).peers).toContain(original.address());
+    await original.leave();
+    await leader.leave();
   });
 
   test("legacy peer (no cwd) → address() == name() (mixed-mesh compat)", async () => {
@@ -722,6 +1498,38 @@ describe("plan/38 — (cwd, name) mesh addressing (e2e)", () => {
     expect(self).toBeDefined();
     expect(self!.pc).toBeUndefined();  // no pc → LOCAL despite the ':'
     await p.leave();
+  });
+
+  test("Windows drive local address beats RemoteRouter alias handling", async () => {
+    const sock = tmpSock();
+    const sender = await makePeerCwd(sock, "sender", "/proj/sender");
+    const localTarget = await makePeerCwd(sock, "agent", "C:\\proj\\app");
+    const broker = sender.localBroker()!;
+    const tryRouteOutbound = vi.fn((env: Envelope) =>
+      typeof env.to === "string" && env.to.startsWith("C:"),
+    );
+    broker.setRemoteRouter({
+      tryRouteOutbound,
+      listRemotePeers: () => [],
+      listRemotePeerInfos: () => [],
+    });
+    const inbox: Envelope[] = [];
+    localTarget.onMessage((env) => {
+      if (env.from !== "broker") inbox.push(env);
+    });
+
+    const ack = await sender.sendWithAck(localTarget.address(), { local: true });
+    await wait(50);
+
+    expect(localTarget.address()).toBe("C:\\proj\\app@agent");
+    expect(tryRouteOutbound).not.toHaveBeenCalled();
+    expect(ack.status).toBe("received");
+    expect(inbox).toHaveLength(1);
+    expect(inbox[0]?.to).toBe(localTarget.address());
+
+    broker.setRemoteRouter(null);
+    await sender.leave();
+    await localTarget.leave();
   });
 
   test("broadcast is scoped to the sender's cwd (folder colleagues only)", async () => {

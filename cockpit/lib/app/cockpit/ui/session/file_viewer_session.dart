@@ -10,7 +10,17 @@ class FileViewerSession extends PaneItem {
     required this.path,
     required this.view,
     this.isPreview = false,
+    this.scratch = false,
+    this.scratchTitle,
   });
+
+  /// `true` = buffer **untitled** (VSCode-style): não há arquivo no disco até
+  /// o primeiro save. O `path` é sintético; [title] usa [scratchTitle]. Vira
+  /// `false` no save (a VM faz o retarget pro path real).
+  bool scratch;
+
+  /// Título exibido enquanto [scratch] (ex.: `Untitled-1.dbq`).
+  String? scratchTitle;
 
   @override
   final String id;
@@ -23,7 +33,9 @@ class FileViewerSession extends PaneItem {
 
   // Título e cwd derivam do path → seguem o rename automaticamente.
   @override
-  String get title => path.split('/').where((p) => p.isNotEmpty).last;
+  String get title => scratch
+      ? (scratchTitle ?? 'Untitled')
+      : path.split('/').where((p) => p.isNotEmpty).last;
   @override
   String get workingDirectory =>
       path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : path;

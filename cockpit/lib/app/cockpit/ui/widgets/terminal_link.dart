@@ -1,4 +1,4 @@
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// O que um link do terminal aponta: uma URL (abre no navegador) ou um arquivo
 /// local (abre numa aba do FileViewer).

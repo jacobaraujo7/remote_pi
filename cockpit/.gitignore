@@ -46,3 +46,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Plano 51 — dylibs do anakiORM copiados pro cwd em dev/teste (staging: ~/.cockpit/anaki)
+libanaki_*.dylib

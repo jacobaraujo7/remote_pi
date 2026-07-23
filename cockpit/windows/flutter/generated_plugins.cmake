@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   auto_updater_windows
   desktop_drop
+  flutter_secure_storage_windows
   media_kit_libs_windows_video
   media_kit_video
   pasteboard
@@ -15,8 +16,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST
+  cockpit_pty
   jni
-  kyroon_pty
 )
 
 set(PLUGIN_BUNDLED_LIBRARIES)

@@ -1,134 +1,269 @@
 import { createHash } from "node:crypto";
 import type { MeshClient } from "./client.js";
+import {
+  allocateRoutingAliases,
+  bytesEqual,
+  canonicalizeEd25519PublicKey,
+  decodeEd25519PublicKey,
+  encodeEd25519PublicKey,
+  publicKeyFingerprint,
+  selectRoutingNickname,
+  toBase64UrlNoPad,
+} from "./encoding.js";
 import { verifyEnvelope } from "./verify.js";
-import { bytesEqual, decodeB64Any } from "./encoding.js";
 
-/**
- * Plan/25 — discover Pis-irmãos of every Owner this Pi is paired with.
- *
- * For each Owner pubkey (from `peers.json`), pulls the latest signed
- * `mesh_versions` blob from the relay, verifies it, and walks the members
- * list to extract all Pi-pubkeys other than this one. The same member may
- * appear under multiple Owners — we de-dupe by Pi-pubkey.
- *
- * Returned `pcLabel` priority:
- *   1. `member.nickname` (set by the Owner at pairing time)
- *   2. First 8 chars of the base64-encoded Pi-pubkey (defensive fallback —
- *      keeps cross-PC addressing working even when nicknames are missing)
- *
- * Tolerates per-owner errors: a missing/malformed blob for one Owner does
- * NOT prevent siblings of other Owners from being discovered. Logs and
- * continues.
- */
+export interface PiRoutingIdentity {
+  readonly pcPubkey: string;
+  /** Receiver-local display and routing alias. */
+  readonly pcLabel: string;
+  /** Raw legacy cross-PC wire prefix; distinct from the receiver-local alias. */
+  readonly legacyPcLabel: string;
+}
 
+export interface MeshTopologySnapshot {
+  readonly self: PiRoutingIdentity;
+  readonly siblings: readonly PiRoutingIdentity[];
+}
+
+export interface BoundOwnerMembership {
+  /** Canonical standard-padded string derived from MeshHeader.ownerPk bytes. */
+  readonly ownerPubkey: string;
+  readonly members: readonly {
+    readonly pcPubkey: string;
+    readonly nickname?: string;
+  }[];
+}
+
+/** Legacy mutable shape retained through the Task 4 compatibility window. */
 export interface SiblingPi {
   pcLabel: string;
   pcPubkey: string;
 }
 
 export interface DiscoverSelfLabelResult {
-  /** This Pi's effective `pc_label` (nickname when any Owner has set one;
-   *  pubkey prefix fallback otherwise). */
   selfPcLabel: string;
 }
 
 export interface DiscoverOptions {
   client: MeshClient;
-  ownerEpks: string[];
+  ownerEpks: readonly unknown[];
   myPubkey: Uint8Array;
   log?: { warn(msg: string): void };
 }
 
-const FALLBACK_LABEL_LEN = 8;
+interface CanonicalOwnerSlot {
+  readonly canonicalOwnerPubkey: string;
+  readonly ownerPk: Uint8Array;
+  readonly fingerprint: string;
+}
 
-/** Derive the fallback label from a base64-encoded Pi pubkey. */
-export function fallbackLabel(pcPubkey: string): string {
-  return pcPubkey.slice(0, FALLBACK_LABEL_LEN);
+function compareAscii(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function freezeIdentity(
+  pcPubkey: string,
+  pcLabel: string,
+  legacyPcLabel: string,
+): PiRoutingIdentity {
+  return Object.freeze({ pcPubkey, pcLabel, legacyPcLabel });
 }
 
 /**
- * Resolve self pc_label by scanning every Owner's mesh blob for an entry
- * matching `myPubkey`. Returns the first nickname found; falls back to the
- * base64 prefix when no Owner has labeled us.
+ * Builds one deterministic direct-co-membership topology for self and siblings.
+ * Memberships that do not themselves contain self contribute nothing.
  */
+export function buildTopologySnapshot(
+  myPubkey: Uint8Array,
+  memberships: Iterable<BoundOwnerMembership>,
+): MeshTopologySnapshot {
+  const selfPubkey = encodeEd25519PublicKey(myPubkey, "self public key");
+  const nicknamesByKey = new Map<string, string[]>([[selfPubkey, []]]);
+
+  for (const membership of memberships) {
+    canonicalizeEd25519PublicKey(
+      membership.ownerPubkey,
+      "membership.ownerPubkey",
+    );
+    const normalizedMembers = membership.members.map((member, index) => {
+      if (
+        member.nickname !== undefined &&
+        typeof member.nickname !== "string"
+      ) {
+        throw new Error(`mesh: membership.members[${index}].nickname invalid`);
+      }
+      return {
+        pcPubkey: canonicalizeEd25519PublicKey(
+          member.pcPubkey,
+          `membership.members[${index}].pcPubkey`,
+        ),
+        nickname: member.nickname,
+      };
+    });
+    if (!normalizedMembers.some((member) => member.pcPubkey === selfPubkey)) {
+      continue;
+    }
+
+    for (const member of normalizedMembers) {
+      const candidates = nicknamesByKey.get(member.pcPubkey) ?? [];
+      if (!nicknamesByKey.has(member.pcPubkey)) {
+        nicknamesByKey.set(member.pcPubkey, candidates);
+      }
+      if (member.nickname) candidates.push(member.nickname);
+    }
+  }
+
+  const selectedNicknames = new Map(
+    [...nicknamesByKey.entries()].map(([pcPubkey, candidates]) => [
+      pcPubkey,
+      selectRoutingNickname(candidates),
+    ]),
+  );
+  const aliases = allocateRoutingAliases(
+    [...selectedNicknames.entries()].map(([pcPubkey, nickname]) => ({
+      pcPubkey,
+      ...(nickname !== undefined ? { nickname } : {}),
+    })),
+  );
+  const selfLabel = aliases.get(selfPubkey);
+  if (!selfLabel) {
+    throw new Error("mesh: topology self alias invariant failed");
+  }
+
+  const siblings = [...aliases.entries()]
+    .filter(([pcPubkey]) => pcPubkey !== selfPubkey)
+    .sort(([left], [right]) => compareAscii(left, right))
+    .map(([pcPubkey, pcLabel]) => freezeIdentity(
+      pcPubkey,
+      pcLabel,
+      selectedNicknames.get(pcPubkey) ?? pcPubkey.slice(0, 8),
+    ));
+
+  return Object.freeze({
+    self: freezeIdentity(
+      selfPubkey,
+      selfLabel,
+      selectedNicknames.get(selfPubkey) ?? selfPubkey.slice(0, 8),
+    ),
+    siblings: Object.freeze(siblings),
+  });
+}
+
+function rawOwnerFingerprint(rawOwner: unknown): string {
+  let fingerprintInput: string;
+  if (typeof rawOwner === "string") {
+    fingerprintInput = rawOwner;
+  } else {
+    try {
+      const serialized = JSON.stringify(rawOwner);
+      const type = rawOwner === null ? "null" : typeof rawOwner;
+      fingerprintInput = `${type}:${serialized ?? ""}`;
+    } catch {
+      fingerprintInput = `${typeof rawOwner}:unserializable`;
+    }
+  }
+  return createHash("sha256")
+    .update(fingerprintInput, "utf8")
+    .digest("hex")
+    .slice(0, 8);
+}
+
+function canonicalOwnerSlots(
+  rawOwners: readonly unknown[],
+  log: { warn(msg: string): void },
+): CanonicalOwnerSlot[] {
+  const slots = new Map<string, CanonicalOwnerSlot>();
+  for (const rawOwner of rawOwners) {
+    if (typeof rawOwner !== "string") {
+      log.warn(
+        `[mesh] event=invalid_owner_record owner_fp=${rawOwnerFingerprint(rawOwner)}`,
+      );
+      continue;
+    }
+    try {
+      const ownerPk = decodeEd25519PublicKey(rawOwner, "Owner record");
+      const canonicalOwnerPubkey = encodeEd25519PublicKey(ownerPk);
+      if (!slots.has(canonicalOwnerPubkey)) {
+        slots.set(canonicalOwnerPubkey, {
+          canonicalOwnerPubkey,
+          ownerPk,
+          fingerprint: publicKeyFingerprint(ownerPk),
+        });
+      }
+    } catch {
+      log.warn(
+        `[mesh] event=invalid_owner_record owner_fp=${rawOwnerFingerprint(rawOwner)}`,
+      );
+    }
+  }
+  return [...slots.values()].sort((left, right) =>
+    compareAscii(left.canonicalOwnerPubkey, right.canonicalOwnerPubkey),
+  );
+}
+
+/** Discovers one bound, direct, canonical topology from raw Owner records. */
+export async function discoverTopology(
+  opts: DiscoverOptions,
+): Promise<MeshTopologySnapshot> {
+  const log = opts.log ?? { warn: (message: string) => console.warn(message) };
+  const selfPubkey = encodeEd25519PublicKey(opts.myPubkey, "self public key");
+  const memberships: BoundOwnerMembership[] = [];
+
+  for (const slot of canonicalOwnerSlots(opts.ownerEpks, log)) {
+    try {
+      const hash = createHash("sha256").update(slot.ownerPk).digest("hex");
+      const envelope = await opts.client.get(hash);
+      if (!envelope) continue;
+      const header = await verifyEnvelope(envelope);
+      if (!bytesEqual(header.ownerPk, slot.ownerPk)) {
+        log.warn(
+          `[mesh] event=owner_slot_mismatch owner_fp=${slot.fingerprint}`,
+        );
+        continue;
+      }
+      if (!header.members.some((member) => member.remoteEpk === selfPubkey)) {
+        continue;
+      }
+      memberships.push({
+        ownerPubkey: encodeEd25519PublicKey(header.ownerPk),
+        members: header.members.map((member) => ({
+          pcPubkey: member.remoteEpk,
+          ...(member.nickname !== undefined
+            ? { nickname: member.nickname }
+            : {}),
+        })),
+      });
+    } catch {
+      log.warn(
+        `[mesh] event=owner_discovery_failed owner_fp=${slot.fingerprint}`,
+      );
+    }
+  }
+
+  return buildTopologySnapshot(opts.myPubkey, memberships);
+}
+
+/** Compatibility fallback now follows the routing-alias grammar. */
+export function fallbackLabel(pcPubkey: string): string {
+  const bytes = decodeEd25519PublicKey(pcPubkey, "pcPubkey");
+  return `pc-${toBase64UrlNoPad(bytes).slice(0, 8)}`;
+}
+
+/** Compatibility wrapper over the atomic topology producer. */
 export async function discoverSelfLabel(
   opts: DiscoverOptions,
 ): Promise<DiscoverSelfLabelResult> {
-  const log = opts.log ?? { warn: (m) => console.warn(m) };
-  const myB64 = Buffer.from(opts.myPubkey).toString("base64");
-
-  for (const ownerEpk of opts.ownerEpks) {
-    try {
-      const env = await _fetchOwnerBlob(opts.client, ownerEpk);
-      if (!env) continue;
-      const header = await verifyEnvelope(env);
-      for (const m of header.members) {
-        if (bytesEqual(decodeB64Any(m.remoteEpk), opts.myPubkey) && m.nickname) {
-          return { selfPcLabel: m.nickname };
-        }
-      }
-    } catch (err) {
-      log.warn(`[siblings] self-label fetch failed for owner ${ownerEpk.slice(0, 8)}…: ${String(err)}`);
-    }
-  }
-  return { selfPcLabel: fallbackLabel(myB64) };
+  const topology = await discoverTopology(opts);
+  return { selfPcLabel: topology.self.pcLabel };
 }
 
-/**
- * Enumerate Pis-irmãos across all Owners. De-duplicated by `pcPubkey`.
- * Excludes `myPubkey`.
- *
- * Label resolution rule (anti-asymmetry — see plan/25 Wave D fix):
- *   1. Scan EVERY Owner blob first, collecting all distinct sibling
- *      pubkeys and any nicknames seen for each.
- *   2. For each pubkey, pick label as: first nickname encountered (if
- *      any Owner labeled this Pi), else `fallbackLabel(pubkey)`.
- *
- * Why: if two Pis are paired to the same set of Owners but only some
- * Owners labeled them, naive first-wins dedup can pick the unlabeled
- * occurrence and discard the labeled one — producing different
- * `pc_label`s between Pis (PC-A's `discoverSelfLabel` skips non-labeled,
- * but old `discoverSiblings` didn't). The asymmetry triggers anti-spoof
- * drops in `broker_remote.handleIncoming`. This rule keeps both sides in
- * sync: nickname always wins over fallback.
- */
-export async function discoverSiblings(opts: DiscoverOptions): Promise<SiblingPi[]> {
-  const log = opts.log ?? { warn: (m) => console.warn(m) };
-  // pcPubkey → first nickname seen across owners (or undefined if none).
-  const labels = new Map<string, string | undefined>();
-
-  for (const ownerEpk of opts.ownerEpks) {
-    try {
-      const env = await _fetchOwnerBlob(opts.client, ownerEpk);
-      if (!env) continue;
-      const header = await verifyEnvelope(env);
-      for (const m of header.members) {
-        if (bytesEqual(decodeB64Any(m.remoteEpk), opts.myPubkey)) continue;
-        const existing = labels.get(m.remoteEpk);
-        if (existing) continue;  // first-nickname wins; never overwrite a real label
-        if (m.nickname) {
-          labels.set(m.remoteEpk, m.nickname);
-        } else if (!labels.has(m.remoteEpk)) {
-          // Seen pubkey for the first time, no nickname yet — record the
-          // slot so later iterations may upgrade it via the `if (existing)
-          // continue` check above only matching truthy nicknames.
-          labels.set(m.remoteEpk, undefined);
-        }
-      }
-    } catch (err) {
-      log.warn(`[siblings] discover failed for owner ${ownerEpk.slice(0, 8)}…: ${String(err)}`);
-    }
-  }
-
-  const out: SiblingPi[] = [];
-  for (const [pcPubkey, nickname] of labels) {
-    out.push({ pcPubkey, pcLabel: nickname ?? fallbackLabel(pcPubkey) });
-  }
-  return out;
-}
-
-async function _fetchOwnerBlob(client: MeshClient, ownerEpk: string) {
-  const ownerPk = Uint8Array.from(Buffer.from(ownerEpk, "base64"));
-  const hash = createHash("sha256").update(ownerPk).digest("hex");
-  return client.get(hash);
+/** Compatibility wrapper over the atomic topology producer. */
+export async function discoverSiblings(
+  opts: DiscoverOptions,
+): Promise<SiblingPi[]> {
+  const topology = await discoverTopology(opts);
+  return topology.siblings.map(({ pcLabel, pcPubkey }) => ({
+    pcLabel,
+    pcPubkey,
+  }));
 }

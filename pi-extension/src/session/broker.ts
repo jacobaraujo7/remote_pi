@@ -1,8 +1,13 @@
 import type { Server, Socket } from "node:net";
 import { appendFile, mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, posix, win32 } from "node:path";
 import { type Envelope, parse, serialize, uuidv7, EnvelopeError } from "./envelope.js";
 import { sanitizeSegment } from "./local_config.js";
+import {
+  isBoundedPeerInfo,
+  MAX_CWD_LENGTH,
+  MAX_PEERS_UPDATE_ENTRIES,
+} from "./peer_limits.js";
 
 /**
  * Structured view of one mesh peer (plan/38). The `address` is the canonical
@@ -114,6 +119,10 @@ export interface RemoteRouter {
   listRemotePeerInfos(): PeerInfo[];
 }
 
+export interface ConditionalRemoteRouterHost {
+  clearRemoteRouter(expected: RemoteRouter): void;
+}
+
 /** Local outcome of a cross-PC envelope injection. broker_remote uses this
  *  to construct the ACK envelope it sends back via the relay. plan/34: `busy`
  *  is gone — injection always delivers when the peer exists. */
@@ -133,6 +142,25 @@ interface PeerConn {
 }
 
 const BROKER_NAME = "broker";
+
+/** Host-independent Windows drive absolute-path check. */
+function isWindowsDriveAbsolutePath(value: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(value);
+}
+
+/** Accept legacy empty cwd plus bounded syntactically absolute paths only. */
+function isValidRegisteredCwd(value: string): boolean {
+  if (value === "") return true;
+  if (
+    value.length > MAX_CWD_LENGTH ||
+    /[\0\r\n]/.test(value)
+  ) {
+    return false;
+  }
+  return posix.isAbsolute(value) ||
+    isWindowsDriveAbsolutePath(value) ||
+    (win32.isAbsolute(value) && /^[/\\]{2}/.test(value));
+}
 
 type AckStatus = "received" | "denied";
 
@@ -196,6 +224,11 @@ export class Broker {
     this.remoteRouter = router;
   }
 
+  /** Clear only when the caller still owns the active router slot. */
+  clearRemoteRouter(expected: RemoteRouter): void {
+    if (this.remoteRouter === expected) this.remoteRouter = null;
+  }
+
   /**
    * Plan/25 Wave C entry point: deliver an envelope that arrived from a
    * remote PC (via relay forward) into the local UDS mesh. Skips the
@@ -211,22 +244,34 @@ export class Broker {
    *     transport_error or denied ACK as it sees fit
    */
   injectFromRemote(env: Envelope): RemoteInjectStatus {
-    if (typeof env.to !== "string" || env.to === "broadcast" || env.to === BROKER_NAME) {
+    // Remote callers do not cross the normal UDS parser, so validate the exact
+    // serialized payload before claiming receipt or writing it to a peer.
+    let validated: Envelope;
+    try {
+      validated = parse(serialize(env));
+    } catch {
+      return "denied";
+    }
+    if (
+      typeof validated.to !== "string" ||
+      validated.to === "broadcast" ||
+      validated.to === BROKER_NAME
+    ) {
       // Cross-PC is unicast-only at this protocol layer.
       return "denied";
     }
-    const targetName = env.to;
+    const targetName = validated.to;
     const peer = this.peers.get(targetName);
     if (!peer) return "denied";
 
-    const line = serialize(env);
+    const line = serialize(validated);
     try {
       peer.socket.write(line);
     } catch {
       return "denied";
     }
-    void this._appendAudit(env, [targetName], "received", "relay");
-    this.onRouted?.(env, [targetName]);
+    void this._appendAudit(validated, [targetName], "received", "relay");
+    this.onRouted?.(validated, [targetName]);
     return "received";
   }
 
@@ -309,23 +354,46 @@ export class Broker {
     // distinct addresses and never collide. Legacy peers (no cwd) keep the old
     // global-name behavior. New peers can opt into exact-address takeover for
     // same-folder reincarnations such as daemon restarts.
-    conn.cwd = typeof req.cwd === "string" ? req.cwd : "";
+    const requestedCwd = req.cwd === undefined ? "" : req.cwd;
+    if (typeof requestedCwd !== "string" || !isValidRegisteredCwd(requestedCwd)) {
+      conn.socket.destroy();
+      return;
+    }
+    const identity = this._identityForRegister(
+      requestedCwd,
+      req.name,
+      req.takeover === true,
+    );
+    if (!identity) {
+      conn.socket.destroy();
+      return;
+    }
 
-    const { name, address } = this._identityForRegister(conn.cwd, req.name, req.takeover === true);
-    conn.name = name;
-    conn.address = address;
-    this.peers.set(address, conn);
+    conn.cwd = requestedCwd;
+    conn.name = identity.name;
+    conn.address = identity.address;
+    // Candidate validity is established before a takeover evicts its prior
+    // connection, so a rejected replacement cannot drop a healthy peer.
+    if (identity.replaceAddress) this._dropPeerAt(identity.replaceAddress);
+    this.peers.set(identity.address, conn);
 
     // `name_assigned` doubles as the compat alias: for a legacy peer it equals
     // `address_assigned` (cwd empty → address == name), so old clients that read
     // `name_assigned` still get a routable identity.
-    const ack: RegisterAck = { type: "register_ack", address_assigned: address, name_assigned: name };
+    const ack: RegisterAck = {
+      type: "register_ack",
+      address_assigned: conn.address,
+      name_assigned: conn.name,
+    };
     try {
       conn.socket.write(JSON.stringify(ack) + "\n");
     } catch { /* peer hung up */ }
 
     // Notify others (peer_joined broadcast). The field carries the ADDRESS.
-    this._broadcastSystem({ type: "peer_joined", name: address, address }, address);
+    this._broadcastSystem(
+      { type: "peer_joined", name: conn.address, address: conn.address },
+      conn.address,
+    );
   }
 
   /**
@@ -395,22 +463,32 @@ export class Broker {
    * (matching the cwd-lock's suffix scheme) until the address is free; for a
    * legacy peer (cwd "") the address is the name, preserving global-name `#N`.
    */
-  private _identityForRegister(cwd: string, requested: string, takeover: boolean): { name: string; address: string } {
+  private _identityForRegister(
+    cwd: string,
+    requested: string,
+    takeover: boolean,
+  ): { name: string; address: string; replaceAddress?: string } | null {
     const sanitized = sanitizeMeshName(requested);
-    let address = composeAddress({ cwd, name: sanitized });
-    if (takeover && cwd && this.peers.has(address)) {
-      this._dropPeerAt(address);
-      return { name: sanitized, address };
+    const candidateFor = (name: string): { name: string; address: string } | null => {
+      const address = composeAddress({ cwd, name });
+      return isBoundedPeerInfo({ cwd, name, address }) ? { name, address } : null;
+    };
+    const direct = candidateFor(sanitized);
+    if (!direct) return null;
+    if (takeover && cwd && this.peers.has(direct.address)) {
+      return { ...direct, replaceAddress: direct.address };
     }
-    if (!this.peers.has(address)) return { name: sanitized, address };
+    if (this.peers.size >= MAX_PEERS_UPDATE_ENTRIES) return null;
+    if (!this.peers.has(direct.address)) return direct;
+
     // Collision: strip any client-provided `#N`, then re-suffix from #2.
     const base = sanitized.replace(/#\d+$/, "");
     for (let n = 2; n < 1000; n++) {
-      const name = `${base}#${n}`;
-      address = composeAddress({ cwd, name });
-      if (!this.peers.has(address)) return { name, address };
+      const candidate = candidateFor(`${base}#${n}`);
+      if (!candidate) return null;
+      if (!this.peers.has(candidate.address)) return candidate;
     }
-    throw new Error(`name space exhausted for ${base} in ${cwd || "(no cwd)"}`);
+    return null;
   }
 
   private _dropPeerAt(address: string): void {
@@ -439,12 +517,12 @@ export class Broker {
       return;
     }
 
-    // Plan/25 Wave C: give the cross-PC router a chance to claim this
-    // envelope. It returns true when the `to` field carries a known remote
-    // prefix and the envelope was packed onto the relay; on miss it falls
-    // through so locally-named peers (including ones with literal `:` in
-    // their names) still work.
-    if (this.remoteRouter && typeof env.to === "string") {
+    // Give known cross-PC aliases first chance to route. A syntactically
+    // absolute Windows drive address contains a colon but is always exact
+    // local; all other local registrations may not shadow a known alias.
+    const exactLocal = typeof env.to === "string" ? this.peers.get(env.to) : undefined;
+    const exactWindowsDriveLocal = !!exactLocal && isWindowsDriveAbsolutePath(exactLocal.cwd);
+    if (!exactWindowsDriveLocal && this.remoteRouter && typeof env.to === "string") {
       if (this.remoteRouter.tryRouteOutbound(env)) return;
     }
 

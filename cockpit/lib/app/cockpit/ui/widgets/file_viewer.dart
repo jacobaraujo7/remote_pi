@@ -21,7 +21,9 @@ import 'package:cockpit/app/cockpit/ui/widgets/media_view.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-// SelectionArea (Material) envolve o scroll do markdown → seleção + auto-scroll.
+// SelectionArea (Material) envolve o scroll do markdown/código → seleção +
+// auto-scroll com âncora estável (content-space). SelectionContainer.disabled
+// (via shadcn/widgets) tira o gutter de números da seleção.
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -1012,45 +1014,58 @@ class _TextViewState extends State<_TextView> {
     // **pinada no rodapé do viewport** (não some ao fim do conteúdo). O scroll
     // horizontal é aninhado dentro do vertical (`depth == 1`), por isso o
     // `notificationPredicate` filtra por profundidade. A vertical fica na borda.
+    // SelectionArea (não SelectableText): a seleção fica ancorada na posição de
+    // conteúdo do parágrafo. Durante o autoscroll do drag, o SingleChildScrollView
+    // vertical fica DENTRO da SelectionArea, então o offset muda mas a âncora
+    // inicial não escorrega junto (bug do SelectableText, que guarda a âncora em
+    // coordenadas globais e não re-projeta ao rolar).
     return ColoredBox(
       color: syntax.background,
-      child: Scrollbar(
-        controller: _horizontal,
-        thumbVisibility: true,
-        scrollbarOrientation: ScrollbarOrientation.bottom,
-        notificationPredicate: (notification) => notification.depth == 1,
+      child: SelectionArea(
         child: Scrollbar(
-          controller: _vertical,
-          child: SingleChildScrollView(
+          controller: _horizontal,
+          thumbVisibility: true,
+          scrollbarOrientation: ScrollbarOrientation.bottom,
+          notificationPredicate: (notification) => notification.depth == 1,
+          child: Scrollbar(
             controller: _vertical,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Gutter — números à direita, fixo (não rola na horizontal).
-                Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      for (var i = 1; i <= lineCount; i++)
-                        Text('$i', style: numStyle),
-                    ],
+            child: SingleChildScrollView(
+              controller: _vertical,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Gutter — números à direita, fixo (não rola na horizontal).
+                  // Fora da seleção pra não sujar o texto copiado com os números.
+                  SelectionContainer.disabled(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 14, right: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          for (var i = 1; i <= lineCount; i++)
+                            Text('$i', style: numStyle),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-                Container(width: 1, color: syntax.base.withValues(alpha: 0.15)),
-                // Código — rola na horizontal quando a linha estoura; selecionável.
-                Expanded(
-                  child: SingleChildScrollView(
-                    controller: _horizontal,
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.only(left: 14, right: 16),
-                    child: codeSpan == null
-                        ? SelectableText(widget.text, style: codeStyle)
-                        : SelectableText.rich(codeSpan),
+                  Container(
+                    width: 1,
+                    color: syntax.base.withValues(alpha: 0.15),
                   ),
-                ),
-              ],
+                  // Código — rola na horizontal quando a linha estoura; selecionável.
+                  Expanded(
+                    child: SingleChildScrollView(
+                      controller: _horizontal,
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.only(left: 14, right: 16),
+                      child: codeSpan == null
+                          ? Text(widget.text, style: codeStyle)
+                          : Text.rich(codeSpan),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

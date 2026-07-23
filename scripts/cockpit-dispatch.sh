@@ -150,7 +150,18 @@ else:
   esac
 fi
 
-full_prompt="[ORCH:${task_id}] ${prompt}"
+# Push de conclusão (worker → orquestrador): se estamos dentro de um pane do
+# Cockpit, COCKPIT_PANE_ID é o nosso próprio tab-id — embuta-o num segundo
+# marker. O INSTRUCTIONS.md instrui o worker a mandar `cockpit send --tab-id
+# <id> "[ORCH:<task-id>] <status> — <resumo>"` ao terminar, além do result
+# file (que continua sendo o contrato; o --wait segue funcionando como
+# fallback pra worker que esquecer o push).
+reply_marker=""
+if [ -n "${COCKPIT_PANE_ID:-}" ]; then
+  reply_marker="[ORCH-REPLY:${COCKPIT_PANE_ID}] "
+fi
+
+full_prompt="[ORCH:${task_id}] ${reply_marker}${prompt}"
 
 # Snapshot do mtime do result file ANTES do dispatch. Detecta conclusão por
 # mudança vs snapshot, então re-dispatch do mesmo task-id também é esperado.

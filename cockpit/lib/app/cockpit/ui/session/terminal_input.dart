@@ -1,4 +1,4 @@
-import 'package:xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Rastreia se o *kitty keyboard protocol* está ativo, observando a saída do
 /// programa em primeiro plano (claude, codex, pi, ...).

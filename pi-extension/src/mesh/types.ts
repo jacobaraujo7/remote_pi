@@ -9,7 +9,7 @@
  */
 
 export interface MeshMember {
-  /** Pi long-term Ed25519 pubkey, base64 standard (matches PeerRecord.remote_epk). */
+  /** Pi Ed25519 pubkey, canonical RFC 4648 standard base64 with padding. */
   remoteEpk: string;
   /** Relay URL where this member registers. */
   relayUrl: string;

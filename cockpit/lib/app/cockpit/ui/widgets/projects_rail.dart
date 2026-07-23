@@ -10,9 +10,10 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Root git de um workspace, pro kebab da rail: path absoluto + basename +
-/// branch (`null` = pasta sem git). Multi-root tem 2+; single-root, 1.
-typedef RailRoot = ({String path, String name, String? branch});
+/// Root git de um workspace, pra rail (kebab + popup do badge multi-root):
+/// path absoluto + basename + estado git (`null` = pasta sem git). Multi-root
+/// tem 2+; single-root, 1.
+typedef RailRoot = ({String path, String name, GitInfo? git});
 
 /// Destino possível de "Move to realm" no kebab: [enabled] = `false` quando o
 /// path do workspace já existe no realm alvo (um path por realm).
@@ -442,6 +443,7 @@ class _ProjectItem extends StatelessWidget {
                     _MultiRootBadge(
                       roots: rootsSummary.$1,
                       dirtyRoots: rootsSummary.$2,
+                      rootList: roots,
                     ),
                   ],
                 ],
@@ -783,12 +785,45 @@ class _ForkLinePainter extends CustomPainter {
 /// Pílula de git: ícone de branch + nome do branch + nº de arquivos sujos.
 /// Sujo → âmbar com contador; limpo → cinza, sem número.
 /// Chip agregado de um workspace **multi-root** (multirepo): nº de roots +
-/// quantas estão sujas. As branches individuais moram na árvore de arquivos —
-/// aqui só "esse projeto tem coisa pendente?". Mesma linguagem do [_GitBadge].
+/// quantas estão sujas. Clicável: abre um popup com a branch e o estado
+/// (↓behind ↑ahead + sujos) de cada root — a visão por repo, sem poluir a
+/// árvore de arquivos. Mesma linguagem do [_GitBadge].
 class _MultiRootBadge extends StatelessWidget {
-  const _MultiRootBadge({required this.roots, required this.dirtyRoots});
+  const _MultiRootBadge({
+    required this.roots,
+    required this.dirtyRoots,
+    required this.rootList,
+  });
   final int roots;
   final int dirtyRoots;
+  final List<RailRoot> rootList;
+
+  void _showPopup(BuildContext context) {
+    final overlay = showPopover<void>(
+      context: context,
+      alignment: Alignment.topLeft,
+      anchorAlignment: Alignment.bottomLeft,
+      offset: const Offset(0, 4),
+      builder: (popupContext) => ConstrainedBox(
+        constraints: const BoxConstraints(minWidth: 180, maxWidth: 320),
+        child: MenuPopup(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final r in rootList) _RootStatusRow(root: r),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    trackMenuOverlay(overlay);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -797,25 +832,133 @@ class _MultiRootBadge extends StatelessWidget {
     final dirty = dirtyRoots > 0;
     final fg = dirty ? colors.warn : colors.text3;
     final bg = dirty ? colors.editedBg : colors.panel3;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.account_tree_outlined, size: 9, color: fg),
-          const SizedBox(width: 3),
-          Text(
-            dirty ? '$roots roots · $dirtyRoots' : '$roots roots',
-            style: typo.mono.copyWith(
-              fontSize: 9.5,
-              color: fg,
-              fontWeight: FontWeight.w500,
-            ),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      // GestureDetector (descendente) ganha a arena do HoverTap do item — o
+      // clique no chip abre o popup, não seleciona o workspace.
+      child: GestureDetector(
+        onTap: () => _showPopup(context),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(4, 1, 5, 1),
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: BorderRadius.circular(4),
           ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.account_tree_outlined, size: 9, color: fg),
+              const SizedBox(width: 3),
+              Text(
+                dirty ? '$roots roots · $dirtyRoots' : '$roots roots',
+                style: typo.mono.copyWith(
+                  fontSize: 9.5,
+                  color: fg,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Entrada do popup do [_MultiRootBadge], em **duas linhas**: nome da root em
+/// cima, branch + estado (↓behind ↑ahead + nº de sujos) embaixo — nome longo
+/// trunca sem roubar o espaço da branch. Root sem git mostra só o nome, apagado.
+class _RootStatusRow extends StatelessWidget {
+  const _RootStatusRow({required this.root});
+  final RailRoot root;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final typo = context.typo;
+    final git = root.git;
+    final dirty = git != null && git.isDirty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.folder_outlined,
+                size: 13,
+                color: git == null ? colors.text4 : colors.text3,
+              ),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  root.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: typo.body.copyWith(
+                    fontSize: 12.5,
+                    color: git == null ? colors.text4 : colors.text,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (git != null)
+            Padding(
+              // Alinha com o texto acima (ícone 13 + gap 6).
+              padding: const EdgeInsets.only(left: 19, top: 3),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.call_split,
+                    size: 10,
+                    color: dirty ? colors.warn : colors.text3,
+                  ),
+                  const SizedBox(width: 3),
+                  Flexible(
+                    child: Text(
+                      git.branch,
+                      overflow: TextOverflow.ellipsis,
+                      style: typo.mono.copyWith(
+                        fontSize: 11,
+                        color: dirty ? colors.warn : colors.text3,
+                      ),
+                    ),
+                  ),
+                  if (git.behind > 0) ...[
+                    const SizedBox(width: 6),
+                    _AheadBehind(
+                      glyph: '↓',
+                      count: git.behind,
+                      color: colors.warn,
+                    ),
+                  ],
+                  if (git.ahead > 0) ...[
+                    const SizedBox(width: 4),
+                    _AheadBehind(
+                      glyph: '↑',
+                      count: git.ahead,
+                      color: colors.accentText,
+                    ),
+                  ],
+                  if (dirty) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      '${git.dirtyCount}',
+                      style: typo.mono.copyWith(
+                        fontSize: 11,
+                        color: colors.edited,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -948,7 +1091,7 @@ class _MenuButton extends StatelessWidget {
   /// Item de ação git: single-root executa direto (`<ação>|<root>`); multi-root
   /// abre submenu com uma entrada por root (roots sem git desabilitadas).
   AppMenuItem<String> _gitItem(String action, String label, IconData icon) {
-    final gitRoots = roots.where((r) => r.branch != null).toList();
+    final gitRoots = roots.where((r) => r.git != null).toList();
     if (roots.length <= 1) {
       final path = roots.isEmpty ? '' : roots.first.path;
       return AppMenuItem(value: '$action|$path', label: label, icon: icon);
@@ -961,7 +1104,7 @@ class _MenuButton extends StatelessWidget {
         for (final r in gitRoots)
           AppMenuItem(
             value: '$action|${r.path}',
-            label: '${r.name}  ⎇ ${r.branch}',
+            label: '${r.name}  ⎇ ${r.git?.branch}',
             icon: Icons.folder_outlined,
           ),
       ],

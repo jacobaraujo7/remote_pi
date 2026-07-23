@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { existsSync, readFileSync, statSync } from "node:fs";
-import { mkdtempSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -306,6 +313,73 @@ describe("getOrCreateEd25519Keypair — locked keyring does NOT regenerate", () 
   });
 });
 
+// ── Corrupt peer record isolation ────────────────────────────────────────────
+
+describe("peer record corruption isolation", () => {
+  const peersPath = join(_tmpHome, ".pi", "remote", "peers.json");
+
+  function writePeers(peers: unknown): void {
+    mkdirSync(join(_tmpHome, ".pi", "remote"), { recursive: true });
+    writeFileSync(peersPath, JSON.stringify({ peers }, null, 2));
+  }
+
+  test.each([null, 42, "not-an-array", { remote_epk: "not-an-array" }])(
+    "treats a non-array peers value as empty: %j",
+    async (peers) => {
+      writePeers(peers);
+
+      await expect(storage.listPeers()).resolves.toEqual([]);
+      await expect(storage.listOwnerPubkeys()).resolves.toEqual([]);
+    },
+  );
+
+  test("a false commit guard preserves the exact raw peer record", async () => {
+    const rawHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO_oMQ6yyQE";
+    const peers = [
+      { name: "Re-paired Owner", remote_epk: rawHandle, paired_at: "replacement" },
+    ];
+    writePeers(peers);
+
+    await expect(storage.removePeer(rawHandle, () => false)).resolves.toBe(false);
+    expect(JSON.parse(readFileSync(peersPath, "utf8"))).toEqual({ peers });
+  });
+
+  test("removes only the exact raw handle while preserving corrupt entries", async () => {
+    const urlSafeHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO_oMQ6yyQE";
+    const standardHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
+    const originalPeers = [
+      null,
+      42,
+      { name: "missing handle" },
+      { name: "null handle", remote_epk: null, paired_at: "first" },
+      { name: "URL-safe", remote_epk: urlSafeHandle, paired_at: "second" },
+      { name: "standard", remote_epk: standardHandle, paired_at: "third" },
+    ];
+    writePeers(originalPeers);
+
+    await expect(storage.listPeers()).resolves.toEqual(originalPeers);
+    await expect(storage.listOwnerPubkeys()).resolves.toEqual([
+      null,
+      42,
+      undefined,
+      urlSafeHandle,
+      standardHandle,
+    ]);
+    await expect(storage.removePeer(urlSafeHandle)).resolves.toBe(true);
+
+    const expectedPeers = originalPeers.filter((peer) =>
+      !peer ||
+      typeof peer !== "object" ||
+      (peer as { remote_epk?: unknown }).remote_epk !== urlSafeHandle,
+    );
+    expect(JSON.parse(readFileSync(peersPath, "utf8"))).toEqual({
+      peers: expectedPeers,
+    });
+    await expect(storage.removePeer(urlSafeHandle)).resolves.toBe(false);
+    await expect(storage.removePeer(standardHandle)).resolves.toBe(true);
+  });
+});
+
 // ── File identity wins over a READABLE keyring (masking bug) ─────────────────
 //
 // A file-backed/headless install pairs the mobile against the key in
@@ -370,5 +444,49 @@ describe("getOrCreateEd25519Keypair — file identity wins over a readable keyri
     // (that write is exactly what masked the file identity and broke pairing).
     expect(keyring.reads.length).toBe(0);
     expect(keyring.writes.length).toBe(0);
+  });
+});
+
+
+describe("owner snapshot mutation tokens", () => {
+  const peersPath = join(_tmpHome, ".pi", "remote", "peers.json");
+  const snapshotStorage = storage as typeof storage & {
+    snapshotOwnerPubkeys(): Promise<readonly { rawOwnerPubkey: unknown; token: unknown }[]>;
+    conditionalRemovePeer(remoteEpk: string, expectedToken: unknown): Promise<{ outcome: string }>;
+  };
+
+  function writePeers(peers: unknown): void {
+    mkdirSync(join(_tmpHome, ".pi", "remote"), { recursive: true });
+    writeFileSync(peersPath, JSON.stringify({ peers }, null, 2));
+  }
+
+  test("stale re-pair token preserves the replacement record", async () => {
+    const rawHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
+    const original = { name: "first", remote_epk: rawHandle, paired_at: "first" };
+    const replacement = { name: "replacement", remote_epk: rawHandle, paired_at: "replacement" };
+    writePeers([original]);
+
+    const [snapshot] = await snapshotStorage.snapshotOwnerPubkeys();
+    await storage.addPeer(replacement);
+    await expect(snapshotStorage.conditionalRemovePeer(rawHandle, snapshot!.token))
+      .resolves.toMatchObject({ outcome: "stale" });
+    expect(readFileSync(peersPath, "utf8")).toBe(JSON.stringify({ peers: [replacement] }, null, 2));
+  });
+
+  test("current token removes only its exact raw representation", async () => {
+    const urlSafeHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO_oMQ6yyQE";
+    const standardHandle = "Bz02uLiwrmQZ0S8qiwtFJAt0KzUvrgepYO/oMQ6yyQE=";
+    writePeers([
+      { name: "url", remote_epk: urlSafeHandle, paired_at: "first" },
+      { name: "standard", remote_epk: standardHandle, paired_at: "second" },
+    ]);
+
+    const snapshot = await snapshotStorage.snapshotOwnerPubkeys();
+    const token = snapshot.find((entry) => entry.rawOwnerPubkey === urlSafeHandle)!.token;
+    await expect(snapshotStorage.conditionalRemovePeer(urlSafeHandle, token))
+      .resolves.toMatchObject({ outcome: "removed" });
+    expect(JSON.parse(readFileSync(peersPath, "utf8"))).toEqual({
+      peers: [{ name: "standard", remote_epk: standardHandle, paired_at: "second" }],
+    });
   });
 });

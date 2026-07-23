@@ -24,6 +24,9 @@ const Map<String, String> _extToLanguage = {
   'cjs': 'javascript',
   'kt': 'kotlin',
   'kts': 'kotlin',
+  // `.dbq` (DB tab, plano 51) é SQL com frontmatter em comentário — a
+  // gramática sql pinta os dois.
+  'dbq': 'sql',
   'html': 'xml',
   'htm': 'xml',
   'xhtml': 'xml',

@@ -45,9 +45,7 @@ class TasksViewModel extends ChangeNotifier {
   }
 
   /// Estado atual de uma task (idle se nunca rodou).
-  TaskRun stateOf(String taskId) =>
-      _states[taskId] ?? _runner.runOf(taskId);
-
+  TaskRun stateOf(String taskId) => _states[taskId] ?? _runner.runOf(taskId);
 
   /// (Re)carrega as tasks do projeto em [cwd]. No-op se já é o cwd corrente.
   Future<void> loadFor(String cwd) async {

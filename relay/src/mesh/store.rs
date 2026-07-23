@@ -1,7 +1,10 @@
 use std::path::Path;
-use std::sync::Mutex;
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::{Connection, OptionalExtension, params};
+use tracing::warn;
 
 use super::types::MeshRecord;
 
@@ -21,6 +24,8 @@ const SCHEMA: &str = include_str!("../../migrations/001_mesh_versions.sql");
 /// `owner_pk_hash`. Thread-safe via `std::sync::Mutex<Connection>`.
 pub struct MeshStore {
     conn: Mutex<Connection>,
+    #[cfg(test)]
+    all_blobs_calls: AtomicUsize,
 }
 
 impl std::fmt::Debug for MeshStore {
@@ -30,6 +35,18 @@ impl std::fmt::Debug for MeshStore {
 }
 
 impl MeshStore {
+    fn connection(&self) -> MutexGuard<'_, Connection> {
+        match self.conn.lock() {
+            Ok(connection) => connection,
+            Err(poisoned) => {
+                warn!("mesh store mutex poisoned; recovering connection");
+                let connection = poisoned.into_inner();
+                self.conn.clear_poison();
+                connection
+            }
+        }
+    }
+
     /// Opens (or creates) the SQLite database at `path` and applies the
     /// schema migration idempotently. The parent directory is created if it
     /// doesn't exist — so callers can pass nested paths like `data/mesh.db`
@@ -49,6 +66,8 @@ impl MeshStore {
         conn.execute_batch(SCHEMA)?;
         Ok(Self {
             conn: Mutex::new(conn),
+            #[cfg(test)]
+            all_blobs_calls: AtomicUsize::new(0),
         })
     }
 
@@ -58,12 +77,14 @@ impl MeshStore {
         conn.execute_batch(SCHEMA)?;
         Ok(Self {
             conn: Mutex::new(conn),
+            #[cfg(test)]
+            all_blobs_calls: AtomicUsize::new(0),
         })
     }
 
     /// Returns the current version for `owner_pk_hash`, or `None` if absent.
     pub fn current_version(&self, owner_pk_hash: &str) -> Result<Option<u64>, StoreError> {
-        let conn = self.conn.lock().expect("mesh store mutex poisoned");
+        let conn = self.connection();
         let v: Option<i64> = conn
             .query_row(
                 "SELECT version FROM mesh_versions WHERE owner_pk_hash = ?1",
@@ -86,7 +107,7 @@ impl MeshStore {
         sig: &[u8],
         updated_at_ms: i64,
     ) -> Result<(), StoreError> {
-        let mut conn = self.conn.lock().expect("mesh store mutex poisoned");
+        let mut conn = self.connection();
         let tx = conn.transaction()?;
         let current: Option<i64> = tx
             .query_row(
@@ -130,16 +151,23 @@ impl MeshStore {
     /// Owner). Used by mesh authorization (plan 25) to find which Owner a
     /// given Pi-pubkey belongs to.
     pub fn all_blobs(&self) -> Result<Vec<Vec<u8>>, StoreError> {
-        let conn = self.conn.lock().expect("mesh store mutex poisoned");
+        #[cfg(test)]
+        self.all_blobs_calls.fetch_add(1, Ordering::Relaxed);
+        let conn = self.connection();
         let mut stmt = conn.prepare("SELECT blob FROM mesh_versions")?;
         let rows: Result<Vec<Vec<u8>>, _> =
             stmt.query_map([], |r| r.get::<_, Vec<u8>>(0))?.collect();
         Ok(rows?)
     }
 
+    #[cfg(test)]
+    pub(crate) fn all_blobs_calls(&self) -> usize {
+        self.all_blobs_calls.load(Ordering::Relaxed)
+    }
+
     /// Fetches the current record for `owner_pk_hash`, or `None` if absent.
     pub fn get(&self, owner_pk_hash: &str) -> Result<Option<MeshRecord>, StoreError> {
-        let conn = self.conn.lock().expect("mesh store mutex poisoned");
+        let conn = self.connection();
         let row = conn
             .query_row(
                 "SELECT version, blob, sig, updated_at
@@ -222,5 +250,25 @@ mod tests {
         let store = MeshStore::open_in_memory().unwrap();
         assert!(store.get("nope").unwrap().is_none());
         assert_eq!(store.current_version("nope").unwrap(), None);
+    }
+
+    #[test]
+    fn poisoned_connection_recovers_without_panicking() {
+        let store = std::sync::Arc::new(MeshStore::open_in_memory().unwrap());
+        let poisoned_store = store.clone();
+        assert!(
+            std::thread::spawn(move || {
+                let _connection = poisoned_store.conn.lock().unwrap();
+                panic!("poison connection");
+            })
+            .join()
+            .is_err()
+        );
+        assert_eq!(store.current_version("missing").unwrap(), None);
+        assert!(!store.conn.is_poisoned());
+        // Subsequent access uses the retained connection without re-entering
+        // the poison-recovery branch.
+        assert_eq!(store.current_version("missing").unwrap(), None);
+        assert!(!store.conn.is_poisoned());
     }
 }

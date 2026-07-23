@@ -80,4 +80,10 @@ pi-extension/test/.pi/
 # state written by `remote-pi claude` / the wizard, never repo content. Matches
 # any `.pi/` dir at any depth (root, pi-extension/, subprojects).
 .pi/
+
+# Cockpit: tasks.json é versionado (config do Task Run); resto do .cockpit/ não
+!.cockpit/
+.cockpit/*
+!.cockpit/tasks.json
+graphify-out
 .cockpit/worktrees/

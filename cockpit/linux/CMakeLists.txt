@@ -74,6 +74,16 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# flutter_secure_storage_linux 1.x bundles an older nlohmann/json header. New
+# Clang versions warn about its pre-C++14 literal-operator syntax; plugins share
+# APPLY_STANDARD_SETTINGS, so our global -Werror turned that upstream warning
+# into a build failure. Keep warnings-as-errors for the app and every other
+# warning, but exempt this known third-party deprecation until the secure-storage
+# package can be upgraded as a compatible set.
+if(TARGET flutter_secure_storage_linux_plugin)
+  target_compile_options(flutter_secure_storage_linux_plugin PRIVATE
+    "$<$<CXX_COMPILER_ID:Clang>:-Wno-error=deprecated-literal-operator>")
+endif()
 
 # === Installation ===
 # By default, "installing" just makes a relocatable bundle in the build

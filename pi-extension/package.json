@@ -1,6 +1,6 @@
 {
   "name": "remote-pi",
-  "version": "0.5.5",
+  "version": "0.6.0",
   "description": "Mobile remote control and local agent mesh for the Pi coding agent. Pair your phone via QR over a relay, watch tool calls in real time, run multi-Pi sessions over a local Unix Domain Socket broker, and let agents talk to each other through structured request/reply.",
   "type": "module",
   "main": "dist/index.js",

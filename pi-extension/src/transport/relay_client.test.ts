@@ -21,8 +21,14 @@ class MockWS extends EventEmitter {
   }
 
   send(data: string): void { this.sent.push(data); }
-  close(): void { this.emit("close"); }
-  terminate(): void { this.emit("close"); }
+  close(): void {
+    this.readyState = 3;
+    this.emit("close");
+  }
+  terminate(): void {
+    this.readyState = 3;
+    this.emit("close");
+  }
 }
 
 vi.mock("ws", () => ({ default: MockWS }));
@@ -60,6 +66,17 @@ describe("RelayClient", () => {
   beforeEach(() => {
     keypair = generateEd25519Keypair();
     wsRef.current = null;
+  });
+
+  test("isOpen reflects the real WebSocket lifecycle", async () => {
+    const client = new RelayClient("ws://localhost:9999", keypair);
+    expect(client.isOpen()).toBe(false);
+
+    await connectWithAuth(client);
+    expect(client.isOpen()).toBe(true);
+
+    client.close();
+    expect(client.isOpen()).toBe(false);
   });
 
   test("connect: sends hello with correct Ed25519 pubkey", async () => {

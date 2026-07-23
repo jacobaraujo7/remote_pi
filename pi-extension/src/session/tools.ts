@@ -1,6 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import type { SessionPeer } from "./peer.js";
+import type { TransportErrorReason } from "./envelope.js";
+import type { AckResult, SessionPeer } from "./peer.js";
 
 const NOT_IN_SESSION = "Not in a session. Run /remote-pi join first";
 const ACK_TIMEOUT_MS = 5_000;
@@ -26,6 +27,7 @@ interface SendDetails {
   ok: boolean;
   error?: string;
   target?: string;
+  reason?: TransportErrorReason;
 }
 
 /**
@@ -137,9 +139,11 @@ export function registerAgentTools(
         const details: SendDetails = {
           status: ack.status,
           ok,
-          target: ack.target,
+          ...(ack.target !== undefined ? { target: ack.target } : {}),
+          ...(ack.error !== undefined ? { error: ack.error } : {}),
+          ...(ack.reason !== undefined ? { reason: ack.reason } : {}),
         };
-        const text = _formatAck(to, ack.status, re);
+        const text = _formatAck(to, ack, re);
         return { content: [{ type: "text", text }], details };
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -260,9 +264,11 @@ export function registerAgentTools(
   });
 }
 
-function _formatAck(to: string, status: SendStatus, re: string | null | undefined): string {
+function _formatAck(to: string, ack: AckResult, re: string | null | undefined): string {
   const reSuffix = re ? ` (re=${re})` : "";
-  switch (status) {
+  const errorSuffix = ack.error ? ` (${ack.error})` : "";
+
+  switch (ack.status) {
     case "received":
       return `Delivered to "${to}"${reSuffix} — peer will process it in an upcoming turn.`;
     case "busy":
@@ -274,10 +280,20 @@ function _formatAck(to: string, status: SendStatus, re: string | null | undefine
         `Restart the agent leading the local broker (oldest Pi/remote-pi process) ` +
         `to pick up the new build, then resend.`;
     case "denied":
+      if (ack.reason === "not_authorized") {
+        return `Relay did not authorize delivery to "${to}"${reSuffix}${errorSuffix}. ` +
+          `Do not blindly retry; verify authorization first.`;
+      }
+      if (ack.reason === "bad_envelope") {
+        return `Relay rejected the envelope for "${to}"${reSuffix}${errorSuffix}. ` +
+          `Do not blindly retry; correct the envelope first.`;
+      }
       return `"${to}" denied the message${reSuffix}. Do not retry; report to user.`;
     case "timeout":
+      if (ack.reason === "offline") {
+        return `Immediate Relay offline transport error for "${to}"${reSuffix}${errorSuffix}; ` +
+          `reported as timeout without waiting for the ACK deadline.`;
+      }
       return `No ACK from "${to}" within ${ACK_TIMEOUT_MS}ms${reSuffix} — transport error. Investigate or retry later.`;
-    default:
-      return `Sent to "${to}"${reSuffix} — status: ${status}.`;
   }
 }

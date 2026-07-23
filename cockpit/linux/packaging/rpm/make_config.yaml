@@ -17,6 +17,8 @@ requires:
   - gtk3
   # Plano 46 — preview de A/V via media_kit (libmpv) usando a lib do sistema.
   - mpv-libs
+  # Plano 51 — flutter_secure_storage (senha de banco) usa o Secret Service.
+  - libsecret
 categories:
   - Development
   - IDE

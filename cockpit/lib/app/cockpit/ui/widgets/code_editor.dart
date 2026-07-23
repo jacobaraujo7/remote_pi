@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:flutter/material.dart'
     show
@@ -12,17 +13,27 @@ import 'package:flutter/material.dart'
         TextField,
         InputDecoration,
         InputBorder,
-        TextInputType,
-        Tooltip;
+        TextInputType;
 import 'package:flutter/gestures.dart' show PointerHoverEvent;
 import 'package:flutter/widgets.dart';
 
-/// Área **editável** de código com gutter de número de linha — a contraparte
-/// edit do `_TextView` (read-only) do file_viewer. Mesmo layout: um scroll
-/// vertical externo embrulha `Row[gutter fixo, divisor, scroll horizontal(campo)]`.
-/// O campo é um [EditableText] com `maxLines: null` (cresce até a altura total,
-/// sem scroll interno) dentro de `IntrinsicWidth` + scroll horizontal, então a
-/// linha longa **não quebra** e o gutter alinha 1:1 — igual ao viewer.
+/// Área **editável** de código com gutter de número de linha.
+///
+/// Layout: `Row[gutter, divisor, scroll horizontal(campo)]` num frame de padding
+/// vertical de 14px. O campo é um [EditableText] com `expands: true` que **é o
+/// dono do scroll vertical** (scroll interno via [_vertical]); o gutter tem
+/// scroll próprio travado ao input, espelhando [_vertical] via [_syncGutter],
+/// pra alinhar 1:1. `IntrinsicWidth` + scroll horizontal externo fazem a linha
+/// longa **não quebrar**.
+///
+/// Por que o campo é o dono do scroll vertical (e não um container externo):
+/// durante um drag de seleção, o `EditableText` recalcula a âncora convertendo a
+/// posição **global** do ponteiro em local a cada update, compensando só o scroll
+/// do Scrollable **mais próximo**. Com scroll vertical externo aninhado sob o
+/// scroll horizontal, o Scrollable mais próximo do campo é o horizontal → o
+/// vertical fica sem compensação e a âncora escorrega junto com o auto-scroll.
+/// Com o scroll vertical interno ao campo, a compensação (`renderEditable.offset`)
+/// cobre o eixo vertical → âncora estável.
 ///
 /// Não cuida de dirty/save: só edição + pintura. O dono ([FileViewer]) escuta o
 /// [controller] para o estado sujo e dispara o save.
@@ -60,8 +71,15 @@ class CodeEditor extends StatefulWidget {
 }
 
 class _CodeEditorState extends State<CodeEditor> {
+  // `_vertical` é o scrollController do PRÓPRIO campo (scroll interno). Isso é
+  // essencial pra seleção: se o campo crescesse até a altura total e o scroll
+  // fosse de um container externo, o campo se moveria no espaço global durante o
+  // auto-scroll e a âncora da seleção (recalculada de global→local a cada drag)
+  // escorregaria junto. Com o scroll interno, o campo fica parado e só o
+  // conteúdo rola → âncora estável. O gutter espelha `_vertical` via `_gutter`.
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
+  final _gutter = ScrollController();
 
   @override
   void initState() {
@@ -70,7 +88,19 @@ class _CodeEditorState extends State<CodeEditor> {
     widget.controller.addListener(_onChanged);
     widget.controller.addListener(_keepHorizontalOnSelection);
     _horizontal.addListener(_onHorizontalScroll);
+    _vertical.addListener(_syncGutter);
     if (widget.revealLine != null) _scheduleReveal(widget.revealLine!);
+  }
+
+  /// Espelha o scroll interno do campo (`_vertical`) no gutter, que tem scroll
+  /// próprio travado ao input (`NeverScrollableScrollPhysics`). `jumpTo` é
+  /// síncrono dentro da notificação → sem lag visível.
+  void _syncGutter() {
+    if (!_gutter.hasClients) return;
+    final target = _vertical.hasClients
+        ? _vertical.offset.clamp(0.0, _gutter.position.maxScrollExtent)
+        : 0.0;
+    if ((_gutter.offset - target).abs() > 0.5) _gutter.jumpTo(target);
   }
 
   /// Âncora: offset horizontal do último caret **colapsado**. Enquanto há
@@ -165,7 +195,7 @@ class _CodeEditorState extends State<CodeEditor> {
     _lastCollapsedH = 0;
     if (_horizontal.hasClients) _horizontal.jumpTo(0);
     if (_vertical.hasClients) {
-      final target = (_padTop + idx * _lineHeight - 80).clamp(
+      final target = (idx * _lineHeight - 80).clamp(
         0.0,
         _vertical.position.maxScrollExtent,
       );
@@ -196,7 +226,7 @@ class _CodeEditorState extends State<CodeEditor> {
     _pinned = false; // libera o pin: queremos rolar até a coluna do match
 
     if (_vertical.hasClients) {
-      final target = (_padTop + line * _lineHeight - 80).clamp(
+      final target = (line * _lineHeight - 80).clamp(
         0.0,
         _vertical.position.maxScrollExtent,
       );
@@ -243,7 +273,7 @@ class _CodeEditorState extends State<CodeEditor> {
   // Hover de diagnostic ao nível de **linha** (não de coluna): mostra a(s)
   // mensagem(ns) da linha sob o mouse. Suficiente pro "suporte secundário".
   double _lineHeight = 18; // px por linha; recalculado no build via TextPainter
-  static const double _padTop = 14; // padding vertical do SingleChildScrollView
+  static const double _padTop = 14; // frame de padding vertical fora dos scrolls
   int? _hoverLine;
   List<String> _hoverMsgs = const <String>[];
   double _hoverDx = 0;
@@ -288,8 +318,10 @@ class _CodeEditorState extends State<CodeEditor> {
     widget.controller.removeListener(_onChanged);
     widget.controller.removeListener(_keepHorizontalOnSelection);
     _horizontal.removeListener(_onHorizontalScroll);
+    _vertical.removeListener(_syncGutter);
     _vertical.dispose();
     _horizontal.dispose();
+    _gutter.dispose();
     super.dispose();
   }
 
@@ -310,7 +342,7 @@ class _CodeEditorState extends State<CodeEditor> {
       final messages = widget.controller.messagesForLine(oneBased - 1);
       slot = SizedBox(
         width: _iconSlot,
-        child: Tooltip(
+        child: AppTooltip(
           message: messages.join('\n'),
           child: Icon(
             _severityIcon(severity),
@@ -423,23 +455,31 @@ class _CodeEditorState extends State<CodeEditor> {
       controller: _horizontal,
       thumbVisibility: true,
       scrollbarOrientation: ScrollbarOrientation.bottom,
-      notificationPredicate: (n) => n.depth == 1,
+      notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
       child: Scrollbar(
         controller: _vertical,
-        child: SingleChildScrollView(
-          controller: _vertical,
+        notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+        // O padding de 14px é um frame FIXO fora dos dois scrolls (gutter e
+        // campo), pra ambos começarem o conteúdo em y=0 e rolarem em lockstep
+        // sem que o inset de topo desalinhe ao rolar.
+        child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 14),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Gutter — scroll próprio (travado ao input) espelhando `_vertical`.
               Padding(
                 padding: const EdgeInsets.only(left: 14, right: 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (var i = 1; i <= lineCount; i++)
-                      _gutterLine(i, numStyle),
-                  ],
+                child: SingleChildScrollView(
+                  controller: _gutter,
+                  physics: const NeverScrollableScrollPhysics(),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      for (var i = 1; i <= lineCount; i++)
+                        _gutterLine(i, numStyle),
+                    ],
+                  ),
                 ),
               ),
               Container(width: 1, color: syntax.base.withValues(alpha: 0.15)),
@@ -467,14 +507,17 @@ class _CodeEditorState extends State<CodeEditor> {
                           child: TextField(
                             controller: widget.controller,
                             focusNode: widget.focusNode,
+                            // O campo é o DONO do scroll vertical (scroll interno)
+                            // → fica parado no espaço global e a âncora da seleção
+                            // não escorrega durante o auto-scroll do drag.
+                            scrollController: _vertical,
                             style: codeStyle,
                             cursorColor: syntax.base,
                             maxLines: null,
                             minLines: null,
-                            // Scroll vertical é do contêiner externo; o campo
-                            // cresce até a altura total (sem scroll interno) pra
-                            // o gutter alinhar 1:1.
-                            expands: false,
+                            // Preenche a altura do viewport e rola o conteúdo
+                            // internamente; o gutter espelha via `_syncGutter`.
+                            expands: true,
                             keyboardType: TextInputType.multiline,
                             decoration: const InputDecoration(
                               isCollapsed: true,
