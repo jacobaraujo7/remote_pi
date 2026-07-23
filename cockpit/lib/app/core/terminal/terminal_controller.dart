@@ -219,21 +219,18 @@ final class GhosttyTerminalController implements CockpitTerminalController {
   }
 }
 
-/// Ghostty (via `flterm`) ainda **engole teclas printáveis no Windows**: o
-/// `flterm` roteia o caractere pelo TextInput do Flutter no desktop e o commit
-/// não chega ao PTY, então o usuário não consegue digitar (o xterm não usa esse
-/// caminho e funciona). Bug upstream `elias8/libghostty`, ainda sem fix.
+/// Se o seletor de engine aparece nas Settings e a escolha é honrada.
 ///
-/// Enquanto isso, o Windows fica **travado no xterm**: o seletor some das
-/// Settings ([terminalEngineIsSelectable]) e qualquer engine pedido cai pra
-/// xterm ([resolveTerminalEngine]). macOS/Linux honram a escolha normalmente.
-bool get terminalEngineIsSelectable =>
-    defaultTargetPlatform != TargetPlatform.windows;
+/// O Windows já ficou travado no xterm porque o `flterm` engolia teclas (view
+/// id nulo no text input) e o scroll interno de TUI não funcionava. Com os
+/// fixes do fork (text input #114 + wheel/trackpad) isso foi resolvido, então o
+/// Ghostty voltou a ser selecionável em todas as plataformas — em teste no
+/// Windows via a branch/override do fork.
+bool get terminalEngineIsSelectable => true;
 
-/// Resolve o engine efetivo pra plataforma atual — força xterm no Windows (ver
-/// [terminalEngineIsSelectable]), passa direto no resto.
-TerminalEngine resolveTerminalEngine(TerminalEngine engine) =>
-    terminalEngineIsSelectable ? engine : TerminalEngine.xterm;
+/// Resolve o engine efetivo pra plataforma — hoje passa direto (sem gate de
+/// plataforma). Mantido como ponto único caso precise re-travar alguma engine.
+TerminalEngine resolveTerminalEngine(TerminalEngine engine) => engine;
 
 CockpitTerminalController createTerminalController(
   TerminalEngine engine, {

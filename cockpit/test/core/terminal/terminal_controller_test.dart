@@ -55,39 +55,25 @@ void main() {
     });
   }
 
-  group('Windows engine gate', () {
-    // Ghostty (flterm) engole teclas printáveis no Windows → a plataforma fica
-    // travada no xterm: seletor some e qualquer engine pedido cai pra xterm.
-    setUp(() => debugDefaultTargetPlatformOverride = TargetPlatform.windows);
-    tearDown(() => debugDefaultTargetPlatformOverride = null);
-
-    test('engine não é selecionável no Windows', () {
-      expect(terminalEngineIsSelectable, isFalse);
-    });
-
-    test('resolveTerminalEngine força xterm no Windows', () {
-      expect(
-        resolveTerminalEngine(TerminalEngine.ghostty),
-        TerminalEngine.xterm,
-      );
-      expect(resolveTerminalEngine(TerminalEngine.xterm), TerminalEngine.xterm);
-    });
-
-    test('createTerminalController(ghostty) cai pra xterm no Windows', () {
-      final terminal = createTerminalController(TerminalEngine.ghostty);
-      addTearDown(terminal.dispose);
-      expect(terminal.engine, TerminalEngine.xterm);
-    });
-  });
-
-  test('engine é selecionável fora do Windows (macOS)', () {
-    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
-    addTearDown(() => debugDefaultTargetPlatformOverride = null);
-    expect(terminalEngineIsSelectable, isTrue);
-    expect(
-      resolveTerminalEngine(TerminalEngine.ghostty),
-      TerminalEngine.ghostty,
-    );
+  group('engine sem gate de plataforma (Ghostty destravado no Windows)', () {
+    // Com os fixes do fork (text input #114 + scroll wheel/trackpad), o Ghostty
+    // voltou a ser selecionável e honrado em todas as plataformas, inclusive
+    // Windows — a escolha não cai mais pra xterm.
+    for (final platform in [TargetPlatform.windows, TargetPlatform.macOS]) {
+      test('selecionável e honrado em $platform', () {
+        debugDefaultTargetPlatformOverride = platform;
+        addTearDown(() => debugDefaultTargetPlatformOverride = null);
+        expect(terminalEngineIsSelectable, isTrue);
+        expect(
+          resolveTerminalEngine(TerminalEngine.ghostty),
+          TerminalEngine.ghostty,
+        );
+        expect(
+          resolveTerminalEngine(TerminalEngine.xterm),
+          TerminalEngine.xterm,
+        );
+      });
+    }
   });
 
   group('Ghostty replay não vaza resposta de query pro PTY', () {
