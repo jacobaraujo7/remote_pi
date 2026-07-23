@@ -65,7 +65,9 @@ class PtyTaskRunner implements TaskRunnerGateway {
       final env = {
         ...await envWithNodeOnPath(),
         if (profile != null) ...profile.env,
-        'TERM': 'xterm-256color',
+        // TERM fora do Windows: no PowerShell nativo o TERM quebra o auto-load
+        // do PSReadLine e o ConPTY já entrega o VT (ver pty_terminal_gateway).
+        if (!Platform.isWindows) 'TERM': 'xterm-256color',
         'COLORTERM': 'truecolor',
       };
 

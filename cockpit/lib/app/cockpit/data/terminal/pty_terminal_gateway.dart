@@ -64,9 +64,15 @@ class PtyTerminalGateway implements TerminalGateway {
   ///
   /// O `kyroon_pty` faz `addAll(environment)` por último, então estes overrides
   /// vencem o que veio herdado.
+  ///
+  /// `TERM` **não** é setado no Windows: é conceito Unix (terminfo) e, no
+  /// PowerShell nativo, seu simples presença quebra o auto-load do PSReadLine
+  /// ("console is running without PSReadLine") — o ConPTY já entrega o VT sem
+  /// terminfo. No macOS/Linux o TERM segue (TUIs ncurses dependem dele; abrir
+  /// pelo Finder não herda TERM algum); no WSL o próprio Linux define o seu.
   Map<String, String> _terminalEnv(Map<String, String> extraEnv) => {
     ...Platform.environment,
-    'TERM': 'xterm-256color',
+    if (!Platform.isWindows) 'TERM': 'xterm-256color',
     'COLORTERM': 'truecolor',
     ...extraEnv,
   };
