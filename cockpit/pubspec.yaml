@@ -237,6 +237,16 @@ flutter:
 # Público + HTTPS pra funcionar no macOS E no Windows. Voltar pro pub quando o
 # upstream publicar os fixes.
 dependency_overrides:
+  # media_kit 1.2.6 chama `quit` em handles mpv antigos durante hot restart
+  # antes de limpar o wakeup callback da isolate anterior, causando SIGABRT no
+  # Flutter 3.38+ (`Callback invoked after it has been deleted`, upstream
+  # #1314). O fix oficial foi mergeado em #1416, mas ainda não saiu no pub.dev.
+  # Remover este override quando uma release posterior a 1.2.6 contiver o fix.
+  media_kit:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: 44ba261
+      path: media_kit
   flterm:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git

@@ -5,6 +5,7 @@ import 'package:cockpit/app/app_module.dart';
 import 'package:cockpit/app/app_widget.dart';
 import 'package:cockpit/app/cockpit/data/hooks/claude_hook_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/hive_settings_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
@@ -96,10 +97,13 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         // lê do cache. Ver login_shell.dart / issue #42.
         await resolveLoginShell();
 
-        // Mata `pi --mode rpc` e language servers órfãos do ciclo anterior
-        // antes de qualquer novo spawn (hot restart e crash cobertos).
-        await PiProcessRegistry.cleanOrphans();
-        await LspProcessRegistry.cleanOrphans();
+        // Mata filhos órfãos desta instância ou de instâncias já encerradas,
+        // preservando agents/LSP/tasks de outros Cockpits ainda vivos.
+        await Future.wait([
+          PiProcessRegistry.cleanOrphans(),
+          LspProcessRegistry.cleanOrphans(),
+          TaskProcessRegistry.cleanOrphans(),
+        ]);
 
         // Hooks do Cockpit no ~/.claude/settings.json (idempotente) pra
         // sessões `claude` nas abas reportarem status de turno. Não-fatal.

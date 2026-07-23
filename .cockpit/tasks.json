@@ -37,7 +37,8 @@
       // dart-define just become args here — no stack-specific keys).
       "profiles": [
         { "name": "macos", "args": ["-d", "macos"] },
-        { "name": "windows", "args": ["-d", "windows"] }
+        { "name": "windows", "args": ["-d", "windows"] },
+        { "name": "linux", "args": ["-d", "linux"] }
       ]
     },
     {

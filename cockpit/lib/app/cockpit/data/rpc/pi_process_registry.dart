@@ -1,5 +1,8 @@
 import 'dart:io';
 
+import 'package:cockpit/app/core/data/process/owned_process_registry.dart';
+import 'package:cockpit/app/core/utils/user_home.dart';
+
 /// Registro persistente de PIDs de processos `pi --mode rpc` ativos.
 ///
 /// Problema: hot restart do `flutter run` reinicia a isolate Dart mas NÃO mata
@@ -23,10 +26,15 @@ import 'dart:io';
 class PiProcessRegistry {
   PiProcessRegistry._();
 
-  static String get _path {
-    final home = Platform.environment['HOME'] ?? '';
+  static String get _legacyPath {
+    final home = userHome() ?? '';
     return '$home/.pi/cockpit/agent-pids';
   }
+
+  static final OwnedProcessRegistry _registry = OwnedProcessRegistry(
+    category: 'agents',
+    legacyFiles: [_legacyPath],
+  );
 
   /// Mata todos os pi órfãos do ciclo anterior e limpa o registro.
   /// Deve ser chamado UMA VEZ por boot (em [setupDependencies]), antes de
@@ -34,31 +42,14 @@ class PiProcessRegistry {
   static Future<void> cleanOrphans() async {
     // Roda as duas buscas em paralelo para minimizar latência no boot.
     final results = await Future.wait([
-      _pidsFromRegistry(),
+      _registry.cleanOrphans().then((_) => const <int>[]),
       _orphanedPiChildren(),
     ]);
-    final toKill = <int>{...results[0], ...results[1]};
+    final toKill = <int>{...results[1]};
     for (final p in toKill) {
       try {
         Process.killPid(p, ProcessSignal.sigkill); // imediato, sem corrida
       } catch (_) {}
-    }
-  }
-
-  /// Lê os PIDs registrados no arquivo e apaga o arquivo. Cobre restarts
-  /// frios (cold) e crashes onde o processo pai morreu.
-  static Future<List<int>> _pidsFromRegistry() async {
-    try {
-      final file = File(_path);
-      if (!await file.exists()) return const <int>[];
-      final pids = (await file.readAsLines())
-          .map((l) => int.tryParse(l.trim()))
-          .whereType<int>()
-          .toList();
-      await file.delete();
-      return pids;
-    } catch (_) {
-      return const <int>[];
     }
   }
 
@@ -101,25 +92,11 @@ class PiProcessRegistry {
 
   /// Registra [pid] no arquivo. Chamado logo após o spawn bem-sucedido.
   static Future<void> register(int pid) async {
-    try {
-      final file = File(_path);
-      await file.parent.create(recursive: true);
-      await file.writeAsString('$pid\n', mode: FileMode.append);
-    } catch (_) {}
+    await _registry.register(pid);
   }
 
   /// Remove [pid] do arquivo. Chamado na saída limpa do processo.
   static Future<void> unregister(int pid) async {
-    try {
-      final file = File(_path);
-      if (!await file.exists()) return;
-      final lines = await file.readAsLines();
-      final kept = lines.where((l) => l.trim() != '$pid').toList();
-      if (kept.isEmpty) {
-        await file.delete();
-      } else {
-        await file.writeAsString('${kept.join('\n')}\n');
-      }
-    } catch (_) {}
+    await _registry.unregister(pid);
   }
 }

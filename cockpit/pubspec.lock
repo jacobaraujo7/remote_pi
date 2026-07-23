@@ -713,10 +713,11 @@ packages:
   media_kit:
     dependency: "direct main"
     description:
-      name: media_kit
-      sha256: ae9e79597500c7ad6083a3c7b7b7544ddabfceacce7ae5c9709b0ec16a5d6643
-      url: "https://pub.dev"
-    source: hosted
+      path: media_kit
+      ref: "44ba261"
+      resolved-ref: "44ba261c463f5e2cef926d35438a95ee63cc5cf9"
+      url: "https://github.com/media-kit/media-kit.git"
+    source: git
     version: "1.2.6"
   media_kit_libs_android_video:
     dependency: transitive

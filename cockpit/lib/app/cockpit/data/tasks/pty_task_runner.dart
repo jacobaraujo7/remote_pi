@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/utils/login_shell.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
@@ -92,7 +92,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
       rethrow;
     }
     _starting.remove(def.id);
-    unawaited(PiProcessRegistry.register(pty.pid));
+    unawaited(TaskProcessRegistry.register(pty.pid));
 
     final initial = TaskRun(
       taskId: def.id,
@@ -234,6 +234,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
       try {
         task.pty.kill(ProcessSignal.sigkill);
       } catch (_) {}
+      await TaskProcessRegistry.unregister(task.pty.pid);
       await task.outSub?.cancel();
       await task.out.close();
     }
@@ -247,7 +248,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
     final task = _running.remove(taskId);
     if (task == null) return;
     stopWatch(taskId); // o processo morreu → nada pra recarregar
-    unawaited(PiProcessRegistry.unregister(task.pty.pid));
+    unawaited(TaskProcessRegistry.unregister(task.pty.pid));
     final TaskRunStatus status;
     if (task.stopping) {
       status = TaskRunStatus.stopped;
