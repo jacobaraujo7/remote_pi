@@ -507,15 +507,24 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   // ---- mover (drag-and-drop) ------------------------------------------------
 
-  /// Drop de [path] numa pasta [targetDir]: move mantendo o nome. A validação
-  /// (mesma pasta = no-op, pasta dentro de si mesma) fica na VM; falha vira
-  /// dialog. A seleção segue o novo caminho.
+  /// Drop de [path] numa pasta [targetDir]: move mantendo o nome. Confirma
+  /// sempre antes de tocar o disco. A validação (mesma pasta = no-op, pasta
+  /// dentro de si mesma) fica na VM; falha vira dialog. A seleção segue o
+  /// novo caminho.
   Future<void> _requestMove(String path, String targetDir) async {
+    final name = path.split('/').where((p) => p.isNotEmpty).last;
+    final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
+    final ok = await showConfirmDialog(
+      context,
+      title: 'Move?',
+      message: 'Move “$name” to “${destName ?? '/'}”?',
+      confirmLabel: 'Move',
+    );
+    if (!ok || !mounted) return;
     final r = await widget.onMove(path, targetDir);
     if (!mounted) return;
     r.fold((_) {
       if (_selectedPath != null && _isUnder(_selectedPath!, path)) {
-        final name = path.split('/').where((p) => p.isNotEmpty).last;
         setState(() => _selectedPath = '$targetDir/$name');
       }
     }, (e) => showInfoDialog(context, title: 'Could not move', message: e));
@@ -578,9 +587,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
     // Copiar / recortar / colar (Cmd no macOS, Ctrl no resto). Paste dispensa
     // seleção (cai na raiz); copy/cut exigem um item selecionado.
     final mod = HardwareKeyboard.instance;
-    final accel = Platform.isMacOS
-        ? mod.isMetaPressed
-        : mod.isControlPressed;
+    final accel = Platform.isMacOS ? mod.isMetaPressed : mod.isControlPressed;
     if (accel) {
       if (key == LogicalKeyboardKey.keyC && _selectedPath != null) {
         _copySelected();
@@ -756,9 +763,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                       ? Icons.view_list_outlined
                       : Icons.account_tree_outlined,
                   tooltip: _sourceControlTree ? 'View as List' : 'View as Tree',
-                  onTap: () => setState(
-                    () => _sourceControlTree = !_sourceControlTree,
-                  ),
+                  onTap: () =>
+                      setState(() => _sourceControlTree = !_sourceControlTree),
                 ),
               ],
             ),
@@ -810,19 +816,19 @@ class _FileTreePanelState extends State<FileTreePanel> {
                             vertical: 8,
                             horizontal: 6,
                           ),
-                            // Árvore única da raiz do workspace, mesmo em
-                            // multi-root — a coloração git resolve a root dona
-                            // por caminho absoluto, e a divisão por repo vive
-                            // no Source Control (lá é onde importa).
-                            child: _DirView(
-                              path: widget.rootPath,
-                              rootPath: widget.rootPath,
-                              depth: 0,
-                              refreshToken: _refreshToken,
-                              edit: edit,
-                            ),
+                          // Árvore única da raiz do workspace, mesmo em
+                          // multi-root — a coloração git resolve a root dona
+                          // por caminho absoluto, e a divisão por repo vive
+                          // no Source Control (lá é onde importa).
+                          child: _DirView(
+                            path: widget.rootPath,
+                            rootPath: widget.rootPath,
+                            depth: 0,
+                            refreshToken: _refreshToken,
+                            edit: edit,
                           ),
                         ),
+                      ),
                     ),
                   ),
           ),
@@ -1255,7 +1261,10 @@ class _RowState extends State<_Row> {
     // "Create agent" só quando agentes estão ligados (Settings → General →
     // "Enable agents"). "Create terminal" segue sempre. Lido na hora do menu
     // pra refletir o toggle atual.
-    final agentsEnabled = context.read<SettingsController>().settings.enableAgent;
+    final agentsEnabled = context
+        .read<SettingsController>()
+        .settings
+        .enableAgent;
     showAppMenu<String>(
       context,
       minWidth: 220,
@@ -1324,11 +1333,7 @@ class _RowState extends State<_Row> {
           label: 'Copy',
           icon: Icons.copy_all_outlined,
         ),
-        const AppMenuItem(
-          value: 'cut',
-          label: 'Cut',
-          icon: Icons.content_cut,
-        ),
+        const AppMenuItem(value: 'cut', label: 'Cut', icon: Icons.content_cut),
         AppMenuItem(
           value: 'paste',
           label: 'Paste',
