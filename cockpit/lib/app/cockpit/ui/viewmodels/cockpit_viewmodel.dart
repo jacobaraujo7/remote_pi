@@ -846,19 +846,37 @@ class CockpitViewModel extends ChangeNotifier {
   Map<String, GitFileStatus> changedFilesOfRoot(String rootPath) =>
       git.changedFilesOfRoot(rootPath);
 
+  Map<String, GitFileStatus> stagedFilesOfRoot(String rootPath) =>
+      git.stagedFilesOfRoot(rootPath);
+
+  Map<String, GitFileStatus> unstagedFilesOfRoot(String rootPath) =>
+      git.unstagedFilesOfRoot(rootPath);
+
   /// Caminhos **absolutos** com mudança git do projeto selecionado (exclui
   /// ignorados), varrendo **todas as roots** — alimenta a árvore podada do
   /// modo Source Control (que agrupa por root quando multi-root).
-  List<String> changedAbsolutePaths() {
+  List<String> changedAbsolutePaths() =>
+      _absoluteGitPaths((root) => changedFilesOfRoot(root));
+
+  /// Entradas do index para a seção **Staged Changes**.
+  List<String> stagedAbsolutePaths() =>
+      _absoluteGitPaths((root) => stagedFilesOfRoot(root));
+
+  /// Mudanças pendentes no working tree para a seção **Changes**.
+  List<String> unstagedAbsolutePaths() =>
+      _absoluteGitPaths((root) => unstagedFilesOfRoot(root));
+
+  List<String> _absoluteGitPaths(
+    Map<String, GitFileStatus> Function(String root) filesForRoot,
+  ) {
     final project = selectedProject;
     if (project == null) return const [];
     final out = <String>[];
     for (var root in rootsOf(project.id)) {
       if (root.endsWith('/')) root = root.substring(0, root.length - 1);
-      changedFilesOfRoot(root).forEach((rel, status) {
-        if (status == GitFileStatus.ignored) return;
+      for (final rel in filesForRoot(root).keys) {
         out.add('$root/$rel');
-      });
+      }
     }
     return out;
   }
@@ -1330,7 +1348,7 @@ class CockpitViewModel extends ChangeNotifier {
     final hasExt = dot > 0;
     final stem = hasExt ? name.substring(0, dot) : name;
     final ext = hasExt ? name.substring(dot) : '';
-    for (var i = 1;; i++) {
+    for (var i = 1; ; i++) {
       final suffix = i == 1 ? ' copy' : ' copy $i';
       candidate = _join(dir, '$stem$suffix$ext');
       if (!await _pathExists(candidate)) return candidate;
@@ -1956,6 +1974,35 @@ class CockpitViewModel extends ChangeNotifier {
     final origin = _forkOriginPath(fork);
     if (origin == null) return false;
     return _worktreeMgr.isBranchMerged(origin, fork.name);
+  }
+
+  /// Comita todas as entradas staged da única root do workspace selecionado.
+  /// Multi-root exige que o usuário comite por arquivo/seção para não criar
+  /// commits implícitos em repositórios diferentes.
+  Future<String?> commitStaged(String message) async {
+    final pid = _selectedProjectId;
+    if (pid == null) return 'No workspace selected.';
+    final roots = rootsOf(
+      pid,
+    ).where((root) => stagedFilesOfRoot(root).isNotEmpty).toList();
+    if (roots.isEmpty) return 'There are no staged changes to commit.';
+    if (roots.length > 1) {
+      return 'Stage changes belong to multiple repositories. Commit them separately.';
+    }
+    final err = await git.collect(roots.single, ['commit', '-m', message]);
+    unawaited(git.refresh(pid));
+    return err;
+  }
+
+  /// Stage (Source Control): adiciona [absPath] ao index da root dona.
+  Future<String?> stageFile(String absPath) async {
+    final pid = _selectedProjectId;
+    if (pid == null) return 'No workspace selected.';
+    final root = rootContaining(pid, absPath);
+    if (root == null) return 'File is outside the workspace roots.';
+    final err = await git.collect(root, ['add', '--', _subOf(absPath, root)]);
+    unawaited(git.refresh(pid));
+    return err;
   }
 
   /// Unstage (Source Control): `git restore --staged -- <arquivo>` na root

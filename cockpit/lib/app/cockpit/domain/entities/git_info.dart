@@ -8,6 +8,8 @@ class GitInfo {
     this.ahead = 0,
     this.behind = 0,
     this.files = const <String, GitFileStatus>{},
+    this.stagedFiles = const <String, GitFileStatus>{},
+    this.changedFiles = const <String, GitFileStatus>{},
     this.ignored = const <String>{},
     this.untrackedDirs = const <String>{},
   });
@@ -25,6 +27,13 @@ class GitInfo {
   /// Status por arquivo sujo. Chave = caminho **relativo à raiz do projeto**,
   /// sempre com separador `/`. Vazio = árvore limpa.
   final Map<String, GitFileStatus> files;
+
+  /// Entradas presentes no index (a seção **Staged Changes**).
+  final Map<String, GitFileStatus> stagedFiles;
+
+  /// Entradas pendentes no working tree (a seção **Changes**). Um arquivo pode
+  /// estar nos dois mapas quando recebeu novas edições depois do stage.
+  final Map<String, GitFileStatus> changedFiles;
 
   /// Raízes ignoradas pelo `.gitignore` (caminhos relativos, sem barra final;
   /// `git` colapsa pastas ignoradas → um caminho cobre tudo abaixo dele). Não
@@ -67,6 +76,8 @@ class GitInfo {
         other.ahead == ahead &&
         other.behind == behind &&
         _sameFiles(other.files, files) &&
+        _sameFiles(other.stagedFiles, stagedFiles) &&
+        _sameFiles(other.changedFiles, changedFiles) &&
         other.ignored.length == ignored.length &&
         other.ignored.containsAll(ignored) &&
         other.untrackedDirs.length == untrackedDirs.length &&
@@ -79,6 +90,8 @@ class GitInfo {
     ahead,
     behind,
     files.length,
+    stagedFiles.length,
+    changedFiles.length,
     ignored.length,
     untrackedDirs.length,
   );

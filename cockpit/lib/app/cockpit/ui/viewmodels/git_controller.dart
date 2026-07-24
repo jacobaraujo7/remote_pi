@@ -158,6 +158,14 @@ class GitController extends ChangeNotifier {
     return info.files;
   }
 
+  /// Entradas no index, separadas para a seção **Staged Changes**.
+  Map<String, GitFileStatus> stagedFilesOfRoot(String rootPath) =>
+      _gitInfo[rootPath]?.stagedFiles ?? const {};
+
+  /// Mudanças no working tree, separadas para a seção **Changes**.
+  Map<String, GitFileStatus> unstagedFilesOfRoot(String rootPath) =>
+      _gitInfo[rootPath]?.changedFiles ?? const {};
+
   /// Estado agregado de uma **root inteira** — o mais forte entre os arquivos
   /// sujos dela (mesma regra de pasta, [GitFileStatus.strongest]). Colore a
   /// própria pasta da root na árvore de arquivos em multi-root, onde o `.git`

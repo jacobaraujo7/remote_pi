@@ -59,9 +59,17 @@ class GitStatusReaderImpl implements GitStatusReader {
         '-uall',
         '--ignored=matching',
       ]);
-      final (files, ignored, untrackedDirs) = statusRes.exitCode == 0
+      final (
+        files,
+        stagedFiles,
+        changedFiles,
+        ignored,
+        untrackedDirs,
+      ) = statusRes.exitCode == 0
           ? _parsePorcelainZ(statusRes.stdout as String)
           : (
+              const <String, GitFileStatus>{},
+              const <String, GitFileStatus>{},
               const <String, GitFileStatus>{},
               const <String>{},
               const <String>{},
@@ -93,6 +101,8 @@ class GitStatusReaderImpl implements GitStatusReader {
         ahead: ahead,
         behind: behind,
         files: files,
+        stagedFiles: stagedFiles,
+        changedFiles: changedFiles,
         ignored: ignored,
         untrackedDirs: untrackedDirs,
       );
@@ -109,9 +119,17 @@ class GitStatusReaderImpl implements GitStatusReader {
   /// `git` colapsa pastas totalmente novas/ignoradas numa única entrada com
   /// barra final (`?? dir/`, `!! dir/`); guardamos a raiz pra colorir todos os
   /// descendentes (que não são enumerados).
-  static (Map<String, GitFileStatus>, Set<String>, Set<String>)
+  static (
+    Map<String, GitFileStatus>,
+    Map<String, GitFileStatus>,
+    Map<String, GitFileStatus>,
+    Set<String>,
+    Set<String>,
+  )
   _parsePorcelainZ(String raw) {
     final out = <String, GitFileStatus>{};
+    final staged = <String, GitFileStatus>{};
+    final changed = <String, GitFileStatus>{};
     final ignored = <String>{};
     final untrackedDirs = <String>{};
     final tokens = raw.split('\u0000');
@@ -122,7 +140,9 @@ class GitStatusReaderImpl implements GitStatusReader {
       final y = entry[1];
       var pathPart = entry.substring(3); // pula "XY "
       // Rename/copy no index → o próximo token (NUL) é o path de origem; pula.
-      if (x == 'R' || x == 'C') i++;
+      if (x == 'R' || x == 'C') {
+        i++;
+      }
       final isDir = pathPart.endsWith('/'); // pasta colapsada (?? ou !!)
       if (isDir) pathPart = pathPart.substring(0, pathPart.length - 1);
       if (pathPart.isEmpty) continue;
@@ -136,15 +156,50 @@ class GitStatusReaderImpl implements GitStatusReader {
         ); // pasta nova colapsada → cobre descendentes
       }
       final status = _classify(x, y);
-      if (status != null) out[pathPart] = status;
+      if (status != null) {
+        out[pathPart] = status;
+      }
+      final indexStatus = _classifyIndex(x, y);
+      if (indexStatus != null) {
+        staged[pathPart] = indexStatus;
+      }
+      final worktreeStatus = _classifyWorktree(x, y);
+      if (worktreeStatus != null) {
+        changed[pathPart] = worktreeStatus;
+      }
     }
-    return (out, ignored, untrackedDirs);
+    return (out, staged, changed, ignored, untrackedDirs);
   }
 
   /// Mapeia os dois chars de status do porcelain pro nosso enum. A mudança no
   /// working tree (`Y`) tem prioridade sobre o index (`X`) na cor exibida,
   /// exceto conflito/deleção. Retorna `null` para `!!` (ignored) e estados que
   /// não nos interessam colorir.
+  static GitFileStatus? _classifyIndex(String x, String y) {
+    if (x == ' ' || x == '?' || x == '!') return null;
+    if (x == 'U' ||
+        y == 'U' ||
+        (x == 'D' && y == 'D') ||
+        (x == 'A' && y == 'A')) {
+      return GitFileStatus.conflict;
+    }
+    if (x == 'D') return GitFileStatus.deleted;
+    return GitFileStatus.staged;
+  }
+
+  static GitFileStatus? _classifyWorktree(String x, String y) {
+    if (x == '?' && y == '?') return GitFileStatus.untracked;
+    if (y == ' ') return null;
+    if (x == 'U' ||
+        y == 'U' ||
+        (x == 'D' && y == 'D') ||
+        (x == 'A' && y == 'A')) {
+      return GitFileStatus.conflict;
+    }
+    if (y == 'D') return GitFileStatus.deleted;
+    return GitFileStatus.modified;
+  }
+
   static GitFileStatus? _classify(String x, String y) {
     // Untracked.
     if (x == '?' && y == '?') return GitFileStatus.untracked;

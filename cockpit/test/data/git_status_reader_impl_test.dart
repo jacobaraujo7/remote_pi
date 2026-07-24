@@ -85,6 +85,25 @@ void main() {
     expect(files['lib/fresh.dart'], GitFileStatus.untracked);
     expect(files['lib/app.dart'], GitFileStatus.deleted);
     expect(info.dirtyCount, files.length);
+    expect(info.stagedFiles, contains('staged.txt'));
+    expect(
+      info.changedFiles.keys,
+      containsAll(<String>['README.md', 'lib/fresh.dart', 'lib/app.dart']),
+    );
+  });
+
+  test('arquivo staged e alterado depois aparece nas duas seções', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    await write('README.md', 'staged');
+    await git(['add', 'README.md']);
+    await write('README.md', 'working tree change');
+
+    final info = await reader.read(repo.path);
+    expect(info!.stagedFiles['README.md'], GitFileStatus.staged);
+    expect(info.changedFiles['README.md'], GitFileStatus.modified);
   });
 
   test('paths com espaço são parseados (separador -z é NUL)', () async {

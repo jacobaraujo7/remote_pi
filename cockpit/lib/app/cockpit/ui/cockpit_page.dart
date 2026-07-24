@@ -810,9 +810,11 @@ class _CockpitPageState extends State<CockpitPage> {
                                   git: vm.gitInfoForRoot(r),
                                 ),
                             ],
+                            onStageFile: vm.stageFile,
                             onUnstageFile: vm.unstageFile,
                             onDiscardFile: vm.discardFile,
                             onCommitFile: vm.commitFile,
+                            onCommitStaged: vm.commitStaged,
                             revision: vm.fileTreeRevision,
                             selectedPath: vm.selectedFileInTree,
                             listChildren: vm.listChildren,
@@ -832,6 +834,8 @@ class _CockpitPageState extends State<CockpitPage> {
                                 vm.selectedProject != null &&
                                 vm.isGitRepo(vm.selectedProject!.id),
                             changedPaths: vm.changedAbsolutePaths(),
+                            stagedPaths: vm.stagedAbsolutePaths(),
+                            unstagedPaths: vm.unstagedAbsolutePaths(),
                             onOpenWith: vm.openWithDefaultApp,
                             onCreateInFolder: (sub, terminal) =>
                                 vm.newTabIn(sub, terminal: terminal),
