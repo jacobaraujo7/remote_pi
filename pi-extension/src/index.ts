@@ -4515,6 +4515,18 @@ function _handleSessionSync(
     eos: true,
     truncated,
   });
+
+  // Plan/51 — replay ask_user flows still awaiting an answer. The bridge
+  // broadcasts `started` once; a peer that connects afterwards would otherwise
+  // see the tool call as plain history text while the desktop stays blocked on
+  // the TUI dialog (reproduced: close the app, fire ask_user, reopen → no
+  // sheet). Sent AFTER the history so the modal opens over a synced chat, and
+  // per-sender like the rest of this handler — a sync from owner A must not
+  // pop a modal on owner B. Flows past FLOW_TTL_MS are already gone from the
+  // bridge, so an abandoned flow is never resurrected.
+  for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
+    sender.send(req);
+  }
 }
 
 /**

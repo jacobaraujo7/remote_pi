@@ -67,8 +67,16 @@ submit real, espelhando o contrato `extension_ui_request` /
 
 - Não mudar o relay (frames viajam opacos no `ct` existente).
 - Não reimplementar model picker / compact (já existem).
-- Não replay de flows ask em `session_sync` (são transientes; o
-  `tool_request`/`tool_result` do `ask_user` já é replayado). Fica pra próximo.
+- ~~Não replay de flows ask em `session_sync`~~ — **revertido em 2026-07-24**:
+  o teste em device mostrou que isso não era um detalhe transiente e sim um
+  buraco no caso de uso central. Repro: fechar o app, disparar `ask_user`,
+  reabrir → o desktop fica preso no diálogo do TUI e o celular mostra o
+  `tool_request` como texto puro, sem sheet, para sempre. Como o `started` é
+  broadcast uma única vez, quem conecta depois nunca vê o frame interativo — e
+  "o agente perguntou enquanto o app estava fechado" é justamente o cenário
+  para o qual a feature existe. `_handleSessionSync` agora reenvia os flows
+  ainda abertos (`bridge.pendingRequests()`), depois do histórico e
+  per-sender.
 - No primeiro corte: `editor` vira `input` simples no mobile (customText/notes);
   editor multi-linha com diff fica pra próximo.
 - **elaborate mode não exposto**: o wire suporta `mode: submit|elaborate`, mas o
@@ -262,7 +270,10 @@ celular → confirmar resolução no desktop.
 
 ## Próximo plano possível
 
-- Replay/resolução de flows ask em `session_sync`.
+- ~~Replay de flows ask em `session_sync`~~ — feito (ver Não-objetivos). O que
+  fica: **resolução** — hoje um flow que o desktop respondeu no TUI enquanto o
+  app estava fora some do `activeFlows` via `completed`, mas um flow que
+  expirou pelo TTL só avisa o app se ele estiver conectado na hora.
 - `editor` rico no mobile (multi-linha com preview de diff).
 - **Fallback `ask_user` próprio do remote-pi** (sem pi-ask instalado): registrar
   a tool via feature-detect (só quando pi-ask ausente, evitando colisão de

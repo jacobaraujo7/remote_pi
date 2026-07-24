@@ -369,6 +369,81 @@ describe("extension_ui_bridge", () => {
     expect(sent).toHaveLength(0);
   });
 
+  describe("pendingRequests (session_sync replay)", () => {
+    it("re-emits an open flow as the same request the broadcast carried", () => {
+      const bus = fakeBus();
+      const sent: ServerMessage[] = [];
+      const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+
+      // What a peer connecting late gets must equal what the live peer got —
+      // same id, same envelope — or the app would treat it as a new flow.
+      expect(bridge.pendingRequests()).toEqual(sent);
+    });
+
+    it("is empty before any flow and after the flow completes", () => {
+      const bus = fakeBus();
+      const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+      expect(bridge.pendingRequests()).toEqual([]);
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      expect(bridge.pendingRequests()).toHaveLength(1);
+
+      // A resolved flow must NOT replay — otherwise every later sync would
+      // reopen a modal the user already answered.
+      bus.emit("@eko24ive/pi-ask:completed", { version: 1, flowId: "tool:tc_1" });
+      expect(bridge.pendingRequests()).toEqual([]);
+    });
+
+    it("does not replay a flow dropped by the TTL", () => {
+      vi.useFakeTimers();
+      const bus = fakeBus();
+      const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+
+      expect(bridge.pendingRequests()).toEqual([]);
+      vi.useRealTimers();
+    });
+
+    it("replays every open flow, oldest first", () => {
+      const bus = fakeBus();
+      const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      bus.emit(
+        "@eko24ive/pi-ask:started",
+        singleQuestionFlow({ flowId: "tool:tc_2", toolCallId: "tc_2" }),
+      );
+
+      expect(bridge.pendingRequests().map((r) => r.id)).toEqual([
+        "tool:tc_1",
+        "tool:tc_2",
+      ]);
+    });
+
+    it("stays answerable after a replay (flow state survives)", () => {
+      const bus = fakeBus();
+      const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+      bridge.pendingRequests();
+
+      // The degraded path needs activeFlows to map label→value; a replay that
+      // consumed or mutated the flow would silently break the answer.
+      bridge.respond({ type: "extension_ui_response", id: "tool:tc_1", value: "Alpha" });
+      const submits = bus.emitted.filter((e) => e.name === SUBMIT);
+      expect(submits).toHaveLength(1);
+      expect(submits[0]?.data).toMatchObject({
+        flowId: "tool:tc_1",
+        response: { kind: "answer", answers: { goal: { values: ["a"] } } },
+      });
+    });
+  });
+
   describe("flow TTL", () => {
     afterEach(() => {
       vi.useRealTimers();
