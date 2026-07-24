@@ -2159,10 +2159,22 @@ class CockpitViewModel extends ChangeNotifier {
   }
 
   // ---- agent / tab / split operations (projeto ativo) -----------------------
+
+  /// Geração de "reassumir o foco de teclado da aba ativa".
+  ///
+  /// Incrementa a cada [selectTab] / [focus] — inclusive quando a aba (ou a
+  /// pane) já era a ativa. A UI observa isso pra **re-pedir** o foco do
+  /// terminal, já que nesse caso não há transição de `focused` em que se
+  /// pendurar: sem o sinal, clicar na aba já ativa não trazia o foco de volta
+  /// quando ele tinha vazado pra outro widget (árvore, composer, outra pane).
+  int get tabFocusGen => _tabFocusGen;
+  int _tabFocusGen = 0;
+
   void focus(String paneId) {
     final id = _selectedProjectId;
     if (id == null || _focused[id] == paneId) return;
     _focused[id] = paneId;
+    _tabFocusGen++;
     _clearFocusedNotification();
     notifyListeners();
   }
@@ -2174,6 +2186,7 @@ class CockpitViewModel extends ChangeNotifier {
       updateLeaf(tree, paneId, (p) => p.copyWith(active: agentId)),
     );
     _focused[_selectedProjectId!] = paneId;
+    _tabFocusGen++;
     _clearFocusedNotification();
     // Selecionar uma tab de FileView revela o arquivo na árvore: destaca +
     // expande a root e os pais (uma vez, via a geração). Só quando o arquivo é
