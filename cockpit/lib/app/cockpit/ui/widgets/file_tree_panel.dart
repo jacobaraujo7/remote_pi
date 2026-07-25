@@ -6,13 +6,14 @@ import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/commit_message_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/panel_resize_handle.dart';
 import 'package:cockpit/app/core/domain/result.dart';
+import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
+import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
-import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
-import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
-import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -285,6 +286,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
   String? _amendHash;
   String? _amendSubject;
   String? _commitError;
+  double _commitHeight = 220;
 
   @override
   void initState() {
@@ -903,6 +905,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
           if (scMode)
             _CommitComposer(
               controller: _commitMessage,
+              height: _commitHeight,
+              onResize: (delta) => setState(() {
+                _commitHeight = (_commitHeight - delta).clamp(170.0, 520.0);
+              }),
               submitting: _committing,
               amend: _amend,
               amendHash: _amendHash,
@@ -931,6 +937,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
 class _CommitComposer extends StatelessWidget {
   const _CommitComposer({
     required this.controller,
+    required this.height,
+    required this.onResize,
     required this.submitting,
     required this.amend,
     required this.onAmendChanged,
@@ -943,6 +951,8 @@ class _CommitComposer extends StatelessWidget {
     this.error,
   });
   final TextEditingController controller;
+  final double height;
+  final ValueChanged<double> onResize;
   final bool submitting, amend;
   final String? amendHash, amendSubject, error;
   final Future<List<GitCommit>> Function()? loadCommits;
@@ -990,109 +1000,160 @@ class _CommitComposer extends StatelessWidget {
     onAmendChanged(true, picked.hash, message, picked.subject);
   }
 
+  Widget _commitPicker(BuildContext context) {
+    final colors = context.colors;
+    final label = amendSubject == null
+        ? 'last commit'
+        : _truncate(amendSubject!, 20);
+
+    return HoverTap(
+      onTap: submitting ? null : () => _pickCommit(context),
+      borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            overflow: TextOverflow.ellipsis,
+            style: context.typo.label.copyWith(
+              color: submitting ? colors.text4 : colors.accent,
+              fontSize: 11,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(width: 2),
+          Icon(
+            Icons.keyboard_arrow_down,
+            size: 14,
+            color: submitting ? colors.text4 : colors.accent,
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
-      decoration: BoxDecoration(
-        color: colors.bg,
-        border: Border(top: BorderSide(color: colors.border)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Checkbox(
-                state: amend ? CheckboxState.checked : CheckboxState.unchecked,
-                onChanged: submitting
-                    ? null
-                    : (v) async {
-                        if (v != CheckboxState.checked) {
-                          onAmendChanged(false, null, null, null);
-                          return;
-                        }
-                        final commits =
-                            await loadCommits?.call() ?? const <GitCommit>[];
-                        if (commits.isEmpty || !context.mounted) return;
-                        final first = commits.first;
-                        final message = await loadMessage?.call(first.hash);
-                        if (context.mounted) {
-                          onAmendChanged(
-                            true,
-                            first.hash,
-                            message,
-                            first.subject,
-                          );
-                        }
-                      },
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'Amend',
-                style: context.typo.label.copyWith(color: colors.text),
-              ),
-              const SizedBox(width: 5),
-              GestureDetector(
-                onTap: submitting ? null : () => _pickCommit(context),
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: Text(
-                    amendSubject == null
-                        ? 'last commit⌄'
-                        : '${_truncate(amendSubject!, 20)}⌄',
-                    style: context.typo.label.copyWith(color: colors.accent),
-                  ),
+    return SizedBox(
+      height: height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.bg,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            PanelResizeHandle(onResizeDelta: onResize),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: 12,
+                  right: 8,
+                  bottom: 16.0,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 34.0,
+                      child: Row(
+                        spacing: 4.0,
+                        children: [
+                          Checkbox(
+                            state: amend
+                                ? CheckboxState.checked
+                                : CheckboxState.unchecked,
+                            onChanged: submitting
+                                ? null
+                                : (v) async {
+                                    if (v != CheckboxState.checked) {
+                                      onAmendChanged(false, null, null, null);
+                                      return;
+                                    }
+                                    final commits =
+                                        await loadCommits?.call() ??
+                                        const <GitCommit>[];
+                                    if (commits.isEmpty || !context.mounted) {
+                                      return;
+                                    }
+                                    final first = commits.first;
+                                    final message = await loadMessage?.call(
+                                      first.hash,
+                                    );
+                                    if (context.mounted) {
+                                      onAmendChanged(
+                                        true,
+                                        first.hash,
+                                        message,
+                                        first.subject,
+                                      );
+                                    }
+                                  },
+                          ),
+                          Text(
+                            'Amend',
+                            style: context.typo.label.copyWith(
+                              color: colors.text,
+                              fontSize: 11,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                          _commitPicker(context),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Expanded(
+                      child: TextField(
+                        controller: controller,
+                        enabled: !submitting,
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        onChanged: (_) => onChanged(),
+                        placeholder: const Text('Commit Message'),
+                        style: context.typo.mono.copyWith(
+                          fontSize: 12,
+                          color: colors.text,
+                        ),
+                        border: Border.all(color: colors.border),
+                        borderRadius: BorderRadius.circular(4),
+                        padding: const EdgeInsets.all(9),
+                      ),
+                    ),
+                    if (error != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 5),
+                        child: Text(
+                          error!,
+                          style: context.typo.label.copyWith(
+                            color: colors.error,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 7),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: PrimaryButton(
+                        onPressed: submitting ? null : onCommit,
+                        child: submitting
+                            ? const CircularProgressIndicator(
+                                size: 16,
+                                color: Colors.white,
+                              )
+                            : Text(amend ? 'Amend Commit' : 'Commit'),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 112,
-            child: TextField(
-              controller: controller,
-              enabled: !submitting,
-              maxLines: null,
-              expands: true,
-              textAlignVertical: TextAlignVertical.top,
-              onChanged: (_) => onChanged(),
-              placeholder: const Text('Commit Message'),
-              style: context.typo.mono.copyWith(
-                fontSize: 12,
-                color: colors.text,
-              ),
-              border: Border.all(color: colors.border),
-              borderRadius: BorderRadius.circular(4),
-              padding: const EdgeInsets.all(9),
             ),
-          ),
-          if (error != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 5),
-              child: Text(
-                error!,
-                style: context.typo.label.copyWith(color: colors.error),
-              ),
-            ),
-          const SizedBox(height: 7),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: PrimaryButton(
-              // Sempre clicável: validação aparece como erro inline, em vez
-              // de esconder o motivo com um botão desabilitado.
-              onPressed: submitting ? null : onCommit,
-              child: submitting
-                  ? const CircularProgressIndicator(
-                      size: 16,
-                      color: Colors.white,
-                    )
-                  : Text(amend ? 'Amend Commit' : 'Commit'),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

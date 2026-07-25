@@ -2,6 +2,7 @@ import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/panel_resize_handle.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -64,7 +65,10 @@ class _TasksPanelState extends State<TasksPanel> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _resizeHandle(context),
+          PanelResizeHandle(
+            onResizeDelta: widget.onResizeDelta,
+            onResizeEnd: widget.onResizeEnd,
+          ),
           _header(context, vm),
           SizedBox(
             height: widget.listHeight,
@@ -75,28 +79,29 @@ class _TasksPanelState extends State<TasksPanel> {
                     children: [
                       for (final def in vm.tasks)
                         _TaskRow(
-                      key: ValueKey(def.id),
-                      def: def,
-                      run: vm.stateOf(def.id),
-                      profileName: vm.selectedProfile(def),
-                      canCycleProfile: def.profiles.length >= 2,
-                      commandPreview: vm.commandPreview(def),
-                      // Clicar abre a aba read-only de output no pane central.
-                      onTap: () => context
-                          .read<CockpitViewModel>()
-                          .openTaskOutput(def.id, def.label),
-                      // Play também já abre a aba dos logs.
-                      onStart: () {
-                        vm.start(def);
-                        context
-                            .read<CockpitViewModel>()
-                            .openTaskOutput(def.id, def.label);
-                      },
-                      onStop: () => vm.stop(def.id),
-                      onRestart: () => vm.restart(def.id),
-                      onCycleProfile: () => vm.cycleProfile(def),
-                      onKey: (k) => vm.sendKey(def.id, k),
-                    ),
+                          key: ValueKey(def.id),
+                          def: def,
+                          run: vm.stateOf(def.id),
+                          profileName: vm.selectedProfile(def),
+                          canCycleProfile: def.profiles.length >= 2,
+                          commandPreview: vm.commandPreview(def),
+                          // Clicar abre a aba read-only de output no pane central.
+                          onTap: () => context
+                              .read<CockpitViewModel>()
+                              .openTaskOutput(def.id, def.label),
+                          // Play também já abre a aba dos logs.
+                          onStart: () {
+                            vm.start(def);
+                            context.read<CockpitViewModel>().openTaskOutput(
+                              def.id,
+                              def.label,
+                            );
+                          },
+                          onStop: () => vm.stop(def.id),
+                          onRestart: () => vm.restart(def.id),
+                          onCycleProfile: () => vm.cycleProfile(def),
+                          onKey: (k) => vm.sendKey(def.id, k),
+                        ),
                     ],
                   ),
           ),
@@ -124,7 +129,10 @@ class _TasksPanelState extends State<TasksPanel> {
               borderRadius: BorderRadius.circular(6),
               onTap: vm.createExampleConfig,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: colors.panel3,
                   borderRadius: BorderRadius.circular(6),
@@ -145,33 +153,6 @@ class _TasksPanelState extends State<TasksPanel> {
             ),
           ],
         ],
-      ),
-    );
-  }
-
-  /// Alça de arraste no topo (igual ao painel de SEARCH): arrastar pra cima
-  /// aumenta a lista; pra baixo diminui. A página clampa e persiste.
-  Widget _resizeHandle(BuildContext context) {
-    final colors = context.colors;
-    return MouseRegion(
-      cursor: SystemMouseCursors.resizeUpDown,
-      child: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onVerticalDragUpdate: (d) => widget.onResizeDelta(d.delta.dy),
-        onVerticalDragEnd: (_) => widget.onResizeEnd(),
-        child: SizedBox(
-          height: 9,
-          child: Center(
-            child: Container(
-              width: 28,
-              height: 3,
-              decoration: BoxDecoration(
-                color: colors.border,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -284,7 +265,9 @@ class _TaskRow extends StatelessWidget {
               ),
             // Esconde o restart da task quando já há uma tecla primária com o
             // ícone de restart (ex.: Flutter "Hot restart") — evita 2 ícones iguais.
-            if (!def.interactiveKeys.any((k) => k.primary && k.icon == 'restart'))
+            if (!def.interactiveKeys.any(
+              (k) => k.primary && k.icon == 'restart',
+            ))
               _IconAction(
                 tooltip: 'Restart',
                 icon: Icons.restart_alt,
@@ -432,14 +415,18 @@ class _ProfileChip extends StatelessWidget {
         children: [
           Text(
             name,
-            style: context.typo.mono.copyWith(fontSize: 10, color: colors.text2),
+            style: context.typo.mono.copyWith(
+              fontSize: 10,
+              color: colors.text2,
+            ),
           ),
           if (canCycle)
             Icon(Icons.arrow_drop_down, size: 14, color: colors.text3),
         ],
       ),
     );
-    if (!canCycle) return Padding(padding: const EdgeInsets.only(right: 2), child: chip);
+    if (!canCycle)
+      return Padding(padding: const EdgeInsets.only(right: 2), child: chip);
     return AppTooltip(
       message: 'Switch profile',
       child: HoverTap(

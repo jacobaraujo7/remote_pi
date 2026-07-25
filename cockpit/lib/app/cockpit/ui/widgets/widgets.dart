@@ -16,6 +16,7 @@ export 'history_dialog.dart';
 export 'model_picker.dart';
 export 'pane_divider.dart';
 export 'pane_view.dart';
+export 'panel_resize_handle.dart';
 export 'projects_rail.dart';
 export 'realm_dialogs.dart';
 export 'subfolder_dialog.dart';
