@@ -329,6 +329,18 @@ class _FileTreePanelState extends State<FileTreePanel> {
     if (err != null && mounted) await _showGitError(err);
   }
 
+  Future<void> _toggleStageAll(List<String> paths, bool staged) async {
+    final action = staged ? widget.onUnstageFile : widget.onStageFile;
+    if (action == null) return;
+    for (final path in paths) {
+      final err = await action(path);
+      if (err != null) {
+        if (mounted) await _showGitError(err);
+        return;
+      }
+    }
+  }
+
   Future<void> _showChangedFileMenu(
     String absPath,
     Offset pos, {
@@ -855,6 +867,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     roots: widget.roots,
                     onFileContextMenu: _showChangedFileMenu,
                     onStageToggle: _toggleStage,
+                    onStageAll: _toggleStageAll,
                     stagedPaths: widget.stagedPaths,
                     unstagedPaths: widget.unstagedPaths,
                     gitStatusOf: widget.gitStatusOf,
@@ -1948,6 +1961,7 @@ class _ChangedTree extends StatelessWidget {
     required this.roots,
     required this.onFileContextMenu,
     required this.onStageToggle,
+    required this.onStageAll,
     required this.stagedPaths,
     required this.unstagedPaths,
     required this.gitStatusOf,
@@ -1966,6 +1980,7 @@ class _ChangedTree extends StatelessWidget {
   final void Function(String absPath, Offset pos, {required bool staged})
   onFileContextMenu;
   final Future<void> Function(String absPath, bool staged) onStageToggle;
+  final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -2061,10 +2076,34 @@ class _ChangedTree extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: 4, top: 4, bottom: 4),
-          child: Text(
-            '${staged ? 'STAGED CHANGES' : 'CHANGES'} (${files.length})',
-            style: context.typo.label.copyWith(color: context.colors.text3),
+          padding: const EdgeInsets.only(left: 4, right: 2, top: 4, bottom: 4),
+          child: Row(
+            children: [
+              Text(
+                '${staged ? 'STAGED CHANGES' : 'CHANGES'} (${files.length})',
+                style: context.typo.label.copyWith(color: context.colors.text3),
+              ),
+              const Spacer(),
+              AppTooltip(
+                message: staged ? 'Unstage All Changes' : 'Stage All Changes',
+                child: HoverTap(
+                  key: ValueKey(
+                    staged ? 'unstage-all-changes' : 'stage-all-changes',
+                  ),
+                  onTap: () => onStageAll(
+                    files.map((file) => file.absPath).toList(),
+                    staged,
+                  ),
+                  borderRadius: BorderRadius.circular(4),
+                  padding: const EdgeInsets.all(3),
+                  child: Icon(
+                    staged ? Icons.remove : Icons.add,
+                    size: 15,
+                    color: context.colors.text3,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         viewAsTree
