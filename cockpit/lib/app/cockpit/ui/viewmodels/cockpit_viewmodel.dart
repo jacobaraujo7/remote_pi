@@ -2066,15 +2066,54 @@ class CockpitViewModel extends ChangeNotifier {
   Future<String?> unstageFile(String absPath) =>
       _restoreFile(absPath, staged: true);
 
-  /// Discard (Source Control): joga fora a mudança do working tree —
-  /// `git restore -- <arquivo>`; untracked não tem "restore", então vai pra
-  /// lixeira via [deletePath] (reversível no macOS). `null` = sucesso.
+  /// `true` quando [absPath] não existe no HEAD — cobre untracked e arquivos
+  /// novos que já foram adicionados ao index.
+  Future<bool> isNewGitFile(String absPath) async {
+    final pid = _selectedProjectId;
+    if (pid == null) return false;
+    final root = rootContaining(pid, absPath);
+    if (root == null) return false;
+    final rel = _subOf(absPath, root);
+    final result = await git.output(root, ['cat-file', '-e', 'HEAD:$rel']);
+    return result.$1 != 0;
+  }
+
+  /// Discard completo de um arquivo. Arquivo novo é removido do index e vai
+  /// para a lixeira; arquivo rastreado é restaurado do HEAD tanto no index
+  /// quanto no working tree. Assim uma deleção volta a existir no disco.
   Future<String?> discardFile(String absPath) async {
-    if (gitStatusForPath(absPath) == GitFileStatus.untracked) {
+    final pid = _selectedProjectId;
+    if (pid == null) return 'No workspace selected.';
+    final root = rootContaining(pid, absPath);
+    if (root == null) return 'File is outside the workspace roots.';
+    final rel = _subOf(absPath, root);
+    if (await isNewGitFile(absPath)) {
+      if (stagedFilesOfRoot(root).containsKey(rel)) {
+        final err = await git.collect(root, [
+          'rm',
+          '--cached',
+          '-f',
+          '--',
+          rel,
+        ]);
+        if (err != null) return err;
+      }
       final res = await deletePath(absPath);
+      unawaited(git.refresh(pid));
       return res.fold((_) => null, (e) => e);
     }
-    return _restoreFile(absPath, staged: false);
+    final err = await git.collect(root, [
+      'restore',
+      '--source=HEAD',
+      '--staged',
+      '--worktree',
+      '--',
+      rel,
+    ]);
+    unawaited(git.refresh(pid));
+    _fileTreeRevision++;
+    notifyListeners();
+    return err;
   }
 
   /// Commit (Source Control): comita **só** [absPath] com [message], na root

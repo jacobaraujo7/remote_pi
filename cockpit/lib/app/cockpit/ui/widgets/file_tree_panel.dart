@@ -84,6 +84,7 @@ class FileTreePanel extends StatefulWidget {
     this.onLoadCommitMessage,
     this.onUnstageFile,
     this.onDiscardFile,
+    this.isNewGitFile,
     this.onCommitFile,
     this.revealPath,
     this.revealGen = 0,
@@ -115,6 +116,9 @@ class FileTreePanel extends StatefulWidget {
   /// Source Control: descarta a mudança do working tree (destrutivo — o
   /// painel confirma antes). `null` = sucesso.
   final Future<String?> Function(String absPath)? onDiscardFile;
+
+  /// Detecta arquivos que não existem no HEAD (untracked ou staged-add).
+  final Future<bool> Function(String absPath)? isNewGitFile;
 
   /// Roots git do workspace (derivadas). Usadas só pelo **Source Control**
   /// (2+ = mudanças seccionadas por root); a árvore de Files é sempre única.
@@ -341,12 +345,70 @@ class _FileTreePanelState extends State<FileTreePanel> {
     }
   }
 
+  Future<void> _discardOne(String absPath) async {
+    final action = widget.onDiscardFile;
+    if (action == null) return;
+    final isNew =
+        await widget.isNewGitFile?.call(absPath) ??
+        widget.gitStatusOf(absPath) == GitFileStatus.untracked;
+    if (!mounted) return;
+    final name = absPath.split('/').last;
+    final ok = await showConfirmDialog(
+      context,
+      title: isNew ? 'Delete new file?' : 'Discard changes?',
+      message: isNew
+          ? '"$name" is a new file and cannot be restored. Delete it?'
+          : 'Discard all changes in "$name"? Deleted files will be restored.',
+      confirmLabel: isNew ? 'Delete' : 'Discard',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
+    final err = await action(absPath);
+    if (err != null && mounted) await _showGitError(err);
+  }
+
+  Future<void> _discardAll(List<String> paths) async {
+    final action = widget.onDiscardFile;
+    if (action == null || paths.isEmpty) return;
+    final newFiles = <String>[];
+    final trackedFiles = <String>[];
+    for (final path in paths) {
+      final isNew =
+          await widget.isNewGitFile?.call(path) ??
+          widget.gitStatusOf(path) == GitFileStatus.untracked;
+      (isNew ? newFiles : trackedFiles).add(path);
+    }
+    if (!mounted) return;
+
+    // Em lote misto, arquivos novos são deliberadamente preservados. Quando
+    // todos são novos, não há nada restaurável: oferece apagar o lote inteiro.
+    final deleteAll = trackedFiles.isEmpty;
+    final targets = deleteAll ? newFiles : trackedFiles;
+    final ok = await showConfirmDialog(
+      context,
+      title: deleteAll ? 'Delete all new files?' : 'Discard changes?',
+      message: deleteAll
+          ? 'All ${newFiles.length} files are new and will be deleted. This cannot be undone.'
+          : 'Discard changes in ${trackedFiles.length} tracked file(s)?'
+                '${newFiles.isEmpty ? '' : ' ${newFiles.length} new file(s) will be kept.'}',
+      confirmLabel: deleteAll ? 'Delete All' : 'Discard',
+      danger: true,
+    );
+    if (!ok || !mounted) return;
+    for (final path in targets) {
+      final err = await action(path);
+      if (err != null) {
+        if (mounted) await _showGitError(err);
+        return;
+      }
+    }
+  }
+
   Future<void> _showChangedFileMenu(
     String absPath,
     Offset pos, {
     required bool staged,
   }) async {
-    final status = widget.gitStatusOf(absPath);
     final name = absPath.split('/').last;
     final pick = await showAppMenu<String>(
       context,
@@ -375,7 +437,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
             label: 'Stage Changes',
             icon: Icons.add_circle_outline,
           ),
-        if (!staged && widget.onDiscardFile != null)
+        if (widget.onDiscardFile != null)
           const AppMenuItem(
             value: 'discard',
             label: 'Discard Changes',
@@ -402,20 +464,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
         final err = await widget.onUnstageFile!(absPath);
         if (err != null && mounted) await _showGitError(err);
       case 'discard':
-        final untracked = status == GitFileStatus.untracked;
-        final ok = await showConfirmDialog(
-          context,
-          title: 'Discard changes?',
-          message: untracked
-              ? '"$name" is untracked — discarding moves the file to the '
-                    'trash.'
-              : 'Discard the changes in "$name"? This cannot be undone.',
-          confirmLabel: 'Discard',
-          danger: true,
-        );
-        if (!ok || !mounted) return;
-        final err = await widget.onDiscardFile!(absPath);
-        if (err != null && mounted) await _showGitError(err);
+        await _discardOne(absPath);
     }
   }
 
@@ -868,6 +917,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     onFileContextMenu: _showChangedFileMenu,
                     onStageToggle: _toggleStage,
                     onStageAll: _toggleStageAll,
+                    onDiscard: _discardOne,
+                    onDiscardAll: _discardAll,
                     stagedPaths: widget.stagedPaths,
                     unstagedPaths: widget.unstagedPaths,
                     gitStatusOf: widget.gitStatusOf,
@@ -1962,6 +2013,8 @@ class _ChangedTree extends StatelessWidget {
     required this.onFileContextMenu,
     required this.onStageToggle,
     required this.onStageAll,
+    required this.onDiscard,
+    required this.onDiscardAll,
     required this.stagedPaths,
     required this.unstagedPaths,
     required this.gitStatusOf,
@@ -1981,6 +2034,8 @@ class _ChangedTree extends StatelessWidget {
   onFileContextMenu;
   final Future<void> Function(String absPath, bool staged) onStageToggle;
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
+  final Future<void> Function(String absPath) onDiscard;
+  final Future<void> Function(List<String> paths) onDiscardAll;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -2085,6 +2140,23 @@ class _ChangedTree extends StatelessWidget {
               ),
               const Spacer(),
               AppTooltip(
+                message: 'Discard All Changes',
+                child: HoverTap(
+                  key: ValueKey(
+                    staged ? 'discard-all-staged' : 'discard-all-changes',
+                  ),
+                  onTap: () =>
+                      onDiscardAll(files.map((file) => file.absPath).toList()),
+                  borderRadius: BorderRadius.circular(4),
+                  padding: const EdgeInsets.all(3),
+                  child: Icon(
+                    Icons.undo,
+                    size: 15,
+                    color: context.colors.text3,
+                  ),
+                ),
+              ),
+              AppTooltip(
                 message: staged ? 'Unstage All Changes' : 'Stage All Changes',
                 child: HoverTap(
                   key: ValueKey(
@@ -2127,6 +2199,7 @@ class _ChangedTree extends StatelessWidget {
       onFileContextMenu: (path, pos) =>
           onFileContextMenu(path, pos, staged: staged),
       onStageToggle: (path) => onStageToggle(path, staged),
+      onDiscard: onDiscard,
       staged: staged,
     );
   }
@@ -2142,6 +2215,7 @@ class _ChangedTree extends StatelessWidget {
         onSecondaryTap: (pos) =>
             onFileContextMenu(f.absPath, pos, staged: staged),
         onTrailingTap: () => onStageToggle(f.absPath, staged),
+        onDiscardTap: () => onDiscard(f.absPath),
         trailingTooltip: staged ? 'Unstage' : 'Stage Changes',
         trailingIcon: staged ? Icons.remove : Icons.add,
       ),
@@ -2272,6 +2346,7 @@ class _ChangedDirectoryView extends StatefulWidget {
     required this.onTapDiff,
     required this.onFileContextMenu,
     required this.onStageToggle,
+    required this.onDiscard,
     required this.staged,
     this.depth = 0,
     this.isRoot = true,
@@ -2284,6 +2359,7 @@ class _ChangedDirectoryView extends StatefulWidget {
   final ValueChanged<String> onTapDiff;
   final void Function(String absPath, Offset pos) onFileContextMenu;
   final Future<void> Function(String absPath) onStageToggle;
+  final Future<void> Function(String absPath) onDiscard;
   final bool staged;
   final int depth;
   final bool isRoot;
@@ -2358,6 +2434,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               onTapDiff: widget.onTapDiff,
               onFileContextMenu: widget.onFileContextMenu,
               onStageToggle: widget.onStageToggle,
+              onDiscard: widget.onDiscard,
               staged: widget.staged,
               depth: widget.isRoot ? 0 : widget.depth + 1,
               isRoot: false,
@@ -2375,6 +2452,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               onSecondaryTap: (pos) =>
                   widget.onFileContextMenu(file.absPath, pos),
               onTrailingTap: () => widget.onStageToggle(file.absPath),
+              onDiscardTap: () => widget.onDiscard(file.absPath),
               trailingTooltip: widget.staged ? 'Unstage' : 'Stage Changes',
               trailingIcon: widget.staged ? Icons.remove : Icons.add,
             ),
@@ -2396,6 +2474,7 @@ class _ChangedRow extends StatefulWidget {
     required this.onDoubleTap,
     this.onSecondaryTap,
     this.onTrailingTap,
+    this.onDiscardTap,
     this.trailingTooltip,
     this.trailingIcon,
     this.depth = 0,
@@ -2411,6 +2490,7 @@ class _ChangedRow extends StatefulWidget {
   /// Botão-direito (posição global do clique) → menu de contexto.
   final void Function(Offset globalPos)? onSecondaryTap;
   final VoidCallback? onTrailingTap;
+  final VoidCallback? onDiscardTap;
   final String? trailingTooltip;
   final IconData? trailingIcon;
   final int depth;
@@ -2447,6 +2527,10 @@ class _ChangedRowState extends State<_ChangedRow> {
     final nameColor =
         _gitColor(colors, widget.gitStatus) ??
         (widget.selected ? colors.text : colors.text2);
+    final actionWidth = _hovered
+        ? (widget.onTrailingTap == null ? 0.0 : 27.0) +
+              (widget.onDiscardTap == null ? 0.0 : 27.0)
+        : 0.0;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -2465,7 +2549,7 @@ class _ChangedRowState extends State<_ChangedRow> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  right: _hovered && widget.onTrailingTap != null ? 27 : 0,
+                  right: actionWidth,
                   child: Row(
                     children: [
                       FileTypeIcon.file(file.name, size: 16),
@@ -2503,8 +2587,22 @@ class _ChangedRowState extends State<_ChangedRow> {
                     ],
                   ),
                 ),
-                // Posicionado, em vez de participar do Row: sua distância da
-                // borda não muda quando a largura do painel muda.
+                // Ações posicionadas: a distância da borda não muda quando a
+                // largura do painel muda.
+                if (_hovered && widget.onDiscardTap != null)
+                  Positioned(
+                    right: widget.onTrailingTap == null ? 0 : 27,
+                    top: 1,
+                    bottom: 1,
+                    child: AppTooltip(
+                      message: 'Discard Changes',
+                      child: HoverTap(
+                        onTap: widget.onDiscardTap,
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(Icons.undo, size: 15, color: colors.text3),
+                      ),
+                    ),
+                  ),
                 if (_hovered && widget.onTrailingTap != null)
                   Positioned(
                     right: 0,

@@ -813,6 +813,7 @@ class _CockpitPageState extends State<CockpitPage> {
                             onStageFile: vm.stageFile,
                             onUnstageFile: vm.unstageFile,
                             onDiscardFile: vm.discardFile,
+                            isNewGitFile: vm.isNewGitFile,
                             onCommitFile: vm.commitFile,
                             onCommitStaged: vm.commitStaged,
                             onLoadCommits: vm.recentCommits,
