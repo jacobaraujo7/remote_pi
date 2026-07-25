@@ -759,6 +759,23 @@ class _FileTreePanelState extends State<FileTreePanel> {
     // Usa o selectedPath da VM se disponível, senão o local.
     final effectiveSelected = widget.selectedPath ?? _selectedPath;
 
+    // Compatibilidade com consumidores antigos que ainda fornecem apenas o
+    // agregado [changedPaths]. O fluxo atual sempre envia os dois mapas.
+    final legacyChanges =
+        widget.stagedPaths.isEmpty && widget.unstagedPaths.isEmpty
+        ? widget.changedPaths
+        : const <String>[];
+    final effectiveStaged = legacyChanges.isEmpty
+        ? widget.stagedPaths
+        : legacyChanges
+              .where((path) => widget.gitStatusOf(path) == GitFileStatus.staged)
+              .toList();
+    final effectiveUnstaged = legacyChanges.isEmpty
+        ? widget.unstagedPaths
+        : legacyChanges
+              .where((path) => widget.gitStatusOf(path) != GitFileStatus.staged)
+              .toList();
+
     final edit = _TreeEdit(
       pending: _pending,
       renaming: _renaming,
@@ -919,8 +936,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     onStageAll: _toggleStageAll,
                     onDiscard: _discardOne,
                     onDiscardAll: _discardAll,
-                    stagedPaths: widget.stagedPaths,
-                    unstagedPaths: widget.unstagedPaths,
+                    stagedPaths: effectiveStaged,
+                    unstagedPaths: effectiveUnstaged,
                     gitStatusOf: widget.gitStatusOf,
                     selectedPath: effectiveSelected,
                     onOpenDiff: widget.onOpenDiff,
