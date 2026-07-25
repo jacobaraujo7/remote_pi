@@ -2216,7 +2216,9 @@ class _ChangedTree extends StatelessWidget {
       onFileContextMenu: (path, pos) =>
           onFileContextMenu(path, pos, staged: staged),
       onStageToggle: (path) => onStageToggle(path, staged),
+      onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
+      onDiscardAll: onDiscardAll,
       staged: staged,
     );
   }
@@ -2340,6 +2342,11 @@ class _ChangedDirectory {
       <String, _ChangedDirectory>{};
   final List<_ChangedFile> files = <_ChangedFile>[];
 
+  List<String> get descendantPaths => [
+    for (final file in files) file.absPath,
+    for (final directory in directories.values) ...directory.descendantPaths,
+  ];
+
   void add(_ChangedFile file) {
     var current = this;
     for (final part in file.dir.split('/').where((part) => part.isNotEmpty)) {
@@ -2363,7 +2370,9 @@ class _ChangedDirectoryView extends StatefulWidget {
     required this.onTapDiff,
     required this.onFileContextMenu,
     required this.onStageToggle,
+    required this.onStageAll,
     required this.onDiscard,
+    required this.onDiscardAll,
     required this.staged,
     this.depth = 0,
     this.isRoot = true,
@@ -2376,7 +2385,9 @@ class _ChangedDirectoryView extends StatefulWidget {
   final ValueChanged<String> onTapDiff;
   final void Function(String absPath, Offset pos) onFileContextMenu;
   final Future<void> Function(String absPath) onStageToggle;
+  final Future<void> Function(List<String> paths) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
+  final Future<void> Function(List<String> paths) onDiscardAll;
   final bool staged;
   final int depth;
   final bool isRoot;
@@ -2387,6 +2398,100 @@ class _ChangedDirectoryView extends StatefulWidget {
 
 class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
   bool _expanded = true;
+  bool _hovered = false;
+
+  Widget _folderRow(BuildContext context) {
+    final colors = context.colors;
+    final paths = widget.directory.descendantPaths;
+    final actionKey = '${widget.depth}:${widget.directory.name}';
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: HoverTap(
+        key: ValueKey('source-control-folder:$actionKey'),
+        hoverColor: colors.panel,
+        borderRadius: BorderRadius.circular(5),
+        onTap: () => setState(() => _expanded = !_expanded),
+        padding: EdgeInsets.only(left: 6 + widget.depth * 14, right: 6),
+        child: SizedBox(
+          height: 26,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                right: _hovered ? 54 : 0,
+                child: Row(
+                  children: [
+                    Icon(
+                      _expanded
+                          ? Icons.keyboard_arrow_down
+                          : Icons.keyboard_arrow_right,
+                      size: 15,
+                      color: colors.text3,
+                    ),
+                    const SizedBox(width: 2),
+                    Icon(
+                      _expanded
+                          ? Icons.folder_open_outlined
+                          : Icons.folder_outlined,
+                      size: 16,
+                      color: colors.text3,
+                    ),
+                    const SizedBox(width: 7),
+                    Flexible(
+                      child: Text(
+                        widget.directory.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.typo.body.copyWith(
+                          fontSize: 13,
+                          color: colors.text2,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_hovered) ...[
+                Positioned(
+                  right: 27,
+                  top: 1,
+                  bottom: 1,
+                  child: AppTooltip(
+                    message: 'Discard Folder Changes',
+                    child: HoverTap(
+                      key: ValueKey('discard-folder:$actionKey'),
+                      onTap: () => widget.onDiscardAll(paths),
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(Icons.undo, size: 15, color: colors.text3),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  top: 1,
+                  bottom: 1,
+                  child: AppTooltip(
+                    message: widget.staged
+                        ? 'Unstage Folder Changes'
+                        : 'Stage Folder Changes',
+                    child: HoverTap(
+                      key: ValueKey('toggle-stage-folder:$actionKey'),
+                      onTap: () => widget.onStageAll(paths),
+                      padding: const EdgeInsets.all(4),
+                      child: Icon(
+                        widget.staged ? Icons.remove : Icons.add,
+                        size: 15,
+                        color: colors.text3,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2398,49 +2503,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (!widget.isRoot)
-          HoverTap(
-            key: ValueKey(
-              'source-control-folder:${widget.depth}:${widget.directory.name}',
-            ),
-            hoverColor: context.colors.panel,
-            borderRadius: BorderRadius.circular(5),
-            onTap: () => setState(() => _expanded = !_expanded),
-            padding: EdgeInsets.only(left: 6 + widget.depth * 14, right: 6),
-            child: SizedBox(
-              height: 26,
-              child: Row(
-                children: [
-                  Icon(
-                    _expanded
-                        ? Icons.keyboard_arrow_down
-                        : Icons.keyboard_arrow_right,
-                    size: 15,
-                    color: context.colors.text3,
-                  ),
-                  const SizedBox(width: 2),
-                  Icon(
-                    _expanded
-                        ? Icons.folder_open_outlined
-                        : Icons.folder_outlined,
-                    size: 16,
-                    color: context.colors.text3,
-                  ),
-                  const SizedBox(width: 7),
-                  Flexible(
-                    child: Text(
-                      widget.directory.name,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.typo.body.copyWith(
-                        fontSize: 13,
-                        color: context.colors.text2,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        if (!widget.isRoot) _folderRow(context),
         if (widget.isRoot || _expanded) ...[
           for (final directory in directories)
             _ChangedDirectoryView(
@@ -2451,7 +2514,9 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               onTapDiff: widget.onTapDiff,
               onFileContextMenu: widget.onFileContextMenu,
               onStageToggle: widget.onStageToggle,
+              onStageAll: widget.onStageAll,
               onDiscard: widget.onDiscard,
+              onDiscardAll: widget.onDiscardAll,
               staged: widget.staged,
               depth: widget.isRoot ? 0 : widget.depth + 1,
               isRoot: false,
