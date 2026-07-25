@@ -206,6 +206,17 @@ class GitController extends ChangeNotifier {
   /// `git push` no repo em [repoPath].
   GitRun push(String repoPath) => _runner.run(repoPath, const ['push']);
 
+  /// Roda um comando e coleta a saída para consumidores que precisam ler o
+  /// resultado (por exemplo, o seletor de commits de amend).
+  Future<(int code, String output)> output(String root, List<String> args) async {
+    final run = _runner.run(root, args);
+    final lines = <String>[];
+    final sub = run.output.listen(lines.add);
+    final code = await run.exitCode;
+    await sub.cancel();
+    return (code, lines.join('\n'));
+  }
+
   /// Roda um git rápido e devolve `null` (exit 0) ou a saída como erro.
   Future<String?> collect(String root, List<String> args) async {
     final run = _runner.run(root, args);

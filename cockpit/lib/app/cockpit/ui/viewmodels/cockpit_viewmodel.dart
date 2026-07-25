@@ -29,6 +29,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/entities/content_search.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/launchable_app.dart';
@@ -1979,7 +1980,48 @@ class CockpitViewModel extends ChangeNotifier {
   /// Comita todas as entradas staged da única root do workspace selecionado.
   /// Multi-root exige que o usuário comite por arquivo/seção para não criar
   /// commits implícitos em repositórios diferentes.
-  Future<String?> commitStaged(String message) async {
+  Future<List<GitCommit>> recentCommits() async {
+    final pid = _selectedProjectId;
+    if (pid == null) return const [];
+    final roots = rootsOf(pid);
+    if (roots.length != 1) return const [];
+    final result = await git.output(roots.single, [
+      'log',
+      '-n',
+      '20',
+      '--format=%H%x1f%s%x1e',
+    ]);
+    if (result.$1 != 0) return const [];
+    return result.$2
+        .split('\u001e')
+        .where((entry) => entry.trim().isNotEmpty)
+        .map((entry) {
+          final parts = entry.trim().split('\u001f');
+          final hash = parts.first;
+          return GitCommit(
+            hash: hash,
+            subject: parts.length > 1 ? parts[1] : hash.substring(0, 7),
+            message: '',
+          );
+        })
+        .toList();
+  }
+
+  Future<String?> commitMessage(String hash) async {
+    final pid = _selectedProjectId;
+    if (pid == null) return null;
+    final roots = rootsOf(pid);
+    if (roots.length != 1) return null;
+    final result = await git.output(roots.single, [
+      'log',
+      '-1',
+      '--format=%B',
+      hash,
+    ]);
+    return result.$1 == 0 ? result.$2.trim() : null;
+  }
+
+  Future<String?> commitStaged(String message, {String? amendHash}) async {
     final pid = _selectedProjectId;
     if (pid == null) return 'No workspace selected.';
     final roots = rootsOf(
@@ -1989,7 +2031,21 @@ class CockpitViewModel extends ChangeNotifier {
     if (roots.length > 1) {
       return 'Stage changes belong to multiple repositories. Commit them separately.';
     }
-    final err = await git.collect(roots.single, ['commit', '-m', message]);
+    if (amendHash != null) {
+      final head = (await git.output(roots.single, [
+        'rev-parse',
+        'HEAD',
+      ])).$2.trim();
+      if (head != amendHash) {
+        return 'Only the last commit can be amended directly.';
+      }
+    }
+    final err = await git.collect(roots.single, [
+      'commit',
+      if (amendHash != null) '--amend',
+      '-m',
+      message,
+    ]);
     unawaited(git.refresh(pid));
     return err;
   }

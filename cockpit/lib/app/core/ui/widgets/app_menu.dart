@@ -9,6 +9,7 @@ class AppMenuItem<T> {
     required this.label,
     this.icon,
     this.leading,
+    this.labelWidget,
     this.selected = false,
     this.danger = false,
     this.enabled = true,
@@ -22,6 +23,7 @@ class AppMenuItem<T> {
       label = '',
       icon = null,
       leading = null,
+      labelWidget = null,
       selected = false,
       danger = false,
       enabled = false,
@@ -35,6 +37,9 @@ class AppMenuItem<T> {
 
   /// Widget de ícone à esquerda (ex.: logo SVG). Vence [icon] quando presente.
   final Widget? leading;
+
+  /// Rótulo rico opcional. Quando presente, substitui [label].
+  final Widget? labelWidget;
   final bool selected;
   final bool danger;
 
@@ -228,16 +233,18 @@ Future<T?> showAppMenu<T>(
                       : (ctx) {
                           closeOverlay<T>(ctx, item.value);
                         },
-                  child: Text(
-                    item.label,
-                    overflow: TextOverflow.ellipsis,
-                    style: menuContext.typo.body.copyWith(
-                      fontSize: 13,
-                      color: !item.enabled
-                          ? colors.text4
-                          : (item.danger ? colors.error : colors.text),
-                    ),
-                  ),
+                  child:
+                      item.labelWidget ??
+                      Text(
+                        item.label,
+                        overflow: TextOverflow.ellipsis,
+                        style: menuContext.typo.body.copyWith(
+                          fontSize: 13,
+                          color: !item.enabled
+                              ? colors.text4
+                              : (item.danger ? colors.error : colors.text),
+                        ),
+                      ),
                 ),
               ),
         ],

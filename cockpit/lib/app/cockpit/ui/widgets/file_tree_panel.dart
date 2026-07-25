@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/commit_message_dialog.dart';
@@ -78,6 +79,8 @@ class FileTreePanel extends StatefulWidget {
     this.roots = const <WorkspaceRoot>[],
     this.onStageFile,
     this.onCommitStaged,
+    this.onLoadCommits,
+    this.onLoadCommitMessage,
     this.onUnstageFile,
     this.onDiscardFile,
     this.onCommitFile,
@@ -99,7 +102,10 @@ class FileTreePanel extends StatefulWidget {
   final Future<String?> Function(String absPath)? onStageFile;
 
   /// Source Control: comita todas as mudanças staged da root selecionada.
-  final Future<String?> Function(String message)? onCommitStaged;
+  final Future<String?> Function(String message, {String? amendHash})?
+  onCommitStaged;
+  final Future<List<GitCommit>> Function()? onLoadCommits;
+  final Future<String?> Function(String hash)? onLoadCommitMessage;
 
   /// Source Control: tira o arquivo do index (`git restore --staged`).
   /// `null` no retorno = sucesso; senão a mensagem de erro do git.
@@ -275,6 +281,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
   final FocusNode _treeFocus = FocusNode(debugLabel: 'fileTree');
   final TextEditingController _commitMessage = TextEditingController();
   bool _committing = false;
+  bool _amend = false;
+  String? _amendHash;
+  String? _amendSubject;
   String? _commitError;
 
   @override
@@ -403,7 +412,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
       _committing = true;
       _commitError = null;
     });
-    final error = await widget.onCommitStaged!(message);
+    final error = await widget.onCommitStaged!(
+      message,
+      amendHash: _amend ? _amendHash : null,
+    );
     if (!mounted) return;
     setState(() {
       _committing = false;
@@ -882,6 +894,17 @@ class _FileTreePanelState extends State<FileTreePanel> {
             _CommitComposer(
               controller: _commitMessage,
               submitting: _committing,
+              amend: _amend,
+              amendHash: _amendHash,
+              amendSubject: _amendSubject,
+              loadCommits: widget.onLoadCommits,
+              loadMessage: widget.onLoadCommitMessage,
+              onAmendChanged: (value, hash, message, subject) => setState(() {
+                _amend = value;
+                _amendHash = hash;
+                _amendSubject = subject;
+                if (message != null) _commitMessage.text = message;
+              }),
               error: _commitError,
               enabled:
                   widget.stagedPaths.isNotEmpty &&
@@ -897,29 +920,75 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 }
 
-/// Composer fixado no rodapé do Source Control, no padrão do GitHub Desktop.
+/// Composer fixado no rodapé do Source Control.
 class _CommitComposer extends StatelessWidget {
   const _CommitComposer({
     required this.controller,
     required this.submitting,
     required this.enabled,
+    required this.amend,
+    required this.onAmendChanged,
     required this.onChanged,
     required this.onCommit,
+    this.amendHash,
+    this.amendSubject,
+    this.loadCommits,
+    this.loadMessage,
     this.error,
   });
-
   final TextEditingController controller;
-  final bool submitting;
-  final bool enabled;
-  final String? error;
-  final VoidCallback onChanged;
-  final VoidCallback onCommit;
+  final bool submitting, enabled, amend;
+  final String? amendHash, amendSubject, error;
+  final Future<List<GitCommit>> Function()? loadCommits;
+  final Future<String?> Function(String hash)? loadMessage;
+  final void Function(bool, String?, String?, String?) onAmendChanged;
+  final VoidCallback onChanged, onCommit;
+
+  static String _truncate(String value, int max) =>
+      value.length > max ? '${value.substring(0, max)}...' : value;
+
+  Future<void> _pickCommit(BuildContext context) async {
+    if (loadCommits == null) return;
+    final commits = await loadCommits!();
+    if (!context.mounted) return;
+    final picked = await showAppMenu<GitCommit>(
+      context,
+      items: [
+        for (final (index, commit) in commits.take(5).indexed)
+          AppMenuItem(
+            value: commit,
+            label: commit.subject,
+            labelWidget: index == 0
+                ? RichText(
+                    text: TextSpan(
+                      style: context.typo.body.copyWith(
+                        fontSize: 13,
+                        color: context.colors.text,
+                      ),
+                      children: [
+                        TextSpan(
+                          text: 'last commit ',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(text: commit.subject),
+                      ],
+                    ),
+                  )
+                : null,
+          ),
+      ],
+    );
+    if (picked == null || !context.mounted) return;
+    final message = await loadMessage?.call(picked.hash);
+    if (!context.mounted) return;
+    onAmendChanged(true, picked.hash, message, picked.subject);
+  }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return Container(
-      padding: const EdgeInsets.fromLTRB(8, 8, 8, 7),
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
       decoration: BoxDecoration(
         color: colors.bg,
         border: Border(top: BorderSide(color: colors.border)),
@@ -928,6 +997,53 @@ class _CommitComposer extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Row(
+            children: [
+              Checkbox(
+                state: amend ? CheckboxState.checked : CheckboxState.unchecked,
+                onChanged: submitting
+                    ? null
+                    : (v) async {
+                        if (v != CheckboxState.checked) {
+                          onAmendChanged(false, null, null, null);
+                          return;
+                        }
+                        final commits =
+                            await loadCommits?.call() ?? const <GitCommit>[];
+                        if (commits.isEmpty || !context.mounted) return;
+                        final first = commits.first;
+                        final message = await loadMessage?.call(first.hash);
+                        if (context.mounted) {
+                          onAmendChanged(
+                            true,
+                            first.hash,
+                            message,
+                            first.subject,
+                          );
+                        }
+                      },
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Amend',
+                style: context.typo.label.copyWith(color: colors.text),
+              ),
+              const SizedBox(width: 5),
+              GestureDetector(
+                onTap: submitting ? null : () => _pickCommit(context),
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  child: Text(
+                    amendSubject == null
+                        ? 'last commit⌄'
+                        : '${_truncate(amendSubject!, 20)}⌄',
+                    style: context.typo.label.copyWith(color: colors.accent),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           SizedBox(
             height: 112,
             child: TextField(
@@ -968,7 +1084,7 @@ class _CommitComposer extends StatelessWidget {
                       size: 16,
                       color: Colors.white,
                     )
-                  : const Text('Commit'),
+                  : Text(amend ? 'Amend Commit' : 'Commit'),
             ),
           ),
         ],

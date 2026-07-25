@@ -815,6 +815,8 @@ class _CockpitPageState extends State<CockpitPage> {
                             onDiscardFile: vm.discardFile,
                             onCommitFile: vm.commitFile,
                             onCommitStaged: vm.commitStaged,
+                            onLoadCommits: vm.recentCommits,
+                            onLoadCommitMessage: vm.commitMessage,
                             revision: vm.fileTreeRevision,
                             selectedPath: vm.selectedFileInTree,
                             listChildren: vm.listChildren,
