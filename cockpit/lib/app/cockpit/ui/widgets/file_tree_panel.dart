@@ -79,10 +79,12 @@ class FileTreePanel extends StatefulWidget {
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
     this.onStageFile,
+    this.onStageFiles,
     this.onCommitStaged,
     this.onLoadCommits,
     this.onLoadCommitMessage,
     this.onUnstageFile,
+    this.onUnstageFiles,
     this.onDiscardFile,
     this.isNewGitFile,
     this.onCommitFile,
@@ -102,6 +104,7 @@ class FileTreePanel extends StatefulWidget {
 
   /// Source Control: adiciona o arquivo ao index (`git add --`).
   final Future<String?> Function(String absPath)? onStageFile;
+  final Future<String?> Function(List<String> absPaths)? onStageFiles;
 
   /// Source Control: comita todas as mudanças staged da root selecionada.
   final Future<String?> Function(String message, {String? amendHash})?
@@ -112,6 +115,7 @@ class FileTreePanel extends StatefulWidget {
   /// Source Control: tira o arquivo do index (`git restore --staged`).
   /// `null` no retorno = sucesso; senão a mensagem de erro do git.
   final Future<String?> Function(String absPath)? onUnstageFile;
+  final Future<String?> Function(List<String> absPaths)? onUnstageFiles;
 
   /// Source Control: descarta a mudança do working tree (destrutivo — o
   /// painel confirma antes). `null` = sucesso.
@@ -277,6 +281,11 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// de pastas sem afetar a árvore principal de arquivos.
   bool _sourceControlTree = false;
 
+  /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
+  /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
+  /// pasta some de uma seção: ao reaparecer na outra, conserva o estado.
+  final Map<String, bool> _sourceControlFolderExpanded = <String, bool>{};
+
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
 
@@ -334,6 +343,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   Future<void> _toggleStageAll(List<String> paths, bool staged) async {
+    final batchAction = staged ? widget.onUnstageFiles : widget.onStageFiles;
+    if (batchAction != null) {
+      final err = await batchAction(paths);
+      if (err != null && mounted) await _showGitError(err);
+      return;
+    }
+
+    // Compatibilidade para consumidores que só implementam a ação individual.
     final action = staged ? widget.onUnstageFile : widget.onStageFile;
     if (action == null) return;
     for (final path in paths) {
@@ -936,6 +953,11 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     onStageAll: _toggleStageAll,
                     onDiscard: _discardOne,
                     onDiscardAll: _discardAll,
+                    isFolderExpanded: (path) =>
+                        _sourceControlFolderExpanded[path] ?? true,
+                    onFolderExpansionChanged: (path, expanded) => setState(
+                      () => _sourceControlFolderExpanded[path] = expanded,
+                    ),
                     stagedPaths: effectiveStaged,
                     unstagedPaths: effectiveUnstaged,
                     gitStatusOf: widget.gitStatusOf,
@@ -2032,6 +2054,8 @@ class _ChangedTree extends StatelessWidget {
     required this.onStageAll,
     required this.onDiscard,
     required this.onDiscardAll,
+    required this.isFolderExpanded,
+    required this.onFolderExpansionChanged,
     required this.stagedPaths,
     required this.unstagedPaths,
     required this.gitStatusOf,
@@ -2053,6 +2077,8 @@ class _ChangedTree extends StatelessWidget {
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
+  final bool Function(String path) isFolderExpanded;
+  final void Function(String path, bool expanded) onFolderExpansionChanged;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -2207,8 +2233,16 @@ class _ChangedTree extends StatelessWidget {
     for (final file in files) {
       root.add(file);
     }
+    final first = files.first;
+    final relative = first.dir.isEmpty
+        ? first.name
+        : '${first.dir}/${first.name}';
+    final rootPath = first.absPath
+        .substring(0, first.absPath.length - relative.length)
+        .replaceFirst(RegExp(r'/$'), '');
     return _ChangedDirectoryView(
       directory: root,
+      path: rootPath,
       gitStatusOf: (path) => staged ? GitFileStatus.staged : gitStatusOf(path),
       selectedPath: selectedPath,
       onOpenDiff: onOpenDiff,
@@ -2219,6 +2253,8 @@ class _ChangedTree extends StatelessWidget {
       onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
       onDiscardAll: onDiscardAll,
+      isExpanded: isFolderExpanded,
+      onExpansionChanged: onFolderExpansionChanged,
       staged: staged,
     );
   }
@@ -2363,7 +2399,9 @@ class _ChangedDirectory {
 /// subpastas começam expandidas para a troca de visualização revelar os arquivos.
 class _ChangedDirectoryView extends StatefulWidget {
   const _ChangedDirectoryView({
+    super.key,
     required this.directory,
+    required this.path,
     required this.gitStatusOf,
     required this.selectedPath,
     required this.onOpenDiff,
@@ -2373,12 +2411,15 @@ class _ChangedDirectoryView extends StatefulWidget {
     required this.onStageAll,
     required this.onDiscard,
     required this.onDiscardAll,
+    required this.isExpanded,
+    required this.onExpansionChanged,
     required this.staged,
     this.depth = 0,
     this.isRoot = true,
   });
 
   final _ChangedDirectory directory;
+  final String path;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
   final String? selectedPath;
   final ValueChanged<String> onOpenDiff;
@@ -2388,6 +2429,8 @@ class _ChangedDirectoryView extends StatefulWidget {
   final Future<void> Function(List<String> paths) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
+  final bool Function(String path) isExpanded;
+  final void Function(String path, bool expanded) onExpansionChanged;
   final bool staged;
   final int depth;
   final bool isRoot;
@@ -2397,13 +2440,14 @@ class _ChangedDirectoryView extends StatefulWidget {
 }
 
 class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
-  bool _expanded = true;
   bool _hovered = false;
+
+  bool get _expanded => widget.isExpanded(widget.path);
 
   Widget _folderRow(BuildContext context) {
     final colors = context.colors;
     final paths = widget.directory.descendantPaths;
-    final actionKey = '${widget.depth}:${widget.directory.name}';
+    final actionKey = widget.path;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -2411,7 +2455,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
         key: ValueKey('source-control-folder:$actionKey'),
         hoverColor: colors.panel,
         borderRadius: BorderRadius.circular(5),
-        onTap: () => setState(() => _expanded = !_expanded),
+        onTap: () => widget.onExpansionChanged(widget.path, !_expanded),
         padding: EdgeInsets.only(left: 6 + widget.depth * 14, right: 6),
         child: SizedBox(
           height: 26,
@@ -2507,7 +2551,9 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
         if (widget.isRoot || _expanded) ...[
           for (final directory in directories)
             _ChangedDirectoryView(
+              key: ValueKey('${widget.path}/${directory.name}'),
               directory: directory,
+              path: '${widget.path}/${directory.name}',
               gitStatusOf: widget.gitStatusOf,
               selectedPath: widget.selectedPath,
               onOpenDiff: widget.onOpenDiff,
@@ -2517,6 +2563,8 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               onStageAll: widget.onStageAll,
               onDiscard: widget.onDiscard,
               onDiscardAll: widget.onDiscardAll,
+              isExpanded: widget.isExpanded,
+              onExpansionChanged: widget.onExpansionChanged,
               staged: widget.staged,
               depth: widget.isRoot ? 0 : widget.depth + 1,
               isRoot: false,

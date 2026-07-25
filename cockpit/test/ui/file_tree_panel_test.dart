@@ -3,6 +3,7 @@ import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_tree_panel.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -137,6 +138,87 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('lib/app'), findsOneWidget);
+    });
+
+    testWidgets('folder expansion survives stage and unstage', (tester) async {
+      const changedPath = '/workspace/lib/app/main.dart';
+      var staged = false;
+
+      await tester.pumpWidget(
+        ShadcnApp(
+          theme: buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            child: StatefulBuilder(
+              builder: (context, setHostState) => FileTreePanel(
+                rootPath: '/workspace',
+                revision: 1,
+                listChildren: (_) async => const [],
+                gitStatusOf: (_) =>
+                    staged ? GitFileStatus.staged : GitFileStatus.modified,
+                onOpenFile: (_) {},
+                onOpenDiff: (_) {},
+                isGitRepo: true,
+                changedPaths: const [changedPath],
+                stagedPaths: staged ? const [changedPath] : const [],
+                unstagedPaths: staged ? const [] : const [changedPath],
+                onStageFiles: (_) async {
+                  setHostState(() => staged = true);
+                  return null;
+                },
+                onUnstageFiles: (_) async {
+                  setHostState(() => staged = false);
+                  return null;
+                },
+                onOpenWith: (_) {},
+                onCreateInFolder: (_, _) {},
+                onCreate: (_, _, _) async => const Success(null),
+                onRename: (_, _) async => const Success(null),
+                onDelete: (_) async => const Success(null),
+                onMove: (_, _) async => const Success(null),
+                onCopy: (_) {},
+                onCut: (_) {},
+                onPaste: (_) async => const Success(null),
+                canPaste: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('source-control-tab')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('source-control-view-toggle')),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('lib'));
+      await tester.pumpAndSettle();
+      expect(find.text('app'), findsNothing);
+
+      final folder = find.byKey(
+        const ValueKey('source-control-folder:/workspace/lib'),
+      );
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: tester.getCenter(folder));
+      await mouse.moveTo(tester.getCenter(folder));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('STAGED CHANGES (1)'), findsOneWidget);
+      expect(find.text('app'), findsNothing);
+
+      await mouse.moveTo(Offset.zero);
+      await mouse.moveTo(tester.getCenter(folder));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('CHANGES (1)'), findsOneWidget);
+      expect(find.text('app'), findsNothing);
     });
   });
 }

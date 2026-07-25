@@ -2050,6 +2050,39 @@ class CockpitViewModel extends ChangeNotifier {
     return err;
   }
 
+  /// Stage em lote: agrupa os paths por root e executa um único `git add` por
+  /// repositório, evitando um processo + refresh para cada arquivo.
+  Future<String?> stageFiles(List<String> absPaths) =>
+      _setFilesStaged(absPaths, staged: true);
+
+  /// Unstage em lote: um único `git restore --staged` por root.
+  Future<String?> unstageFiles(List<String> absPaths) =>
+      _setFilesStaged(absPaths, staged: false);
+
+  Future<String?> _setFilesStaged(
+    List<String> absPaths, {
+    required bool staged,
+  }) async {
+    final pid = _selectedProjectId;
+    if (pid == null) return 'No workspace selected.';
+    final byRoot = <String, List<String>>{};
+    for (final path in absPaths) {
+      final root = rootContaining(pid, path);
+      if (root == null) return 'File is outside the workspace roots: $path';
+      byRoot.putIfAbsent(root, () => []).add(_subOf(path, root));
+    }
+    for (final entry in byRoot.entries) {
+      final err = await git.collect(entry.key, [
+        if (staged) 'add' else ...['restore', '--staged'],
+        '--',
+        ...entry.value,
+      ]);
+      if (err != null) return err;
+    }
+    await git.refresh(pid);
+    return null;
+  }
+
   /// Stage (Source Control): adiciona [absPath] ao index da root dona.
   Future<String?> stageFile(String absPath) async {
     final pid = _selectedProjectId;
