@@ -407,7 +407,17 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   Future<void> _commitStaged() async {
     final message = _commitMessage.text.trim();
-    if (message.isEmpty || _committing || widget.onCommitStaged == null) return;
+    if (_committing) return;
+    if (message.isEmpty) {
+      setState(() => _commitError = 'Enter a commit message.');
+      return;
+    }
+    if (widget.onCommitStaged == null) {
+      setState(
+        () => _commitError = 'Commit is unavailable for this workspace.',
+      );
+      return;
+    }
     setState(() {
       _committing = true;
       _commitError = null;
@@ -906,9 +916,6 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 if (message != null) _commitMessage.text = message;
               }),
               error: _commitError,
-              enabled:
-                  widget.stagedPaths.isNotEmpty &&
-                  widget.onCommitStaged != null,
               onChanged: () => setState(() => _commitError = null),
               onCommit: _commitStaged,
             ),
@@ -925,7 +932,6 @@ class _CommitComposer extends StatelessWidget {
   const _CommitComposer({
     required this.controller,
     required this.submitting,
-    required this.enabled,
     required this.amend,
     required this.onAmendChanged,
     required this.onChanged,
@@ -937,7 +943,7 @@ class _CommitComposer extends StatelessWidget {
     this.error,
   });
   final TextEditingController controller;
-  final bool submitting, enabled, amend;
+  final bool submitting, amend;
   final String? amendHash, amendSubject, error;
   final Future<List<GitCommit>> Function()? loadCommits;
   final Future<String?> Function(String hash)? loadMessage;
@@ -1075,10 +1081,9 @@ class _CommitComposer extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: PrimaryButton(
-              onPressed:
-                  enabled && controller.text.trim().isNotEmpty && !submitting
-                  ? onCommit
-                  : null,
+              // Sempre clicável: validação aparece como erro inline, em vez
+              // de esconder o motivo com um botão desabilitado.
+              onPressed: submitting ? null : onCommit,
               child: submitting
                   ? const CircularProgressIndicator(
                       size: 16,
