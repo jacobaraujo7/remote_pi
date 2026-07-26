@@ -1564,17 +1564,27 @@ function _emitRelayState(force = false): void {
   const status = _relayStatus();
   if (!force && status === _lastRelayStatus) return;
   _lastRelayStatus = status;
-  _pi?.sendMessage({
-    customType: "remote-pi:relay-state",
-    content: `Relay ${status}`,
-    details: {
-      status,
-      connected: status === "connected",
-      ...(_relayUrl ? { relayUrl: _relayUrl } : {}),
-      ...(_myRoomId ? { room: _myRoomId } : {}),
-    },
-    display: false,
-  });
+  // This can run inside a WebSocket 'close' callback (via _onRelayClose). After a
+  // session replacement (newSession/fork/switchSession/reload) the module-level
+  // `_pi` is stale, and `assertActive` throws synchronously inside `sendMessage`.
+  // An uncaught throw from a WS event callback becomes a process-level
+  // uncaughtException and exits pi. Swallow it here: the next relay-state
+  // change re-emits, so connectivity is eventually consistent. See issue #55.
+  try {
+    _pi?.sendMessage({
+      customType: "remote-pi:relay-state",
+      content: `Relay ${status}`,
+      details: {
+        status,
+        connected: status === "connected",
+        ...(_relayUrl ? { relayUrl: _relayUrl } : {}),
+        ...(_myRoomId ? { room: _myRoomId } : {}),
+      },
+      display: false,
+    });
+  } catch {
+    // _pi stale (session replaced) or extension runtime not yet bound.
+  }
 }
 
 /** Minimal ctx for relay start/stop driven by a control message (no command
