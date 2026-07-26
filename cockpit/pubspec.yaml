@@ -22,21 +22,6 @@ environment:
   sdk: ^3.12.0
   flutter: ">=3.44.0"
 
-# Build hook do libghostty. Sem este bloco o hook cai no modo padrão `prebuilt`
-# e baixa a dylib da release v0.0.11 (source 91f66da), que NÃO exporta
-# `ghostty_terminal_compression_activity`. Como os bindings da branch usada nos
-# dependency_overrides já chamam esse símbolo — no construtor do
-# TerminalControllerImpl —, todo terminal morria com `dlsym: symbol not found`.
-#
-# `source: compile` casa a dylib com o `ghostty.version` dos bindings.
-# Exige **Zig 0.16.0** na máquina de build (o ghostty declara
-# minimum_zig_version 0.16.0; 0.15.x falha). Compile a frio ~30s, depois cacheado.
-hooks:
-  user_defines:
-    libghostty:
-      source: compile
-      download: tarball
-
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
 # consider running `flutter pub upgrade --major-versions`. Alternatively,
@@ -262,22 +247,18 @@ dependency_overrides:
       url: https://github.com/media-kit/media-kit.git
       ref: 44ba261
       path: media_kit
-  # Pinados em SHA, não em branch de dev: consumir
-  # `fix/flterm-tui-scroll-forwarding` deixava o app à mercê de qualquer push
-  # na branch — foi assim que um terminal quebrado chegou aqui. As duas saem do
-  # mesmo main (695c00d), então são compatíveis entre si.
-  #
-  # O SHA do libghostty inclui o fix de isolamento do git no hook: sem ele, o
-  # `source: compile` lia a tag do repo CONSUMIDOR (cockpit-vX.Y.Z), não batia
-  # com o vX.Y.Z esperado pelo ghostty e abortava — quebrando todo release
-  # tagueado. Upstream: elias8/libghostty#120.
+  # Os dois pacotes precisam sair do mesmo commit: SHAs posteriores adicionam
+  # compressão de scrollback aos bindings/ao flterm, mas a dylib prebuilt da
+  # release 0.0.11 não exporta essa API. O tag flterm-cockpit-2 mantém o ABI da
+  # 0.0.11 e inclui os fixes de scroll de TUI e input no Windows necessários ao
+  # Cockpit. Pin em SHA evita mudanças silenciosas na branch/tag do fork.
   flterm:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: 2822cc2e1c8500b1d0c41a866060b7733068b19f
+      ref: 9ea4b01973f87182ed7cac4de73a88cc618d5621
       path: packages/flterm
   libghostty:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: 45f783033804e2c0e77f4a0867bf42c362ade076
+      ref: 9ea4b01973f87182ed7cac4de73a88cc618d5621
       path: packages/libghostty
