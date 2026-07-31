@@ -386,6 +386,7 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/../tool/cockpit_hook.dart",
+				"$(SRCROOT)/../macos/build_dart_helper.sh",
 			);
 			name = "Build cockpit-hook helper";
 			outputPaths = (
@@ -402,6 +403,7 @@
 			);
 			inputPaths = (
 				"$(SRCROOT)/../tool/cockpit_cli.dart",
+				"$(SRCROOT)/../macos/build_dart_helper.sh",
 			);
 			name = "Build cockpit CLI";
 			outputPaths = (

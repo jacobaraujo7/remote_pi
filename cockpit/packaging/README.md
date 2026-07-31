@@ -55,6 +55,13 @@ a API key do App Store Connect.
 cd cockpit
 
 # 1. Build universal (x86_64 + arm64 — default do Flutter macOS release).
+#
+# Os helpers Dart do Cockpit também são universais. Em Apple Silicon, instale
+# Rosetta e aponte para um SDK Flutter/Dart x64 da mesma versão:
+# export COCKPIT_DART_X64="/caminho/para/flutter-x64/bin/dart"
+#
+# Em Intel, os helpers são compilados somente para x86_64; esse não é um
+# caminho de release compatível com Apple Silicon. Veja docs/buildintel.md.
 flutter build macos --release
 APP="build/macos/Build/Products/Release/Cockpit.app"
 

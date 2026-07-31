@@ -18,30 +18,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"   # cockpit/
 SRC="$ROOT/tool/cockpit_hook.dart"
 
-# Resolve o `dart`: 1) Flutter (FLUTTER_ROOT setado pelo Xcode), 2) PATH.
-resolve_dart() {
-  if [ -n "${FLUTTER_ROOT:-}" ] && [ -x "$FLUTTER_ROOT/bin/dart" ]; then
-    echo "$FLUTTER_ROOT/bin/dart"; return
-  fi
-  if command -v dart >/dev/null 2>&1; then command -v dart; return; fi
-  if command -v flutter >/dev/null 2>&1; then
-    echo "$(dirname "$(command -v flutter)")/dart"; return
-  fi
-  echo "[build_hook] erro: 'dart' não encontrado (defina FLUTTER_ROOT)" >&2
-  exit 1
-}
-
-compile() {
-  local out="$1"
-  mkdir -p "$(dirname "$out")"
-  echo "[build_hook] compilando $SRC -> $out"
-  "$(resolve_dart)" compile exe "$SRC" -o "$out"
-  chmod +x "$out"
-}
+source "$ROOT/macos/build_dart_helper.sh"
 
 mode="${1:-bundle}"
 if [ "$mode" = "dev" ]; then
-  compile "$HOME/.cockpit/bin/cockpit-hook"
+  echo "[build_hook] compilando para a arquitetura do host"
+  compile_dart_helper_for_host "$SRC" "$HOME/.cockpit/bin/cockpit-hook"
   echo "[build_hook] dev OK"
   exit 0
 fi
@@ -50,7 +32,8 @@ fi
 : "${BUILT_PRODUCTS_DIR:?precisa rodar pelo Xcode (BUILT_PRODUCTS_DIR ausente)}"
 : "${PRODUCT_NAME:?PRODUCT_NAME ausente}"
 DEST="$BUILT_PRODUCTS_DIR/$PRODUCT_NAME.app/Contents/Resources/cockpit-hook"
-compile "$DEST"
+echo "[build_hook] compilando helper universal -> $DEST"
+compile_universal_dart_helper "$SRC" "$DEST" "cockpit-hook"
 
 # Assinatura: exe AOT do Dart é morto sob hardened runtime ad-hoc. Então:
 # - dev/ad-hoc (sem identity ou '-'): assina PLANO (sem --options runtime).
