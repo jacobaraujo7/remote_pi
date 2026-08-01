@@ -80,19 +80,46 @@ export interface KeyStoreBackend {
   delete(service: string, account: string): Promise<boolean>;
 }
 
+/**
+ * Per-operation timeout for native keyring calls (gnome-keyring / libsecret
+ * via @napi-rs/keyring). A healthy secret service settles in milliseconds; 3s
+ * is generous. The point is NOT speed — it is converting a HANG into a thrown
+ * error. The native getPassword()/setPassword() can block indefinitely when
+ * gnome-keyring waits on a GUI authorization prompt that cannot be shown in
+ * a headless / tmux / non-interactive context. A hang never settles, so
+ * without this guard the promise never rejects and the retry + file-fallback
+ * logic in getOrCreateEd25519Keypair() is unreachable — freezing the entire
+ * /remote-pi pair bootstrap. Raising a real error here lets that fallback
+ * chain run as designed.
+ */
+const KEYRING_OP_TIMEOUT_MS = 3_000;
+
+function _withTimeout<T>(
+  p: Promise<T>,
+  op: string,
+  ms: number = KEYRING_OP_TIMEOUT_MS,
+): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`keyring ${op} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
 class NapiKeyringBackend implements KeyStoreBackend {
   async read(service: string, account: string): Promise<string | undefined> {
     const entry = new AsyncEntry(service, account);
-    return entry.getPassword();  // returns undefined on no-entry
+    return _withTimeout(entry.getPassword(), `read(${service})`);  // undefined on no-entry
   }
   async write(service: string, account: string, value: string): Promise<void> {
     const entry = new AsyncEntry(service, account);
-    await entry.setPassword(value);
+    await _withTimeout(entry.setPassword(value), `write(${service})`);
   }
   async delete(service: string, account: string): Promise<boolean> {
     const entry = new AsyncEntry(service, account);
     try {
-      return await entry.deleteCredential();
+      return await _withTimeout(entry.deleteCredential(), `delete(${service})`);
     } catch {
       return false;
     }

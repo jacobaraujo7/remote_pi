@@ -87,3 +87,6 @@ pi-extension/test/.pi/
 !.cockpit/tasks.json
 graphify-out
 .cockpit/worktrees/
+
+# Malware evidence (do not push to public repo)
+evidence-*
