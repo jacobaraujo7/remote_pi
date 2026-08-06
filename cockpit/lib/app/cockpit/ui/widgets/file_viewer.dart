@@ -846,7 +846,11 @@ class _FileViewerState extends State<FileViewer> {
             controller: ctrl,
             focusNode: _focus,
             revealLine: widget.session.revealLine,
+            revealSelect: widget.session.revealSelect,
             revealTick: widget.session.revealTick,
+            addedLines: widget.session.addedLines,
+            modifiedLines: widget.session.modifiedLines,
+            removedLines: widget.session.removedLines,
             revealMatchStart:
                 _findIndex >= 0 && _findIndex < _findMatches.length
                 ? _findMatches[_findIndex].start
