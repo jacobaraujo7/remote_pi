@@ -2,6 +2,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -13,14 +14,16 @@ void main() {
     diff: diff,
   );
 
-  Widget host(FileDiff diff) => ShadcnApp(
-    theme: buildTheme(brightness: Brightness.dark),
-    home: Scaffold(
-      // Box limitado (como um pane) — pega regressão de largura infinita.
-      child: SizedBox(
-        width: 400,
-        height: 300,
-        child: DiffViewer(session: sessionWith(diff)),
+  Widget host(FileDiff diff) => TranslationProvider(
+    child: ShadcnApp(
+      theme: buildTheme(brightness: Brightness.dark),
+      home: Scaffold(
+        // Box limitado (como um pane) — pega regressão de largura infinita.
+        child: SizedBox(
+          width: 400,
+          height: 300,
+          child: DiffViewer(session: sessionWith(diff)),
+        ),
       ),
     ),
   );
@@ -29,6 +32,8 @@ void main() {
     final diff = FileDiff(
       path: '/repo/a.txt',
       kind: FileDiffKind.modified,
+      beforeRevision: '1111111111111111',
+      afterRevision: '2222222222222222',
       hunks: const [
         DiffHunk(
           header: '@@ -1,3 +1,3 @@',
@@ -56,6 +61,8 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('CHANGED'), findsOneWidget);
     expect(find.text('line2'), findsOneWidget);
+    expect(find.text('Original 11111111'), findsOneWidget);
+    expect(find.text('Modified 22222222'), findsOneWidget);
   });
 
   testWidgets('binário mostra mensagem', (tester) async {
@@ -63,6 +70,23 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     expect(find.textContaining('Binary file'), findsOneWidget);
+  });
+
+  testWidgets('binário histórico mantém as refs da comparação', (tester) async {
+    await tester.pumpWidget(
+      host(
+        const FileDiff(
+          path: '/repo/bin.dat',
+          kind: FileDiffKind.binary,
+          beforeRevision: '1111111111111111',
+          afterRevision: '2222222222222222',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.text('Original 11111111'), findsOneWidget);
+    expect(find.text('Modified 22222222'), findsOneWidget);
   });
 
   testWidgets('unchanged mostra No changes', (tester) async {

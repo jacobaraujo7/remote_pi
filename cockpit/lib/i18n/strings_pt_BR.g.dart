@@ -641,6 +641,28 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String generateWith({required Object harness}) => 'Gerar com ${harness}';
 	@override String get generateUnavailableWhileAmending => 'Indisponível durante o amend de um commit';
 	@override String get cancelGeneration => 'Cancelar geração';
+	@override String get changes => 'Alteracoes';
+	@override String get history => 'Historico';
+	@override String get historyRepository => 'Repositorio';
+	@override String get historyNoRepository => 'Nenhum repositorio Git disponivel.';
+	@override String get historyEmpty => 'Nenhum commit encontrado.';
+	@override String get historyLoadFailed => 'Nao foi possivel carregar o historico Git.';
+	@override String get historyUntitledCommit => 'Commit sem titulo';
+	@override String get historyNow => 'agora';
+	@override String historyMinutesAgo({required Object count}) => 'ha ${count} min';
+	@override String historyHoursAgo({required Object count}) => 'ha ${count} h';
+	@override String get historyYesterday => 'ontem';
+	@override String get historyDayAgo => 'ha 1 dia';
+	@override String historyDaysAgo({required Object count}) => 'ha ${count} dias';
+	@override String get historyFiles => 'Arquivos alterados';
+	@override String get historyFilesEmpty => 'Nenhum arquivo alterado.';
+	@override String get historyFilesLoadFailed => 'Nao foi possivel carregar os arquivos alterados.';
+	@override String get diffEmptyTree => 'Arvore vazia';
+	@override String diffOriginal({required Object ref}) => 'Original ${ref}';
+	@override String diffModified({required Object ref}) => 'Modificado ${ref}';
+	@override String get diffWorkingTree => 'Diretorio de trabalho';
+	@override String get diffBinaryFile => 'Arquivo binario - sem diff de texto.';
+	@override String get diffNoChanges => 'Sem alteracoes.';
 }
 
 // Path: cockpit.fileViewer
@@ -1803,6 +1825,28 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.generateWith' => ({required Object harness}) => 'Gerar com ${harness}',
 			'cockpit.fileTreePanel.generateUnavailableWhileAmending' => 'Indisponível durante o amend de um commit',
 			'cockpit.fileTreePanel.cancelGeneration' => 'Cancelar geração',
+			'cockpit.fileTreePanel.changes' => 'Alteracoes',
+			'cockpit.fileTreePanel.history' => 'Historico',
+			'cockpit.fileTreePanel.historyRepository' => 'Repositorio',
+			'cockpit.fileTreePanel.historyNoRepository' => 'Nenhum repositorio Git disponivel.',
+			'cockpit.fileTreePanel.historyEmpty' => 'Nenhum commit encontrado.',
+			'cockpit.fileTreePanel.historyLoadFailed' => 'Nao foi possivel carregar o historico Git.',
+			'cockpit.fileTreePanel.historyUntitledCommit' => 'Commit sem titulo',
+			'cockpit.fileTreePanel.historyNow' => 'agora',
+			'cockpit.fileTreePanel.historyMinutesAgo' => ({required Object count}) => 'ha ${count} min',
+			'cockpit.fileTreePanel.historyHoursAgo' => ({required Object count}) => 'ha ${count} h',
+			'cockpit.fileTreePanel.historyYesterday' => 'ontem',
+			'cockpit.fileTreePanel.historyDayAgo' => 'ha 1 dia',
+			'cockpit.fileTreePanel.historyDaysAgo' => ({required Object count}) => 'ha ${count} dias',
+			'cockpit.fileTreePanel.historyFiles' => 'Arquivos alterados',
+			'cockpit.fileTreePanel.historyFilesEmpty' => 'Nenhum arquivo alterado.',
+			'cockpit.fileTreePanel.historyFilesLoadFailed' => 'Nao foi possivel carregar os arquivos alterados.',
+			'cockpit.fileTreePanel.diffEmptyTree' => 'Arvore vazia',
+			'cockpit.fileTreePanel.diffOriginal' => ({required Object ref}) => 'Original ${ref}',
+			'cockpit.fileTreePanel.diffModified' => ({required Object ref}) => 'Modificado ${ref}',
+			'cockpit.fileTreePanel.diffWorkingTree' => 'Diretorio de trabalho',
+			'cockpit.fileTreePanel.diffBinaryFile' => 'Arquivo binario - sem diff de texto.',
+			'cockpit.fileTreePanel.diffNoChanges' => 'Sem alteracoes.',
 			'cockpit.fileViewer.cantOpen' => 'Não é possível abrir este arquivo.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Não foi possível carregar a imagem.',
 			'cockpit.fileViewer.preview' => 'Pré-visualização',
@@ -1996,6 +2040,8 @@ extension on TranslationsPtBr {
 			'settings.pairingDialog.pairingFailed' => 'Falha no pareamento.',
 			'settings.pairingDialog.tryAgain' => 'Tentar novamente',
 			'settings.pairingDialog.copied' => 'Copiado!',
+			_ => null,
+		} ?? switch (path) {
 			'settings.pairingDialog.copyData' => 'Copiar dados',
 			'settings.page.header.back' => 'Voltar',
 			'settings.page.header.title' => 'Configurações',
@@ -2018,8 +2064,6 @@ extension on TranslationsPtBr {
 			'settings.page.general.checkUpdatesTitle' => 'Verificar atualizações',
 			'settings.page.general.checkUpdatesDesc' => 'Com que frequência o Cockpit deve procurar novas versões.',
 			'settings.page.general.agentsInUseError' => 'Não é possível desligar os agentes com uma aba de agente aberta. Feche todas as abas de agente primeiro e depois desative.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.updateFrequency.daily' => 'Diariamente',
 			'settings.page.general.updateFrequency.weekly' => 'Semanalmente',
 			'settings.page.general.updateFrequency.monthly' => 'Mensalmente',

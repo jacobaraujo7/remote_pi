@@ -2,6 +2,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -57,10 +58,16 @@ class _DiffBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     if (diff.kind == FileDiffKind.binary) {
-      return _centered(context, 'Binary file — no text diff.');
+      return _messageBody(
+        context,
+        context.t.cockpit.fileTreePanel.diffBinaryFile,
+      );
     }
     if (diff.kind == FileDiffKind.unchanged || diff.hunks.isEmpty) {
-      return _centered(context, 'No changes.');
+      return _messageBody(
+        context,
+        context.t.cockpit.fileTreePanel.diffNoChanges,
+      );
     }
 
     final rows = <_Row>[];
@@ -87,7 +94,7 @@ class _DiffBody extends StatelessWidget {
           final side = ((avail - 1) / 2).clamp(_minSideWidth, double.infinity);
           final total = side * 2 + 1;
 
-          final children = <Widget>[];
+          final children = <Widget>[_revisionHeader(context, side)];
           for (var i = 0; i < rows.length; i++) {
             final hdr = headerText[i];
             if (hdr != null) {
@@ -116,6 +123,49 @@ class _DiffBody extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _messageBody(BuildContext context, String text) {
+    if (diff.afterRevision == null) return _centered(context, text);
+    return ColoredBox(
+      color: context.colors.bg,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = ((constraints.maxWidth - 1) / 2).clamp(
+            _minSideWidth,
+            double.infinity,
+          );
+          return Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: side * 2 + 1,
+                  child: _revisionHeader(context, side),
+                ),
+              ),
+              Expanded(child: _centered(context, text)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _revisionHeader(BuildContext context, double sideWidth) {
+    final tr = context.t.cockpit.fileTreePanel;
+    final historical = diff.afterRevision != null;
+    return _RevisionHeader(
+      beforeRef: historical
+          ? diff.beforeRevision == null
+                ? tr.diffEmptyTree
+                : tr.diffOriginal(ref: _shortRef(diff.beforeRevision!))
+          : 'HEAD',
+      afterRef: historical
+          ? tr.diffModified(ref: _shortRef(diff.afterRevision!))
+          : tr.diffWorkingTree,
+      sideWidth: sideWidth,
     );
   }
 
@@ -161,6 +211,59 @@ class _DiffBody extends StatelessWidget {
     }
     flush();
     return rows;
+  }
+}
+
+String _shortRef(String ref) => ref.length <= 8 ? ref : ref.substring(0, 8);
+
+class _RevisionHeader extends StatelessWidget {
+  const _RevisionHeader({
+    required this.beforeRef,
+    required this.afterRef,
+    required this.sideWidth,
+  });
+
+  final String beforeRef;
+  final String afterRef;
+  final double sideWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = context.typo.mono.copyWith(
+      fontSize: 10.5,
+      color: context.colors.text2,
+    );
+    return Container(
+      color: context.colors.panel,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: sideWidth,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                beforeRef,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ),
+          Container(width: 1, height: 18, color: context.colors.border),
+          SizedBox(
+            width: sideWidth,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                afterRef,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

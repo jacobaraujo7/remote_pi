@@ -86,13 +86,34 @@ class FileViewerSession extends PaneItem {
   /// quando não há pedido pendente. Setado por [reveal] (resultado de busca).
   int? revealLine;
 
+  /// Se a revelacao seleciona a linha inteira (busca) ou apenas posiciona o
+  /// cursor nela (mudancas Git).
+  bool revealSelect = true;
+
   /// Sobe a cada [reveal] — permite re-revelar a **mesma** linha (o viewer
   /// compara o tick pra disparar de novo mesmo sem mudança de [revealLine]).
   int revealTick = 0;
 
-  /// Pede ao viewer pra revelar [line] (base 1): rola até ela e a destaca.
-  void reveal(int line) {
+  /// Linhas do working tree decoradas no gutter pelo Source Control.
+  Set<int> addedLines = const {};
+  Set<int> modifiedLines = const {};
+  Set<int> removedLines = const {};
+
+  void setGitChangeLines({
+    required Set<int> added,
+    required Set<int> modified,
+    required Set<int> removed,
+  }) {
+    addedLines = added;
+    modifiedLines = modified;
+    removedLines = removed;
+    notifyListeners();
+  }
+
+  /// Pede ao viewer pra revelar [line]. Busca seleciona; Git so posiciona.
+  void reveal(int line, {bool select = true}) {
     revealLine = line;
+    revealSelect = select;
     revealTick++;
     notifyListeners();
   }

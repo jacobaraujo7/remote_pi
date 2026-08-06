@@ -1236,6 +1236,72 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Cancel generation'
 	String get cancelGeneration => 'Cancel generation';
+
+	/// en: 'Changes'
+	String get changes => 'Changes';
+
+	/// en: 'History'
+	String get history => 'History';
+
+	/// en: 'Repository'
+	String get historyRepository => 'Repository';
+
+	/// en: 'No Git repository available.'
+	String get historyNoRepository => 'No Git repository available.';
+
+	/// en: 'No commits found.'
+	String get historyEmpty => 'No commits found.';
+
+	/// en: 'Could not load Git history.'
+	String get historyLoadFailed => 'Could not load Git history.';
+
+	/// en: 'Untitled commit'
+	String get historyUntitledCommit => 'Untitled commit';
+
+	/// en: 'now'
+	String get historyNow => 'now';
+
+	/// en: '${count}m ago'
+	String historyMinutesAgo({required Object count}) => '${count}m ago';
+
+	/// en: '${count}h ago'
+	String historyHoursAgo({required Object count}) => '${count}h ago';
+
+	/// en: 'yesterday'
+	String get historyYesterday => 'yesterday';
+
+	/// en: '1d ago'
+	String get historyDayAgo => '1d ago';
+
+	/// en: '${count}d ago'
+	String historyDaysAgo({required Object count}) => '${count}d ago';
+
+	/// en: 'Files changed'
+	String get historyFiles => 'Files changed';
+
+	/// en: 'No files changed.'
+	String get historyFilesEmpty => 'No files changed.';
+
+	/// en: 'Could not load changed files.'
+	String get historyFilesLoadFailed => 'Could not load changed files.';
+
+	/// en: 'Empty tree'
+	String get diffEmptyTree => 'Empty tree';
+
+	/// en: 'Original ${ref}'
+	String diffOriginal({required Object ref}) => 'Original ${ref}';
+
+	/// en: 'Modified ${ref}'
+	String diffModified({required Object ref}) => 'Modified ${ref}';
+
+	/// en: 'Working tree'
+	String get diffWorkingTree => 'Working tree';
+
+	/// en: 'Binary file - no text diff.'
+	String get diffBinaryFile => 'Binary file - no text diff.';
+
+	/// en: 'No changes.'
+	String get diffNoChanges => 'No changes.';
 }
 
 // Path: cockpit.fileViewer
@@ -3335,6 +3401,28 @@ extension on Translations {
 			'cockpit.fileTreePanel.generateWith' => ({required Object harness}) => 'Generate with ${harness}',
 			'cockpit.fileTreePanel.generateUnavailableWhileAmending' => 'Unavailable while amending a commit',
 			'cockpit.fileTreePanel.cancelGeneration' => 'Cancel generation',
+			'cockpit.fileTreePanel.changes' => 'Changes',
+			'cockpit.fileTreePanel.history' => 'History',
+			'cockpit.fileTreePanel.historyRepository' => 'Repository',
+			'cockpit.fileTreePanel.historyNoRepository' => 'No Git repository available.',
+			'cockpit.fileTreePanel.historyEmpty' => 'No commits found.',
+			'cockpit.fileTreePanel.historyLoadFailed' => 'Could not load Git history.',
+			'cockpit.fileTreePanel.historyUntitledCommit' => 'Untitled commit',
+			'cockpit.fileTreePanel.historyNow' => 'now',
+			'cockpit.fileTreePanel.historyMinutesAgo' => ({required Object count}) => '${count}m ago',
+			'cockpit.fileTreePanel.historyHoursAgo' => ({required Object count}) => '${count}h ago',
+			'cockpit.fileTreePanel.historyYesterday' => 'yesterday',
+			'cockpit.fileTreePanel.historyDayAgo' => '1d ago',
+			'cockpit.fileTreePanel.historyDaysAgo' => ({required Object count}) => '${count}d ago',
+			'cockpit.fileTreePanel.historyFiles' => 'Files changed',
+			'cockpit.fileTreePanel.historyFilesEmpty' => 'No files changed.',
+			'cockpit.fileTreePanel.historyFilesLoadFailed' => 'Could not load changed files.',
+			'cockpit.fileTreePanel.diffEmptyTree' => 'Empty tree',
+			'cockpit.fileTreePanel.diffOriginal' => ({required Object ref}) => 'Original ${ref}',
+			'cockpit.fileTreePanel.diffModified' => ({required Object ref}) => 'Modified ${ref}',
+			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
+			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
+			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
@@ -3528,6 +3616,8 @@ extension on Translations {
 			'settings.pairingDialog.pairingFailed' => 'Pairing failed.',
 			'settings.pairingDialog.tryAgain' => 'Try again',
 			'settings.pairingDialog.copied' => 'Copied!',
+			_ => null,
+		} ?? switch (path) {
 			'settings.pairingDialog.copyData' => 'Copy data',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
@@ -3550,8 +3640,6 @@ extension on Translations {
 			'settings.page.general.checkUpdatesTitle' => 'Check for updates',
 			'settings.page.general.checkUpdatesDesc' => 'How often Cockpit should look for new versions.',
 			'settings.page.general.agentsInUseError' => 'Can\'t turn agents off while an agent tab is open. Close all agent tabs first, then disable it.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.updateFrequency.daily' => 'Daily',
 			'settings.page.general.updateFrequency.weekly' => 'Weekly',
 			'settings.page.general.updateFrequency.monthly' => 'Monthly',

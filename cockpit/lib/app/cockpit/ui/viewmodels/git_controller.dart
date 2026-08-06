@@ -28,9 +28,8 @@ class GitController extends ChangeNotifier {
     this._reader,
     this._runner, {
     DirectoryWatch? directoryWatch,
-    Duration watchRetryDelay = const Duration(milliseconds: 500),
-  }) : _directoryWatch = directoryWatch ?? _defaultDirectoryWatch,
-       _watchRetryDelay = watchRetryDelay;
+    this._watchRetryDelay = const Duration(milliseconds: 500),
+  }) : _directoryWatch = directoryWatch ?? _defaultDirectoryWatch;
 
   final GitStatusReader _reader;
   final GitCommandRunner _runner;
@@ -83,6 +82,18 @@ class GitController extends ChangeNotifier {
   /// raiz sem `.git` → filhas imediatas com `.git` (multi-root/multirepo);
   /// nenhuma → `[path]` (pasta comum). Reavaliado a cada [refresh].
   final Map<String, List<String>> _rootsByProject = <String, List<String>>{};
+
+  /// Sobe quando uma leitura detecta mudanca git; consumidores read-only usam
+  /// este token para recarregar dados derivados, como o historico de commits.
+  int _revision = 0;
+  int get revision => _revision;
+
+  /// Invalida consumidores derivados quando uma operacao git concluiu mas o
+  /// status por arquivos continuou igual (por exemplo, um fast-forward limpo).
+  void markHistoryStale() {
+    _revision++;
+    notifyListeners();
+  }
 
   /// Watcher do working tree do projeto **selecionado** (filesystem ao vivo).
   /// Recriado ao trocar de projeto; debounce junta rajadas de eventos.
@@ -269,7 +280,10 @@ class GitController extends ChangeNotifier {
       _gitTree[root] = _buildGitTree(info?.files);
       changed = true;
     }
-    if (changed) notifyListeners();
+    if (changed) {
+      _revision++;
+      notifyListeners();
+    }
   }
 
   /// Descarta o estado git de um projeto removido (chaveado por root path).
