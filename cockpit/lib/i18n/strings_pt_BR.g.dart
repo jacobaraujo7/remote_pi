@@ -338,6 +338,11 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get fork => 'Fork';
 	@override String get postCheckoutHint => 'Este repositório tem um hook post-checkout.';
 	@override String get running => 'Executando…';
+	@override String get advancedSettings => 'Configurações Avançadas';
+	@override String get copyIgnored => 'Copiar arquivos ignorados (.gitignore)';
+	@override String get copyIgnoredDesc => 'Copia arquivos ignorados pelo .gitignore (ex: .env, chaves locais) para a nova pasta.';
+	@override String get copyUntracked => 'Copiar arquivos não rastreados';
+	@override String get copyUntrackedDesc => 'Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.';
 }
 
 // Path: cockpit.subfolderDialog
@@ -1565,6 +1570,11 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.fork' => 'Fork',
 			'cockpit.worktreeCreateDialog.postCheckoutHint' => 'Este repositório tem um hook post-checkout.',
 			'cockpit.worktreeCreateDialog.running' => 'Executando…',
+			'cockpit.worktreeCreateDialog.advancedSettings' => 'Configurações Avançadas',
+			'cockpit.worktreeCreateDialog.copyIgnored' => 'Copiar arquivos ignorados (.gitignore)',
+			'cockpit.worktreeCreateDialog.copyIgnoredDesc' => 'Copia arquivos ignorados pelo .gitignore (ex: .env, chaves locais) para a nova pasta.',
+			'cockpit.worktreeCreateDialog.copyUntracked' => 'Copiar arquivos não rastreados',
+			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.',
 			'cockpit.subfolderDialog.title' => 'Onde trabalhar?',
 			'cockpit.subfolderDialog.empty' => 'Nenhuma subpasta aqui.',
 			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Usar a raiz de ${project}',
@@ -1968,13 +1978,13 @@ extension on TranslationsPtBr {
 			'settings.page.general.enableAgentsTitle' => 'Ativar agentes',
 			'settings.page.general.enableAgentsDesc' => 'Mostra a opção de abrir abas de agente (pi). Quando desligado, o Cockpit funciona apenas como workspace de terminal.',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal do Cockpit',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.general.showCockpitDesc' => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.',
 			'settings.page.general.sectionUpdates' => 'Atualizações',
 			'settings.page.general.checkUpdatesTitle' => 'Verificar atualizações',
 			'settings.page.general.checkUpdatesDesc' => 'Com que frequência o Cockpit deve procurar novas versões.',
 			'settings.page.general.agentsInUseError' => 'Não é possível desligar os agentes com uma aba de agente aberta. Feche todas as abas de agente primeiro e depois desative.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.updateFrequency.daily' => 'Diariamente',
 			'settings.page.general.updateFrequency.weekly' => 'Semanalmente',
 			'settings.page.general.updateFrequency.monthly' => 'Mensalmente',

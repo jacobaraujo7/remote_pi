@@ -206,4 +206,60 @@ void main() {
       reason: 'stream should include hook stdout; got:\n${lines.join('\n')}',
     );
   });
+
+  test('add com copyIgnored e copyUntracked copia os arquivos corretos', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível no ambiente');
+      return;
+    }
+
+    // 1. Cria um arquivo ignorado
+    await File('${repo.path}/.gitignore').writeAsString('.env\n');
+    await git(['add', '.gitignore']);
+    await git(['commit', '-m', 'ignore env']);
+    final ignoredFile = File('${repo.path}/.env');
+    await ignoredFile.writeAsString('SECRET=123');
+
+    // 2. Cria um arquivo não rastreado
+    final untrackedFile = File('${repo.path}/untracked.txt');
+    await untrackedFile.writeAsString('untracked content');
+
+    // 3. Cria worktree com cópia ativada
+    final run = manager.add(
+      repo.path,
+      'feat/copy-enabled',
+      copyIgnored: true,
+      copyUntracked: true,
+    );
+    final lines = <String>[];
+    final sub = run.output.listen(lines.add);
+    final added = await run.result;
+    await sub.cancel();
+
+    expect(added.isSuccess, isTrue);
+    final wt = (added as Success<Worktree, WorktreeOpError>).value;
+
+    expect(File('${wt.path}/.env').existsSync(), isTrue);
+    expect(File('${wt.path}/.env').readAsStringSync(), 'SECRET=123');
+    expect(File('${wt.path}/untracked.txt').existsSync(), isTrue);
+    expect(File('${wt.path}/untracked.txt').readAsStringSync(), 'untracked content');
+
+    // 4. Cria outra worktree com cópias desativadas
+    final runDisabled = manager.add(
+      repo.path,
+      'feat/copy-disabled',
+      copyIgnored: false,
+      copyUntracked: false,
+    );
+    final lines2 = <String>[];
+    final sub2 = runDisabled.output.listen(lines2.add);
+    final addedDisabled = await runDisabled.result;
+    await sub2.cancel();
+
+    expect(addedDisabled.isSuccess, isTrue);
+    final wtDisabled = (addedDisabled as Success<Worktree, WorktreeOpError>).value;
+
+    expect(File('${wtDisabled.path}/.env').existsSync(), isFalse);
+    expect(File('${wtDisabled.path}/untracked.txt').existsSync(), isFalse);
+  });
 }

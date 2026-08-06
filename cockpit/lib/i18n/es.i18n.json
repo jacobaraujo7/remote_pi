@@ -126,7 +126,12 @@
       "errorDuplicateWorktree": "Ya existe un worktree con ese nombre.",
       "fork": "Fork",
       "postCheckoutHint": "Este repositorio tiene un hook post-checkout.",
-      "running": "Ejecutando…"
+      "running": "Ejecutando…",
+      "advancedSettings": "Configuración Avanzada",
+      "copyIgnored": "Copiar archivos ignorados (.gitignore)",
+      "copyIgnoredDesc": "Copia los archivos ignorados por .gitignore (ej. .env, claves locales) al nuevo worktree.",
+      "copyUntracked": "Copiar archivos no rastreados",
+      "copyUntrackedDesc": "Copia los archivos nuevos o modificados que aún no se han agregado al stage."
     },
     "subfolderDialog": {
       "title": "¿Dónde trabajar?",

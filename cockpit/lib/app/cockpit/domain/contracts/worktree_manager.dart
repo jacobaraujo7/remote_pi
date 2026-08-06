@@ -72,7 +72,13 @@ abstract class WorktreeManager {
   /// Devolve o handle imediatamente (stream ao vivo); o [WorktreeAddRun.result]
   /// resolve no fim. O post-checkout do repo, se existir, roda dentro do git e
   /// aparece no stream.
-  WorktreeAddRun<Worktree> add(String repoPath, String name, {String? baseRef});
+  WorktreeAddRun<Worktree> add(
+    String repoPath,
+    String name, {
+    String? baseRef,
+    bool copyIgnored = false,
+    bool copyUntracked = false,
+  });
 
   /// Remove a worktree em [worktreePath] e, se [branch] não for vazio, apaga a
   /// branch (decisão 6 — `git worktree remove` **antes** de `git branch -D`).

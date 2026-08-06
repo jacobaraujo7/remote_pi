@@ -104,6 +104,8 @@ class WorktreeManagerImpl implements WorktreeManager {
     String repoPath,
     String name, {
     String? baseRef,
+    bool copyIgnored = false,
+    bool copyUntracked = false,
   }) {
     final controller = StreamController<String>();
     final resultCompleter = Completer<Result<Worktree, WorktreeOpError>>();
@@ -138,6 +140,46 @@ class WorktreeManagerImpl implements WorktreeManager {
           );
           return;
         }
+
+        if (copyIgnored || copyUntracked) {
+          await _emit(controller, 'Copying files to new worktree...');
+          final filesToCopy = <String>{};
+          if (copyIgnored) {
+            final ignored = await _listGitFiles(git, repoPath, [
+              'ls-files',
+              '--others',
+              '--ignored',
+              '--exclude-standard',
+            ]);
+            for (final f in ignored) {
+              if (!f.startsWith('$worktreesSubdir/') &&
+                  !f.startsWith('.pi/remote/worktrees/') &&
+                  !f.startsWith('.git/')) {
+                filesToCopy.add(f);
+              }
+            }
+          }
+          if (copyUntracked) {
+            final untracked = await _listGitFiles(git, repoPath, [
+              'ls-files',
+              '--others',
+              '--exclude-standard',
+            ]);
+            for (final f in untracked) {
+              if (!f.startsWith('$worktreesSubdir/') &&
+                  !f.startsWith('.pi/remote/worktrees/') &&
+                  !f.startsWith('.git/')) {
+                filesToCopy.add(f);
+              }
+            }
+          }
+          if (filesToCopy.isNotEmpty) {
+            await _copyFiles(repoPath, target, filesToCopy.toList(), controller);
+          } else {
+            await _emit(controller, 'No files to copy.');
+          }
+        }
+
         // Devolve o path **como o git lista** (separadores nativos do SO), não o
         // `target` que montamos com `/`. No Windows o git lista com `\`, então o
         // `target` com `/` não casaria com `list()` → o chamador não encontraria
@@ -166,6 +208,49 @@ class WorktreeManagerImpl implements WorktreeManager {
       output: controller.stream,
       result: resultCompleter.future,
     );
+  }
+
+  Future<List<String>> _listGitFiles(
+    String git,
+    String repoPath,
+    List<String> args,
+  ) async {
+    try {
+      final res = await Process.run(git, ['-C', repoPath, ...args]);
+      if (res.exitCode != 0) return const [];
+      return (res.stdout as String)
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _copyFiles(
+    String repoPath,
+    String targetPath,
+    List<String> relativePaths,
+    StreamController<String> controller,
+  ) async {
+    var count = 0;
+    for (final relPath in relativePaths) {
+      final src = p.join(repoPath, relPath);
+      final dest = p.join(targetPath, relPath);
+      try {
+        final srcFile = File(src);
+        if (await srcFile.exists()) {
+          await Directory(p.dirname(dest)).create(recursive: true);
+          await srcFile.copy(dest);
+          await _emit(controller, 'Copied: $relPath');
+          count++;
+        }
+      } catch (e) {
+        await _emit(controller, 'Warning: failed to copy $relPath: $e');
+      }
+    }
+    await _emit(controller, 'Copied $count file(s) to new worktree.');
   }
 
   /// Guard rail: garante que `.cockpit/worktrees/` está no `.gitignore` da

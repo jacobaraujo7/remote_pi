@@ -2003,6 +2003,8 @@ class CockpitViewModel extends ChangeNotifier {
     String? rootPath,
     String? baseRef,
     String? layoutSourceId,
+    bool copyIgnored = false,
+    bool copyUntracked = false,
   }) {
     final root = _projectById(rootId);
     if (root == null) {
@@ -2016,7 +2018,13 @@ class CockpitViewModel extends ChangeNotifier {
     // Multi-root: o `git worktree add` parte da root escolhida, nao da mae.
     // [baseRef] ("Fork Worktree"): ramifica da branch de outro fork, mas a
     // pasta nasce sempre no repo de origem.
-    final run = _worktreeMgr.add(rootPath ?? root.path, name, baseRef: baseRef);
+    final run = _worktreeMgr.add(
+      rootPath ?? root.path,
+      name,
+      baseRef: baseRef,
+      copyIgnored: copyIgnored,
+      copyUntracked: copyUntracked,
+    );
     final result = run.result.then<Result<Project, WorktreeOpError>>((
       res,
     ) async {
@@ -2060,7 +2068,12 @@ class CockpitViewModel extends ChangeNotifier {
   /// "Fork Worktree": cria uma worktree nova ramificada da **branch do fork**
   /// [forkId], materializada no repo de origem (nunca aninhada). O fork novo
   /// entra como irmao na lista (mesmo pai), herdando o layout do fork base.
-  WorktreeAddRun<Project> forkWorktree(String forkId, String name) {
+  WorktreeAddRun<Project> forkWorktree(
+    String forkId,
+    String name, {
+    bool copyIgnored = false,
+    bool copyUntracked = false,
+  }) {
     final fork = _projectById(forkId);
     if (fork == null || fork.parentId == null) {
       return WorktreeAddRun<Project>(
@@ -2085,6 +2098,8 @@ class CockpitViewModel extends ChangeNotifier {
       rootPath: origin,
       baseRef: fork.name,
       layoutSourceId: forkId,
+      copyIgnored: copyIgnored,
+      copyUntracked: copyUntracked,
     );
   }
 

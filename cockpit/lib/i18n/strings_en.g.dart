@@ -547,6 +547,21 @@ class Translations$cockpit$worktreeCreateDialog$en {
 
 	/// en: 'Running…'
 	String get running => 'Running…';
+
+	/// en: 'Advanced Settings'
+	String get advancedSettings => 'Advanced Settings';
+
+	/// en: 'Copy ignored files (.gitignore)'
+	String get copyIgnored => 'Copy ignored files (.gitignore)';
+
+	/// en: 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.'
+	String get copyIgnoredDesc => 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.';
+
+	/// en: 'Copy untracked files'
+	String get copyUntracked => 'Copy untracked files';
+
+	/// en: 'Copies new or modified files that haven't been staged yet.'
+	String get copyUntrackedDesc => 'Copies new or modified files that haven\'t been staged yet.';
 }
 
 // Path: cockpit.subfolderDialog
@@ -3047,6 +3062,11 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.fork' => 'Fork',
 			'cockpit.worktreeCreateDialog.postCheckoutHint' => 'This repository has a post-checkout hook.',
 			'cockpit.worktreeCreateDialog.running' => 'Running…',
+			'cockpit.worktreeCreateDialog.advancedSettings' => 'Advanced Settings',
+			'cockpit.worktreeCreateDialog.copyIgnored' => 'Copy ignored files (.gitignore)',
+			'cockpit.worktreeCreateDialog.copyIgnoredDesc' => 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.',
+			'cockpit.worktreeCreateDialog.copyUntracked' => 'Copy untracked files',
+			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copies new or modified files that haven\'t been staged yet.',
 			'cockpit.subfolderDialog.title' => 'Where to work?',
 			'cockpit.subfolderDialog.empty' => 'No subfolders here.',
 			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Use the root of ${project}',
@@ -3450,13 +3470,13 @@ extension on Translations {
 			'settings.page.general.enableAgentsTitle' => 'Enable agents',
 			'settings.page.general.enableAgentsDesc' => 'Show the option to open agent tabs (pi). When off, Cockpit works as a terminal-only workspace.',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.sectionUpdates' => 'Updates',
 			'settings.page.general.checkUpdatesTitle' => 'Check for updates',
 			'settings.page.general.checkUpdatesDesc' => 'How often Cockpit should look for new versions.',
 			'settings.page.general.agentsInUseError' => 'Can\'t turn agents off while an agent tab is open. Close all agent tabs first, then disable it.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.updateFrequency.daily' => 'Daily',
 			'settings.page.general.updateFrequency.weekly' => 'Weekly',
 			'settings.page.general.updateFrequency.monthly' => 'Monthly',

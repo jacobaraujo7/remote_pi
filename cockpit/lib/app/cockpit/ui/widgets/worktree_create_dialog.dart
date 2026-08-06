@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/validators/worktree_name_validator.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -17,7 +18,12 @@ Future<void> showWorktreeCreateDialog(
   BuildContext context, {
   required String rootName,
   required WorktreeNamespace namespace,
-  required WorktreeAddRun<Project> Function(String name) onCreate,
+  required WorktreeAddRun<Project> Function(
+    String name, {
+    bool copyIgnored,
+    bool copyUntracked,
+  })
+  onCreate,
   // "Fork Worktree": mesmo dialog, copy própria — a base é a branch do fork
   // ([rootName]), não o HEAD do pai.
   bool fork = false,
@@ -49,7 +55,12 @@ class _WorktreeCreateDialog extends StatefulWidget {
   final bool fork;
   final bool hasPostCheckout;
   final WorktreeNamespace namespace;
-  final WorktreeAddRun<Project> Function(String name) onCreate;
+  final WorktreeAddRun<Project> Function(
+    String name, {
+    bool copyIgnored,
+    bool copyUntracked,
+  })
+  onCreate;
 
   @override
   State<_WorktreeCreateDialog> createState() => _WorktreeCreateDialogState();
@@ -63,6 +74,9 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
   StreamSubscription<String>? _logSub;
   bool _submitting = false;
   String? _gitError; // erro do git no último submit
+  bool _advancedExpanded = false;
+  bool _copyIgnored = false;
+  bool _copyUntracked = false;
 
   @override
   void dispose() {
@@ -110,7 +124,11 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
       _gitError = null;
       _logLines.clear();
     });
-    final run = widget.onCreate(_name.text);
+    final run = widget.onCreate(
+      _name.text,
+      copyIgnored: _copyIgnored,
+      copyUntracked: _copyUntracked,
+    );
     _logSub = run.output.listen(
       (line) {
         if (!mounted) return;
@@ -137,6 +155,46 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
           _gitError = error.message;
         });
     }
+  }
+
+  Widget _optionRow({
+    required String title,
+    required String description,
+    required Widget trailing,
+  }) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: context.typo.body.copyWith(
+                    fontSize: 13.5,
+                    color: colors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: context.typo.label.copyWith(
+                    fontSize: 11,
+                    color: colors.text4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          trailing,
+        ],
+      ),
+    );
   }
 
   @override
@@ -172,7 +230,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: showLog ? 560 : 420,
-          maxHeight: showLog ? 420 : 200,
+          maxHeight: showLog ? 450 : 340,
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -192,6 +250,75 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
               borderRadius: BorderRadius.circular(7),
               border: showError ? Border.all(color: colors.error) : null,
             ),
+
+            if (!_submitting) ...[
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.panel2,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    HoverTap(
+                      onTap: () => setState(
+                        () => _advancedExpanded = !_advancedExpanded,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        child: Row(
+                          spacing: 8.0,
+                          children: [
+                            Icon(
+                              _advancedExpanded
+                                  ? Icons.expand_more
+                                  : Icons.chevron_right,
+                              size: 18,
+                              color: colors.text3,
+                            ),
+                            Text(
+                              tr.advancedSettings,
+                              style: context.typo.body.copyWith(
+                                fontSize: 12.0,
+                                color: colors.text,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (_advancedExpanded) ...[
+                      Divider(height: 1, thickness: 1, color: colors.border),
+                      _optionRow(
+                        title: tr.copyIgnored,
+                        description: tr.copyIgnoredDesc,
+                        trailing: Switch(
+                          value: _copyIgnored,
+                          onChanged: (val) =>
+                              setState(() => _copyIgnored = val),
+                        ),
+                      ),
+                      Divider(height: 1, thickness: 1, color: colors.border),
+                      _optionRow(
+                        title: tr.copyUntracked,
+                        description: tr.copyUntrackedDesc,
+                        trailing: Switch(
+                          value: _copyUntracked,
+                          onChanged: (val) =>
+                              setState(() => _copyUntracked = val),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
 
             if (widget.hasPostCheckout) ...[
               const SizedBox(height: 8),
