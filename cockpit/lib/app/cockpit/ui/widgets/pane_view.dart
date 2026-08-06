@@ -1301,7 +1301,11 @@ class _PaneBodyState extends State<_PaneBody> {
 
     // Viewer de diff (read-only, split): comparação com o HEAD do git.
     if (item is DiffViewerSession) {
-      return DiffViewer(session: item);
+      final vm = context.read<CockpitViewModel>();
+      return DiffViewer(
+        session: item,
+        displayPath: vm.displayPath(item.projectId, item.path),
+      );
     }
 
     // Tabela Redis (plano 52): a tabela editável é a interface única da tab.

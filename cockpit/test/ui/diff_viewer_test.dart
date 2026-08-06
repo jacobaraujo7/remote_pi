@@ -63,6 +63,8 @@ void main() {
     expect(find.text('line2'), findsOneWidget);
     expect(find.text('Original 11111111'), findsOneWidget);
     expect(find.text('Modified 22222222'), findsOneWidget);
+    expect(find.text('repo'), findsOneWidget);
+    expect(find.text('a.txt'), findsOneWidget);
   });
 
   testWidgets('binário mostra mensagem', (tester) async {

@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_path_breadcrumb.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/i18n/strings.g.dart';
@@ -22,19 +23,53 @@ String? _languageOf(String path) {
 /// contexto nos dois lados. Sem ações — só leitura. O conteúdo vem parseado na
 /// [DiffViewerSession].
 class DiffViewer extends StatelessWidget {
-  const DiffViewer({super.key, required this.session});
+  const DiffViewer({super.key, required this.session, this.displayPath});
 
   final DiffViewerSession session;
+
+  /// Caminho relativo ao workspace, resolvido pelo dono da pane.
+  final String? displayPath;
 
   @override
   Widget build(BuildContext context) {
     // Reconstrói quando o diff da sessão muda (preview reuse).
     return ListenableBuilder(
       listenable: session,
-      builder: (context, _) =>
-          _DiffBody(diff: session.diff, language: _languageOf(session.path)),
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _DiffBody(
+              diff: session.diff,
+              language: _languageOf(session.path),
+            ),
+          ),
+          _DiffFooter(
+            path: displayPath ?? session.path,
+            fileName: session.title,
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _DiffFooter extends StatelessWidget {
+  const _DiffFooter({required this.path, required this.fileName});
+
+  final String path;
+  final String fileName;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 34,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      color: context.colors.bg,
+      border: Border(top: BorderSide(color: context.colors.border)),
+    ),
+    child: FilePathBreadcrumb(path: path, fileName: fileName),
+  );
 }
 
 /// Largura mínima de cada coluna do split — abaixo disso, rola na horizontal.

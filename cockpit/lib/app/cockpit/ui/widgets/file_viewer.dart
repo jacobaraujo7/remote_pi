@@ -12,7 +12,7 @@ import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
-import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_path_breadcrumb.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
@@ -774,7 +774,7 @@ class _FileViewerState extends State<FileViewer> {
           // Preview/Source à direita (só com render). As ações Save/Discard/
           // Format vivem no menu File — não são repetidas aqui.
           _Toolbar(
-            leading: _Breadcrumb(
+            leading: FilePathBreadcrumb(
               path: context.read<CockpitViewModel>().displayPath(
                 widget.session.projectId,
                 widget.session.path,
@@ -1149,58 +1149,6 @@ class _SvgPreview extends StatelessWidget {
           child: SvgPicture.string(source, fit: BoxFit.contain),
         ),
       ),
-    );
-  }
-}
-
-/// Breadcrumb do caminho do arquivo, na barra inferior do viewer (estilo
-/// VSCode). Mostra o caminho **relativo** ao workspace (ou **absoluto** se
-/// externo); o último segmento ganha o ícone do tipo de arquivo. Rola na
-/// horizontal se estourar.
-class _Breadcrumb extends StatelessWidget {
-  const _Breadcrumb({required this.path, required this.fileName});
-
-  /// Caminho já resolvido (relativo ou absoluto), sem barra inicial.
-  final String path;
-  final String fileName;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final typo = context.typo;
-    final segs = path.split('/').where((s) => s.isNotEmpty).toList();
-    if (segs.isEmpty) segs.add(fileName);
-
-    final crumbs = <Widget>[];
-    for (var i = 0; i < segs.length; i++) {
-      final isLast = i == segs.length - 1;
-      if (i > 0) {
-        crumbs.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 3),
-            child: Icon(Icons.chevron_right, size: 14, color: colors.text4),
-          ),
-        );
-      }
-      if (isLast) {
-        crumbs
-          ..add(FileTypeIcon.file(fileName, size: 13))
-          ..add(const SizedBox(width: 5));
-      }
-      crumbs.add(
-        Text(
-          segs[i],
-          style: typo.label.copyWith(
-            fontSize: 12,
-            color: isLast ? colors.text2 : colors.text4,
-          ),
-        ),
-      );
-    }
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(children: crumbs),
     );
   }
 }
