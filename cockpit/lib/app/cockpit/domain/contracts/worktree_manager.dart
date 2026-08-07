@@ -31,17 +31,27 @@ class WorktreeNamespace {
   const WorktreeNamespace({
     required this.branches,
     required this.worktreeNames,
+    this.remoteBranches = const <String>{},
+    this.defaultBranch,
   });
 
   const WorktreeNamespace.empty()
     : branches = const <String>{},
-      worktreeNames = const <String>{};
+      worktreeNames = const <String>{},
+      remoteBranches = const <String>{},
+      defaultBranch = null;
 
   /// Nomes de branch locais (`git branch`).
   final Set<String> branches;
 
   /// Nomes (basename) das worktrees existentes (`git worktree list`).
   final Set<String> worktreeNames;
+
+  /// Nomes de branch remotas (`git branch -r`).
+  final Set<String> remoteBranches;
+
+  /// A branch principal padrão (geralmente detectada do remote HEAD).
+  final String? defaultBranch;
 }
 
 /// Lado **mutável** do git pro Cockpit: listar/criar/remover worktrees. Contrato

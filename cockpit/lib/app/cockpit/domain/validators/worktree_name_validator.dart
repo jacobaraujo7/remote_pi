@@ -22,6 +22,9 @@ enum WorktreeNameError {
 
   /// Já existe uma worktree com esse nome.
   duplicateWorktree,
+
+  /// Já existe um branch com uma hierarquia conflitante (D/F conflict).
+  branchHierarchicalConflict,
 }
 
 /// Resultado da validação de um nome de worktree/branch.
@@ -106,6 +109,20 @@ class WorktreeNameValidator {
       return const WorktreeNameCheck.invalid(
         WorktreeNameError.duplicateWorktree,
       );
+    }
+
+    // 6. Conflito hierárquico (D/F conflict):
+    for (final branch in existingBranches) {
+      if (branch.startsWith('$name/')) {
+        return const WorktreeNameCheck.invalid(
+          WorktreeNameError.branchHierarchicalConflict,
+        );
+      }
+      if (name.startsWith('$branch/')) {
+        return const WorktreeNameCheck.invalid(
+          WorktreeNameError.branchHierarchicalConflict,
+        );
+      }
     }
 
     return const WorktreeNameCheck.valid();

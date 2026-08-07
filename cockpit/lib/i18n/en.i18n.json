@@ -124,6 +124,8 @@
       "errorReserved": "Reserved position (do not start with \"-\"/\".\" or end with \".lock\").",
       "errorDuplicateBranch": "A branch with that name already exists.",
       "errorDuplicateWorktree": "A worktree with that name already exists.",
+      "errorBranchHierarchyConflict": "Cannot create branch '${target}' because it conflicts with the existing branch '${existing}'.",
+      "errorBranchHierarchicalConflictGeneral": "A branch with a conflicting hierarchy already exists.",
       "fork": "Fork",
       "postCheckoutHint": "This repository has a post-checkout hook.",
       "running": "Running…",
@@ -131,7 +133,11 @@
       "copyIgnored": "Copy ignored files (.gitignore)",
       "copyIgnoredDesc": "Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.",
       "copyUntracked": "Copy untracked files",
-      "copyUntrackedDesc": "Copies new or modified files that haven't been staged yet."
+      "copyUntrackedDesc": "Copies new or modified files that haven't been staged yet.",
+      "baseBranch": "Base branch",
+      "baseBranchDesc": "The branch from which the new worktree and branch will be created.",
+      "searchBranch": "Search branch...",
+      "back": "Back"
     },
     "subfolderDialog": {
       "title": "Where to work?",

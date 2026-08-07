@@ -539,6 +539,12 @@ class Translations$cockpit$worktreeCreateDialog$en {
 	/// en: 'A worktree with that name already exists.'
 	String get errorDuplicateWorktree => 'A worktree with that name already exists.';
 
+	/// en: 'Cannot create branch '${target}' because it conflicts with the existing branch '${existing}'.'
+	String errorBranchHierarchyConflict({required Object target, required Object existing}) => 'Cannot create branch \'${target}\' because it conflicts with the existing branch \'${existing}\'.';
+
+	/// en: 'A branch with a conflicting hierarchy already exists.'
+	String get errorBranchHierarchicalConflictGeneral => 'A branch with a conflicting hierarchy already exists.';
+
 	/// en: 'Fork'
 	String get fork => 'Fork';
 
@@ -562,6 +568,18 @@ class Translations$cockpit$worktreeCreateDialog$en {
 
 	/// en: 'Copies new or modified files that haven't been staged yet.'
 	String get copyUntrackedDesc => 'Copies new or modified files that haven\'t been staged yet.';
+
+	/// en: 'Base branch'
+	String get baseBranch => 'Base branch';
+
+	/// en: 'The branch from which the new worktree and branch will be created.'
+	String get baseBranchDesc => 'The branch from which the new worktree and branch will be created.';
+
+	/// en: 'Search branch...'
+	String get searchBranch => 'Search branch...';
+
+	/// en: 'Back'
+	String get back => 'Back';
 }
 
 // Path: cockpit.subfolderDialog
@@ -3059,6 +3077,8 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.errorReserved' => 'Reserved position (do not start with "-"/"." or end with ".lock").',
 			'cockpit.worktreeCreateDialog.errorDuplicateBranch' => 'A branch with that name already exists.',
 			'cockpit.worktreeCreateDialog.errorDuplicateWorktree' => 'A worktree with that name already exists.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchyConflict' => ({required Object target, required Object existing}) => 'Cannot create branch \'${target}\' because it conflicts with the existing branch \'${existing}\'.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchicalConflictGeneral' => 'A branch with a conflicting hierarchy already exists.',
 			'cockpit.worktreeCreateDialog.fork' => 'Fork',
 			'cockpit.worktreeCreateDialog.postCheckoutHint' => 'This repository has a post-checkout hook.',
 			'cockpit.worktreeCreateDialog.running' => 'Running…',
@@ -3067,6 +3087,10 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.copyIgnoredDesc' => 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.',
 			'cockpit.worktreeCreateDialog.copyUntracked' => 'Copy untracked files',
 			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copies new or modified files that haven\'t been staged yet.',
+			'cockpit.worktreeCreateDialog.baseBranch' => 'Base branch',
+			'cockpit.worktreeCreateDialog.baseBranchDesc' => 'The branch from which the new worktree and branch will be created.',
+			'cockpit.worktreeCreateDialog.searchBranch' => 'Search branch...',
+			'cockpit.worktreeCreateDialog.back' => 'Back',
 			'cockpit.subfolderDialog.title' => 'Where to work?',
 			'cockpit.subfolderDialog.empty' => 'No subfolders here.',
 			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Use the root of ${project}',
@@ -3464,14 +3488,14 @@ extension on Translations {
 			'settings.page.nav.notifications' => 'Notifications',
 			'settings.page.nav.connectivity' => 'Connectivity',
 			'settings.page.nav.daemonAgents' => 'Daemon Agents',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.nav.schedules' => 'Schedules',
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.general.sectionAgent' => 'Agent',
 			'settings.page.general.enableAgentsTitle' => 'Enable agents',
 			'settings.page.general.enableAgentsDesc' => 'Show the option to open agent tabs (pi). When off, Cockpit works as a terminal-only workspace.',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.sectionUpdates' => 'Updates',
 			'settings.page.general.checkUpdatesTitle' => 'Check for updates',

@@ -124,6 +124,8 @@
       "errorReserved": "Posição reservada (não comece com \"-\"/\".\" nem termine com \".lock\").",
       "errorDuplicateBranch": "Já existe um branch com esse nome.",
       "errorDuplicateWorktree": "Já existe uma worktree com esse nome.",
+      "errorBranchHierarchyConflict": "Não é possível criar o branch '${target}' porque ele conflita com o branch '${existing}' já existente.",
+      "errorBranchHierarchicalConflictGeneral": "Já existe um branch com uma hierarquia conflitante.",
       "fork": "Fork",
       "postCheckoutHint": "Este repositório tem um hook post-checkout.",
       "running": "Executando…",
@@ -131,7 +133,11 @@
       "copyIgnored": "Copiar arquivos ignorados (.gitignore)",
       "copyIgnoredDesc": "Copia arquivos ignorados pelo .gitignore (ex: .env, chaves locais) para a nova pasta.",
       "copyUntracked": "Copiar arquivos não rastreados",
-      "copyUntrackedDesc": "Copia arquivos novos ou modificados que ainda não foram adicionados ao stage."
+      "copyUntrackedDesc": "Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.",
+      "baseBranch": "Branch base",
+      "baseBranchDesc": "O branch de onde a nova worktree e branch serão ramificados.",
+      "searchBranch": "Buscar branch...",
+      "back": "Voltar"
     },
     "subfolderDialog": {
       "title": "Onde trabalhar?",

@@ -63,12 +63,54 @@ class WorktreeManagerImpl implements WorktreeManager {
           .map((l) => l.trim())
           .where((l) => l.isNotEmpty)
           .toSet();
+
+      final remoteBranchRes = await Process.run(git, [
+        '-C',
+        repoPath,
+        'branch',
+        '-r',
+        '--format=%(refname:short)',
+      ]);
+      final remoteBranches = remoteBranchRes.exitCode == 0
+          ? (remoteBranchRes.stdout as String)
+              .split('\n')
+              .map((l) => l.trim())
+              .where((l) => l.isNotEmpty && !l.contains('->'))
+              .toSet()
+          : const <String>{};
+
+      String? defaultBranch;
+      final originHeadRes = await Process.run(git, [
+        '-C',
+        repoPath,
+        'symbolic-ref',
+        'refs/remotes/origin/HEAD',
+        '--short',
+      ]);
+      if (originHeadRes.exitCode == 0) {
+        final val = (originHeadRes.stdout as String).trim();
+        if (val.isNotEmpty) {
+          defaultBranch = val;
+        }
+      }
+      if (defaultBranch == null || defaultBranch.isEmpty) {
+        if (remoteBranches.contains('origin/main')) {
+          defaultBranch = 'origin/main';
+        } else if (remoteBranches.contains('origin/master')) {
+          defaultBranch = 'origin/master';
+        } else if (remoteBranches.isNotEmpty) {
+          defaultBranch = remoteBranches.first;
+        }
+      }
+
       final worktreeNames = (await list(
         repoPath,
       )).map((w) => _basename(w.path)).toSet();
       return WorktreeNamespace(
         branches: branches,
         worktreeNames: worktreeNames,
+        remoteBranches: remoteBranches,
+        defaultBranch: defaultBranch,
       );
     } catch (_) {
       return const WorktreeNamespace.empty();

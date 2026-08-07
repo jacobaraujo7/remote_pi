@@ -335,6 +335,8 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get errorReserved => 'Posição reservada (não comece com "-"/"." nem termine com ".lock").';
 	@override String get errorDuplicateBranch => 'Já existe um branch com esse nome.';
 	@override String get errorDuplicateWorktree => 'Já existe uma worktree com esse nome.';
+	@override String errorBranchHierarchyConflict({required Object target, required Object existing}) => 'Não é possível criar o branch \'${target}\' porque ele conflita com o branch \'${existing}\' já existente.';
+	@override String get errorBranchHierarchicalConflictGeneral => 'Já existe um branch com uma hierarquia conflitante.';
 	@override String get fork => 'Fork';
 	@override String get postCheckoutHint => 'Este repositório tem um hook post-checkout.';
 	@override String get running => 'Executando…';
@@ -343,6 +345,10 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get copyIgnoredDesc => 'Copia arquivos ignorados pelo .gitignore (ex: .env, chaves locais) para a nova pasta.';
 	@override String get copyUntracked => 'Copiar arquivos não rastreados';
 	@override String get copyUntrackedDesc => 'Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.';
+	@override String get baseBranch => 'Branch base';
+	@override String get baseBranchDesc => 'O branch de onde a nova worktree e branch serão ramificados.';
+	@override String get searchBranch => 'Buscar branch...';
+	@override String get back => 'Voltar';
 }
 
 // Path: cockpit.subfolderDialog
@@ -1567,6 +1573,8 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.errorReserved' => 'Posição reservada (não comece com "-"/"." nem termine com ".lock").',
 			'cockpit.worktreeCreateDialog.errorDuplicateBranch' => 'Já existe um branch com esse nome.',
 			'cockpit.worktreeCreateDialog.errorDuplicateWorktree' => 'Já existe uma worktree com esse nome.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchyConflict' => ({required Object target, required Object existing}) => 'Não é possível criar o branch \'${target}\' porque ele conflita com o branch \'${existing}\' já existente.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchicalConflictGeneral' => 'Já existe um branch com uma hierarquia conflitante.',
 			'cockpit.worktreeCreateDialog.fork' => 'Fork',
 			'cockpit.worktreeCreateDialog.postCheckoutHint' => 'Este repositório tem um hook post-checkout.',
 			'cockpit.worktreeCreateDialog.running' => 'Executando…',
@@ -1575,6 +1583,10 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.copyIgnoredDesc' => 'Copia arquivos ignorados pelo .gitignore (ex: .env, chaves locais) para a nova pasta.',
 			'cockpit.worktreeCreateDialog.copyUntracked' => 'Copiar arquivos não rastreados',
 			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.',
+			'cockpit.worktreeCreateDialog.baseBranch' => 'Branch base',
+			'cockpit.worktreeCreateDialog.baseBranchDesc' => 'O branch de onde a nova worktree e branch serão ramificados.',
+			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
+			'cockpit.worktreeCreateDialog.back' => 'Voltar',
 			'cockpit.subfolderDialog.title' => 'Onde trabalhar?',
 			'cockpit.subfolderDialog.empty' => 'Nenhuma subpasta aqui.',
 			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Usar a raiz de ${project}',
@@ -1972,14 +1984,14 @@ extension on TranslationsPtBr {
 			'settings.page.nav.notifications' => 'Notificações',
 			'settings.page.nav.connectivity' => 'Conectividade',
 			'settings.page.nav.daemonAgents' => 'Agentes Daemon',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.nav.schedules' => 'Agendamentos',
 			'settings.page.nav.automations' => 'Automações',
 			'settings.page.general.sectionAgent' => 'Agente',
 			'settings.page.general.enableAgentsTitle' => 'Ativar agentes',
 			'settings.page.general.enableAgentsDesc' => 'Mostra a opção de abrir abas de agente (pi). Quando desligado, o Cockpit funciona apenas como workspace de terminal.',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal do Cockpit',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.showCockpitDesc' => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.',
 			'settings.page.general.sectionUpdates' => 'Atualizações',
 			'settings.page.general.checkUpdatesTitle' => 'Verificar atualizações',
