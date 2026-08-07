@@ -100,6 +100,20 @@ class WorktreeManagerImpl implements WorktreeManager {
           defaultBranch = 'origin/master';
         } else if (remoteBranches.isNotEmpty) {
           defaultBranch = remoteBranches.first;
+        } else {
+          final headRes = await Process.run(git, [
+            '-C',
+            repoPath,
+            'rev-parse',
+            '--abbrev-ref',
+            'HEAD',
+          ]);
+          if (headRes.exitCode == 0) {
+            final val = (headRes.stdout as String).trim();
+            if (val.isNotEmpty) {
+              defaultBranch = val;
+            }
+          }
         }
       }
 

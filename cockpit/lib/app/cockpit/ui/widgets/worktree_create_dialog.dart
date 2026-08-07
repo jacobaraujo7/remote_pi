@@ -608,7 +608,7 @@ class _BranchSelectorPopoverState extends State<_BranchSelectorPopover> {
                       return HoverTap(
                         onTap: () {
                           widget.onSelected(branch);
-                          Navigator.of(context).pop();
+                          closeOverlay(context);
                         },
                         borderRadius: BorderRadius.circular(4),
                         padding: const EdgeInsets.symmetric(

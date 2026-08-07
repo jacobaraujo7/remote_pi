@@ -130,6 +130,15 @@ void main() {
     expect((await manager.namespace(tmp.path)).branches, isEmpty);
   });
 
+  test('namespace fallback to current active branch when no remotes exist', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível no ambiente');
+      return;
+    }
+    final ns = await manager.namespace(repo.path);
+    expect(ns.defaultBranch, mainBranch);
+  });
+
   test(
     'isBranchMerged: true sem commits novos, false após commit no fork',
     () async {
