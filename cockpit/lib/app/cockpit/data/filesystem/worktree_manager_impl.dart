@@ -277,21 +277,34 @@ class WorktreeManagerImpl implements WorktreeManager {
     StreamController<String> controller,
   ) async {
     var count = 0;
-    for (final relPath in relativePaths) {
+
+    // Deduplicate target parent directories and create them in parallel
+    final parentDirs = relativePaths
+        .map((relPath) => p.dirname(p.join(targetPath, relPath)))
+        .toSet();
+    final dirFutures = parentDirs.map((dir) => Directory(dir).create(recursive: true));
+    try {
+      await Future.wait(dirFutures);
+    } catch (e) {
+      await _emit(controller, 'Warning: failed to create directories: $e');
+    }
+
+    // Copy files in parallel, suppressing individual file logs
+    final copyFutures = relativePaths.map((relPath) async {
       final src = p.join(repoPath, relPath);
       final dest = p.join(targetPath, relPath);
       try {
         final srcFile = File(src);
         if (await srcFile.exists()) {
-          await Directory(p.dirname(dest)).create(recursive: true);
           await srcFile.copy(dest);
-          await _emit(controller, 'Copied: $relPath');
           count++;
         }
       } catch (e) {
         await _emit(controller, 'Warning: failed to copy $relPath: $e');
       }
-    }
+    });
+
+    await Future.wait(copyFutures);
     await _emit(controller, 'Copied $count file(s) to new worktree.');
   }
 
