@@ -1,3 +1,4 @@
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 
@@ -107,7 +108,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
                 ),
               ),
               Text(
-                'Name this PC',
+                t.pairing.nameThisPC,
                 style: TextStyle(
                   color: colors.text,
                   fontSize: 17,
@@ -116,7 +117,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
               ),
               const SizedBox(height: 6),
               Text(
-                'Pick a label so this Mac is easy to spot in your list. You can change it later from the home screen.',
+                t.pairing.nameThisPCDesc,
                 style: TextStyle(color: colors.muted2, fontSize: 13),
               ),
               const SizedBox(height: 20),
@@ -149,7 +150,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       child: Text(
-                        'Skip',
+                        t.pairing.skip,
                         style: TextStyle(color: colors.muted),
                       ),
                     ),
@@ -164,7 +165,7 @@ class _NicknameSheetState extends State<_NicknameSheet> {
                         foregroundColor: colors.onAccent,
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
-                      child: const Text('Save'),
+                      child: Text(t.common.save),
                     ),
                   ),
                 ],

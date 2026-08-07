@@ -18,6 +18,7 @@ class Preferences extends ChangeNotifier {
   bool _onboardingCompleted = false;
   ThemeMode _themeMode = ThemeMode.system;
   AppFontScale _fontScale = AppFontScale.standard;
+  String? _localeCode;
 
   Preferences([FlutterSecureStorage? store])
       : _store = store ?? const FlutterSecureStorage();
@@ -28,6 +29,7 @@ class Preferences extends ChangeNotifier {
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
   static const _kThemeModeKey = 'prefs.theme_mode';
   static const _kFontScaleKey = 'prefs.font_scale';
+  static const _kLocaleKey = 'prefs.locale';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -84,6 +86,9 @@ class Preferences extends ChangeNotifier {
   /// `copyWith(fontSize: …)` overrides that a typography-only change would miss.
   AppFontScale get fontScale => _fontScale;
 
+  /// Plan 58 — idioma preferido (null = usar o do dispositivo).
+  String? get localeCode => _localeCode;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -129,7 +134,25 @@ class Preferences extends ChangeNotifier {
       changed = true;
     }
 
+    final locale = await _store.read(key: _kLocaleKey);
+    final localeCleaned = (locale != null && locale.isNotEmpty) ? locale : null;
+    if (localeCleaned != _localeCode) {
+      _localeCode = localeCleaned;
+      changed = true;
+    }
+
     if (changed) notifyListeners();
+  }
+
+  Future<void> setLocale(String? code) async {
+    if (_localeCode == code) return;
+    _localeCode = code;
+    if (code == null) {
+      await _store.delete(key: _kLocaleKey);
+    } else {
+      await _store.write(key: _kLocaleKey, value: code);
+    }
+    notifyListeners();
   }
 
   Future<void> setHideToolCalls(bool value) async {

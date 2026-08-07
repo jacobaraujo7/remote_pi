@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app/protocol/protocol.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 
@@ -216,7 +217,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final ask = _ask;
-    final title = widget.request.title ?? ask?.title ?? 'Clarification needed';
+    final title = widget.request.title ?? ask?.title ?? t.chat.clarificationNeeded;
 
     // System back (Android) mirrors the close button: cancel the flow instead
     // of popping the chat route underneath while the modal is still overlaid.
@@ -237,7 +238,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
               scrolledUnderElevation: 0,
               leading: IconButton(
                 icon: const Icon(Icons.close),
-                tooltip: 'Cancel',
+                tooltip: t.common.cancel,
                 onPressed: _submitting ? null : _cancel,
               ),
               title: Text(title),
@@ -498,7 +499,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _submitting ? null : _cancel,
-                    child: const Text('Cancel'),
+                    child: Text(t.common.cancel),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -511,7 +512,7 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
                             height: 18,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
-                        : const Text('Submit'),
+                        : Text(t.common.submit),
                   ),
                 ),
               ],

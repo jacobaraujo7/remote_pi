@@ -1,3 +1,4 @@
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -130,7 +131,7 @@ class _PasteQrSheetBodyState extends State<_PasteQrSheetBody> {
               ),
             ),
             Text(
-              'Paste pairing code',
+              t.pairing.pastePairingCode,
               style: TextStyle(
                 fontFamily: kMonoFamily,
                 fontSize: 15,
@@ -140,8 +141,7 @@ class _PasteQrSheetBodyState extends State<_PasteQrSheetBody> {
             ),
             const SizedBox(height: 6),
             Text(
-              "Can't scan the QR? Paste the text from your Mac terminal "
-              "below. It starts with remotepi://pair?…",
+              t.pairing.cantScan,
               style: TextStyle(
                 fontFamily: kMonoFamily,
                 fontSize: 11,
@@ -194,7 +194,7 @@ class _PasteQrSheetBodyState extends State<_PasteQrSheetBody> {
                       color: colors.accent,
                     ),
                     label: Text(
-                      'Paste from clipboard',
+                      t.pairing.pasteFromClipboard,
                       style: TextStyle(
                         fontFamily: kMonoFamily,
                         fontSize: 12,
@@ -224,8 +224,8 @@ class _PasteQrSheetBodyState extends State<_PasteQrSheetBody> {
                   borderRadius: BorderRadius.all(Radius.circular(6)),
                 ),
               ),
-              child: const Text(
-                'Pair',
+              child: Text(
+                t.pairing.pair,
                 style: TextStyle(
                   fontFamily: kMonoFamily,
                   fontSize: 14,
