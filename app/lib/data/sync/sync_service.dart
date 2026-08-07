@@ -18,6 +18,7 @@ import 'package:app/data/local/records/runtime_record.dart';
 import 'package:app/data/local/records/session_index_record.dart';
 import 'package:app/data/sync/sync_events.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/domain/contracts/service.dart';
 import 'package:app/domain/session_state.dart';
 import 'package:app/protocol/protocol.dart';
@@ -27,6 +28,7 @@ import 'package:flutter/foundation.dart';
 class SyncService extends Service {
   final ConnectionManager _conn;
   final LocalBoxes _boxes;
+  final Notifier _notifier;
 
   StreamSubscription<ConnectionStatus>? _connSub;
   StreamSubscription<ServerMessage>? _msgSub;
@@ -95,13 +97,15 @@ class SyncService extends Service {
 
   SyncService(
     this._conn,
-    this._boxes, {
+    this._boxes,
+    this._notifier, {
     this.pendingSendTimeout = const Duration(seconds: 20),
   }) {
     _connSub = _conn.statusStream.listen(_onStatus);
     _roomsSub = _conn.roomsStream.listen((_) {
       _writeRuntime();
       _syncTurnStateFromRoomMeta();
+      _checkAllRoomsForAgentFinish();
     });
     _presenceSub = _conn.presenceStream.listen((_) => _writeRuntime());
     _onStatus(_conn.status); // replay current
@@ -1014,7 +1018,43 @@ class SyncService extends Service {
       _setWorking(false);
     }
     _sawRemoteWorking = false;
+    _checkAllRoomsForAgentFinish();
   }
+
+  /// Plan 58 — percorre todas as salas para detectar quando um agente termina.
+  void _checkAllRoomsForAgentFinish() {
+    final allRooms = _conn.roomsSnapshot;
+    final nowWorking = <String>{};
+    for (final entry in allRooms.entries) {
+      for (final room in entry.value) {
+        if (_conn.isRoomWorking(entry.key, room.roomId)) {
+          nowWorking.add('${entry.key}:${room.roomId}');
+        }
+      }
+    }
+    for (final key in _prevWorkingRooms) {
+      if (!nowWorking.contains(key)) {
+        final parts = key.split(':');
+        final epk = parts[0];
+        final roomId = parts.sublist(1).join(':');
+        final room = allRooms[epk]?.where((r) => r.roomId == roomId).firstOrNull;
+        final workspace = room?.name ?? room?.cwd ?? '';
+        final peer = _conn.activePeer;
+        final nickname = (peer?.nickname?.isNotEmpty ?? false)
+            ? peer!.nickname!
+            : (peer?.sessionName.isNotEmpty ?? false)
+                ? peer!.sessionName
+                : epk.substring(0, 8);
+        unawaited(_notifier.agentFinished(
+          agentName: nickname,
+          workspace: workspace,
+        ));
+      }
+    }
+    _prevWorkingRooms = nowWorking;
+  }
+
+  Set<String> _prevWorkingRooms = const {};
 
   void _setWorking(bool on, {String? preview, String? replyTo}) {
     _setActivity(
