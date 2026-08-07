@@ -1,5 +1,6 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/protocol/protocol.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 
@@ -76,11 +77,11 @@ class ToolRequestCard extends StatelessWidget {
 
   Widget _buildHeader(BuildContext context, Color color) {
     final statusLabel = switch (tool.status) {
-      ToolEventStatus.pending || ToolEventStatus.allowed => 'RUNNING',
-      ToolEventStatus.completed => 'DONE',
-      ToolEventStatus.failed => 'FAILED',
-      ToolEventStatus.denied => 'DENIED',
-      ToolEventStatus.expired => 'EXPIRED',
+      ToolEventStatus.pending || ToolEventStatus.allowed => t.chat.running,
+      ToolEventStatus.completed => t.chat.done,
+      ToolEventStatus.failed => t.chat.failed,
+      ToolEventStatus.denied => t.chat.denied,
+      ToolEventStatus.expired => t.chat.expired,
     };
 
     return Row(
@@ -161,11 +162,11 @@ class ToolRequestCard extends StatelessWidget {
 
   Widget _buildOutcome(Color color) {
     final text = switch (tool.status) {
-      ToolEventStatus.pending || ToolEventStatus.allowed => '⏳ Running…',
-      ToolEventStatus.completed => '✓ Done',
-      ToolEventStatus.failed => '✗ ${tool.error ?? "Failed"}',
-      ToolEventStatus.denied => '✗ ${tool.error ?? "Denied"}',
-      ToolEventStatus.expired => '✗ Expired',
+      ToolEventStatus.pending || ToolEventStatus.allowed => t.chat.runningOutcome,
+      ToolEventStatus.completed => t.chat.doneOutcome,
+      ToolEventStatus.failed => '✗ ${tool.error ?? t.chat.failedOutcome}',
+      ToolEventStatus.denied => '✗ ${tool.error ?? t.chat.deniedOutcome}',
+      ToolEventStatus.expired => '✗ ${t.chat.expiredOutcome}',
     };
     return Text(
       text,

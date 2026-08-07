@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/pairing/states/pairing_state.dart';
 import 'package:app/ui/pairing/viewmodels/pairing_viewmodel.dart';
@@ -75,7 +76,7 @@ class _PairingPageState extends State<PairingPage> {
       backgroundColor: colors.bg,
       appBar: AppBar(
         backgroundColor: colors.bg,
-        title: const Text('Pair device'),
+        title: Text(t.pairing.pairDevice),
       ),
       body: _buildBody(state, vm),
     );
@@ -150,8 +151,8 @@ class _PairingPageState extends State<PairingPage> {
           right: 0,
           child: Text(
             isConnecting
-                ? 'Connecting to $sessionName…'
-                : 'Point camera at the QR shown in your Mac terminal',
+                ? '${t.pairing.connectingTo} $sessionName…'
+                : t.pairing.pointCamera,
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
@@ -166,7 +167,7 @@ class _PairingPageState extends State<PairingPage> {
               icon: Icon(LucideIcons.clipboardPaste,
                   size: 16, color: colors.accent),
               label: Text(
-                "Can't scan? Paste code instead",
+                t.pairing.cantScan,
                 style: TextStyle(
                   color: colors.accent,
                   fontSize: 13,
@@ -287,7 +288,7 @@ class _ErrorView extends StatelessWidget {
                   backgroundColor: colors.accent,
                   foregroundColor: colors.onAccent,
                 ),
-                child: const Text('Try again'),
+                child: Text(t.pairing.tryAgain),
               ),
             ],
           ],

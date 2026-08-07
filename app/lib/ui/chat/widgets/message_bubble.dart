@@ -1,6 +1,7 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/ui/chat/widgets/agent_markdown.dart';
 import 'package:app/ui/chat/widgets/image_bubble.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -146,7 +147,7 @@ class CompactionBubble extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      'Context compacted',
+                      t.chat.contextCompacted,
                       style: TextStyle(
                         fontFamily: kMonoFamily,
                         fontSize: 12,

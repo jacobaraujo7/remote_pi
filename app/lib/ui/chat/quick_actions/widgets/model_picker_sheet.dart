@@ -1,5 +1,6 @@
 import 'package:app/data/actions/actions_repository.dart';
 import 'package:app/protocol/protocol.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
 import 'package:flutter/material.dart';
@@ -102,7 +103,7 @@ class _ModelPickerBodyState extends State<_ModelPickerBody> {
                       return _ErrorState(
                         message: snap.error is ActionFailure
                             ? (snap.error as ActionFailure).message
-                            : 'Failed to load models',
+                            : t.chat.failedToLoad,
                         onRetry: _refresh,
                       );
                     }
@@ -158,12 +159,12 @@ class _Header extends StatelessWidget {
           IconButton(
             icon: Icon(LucideIcons.arrowLeft, size: 18, color: colors.muted),
             onPressed: () => Navigator.of(context).pop(),
-            tooltip: 'Back',
+            tooltip: t.chat.back,
           ),
           const SizedBox(width: 4),
           Expanded(
             child: Text(
-              'Choose a model',
+              t.chat.chooseModel,
               style: TextStyle(
                 fontFamily: kMonoFamily,
                 fontSize: 13,
@@ -176,7 +177,7 @@ class _Header extends StatelessWidget {
             key: const Key('model-picker-refresh'),
             icon: Icon(LucideIcons.refreshCw, size: 18, color: colors.muted),
             onPressed: onRefresh,
-            tooltip: 'Refresh',
+            tooltip: t.chat.refresh,
           ),
         ],
       ),
@@ -417,7 +418,7 @@ class _EmptyState extends StatelessWidget {
       height: 120,
       child: Center(
         child: Text(
-          'No models available',
+          t.chat.noModels,
           style: TextStyle(
             fontFamily: kMonoFamily,
             fontSize: 12,
@@ -458,8 +459,8 @@ class _ErrorState extends StatelessWidget {
               foregroundColor: colors.accent,
               side: BorderSide(color: colors.border),
             ),
-            child: const Text(
-              'Retry',
+            child: Text(
+              t.chat.retry,
               style: TextStyle(fontFamily: kMonoFamily, fontSize: 12),
             ),
           ),

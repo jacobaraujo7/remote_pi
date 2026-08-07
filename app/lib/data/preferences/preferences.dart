@@ -15,6 +15,7 @@ class Preferences extends ChangeNotifier {
   String? _relayUrl;
   bool _onboardingCompleted = false;
   ThemeMode _themeMode = ThemeMode.system;
+  String? _localeCode;
 
   Preferences([FlutterSecureStorage? store])
       : _store = store ?? const FlutterSecureStorage();
@@ -24,6 +25,7 @@ class Preferences extends ChangeNotifier {
   static const _kRelayUrlKey = 'prefs.relay_url';
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
   static const _kThemeModeKey = 'prefs.theme_mode';
+  static const _kLocaleKey = 'prefs.locale';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -75,6 +77,9 @@ class Preferences extends ChangeNotifier {
   /// in `main.dart` and set from the Settings "Display" section.
   ThemeMode get themeMode => _themeMode;
 
+  /// Plan 58 — idioma preferido (null = usar o do dispositivo).
+  String? get localeCode => _localeCode;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -114,7 +119,25 @@ class Preferences extends ChangeNotifier {
       changed = true;
     }
 
+    final locale = await _store.read(key: _kLocaleKey);
+    final localeCleaned = (locale != null && locale.isNotEmpty) ? locale : null;
+    if (localeCleaned != _localeCode) {
+      _localeCode = localeCleaned;
+      changed = true;
+    }
+
     if (changed) notifyListeners();
+  }
+
+  Future<void> setLocale(String? code) async {
+    if (_localeCode == code) return;
+    _localeCode = code;
+    if (code == null) {
+      await _store.delete(key: _kLocaleKey);
+    } else {
+      await _store.write(key: _kLocaleKey, value: code);
+    }
+    notifyListeners();
   }
 
   Future<void> setHideToolCalls(bool value) async {

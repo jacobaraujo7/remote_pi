@@ -1,5 +1,6 @@
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/relay_config.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/settings/states/settings_state.dart';
@@ -28,7 +29,7 @@ class SettingsPage extends StatelessWidget {
       backgroundColor: colors.bg,
       appBar: AppBar(
         backgroundColor: colors.bg,
-        title: const Text('Settings'),
+        title: Text(t.settings.title),
         automaticallyImplyLeading: false,
         leading: IconButton(
           icon: Icon(
@@ -36,7 +37,7 @@ class SettingsPage extends StatelessWidget {
             size: embedded ? 22 : 18,
             color: colors.text,
           ),
-          tooltip: embedded ? 'Close' : 'Back',
+          tooltip: embedded ? t.settings.close : t.settings.back,
           onPressed: () =>
               context.canPop() ? context.pop() : context.go('/home'),
         ),
@@ -52,7 +53,7 @@ class SettingsPage extends StatelessWidget {
           Divider(color: colors.border, height: 1),
           const _DisplaySection(),
           Divider(color: colors.border, height: 1),
-          const _SectionHeader('Pairings'),
+          const _SectionHeader('Pairings'), // mantido — é chave técnica, não texto de UI
           switch (state) {
             SettingsLoading() => Padding(
               padding: const EdgeInsets.symmetric(vertical: 32),
@@ -99,7 +100,7 @@ class _AddPairingButton extends StatelessWidget {
         ),
         icon: const Icon(LucideIcons.scanQrCode, size: 18),
         label: Text(
-          'Add new pairing',
+          t.settings.addNewPairing,
           style: const TextStyle(fontFamily: kMonoFamily, fontSize: 13),
         ),
       ),
@@ -138,9 +139,9 @@ class _RelaySectionState extends State<_RelaySection> {
     setState(() => _error = err);
     if (err == null) {
       messenger.showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Relay updated',
+            t.settings.relayUpdated,
             style: TextStyle(fontFamily: kMonoFamily),
           ),
           duration: Duration(seconds: 2),
@@ -156,7 +157,7 @@ class _RelaySectionState extends State<_RelaySection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionHeader('Relay'),
+        const _SectionHeader('Relay'), // mantido
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
           child: Column(
@@ -175,7 +176,7 @@ class _RelaySectionState extends State<_RelaySection> {
                     color: colors.muted,
                     fontSize: 12,
                   ),
-                  helperText: 'Current: ${vm.effectiveRelayUrl}',
+                  helperText: '${t.settings.current}: ${vm.effectiveRelayUrl}',
                   helperStyle: context.typo.mono.copyWith(
                     fontSize: 10,
                     color: colors.muted,
@@ -217,7 +218,7 @@ class _RelaySectionState extends State<_RelaySection> {
                         ),
                       ),
                       child: Text(
-                        'Save',
+                        t.settings.save,
                         style: const TextStyle(
                           fontFamily: kMonoFamily,
                           fontSize: 13,
@@ -231,7 +232,7 @@ class _RelaySectionState extends State<_RelaySection> {
                         _save();
                       },
                       child: Text(
-                        'Use default Relay',
+                        t.settings.useDefaultRelay,
                         style: const TextStyle(
                           fontFamily: kMonoFamily,
                           fontSize: 13,
@@ -259,7 +260,7 @@ class _DisplaySection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _SectionHeader('Display'),
+        const _SectionHeader('Display'), // mantido
         // Theme mode — System follows the OS; Light / Dark pin it.
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
@@ -267,7 +268,7 @@ class _DisplaySection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Theme',
+                t.settings.theme,
                 style: context.typo.sansBody.copyWith(color: colors.text),
               ),
               const SizedBox(height: 10),
@@ -275,18 +276,18 @@ class _DisplaySection extends StatelessWidget {
                 width: double.infinity,
                 child: SegmentedButton<ThemeMode>(
                   showSelectedIcon: false,
-                  segments: const [
+                  segments: [
                     ButtonSegment(
                       value: ThemeMode.system,
-                      label: Text('System'),
+                      label: Text(t.settings.system),
                     ),
                     ButtonSegment(
                       value: ThemeMode.light,
-                      label: Text('Light'),
+                      label: Text(t.settings.light),
                     ),
                     ButtonSegment(
                       value: ThemeMode.dark,
-                      label: Text('Dark'),
+                      label: Text(t.settings.dark),
                     ),
                   ],
                   selected: {prefs.themeMode},
@@ -300,11 +301,11 @@ class _DisplaySection extends StatelessWidget {
           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
           activeThumbColor: colors.accent,
           title: Text(
-            'Hide tool calls in chat',
+            t.settings.hideToolCalls,
             style: context.typo.sansBody.copyWith(color: colors.text),
           ),
           subtitle: Text(
-            'Only show your messages and the assistant replies.',
+            t.settings.hideToolCallsDesc,
             style: context.typo.sansBody.copyWith(
               color: colors.muted,
               fontSize: 12,
@@ -312,6 +313,60 @@ class _DisplaySection extends StatelessWidget {
           ),
           value: prefs.hideToolCalls,
           onChanged: (v) => prefs.setHideToolCalls(v),
+        ),
+        const SizedBox(height: 8),
+        // Plan 58 — seletor de idioma.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                t.settings.language,
+                style: context.typo.sansBody.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: [
+                    ButtonSegment(
+                      value: 'system',
+                      label: Text(t.settings.system),
+                    ),
+                    ButtonSegment(
+                      value: 'en',
+                      label: Text('English'),
+                    ),
+                    ButtonSegment(
+                      value: 'pt-BR',
+                      label: Text('Português'),
+                    ),
+                    ButtonSegment(
+                      value: 'es',
+                      label: Text('Español'),
+                    ),
+                  ],
+                  selected: {prefs.localeCode ?? 'system'},
+                  onSelectionChanged: (s) {
+                    final code = s.first;
+                    prefs.setLocale(code == 'system' ? null : code);
+                    if (code == 'system') {
+                      LocaleSettings.useDeviceLocale();
+                    } else {
+                      final match = AppLocale.values
+                          .where((l) => l.languageTag == code)
+                          .firstOrNull;
+                      if (match != null) {
+                        LocaleSettings.setLocale(match);
+                      }
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
       ],
@@ -354,12 +409,12 @@ class _EmptyState extends StatelessWidget {
           Icon(LucideIcons.monitorSmartphone, color: colors.muted, size: 40),
           const SizedBox(height: 12),
           Text(
-            'No pairings yet',
+            t.home.noPairings,
             style: TextStyle(color: colors.muted2, fontSize: 14),
           ),
           const SizedBox(height: 6),
           Text(
-            'Tap + to pair a new Mac.',
+            t.settings.tapToPair,
             style: TextStyle(color: colors.muted, fontSize: 12),
           ),
           const SizedBox(height: 20),
@@ -370,7 +425,7 @@ class _EmptyState extends StatelessWidget {
               foregroundColor: colors.onAccent,
             ),
             icon: const Icon(LucideIcons.scanQrCode, size: 18),
-            label: const Text('Scan QR'),
+            label: Text(t.home.scanQr),
           ),
         ],
       ),

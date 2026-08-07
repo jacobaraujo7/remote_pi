@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -213,7 +214,7 @@ class _SlideToCancelHint extends StatelessWidget {
         Icon(LucideIcons.chevronLeft, size: 14, color: colors.muted),
         const SizedBox(width: 2),
         Text(
-          'slide to cancel',
+          t.chat.slideToCancel,
           style: TextStyle(
             fontFamily: kMonoFamily,
             fontSize: 11,
@@ -235,7 +236,7 @@ class _CancelHint extends StatelessWidget {
         Icon(LucideIcons.trash2, size: 14, color: colors.error),
         const SizedBox(width: 6),
         Text(
-          'release to cancel',
+          t.chat.releaseToCancel,
           style: TextStyle(
             fontFamily: kMonoFamily,
             fontSize: 12,

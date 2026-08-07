@@ -114,7 +114,7 @@ Future<void> setupDependencies() async {
 
   // Plan 31 — SSOT writer + read-only repos. SyncService is the SINGLE
   // mutator of the message/index/runtime boxes; the read repos only watch.
-  _injector.addOther<SyncService>(
+  _injector.addService<SyncService>(
     () => SyncService(
       _injector.get<ConnectionManager>(),
       _injector.get<LocalBoxes>(),

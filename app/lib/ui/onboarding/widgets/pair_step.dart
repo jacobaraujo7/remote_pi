@@ -1,3 +1,4 @@
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/pairing/states/pairing_state.dart';
 import 'package:app/ui/pairing/viewmodels/pairing_viewmodel.dart';
@@ -134,7 +135,7 @@ class _PairStepState extends State<PairStep> {
               icon: Icon(LucideIcons.clipboardPaste,
                   size: 16, color: colors.accent),
               label: Text(
-                "Can't scan? Paste code instead",
+                t.pairing.cantScan,
                 style: TextStyle(
                   fontFamily: kMonoFamily,
                   fontSize: 12,
