@@ -7,6 +7,7 @@ import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Dialog de criar worktree. Valida o nome **ao vivo** (decisões 10, 11) contra
@@ -578,92 +579,99 @@ class _BranchSelectorPopoverState extends State<_BranchSelectorPopover> {
         .where((b) => q.isEmpty || b.toLowerCase().contains(q))
         .toList();
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.panel,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              autofocus: true,
-              style: typo.body.copyWith(color: colors.text, fontSize: 13),
-              placeholder: Text(tr.searchBranch),
-              onChanged: (v) => setState(() => _query = v),
-              borderRadius: BorderRadius.circular(6),
-              features: const [
-                InputFeature.leading(Icon(Icons.search, size: 14)),
-              ],
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.escape): () {
+          closeOverlay(context);
+        },
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.panel,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.border),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                autofocus: true,
+                style: typo.body.copyWith(color: colors.text, fontSize: 13),
+                placeholder: Text(tr.searchBranch),
+                onChanged: (v) => setState(() => _query = v),
+                borderRadius: BorderRadius.circular(6),
+                features: const [
+                  InputFeature.leading(Icon(Icons.search, size: 14)),
+                ],
+              ),
             ),
-          ),
-          Divider(height: 1, thickness: 1, color: colors.border),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 220),
-            child: filtered.isEmpty
-                ? Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 12,
-                    ),
-                    child: Text(
-                      'No branches found',
-                      style: typo.label.copyWith(color: colors.text3),
-                    ),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final branch = filtered[index];
-                      final isSelected = branch == widget.current;
-                      final isRemote = branch.startsWith('origin/');
-                      return HoverTap(
-                        onTap: () {
-                          widget.onSelected(branch);
-                          closeOverlay(context);
-                        },
-                        borderRadius: BorderRadius.circular(4),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(
-                              isRemote
-                                  ? Icons.cloud_outlined
-                                  : Icons.call_split,
-                              size: 14,
-                              color: isRemote
-                                  ? colors.text3
-                                  : colors.accentText,
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: Text(
-                                branch,
-                                overflow: TextOverflow.ellipsis,
-                                style: typo.mono.copyWith(
-                                  fontSize: 12,
-                                  color: isSelected
+            Divider(height: 1, thickness: 1, color: colors.border),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: 16,
+                        horizontal: 12,
+                      ),
+                      child: Text(
+                        'No branches found',
+                        style: typo.label.copyWith(color: colors.text3),
+                      ),
+                    )
+                  : ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final branch = filtered[index];
+                        final isSelected = branch == widget.current;
+                        final isRemote = branch.startsWith('origin/');
+                        return HoverTap(
+                          onTap: () {
+                            widget.onSelected(branch);
+                            closeOverlay(context);
+                          },
+                          borderRadius: BorderRadius.circular(4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                isRemote
+                                    ? Icons.cloud_outlined
+                                    : Icons.call_split,
+                                size: 14,
+                                color: isRemote
+                                    ? colors.text3
+                                    : colors.accentText,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  branch,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: typo.mono.copyWith(
+                                    fontSize: 12,
+                                    color: isSelected
                                       ? colors.accentText
                                       : colors.text,
+                                  ),
                                 ),
                               ),
-                            ),
-                            if (isSelected)
-                              Icon(Icons.check, size: 14, color: colors.accent),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ],
+                              if (isSelected)
+                                Icon(Icons.check, size: 14, color: colors.accent),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
