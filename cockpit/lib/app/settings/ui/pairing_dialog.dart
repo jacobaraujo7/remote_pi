@@ -7,10 +7,7 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Dialog de pareamento: mostra os passos + QR Code do `/remote-pi pair`. Fecha
-/// sozinho (retornando `true`) quando um aparelho parear — quem abriu recarrega
-/// a lista. Recebe o [PairingController] por construtor (quem abre é dono do
-/// ciclo de vida → descarta ao fechar).
+/// Dialog de pareamento: mostra os passos + QR Code do `/remote-pi pair`.
 class PairingDialog extends StatefulWidget {
   const PairingDialog({super.key, required this.controller});
 
@@ -33,12 +30,10 @@ class _PairingDialogState extends State<PairingDialog> {
   }
 
   void _onChange() {
-    // Pareou → fecha o dialog sinalizando sucesso (o painel recarrega a lista).
     if (_ctrl.isPaired && mounted) {
       Navigator.of(context).pop(true);
       return;
     }
-    // Reage às mudanças de estágio (showingCode → connecting → failed).
     if (mounted) setState(() {});
   }
 
@@ -65,52 +60,60 @@ class _PairingDialogState extends State<PairingDialog> {
     final colors = context.colors;
 
     return AlertDialog(
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              context.t.settings.pairingDialog.title,
-              style: context.typo.title.copyWith(
-                fontSize: 16,
-                color: colors.text,
-              ),
-            ),
-          ),
-          IconButton.ghost(
-            icon: Icon(Icons.close, size: 17, color: colors.text3),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-        ],
-      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 16, 20),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 380),
-        child: switch (ctrl.stage) {
-          PairStage.failed => _failed(context, ctrl),
-          PairStage.showingCode => _code(context, ctrl),
-          // paired é transitório (fecha sozinho) → mostra o "conectando".
-          PairStage.connecting || PairStage.paired => _connecting(context),
-        },
+        constraints: const BoxConstraints(maxWidth: 340),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  context.t.settings.pairingDialog.title,
+                  style: context.typo.title.copyWith(
+                    fontSize: 16,
+                    color: colors.text,
+                  ),
+                ),
+                IconButton.ghost(
+                  icon: Icon(Icons.close, size: 17, color: colors.text3),
+                  onPressed: () => Navigator.of(context).pop(false),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            switch (ctrl.stage) {
+              PairStage.failed => _failed(context, ctrl),
+              PairStage.showingCode => _code(context, ctrl),
+              PairStage.connecting || PairStage.paired => _connecting(context),
+            },
+          ],
+        ),
       ),
     );
   }
 
   Widget _connecting(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(size: 34),
-          const SizedBox(height: 18),
-          Text(
-            context.t.settings.pairingDialog.connectingToRelay,
-            style: context.typo.body.copyWith(
-              fontSize: 13.5,
-              color: colors.text2,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(size: 32),
+            const SizedBox(height: 16),
+            Text(
+              context.t.settings.pairingDialog.connectingToRelay,
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text2,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -118,21 +121,21 @@ class _PairingDialogState extends State<PairingDialog> {
   Widget _code(BuildContext context, PairingController ctrl) {
     final colors = context.colors;
     final uri = ctrl.code!.uri;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _step(context, 1, context.t.settings.pairingDialog.step1),
         _step(context, 2, context.t.settings.pairingDialog.step2),
         _step(context, 3, context.t.settings.pairingDialog.step3),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         Center(
           child: Container(
-            // Branco fixo: o QR precisa de contraste pra ser lido — não é tema.
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: QrImageView(
               data: uri,
@@ -140,8 +143,8 @@ class _PairingDialogState extends State<PairingDialog> {
               size: 200,
               backgroundColor: Colors.white,
               errorStateBuilder: (ctx, err) => SizedBox(
-                width: 200,
-                height: 200,
+                width: 170,
+                height: 170,
                 child: Center(
                   child: Text(
                     context.t.settings.pairingDialog.qrGenerationFailed,
@@ -153,9 +156,11 @@ class _PairingDialogState extends State<PairingDialog> {
             ),
           ),
         ),
-        const SizedBox(height: 14),
-        _CopyButton(copied: _copied, onTap: () => _copy(uri)),
         const SizedBox(height: 12),
+        Center(
+          child: _CopyButton(copied: _copied, onTap: () => _copy(uri)),
+        ),
+        const SizedBox(height: 10),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -180,8 +185,8 @@ class _PairingDialogState extends State<PairingDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.error_outline, size: 30, color: colors.error),
-          const SizedBox(height: 12),
+          Icon(Icons.error_outline, size: 28, color: colors.error),
+          const SizedBox(height: 10),
           Text(
             ctrl.error ?? context.t.settings.pairingDialog.pairingFailed,
             textAlign: TextAlign.center,
@@ -190,7 +195,7 @@ class _PairingDialogState extends State<PairingDialog> {
               color: colors.text2,
             ),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
@@ -199,7 +204,7 @@ class _PairingDialogState extends State<PairingDialog> {
                   child: Text(context.t.common.close),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Expanded(
                 child: PrimaryButton(
                   onPressed: () => ctrl.retry(),
@@ -216,7 +221,7 @@ class _PairingDialogState extends State<PairingDialog> {
   Widget _step(BuildContext context, int n, String text) {
     final colors = context.colors;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.only(bottom: 6),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -236,7 +241,7 @@ class _PairingDialogState extends State<PairingDialog> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,

@@ -23,32 +23,44 @@ class RevokeDialog extends StatelessWidget {
     final tr = context.t.settings.revokeDialog;
 
     return AlertDialog(
+      padding: const EdgeInsets.all(24),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: switch (ctrl.stage) {
-          RevokeStage.running => _running(context, ctrl),
-          RevokeStage.done => _result(
-            context,
-            icon: Icons.check_circle_outline,
-            color: colors.online,
-            message: tr.deviceRemoved,
-          ),
-          RevokeStage.failed => _result(
-            context,
-            icon: Icons.error_outline,
-            color: colors.error,
-            message: ctrl.error ?? tr.failedToRevoke,
-          ),
-        },
-      ),
-      actions: ctrl.stage == RevokeStage.running
-          ? null
-          : [
+        // 🟢 RESPONSIVIDADE AQUI:
+        // minWidth: garante que em telas maiores o card não fique muito esmagado.
+        // maxWidth: impede que o dialog estique excessivamente em monitores ultra-wide.
+        constraints: const BoxConstraints(minWidth: 280, maxWidth: 360),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Conteúdo de acordo com o estado atual
+            switch (ctrl.stage) {
+              RevokeStage.running => _running(context, ctrl),
+              RevokeStage.done => _result(
+                context,
+                icon: Icons.check_circle_outline,
+                color: colors.online,
+                message: tr.deviceRemoved,
+              ),
+              RevokeStage.failed => _result(
+                context,
+                icon: Icons.error_outline,
+                color: colors.error,
+                message: ctrl.error ?? tr.failedToRevoke,
+              ),
+            },
+
+            // Ação no rodapé
+            if (ctrl.stage != RevokeStage.running) ...[
+              const SizedBox(height: 20),
               PrimaryButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(tr.ok),
               ),
             ],
+          ],
+        ),
+      ),
     );
   }
 
