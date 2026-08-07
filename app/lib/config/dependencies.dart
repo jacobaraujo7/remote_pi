@@ -5,6 +5,7 @@ import 'package:app/config/utils/injector.dart';
 import 'package:app/data/actions/actions_repository.dart';
 import 'package:app/data/mesh/mesh_client.dart';
 import 'package:app/data/mesh/mesh_sync_service.dart';
+import 'package:app/data/notifications/local_notifier.dart';
 import 'package:app/data/local/boxes.dart';
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/repositories/home_read_repository.dart';
@@ -21,6 +22,7 @@ import 'package:app/data/update/update_checker_impl.dart';
 import 'package:app/data/update/url_launcher_opener.dart';
 import 'package:app/data/voice/speech_service.dart';
 import 'package:app/domain/contracts/dismissed_update_store.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/domain/contracts/update_checker.dart';
 import 'package:app/domain/contracts/url_opener.dart';
 import 'package:app/pairing/owner_identity_bridge.dart';
@@ -108,12 +110,15 @@ Future<void> setupDependencies() async {
   // dispose hook needed.
   _injector.addOther<IImagePickerService>(() => ImagePickerService());
 
+  _injector.addOther<Notifier>(() => LocalNotifier());
+
   // Plan 31 — SSOT writer + read-only repos. SyncService is the SINGLE
   // mutator of the message/index/runtime boxes; the read repos only watch.
   _injector.addService<SyncService>(
     () => SyncService(
       _injector.get<ConnectionManager>(),
       _injector.get<LocalBoxes>(),
+      _injector.get<Notifier>(),
     ),
   );
   _injector.addRepository<SessionReadRepository>(

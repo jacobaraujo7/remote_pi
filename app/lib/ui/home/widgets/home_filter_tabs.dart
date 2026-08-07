@@ -1,3 +1,4 @@
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/routing/adaptive.dart' show kMaxContentWidth;
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/home/states/home_state.dart';
@@ -37,9 +38,9 @@ class HomeFilterTabs extends StatelessWidget {
         padding: const EdgeInsets.all(3),
         child: Row(
           children: [
-            _segment(context, HomeFilter.all, 'All', counts.all),
-            _segment(context, HomeFilter.online, 'Online', counts.online),
-            _segment(context, HomeFilter.offline, 'Offline', counts.offline),
+            _segment(context, HomeFilter.all, t.home.all, counts.all),
+            _segment(context, HomeFilter.online, t.home.online, counts.online),
+            _segment(context, HomeFilter.offline, t.home.offline, counts.offline),
           ],
         ),
       ),

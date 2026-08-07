@@ -4,6 +4,7 @@ import 'package:app/config/dependencies.dart';
 import 'package:app/data/actions/actions_repository.dart' show ActionFailure;
 import 'package:app/protocol/protocol.dart';
 import 'package:app/routing/adaptive.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/chat/quick_actions/states/quick_actions_state.dart';
 import 'package:app/ui/chat/quick_actions/viewmodels/quick_actions_viewmodel.dart';
@@ -134,13 +135,13 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
             const SizedBox(height: 10),
             _DragHandle(),
             const SizedBox(height: 6),
-            const _SheetTitle(text: 'Quick actions'),
+            _SheetTitle(text: t.chat.quickActions),
             const _Divider(),
             _ActionTile(
               key: const Key('qa-compact'),
               icon: LucideIcons.shrink,
-              label: 'Compact context',
-              subtitle: 'Summarize old turns to free room.',
+              label: t.chat.compactContext,
+              subtitle: t.chat.compactContextDesc,
               busy: busyAction == ActionName.sessionCompact,
               onTap: () => _onCompact(vm),
             ),
@@ -148,8 +149,8 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
             _ActionTile(
               key: const Key('qa-new-session'),
               icon: LucideIcons.sparkles,
-              label: 'New session',
-              subtitle: 'Clears the conversation on the Pi.',
+              label: t.chat.newSession,
+              subtitle: t.chat.newSessionDesc,
               busy: busyAction == ActionName.sessionNew,
               onTap: () => _onNewSession(vm),
             ),
@@ -206,7 +207,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
             side: BorderSide(color: colors.border),
           ),
           title: Text(
-            'Start a new session?',
+            t.chat.newSessionConfirm,
             style: TextStyle(
               fontFamily: kMonoFamily,
               fontSize: 14,
@@ -226,7 +227,7 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
             TextButton(
               onPressed: () => Navigator.of(dCtx).pop(false),
               child: Text(
-                'Cancel',
+                t.common.cancel,
                 style: TextStyle(fontFamily: kMonoFamily, color: colors.muted),
               ),
             ),
@@ -236,8 +237,8 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
                 foregroundColor: colors.onAccent,
               ),
               onPressed: () => Navigator.of(dCtx).pop(true),
-              child: const Text(
-                'Start new',
+              child: Text(
+                t.chat.startNew,
                 style: TextStyle(fontFamily: kMonoFamily),
               ),
             ),
@@ -409,7 +410,7 @@ class _ModelRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final label = currentLabel ?? (busy ? 'Switching…' : 'Choose a model');
+    final label = currentLabel ?? (busy ? t.chat.switching : t.chat.chooseModel);
     return InkWell(
       key: const Key('qa-model-row'),
       onTap: busy ? null : onTap,
@@ -424,7 +425,7 @@ class _ModelRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Model',
+                    t.chat.model,
                     style: TextStyle(
                       fontFamily: kMonoFamily,
                       fontSize: 11,
@@ -484,7 +485,7 @@ class _ThinkingRow extends StatelessWidget {
               Icon(LucideIcons.brain, color: colors.accent, size: 18),
               const SizedBox(width: 14),
               Text(
-                'Thinking',
+                t.chat.thinking,
                 style: TextStyle(
                   fontFamily: kMonoFamily,
                   fontSize: 11,
