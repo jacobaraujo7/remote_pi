@@ -162,6 +162,7 @@ class WorktreeManagerImpl implements WorktreeManager {
     String? baseRef,
     bool copyIgnored = false,
     bool copyUntracked = false,
+    bool fetchRemote = true,
   }) {
     final controller = StreamController<String>();
     final resultCompleter = Completer<Result<Worktree, WorktreeOpError>>();
@@ -169,6 +170,23 @@ class WorktreeManagerImpl implements WorktreeManager {
     () async {
       try {
         final git = await _resolveGit();
+        if (fetchRemote) {
+          await _emit(controller, 'Fetching remote branch updates...');
+          try {
+            final fetchRes = await Process.run(git, ['-C', repoPath, 'fetch']);
+            if (fetchRes.exitCode != 0) {
+              await _emit(
+                controller,
+                'Warning: git fetch failed. Attempting worktree creation anyway.',
+              );
+            }
+          } catch (e) {
+            await _emit(
+              controller,
+              'Warning: failed to run git fetch ($e). Attempting worktree creation anyway.',
+            );
+          }
+        }
         // Regra cross-plataforma: só cria worktree quando a branch NÃO existe.
         // Sem isso, `worktree add -b` falha ("branch already exists") e/ou deixa
         // o repo num estado meio-criado.

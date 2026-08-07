@@ -88,6 +88,7 @@ abstract class WorktreeManager {
     String? baseRef,
     bool copyIgnored = false,
     bool copyUntracked = false,
+    bool fetchRemote = true,
   });
 
   /// Remove a worktree em [worktreePath] e, se [branch] não for vazio, apaga a

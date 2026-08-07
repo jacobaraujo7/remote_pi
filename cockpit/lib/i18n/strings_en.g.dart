@@ -575,6 +575,12 @@ class Translations$cockpit$worktreeCreateDialog$en {
 	/// en: 'The branch from which the new worktree and branch will be created.'
 	String get baseBranchDesc => 'The branch from which the new worktree and branch will be created.';
 
+	/// en: 'Fetch remote branch'
+	String get fetchRemote => 'Fetch remote branch';
+
+	/// en: 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.'
+	String get fetchRemoteDesc => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.';
+
 	/// en: 'Search branch...'
 	String get searchBranch => 'Search branch...';
 
@@ -3089,6 +3095,8 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copies new or modified files that haven\'t been staged yet.',
 			'cockpit.worktreeCreateDialog.baseBranch' => 'Base branch',
 			'cockpit.worktreeCreateDialog.baseBranchDesc' => 'The branch from which the new worktree and branch will be created.',
+			'cockpit.worktreeCreateDialog.fetchRemote' => 'Fetch remote branch',
+			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Search branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Back',
 			'cockpit.subfolderDialog.title' => 'Where to work?',
@@ -3486,10 +3494,10 @@ extension on Translations {
 			'settings.page.nav.language' => 'Language',
 			'settings.page.nav.shortcuts' => 'Shortcuts',
 			'settings.page.nav.notifications' => 'Notifications',
-			'settings.page.nav.connectivity' => 'Connectivity',
-			'settings.page.nav.daemonAgents' => 'Daemon Agents',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.nav.connectivity' => 'Connectivity',
+			'settings.page.nav.daemonAgents' => 'Daemon Agents',
 			'settings.page.nav.schedules' => 'Schedules',
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.general.sectionAgent' => 'Agent',

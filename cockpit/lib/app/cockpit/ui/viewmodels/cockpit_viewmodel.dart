@@ -2005,6 +2005,7 @@ class CockpitViewModel extends ChangeNotifier {
     String? layoutSourceId,
     bool copyIgnored = false,
     bool copyUntracked = false,
+    bool fetchRemote = true,
   }) {
     final root = _projectById(rootId);
     if (root == null) {
@@ -2024,6 +2025,7 @@ class CockpitViewModel extends ChangeNotifier {
       baseRef: baseRef,
       copyIgnored: copyIgnored,
       copyUntracked: copyUntracked,
+      fetchRemote: fetchRemote,
     );
     final result = run.result.then<Result<Project, WorktreeOpError>>((
       res,
@@ -2073,6 +2075,7 @@ class CockpitViewModel extends ChangeNotifier {
     String name, {
     bool copyIgnored = false,
     bool copyUntracked = false,
+    bool fetchRemote = true,
   }) {
     final fork = _projectById(forkId);
     if (fork == null || fork.parentId == null) {
@@ -2100,6 +2103,7 @@ class CockpitViewModel extends ChangeNotifier {
       layoutSourceId: forkId,
       copyIgnored: copyIgnored,
       copyUntracked: copyUntracked,
+      fetchRemote: fetchRemote,
     );
   }
 

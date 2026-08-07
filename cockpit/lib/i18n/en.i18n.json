@@ -136,6 +136,8 @@
       "copyUntrackedDesc": "Copies new or modified files that haven't been staged yet.",
       "baseBranch": "Base branch",
       "baseBranchDesc": "The branch from which the new worktree and branch will be created.",
+      "fetchRemote": "Fetch remote branch",
+      "fetchRemoteDesc": "Run git fetch to guarantee the base branch is confirmed before creating the worktree.",
       "searchBranch": "Search branch...",
       "back": "Back"
     },

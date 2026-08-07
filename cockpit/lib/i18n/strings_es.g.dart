@@ -347,6 +347,8 @@ class _Translations$cockpit$worktreeCreateDialog$es extends Translations$cockpit
 	@override String get copyUntrackedDesc => 'Copia los archivos nuevos o modificados que aún no se han agregado al stage.';
 	@override String get baseBranch => 'Branch base';
 	@override String get baseBranchDesc => 'La branch desde la cual se creará el nuevo worktree y branch.';
+	@override String get fetchRemote => 'Sincronizar branch remota (fetch)';
+	@override String get fetchRemoteDesc => 'Ejecuta git fetch para garantizar que la branch base esté confirmada antes de crear el worktree.';
 	@override String get searchBranch => 'Buscar branch...';
 	@override String get back => 'Atrás';
 }
@@ -1585,6 +1587,8 @@ extension on TranslationsEs {
 			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copia los archivos nuevos o modificados que aún no se han agregado al stage.',
 			'cockpit.worktreeCreateDialog.baseBranch' => 'Branch base',
 			'cockpit.worktreeCreateDialog.baseBranchDesc' => 'La branch desde la cual se creará el nuevo worktree y branch.',
+			'cockpit.worktreeCreateDialog.fetchRemote' => 'Sincronizar branch remota (fetch)',
+			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Ejecuta git fetch para garantizar que la branch base esté confirmada antes de crear el worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Atrás',
 			'cockpit.subfolderDialog.title' => '¿Dónde trabajar?',
@@ -1982,10 +1986,10 @@ extension on TranslationsEs {
 			'settings.page.nav.language' => 'Lenguaje',
 			'settings.page.nav.shortcuts' => 'Atajos',
 			'settings.page.nav.notifications' => 'Notificaciones',
-			'settings.page.nav.connectivity' => 'Conectividad',
-			'settings.page.nav.daemonAgents' => 'Agentes Daemon',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.nav.connectivity' => 'Conectividad',
+			'settings.page.nav.daemonAgents' => 'Agentes Daemon',
 			'settings.page.nav.schedules' => 'Programaciones',
 			'settings.page.nav.automations' => 'Automatizaciones',
 			'settings.page.general.sectionAgent' => 'Agente',

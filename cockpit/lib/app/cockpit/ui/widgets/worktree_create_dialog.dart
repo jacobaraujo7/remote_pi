@@ -23,6 +23,7 @@ Future<void> showWorktreeCreateDialog(
     String? baseRef,
     bool copyIgnored,
     bool copyUntracked,
+    bool fetchRemote,
   })
   onCreate,
   // "Fork Worktree": mesmo dialog, copy própria — a base é a branch do fork
@@ -61,6 +62,7 @@ class _WorktreeCreateDialog extends StatefulWidget {
     String? baseRef,
     bool copyIgnored,
     bool copyUntracked,
+    bool fetchRemote,
   })
   onCreate;
 
@@ -79,6 +81,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
   bool _advancedExpanded = false;
   bool _copyIgnored = false;
   bool _copyUntracked = false;
+  bool _fetchRemote = true;
   String? _selectedBaseBranch;
 
   @override
@@ -185,6 +188,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
       baseRef: _selectedBaseBranch,
       copyIgnored: _copyIgnored,
       copyUntracked: _copyUntracked,
+      fetchRemote: _fetchRemote,
     );
     _logSub = run.output.listen(
       (line) {
@@ -311,7 +315,9 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: showLog ? 560 : 420,
-          maxHeight: showLog ? 450 : 340,
+          maxHeight: showLog
+              ? 450
+              : (_advancedExpanded ? 460 : 340),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -438,6 +444,16 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
                                 ],
                               ),
                             ),
+                          ),
+                        ),
+                        Divider(height: 1, thickness: 1, color: colors.border),
+                        _optionRow(
+                          title: tr.fetchRemote,
+                          description: tr.fetchRemoteDesc,
+                          trailing: Switch(
+                            value: _fetchRemote,
+                            onChanged: (val) =>
+                                setState(() => _fetchRemote = val),
                           ),
                         ),
                       ],

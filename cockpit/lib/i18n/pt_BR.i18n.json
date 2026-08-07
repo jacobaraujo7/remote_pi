@@ -136,6 +136,8 @@
       "copyUntrackedDesc": "Copia arquivos novos ou modificados que ainda não foram adicionados ao stage.",
       "baseBranch": "Branch base",
       "baseBranchDesc": "O branch de onde a nova worktree e branch serão ramificados.",
+      "fetchRemote": "Sincronizar branch remota (fetch)",
+      "fetchRemoteDesc": "Roda git fetch para garantir que a branch base esteja confirmada antes de criar a worktree.",
       "searchBranch": "Buscar branch...",
       "back": "Voltar"
     },
