@@ -11,6 +11,7 @@ import 'package:app/data/repositories/session_read_repository.dart';
 import 'package:app/data/sync/sync_service.dart';
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/domain/session_state.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart';
@@ -44,6 +45,15 @@ class _FakeStorage extends PairingStorage {
   Future<List<PeerRecord>> listPeers() async => const [];
 }
 
+class _FakeNotifier implements Notifier {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<void> agentFinished({required String agentName, required String workspace}) async {}
+  @override
+  Future<void> playTurnChime() async {}
+}
+
 int _counter = 0;
 
 late Directory _dir;
@@ -75,6 +85,7 @@ void main() {
     final sync = SyncService(
       conn,
       boxes,
+      _FakeNotifier(),
       pendingSendTimeout: pendingSendTimeout,
     );
     final epk = 'epk_sync_${++_counter}';
@@ -940,7 +951,7 @@ void main() {
         factory: (_, _) async => _FakeChannel(),
         storage: _FakeStorage(),
       );
-      final sync = SyncService(conn, LocalBoxes(), pendingSendTimeout: short);
+      final sync = SyncService(conn, LocalBoxes(), _FakeNotifier(), pendingSendTimeout: short);
       final epk = 'epk_offline_${++_counter}';
       await sync.activate(epk, 'main');
       await _settle();
