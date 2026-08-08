@@ -136,9 +136,42 @@ class SyntaxColors {
     deletion: Color(0xFF82071E),
   );
 
-  /// As famílias One e Dracula não são usadas por nenhum tema built-in hoje —
-  /// o oficial usa GitHub. Ficam aqui como matéria-prima dos próximos temas
-  /// padrão, e como referência de paleta completa para quem escreve tema.
+  // --- Flexoki --------------------------------------------------------------
+  /// Flexoki Dark — [stephango.com/flexoki](https://stephango.com/flexoki).
+  /// Acentos da série 400 (legíveis sobre o preto tintado).
+  static const SyntaxColors flexokiDark = SyntaxColors(
+    background: Color(0xFF1C1B1A), // base-950
+    base: Color(0xFFCECDC3), // base-200
+    comment: Color(0xFF878580), // base-500
+    keyword: Color(0xFFD14D41), // red-400
+    string: Color(0xFF879A39), // green-400
+    number: Color(0xFFDA702C), // orange-400
+    klass: Color(0xFFD0A215), // yellow-400
+    builtin: Color(0xFF3AA99F), // cyan-400
+    function: Color(0xFF4385BE), // blue-400
+    variable: Color(0xFFCE5D97), // magenta-400
+    meta: Color(0xFF8B7EC8), // purple-400
+    deletion: Color(0xFFD14D41), // red-400
+  );
+
+  /// Flexoki Light — acentos da série 600 (legíveis sobre o papel).
+  static const SyntaxColors flexokiLight = SyntaxColors(
+    background: Color(0xFFFFFCF0), // paper
+    base: Color(0xFF100F0F), // black
+    comment: Color(0xFF6F6E69), // base-600
+    keyword: Color(0xFFAF3029), // red-600
+    string: Color(0xFF66800B), // green-600
+    number: Color(0xFFBC5215), // orange-600
+    klass: Color(0xFFAD8301), // yellow-600
+    builtin: Color(0xFF24837B), // cyan-600
+    function: Color(0xFF205EA6), // blue-600
+    variable: Color(0xFFA02F6F), // magenta-600
+    meta: Color(0xFF5E409D), // purple-600
+    deletion: Color(0xFFAF3029), // red-600
+  );
+
+  /// One e Dracula ficam como matéria-prima / referência. O oficial usa GitHub;
+  /// o Flexoki é o único built-in com paleta de syntax própria.
 
   /// Fallback usado por `context.syntax` fora da árvore com tema.
   static const SyntaxColors dark = oneDark;

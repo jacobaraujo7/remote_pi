@@ -28,10 +28,10 @@ app, o realce de código do viewer e a paleta do terminal.
 
 | Campo | Obrigatório | O quê |
 |---|---|---|
-| `id` | sim | Identidade estável, namespaced (`publisher.nome`). É o que fica salvo nas preferências — renomear o `name` não perde a escolha do usuário. Não pode colidir com um built-in (`cockpit`, `cockpit.2`, `violet`, `violet.2`, `midnight`, `rose`, `sun`, `pantera`). |
+| `id` | sim | Identidade estável, namespaced (`publisher.nome`). É o que fica salvo nas preferências — renomear o `name` não perde a escolha do usuário. Não pode colidir com um built-in (`cockpit`, `cockpit.2`, `violet`, `violet.2`, `midnight`, `rose`, `sun`, `flexoki`, `pantera`). |
 | `name` | sim | O que aparece no seletor. |
 | `author`, `version` | não | Metadados. |
-| `extends` | não | Id de um tema built-in do qual herdar. Hoje existem `cockpit`, `cockpit.2`, `violet`, `violet.2`, `midnight`, `rose`, `sun` e `pantera`. Ausente = herda de `cockpit`. |
+| `extends` | não | Id de um tema built-in do qual herdar. Hoje existem `cockpit`, `cockpit.2`, `violet`, `violet.2`, `midnight`, `rose`, `sun`, `flexoki` e `pantera`. Ausente = herda de `cockpit`. |
 | `variants` | sim | Pelo menos um de `dark` / `light`. |
 
 **Herança é o ponto.** Todo token não declarado vem da base, então um tema útil

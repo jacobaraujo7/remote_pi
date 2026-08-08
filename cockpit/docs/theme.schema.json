@@ -10,7 +10,7 @@
     "$schema": { "type": "string" },
     "id": {
       "type": "string",
-      "description": "Identidade estável, namespaced (publisher.nome). É o que fica salvo nas preferências. Não pode colidir com um built-in: cockpit, cockpit.2, violet, violet.2, midnight, rose, sun, pantera.",
+      "description": "Identidade estável, namespaced (publisher.nome). É o que fica salvo nas preferências. Não pode colidir com um built-in: cockpit, cockpit.2, violet, violet.2, midnight, rose, sun, flexoki, pantera.",
       "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
     "name": {
@@ -23,7 +23,7 @@
     "extends": {
       "type": "string",
       "description": "Id de um tema built-in do qual herdar os tokens não declarados. Ausente = herda do tema 'cockpit'.",
-      "enum": ["cockpit", "cockpit.2", "violet", "violet.2", "midnight", "rose", "sun", "pantera"]
+      "enum": ["cockpit", "cockpit.2", "violet", "violet.2", "midnight", "rose", "sun", "flexoki", "pantera"]
     },
     "variants": {
       "type": "object",
