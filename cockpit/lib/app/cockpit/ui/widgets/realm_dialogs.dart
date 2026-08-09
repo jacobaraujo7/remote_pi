@@ -5,8 +5,6 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-const Color _barrier = Color(0x99000000);
-
 /// Dialog de nome de realm (criar/renomear). Valida ao vivo: não-vazio e único
 /// entre [takenNames] (case-insensitive; o nome atual em rename fica de fora).
 /// Devolve o nome confirmado (trim) ou `null` se cancelar.
@@ -19,7 +17,7 @@ Future<String?> showRealmNameDialog(
 }) {
   return showDialog<String>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) => _RealmNameDialog(
       title: title,
       confirmLabel: confirmLabel,
@@ -122,7 +120,7 @@ Future<void> showRealmManagerDialog(
 }) {
   return showDialog<void>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) => _RealmManagerDialog(vm: vm),
   );
 }

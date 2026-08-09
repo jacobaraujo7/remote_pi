@@ -459,6 +459,11 @@ class _DbQueryViewState extends State<DbQueryView> {
   Widget _topBar(BuildContext context) {
     final colors = context.colors;
     final typo = context.typo;
+    // O botão Run troca de fundo conforme está habilitado (accent) ou não
+    // (panel3), então o texto/ícone precisa sair do fundo efetivo. Fixo em
+    // branco, o estado desabilitado ficava ilegível no tema claro.
+    final runBg = _connName == null ? colors.panel3 : colors.accent;
+    final runFg = onColor(runBg);
     final conn = _conn;
     return Container(
       height: 36,
@@ -515,7 +520,7 @@ class _DbQueryViewState extends State<DbQueryView> {
           const Spacer(),
           HoverTap(
             onTap: _running || _connName == null ? null : _run,
-            color: _connName == null ? colors.panel3 : colors.accent,
+            color: runBg,
             hoverColor: colors.accent.withValues(alpha: 0.85),
             borderRadius: const BorderRadius.all(Radius.circular(5)),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -525,7 +530,7 @@ class _DbQueryViewState extends State<DbQueryView> {
                 Icon(
                   _running ? Icons.hourglass_top : Icons.play_arrow,
                   size: 13,
-                  color: Colors.white,
+                  color: runFg,
                 ),
                 const SizedBox(width: 4),
                 ListenableBuilder(
@@ -540,10 +545,7 @@ class _DbQueryViewState extends State<DbQueryView> {
                           : hasSel
                           ? tr.runSelection
                           : tr.run,
-                      style: typo.label.copyWith(
-                        fontSize: 11.5,
-                        color: Colors.white,
-                      ),
+                      style: typo.label.copyWith(fontSize: 11.5, color: runFg),
                     );
                   },
                 ),
@@ -552,7 +554,7 @@ class _DbQueryViewState extends State<DbQueryView> {
                   '⌘↵',
                   style: typo.label.copyWith(
                     fontSize: 9.5,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: runFg.withValues(alpha: 0.7),
                   ),
                 ),
               ],

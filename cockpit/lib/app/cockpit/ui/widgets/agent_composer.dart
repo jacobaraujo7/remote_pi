@@ -1165,7 +1165,7 @@ class _SendButton extends StatelessWidget {
       icon = Icons.stop;
     } else if (ready) {
       bg = colors.accent;
-      fg = Colors.white;
+      fg = onColor(colors.accent);
       icon = Icons.arrow_upward;
     } else {
       bg = Colors.transparent;

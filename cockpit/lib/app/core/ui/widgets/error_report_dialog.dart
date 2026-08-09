@@ -6,8 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-const Color _barrier = Color(0x99000000);
-
 /// Mostra um erro de forma legível, com saída para o usuário reportar.
 ///
 /// Três ações, em ordem de esforço: fechar (o erro já está no log), copiar o
@@ -34,7 +32,7 @@ Future<void> showErrorReportDialog(
 
   await showDialog<void>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) {
       final colors = context.colors;
       return AlertDialog(

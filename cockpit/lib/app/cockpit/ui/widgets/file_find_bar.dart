@@ -116,7 +116,7 @@ class FileFindBar extends StatelessWidget {
         border: Border.all(color: colors.border2),
         boxShadow: [
           BoxShadow(
-            color: const Color(0x40000000),
+            color: colors.shadow,
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

@@ -69,7 +69,9 @@ class WorkspaceAvatar extends StatelessWidget {
         initial,
         style: context.typo.title.copyWith(
           fontSize: size * 0.43,
-          color: Colors.white,
+          // A cor do quadrado é gerada por workspace: pode sair clara, e aí
+          // branco some. Deriva da luminância.
+          color: onColor(Color(colorValue)),
         ),
       ),
     );
@@ -80,7 +82,7 @@ class WorkspaceAvatar extends StatelessWidget {
     child: Icon(
       Icons.broken_image_outlined,
       size: size * 0.5,
-      color: Colors.white,
+      color: onColor(Color(colorValue)),
     ),
   );
 

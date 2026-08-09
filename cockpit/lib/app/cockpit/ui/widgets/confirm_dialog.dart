@@ -4,7 +4,6 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Cor do barrier (escurece o fundo) — o `showDialog` do shadcn usa barrier
 /// transparente por padrão; aqui damos o leve dim que o modal pedia.
-const Color _barrier = Color(0x99000000);
 
 /// Dialog informativo genérico (tema do cockpit) — só botão "OK".
 Future<void> showInfoDialog(
@@ -15,7 +14,7 @@ Future<void> showInfoDialog(
 }) {
   return showDialog<void>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) {
       final colors = context.colors;
       return AlertDialog(
@@ -55,7 +54,7 @@ Future<CloseDirtyChoice> showCloseDirtyDialog(
 }) async {
   final result = await showDialog<CloseDirtyChoice>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) {
       final colors = context.colors;
       final tr = context.t.cockpit.confirmDialog;
@@ -106,7 +105,7 @@ Future<bool> showConfirmDialog(
 }) async {
   final result = await showDialog<bool>(
     context: context,
-    barrierColor: _barrier,
+    barrierColor: context.colors.scrim,
     builder: (context) {
       final colors = context.colors;
       final confirm = confirmLabel ?? context.t.common.confirm;

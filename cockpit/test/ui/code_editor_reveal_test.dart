@@ -11,7 +11,16 @@ void main() {
   final text = 'line0\n$longLine target here\nline2\nline3 target end';
   final matchStart = text.indexOf('target'); // no meio da linha longa
 
-  Widget harness(CodeEditingController ctrl, {int? revealStart, int tick = 0}) {
+  Widget harness(
+    CodeEditingController ctrl, {
+    int? revealStart,
+    int? revealLine,
+    bool revealSelect = true,
+    int tick = 0,
+    Set<int> addedLines = const {},
+    Set<int> modifiedLines = const {},
+    Set<int> removedLines = const {},
+  }) {
     return ShadcnApp(
       theme: buildTheme(brightness: Brightness.dark),
       home: Scaffold(
@@ -22,6 +31,12 @@ void main() {
             child: CodeEditor(
               controller: ctrl,
               focusNode: FocusNode(),
+              revealLine: revealLine,
+              revealSelect: revealSelect,
+              revealTick: tick,
+              addedLines: addedLines,
+              modifiedLines: modifiedLines,
+              removedLines: removedLines,
               revealMatchStart: revealStart,
               revealMatchTick: tick,
             ),
@@ -42,6 +57,29 @@ void main() {
     await tester.pumpWidget(harness(ctrl, revealStart: matchStart, tick: 1));
     await tester.pumpAndSettle(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('mudancas Git decoram o gutter sem selecionar a linha', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(text: text, language: 'txt');
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        revealLine: 2,
+        revealSelect: false,
+        tick: 1,
+        addedLines: const {2},
+        modifiedLines: const {3},
+        removedLines: const {4},
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('git-change-line:2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('git-change-line:3')), findsOneWidget);
+    expect(find.byKey(const ValueKey('git-change-line:4')), findsOneWidget);
+    expect(ctrl.selection.isCollapsed, isTrue);
   });
 
   testWidgets('reveal repetido (navegação entre matches) assenta', (

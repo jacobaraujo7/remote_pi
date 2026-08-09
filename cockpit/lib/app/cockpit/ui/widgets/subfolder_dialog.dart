@@ -17,7 +17,7 @@ Future<String?> showSubfolderDialog(
 }) {
   return showDialog<String>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _SubfolderDialog(
       projectName: projectName,
       loadSubfolders: loadSubfolders,

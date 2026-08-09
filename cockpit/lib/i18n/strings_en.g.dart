@@ -46,6 +46,7 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$settings$en settings = Translations$settings$en.internal(_root);
 	late final Translations$automation$en automation = Translations$automation$en.internal(_root);
 	late final Translations$fileOperation$en fileOperation = Translations$fileOperation$en.internal(_root);
+	late final Translations$theme$en theme = Translations$theme$en.internal(_root);
 }
 
 // Path: core
@@ -214,6 +215,16 @@ class Translations$fileOperation$en {
 
 	// Translations
 	late final Translations$fileOperation$error$en error = Translations$fileOperation$error$en.internal(_root);
+}
+
+// Path: theme
+class Translations$theme$en {
+	Translations$theme$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+	late final Translations$theme$error$en error = Translations$theme$error$en.internal(_root);
 }
 
 // Path: core.bootstrapError
@@ -1264,6 +1275,72 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Cancel generation'
 	String get cancelGeneration => 'Cancel generation';
+
+	/// en: 'Changes'
+	String get changes => 'Changes';
+
+	/// en: 'History'
+	String get history => 'History';
+
+	/// en: 'Repository'
+	String get historyRepository => 'Repository';
+
+	/// en: 'No Git repository available.'
+	String get historyNoRepository => 'No Git repository available.';
+
+	/// en: 'No commits found.'
+	String get historyEmpty => 'No commits found.';
+
+	/// en: 'Could not load Git history.'
+	String get historyLoadFailed => 'Could not load Git history.';
+
+	/// en: 'Untitled commit'
+	String get historyUntitledCommit => 'Untitled commit';
+
+	/// en: 'now'
+	String get historyNow => 'now';
+
+	/// en: '${count}m ago'
+	String historyMinutesAgo({required Object count}) => '${count}m ago';
+
+	/// en: '${count}h ago'
+	String historyHoursAgo({required Object count}) => '${count}h ago';
+
+	/// en: 'yesterday'
+	String get historyYesterday => 'yesterday';
+
+	/// en: '1d ago'
+	String get historyDayAgo => '1d ago';
+
+	/// en: '${count}d ago'
+	String historyDaysAgo({required Object count}) => '${count}d ago';
+
+	/// en: 'Files changed'
+	String get historyFiles => 'Files changed';
+
+	/// en: 'No files changed.'
+	String get historyFilesEmpty => 'No files changed.';
+
+	/// en: 'Could not load changed files.'
+	String get historyFilesLoadFailed => 'Could not load changed files.';
+
+	/// en: 'Empty tree'
+	String get diffEmptyTree => 'Empty tree';
+
+	/// en: 'Original ${ref}'
+	String diffOriginal({required Object ref}) => 'Original ${ref}';
+
+	/// en: 'Modified ${ref}'
+	String diffModified({required Object ref}) => 'Modified ${ref}';
+
+	/// en: 'Working tree'
+	String get diffWorkingTree => 'Working tree';
+
+	/// en: 'Binary file - no text diff.'
+	String get diffBinaryFile => 'Binary file - no text diff.';
+
+	/// en: 'No changes.'
+	String get diffNoChanges => 'No changes.';
 }
 
 // Path: cockpit.fileViewer
@@ -2198,6 +2275,45 @@ class Translations$fileOperation$error$en {
 	String get invalidName => 'Invalid name.';
 }
 
+// Path: theme.error
+class Translations$theme$error$en {
+	Translations$theme$error$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Could not read or write the theme file.'
+	String get io => 'Could not read or write the theme file.';
+
+	/// en: 'Could not read or write the theme file: ${detail}'
+	String ioDetail({required Object detail}) => 'Could not read or write the theme file: ${detail}';
+
+	/// en: 'This file is not valid JSON: ${detail}'
+	String malformedJson({required Object detail}) => 'This file is not valid JSON: ${detail}';
+
+	/// en: 'This file is not a valid theme.'
+	String get invalidTheme => 'This file is not a valid theme.';
+
+	/// en: 'This theme uses the id of a built-in theme. Change "id" in the file and import again.'
+	String get reservedId => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.';
+
+	/// en: 'Expected an object at "${field}".'
+	String notAnObject({required Object field}) => 'Expected an object at "${field}".';
+
+	/// en: 'Missing required field "${field}".'
+	String missingField({required Object field}) => 'Missing required field "${field}".';
+
+	/// en: '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.'
+	String badColor({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.';
+
+	/// en: 'Unknown base theme "${value}" in "extends".'
+	String unknownBase({required Object value}) => 'Unknown base theme "${value}" in "extends".';
+
+	/// en: 'The theme declares no variant. Add "dark", "light" or both under "variants".'
+	String get noVariants => 'The theme declares no variant. Add "dark", "light" or both under "variants".';
+}
+
 // Path: settings.page.header
 class Translations$settings$page$header$en {
 	Translations$settings$page$header$en.internal(this._root);
@@ -2436,6 +2552,36 @@ class Translations$settings$page$appearance$en {
 	/// en: 'Theme'
 	String get sectionTheme => 'Theme';
 
+	/// en: 'Theme'
+	String get themeTitle => 'Theme';
+
+	/// en: 'App colors, code highlighting and terminal palette.'
+	String get themeDesc => 'App colors, code highlighting and terminal palette.';
+
+	/// en: 'Mode'
+	String get modeTitle => 'Mode';
+
+	/// en: 'Which variant of the theme to use.'
+	String get modeDesc => 'Which variant of the theme to use.';
+
+	/// en: '"${theme}" only ships a dark variant, so this has no effect.'
+	String modeOnlyDark({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.';
+
+	/// en: '"${theme}" only ships a light variant, so this has no effect.'
+	String modeOnlyLight({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.';
+
+	/// en: 'Theme file'
+	String get themeFileTitle => 'Theme file';
+
+	/// en: 'Import a theme from a JSON file, or export the active one.'
+	String get themeFileDesc => 'Import a theme from a JSON file, or export the active one.';
+
+	/// en: 'Code'
+	String get previewCode => 'Code';
+
+	/// en: 'Terminal'
+	String get previewTerminal => 'Terminal';
+
 	/// en: 'System'
 	String get themeSystem => 'System';
 
@@ -2469,17 +2615,38 @@ class Translations$settings$page$appearance$en {
 	/// en: 'Terminal font'
 	String get terminalFontTitle => 'Terminal font';
 
-	/// en: 'Uses the code size. Empty = system default.'
-	String get terminalFontDesc => 'Uses the code size. Empty = system default.';
+	/// en: 'Terminal only. Empty = system default.'
+	String get terminalFontDesc => 'Terminal only. Empty = system default.';
 
-	/// en: 'Syntax'
-	String get sectionSyntax => 'Syntax';
+	/// en: 'Terminal size'
+	String get terminalSizeTitle => 'Terminal size';
 
-	/// en: 'Highlight theme'
-	String get highlightThemeTitle => 'Highlight theme';
+	/// en: 'Off = follows the code size.'
+	String get terminalSizeDesc => 'Off = follows the code size.';
 
-	/// en: 'Code colors, independent of the app theme.'
-	String get highlightThemeDesc => 'Code colors, independent of the app theme.';
+	/// en: 'Follow code size'
+	String get terminalSizeInherit => 'Follow code size';
+
+	/// en: 'Terminal weight'
+	String get terminalWeightTitle => 'Terminal weight';
+
+	/// en: 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.'
+	String get terminalWeightDesc => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.';
+
+	/// en: 'Auto (by screen)'
+	String get terminalWeightAuto => 'Auto (by screen)';
+
+	/// en: 'Light'
+	String get terminalWeightLight => 'Light';
+
+	/// en: 'Normal'
+	String get terminalWeightNormal => 'Normal';
+
+	/// en: 'Medium'
+	String get terminalWeightMedium => 'Medium';
+
+	/// en: 'Semibold'
+	String get terminalWeightSemiBold => 'Semibold';
 
 	/// en: 'Conversation'
 	String get sectionConversation => 'Conversation';
@@ -2489,6 +2656,57 @@ class Translations$settings$page$appearance$en {
 
 	/// en: 'The question stays fixed at the top while the answer scrolls.'
 	String get pinUserMessageDesc => 'The question stays fixed at the top while the answer scrolls.';
+
+	/// en: 'Import…'
+	String get importTheme => 'Import…';
+
+	/// en: 'Export…'
+	String get exportTheme => 'Export…';
+
+	/// en: 'Remove'
+	String get deleteTheme => 'Remove';
+
+	/// en: 'Pick a theme file'
+	String get importThemeDialog => 'Pick a theme file';
+
+	/// en: 'Save theme as'
+	String get exportThemeDialog => 'Save theme as';
+
+	/// en: 'Theme "${name}" imported.'
+	String themeImported({required Object name}) => 'Theme "${name}" imported.';
+
+	/// en: 'Theme saved.'
+	String get themeExported => 'Theme saved.';
+
+	/// en: 'Theme removed.'
+	String get themeDeleted => 'Theme removed.';
+
+	/// en: 'Choose a font'
+	String get fontPickerTitle => 'Choose a font';
+
+	/// en: 'Search fonts'
+	String get fontPickerSearch => 'Search fonts';
+
+	/// en: 'No matching font found on this machine.'
+	String get fontPickerEmpty => 'No matching font found on this machine.';
+
+	/// en: 'included'
+	String get fontPickerBundled => 'included';
+
+	/// en: 'Not listed? Type the exact family name.'
+	String get fontPickerCustom => 'Not listed? Type the exact family name.';
+
+	/// en: 'Family name'
+	String get fontPickerCustomHint => 'Family name';
+
+	/// en: 'Use'
+	String get fontPickerUse => 'Use';
+
+	/// en: 'Default'
+	String get fontPickerDefault => 'Default';
+
+	/// en: 'Not found on this machine — falling back.'
+	String get fontMissing => 'Not found on this machine — falling back.';
 }
 
 // Path: settings.page.notifications
@@ -3292,6 +3510,28 @@ extension on Translations {
 			'cockpit.fileTreePanel.generateWith' => ({required Object harness}) => 'Generate with ${harness}',
 			'cockpit.fileTreePanel.generateUnavailableWhileAmending' => 'Unavailable while amending a commit',
 			'cockpit.fileTreePanel.cancelGeneration' => 'Cancel generation',
+			'cockpit.fileTreePanel.changes' => 'Changes',
+			'cockpit.fileTreePanel.history' => 'History',
+			'cockpit.fileTreePanel.historyRepository' => 'Repository',
+			'cockpit.fileTreePanel.historyNoRepository' => 'No Git repository available.',
+			'cockpit.fileTreePanel.historyEmpty' => 'No commits found.',
+			'cockpit.fileTreePanel.historyLoadFailed' => 'Could not load Git history.',
+			'cockpit.fileTreePanel.historyUntitledCommit' => 'Untitled commit',
+			'cockpit.fileTreePanel.historyNow' => 'now',
+			'cockpit.fileTreePanel.historyMinutesAgo' => ({required Object count}) => '${count}m ago',
+			'cockpit.fileTreePanel.historyHoursAgo' => ({required Object count}) => '${count}h ago',
+			'cockpit.fileTreePanel.historyYesterday' => 'yesterday',
+			'cockpit.fileTreePanel.historyDayAgo' => '1d ago',
+			'cockpit.fileTreePanel.historyDaysAgo' => ({required Object count}) => '${count}d ago',
+			'cockpit.fileTreePanel.historyFiles' => 'Files changed',
+			'cockpit.fileTreePanel.historyFilesEmpty' => 'No files changed.',
+			'cockpit.fileTreePanel.historyFilesLoadFailed' => 'Could not load changed files.',
+			'cockpit.fileTreePanel.diffEmptyTree' => 'Empty tree',
+			'cockpit.fileTreePanel.diffOriginal' => ({required Object ref}) => 'Original ${ref}',
+			'cockpit.fileTreePanel.diffModified' => ({required Object ref}) => 'Modified ${ref}',
+			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
+			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
+			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
@@ -3472,6 +3712,8 @@ extension on Translations {
 			'settings.revokeDialog.deviceRemoved' => 'Device removed.',
 			'settings.revokeDialog.failedToRevoke' => 'Failed to revoke the device.',
 			'settings.revokeDialog.revoking' => 'Revoking…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.revokeDialog.revokingDevice' => ({required Object name}) => 'Revoking ${name}…',
 			'settings.revokeDialog.connectingMessage' => 'Connecting to the relay and removing access.',
 			'settings.revokeDialog.ok' => 'Ok',
@@ -3494,8 +3736,6 @@ extension on Translations {
 			'settings.page.nav.language' => 'Language',
 			'settings.page.nav.shortcuts' => 'Shortcuts',
 			'settings.page.nav.notifications' => 'Notifications',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.nav.connectivity' => 'Connectivity',
 			'settings.page.nav.daemonAgents' => 'Daemon Agents',
 			'settings.page.nav.schedules' => 'Schedules',
@@ -3550,6 +3790,16 @@ extension on Translations {
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
+			'settings.page.appearance.themeTitle' => 'Theme',
+			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
+			'settings.page.appearance.modeTitle' => 'Mode',
+			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
+			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
+			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.',
+			'settings.page.appearance.themeFileTitle' => 'Theme file',
+			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
+			'settings.page.appearance.previewCode' => 'Code',
+			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',
@@ -3561,13 +3811,37 @@ extension on Translations {
 			'settings.page.appearance.codeFontDesc' => 'Code and diffs. Empty = system default.',
 			'settings.page.appearance.codeSizeTitle' => 'Code size',
 			'settings.page.appearance.terminalFontTitle' => 'Terminal font',
-			'settings.page.appearance.terminalFontDesc' => 'Uses the code size. Empty = system default.',
-			'settings.page.appearance.sectionSyntax' => 'Syntax',
-			'settings.page.appearance.highlightThemeTitle' => 'Highlight theme',
-			'settings.page.appearance.highlightThemeDesc' => 'Code colors, independent of the app theme.',
+			'settings.page.appearance.terminalFontDesc' => 'Terminal only. Empty = system default.',
+			'settings.page.appearance.terminalSizeTitle' => 'Terminal size',
+			'settings.page.appearance.terminalSizeDesc' => 'Off = follows the code size.',
+			'settings.page.appearance.terminalSizeInherit' => 'Follow code size',
+			'settings.page.appearance.terminalWeightTitle' => 'Terminal weight',
+			'settings.page.appearance.terminalWeightDesc' => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.',
+			'settings.page.appearance.terminalWeightAuto' => 'Auto (by screen)',
+			'settings.page.appearance.terminalWeightLight' => 'Light',
+			'settings.page.appearance.terminalWeightNormal' => 'Normal',
+			'settings.page.appearance.terminalWeightMedium' => 'Medium',
+			'settings.page.appearance.terminalWeightSemiBold' => 'Semibold',
 			'settings.page.appearance.sectionConversation' => 'Conversation',
 			'settings.page.appearance.pinUserMessageTitle' => 'Pin user message',
 			'settings.page.appearance.pinUserMessageDesc' => 'The question stays fixed at the top while the answer scrolls.',
+			'settings.page.appearance.importTheme' => 'Import…',
+			'settings.page.appearance.exportTheme' => 'Export…',
+			'settings.page.appearance.deleteTheme' => 'Remove',
+			'settings.page.appearance.importThemeDialog' => 'Pick a theme file',
+			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
+			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
+			'settings.page.appearance.themeExported' => 'Theme saved.',
+			'settings.page.appearance.themeDeleted' => 'Theme removed.',
+			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
+			'settings.page.appearance.fontPickerSearch' => 'Search fonts',
+			'settings.page.appearance.fontPickerEmpty' => 'No matching font found on this machine.',
+			'settings.page.appearance.fontPickerBundled' => 'included',
+			'settings.page.appearance.fontPickerCustom' => 'Not listed? Type the exact family name.',
+			'settings.page.appearance.fontPickerCustomHint' => 'Family name',
+			'settings.page.appearance.fontPickerUse' => 'Use',
+			'settings.page.appearance.fontPickerDefault' => 'Default',
+			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
 			'settings.page.notifications.sectionTitle' => 'Notifications',
 			'settings.page.notifications.enableTitle' => 'Enable notifications',
 			'settings.page.notifications.enableDesc' => 'Alert me when an agent finishes a turn and the window is not focused.',
@@ -3737,6 +4011,16 @@ extension on Translations {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',
+			'theme.error.io' => 'Could not read or write the theme file.',
+			'theme.error.ioDetail' => ({required Object detail}) => 'Could not read or write the theme file: ${detail}',
+			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',
+			'theme.error.invalidTheme' => 'This file is not a valid theme.',
+			'theme.error.reservedId' => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.',
+			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
+			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
+			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
+			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
+			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
 			_ => null,
 		};
 	}

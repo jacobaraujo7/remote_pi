@@ -69,6 +69,10 @@ import type {
 } from "./protocol/types.js";
 import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
 import { PlainPeerChannel } from "./transport/peer_channel.js";
+import {
+  createExtensionUiBridge,
+  type ExtensionUiBridge,
+} from "./extension_ui_bridge.js";
 import { roomIdFor } from "./rooms.js";
 import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
@@ -1070,6 +1074,10 @@ let _currentTurnId: string | null = null;
 // Module-level pi reference
 let _pi: ExtensionAPI | null = null;
 
+// Plan/57 — Bridge to pi-ask's clarification-flow events. null until the
+// extension factory wires it (and null if the SDK exposes no events bus).
+let _extensionUiBridge: ExtensionUiBridge | null = null;
+
 let _stopAutoListener: (() => void) | null = null;
 
 // Cached keypair (loaded once, reused across start/pair cycles)
@@ -1564,17 +1572,27 @@ function _emitRelayState(force = false): void {
   const status = _relayStatus();
   if (!force && status === _lastRelayStatus) return;
   _lastRelayStatus = status;
-  _pi?.sendMessage({
-    customType: "remote-pi:relay-state",
-    content: `Relay ${status}`,
-    details: {
-      status,
-      connected: status === "connected",
-      ...(_relayUrl ? { relayUrl: _relayUrl } : {}),
-      ...(_myRoomId ? { room: _myRoomId } : {}),
-    },
-    display: false,
-  });
+  // This can run inside a WebSocket 'close' callback (via _onRelayClose). After a
+  // session replacement (newSession/fork/switchSession/reload) the module-level
+  // `_pi` is stale, and `assertActive` throws synchronously inside `sendMessage`.
+  // An uncaught throw from a WS event callback becomes a process-level
+  // uncaughtException and exits pi. Swallow it here: the next relay-state
+  // change re-emits, so connectivity is eventually consistent. See issue #55.
+  try {
+    _pi?.sendMessage({
+      customType: "remote-pi:relay-state",
+      content: `Relay ${status}`,
+      details: {
+        status,
+        connected: status === "connected",
+        ...(_relayUrl ? { relayUrl: _relayUrl } : {}),
+        ...(_myRoomId ? { room: _myRoomId } : {}),
+      },
+      display: false,
+    });
+  } catch {
+    // _pi stale (session replaced) or extension runtime not yet bound.
+  }
 }
 
 /** Minimal ctx for relay start/stop driven by a control message (no command
@@ -2029,6 +2047,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
 
   _pi = pi;
 
+  // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
+  // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
+  // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
+  // Pi that doesn't use the extension. Dispose any prior bridge first so a
+  // factory re-run (new pi session) can't leak subscriptions or double-send.
+  _extensionUiBridge?.dispose();
+  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
   try {
@@ -2286,6 +2312,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    // session_shutdown disposes per-session pi-ask subscriptions. A host that
+    // reuses this module instance does NOT re-run the factory, so rebind the
+    // bridge here; fresh-module hosts already created theirs in the factory.
+    if (!_extensionUiBridge) {
+      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+    }
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2382,6 +2414,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _rootLifecycleGeneration += 1;
     _relayLifecycleGeneration += 1;
     _meshJoinGeneration += 1;
+    // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
+    // the outgoing session is replaced so stale listeners cannot leak or
+    // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
+    // module instances create their bridge in the factory.
+    _extensionUiBridge?.dispose();
+    _extensionUiBridge = null;
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
@@ -4235,6 +4273,10 @@ export function _routeClientMessageFrom(
     }
     return;
   }
+  if (msg.type === "extension_ui_response") {
+    _extensionUiBridge?.respond(msg);
+    return;
+  }
   if (!_pi) return;
   switch (msg.type) {
     case "queued_message_set": {
@@ -4483,6 +4525,18 @@ function _handleSessionSync(
     eos: true,
     truncated,
   });
+
+  // Plan/57 — replay ask_user flows still awaiting an answer. The bridge
+  // broadcasts `started` once; a peer that connects afterwards would otherwise
+  // see the tool call as plain history text while the desktop stays blocked on
+  // the TUI dialog (reproduced: close the app, fire ask_user, reopen → no
+  // sheet). Sent AFTER the history so the modal opens over a synced chat, and
+  // per-sender like the rest of this handler — a sync from owner A must not
+  // pop a modal on owner B. Flows past FLOW_TTL_MS are already gone from the
+  // bridge, so an abandoned flow is never resurrected.
+  for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
+    sender.send(req);
+  }
 }
 
 /**

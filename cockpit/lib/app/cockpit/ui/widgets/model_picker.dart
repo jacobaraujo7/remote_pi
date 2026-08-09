@@ -13,7 +13,7 @@ Future<PiModel?> showModelPicker(
 }) {
   return showDialog<PiModel>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _ModelPicker(models: models, current: current),
   );
 }

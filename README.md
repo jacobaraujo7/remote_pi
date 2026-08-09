@@ -101,7 +101,19 @@ Then in the Pi chat, run:
 The setup wizard walks you through agent name, session name, and relay choice,
 then prints a QR code. Scan it with the Remote Pi mobile app and you're paired.
 
-## Statu
+### Recommended companion: `@eko24ive/pi-ask`
+
+```bash
+pi install npm:@eko24ive/pi-ask
+```
+
+With pi-ask installed, the agent's `ask_user` clarification prompts (structured
+questions with options, multi-select, and previews) render natively in the
+mobile app — answer from your phone and the flow resolves on the desktop.
+Without it, the agent simply asks in plain chat text (also answerable from the
+phone, just unstructured). Remote Pi works either way; pi-ask is optional.
+
+## Status
 
 The MVP is functional. Planning notes and roadmap live in [`plan/`](./plan).
 

@@ -62,6 +62,56 @@ void main() {
       expect(log.previousCrash, isNull);
     });
 
+    test(
+      'sem saída limpa, TODA sessão seguinte acusa crash — o loop relatado',
+      () async {
+        // Era o que acontecia no Windows: o X da barra de título chamava
+        // `windowManager.close()`, a janela era destruída sem passar pelo Dart,
+        // e `markCleanExit` nunca rodava. Dispensar o aviso não ajudava, porque
+        // o aviso não é o que limpa o marcador — quem limpa é a saída.
+        // Primeira execução: nada anterior para acusar.
+        await log.init(appVersion: '1.22.0', baseDir: dir.path);
+        expect(log.previousCrash, isNull);
+
+        // Daí em diante, cada boot encontra o marcador do anterior — e como
+        // nenhum deles sai limpo, o aviso nunca para de aparecer.
+        for (var i = 1; i <= 3; i++) {
+          await log.init(appVersion: '1.22.0', baseDir: dir.path);
+          expect(
+            log.previousCrash,
+            isNotNull,
+            reason: 'boot $i devia acusar a sessão anterior',
+          );
+        }
+
+        // Uma única saída limpa quebra o ciclo, e ele não volta sozinho.
+        log.markCleanExit();
+        await log.init(appVersion: '1.22.0', baseDir: dir.path);
+        expect(log.previousCrash, isNull);
+      },
+    );
+
+    test('sessão de debug é marcada como tal', () async {
+      await log.init(appVersion: '1.0.0', baseDir: dir.path);
+      final marcador =
+          jsonDecode(await sessionFile().readAsString())
+              as Map<String, Object?>;
+      // O teste roda em debug; o campo existe para o boot seguinte distinguir
+      // "morreu" de "foi parado pela IDE".
+      expect(marcador['debug'], isTrue);
+
+      await log.init(appVersion: '1.0.0', baseDir: dir.path);
+      expect(log.previousCrash!.debug, isTrue);
+    });
+
+    test('marcador antigo sem o campo debug conta como release', () async {
+      // Compatibilidade: quem atualizar com um marcador sujo gravado pela
+      // versão anterior não pode ter o aviso silenciado por engano.
+      await sessionFile().writeAsString(jsonEncode({'pid': 1}));
+      await log.init(appVersion: '1.0.0', baseDir: dir.path);
+      expect(log.previousCrash!.debug, isFalse);
+    });
+
     test('marcador corrompido é tratado como saída limpa', () async {
       await sessionFile().writeAsString('{ não é json');
       await log.init(appVersion: '1.0.0', baseDir: dir.path);

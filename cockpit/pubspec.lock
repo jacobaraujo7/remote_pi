@@ -372,11 +372,11 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/flterm"
-      ref: cockpit-pin-flterm-cpu-baseline
-      resolved-ref: "103be857ca2d20a779482e92d2ca074901b018f6"
+      ref: cockpit-pin-flterm-main-scroll
+      resolved-ref: d1e49aff875fe3a83f5559197d09341bec4f2fb6
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
-    version: "0.0.4"
+    version: "0.0.5"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -697,11 +697,11 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/libghostty"
-      ref: cockpit-pin-flterm-cpu-baseline
-      resolved-ref: "103be857ca2d20a779482e92d2ca074901b018f6"
+      ref: cockpit-pin-flterm-main-scroll
+      resolved-ref: d1e49aff875fe3a83f5559197d09341bec4f2fb6
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
-    version: "0.0.11"
+    version: "0.0.12"
   lints:
     dependency: transitive
     description:

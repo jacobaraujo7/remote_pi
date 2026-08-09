@@ -34,7 +34,7 @@ Future<void> showWorktreeCreateDialog(
 }) {
   return showDialog<void>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _WorktreeCreateDialog(
       rootName: rootName,
       namespace: namespace,
@@ -287,7 +287,9 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final check = _check;
-    final reason = _gitError != null ? _explainGitError(context, _gitError!) : _reason(check);
+    final reason = _gitError != null
+        ? _explainGitError(context, _gitError!)
+        : _reason(check);
     final showError = reason != null && !_submitting;
     final tr = context.t.cockpit.worktreeCreateDialog;
     final showLog = _submitting || _logLines.isNotEmpty;
@@ -316,9 +318,7 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
       content: ConstrainedBox(
         constraints: BoxConstraints(
           maxWidth: showLog ? 560 : 420,
-          maxHeight: showLog
-              ? 450
-              : (_advancedExpanded ? 460 : 340),
+          maxHeight: showLog ? 450 : (_advancedExpanded ? 460 : 340),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -538,7 +538,13 @@ class _WorktreeCreateDialogState extends State<_WorktreeCreateDialog> {
               ? () => setState(() => _logLines.clear())
               : (_canCreate ? _submit : null),
           child: _submitting
-              ? const CircularProgressIndicator(size: 16, color: Colors.white)
+              // Cor do spinner vem da `main` (texto legível sobre o accent,
+              // derivado por luminância); o rótulo "Voltar" vem deste PR, que
+              // reusa o mesmo botão pra sair da tela de log.
+              ? CircularProgressIndicator(
+                  size: 16,
+                  color: onColor(context.colors.accent),
+                )
               : Text(
                   showLog && !_submitting
                       ? tr.back
@@ -657,13 +663,17 @@ class _BranchSelectorPopoverState extends State<_BranchSelectorPopover> {
                                   style: typo.mono.copyWith(
                                     fontSize: 12,
                                     color: isSelected
-                                      ? colors.accentText
-                                      : colors.text,
+                                        ? colors.accentText
+                                        : colors.text,
                                   ),
                                 ),
                               ),
                               if (isSelected)
-                                Icon(Icons.check, size: 14, color: colors.accent),
+                                Icon(
+                                  Icons.check,
+                                  size: 14,
+                                  color: colors.accent,
+                                ),
                             ],
                           ),
                         );

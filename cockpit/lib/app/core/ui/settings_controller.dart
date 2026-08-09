@@ -1,6 +1,12 @@
+import 'dart:io';
+
+import 'package:cockpit/app/core/data/theme_store.dart';
 import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/automation.dart';
+import 'package:cockpit/app/core/ui/themes/theme_registry.dart';
+import 'package:cockpit/app/core/ui/themes/theme_spec.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,9 +14,10 @@ import 'package:flutter/foundation.dart';
 /// trocar tema/fonte em runtime, e é lido pela tela de Configurações. Cada
 /// mudança aplica na hora (notify) e persiste (Hive).
 class SettingsController extends ChangeNotifier {
-  SettingsController(this._store);
+  SettingsController(this._store, [this._themeStore = const ThemeStore()]);
 
   final SettingsStore _store;
+  final ThemeStore _themeStore;
   AppSettings _settings = const AppSettings();
 
   AppSettings get settings => _settings;
@@ -24,6 +31,7 @@ class SettingsController extends ChangeNotifier {
     // sem `runApp`/`testWidgets` — `setLocaleRaw` não precisa dele.
     final locale = _settings.locale;
     if (locale != null) await LocaleSettings.setLocaleRaw(locale);
+    _customThemes = await _themeStore.loadAll();
     notifyListeners();
   }
 
@@ -49,6 +57,14 @@ class SettingsController extends ChangeNotifier {
     final empty = font == null || font.trim().isEmpty;
     _apply(_settings.copyWith(terminalFont: font, clearTerminalFont: empty));
   }
+
+  /// `null` volta a herdar o tamanho do código.
+  void setTerminalSize(double? size) => _apply(
+    _settings.copyWith(terminalSize: size, clearTerminalSize: size == null),
+  );
+
+  void setTerminalFontWeight(TerminalFontWeight weight) =>
+      _apply(_settings.copyWith(terminalFontWeight: weight));
 
   void setTerminalEngine(TerminalEngine engine) =>
       _apply(_settings.copyWith(terminalEngine: engine));
@@ -91,8 +107,63 @@ class SettingsController extends ChangeNotifier {
     );
   }
 
-  void setSyntaxTheme(SyntaxThemeId id) =>
-      _apply(_settings.copyWith(syntaxTheme: id));
+  /// Temas importados pelo usuário. Somam-se aos built-in no [availableThemes]
+  /// e são preenchidos no [load] a partir do disco.
+  List<CockpitThemeSpec> _customThemes = const [];
+
+  /// Catálogo completo: built-in primeiro, importados depois.
+  List<CockpitThemeSpec> get availableThemes => [
+    ...builtInThemes,
+    ..._customThemes,
+  ];
+
+  /// O tema ativo. Id desconhecido (tema importado que foi removido do disco,
+  /// ou arquivo de preferências vindo de outra máquina) cai no default em vez
+  /// de deixar o app sem paleta.
+  CockpitThemeSpec get activeTheme {
+    for (final theme in availableThemes) {
+      if (theme.id == _settings.themeId) return theme;
+    }
+    return cockpitDefaultTheme;
+  }
+
+  void setThemeId(String id) => _apply(_settings.copyWith(themeId: id));
+
+  /// Importa um tema de [file] e já o **ativa** — quem acabou de escolher um
+  /// arquivo quer ver o resultado, não ir procurar no dropdown depois.
+  Future<Result<CockpitThemeSpec, ThemeStoreError>> importTheme(
+    File file,
+  ) async {
+    final result = await _themeStore.import(file);
+    if (result case Success(:final value)) {
+      _customThemes = await _themeStore.loadAll();
+      _apply(_settings.copyWith(themeId: value.id));
+    }
+    return result;
+  }
+
+  /// Exporta o tema ativo para [path]. Sempre gera arquivo completo (sem
+  /// `extends`), então serve de ponto de partida para editar à mão.
+  Future<Result<void, ThemeStoreError>> exportActiveTheme(String path) =>
+      _themeStore.export(activeTheme, path);
+
+  /// Remove um tema importado. Se era o ativo, volta pro default — o app nunca
+  /// fica apontando para um tema que não existe mais.
+  Future<Result<void, ThemeStoreError>> deleteTheme(String id) async {
+    final result = await _themeStore.delete(id);
+    if (result.isSuccess) {
+      _customThemes = await _themeStore.loadAll();
+      if (_settings.themeId == id) {
+        _apply(_settings.copyWith(themeId: kDefaultThemeId));
+      } else {
+        notifyListeners();
+      }
+    }
+    return result;
+  }
+
+  /// `true` quando [id] é de um tema importado (built-in não é removível).
+  bool isCustomTheme(String id) => _customThemes.any((t) => t.id == id);
 
   /// Define (ou limpa, se `null` = "System") o idioma da interface.
   void setLocale(String? code) {

@@ -45,6 +45,7 @@ class TranslationsEs extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$settings$es settings = _Translations$settings$es._(_root);
 	@override late final _Translations$automation$es automation = _Translations$automation$es._(_root);
 	@override late final _Translations$fileOperation$es fileOperation = _Translations$fileOperation$es._(_root);
+	@override late final _Translations$theme$es theme = _Translations$theme$es._(_root);
 }
 
 // Path: core
@@ -167,6 +168,16 @@ class _Translations$fileOperation$es extends Translations$fileOperation$en {
 
 	// Translations
 	@override late final _Translations$fileOperation$error$es error = _Translations$fileOperation$error$es._(_root);
+}
+
+// Path: theme
+class _Translations$theme$es extends Translations$theme$en {
+	_Translations$theme$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override late final _Translations$theme$error$es error = _Translations$theme$error$es._(_root);
 }
 
 // Path: core.bootstrapError
@@ -643,6 +654,28 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String generateWith({required Object harness}) => 'Generar con ${harness}';
 	@override String get generateUnavailableWhileAmending => 'No disponible mientras se enmienda un commit';
 	@override String get cancelGeneration => 'Cancelar generación';
+	@override String get changes => 'Cambios';
+	@override String get history => 'Historial';
+	@override String get historyRepository => 'Repositorio';
+	@override String get historyNoRepository => 'No hay ningun repositorio Git disponible.';
+	@override String get historyEmpty => 'No se encontraron commits.';
+	@override String get historyLoadFailed => 'No se pudo cargar el historial de Git.';
+	@override String get historyUntitledCommit => 'Commit sin titulo';
+	@override String get historyNow => 'ahora';
+	@override String historyMinutesAgo({required Object count}) => 'hace ${count} min';
+	@override String historyHoursAgo({required Object count}) => 'hace ${count} h';
+	@override String get historyYesterday => 'ayer';
+	@override String get historyDayAgo => 'hace 1 dia';
+	@override String historyDaysAgo({required Object count}) => 'hace ${count} dias';
+	@override String get historyFiles => 'Archivos modificados';
+	@override String get historyFilesEmpty => 'No hay archivos modificados.';
+	@override String get historyFilesLoadFailed => 'No se pudieron cargar los archivos modificados.';
+	@override String get diffEmptyTree => 'Arbol vacio';
+	@override String diffOriginal({required Object ref}) => 'Original ${ref}';
+	@override String diffModified({required Object ref}) => 'Modificado ${ref}';
+	@override String get diffWorkingTree => 'Directorio de trabajo';
+	@override String get diffBinaryFile => 'Archivo binario - sin diff de texto.';
+	@override String get diffNoChanges => 'Sin cambios.';
 }
 
 // Path: cockpit.fileViewer
@@ -1117,6 +1150,25 @@ class _Translations$fileOperation$error$es extends Translations$fileOperation$er
 	@override String get invalidName => 'Nombre inválido.';
 }
 
+// Path: theme.error
+class _Translations$theme$error$es extends Translations$theme$error$en {
+	_Translations$theme$error$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get io => 'No se pudo leer o escribir el archivo del tema.';
+	@override String ioDetail({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}';
+	@override String malformedJson({required Object detail}) => 'Este archivo no es JSON válido: ${detail}';
+	@override String get invalidTheme => 'Este archivo no es un tema válido.';
+	@override String get reservedId => 'Este tema usa el id de un tema nativo. Cambia el "id" en el archivo e impórtalo de nuevo.';
+	@override String notAnObject({required Object field}) => 'Se esperaba un objeto en "${field}".';
+	@override String missingField({required Object field}) => 'Falta el campo obligatorio "${field}".';
+	@override String badColor({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.';
+	@override String unknownBase({required Object value}) => 'Tema base "${value}" desconocido en "extends".';
+	@override String get noVariants => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".';
+}
+
 // Path: settings.page.header
 class _Translations$settings$page$header$es extends Translations$settings$page$header$en {
 	_Translations$settings$page$header$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -1237,6 +1289,16 @@ class _Translations$settings$page$appearance$es extends Translations$settings$pa
 
 	// Translations
 	@override String get sectionTheme => 'Tema';
+	@override String get themeTitle => 'Tema';
+	@override String get themeDesc => 'Colores de la app, resaltado de código y paleta del terminal.';
+	@override String get modeTitle => 'Modo';
+	@override String get modeDesc => 'Qué variante del tema usar.';
+	@override String modeOnlyDark({required Object theme}) => '"${theme}" solo trae la variante oscura, así que esto no tiene efecto.';
+	@override String modeOnlyLight({required Object theme}) => '"${theme}" solo trae la variante clara, así que esto no tiene efecto.';
+	@override String get themeFileTitle => 'Archivo de tema';
+	@override String get themeFileDesc => 'Importa un tema desde un archivo JSON, o exporta el activo.';
+	@override String get previewCode => 'Código';
+	@override String get previewTerminal => 'Terminal';
 	@override String get themeSystem => 'Sistema';
 	@override String get themeLight => 'Claro';
 	@override String get themeDark => 'Oscuro';
@@ -1248,13 +1310,37 @@ class _Translations$settings$page$appearance$es extends Translations$settings$pa
 	@override String get codeFontDesc => 'Código y diffs. Vacío = predeterminado del sistema.';
 	@override String get codeSizeTitle => 'Tamaño del código';
 	@override String get terminalFontTitle => 'Fuente del terminal';
-	@override String get terminalFontDesc => 'Usa el tamaño del código. Vacío = predeterminado del sistema.';
-	@override String get sectionSyntax => 'Sintaxis';
-	@override String get highlightThemeTitle => 'Tema de resaltado';
-	@override String get highlightThemeDesc => 'Colores del código, independientes del tema de la aplicación.';
+	@override String get terminalFontDesc => 'Solo la terminal. Vacío = predeterminado del sistema.';
+	@override String get terminalSizeTitle => 'Tamaño de la terminal';
+	@override String get terminalSizeDesc => 'Apagado = sigue el tamaño del código.';
+	@override String get terminalSizeInherit => 'Seguir el código';
+	@override String get terminalWeightTitle => 'Grosor de la terminal';
+	@override String get terminalWeightDesc => 'Las pantallas de baja densidad engrosan los trazos. El automático los afina solo ahí y no toca la Retina.';
+	@override String get terminalWeightAuto => 'Automático (según la pantalla)';
+	@override String get terminalWeightLight => 'Fino';
+	@override String get terminalWeightNormal => 'Normal';
+	@override String get terminalWeightMedium => 'Medio';
+	@override String get terminalWeightSemiBold => 'Seminegrita';
 	@override String get sectionConversation => 'Conversación';
 	@override String get pinUserMessageTitle => 'Fijar mensaje del usuario';
 	@override String get pinUserMessageDesc => 'La pregunta permanece fija arriba mientras la respuesta se desplaza.';
+	@override String get importTheme => 'Importar…';
+	@override String get exportTheme => 'Exportar…';
+	@override String get deleteTheme => 'Eliminar';
+	@override String get importThemeDialog => 'Elige un archivo de tema';
+	@override String get exportThemeDialog => 'Guardar tema como';
+	@override String themeImported({required Object name}) => 'Tema "${name}" importado.';
+	@override String get themeExported => 'Tema guardado.';
+	@override String get themeDeleted => 'Tema eliminado.';
+	@override String get fontPickerTitle => 'Elegir una fuente';
+	@override String get fontPickerSearch => 'Buscar fuentes';
+	@override String get fontPickerEmpty => 'No hay ninguna fuente coincidente en esta máquina.';
+	@override String get fontPickerBundled => 'incluida';
+	@override String get fontPickerCustom => '¿No está en la lista? Escribe el nombre exacto de la familia.';
+	@override String get fontPickerCustomHint => 'Nombre de la familia';
+	@override String get fontPickerUse => 'Usar';
+	@override String get fontPickerDefault => 'Predeterminada';
+	@override String get fontMissing => 'No se encontró en esta máquina — usando el respaldo.';
 }
 
 // Path: settings.page.notifications
@@ -1784,6 +1870,28 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.generateWith' => ({required Object harness}) => 'Generar con ${harness}',
 			'cockpit.fileTreePanel.generateUnavailableWhileAmending' => 'No disponible mientras se enmienda un commit',
 			'cockpit.fileTreePanel.cancelGeneration' => 'Cancelar generación',
+			'cockpit.fileTreePanel.changes' => 'Cambios',
+			'cockpit.fileTreePanel.history' => 'Historial',
+			'cockpit.fileTreePanel.historyRepository' => 'Repositorio',
+			'cockpit.fileTreePanel.historyNoRepository' => 'No hay ningun repositorio Git disponible.',
+			'cockpit.fileTreePanel.historyEmpty' => 'No se encontraron commits.',
+			'cockpit.fileTreePanel.historyLoadFailed' => 'No se pudo cargar el historial de Git.',
+			'cockpit.fileTreePanel.historyUntitledCommit' => 'Commit sin titulo',
+			'cockpit.fileTreePanel.historyNow' => 'ahora',
+			'cockpit.fileTreePanel.historyMinutesAgo' => ({required Object count}) => 'hace ${count} min',
+			'cockpit.fileTreePanel.historyHoursAgo' => ({required Object count}) => 'hace ${count} h',
+			'cockpit.fileTreePanel.historyYesterday' => 'ayer',
+			'cockpit.fileTreePanel.historyDayAgo' => 'hace 1 dia',
+			'cockpit.fileTreePanel.historyDaysAgo' => ({required Object count}) => 'hace ${count} dias',
+			'cockpit.fileTreePanel.historyFiles' => 'Archivos modificados',
+			'cockpit.fileTreePanel.historyFilesEmpty' => 'No hay archivos modificados.',
+			'cockpit.fileTreePanel.historyFilesLoadFailed' => 'No se pudieron cargar los archivos modificados.',
+			'cockpit.fileTreePanel.diffEmptyTree' => 'Arbol vacio',
+			'cockpit.fileTreePanel.diffOriginal' => ({required Object ref}) => 'Original ${ref}',
+			'cockpit.fileTreePanel.diffModified' => ({required Object ref}) => 'Modificado ${ref}',
+			'cockpit.fileTreePanel.diffWorkingTree' => 'Directorio de trabajo',
+			'cockpit.fileTreePanel.diffBinaryFile' => 'Archivo binario - sin diff de texto.',
+			'cockpit.fileTreePanel.diffNoChanges' => 'Sin cambios.',
 			'cockpit.fileViewer.cantOpen' => 'No se puede abrir este archivo.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'No se pudo cargar la imagen.',
 			'cockpit.fileViewer.preview' => 'Vista previa',
@@ -1964,6 +2072,8 @@ extension on TranslationsEs {
 			'settings.revokeDialog.deviceRemoved' => 'Dispositivo eliminado.',
 			'settings.revokeDialog.failedToRevoke' => 'No se pudo revocar el dispositivo.',
 			'settings.revokeDialog.revoking' => 'Revocando…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.revokeDialog.revokingDevice' => ({required Object name}) => 'Revocando ${name}…',
 			'settings.revokeDialog.connectingMessage' => 'Conectando al relay y quitando el acceso.',
 			'settings.revokeDialog.ok' => 'Ok',
@@ -1986,8 +2096,6 @@ extension on TranslationsEs {
 			'settings.page.nav.language' => 'Lenguaje',
 			'settings.page.nav.shortcuts' => 'Atajos',
 			'settings.page.nav.notifications' => 'Notificaciones',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.nav.connectivity' => 'Conectividad',
 			'settings.page.nav.daemonAgents' => 'Agentes Daemon',
 			'settings.page.nav.schedules' => 'Programaciones',
@@ -2042,6 +2150,16 @@ extension on TranslationsEs {
 			'settings.page.terminal.shellDesc' => 'Qué shell abren las nuevas pestañas de terminal. La flecha junto al + sigue abriendo cualquier otro, solo para esa pestaña.',
 			'settings.page.terminal.noWslMessage' => 'No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
+			'settings.page.appearance.themeTitle' => 'Tema',
+			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
+			'settings.page.appearance.modeTitle' => 'Modo',
+			'settings.page.appearance.modeDesc' => 'Qué variante del tema usar.',
+			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" solo trae la variante oscura, así que esto no tiene efecto.',
+			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" solo trae la variante clara, así que esto no tiene efecto.',
+			'settings.page.appearance.themeFileTitle' => 'Archivo de tema',
+			'settings.page.appearance.themeFileDesc' => 'Importa un tema desde un archivo JSON, o exporta el activo.',
+			'settings.page.appearance.previewCode' => 'Código',
+			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
@@ -2053,13 +2171,37 @@ extension on TranslationsEs {
 			'settings.page.appearance.codeFontDesc' => 'Código y diffs. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.codeSizeTitle' => 'Tamaño del código',
 			'settings.page.appearance.terminalFontTitle' => 'Fuente del terminal',
-			'settings.page.appearance.terminalFontDesc' => 'Usa el tamaño del código. Vacío = predeterminado del sistema.',
-			'settings.page.appearance.sectionSyntax' => 'Sintaxis',
-			'settings.page.appearance.highlightThemeTitle' => 'Tema de resaltado',
-			'settings.page.appearance.highlightThemeDesc' => 'Colores del código, independientes del tema de la aplicación.',
+			'settings.page.appearance.terminalFontDesc' => 'Solo la terminal. Vacío = predeterminado del sistema.',
+			'settings.page.appearance.terminalSizeTitle' => 'Tamaño de la terminal',
+			'settings.page.appearance.terminalSizeDesc' => 'Apagado = sigue el tamaño del código.',
+			'settings.page.appearance.terminalSizeInherit' => 'Seguir el código',
+			'settings.page.appearance.terminalWeightTitle' => 'Grosor de la terminal',
+			'settings.page.appearance.terminalWeightDesc' => 'Las pantallas de baja densidad engrosan los trazos. El automático los afina solo ahí y no toca la Retina.',
+			'settings.page.appearance.terminalWeightAuto' => 'Automático (según la pantalla)',
+			'settings.page.appearance.terminalWeightLight' => 'Fino',
+			'settings.page.appearance.terminalWeightNormal' => 'Normal',
+			'settings.page.appearance.terminalWeightMedium' => 'Medio',
+			'settings.page.appearance.terminalWeightSemiBold' => 'Seminegrita',
 			'settings.page.appearance.sectionConversation' => 'Conversación',
 			'settings.page.appearance.pinUserMessageTitle' => 'Fijar mensaje del usuario',
 			'settings.page.appearance.pinUserMessageDesc' => 'La pregunta permanece fija arriba mientras la respuesta se desplaza.',
+			'settings.page.appearance.importTheme' => 'Importar…',
+			'settings.page.appearance.exportTheme' => 'Exportar…',
+			'settings.page.appearance.deleteTheme' => 'Eliminar',
+			'settings.page.appearance.importThemeDialog' => 'Elige un archivo de tema',
+			'settings.page.appearance.exportThemeDialog' => 'Guardar tema como',
+			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
+			'settings.page.appearance.themeExported' => 'Tema guardado.',
+			'settings.page.appearance.themeDeleted' => 'Tema eliminado.',
+			'settings.page.appearance.fontPickerTitle' => 'Elegir una fuente',
+			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
+			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
+			'settings.page.appearance.fontPickerBundled' => 'incluida',
+			'settings.page.appearance.fontPickerCustom' => '¿No está en la lista? Escribe el nombre exacto de la familia.',
+			'settings.page.appearance.fontPickerCustomHint' => 'Nombre de la familia',
+			'settings.page.appearance.fontPickerUse' => 'Usar',
+			'settings.page.appearance.fontPickerDefault' => 'Predeterminada',
+			'settings.page.appearance.fontMissing' => 'No se encontró en esta máquina — usando el respaldo.',
 			'settings.page.notifications.sectionTitle' => 'Notificaciones',
 			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
 			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',
@@ -2229,6 +2371,16 @@ extension on TranslationsEs {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'El nombre no puede contener “/”.',
 			'fileOperation.error.invalidName' => 'Nombre inválido.',
+			'theme.error.io' => 'No se pudo leer o escribir el archivo del tema.',
+			'theme.error.ioDetail' => ({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}',
+			'theme.error.malformedJson' => ({required Object detail}) => 'Este archivo no es JSON válido: ${detail}',
+			'theme.error.invalidTheme' => 'Este archivo no es un tema válido.',
+			'theme.error.reservedId' => 'Este tema usa el id de un tema nativo. Cambia el "id" en el archivo e impórtalo de nuevo.',
+			'theme.error.notAnObject' => ({required Object field}) => 'Se esperaba un objeto en "${field}".',
+			'theme.error.missingField' => ({required Object field}) => 'Falta el campo obligatorio "${field}".',
+			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.',
+			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
+			'theme.error.noVariants' => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".',
 			_ => null,
 		};
 	}

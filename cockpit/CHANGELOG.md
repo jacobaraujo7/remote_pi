@@ -24,6 +24,61 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [1.24.0] - 2026-08-07
+
+Git history, a real font picker, and clickable paths that actually click.
+
+### Added
+
+- **Git history panel.** Browse the repository's commits, see which files each
+  one touched, and open the change in the editor from there (thanks,
+  @HumbertoChiesi).
+- **Font picker.** Pick interface, code and terminal fonts from the families
+  installed on the machine, each name drawn in its own font, with search. Typing
+  an exact family name by hand still works.
+- **Terminal size and weight of their own.** The terminal no longer has to
+  follow the code size, and the stroke weight is now a setting. Auto lightens it
+  on low-density screens, where the same font renders heavier, and leaves Retina
+  untouched.
+- **Copy branch** in the workspace menu. In a multi-repo workspace it opens a
+  submenu with one entry per root, like Pull and Push.
+
+### Fixed
+
+- **Clicking a relative file path in the terminal did nothing.** Absolute paths
+  opened, so the failure was easy to miss, but `lib/foo.dart:12:3` is exactly
+  what `dart analyze` and `flutter test` print. Paths are now resolved against
+  the tab's directory. The same click now works in a task's output pane, which
+  had no handler at all.
+
+## [1.23.0] - 2026-08-06
+
+Themes: eight of them, and any JSON file can become one.
+
+### Added
+
+- **Themes.** One choice now paints the whole app: interface, code highlighting
+  and terminal palette together. Eight come built in, from the official
+  **Cockpit** to **Pantera** (pure black in dark, pure white in light), each
+  with a light and a dark variant picked by the new **Mode** setting.
+- **Import and export themes**, in Settings, Appearance. A theme is a single
+  JSON file you can share, version or edit by hand: declare only the tokens you
+  want to change and the rest is inherited. Format in `docs/theme-format.md`.
+- **Live preview** of how code and terminal will look, in the Appearance tab.
+- **Middle-click a tab to close it** (thanks, @thKali).
+
+### Fixed
+
+- **"Cockpit closed unexpectedly" on every launch (Windows).** Closing through
+  the title bar X destroyed the window without Cockpit noticing, so the next
+  launch always assumed a crash, and dismissing the notice did not help because
+  the notice is not what clears it. Cockpit now handles the closing itself.
+- **Code and terminal share the tab's background**, instead of two neighbouring
+  tabs showing two different shades of black with a seam between them.
+- Text over the accent color is picked by measuring contrast instead of
+  assuming white, so a light accent no longer gets unreadable labels.
+- Closing a workspace no longer floods the console (thanks, @thKali).
+
 ## [1.22.0] - 2026-08-05
 
 A focus overhaul for the terminal, plus a rescue for workspaces whose folder is

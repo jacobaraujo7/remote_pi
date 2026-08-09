@@ -15,7 +15,7 @@ Future<AgentEditResult?> showAgentEditDialog(
 }) {
   return showDialog<AgentEditResult>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _AgentEditDialog(session: session),
   );
 }

@@ -22,6 +22,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_history_reader.dart';
+import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/layout_loader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
@@ -39,9 +41,12 @@ import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/entities/content_search.dart';
+import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_history_commit.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_history_file_change.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
@@ -77,6 +82,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_cli_handler.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/git_controller.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/realm_controller.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:window_manager/window_manager.dart';
 
 /// Controlador do shell: projetos, árvore de splits **por projeto**, sessões de
@@ -113,6 +119,7 @@ class CockpitViewModel extends ChangeNotifier {
     this._scrollback,
     this._gitRunner,
     this._gitDiff,
+    this._gitHistory,
     this._automation,
     this.realmCtrl,
     this._taskDiscovery,
@@ -183,6 +190,7 @@ class CockpitViewModel extends ChangeNotifier {
   final TerminalScrollbackStore _scrollback;
   final GitCommandRunner _gitRunner;
   final GitDiffReader _gitDiff;
+  final GitHistoryReader _gitHistory;
   final AutomationController _automation;
   AutomationSelection? _automationSelection;
 
@@ -611,6 +619,10 @@ class CockpitViewModel extends ChangeNotifier {
     String path, {
     String? inPane,
     bool isPreview = true,
+    int? revealLine,
+    Set<int>? addedLines,
+    Set<int>? modifiedLines,
+    Set<int>? removedLines,
   }) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
@@ -631,6 +643,16 @@ class CockpitViewModel extends ChangeNotifier {
         // Se já aberto, só seleciona (mas transforma preview em normal se não é preview).
         if (s.path == path) {
           if (!isPreview && s.isPreview) s.pin();
+          if (addedLines != null &&
+              modifiedLines != null &&
+              removedLines != null) {
+            s.setGitChangeLines(
+              added: addedLines,
+              modified: modifiedLines,
+              removed: removedLines,
+            );
+          }
+          if (revealLine != null) s.reveal(revealLine, select: false);
           _trees[projectId] = updateLeaf(
             tree,
             paneId,
@@ -654,7 +676,19 @@ class CockpitViewModel extends ChangeNotifier {
       previewCandidate.path = path;
       previewCandidate.view = view;
       previewCandidate.dirty = false;
-      previewCandidate.notifyListeners(); // Força rebuild do FileViewer
+      previewCandidate.revealLine = null;
+      if (addedLines != null && modifiedLines != null && removedLines != null) {
+        previewCandidate.setGitChangeLines(
+          added: addedLines,
+          modified: modifiedLines,
+          removed: removedLines,
+        );
+      }
+      if (revealLine != null) {
+        previewCandidate.reveal(revealLine, select: false);
+      } else {
+        previewCandidate.notifyListeners(); // Força rebuild do FileViewer
+      }
       _trees[projectId] = updateLeaf(
         tree,
         paneId,
@@ -672,6 +706,14 @@ class CockpitViewModel extends ChangeNotifier {
       view: view,
       isPreview: isPreview,
     );
+    if (addedLines != null && modifiedLines != null && removedLines != null) {
+      viewer.setGitChangeLines(
+        added: addedLines,
+        modified: modifiedLines,
+        removed: removedLines,
+      );
+    }
+    if (revealLine != null) viewer.reveal(revealLine, select: false);
     _sessions[viewer.id] = viewer;
     _watchFileViewer(viewer);
 
@@ -724,6 +766,80 @@ class CockpitViewModel extends ChangeNotifier {
       );
     }
     notifyListeners();
+  }
+
+  /// Abre uma mudanca no arquivo normal, revelando a primeira linha afetada.
+  /// Arquivos apagados nao existem mais no working tree e continuam no diff.
+  Future<void> openChangedFile(String path) async {
+    final projectId = _selectedProjectId;
+    if (projectId == null) return;
+    final root = rootContaining(projectId, path);
+    if (root == null) return;
+
+    final diff = await _gitDiff.read(root, path);
+    if (_selectedProjectId != projectId || diff.kind == FileDiffKind.deleted) {
+      return;
+    }
+    final changes = _gitChangeLines(diff);
+    await openFile(
+      path,
+      isPreview: false,
+      revealLine: changes.firstLine,
+      addedLines: changes.added,
+      modifiedLines: changes.modified,
+      removedLines: changes.removed,
+    );
+  }
+
+  ({Set<int> added, Set<int> modified, Set<int> removed, int? firstLine})
+  _gitChangeLines(FileDiff diff) {
+    final added = <int>{};
+    final modified = <int>{};
+    final removed = <int>{};
+    int? firstLine;
+    final pendingRemoved = <DiffLine>[];
+    final pendingAdded = <DiffLine>[];
+
+    void flush() {
+      final pairs = pendingRemoved.length < pendingAdded.length
+          ? pendingRemoved.length
+          : pendingAdded.length;
+      for (var index = 0; index < pairs; index++) {
+        final line = pendingAdded[index].newLine;
+        if (line != null) modified.add(line);
+      }
+      for (final line in pendingAdded.skip(pairs)) {
+        if (line.newLine != null) added.add(line.newLine!);
+      }
+      for (final line in pendingRemoved.skip(pairs)) {
+        if (line.oldLine != null) removed.add(line.oldLine!);
+      }
+      pendingRemoved.clear();
+      pendingAdded.clear();
+    }
+
+    for (final hunk in diff.hunks) {
+      for (final line in hunk.lines) {
+        if (line.kind != DiffLineKind.context) {
+          firstLine ??= line.newLine ?? line.oldLine;
+        }
+        switch (line.kind) {
+          case DiffLineKind.removed:
+            pendingRemoved.add(line);
+          case DiffLineKind.added:
+            pendingAdded.add(line);
+          case DiffLineKind.context:
+            flush();
+        }
+      }
+      flush();
+    }
+    return (
+      added: added,
+      modified: modified,
+      removed: removed,
+      firstLine: firstLine,
+    );
   }
 
   /// Abre uma tab `.dbq` **untitled** (scratch, VSCode-style): buffer em
@@ -964,9 +1080,24 @@ class CockpitViewModel extends ChangeNotifier {
     return out;
   }
 
+  String _relativePath(String root, String path) {
+    final normalizedRoot = root.endsWith('/')
+        ? root.substring(0, root.length - 1)
+        : root;
+    return path.startsWith('$normalizedRoot/')
+        ? path.substring(normalizedRoot.length + 1)
+        : path;
+  }
+
   /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
   /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
-  Future<void> openDiff(String path, {bool isPreview = true}) async {
+  Future<void> openDiff(
+    String path, {
+    bool isPreview = true,
+    String? commitHash,
+    String? repoRoot,
+    String? previousRelativePath,
+  }) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     final paneId = projectId == null ? null : _focused[projectId];
@@ -974,7 +1105,7 @@ class CockpitViewModel extends ChangeNotifier {
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
     // Diff roda contra a root que contém o arquivo (multi-root: o repo filho).
-    final root = rootContaining(projectId, path);
+    final root = repoRoot ?? rootContaining(projectId, path);
     if (root == null) return;
 
     // Já aberto? Seleciona (e fixa se não é preview).
@@ -982,7 +1113,7 @@ class CockpitViewModel extends ChangeNotifier {
     for (final tabId in leaf.tabs) {
       final s = _sessions[tabId];
       if (s is DiffViewerSession) {
-        if (s.path == path) {
+        if (s.path == path && s.commitHash == commitHash) {
           if (!isPreview && s.isPreview) s.pin();
           _trees[projectId] = updateLeaf(
             tree,
@@ -998,13 +1129,25 @@ class CockpitViewModel extends ChangeNotifier {
       }
     }
 
-    final diff = await _gitDiff.read(root, path);
+    final diff = commitHash == null
+        ? await _gitDiff.read(root, path)
+        : await _gitDiff.readCommit(
+            root,
+            commitHash,
+            _relativePath(root, path),
+            previousRelativePath: previousRelativePath,
+          );
 
     // Reutiliza a aba de preview de diff, se houver.
     if (isPreview && previewCandidate != null) {
       previewCandidate
         ..path = path
         ..diff = diff
+        ..commitHash = commitHash
+        ..repoRoot = commitHash == null ? null : root
+        ..previousRelativePath = commitHash == null
+            ? null
+            : previousRelativePath
         ..notifyListeners();
       _trees[projectId] = updateLeaf(
         tree,
@@ -1020,6 +1163,9 @@ class CockpitViewModel extends ChangeNotifier {
       projectId: projectId,
       path: path,
       diff: diff,
+      commitHash: commitHash,
+      repoRoot: commitHash == null ? null : root,
+      previousRelativePath: commitHash == null ? null : previousRelativePath,
       isPreview: isPreview,
     );
     _sessions[viewer.id] = viewer;
@@ -1062,6 +1208,20 @@ class CockpitViewModel extends ChangeNotifier {
     }
     notifyListeners();
   }
+
+  /// Abre o diff que um commit introduziu em [relativePath].
+  Future<void> openCommitDiff(
+    String repoPath,
+    String commitHash,
+    GitHistoryFileChange change, {
+    bool isPreview = true,
+  }) => openDiff(
+    '${repoPath.endsWith('/') ? repoPath.substring(0, repoPath.length - 1) : repoPath}/${change.path}',
+    isPreview: isPreview,
+    commitHash: commitHash,
+    repoRoot: repoPath,
+    previousRelativePath: change.previousPath,
+  );
 
   /// Seleciona um arquivo no FileTreePanel (atualiza o highlight).
   void selectFileInTree(String path) {
@@ -1700,10 +1860,13 @@ class CockpitViewModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    // OFF: encerra runtime (mata PTYs/sessões/timers) e remove o sintético.
+    // OFF: remove o sintético e encerra o runtime (mata PTYs/sessões/timers)
+    // — nessa ordem, e o runtime só depois do frame que desmonta os panes:
+    // liberar o terminal nativo com a view montada é SIGSEGV no libghostty
+    // (ver [removeProject]).
     final wasSelected = _selectedProjectId == Project.cockpitId;
-    _disposeProjectRuntime(Project.cockpitId);
     _projectList.removeWhere((p) => p.isSystemTerminal);
+    unawaited(_disposeRuntimeAfterFrame(Project.cockpitId));
     if (wasSelected) {
       final roots = rootProjects;
       _selectedProjectId = roots.isEmpty ? null : roots.first.id;
@@ -1957,22 +2120,103 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pra onde a seleção vai quando o workspace [excluding] deixa de existir:
+  /// o primeiro workspace raiz do realm ativo que não seja ele, senão o
+  /// Cockpit (se ligado), senão `null` — rail vazio → `WelcomeView`.
+  String? _selectionAfterClosing(String excluding) {
+    for (final p in rootProjects) {
+      if (p.id != excluding) return p.id;
+    }
+    return cockpitWorkspace != null ? Project.cockpitId : null;
+  }
+
+  /// Espera o fim do frame em que a UI aplica a última notificação — ou seja,
+  /// o frame que **desmonta** os panes de um workspace que saiu da lista.
+  ///
+  /// O timeout evita travar o fechamento se não houver frame agendado (janela
+  /// minimizada, app sem listeners): pior caso é voltar ao comportamento antigo.
+  Future<void> _endOfFrame() async {
+    try {
+      await SchedulerBinding.instance.endOfFrame.timeout(
+        const Duration(milliseconds: 500),
+      );
+    } on TimeoutException {
+      // Sem frame: segue o fechamento mesmo assim.
+    }
+  }
+
+  /// [_disposeProjectRuntime] adiado pro fim do frame — para call-sites
+  /// síncronos que acabaram de tirar o projeto da lista. Ver [removeProject].
+  Future<void> _disposeRuntimeAfterFrame(String id) async {
+    await _endOfFrame();
+    _disposeProjectRuntime(id);
+  }
+
+  /// Fecha o workspace [id] (e as worktrees dele) — remove da lista local,
+  /// encerra os processos e apaga a persistência. **Não** deleta a pasta.
+  ///
+  /// Ordem obrigatória: **sai → desmonta → destrói**. Fechar o workspace atual
+  /// crashava o app com `SIGSEGV` dentro do `libghostty`
+  /// (`ghostty_terminal_get*` na thread `io.flutter.ui`) — use-after-free do
+  /// handle nativo do terminal. O runtime era encerrado primeiro
+  /// (`_disposeProjectRuntime` → `TerminalSession.dispose` →
+  /// `GhosttyTerminalController.dispose` → libera o terminal nativo) com as
+  /// `TerminalView` do workspace **ainda montadas**: o layout/`detach()` do
+  /// frame seguinte tocava um ponteiro liberado. Não é exceção Dart — é
+  /// segfault, por isso não havia stack trace no console.
+  ///
+  /// Por isso:
+  /// 1. troca a seleção e espera o destino subir (o usuário sai do workspace
+  ///    antes de ele deixar de existir; sem destino → `WelcomeView`);
+  /// 2. tira da lista, notifica e **espera o frame**, pra Flutter desmontar as
+  ///    views enquanto os controllers ainda estão vivos (ordem que o `flterm`
+  ///    espera: `view.dispose()` → `detach()` → só depois `controller.dispose()`);
+  /// 3. só então encerra o runtime (mata `pi`/PTY e libera o Ghostty);
+  /// 4. persistência por último.
   Future<void> removeProject(String id) async {
-    // Encerra as worktrees do workspace junto (não deixa fork órfão).
-    for (final fork in _worktrees.remove(id) ?? const <Project>[]) {
+    if (_projectById(id) == null) return;
+    final selected = _selectedProjectId;
+    final forks = List<Project>.of(_worktrees[id] ?? const <Project>[]);
+    final leaving = selected == id || forks.any((f) => f.id == selected);
+
+    // (1) Sai do workspace antes de destruí-lo.
+    if (leaving) {
+      final next = _selectionAfterClosing(id);
+      _selectedProjectId = next;
+      _clearFocusedNotification();
+      _requestPaneKeyboard();
+      git.watchProject(next);
+      notifyListeners();
+      if (next != null) {
+        await _activateProject(next); // reconstrói o destino (idempotente)
+        unawaited(git.refresh(next));
+        unawaited(_projects.saveLastSelected(realmCtrl.activeId, next));
+      }
+    }
+
+    // (2) Some da UI — e espera o frame que desmonta os panes.
+    _worktrees.remove(id);
+    _projectList.removeWhere((p) => p.id == id || p.parentId == id);
+    // Rede de segurança: seleção apontando pra algo que sumiu junto (ou que já
+    // não existia) cai no mesmo fallback.
+    if (_selectedProjectId != null &&
+        _projectById(_selectedProjectId) == null) {
+      _selectedProjectId = _selectionAfterClosing(id);
+      git.watchProject(_selectedProjectId);
+    }
+    notifyListeners();
+    await _endOfFrame();
+
+    // (3) Nenhuma view referencia mais estas sessões — agora é seguro liberar
+    // os terminais nativos.
+    for (final fork in forks) {
       _disposeProjectRuntime(fork.id);
-      _projectList.removeWhere((p) => p.id == fork.id);
     }
     _disposeProjectRuntime(id);
-    _projectList.removeWhere((p) => p.id == id);
-    if (_selectedProjectId == id || _projectById(_selectedProjectId) == null) {
-      _selectedProjectId = rootProjects.isEmpty ? null : rootProjects.first.id;
-    }
+
+    // (4) Persistência por último — não segura a troca de workspace.
     await _projects.remove(id);
     await _layoutStore.remove(id);
-    final next = _selectedProjectId;
-    if (next != null) await _activateProject(next);
-    notifyListeners();
   }
 
   /// Encerra o runtime de um projeto (árvore de panes + sessões + foco + caches),
@@ -2185,6 +2429,22 @@ class CockpitViewModel extends ChangeNotifier {
     final origin = _forkOriginPath(fork);
     if (origin == null) return false;
     return _worktreeMgr.isBranchMerged(origin, fork.name);
+  }
+
+  /// Historico estruturado da root selecionada na visualizacao History.
+  Future<Result<List<GitHistoryCommit>, GitHistoryError>> loadGitHistory(
+    String root,
+  ) => _gitHistory.read(root);
+
+  Future<Result<List<GitHistoryFileChange>, GitHistoryError>>
+  loadGitHistoryFiles(String root, String commitHash) =>
+      _gitHistory.readFiles(root, commitHash);
+
+  /// Atualiza o estado git (e o token do historico) depois de uma operacao
+  /// concluida pelo painel de processo.
+  Future<void> refreshGitProject(String projectId) async {
+    await git.refresh(projectId);
+    git.markHistoryStale();
   }
 
   /// Comita todas as entradas staged da única root do workspace selecionado.
@@ -3849,12 +4109,28 @@ class CockpitViewModel extends ChangeNotifier {
       case 'diff':
         final path = desc['path'] as String?;
         if (path == null) return false;
-        final diff = await _gitDiff.read(project.path, path);
+        final commitHash = desc['commitHash'] as String?;
+        final repoRoot = desc['repoRoot'] as String?;
+        final previousRelativePath = desc['previousPath'] as String?;
+        if (commitHash != null && (repoRoot == null || repoRoot.isEmpty)) {
+          return false;
+        }
+        final diff = commitHash == null
+            ? await _gitDiff.read(project.path, path)
+            : await _gitDiff.readCommit(
+                repoRoot!,
+                commitHash,
+                _relativePath(repoRoot, path),
+                previousRelativePath: previousRelativePath,
+              );
         _sessions[id] = DiffViewerSession(
           id: id,
           projectId: project.id,
           path: path,
           diff: diff,
+          commitHash: commitHash,
+          repoRoot: repoRoot,
+          previousRelativePath: previousRelativePath,
         );
         return true;
       case 'redis':
@@ -4110,7 +4386,14 @@ class CockpitViewModel extends ChangeNotifier {
       return <String, dynamic>{'type': 'viewer', 'path': s.path};
     }
     if (s is DiffViewerSession) {
-      return <String, dynamic>{'type': 'diff', 'path': s.path};
+      return <String, dynamic>{
+        'type': 'diff',
+        'path': s.path,
+        if (s.commitHash != null) 'commitHash': s.commitHash,
+        if (s.repoRoot != null) 'repoRoot': s.repoRoot,
+        if (s.previousRelativePath != null)
+          'previousPath': s.previousRelativePath,
+      };
     }
     if (s is RedisBrowserSession) {
       return <String, dynamic>{'type': 'redis', 'conn': s.connName};
@@ -4241,15 +4524,25 @@ class CockpitViewModel extends ChangeNotifier {
     final newIds = forks.map((f) => f.id).toSet();
     final oldIds = old.map((f) => f.id).toSet();
 
-    // Forks que sumiram → encerra runtime e tira de _projectList.
+    // Forks que sumiram → tira de _projectList, espera o frame que desmonta os
+    // panes e SÓ ENTÃO encerra o runtime. Mesma ordem de [removeProject]:
+    // liberar o terminal nativo com a `TerminalView` ainda montada é SIGSEGV
+    // dentro do libghostty.
     var switched = false;
-    for (final gone in old.where((f) => !newIds.contains(f.id))) {
-      _disposeProjectRuntime(gone.id);
-      _forkOrigin.remove(gone.id);
-      _projectList.removeWhere((p) => p.id == gone.id);
-      if (_selectedProjectId == gone.id) {
-        _selectedProjectId = rootId; // pai assume
-        switched = true;
+    final vanished = old.where((f) => !newIds.contains(f.id)).toList();
+    if (vanished.isNotEmpty) {
+      for (final gone in vanished) {
+        _forkOrigin.remove(gone.id);
+        _projectList.removeWhere((p) => p.id == gone.id);
+        if (_selectedProjectId == gone.id) {
+          _selectedProjectId = rootId; // pai assume
+          switched = true;
+        }
+      }
+      notifyListeners();
+      await _endOfFrame();
+      for (final gone in vanished) {
+        _disposeProjectRuntime(gone.id);
       }
     }
     // Forks novos → entram em _projectList + carregam layout salvo (decisão 18).

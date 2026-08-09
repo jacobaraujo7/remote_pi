@@ -2,6 +2,8 @@ import 'package:flutter/widgets.dart';
 
 import 'app_colors.dart';
 import 'app_typography.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+
 import 'syntax_colors.dart';
 
 /// Carrega os tokens bespoke do Cockpit (cores, tipografia, syntax) na árvore.
@@ -19,12 +21,14 @@ class CockpitTheme extends InheritedWidget {
     required this.colors,
     required this.typo,
     required this.syntax,
+    required this.terminal,
     required super.child,
   });
 
   final AppColors colors;
   final AppTypography typo;
   final SyntaxColors syntax;
+  final TerminalTheme terminal;
 
   static CockpitTheme? maybeOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<CockpitTheme>();
@@ -39,5 +43,6 @@ class CockpitTheme extends InheritedWidget {
   bool updateShouldNotify(CockpitTheme oldWidget) =>
       colors != oldWidget.colors ||
       typo != oldWidget.typo ||
-      syntax != oldWidget.syntax;
+      syntax != oldWidget.syntax ||
+      terminal != oldWidget.terminal;
 }

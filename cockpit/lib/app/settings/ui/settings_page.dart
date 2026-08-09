@@ -34,8 +34,12 @@ import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
 import 'package:cockpit/app/settings/ui/shortcut_catalog.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/ui/theme_store_error_message.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:cockpit/app/core/ui/font_catalog.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/settings/ui/font_picker_dialog.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -896,7 +900,7 @@ class _StorageSectionState extends State<_StorageSection> {
   Future<bool?> _confirmReset() {
     return showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (context) {
         final colors = context.colors;
         final tr = context.t.settings.page.storage;
@@ -942,7 +946,7 @@ class _StorageSectionState extends State<_StorageSection> {
   Future<void> _promptRestart(String message, {bool quitOnly = false}) {
     return showDialog<void>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (context) {
         final colors = context.colors;
         final tr = context.t.settings.page.storage;
@@ -1106,6 +1110,41 @@ class _TerminalEngineDropdown extends StatelessWidget {
   }
 }
 
+class _TerminalWeightDropdown extends StatelessWidget {
+  const _TerminalWeightDropdown({required this.value, required this.onChanged});
+
+  final TerminalFontWeight value;
+  final ValueChanged<TerminalFontWeight> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.appearance;
+    String label(TerminalFontWeight weight) => switch (weight) {
+      TerminalFontWeight.auto => tr.terminalWeightAuto,
+      TerminalFontWeight.light => tr.terminalWeightLight,
+      TerminalFontWeight.normal => tr.terminalWeightNormal,
+      TerminalFontWeight.medium => tr.terminalWeightMedium,
+      TerminalFontWeight.semiBold => tr.terminalWeightSemiBold,
+    };
+
+    return _DropdownChip(
+      icon: Icons.format_bold,
+      label: label(value),
+      onTap: () async {
+        final picked = await showAppMenu<TerminalFontWeight>(
+          context,
+          minWidth: 200,
+          items: [
+            for (final weight in TerminalFontWeight.values)
+              AppMenuItem(value: weight, label: label(weight)),
+          ],
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
 class _TerminalProfileDropdown extends StatelessWidget {
   const _TerminalProfileDropdown({
     required this.profiles,
@@ -1155,6 +1194,18 @@ class _TerminalProfileDropdown extends StatelessWidget {
 class _AppearancePanel extends StatelessWidget {
   const _AppearancePanel();
 
+  /// Descrição da linha "Modo". Um tema pode trazer só um dos dois variants;
+  /// nesse caso escolher claro/escuro não muda nada, e é melhor dizer isso do
+  /// que deixar o usuário achar que o controle está quebrado.
+  String _modeDescription(BuildContext context, SettingsController controller) {
+    final tr = context.t.settings.page.appearance;
+    final theme = controller.activeTheme;
+    if (theme.hasDark && theme.hasLight) return tr.modeDesc;
+    return theme.hasDark
+        ? tr.modeOnlyDark(theme: theme.name)
+        : tr.modeOnlyLight(theme: theme.name);
+  }
+
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<SettingsController>();
@@ -1169,17 +1220,42 @@ class _AppearancePanel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Tema e modo claro/escuro moram na MESMA seção: "modo" é uma
+              // faceta do tema (qual variant dele usar), não uma preferência
+              // paralela. Separados, a tela mostrava duas coisas chamadas
+              // "Theme" e o usuário tinha de adivinhar qual era qual.
               _Section(
                 label: tr.sectionTheme,
-                child: _Card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _Row(
-                      title: tr.sectionTheme,
-                      trailing: _ThemeDropdown(
-                        value: s.themeMode,
-                        onChanged: controller.setThemeMode,
-                      ),
+                    _Card(
+                      children: [
+                        _Row(
+                          title: tr.themeTitle,
+                          description: tr.themeDesc,
+                          // `activeTheme.id` e não `s.themeId`: um id salvo que
+                          // não existe mais (tema removido do disco, ou built-in
+                          // que saiu numa atualização) resolve pro default, e o
+                          // seletor tem que mostrar o que está pintando a tela.
+                          trailing: _ThemeDropdown(
+                            value: controller.activeTheme.id,
+                            onChanged: controller.setThemeId,
+                          ),
+                        ),
+                        _Row(
+                          title: tr.modeTitle,
+                          description: _modeDescription(context, controller),
+                          trailing: _ThemeModeDropdown(
+                            value: s.themeMode,
+                            onChanged: controller.setThemeMode,
+                          ),
+                        ),
+                        const _ThemeFileRow(),
+                      ],
                     ),
+                    const SizedBox(height: 10),
+                    const _ThemePreview(),
                   ],
                 ),
               ),
@@ -1211,6 +1287,7 @@ class _AppearancePanel extends StatelessWidget {
                       trailing: _FontField(
                         value: s.codeFont,
                         hint: 'JetBrains Mono',
+                        monospacedOnly: true,
                         onChanged: controller.setCodeFont,
                       ),
                     ),
@@ -1229,31 +1306,29 @@ class _AppearancePanel extends StatelessWidget {
                       trailing: _FontField(
                         value: s.terminalFont,
                         hint: 'Menlo · monospace',
+                        monospacedOnly: true,
                         onChanged: controller.setTerminalFont,
                       ),
                     ),
-                  ],
-                ),
-              ),
-              _Section(
-                label: tr.sectionSyntax,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _Card(
-                      children: [
-                        _Row(
-                          title: tr.highlightThemeTitle,
-                          description: tr.highlightThemeDesc,
-                          trailing: _SyntaxDropdown(
-                            value: s.syntaxTheme,
-                            onChanged: controller.setSyntaxTheme,
-                          ),
-                        ),
-                      ],
+                    _Row(
+                      title: tr.terminalSizeTitle,
+                      description: tr.terminalSizeDesc,
+                      trailing: _OptionalSizeStepper(
+                        value: s.terminalSize,
+                        inherited: s.codeSize,
+                        min: 9,
+                        max: 24,
+                        onChanged: controller.setTerminalSize,
+                      ),
                     ),
-                    const SizedBox(height: 10),
-                    const _SyntaxPreview(),
+                    _Row(
+                      title: tr.terminalWeightTitle,
+                      description: tr.terminalWeightDesc,
+                      trailing: _TerminalWeightDropdown(
+                        value: s.terminalFontWeight,
+                        onChanged: controller.setTerminalFontWeight,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -1397,8 +1472,10 @@ class _NotificationPermissionRowState
 
 /// Amostra de código realçada com o tema de syntax atual (atualiza ao trocar o
 /// dropdown). Usa o `context.syntax` (fundo + cores) e o `buildCodeSpan`.
-class _SyntaxPreview extends StatelessWidget {
-  const _SyntaxPreview();
+/// Preview do tema: como o **código** e o **terminal** vão aparecer, no mesmo
+/// campo em que aparecem no app.
+class _ThemePreview extends StatelessWidget {
+  const _ThemePreview();
 
   static const String _sample =
       '{\n'
@@ -1422,15 +1499,122 @@ class _SyntaxPreview extends StatelessWidget {
       language: 'json',
       baseStyle: base,
     );
+    final colors = context.colors;
+    final tr = context.t.settings.page.appearance;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: syntax.background,
+        // O MESMO campo para código e terminal — é o que a unificação faz, e o
+        // preview só prova isso se os dois dividirem um retângulo só, sem
+        // costura no meio. `syntax.background` já é este valor; ler daqui
+        // deixa a intenção explícita.
+        color: colors.panel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: context.colors.border),
+        border: Border.all(color: colors.border),
       ),
-      child: span == null ? Text(_sample, style: base) : Text.rich(span),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PreviewSection(
+            label: tr.previewCode,
+            child: span == null ? Text(_sample, style: base) : Text.rich(span),
+          ),
+          // Divisor fino, não uma borda: o campo continua; o que muda é o que
+          // está desenhado em cima dele.
+          Container(height: 1, color: colors.border),
+          _PreviewSection(
+            label: tr.previewTerminal,
+            child: _TerminalPreviewLines(mono: base),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Um bloco rotulado dentro do preview. O rótulo é discreto de propósito: quem
+/// olha aqui quer ver as cores, não ler.
+class _PreviewSection extends StatelessWidget {
+  const _PreviewSection({required this.label, required this.child});
+  final String label;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label.toUpperCase(),
+            style: context.typo.label.copyWith(
+              fontSize: 9.5,
+              letterSpacing: 0.8,
+              color: context.colors.text4,
+            ),
+          ),
+          const SizedBox(height: 7),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Amostra da paleta **ANSI** do tema: prompt, caminho, saída e cursor. Antes
+/// nenhuma tela mostrava isso — o terminal entrou no tema junto com a UI, mas
+/// só dava para conferir abrindo uma aba e trocando de tema no escuro.
+class _TerminalPreviewLines extends StatelessWidget {
+  const _TerminalPreviewLines({required this.mono});
+  final TextStyle mono;
+
+  @override
+  Widget build(BuildContext context) {
+    final term = context.terminalTheme;
+    TextSpan span(String text, Color color) => TextSpan(
+      text: text,
+      style: mono.copyWith(color: color),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              span('➜  ', term.green),
+              span('cockpit ', term.blue),
+              span('git:', term.brightBlack),
+              span('(main) ', term.magenta),
+              span('flutter test', term.foreground),
+            ],
+          ),
+        ),
+        Text.rich(
+          TextSpan(
+            children: [
+              span('00:18 ', term.brightBlack),
+              span('+814', term.green),
+              span(': ', term.brightBlack),
+              span('All tests passed!', term.foreground),
+              // Cursor como bloco: é a peça do terminal que mais depende do
+              // tema e a que some primeiro num tema mal calibrado.
+              WidgetSpan(
+                alignment: PlaceholderAlignment.middle,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 3),
+                  child: Container(
+                    width: 7,
+                    height: (mono.fontSize ?? 12.5) * 1.15,
+                    color: term.cursor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1663,8 +1847,8 @@ class _DropdownChip extends StatelessWidget {
   }
 }
 
-class _ThemeDropdown extends StatelessWidget {
-  const _ThemeDropdown({required this.value, required this.onChanged});
+class _ThemeModeDropdown extends StatelessWidget {
+  const _ThemeModeDropdown({required this.value, required this.onChanged});
   final AppThemeMode value;
   final ValueChanged<AppThemeMode> onChanged;
 
@@ -1769,32 +1953,187 @@ class _LocaleDropdown extends StatelessWidget {
   }
 }
 
-class _SyntaxDropdown extends StatelessWidget {
-  const _SyntaxDropdown({required this.value, required this.onChanged});
-  final SyntaxThemeId value;
-  final ValueChanged<SyntaxThemeId> onChanged;
-
-  static const _labels = <SyntaxThemeId, String>{
-    SyntaxThemeId.one: 'One',
-    SyntaxThemeId.dracula: 'Dracula',
-    SyntaxThemeId.github: 'GitHub',
-  };
+/// Importar / exportar / remover tema. Fica logo abaixo do seletor porque as
+/// três ações operam sobre a mesma escolha.
+///
+/// Import/export de arquivo vem antes de um editor visual de propósito: resolve
+/// portabilidade entre máquinas e permite editar o tema no editor de código
+/// (com `$schema` ligando o autocomplete), que é o fluxo de quem faz tema.
+class _ThemeFileRow extends StatelessWidget {
+  const _ThemeFileRow();
 
   @override
   Widget build(BuildContext context) {
-    return _DropdownChip(
-      label: _labels[value]!,
-      onTap: () async {
-        final picked = await showAppMenu<SyntaxThemeId>(
-          context,
-          minWidth: 180,
-          items: [
-            for (final e in _labels.entries)
-              AppMenuItem(
-                value: e.key,
-                label: e.value,
-                selected: e.key == value,
+    final controller = context.watch<SettingsController>();
+    final tr = context.t.settings.page.appearance;
+    final isCustom = controller.isCustomTheme(controller.activeTheme.id);
+    return _Row(
+      title: tr.themeFileTitle,
+      description: tr.themeFileDesc,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          OutlineButton(
+            onPressed: () => _import(context),
+            child: Text(tr.importTheme),
+          ),
+          const SizedBox(width: 8),
+          OutlineButton(
+            onPressed: () => _export(context),
+            child: Text(tr.exportTheme),
+          ),
+          if (isCustom) ...[
+            const SizedBox(width: 8),
+            OutlineButton(
+              onPressed: () => _delete(context),
+              child: Text(tr.deleteTheme),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _import(BuildContext context) async {
+    final controller = context.read<SettingsController>();
+    final tr = context.t.settings.page.appearance;
+    final picked = await FilePicker.platform.pickFiles(
+      dialogTitle: tr.importThemeDialog,
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+    );
+    final path = picked?.files.singleOrNull?.path;
+    if (path == null) return;
+
+    final result = await controller.importTheme(File(path));
+    if (!context.mounted) return;
+    result.fold(
+      (theme) => _toast(context, tr.themeImported(name: theme.name)),
+      (error) => _toast(
+        context,
+        themeStoreErrorMessage(context, error),
+        isError: true,
+      ),
+    );
+  }
+
+  Future<void> _export(BuildContext context) async {
+    final controller = context.read<SettingsController>();
+    final tr = context.t.settings.page.appearance;
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: tr.exportThemeDialog,
+      fileName: '${controller.activeTheme.id}.json',
+      type: FileType.custom,
+      allowedExtensions: const ['json'],
+    );
+    if (path == null) return;
+
+    final result = await controller.exportActiveTheme(path);
+    if (!context.mounted) return;
+    result.fold(
+      (_) => _toast(context, tr.themeExported),
+      (error) => _toast(
+        context,
+        themeStoreErrorMessage(context, error),
+        isError: true,
+      ),
+    );
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final controller = context.read<SettingsController>();
+    final tr = context.t.settings.page.appearance;
+    final result = await controller.deleteTheme(controller.activeTheme.id);
+    if (!context.mounted) return;
+    result.fold(
+      (_) => _toast(context, tr.themeDeleted),
+      (error) => _toast(
+        context,
+        themeStoreErrorMessage(context, error),
+        isError: true,
+      ),
+    );
+  }
+
+  void _toast(BuildContext context, String message, {bool isError = false}) {
+    final colors = context.colors;
+    showToast(
+      context: context,
+      location: ToastLocation.bottomRight,
+      builder: (context, overlay) => SurfaceCard(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isError ? Icons.error_outline : Icons.check_circle_outline,
+                size: 18,
+                color: isError ? colors.error : colors.ok,
               ),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Text(
+                  message,
+                  style: context.typo.label.copyWith(color: colors.text),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Seletor do tema ativo. Escolher um tema é a mesma ação seja ele nativo ou
+/// importado, então os dois convivem numa lista só — mas a **origem** é
+/// distinguível: os importados vêm depois de um divisor e com ícone.
+///
+/// Isso importa na hora de remover: o botão "Remover" só aparece para tema
+/// importado, e sem a marca o usuário não teria como prever quando ele some.
+/// (Não confundir com o `_ThemeModeDropdown`, que escolhe qual **variant** do
+/// tema usar.)
+class _ThemeDropdown extends StatelessWidget {
+  const _ThemeDropdown({required this.value, required this.onChanged});
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final themes = controller.availableThemes;
+    final current = themes.firstWhere(
+      (t) => t.id == value,
+      orElse: () => cockpitDefaultTheme,
+    );
+    // `availableThemes` já entrega os nativos primeiro; separar aqui mantém
+    // essa ordem sendo a única fonte da divisão.
+    final builtIn = themes.where((t) => !controller.isCustomTheme(t.id));
+    final imported = themes.where((t) => controller.isCustomTheme(t.id));
+
+    AppMenuItem<String> itemFor(CockpitThemeSpec theme, {required bool own}) =>
+        AppMenuItem(
+          value: theme.id,
+          label: theme.name,
+          // Só o importado leva ícone: marcar os dois grupos gastaria atenção
+          // para dizer o que o divisor já diz. O `trailing` segue livre para a
+          // marca de seleção.
+          icon: own ? Icons.file_download_outlined : null,
+          selected: theme.id == value,
+        );
+
+    return _DropdownChip(
+      label: current.name,
+      onTap: () async {
+        final picked = await showAppMenu<String>(
+          context,
+          minWidth: 200,
+          items: [
+            for (final theme in builtIn) itemFor(theme, own: false),
+            if (imported.isNotEmpty) const AppMenuItem<String>.divider(),
+            for (final theme in imported) itemFor(theme, own: true),
           ],
         );
         if (picked != null) onChanged(picked);
@@ -1839,47 +2178,139 @@ class _UpdateCheckDropdown extends StatelessWidget {
 }
 
 /// Campo de família de fonte (texto livre; vazio = padrão).
-class _FontField extends StatefulWidget {
+/// Seleção de família de fonte.
+///
+/// Substituiu um campo de texto livre que falhava em silêncio: nome com erro de
+/// digitação ou fonte não instalada caíam no fallback sem nenhum aviso. Agora a
+/// escolha sai de uma lista do que a máquina realmente tem (ver
+/// [showFontPickerDialog]), o nome escolhido é desenhado **na própria fonte**, e
+/// uma família que não resolve é sinalizada aqui no chip.
+class _FontField extends StatelessWidget {
   const _FontField({
     required this.value,
     required this.hint,
     required this.onChanged,
+    this.monospacedOnly = false,
   });
+
   final String? value;
+
+  /// Descrição do padrão do design, mostrada quando não há escolha.
   final String hint;
   final ValueChanged<String?> onChanged;
-
-  @override
-  State<_FontField> createState() => _FontFieldState();
-}
-
-class _FontFieldState extends State<_FontField> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.value ?? '');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  final bool monospacedOnly;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return SizedBox(
-      width: 240,
-      child: TextField(
-        controller: _ctrl,
-        onChanged: (v) => widget.onChanged(v.trim().isEmpty ? null : v.trim()),
-        style: context.typo.body.copyWith(fontSize: 13, color: colors.text),
-        placeholder: Text(widget.hint),
-        borderRadius: BorderRadius.circular(7),
-      ),
+    final family = value;
+    final missing = family != null && !isFontAvailable(family);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (missing) ...[
+          AppTooltip(
+            message: context.t.settings.page.appearance.fontMissing,
+            child: Icon(Icons.warning_amber, size: 15, color: colors.warn),
+          ),
+          const SizedBox(width: 6),
+        ],
+        HoverTap(
+          color: colors.panel3,
+          borderRadius: BorderRadius.circular(7),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          onTap: () async {
+            final choice = await showFontPickerDialog(
+              context,
+              current: family,
+              defaultLabel: hint,
+              monospacedOnly: monospacedOnly,
+            );
+            // Dialog dispensado devolve null; só uma escolha real muda algo.
+            if (choice != null) onChanged(choice.family);
+          },
+          child: SizedBox(
+            width: 218,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    family ?? hint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: family == null
+                        ? context.typo.body.copyWith(
+                            fontSize: 13,
+                            color: colors.text3,
+                          )
+                        : TextStyle(
+                            fontFamily: family,
+                            fontSize: 13,
+                            color: colors.text,
+                          ),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_down, size: 16, color: colors.text3),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Stepper de tamanho que aceita "sem valor próprio", herdando de outro ajuste.
+///
+/// Sem override, mostra o valor herdado esmaecido; mexer nos botões passa a
+/// definir um valor explícito, e o terceiro botão desfaz o override.
+class _OptionalSizeStepper extends StatelessWidget {
+  const _OptionalSizeStepper({
+    required this.value,
+    required this.inherited,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  /// `null` = herdando [inherited].
+  final double? value;
+  final double inherited;
+  final double min;
+  final double max;
+  final ValueChanged<double?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final overridden = value != null;
+    final effective = value ?? inherited;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (overridden)
+          AppTooltip(
+            message: context.t.settings.page.appearance.terminalSizeInherit,
+            child: HoverTap(
+              borderRadius: BorderRadius.circular(7),
+              onTap: () => onChanged(null),
+              child: SizedBox(
+                width: 30,
+                height: 32,
+                child: Icon(Icons.link, size: 15, color: colors.text2),
+              ),
+            ),
+          ),
+        _SizeStepper(
+          value: effective,
+          min: min,
+          max: max,
+          onChanged: onChanged,
+          muted: !overridden,
+        ),
+      ],
     );
   }
 }
@@ -1891,11 +2322,15 @@ class _SizeStepper extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.muted = false,
   });
   final double value;
   final double min;
   final double max;
   final ValueChanged<double> onChanged;
+
+  /// Esmaece o número quando ele é apenas herdado, e não uma escolha.
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -1919,7 +2354,7 @@ class _SizeStepper extends StatelessWidget {
               textAlign: TextAlign.center,
               style: context.typo.mono.copyWith(
                 fontSize: 12.5,
-                color: colors.text,
+                color: muted ? colors.text2 : colors.text,
               ),
             ),
           ),
@@ -2243,7 +2678,7 @@ class _StatusDot extends StatelessWidget {
     final colors = context.colors;
     final tr = context.t.settings.page.languages;
     final (Color color, String tip) = switch (available) {
-      true => (const Color(0xFF22C55E), tr.statusResponds),
+      true => (colors.online, tr.statusResponds),
       false => (colors.text4, tr.statusNotFound),
       null => (colors.border, context.t.common.checking),
     };
@@ -2310,7 +2745,7 @@ class _ConnectivityPanelState extends State<_ConnectivityPanel> {
 
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (ctx) => AlertDialog(
         title: Text(
           tr.revokeDialogTitle,
@@ -2852,7 +3287,7 @@ class _AgendamentosPanelState extends State<_AgendamentosPanel> {
     final tr = context.t.settings.page.schedules;
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (ctx) => AlertDialog(
         title: Text(
           tr.removeScheduleDialogTitle,
@@ -3768,7 +4203,7 @@ class _DaemonsPanelState extends State<_DaemonsPanel> {
     final tr = context.t.settings.page.daemons;
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (ctx) => AlertDialog(
         title: Text(
           tr.restartSupervisorDialogTitle,
@@ -3810,7 +4245,7 @@ class _DaemonsPanelState extends State<_DaemonsPanel> {
     final tr = context.t.settings.page.daemons;
     final confirmed = await showDialog<bool>(
       context: context,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (ctx) => AlertDialog(
         title: Text(
           tr.removeDaemonDialogTitle,

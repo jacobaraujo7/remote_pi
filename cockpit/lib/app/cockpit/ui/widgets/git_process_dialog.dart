@@ -21,7 +21,7 @@ Future<void> showGitProcessDialog(
 }) {
   return showDialog<void>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _GitProcessDialog(
       title: title,
       output: output,

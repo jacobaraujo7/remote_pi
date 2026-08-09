@@ -69,7 +69,7 @@ class _AgentSetupChecklistState extends State<AgentSetupChecklist>
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
-      barrierColor: const Color(0x99000000),
+      barrierColor: context.colors.scrim,
       builder: (_) => _InstallDialog(title: title, runner: runner),
     );
   }

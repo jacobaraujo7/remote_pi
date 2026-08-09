@@ -16,7 +16,7 @@ Future<void> showFileFinderPalette(
 }) {
   return showDialog<void>(
     context: context,
-    barrierColor: const Color(0x66000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _FileFinderPalette(search: search, onPick: onPick),
   );
 }
@@ -133,9 +133,9 @@ class _FileFinderPaletteState extends State<_FileFinderPalette> {
           color: colors.panel,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: colors.border),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Color(0x55000000),
+              color: colors.shadow,
               blurRadius: 24,
               offset: Offset(0, 10),
             ),

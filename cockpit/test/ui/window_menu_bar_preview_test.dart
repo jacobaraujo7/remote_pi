@@ -190,6 +190,7 @@ Widget _host(Widget child) {
       colors: tokens.colors,
       typo: tokens.typo,
       syntax: tokens.syntax,
+      terminal: tokens.terminal,
       child: Scaffold(
         child: Align(alignment: Alignment.topLeft, child: child),
       ),

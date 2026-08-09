@@ -10,6 +10,9 @@ class DiffViewerSession extends PaneItem {
     required this.projectId,
     required this.path,
     required this.diff,
+    this.commitHash,
+    this.repoRoot,
+    this.previousRelativePath,
     this.isPreview = false,
   });
 
@@ -24,6 +27,15 @@ class DiffViewerSession extends PaneItem {
 
   /// O diff parseado — **mutável** (preview reuse).
   FileDiff diff;
+
+  /// `null` para mudancas no working tree; hash para um diff historico.
+  String? commitHash;
+
+  /// Raiz da worktree do diff historico - necessaria para restaura-lo fielmente.
+  String? repoRoot;
+
+  /// Caminho anterior de um rename/copy, relativo a [repoRoot].
+  String? previousRelativePath;
 
   @override
   String get title {

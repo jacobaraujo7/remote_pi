@@ -1073,6 +1073,7 @@ function captureEventHandler(eventName: string): EventHandler {
 function captureEventHarness(): {
   handler: (eventName: string) => EventHandler;
   emitBus: (channel: string, data: unknown) => void;
+  busListenerCount: (channel: string) => number;
 } {
   const handlers = new Map<string, EventHandler>();
   const busHandlers = new Map<string, Array<(data: unknown) => void>>();
@@ -1107,6 +1108,9 @@ function captureEventHarness(): {
     },
     emitBus(channel: string, data: unknown) {
       (pi.events as unknown as { emit: (channel: string, data: unknown) => void }).emit(channel, data);
+    },
+    busListenerCount(channel: string) {
+      return busHandlers.get(channel)?.length ?? 0;
     },
   };
 }
@@ -3738,6 +3742,35 @@ describe("session_shutdown teardown", () => {
   // replacement loads, so the handler MUST exist and tear everything down.
   test("a session_shutdown handler is registered", () => {
     expect(() => captureEventHandler("session_shutdown")).not.toThrow();
+  });
+
+  test("session replacement disposes then rebinds pi-ask bridge listeners", async () => {
+    const harness = captureEventHarness();
+    const started = "@eko24ive/pi-ask:started";
+    const completed = "@eko24ive/pi-ask:completed";
+    const submitResult = "@eko24ive/pi-ask:submit-result";
+
+    expect(harness.busListenerCount(started)).toBe(1);
+    expect(harness.busListenerCount(completed)).toBe(1);
+    expect(harness.busListenerCount(submitResult)).toBe(1);
+
+    await harness.handler("session_shutdown")({
+      type: "session_shutdown",
+      reason: "resume",
+    });
+
+    expect(harness.busListenerCount(started)).toBe(0);
+    expect(harness.busListenerCount(completed)).toBe(0);
+    expect(harness.busListenerCount(submitResult)).toBe(0);
+
+    harness.handler("session_start")(
+      { type: "session_start" },
+      makeMockCtx(),
+    );
+
+    expect(harness.busListenerCount(started)).toBe(1);
+    expect(harness.busListenerCount(completed)).toBe(1);
+    expect(harness.busListenerCount(submitResult)).toBe(1);
   });
 
   test("firing session_shutdown while started tears down mesh + relay → idle", async () => {

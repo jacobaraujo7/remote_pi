@@ -42,7 +42,7 @@ showWorkspaceSettingsDialog(
 }) {
   return showDialog<({String name, int colorValue, String? imagePath})>(
     context: context,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _WorkspaceSettingsDialog(
       name: name,
       colorValue: colorValue,
@@ -289,12 +289,15 @@ class _Swatch extends StatelessWidget {
         decoration: BoxDecoration(
           color: Color(color),
           borderRadius: BorderRadius.circular(7),
-          border: selected
-              ? Border.all(color: Colors.white, width: 2)
-              : Border.all(color: Colors.transparent, width: 2),
+          // O anel de seleção contrasta com a SUPERFÍCIE do dialog (branco
+          // sobre dialog claro era invisível); o check contrasta com o swatch.
+          border: Border.all(
+            color: selected ? context.colors.text : Colors.transparent,
+            width: 2,
+          ),
         ),
         child: selected
-            ? const Icon(Icons.check, size: 15, color: Colors.white)
+            ? Icon(Icons.check, size: 15, color: onColor(Color(color)))
             : null,
       ),
     );

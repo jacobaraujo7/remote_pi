@@ -30,7 +30,7 @@ Future<void> showCommitMessageDialog(
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
-    barrierColor: const Color(0x99000000),
+    barrierColor: context.colors.scrim,
     builder: (context) => _CommitMessageDialog(
       fileName: fileName,
       staged: staged,
@@ -290,7 +290,10 @@ class _CommitMessageDialogState extends State<_CommitMessageDialog> {
           PrimaryButton(
             onPressed: _canCommit ? _submit : null,
             child: _submitting
-                ? const CircularProgressIndicator(size: 16, color: Colors.white)
+                ? CircularProgressIndicator(
+                    size: 16,
+                    color: onColor(context.colors.accent),
+                  )
                 : Text(tr.commitTitle),
           ),
         ],

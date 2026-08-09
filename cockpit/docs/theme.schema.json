@@ -1,0 +1,152 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/docs/theme.schema.json",
+  "title": "Cockpit theme",
+  "description": "Schema de um tema do Cockpit — ver cockpit/docs/theme-format.md",
+  "type": "object",
+  "required": ["id", "name", "variants"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "id": {
+      "type": "string",
+      "description": "Identidade estável, namespaced (publisher.nome). É o que fica salvo nas preferências. Não pode colidir com um built-in: cockpit, cockpit.2, violet, violet.2, midnight, rose, sun, flexoki, pantera.",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "name": {
+      "type": "string",
+      "description": "Nome exibido no seletor de tema.",
+      "minLength": 1
+    },
+    "author": { "type": "string" },
+    "version": { "type": "string" },
+    "extends": {
+      "type": "string",
+      "description": "Id de um tema built-in do qual herdar os tokens não declarados. Ausente = herda do tema 'cockpit'.",
+      "enum": ["cockpit", "cockpit.2", "violet", "violet.2", "midnight", "rose", "sun", "flexoki", "pantera"]
+    },
+    "variants": {
+      "type": "object",
+      "description": "Pelo menos um de dark/light. Um tema com só um variant é aplicado nos dois brilhos.",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "dark": { "$ref": "#/definitions/variant" },
+        "light": { "$ref": "#/definitions/variant" }
+      }
+    }
+  },
+
+  "definitions": {
+    "color": {
+      "type": "string",
+      "description": "Hex CSS: #RGB, #RRGGBB ou #RRGGBBAA (alpha no FIM).",
+      "pattern": "^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$"
+    },
+
+    "variant": {
+      "type": "object",
+      "description": "As três paletas de um brilho. Todo token é opcional: o que faltar vem da base.",
+      "additionalProperties": false,
+      "properties": {
+        "ui": { "$ref": "#/definitions/ui" },
+        "syntax": { "$ref": "#/definitions/syntax" },
+        "terminal": { "$ref": "#/definitions/terminal" }
+      }
+    },
+
+    "ui": {
+      "type": "object",
+      "description": "Tokens da interface do app.",
+      "additionalProperties": false,
+      "properties": {
+        "bg": { "$ref": "#/definitions/color", "description": "Fundo mais profundo do app." },
+        "panel": { "$ref": "#/definitions/color", "description": "Superfície de pane / rail." },
+        "panel2": { "$ref": "#/definitions/color", "description": "Elevado: composer, cards." },
+        "panel3": { "$ref": "#/definitions/color", "description": "Hover / código embutido." },
+
+        "border": { "$ref": "#/definitions/color", "description": "Fio de cabelo." },
+        "border2": { "$ref": "#/definitions/color", "description": "Divisor mais forte." },
+
+        "text": { "$ref": "#/definitions/color", "description": "Texto primário." },
+        "text2": { "$ref": "#/definitions/color", "description": "Texto secundário." },
+        "text3": { "$ref": "#/definitions/color", "description": "Terciário / placeholder." },
+        "text4": { "$ref": "#/definitions/color", "description": "Fraco: ícone em repouso." },
+
+        "accent": { "$ref": "#/definitions/color", "description": "A marca. O texto sobre ela é derivado da luminância, não é um token." },
+        "accentSoft": { "$ref": "#/definitions/color", "description": "Fundo de seleção — translúcido." },
+        "accentText": { "$ref": "#/definitions/color", "description": "Texto na cor da marca." },
+
+        "online": { "$ref": "#/definitions/color" },
+        "ok": { "$ref": "#/definitions/color" },
+        "error": { "$ref": "#/definitions/color" },
+        "warn": { "$ref": "#/definitions/color" },
+
+        "edited": { "$ref": "#/definitions/color", "description": "Realce de arquivo editado há pouco." },
+        "editedBg": { "$ref": "#/definitions/color" },
+
+        "gitStaged": { "$ref": "#/definitions/color" },
+        "gitUntracked": { "$ref": "#/definitions/color" },
+        "gitDeleted": { "$ref": "#/definitions/color" },
+        "gitConflict": { "$ref": "#/definitions/color" },
+
+        "scrim": { "$ref": "#/definitions/color", "description": "Fundo de dialog — translúcido." },
+        "shadow": { "$ref": "#/definitions/color", "description": "Sombra projetada — translúcida." }
+      }
+    },
+
+    "syntax": {
+      "type": "object",
+      "description": "Realce de código do viewer.",
+      "additionalProperties": false,
+      "properties": {
+        "background": { "$ref": "#/definitions/color" },
+        "base": { "$ref": "#/definitions/color", "description": "Texto sem escopo." },
+        "comment": { "$ref": "#/definitions/color" },
+        "keyword": { "$ref": "#/definitions/color" },
+        "string": { "$ref": "#/definitions/color" },
+        "number": { "$ref": "#/definitions/color" },
+        "class": { "$ref": "#/definitions/color", "description": "Tipos / classes." },
+        "builtin": { "$ref": "#/definitions/color" },
+        "function": { "$ref": "#/definitions/color" },
+        "variable": { "$ref": "#/definitions/color" },
+        "meta": { "$ref": "#/definitions/color", "description": "Decorators / preprocessador." },
+        "deletion": { "$ref": "#/definitions/color", "description": "Diff -." }
+      }
+    },
+
+    "terminal": {
+      "type": "object",
+      "description": "Paleta ANSI do terminal.",
+      "additionalProperties": false,
+      "properties": {
+        "cursor": { "$ref": "#/definitions/color" },
+        "selection": { "$ref": "#/definitions/color" },
+        "foreground": { "$ref": "#/definitions/color" },
+        "background": { "$ref": "#/definitions/color" },
+
+        "black": { "$ref": "#/definitions/color" },
+        "red": { "$ref": "#/definitions/color" },
+        "green": { "$ref": "#/definitions/color" },
+        "yellow": { "$ref": "#/definitions/color" },
+        "blue": { "$ref": "#/definitions/color" },
+        "magenta": { "$ref": "#/definitions/color" },
+        "cyan": { "$ref": "#/definitions/color" },
+        "white": { "$ref": "#/definitions/color" },
+
+        "brightBlack": { "$ref": "#/definitions/color" },
+        "brightRed": { "$ref": "#/definitions/color" },
+        "brightGreen": { "$ref": "#/definitions/color" },
+        "brightYellow": { "$ref": "#/definitions/color" },
+        "brightBlue": { "$ref": "#/definitions/color" },
+        "brightMagenta": { "$ref": "#/definitions/color" },
+        "brightCyan": { "$ref": "#/definitions/color" },
+        "brightWhite": { "$ref": "#/definitions/color" },
+
+        "searchHitBackground": { "$ref": "#/definitions/color" },
+        "searchHitBackgroundCurrent": { "$ref": "#/definitions/color" },
+        "searchHitForeground": { "$ref": "#/definitions/color" }
+      }
+    }
+  }
+}

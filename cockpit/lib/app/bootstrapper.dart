@@ -13,6 +13,7 @@ import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
 import 'package:cockpit/app/core/data/setup/hive_migration.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
+import 'package:cockpit/app/core/data/theme_store.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/env.dart';
 import 'package:cockpit/app/core/ui/automation_controller.dart';
@@ -119,7 +120,10 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         stateDir,
         JsonSettingsStore.storeName,
       );
-      final settings = SettingsController(JsonSettingsStore(settingsStore));
+      final settings = SettingsController(
+        JsonSettingsStore(settingsStore),
+        const ThemeStore(),
+      );
       await settings.load();
 
       final winStore = await JsonStateStore.open(stateDir, 'window_state');
@@ -177,8 +181,13 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
       // Sessão anterior morreu sem passar pelo encerramento limpo (SIGPIPE,
       // segfault, força bruta). Nenhum handler Dart vê isso — só o marcador.
       // Oferecido depois do boot pra não competir com a tela de loading.
+      //
+      // Sessão de **debug** não gera aviso: lá o processo é morto a cada hot
+      // restart e a cada stop da IDE, então o marcador sujo é a regra, não a
+      // exceção. Segue registrado no log — só não interrompe quem está
+      // desenvolvendo.
       final crash = DiagnosticsLog.instance.previousCrash;
-      if (crash != null && mounted) {
+      if (crash != null && !crash.debug && mounted) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) unawaited(_offerCrashReport(crash));
         });
@@ -288,6 +297,14 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
       // Sem posição salva (1ª execução): centraliza.
       center: x == null || y == null,
     );
+    // Assume o fechamento da janela: sem isso, o X da barra de título e o Quit
+    // do menu (ambos `windowManager.close()`) destroem a janela sem passar pelo
+    // Dart, e a sessão nunca é marcada como encerrada. Ver
+    // [WindowStateKeeperState.onWindowClose].
+    //
+    // Ligado aqui, e não no listener, porque a janela já é fechável antes de o
+    // shell montar — um fechamento nessa janela de tempo escaparia.
+    await windowManager.setPreventClose(true);
     await windowManager.waitUntilReadyToShow(options, () async {
       if (x != null && y != null) {
         await windowManager.setBounds(Rect.fromLTWH(x, y, w, h));
@@ -311,6 +328,7 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
           colors: tokens.colors,
           typo: tokens.typo,
           syntax: tokens.syntax,
+          terminal: tokens.terminal,
           child: DevToolsInspector(child: child ?? const SizedBox()),
         );
       },
@@ -393,19 +411,62 @@ class WindowStateKeeperState extends State<WindowStateKeeper>
   @override
   void onWindowMove() => _persistBounds();
 
+  /// Fechamento da janela: **este** é o encerramento limpo do Cockpit.
+  ///
+  /// Só chega aqui porque o boot liga `setPreventClose(true)`. Sem isso, tanto
+  /// o X da barra de título quanto o Quit do menu chamam `windowManager.close()`
+  /// e o processo morre sem o Dart saber — e o boot seguinte encontra o
+  /// marcador de sessão viva e acusa crash. Era o motivo de o aviso "o Cockpit
+  /// fechou inesperadamente" voltar a **cada** inicialização no Windows: o app
+  /// nunca conseguia registrar uma saída limpa. No macOS o ⌘Q passa pelo
+  /// handshake de saída do engine (`onExitRequested`), que já marcava — por
+  /// isso lá o sintoma não aparecia.
+  ///
+  /// Nada aqui pode lançar: com `preventClose` ligado, uma exceção antes do
+  /// `destroy()` deixaria uma janela que **não fecha**. Cada passo é isolado, e
+  /// o `destroy()` roda no `finally`.
+  @override
+  Future<void> onWindowClose() async {
+    try {
+      // Bounds pendentes no debounce: fechar 400 ms depois de mover a janela
+      // perderia a posição.
+      _debounce?.cancel();
+      await _persistBoundsNow();
+    } on Object catch (e, stack) {
+      DiagnosticsLog.instance.logError('close-bounds', e, stack);
+    }
+    try {
+      await JsonStateStore.flushAll();
+    } on Object catch (e, stack) {
+      DiagnosticsLog.instance.logError('close-flush', e, stack);
+    }
+    try {
+      DiagnosticsLog.instance.markCleanExit();
+    } on Object catch (_) {
+      /* o próprio markCleanExit já é best-effort */
+    } finally {
+      await windowManager.destroy();
+    }
+  }
+
   /// Persiste tamanho + posição (bounds completos) com debounce. Um único
   /// caminho para resize e move — ambos alteram os bounds que restauramos no
   /// próximo boot.
   void _persistBounds() {
     _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () async {
-      final bounds = await windowManager.getBounds();
-      await widget.store.putAll({
-        'x': bounds.left,
-        'y': bounds.top,
-        'width': bounds.width,
-        'height': bounds.height,
-      });
+    _debounce = Timer(
+      const Duration(milliseconds: 400),
+      () => unawaited(_persistBoundsNow()),
+    );
+  }
+
+  Future<void> _persistBoundsNow() async {
+    final bounds = await windowManager.getBounds();
+    await widget.store.putAll({
+      'x': bounds.left,
+      'y': bounds.top,
+      'width': bounds.width,
+      'height': bounds.height,
     });
   }
 

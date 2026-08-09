@@ -1,5 +1,6 @@
-import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
+import 'package:cockpit/app/core/ui/themes/theme_codec.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 
 /// Paleta de **syntax highlight** do viewer de código. Mapeia os escopos do
@@ -135,8 +136,87 @@ class SyntaxColors {
     deletion: Color(0xFF82071E),
   );
 
+  // --- Flexoki --------------------------------------------------------------
+  /// Flexoki Dark — [stephango.com/flexoki](https://stephango.com/flexoki).
+  /// Acentos da série 400 (legíveis sobre o preto tintado).
+  static const SyntaxColors flexokiDark = SyntaxColors(
+    background: Color(0xFF1C1B1A), // base-950
+    base: Color(0xFFCECDC3), // base-200
+    comment: Color(0xFF878580), // base-500
+    keyword: Color(0xFFD14D41), // red-400
+    string: Color(0xFF879A39), // green-400
+    number: Color(0xFFDA702C), // orange-400
+    klass: Color(0xFFD0A215), // yellow-400
+    builtin: Color(0xFF3AA99F), // cyan-400
+    function: Color(0xFF4385BE), // blue-400
+    variable: Color(0xFFCE5D97), // magenta-400
+    meta: Color(0xFF8B7EC8), // purple-400
+    deletion: Color(0xFFD14D41), // red-400
+  );
+
+  /// Flexoki Light — acentos da série 600 (legíveis sobre o papel).
+  static const SyntaxColors flexokiLight = SyntaxColors(
+    background: Color(0xFFFFFCF0), // paper
+    base: Color(0xFF100F0F), // black
+    comment: Color(0xFF6F6E69), // base-600
+    keyword: Color(0xFFAF3029), // red-600
+    string: Color(0xFF66800B), // green-600
+    number: Color(0xFFBC5215), // orange-600
+    klass: Color(0xFFAD8301), // yellow-600
+    builtin: Color(0xFF24837B), // cyan-600
+    function: Color(0xFF205EA6), // blue-600
+    variable: Color(0xFFA02F6F), // magenta-600
+    meta: Color(0xFF5E409D), // purple-600
+    deletion: Color(0xFFAF3029), // red-600
+  );
+
+  /// One e Dracula ficam como matéria-prima / referência. O oficial usa GitHub;
+  /// o Flexoki é o único built-in com paleta de syntax própria.
+
   /// Fallback usado por `context.syntax` fora da árvore com tema.
   static const SyntaxColors dark = oneDark;
+
+  /// Lê a paleta de [json], herdando de [base] o que não estiver declarado.
+  /// Mesma semântica de herança do [AppColors.fromJson].
+  factory SyntaxColors.fromJson(
+    Map<String, Object?> json, {
+    required SyntaxColors base,
+    String path = 'syntax',
+  }) {
+    Color read(String key, Color fallback) =>
+        colorOr(json, key, fallback, path: path);
+    return SyntaxColors(
+      background: read('background', base.background),
+      base: read('base', base.base),
+      comment: read('comment', base.comment),
+      keyword: read('keyword', base.keyword),
+      string: read('string', base.string),
+      number: read('number', base.number),
+      klass: read('class', base.klass),
+      builtin: read('builtin', base.builtin),
+      function: read('function', base.function),
+      variable: read('variable', base.variable),
+      meta: read('meta', base.meta),
+      deletion: read('deletion', base.deletion),
+    );
+  }
+
+  Map<String, Object?> toJson() => {
+    'background': encodeHexColor(background),
+    'base': encodeHexColor(base),
+    'comment': encodeHexColor(comment),
+    'keyword': encodeHexColor(keyword),
+    'string': encodeHexColor(string),
+    'number': encodeHexColor(number),
+    // No JSON a chave é `class` (o campo Dart é `klass` só por colisão de
+    // palavra reservada) — quem escreve tema não deve pagar por isso.
+    'class': encodeHexColor(klass),
+    'builtin': encodeHexColor(builtin),
+    'function': encodeHexColor(function),
+    'variable': encodeHexColor(variable),
+    'meta': encodeHexColor(meta),
+    'deletion': encodeHexColor(deletion),
+  };
 
   // --- Diagnostics (LSP) ----------------------------------------------------
   // Cores semânticas independentes da paleta (legíveis sobre dark e light),
@@ -161,17 +241,6 @@ class SyntaxColors {
     decorationStyle: TextDecorationStyle.wavy,
     decorationColor: diagnosticColor(severity),
   );
-
-  /// Resolve a paleta pelo id escolhido **e o brilho do app** — cada família
-  /// tem variante light/dark, então o highlight segue o tema (claro no claro).
-  static SyntaxColors forId(SyntaxThemeId id, Brightness brightness) {
-    final isDark = brightness == Brightness.dark;
-    return switch (id) {
-      SyntaxThemeId.one => isDark ? oneDark : oneLight,
-      SyntaxThemeId.dracula => isDark ? draculaDark : draculaLight,
-      SyntaxThemeId.github => isDark ? githubDark : githubLight,
-    };
-  }
 
   /// Estilo de um escopo do highlight.js. `null` → herda o estilo base (texto
   /// sem realce). Comentários ganham itálico.
@@ -285,6 +354,33 @@ class SyntaxColors {
     }
   }
 
+  /// Igualdade por valor. Não é conveniência de teste: o [CockpitTheme] decide
+  /// se repinta a árvore comparando estes objetos, e `buildTokens` devolve uma
+  /// instância **nova** a cada build da raiz. Sem `==`, qualquer rebuild da raiz
+  /// (troca de aba focada, estado do editor) invalidava todo consumidor de
+  /// `context.colors` no app.
+  List<Object?> get _props => [
+    background,
+    base,
+    comment,
+    keyword,
+    string,
+    number,
+    klass,
+    builtin,
+    function,
+    variable,
+    meta,
+    deletion,
+  ];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SyntaxColors && listEquals(_props, other._props);
+
+  @override
+  int get hashCode => Object.hashAll(_props);
   SyntaxColors copyWith({
     Color? background,
     Color? base,

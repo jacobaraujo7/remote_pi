@@ -1,7 +1,9 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_path_breadcrumb.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -21,19 +23,53 @@ String? _languageOf(String path) {
 /// contexto nos dois lados. Sem ações — só leitura. O conteúdo vem parseado na
 /// [DiffViewerSession].
 class DiffViewer extends StatelessWidget {
-  const DiffViewer({super.key, required this.session});
+  const DiffViewer({super.key, required this.session, this.displayPath});
 
   final DiffViewerSession session;
+
+  /// Caminho relativo ao workspace, resolvido pelo dono da pane.
+  final String? displayPath;
 
   @override
   Widget build(BuildContext context) {
     // Reconstrói quando o diff da sessão muda (preview reuse).
     return ListenableBuilder(
       listenable: session,
-      builder: (context, _) =>
-          _DiffBody(diff: session.diff, language: _languageOf(session.path)),
+      builder: (context, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: _DiffBody(
+              diff: session.diff,
+              language: _languageOf(session.path),
+            ),
+          ),
+          _DiffFooter(
+            path: displayPath ?? session.path,
+            fileName: session.title,
+          ),
+        ],
+      ),
     );
   }
+}
+
+class _DiffFooter extends StatelessWidget {
+  const _DiffFooter({required this.path, required this.fileName});
+
+  final String path;
+  final String fileName;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    height: 34,
+    padding: const EdgeInsets.symmetric(horizontal: 8),
+    decoration: BoxDecoration(
+      color: context.colors.bg,
+      border: Border(top: BorderSide(color: context.colors.border)),
+    ),
+    child: FilePathBreadcrumb(path: path, fileName: fileName),
+  );
 }
 
 /// Largura mínima de cada coluna do split — abaixo disso, rola na horizontal.
@@ -57,10 +93,16 @@ class _DiffBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     if (diff.kind == FileDiffKind.binary) {
-      return _centered(context, 'Binary file — no text diff.');
+      return _messageBody(
+        context,
+        context.t.cockpit.fileTreePanel.diffBinaryFile,
+      );
     }
     if (diff.kind == FileDiffKind.unchanged || diff.hunks.isEmpty) {
-      return _centered(context, 'No changes.');
+      return _messageBody(
+        context,
+        context.t.cockpit.fileTreePanel.diffNoChanges,
+      );
     }
 
     final rows = <_Row>[];
@@ -87,7 +129,7 @@ class _DiffBody extends StatelessWidget {
           final side = ((avail - 1) / 2).clamp(_minSideWidth, double.infinity);
           final total = side * 2 + 1;
 
-          final children = <Widget>[];
+          final children = <Widget>[_revisionHeader(context, side)];
           for (var i = 0; i < rows.length; i++) {
             final hdr = headerText[i];
             if (hdr != null) {
@@ -116,6 +158,49 @@ class _DiffBody extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  Widget _messageBody(BuildContext context, String text) {
+    if (diff.afterRevision == null) return _centered(context, text);
+    return ColoredBox(
+      color: context.colors.bg,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final side = ((constraints.maxWidth - 1) / 2).clamp(
+            _minSideWidth,
+            double.infinity,
+          );
+          return Column(
+            children: [
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: side * 2 + 1,
+                  child: _revisionHeader(context, side),
+                ),
+              ),
+              Expanded(child: _centered(context, text)),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _revisionHeader(BuildContext context, double sideWidth) {
+    final tr = context.t.cockpit.fileTreePanel;
+    final historical = diff.afterRevision != null;
+    return _RevisionHeader(
+      beforeRef: historical
+          ? diff.beforeRevision == null
+                ? tr.diffEmptyTree
+                : tr.diffOriginal(ref: _shortRef(diff.beforeRevision!))
+          : 'HEAD',
+      afterRef: historical
+          ? tr.diffModified(ref: _shortRef(diff.afterRevision!))
+          : tr.diffWorkingTree,
+      sideWidth: sideWidth,
     );
   }
 
@@ -161,6 +246,59 @@ class _DiffBody extends StatelessWidget {
     }
     flush();
     return rows;
+  }
+}
+
+String _shortRef(String ref) => ref.length <= 8 ? ref : ref.substring(0, 8);
+
+class _RevisionHeader extends StatelessWidget {
+  const _RevisionHeader({
+    required this.beforeRef,
+    required this.afterRef,
+    required this.sideWidth,
+  });
+
+  final String beforeRef;
+  final String afterRef;
+  final double sideWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = context.typo.mono.copyWith(
+      fontSize: 10.5,
+      color: context.colors.text2,
+    );
+    return Container(
+      color: context.colors.panel,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: sideWidth,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                beforeRef,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ),
+          Container(width: 1, height: 18, color: context.colors.border),
+          SizedBox(
+            width: sideWidth,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text(
+                afterRef,
+                overflow: TextOverflow.ellipsis,
+                style: style,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

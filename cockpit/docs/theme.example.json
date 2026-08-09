@@ -1,0 +1,173 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/docs/theme.schema.json",
+  "id": "acme.aurora",
+  "name": "Aurora",
+  "author": "Acme",
+  "version": "1.0.0",
+
+  "extends": "cockpit",
+
+  "variants": {
+    "dark": {
+      "ui": {
+        "bg": "#0B0E14",
+        "panel": "#131722",
+        "panel2": "#1A1F2E",
+        "panel3": "#232937",
+
+        "border": "#1E2434",
+        "border2": "#2C3446",
+
+        "text": "#E6EAF2",
+        "text2": "#98A2B8",
+        "text3": "#6B7488",
+        "text4": "#454C5E",
+
+        "accent": "#7C93FF",
+        "accentSoft": "#7C93FF33",
+        "accentText": "#AFBEFF",
+
+        "online": "#4ADE80",
+        "ok": "#4ADE80",
+        "error": "#F87171",
+        "warn": "#FBBF24",
+
+        "edited": "#D9A441",
+        "editedBg": "#2A2010",
+
+        "gitStaged": "#4ADE80",
+        "gitUntracked": "#7C93FF",
+        "gitDeleted": "#F87171",
+        "gitConflict": "#FB923C",
+
+        "scrim": "#00000099",
+        "shadow": "#00000055"
+      },
+
+      "syntax": {
+        "background": "#0B0E14",
+        "base": "#C7CEDB",
+        "comment": "#5C6577",
+        "keyword": "#C792EA",
+        "string": "#9ECE6A",
+        "number": "#FF9E64",
+        "class": "#E0AF68",
+        "builtin": "#2AC3DE",
+        "function": "#7AA2F7",
+        "variable": "#F7768E",
+        "meta": "#2AC3DE",
+        "deletion": "#F7768E"
+      },
+
+      "terminal": {
+        "cursor": "#7C93FF",
+        "selection": "#7C93FF40",
+        "foreground": "#E6EAF2",
+        "background": "#131722",
+
+        "black": "#1E2434",
+        "red": "#F87171",
+        "green": "#4ADE80",
+        "yellow": "#FBBF24",
+        "blue": "#7C93FF",
+        "magenta": "#C792EA",
+        "cyan": "#2AC3DE",
+        "white": "#C7CEDB",
+
+        "brightBlack": "#6B7488",
+        "brightRed": "#FCA5A5",
+        "brightGreen": "#86EFAC",
+        "brightYellow": "#FDE047",
+        "brightBlue": "#AFBEFF",
+        "brightMagenta": "#E0B0FF",
+        "brightCyan": "#89DDFF",
+        "brightWhite": "#E6EAF2",
+
+        "searchHitBackground": "#FBBF24",
+        "searchHitBackgroundCurrent": "#7C93FF",
+        "searchHitForeground": "#0B0E14"
+      }
+    },
+
+    "light": {
+      "ui": {
+        "bg": "#F4F6FA",
+        "panel": "#FFFFFF",
+        "panel2": "#EDF0F6",
+        "panel3": "#E2E7F0",
+
+        "border": "#DFE4EE",
+        "border2": "#CBD2E0",
+
+        "text": "#141824",
+        "text2": "#525B70",
+        "text3": "#828B9E",
+        "text4": "#AEB5C4",
+
+        "accent": "#4C63D2",
+        "accentSoft": "#4C63D222",
+        "accentText": "#33459E",
+
+        "online": "#16A34A",
+        "ok": "#16A34A",
+        "error": "#DC2626",
+        "warn": "#B45309",
+
+        "edited": "#B45309",
+        "editedBg": "#FBF0DA",
+
+        "gitStaged": "#16A34A",
+        "gitUntracked": "#4C63D2",
+        "gitDeleted": "#DC2626",
+        "gitConflict": "#D9730D",
+
+        "scrim": "#00000066",
+        "shadow": "#00000033"
+      },
+
+      "syntax": {
+        "background": "#FFFFFF",
+        "base": "#141824",
+        "comment": "#828B9E",
+        "keyword": "#8250DF",
+        "string": "#0A7B34",
+        "number": "#B45309",
+        "class": "#9A5B00",
+        "builtin": "#0E7490",
+        "function": "#4C63D2",
+        "variable": "#C0334D",
+        "meta": "#0E7490",
+        "deletion": "#C0334D"
+      },
+
+      "terminal": {
+        "cursor": "#4C63D2",
+        "selection": "#4C63D222",
+        "foreground": "#141824",
+        "background": "#FFFFFF",
+
+        "black": "#141824",
+        "red": "#C0334D",
+        "green": "#0A7B34",
+        "yellow": "#9A5B00",
+        "blue": "#4C63D2",
+        "magenta": "#8250DF",
+        "cyan": "#0E7490",
+        "white": "#6B7488",
+
+        "brightBlack": "#525B70",
+        "brightRed": "#A4152F",
+        "brightGreen": "#065F2A",
+        "brightYellow": "#7A4600",
+        "brightBlue": "#33459E",
+        "brightMagenta": "#6639BA",
+        "brightCyan": "#0B5F76",
+        "brightWhite": "#232937",
+
+        "searchHitBackground": "#FDE047",
+        "searchHitBackgroundCurrent": "#4C63D2",
+        "searchHitForeground": "#FFFFFF"
+      }
+    }
+  }
+}

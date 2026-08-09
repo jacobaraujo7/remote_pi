@@ -3,7 +3,10 @@ import 'package:flutter/widgets.dart';
 import 'app_colors.dart';
 import 'app_typography.dart';
 import 'cockpit_theme.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+
 import 'syntax_colors.dart';
+import 'terminal_theme.dart';
 
 /// Acesso ergonômico aos tokens do tema a partir de qualquer widget.
 ///
@@ -25,4 +28,12 @@ extension AppThemeX on BuildContext {
 
   SyntaxColors get syntax =>
       CockpitTheme.maybeOf(this)?.syntax ?? SyntaxColors.dark;
+
+  /// Paleta do terminal do tema ativo. Fora da árvore com tema, cai na paleta
+  /// nativa do brilho corrente.
+  TerminalTheme get terminalTheme =>
+      CockpitTheme.maybeOf(this)?.terminal ??
+      cockpitTerminalThemeFor(
+        MediaQuery.maybePlatformBrightnessOf(this) ?? Brightness.dark,
+      );
 }

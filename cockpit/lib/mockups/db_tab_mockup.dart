@@ -28,6 +28,7 @@ class DbTabMockupApp extends StatelessWidget {
         colors: tokens.colors,
         typo: tokens.typo,
         syntax: tokens.syntax,
+        terminal: tokens.terminal,
         child: child ?? const SizedBox(),
       ),
       home: const _MockupShell(),

@@ -2,8 +2,6 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-const Color _barrier = Color(0x99000000);
-
 /// Widget do dialog contendo as instruções para ativar as notificações no macOS.
 class MacosNotificationInstructionsDialog extends StatelessWidget {
   const MacosNotificationInstructionsDialog({super.key});
@@ -98,7 +96,7 @@ class MacosNotificationInstructionsDialog extends StatelessWidget {
   static Future<void> show(BuildContext context) {
     return showDialog<void>(
       context: context,
-      barrierColor: _barrier,
+      barrierColor: context.colors.scrim,
       builder: (context) => const MacosNotificationInstructionsDialog(),
     );
   }

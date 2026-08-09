@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -32,6 +33,18 @@ class AppTypography {
 
   /// JetBrains Mono — código, args de tool, métricas.
   final TextStyle mono;
+
+  /// Igualdade por valor, pela mesma razão do [AppColors]: o `CockpitTheme`
+  /// compara estes objetos para decidir se repinta a árvore.
+  List<Object?> get _props => [display, title, body, label, tab, mono];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppTypography && listEquals(_props, other._props);
+
+  @override
+  int get hashCode => Object.hashAll(_props);
 
   /// Monta a tipografia. Sem args = defaults do design. [uiFont]/[monoFont]
   /// vazios mantêm Space Grotesk/Hanken e JetBrains Mono; preenchidos trocam a

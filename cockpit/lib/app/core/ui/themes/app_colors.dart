@@ -1,3 +1,5 @@
+import 'package:cockpit/app/core/ui/themes/theme_codec.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 
 /// Tokens de cor do Cockpit — espelham `tokens.css` do design (dark pro-tool,
@@ -28,6 +30,8 @@ class AppColors {
     required this.gitUntracked,
     required this.gitDeleted,
     required this.gitConflict,
+    required this.scrim,
+    required this.shadow,
   });
 
   final Color bg; // app backdrop, deepest
@@ -56,6 +60,10 @@ class AppColors {
   final Color gitDeleted; // removido → vermelho
   final Color gitConflict; // conflito de merge → laranja
 
+  // Overlays. Ambos são translúcidos: o alpha é parte do token.
+  final Color scrim; // barrierColor de dialog/palette
+  final Color shadow; // sombra projetada de superfície flutuante
+
   static const AppColors dark = AppColors(
     bg: Color(0xFF0D0D0F),
     panel: Color(0xFF18181B),
@@ -80,6 +88,8 @@ class AppColors {
     gitUntracked: Color(0xFF4F9DF0),
     gitDeleted: Color(0xFFE5484D),
     gitConflict: Color(0xFFF0883E),
+    scrim: Color(0x99000000),
+    shadow: Color(0x55000000),
   );
 
   /// Variante light — mesmos papéis, luminância invertida; accent azul mantido.
@@ -107,8 +117,122 @@ class AppColors {
     gitUntracked: Color(0xFF2F6FF0),
     gitDeleted: Color(0xFFD32F2F),
     gitConflict: Color(0xFFD9730D),
+    // No light o preto puro pesa: scrim mais leve e sombra mais discreta.
+    scrim: Color(0x66000000),
+    shadow: Color(0x33000000),
   );
 
+  /// Lê os tokens de [json], herdando de [base] tudo que o arquivo não declarar.
+  ///
+  /// Essa herança é o que torna tema custom viável de escrever à mão: 25 tokens
+  /// é muito pra pedir de uma vez, então na prática um tema declara `accent` +
+  /// meia dúzia de superfícies e o resto vem da base.
+  factory AppColors.fromJson(
+    Map<String, Object?> json, {
+    required AppColors base,
+    String path = 'ui',
+  }) {
+    Color read(String key, Color fallback) =>
+        colorOr(json, key, fallback, path: path);
+    return AppColors(
+      bg: read('bg', base.bg),
+      panel: read('panel', base.panel),
+      panel2: read('panel2', base.panel2),
+      panel3: read('panel3', base.panel3),
+      border: read('border', base.border),
+      border2: read('border2', base.border2),
+      text: read('text', base.text),
+      text2: read('text2', base.text2),
+      text3: read('text3', base.text3),
+      text4: read('text4', base.text4),
+      accent: read('accent', base.accent),
+      accentSoft: read('accentSoft', base.accentSoft),
+      accentText: read('accentText', base.accentText),
+      online: read('online', base.online),
+      ok: read('ok', base.ok),
+      error: read('error', base.error),
+      warn: read('warn', base.warn),
+      edited: read('edited', base.edited),
+      editedBg: read('editedBg', base.editedBg),
+      gitStaged: read('gitStaged', base.gitStaged),
+      gitUntracked: read('gitUntracked', base.gitUntracked),
+      gitDeleted: read('gitDeleted', base.gitDeleted),
+      gitConflict: read('gitConflict', base.gitConflict),
+      scrim: read('scrim', base.scrim),
+      shadow: read('shadow', base.shadow),
+    );
+  }
+
+  /// Serializa **todos** os tokens (export sempre gera arquivo completo, mesmo
+  /// que o tema tenha sido escrito com `extends` — assim o export é autônomo).
+  Map<String, Object?> toJson() => {
+    'bg': encodeHexColor(bg),
+    'panel': encodeHexColor(panel),
+    'panel2': encodeHexColor(panel2),
+    'panel3': encodeHexColor(panel3),
+    'border': encodeHexColor(border),
+    'border2': encodeHexColor(border2),
+    'text': encodeHexColor(text),
+    'text2': encodeHexColor(text2),
+    'text3': encodeHexColor(text3),
+    'text4': encodeHexColor(text4),
+    'accent': encodeHexColor(accent),
+    'accentSoft': encodeHexColor(accentSoft),
+    'accentText': encodeHexColor(accentText),
+    'online': encodeHexColor(online),
+    'ok': encodeHexColor(ok),
+    'error': encodeHexColor(error),
+    'warn': encodeHexColor(warn),
+    'edited': encodeHexColor(edited),
+    'editedBg': encodeHexColor(editedBg),
+    'gitStaged': encodeHexColor(gitStaged),
+    'gitUntracked': encodeHexColor(gitUntracked),
+    'gitDeleted': encodeHexColor(gitDeleted),
+    'gitConflict': encodeHexColor(gitConflict),
+    'scrim': encodeHexColor(scrim),
+    'shadow': encodeHexColor(shadow),
+  };
+
+  /// Igualdade por valor. Não é conveniência de teste: o [CockpitTheme] decide
+  /// se repinta a árvore comparando estes objetos, e `buildTokens` devolve uma
+  /// instância **nova** a cada build da raiz. Sem `==`, qualquer rebuild da raiz
+  /// (troca de aba focada, estado do editor) invalidava todo consumidor de
+  /// `context.colors` no app.
+  List<Object?> get _props => [
+    bg,
+    panel,
+    panel2,
+    panel3,
+    border,
+    border2,
+    text,
+    text2,
+    text3,
+    text4,
+    accent,
+    accentSoft,
+    accentText,
+    online,
+    ok,
+    error,
+    warn,
+    edited,
+    editedBg,
+    gitStaged,
+    gitUntracked,
+    gitDeleted,
+    gitConflict,
+    scrim,
+    shadow,
+  ];
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppColors && listEquals(_props, other._props);
+
+  @override
+  int get hashCode => Object.hashAll(_props);
   AppColors copyWith({
     Color? bg,
     Color? panel,
@@ -133,6 +257,8 @@ class AppColors {
     Color? gitUntracked,
     Color? gitDeleted,
     Color? gitConflict,
+    Color? scrim,
+    Color? shadow,
   }) {
     return AppColors(
       bg: bg ?? this.bg,
@@ -158,6 +284,8 @@ class AppColors {
       gitUntracked: gitUntracked ?? this.gitUntracked,
       gitDeleted: gitDeleted ?? this.gitDeleted,
       gitConflict: gitConflict ?? this.gitConflict,
+      scrim: scrim ?? this.scrim,
+      shadow: shadow ?? this.shadow,
     );
   }
 }

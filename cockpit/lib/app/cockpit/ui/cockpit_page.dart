@@ -459,6 +459,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   Future<void> _pullProject(Project project, String rootPath) async {
@@ -471,6 +472,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   Future<void> _pushProject(Project project, String rootPath) async {
@@ -483,6 +485,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   /// "Fork Worktree": nova worktree ramificada da branch do fork [base] —
@@ -498,8 +501,14 @@ class _CockpitPageState extends State<CockpitPage> {
       namespace: namespace,
       fork: true,
       hasPostCheckout: hasHook,
-      onCreate: (name, {baseRef, copyIgnored = false, copyUntracked = false, fetchRemote = true}) =>
-          vm.forkWorktree(
+      onCreate:
+          (
+            name, {
+            baseRef,
+            copyIgnored = false,
+            copyUntracked = false,
+            fetchRemote = true,
+          }) => vm.forkWorktree(
             base.id,
             name,
             copyIgnored: copyIgnored,
@@ -552,8 +561,14 @@ class _CockpitPageState extends State<CockpitPage> {
       rootName: _gitOpLabel(root, rootPath),
       namespace: namespace,
       hasPostCheckout: hasHook,
-      onCreate: (name, {baseRef, copyIgnored = false, copyUntracked = false, fetchRemote = true}) =>
-          vm.createWorktree(
+      onCreate:
+          (
+            name, {
+            baseRef,
+            copyIgnored = false,
+            copyUntracked = false,
+            fetchRemote = true,
+          }) => vm.createWorktree(
             root.id,
             name,
             rootPath: rootPath,
@@ -924,6 +939,10 @@ class _CockpitPageState extends State<CockpitPage> {
                               onCommitStaged: vm.commitStaged,
                               onLoadCommits: vm.recentCommits,
                               onLoadCommitMessage: vm.commitMessage,
+                              onLoadGitHistory: vm.loadGitHistory,
+                              onLoadGitHistoryFiles: vm.loadGitHistoryFiles,
+                              onOpenGitHistoryDiff: vm.openCommitDiff,
+                              gitHistoryRevision: vm.git.revision,
                               commitMessageGeneratorLabel:
                                   configuredHarnessId?.label,
                               onGenerateCommitMessage:
@@ -942,6 +961,7 @@ class _CockpitPageState extends State<CockpitPage> {
                               gitStatusOf: vm.gitStatusForPath,
                               onOpenFile: (path) =>
                                   vm.openFile(path, isPreview: false),
+                              onOpenChangedFile: vm.openChangedFile,
                               onTapFile: vm.openFile, // clique único = preview
                               onSelectFile:
                                   vm.selectFileInTree, // atualiza highlight
@@ -1235,9 +1255,7 @@ class _LspStatusBarState extends State<_LspStatusBar> {
                   width: 8,
                   height: 8,
                   decoration: BoxDecoration(
-                    color: status.running
-                        ? const Color(0xFF22C55E)
-                        : colors.text4,
+                    color: status.running ? colors.online : colors.text4,
                     shape: BoxShape.circle,
                   ),
                 ),

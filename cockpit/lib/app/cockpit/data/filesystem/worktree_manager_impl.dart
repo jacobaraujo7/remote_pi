@@ -73,10 +73,10 @@ class WorktreeManagerImpl implements WorktreeManager {
       ]);
       final remoteBranches = remoteBranchRes.exitCode == 0
           ? (remoteBranchRes.stdout as String)
-              .split('\n')
-              .map((l) => l.trim())
-              .where((l) => l.isNotEmpty && !l.contains('->'))
-              .toSet()
+                .split('\n')
+                .map((l) => l.trim())
+                .where((l) => l.isNotEmpty && !l.contains('->'))
+                .toSet()
           : const <String>{};
 
       String? defaultBranch;
@@ -248,7 +248,12 @@ class WorktreeManagerImpl implements WorktreeManager {
             }
           }
           if (filesToCopy.isNotEmpty) {
-            await _copyFiles(repoPath, target, filesToCopy.toList(), controller);
+            await _copyFiles(
+              repoPath,
+              target,
+              filesToCopy.toList(),
+              controller,
+            );
           } else {
             await _emit(controller, 'No files to copy.');
           }
@@ -314,7 +319,9 @@ class WorktreeManagerImpl implements WorktreeManager {
     final parentDirs = relativePaths
         .map((relPath) => p.dirname(p.join(targetPath, relPath)))
         .toSet();
-    final dirFutures = parentDirs.map((dir) => Directory(dir).create(recursive: true));
+    final dirFutures = parentDirs.map(
+      (dir) => Directory(dir).create(recursive: true),
+    );
     try {
       await Future.wait(dirFutures);
     } catch (e) {

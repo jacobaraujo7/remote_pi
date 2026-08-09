@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+import 'package:cockpit/app/core/ui/themes/theme_codec.dart';
 
 /// Tema **dark** do `TerminalView` (fundo `#18181B`, cursor accent, paleta ANSI
 /// dark). O fundo e a paleta de 16 cores são do emulador (nossos) — o oh-my-zsh
@@ -60,7 +61,78 @@ const TerminalTheme cockpitTerminalThemeLight = TerminalTheme(
 );
 
 /// Tema do terminal conforme o brilho do app.
+///
+/// Fallback: só é o caminho certo fora da árvore com tema instalado. Dentro da
+/// UI use `context.terminalTheme`, que respeita o tema ativo (built-in **ou**
+/// custom) em vez de assumir a paleta padrão.
 TerminalTheme cockpitTerminalThemeFor(Brightness brightness) =>
     brightness == Brightness.dark
     ? cockpitTerminalThemeDark
     : cockpitTerminalThemeLight;
+
+/// Lê a paleta do terminal de [json], herdando de [base] o não declarado.
+///
+/// `TerminalTheme` vem do xterm absorvido (não é nossa classe), então o codec
+/// mora aqui como função em vez de `factory`.
+TerminalTheme terminalThemeFromJson(
+  Map<String, Object?> json, {
+  required TerminalTheme base,
+  String path = 'terminal',
+}) {
+  Color read(String key, Color fallback) =>
+      colorOr(json, key, fallback, path: path);
+  return TerminalTheme(
+    cursor: read('cursor', base.cursor),
+    selection: read('selection', base.selection),
+    foreground: read('foreground', base.foreground),
+    background: read('background', base.background),
+    black: read('black', base.black),
+    red: read('red', base.red),
+    green: read('green', base.green),
+    yellow: read('yellow', base.yellow),
+    blue: read('blue', base.blue),
+    magenta: read('magenta', base.magenta),
+    cyan: read('cyan', base.cyan),
+    white: read('white', base.white),
+    brightBlack: read('brightBlack', base.brightBlack),
+    brightRed: read('brightRed', base.brightRed),
+    brightGreen: read('brightGreen', base.brightGreen),
+    brightYellow: read('brightYellow', base.brightYellow),
+    brightBlue: read('brightBlue', base.brightBlue),
+    brightMagenta: read('brightMagenta', base.brightMagenta),
+    brightCyan: read('brightCyan', base.brightCyan),
+    brightWhite: read('brightWhite', base.brightWhite),
+    searchHitBackground: read('searchHitBackground', base.searchHitBackground),
+    searchHitBackgroundCurrent: read(
+      'searchHitBackgroundCurrent',
+      base.searchHitBackgroundCurrent,
+    ),
+    searchHitForeground: read('searchHitForeground', base.searchHitForeground),
+  );
+}
+
+Map<String, Object?> terminalThemeToJson(TerminalTheme t) => {
+  'cursor': encodeHexColor(t.cursor),
+  'selection': encodeHexColor(t.selection),
+  'foreground': encodeHexColor(t.foreground),
+  'background': encodeHexColor(t.background),
+  'black': encodeHexColor(t.black),
+  'red': encodeHexColor(t.red),
+  'green': encodeHexColor(t.green),
+  'yellow': encodeHexColor(t.yellow),
+  'blue': encodeHexColor(t.blue),
+  'magenta': encodeHexColor(t.magenta),
+  'cyan': encodeHexColor(t.cyan),
+  'white': encodeHexColor(t.white),
+  'brightBlack': encodeHexColor(t.brightBlack),
+  'brightRed': encodeHexColor(t.brightRed),
+  'brightGreen': encodeHexColor(t.brightGreen),
+  'brightYellow': encodeHexColor(t.brightYellow),
+  'brightBlue': encodeHexColor(t.brightBlue),
+  'brightMagenta': encodeHexColor(t.brightMagenta),
+  'brightCyan': encodeHexColor(t.brightCyan),
+  'brightWhite': encodeHexColor(t.brightWhite),
+  'searchHitBackground': encodeHexColor(t.searchHitBackground),
+  'searchHitBackgroundCurrent': encodeHexColor(t.searchHitBackgroundCurrent),
+  'searchHitForeground': encodeHexColor(t.searchHitForeground),
+};

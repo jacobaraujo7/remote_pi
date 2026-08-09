@@ -27,6 +27,9 @@ class AppRoot extends StatelessWidget {
   Widget build(BuildContext context) {
     final controller = context.watch<SettingsController>();
     final s = controller.settings;
+    // O tema ativo (built-in ou importado) alimenta tanto o ThemeData do shadcn
+    // quanto os tokens bespoke — uma escolha só pinta o app inteiro.
+    final theme = controller.activeTheme;
     // "Tamanho da interface" = **zoom do app inteiro** (texto, panes, ícones,
     // app bar, terminal). Baseline 14 = 1.0x. Ver [_AppZoom].
     final uiScale = s.interfaceSize / 14.0;
@@ -49,8 +52,16 @@ class AppRoot extends StatelessWidget {
       // Física de scroll CLAMP em todo o app (mata o bounce/overscroll estranho
       // do default BouncingScrollPhysics do shadcn). Ver ClampingScrollBehavior.
       scrollBehavior: const ClampingScrollBehavior(),
-      theme: buildTheme(brightness: Brightness.light, settings: s),
-      darkTheme: buildTheme(brightness: Brightness.dark, settings: s),
+      theme: buildTheme(
+        brightness: Brightness.light,
+        settings: s,
+        theme: theme,
+      ),
+      darkTheme: buildTheme(
+        brightness: Brightness.dark,
+        settings: s,
+        theme: theme,
+      ),
       themeMode: _themeMode(s.themeMode),
       routerConfig: ModularApp.routerConfigOf(context),
       builder: (context, child) {
@@ -60,6 +71,7 @@ class AppRoot extends StatelessWidget {
         final tokens = buildTokens(
           brightness: Theme.of(context).brightness,
           settings: s,
+          theme: theme,
         );
         return CallbackShortcuts(
           // Atalhos globais (sempre na cadeia de foco): zoom (⌘=/⌘-/⌘0) e foco do
@@ -86,6 +98,7 @@ class AppRoot extends StatelessWidget {
                   colors: tokens.colors,
                   typo: tokens.typo,
                   syntax: tokens.syntax,
+                  terminal: tokens.terminal,
                   child: child ?? const SizedBox(),
                 ),
               ),
