@@ -2116,22 +2116,75 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Pra onde a seleção vai quando o workspace [excluding] deixa de existir:
+  /// o primeiro workspace raiz do realm ativo que não seja ele, senão o
+  /// Cockpit (se ligado), senão `null` — rail vazio → `WelcomeView`.
+  String? _selectionAfterClosing(String excluding) {
+    for (final p in rootProjects) {
+      if (p.id != excluding) return p.id;
+    }
+    return cockpitWorkspace != null ? Project.cockpitId : null;
+  }
+
+  /// Fecha o workspace [id] (e as worktrees dele) — remove da lista local,
+  /// encerra os processos e apaga a persistência. **Não** deleta a pasta.
+  ///
+  /// Ordem obrigatória quando o workspace fechado é o que está na tela:
+  /// **primeiro sai dele, só depois destrói**. Fechar o workspace atual
+  /// crashava porque o runtime era encerrado (PTYs/agentes/controllers
+  /// `dispose()`) enquanto os panes dele ainda eram os pintados: o
+  /// `notifyListeners` só vinha depois de três `await` (persistência +
+  /// `_activateProject` do destino), e qualquer frame nesse intervalo — ou
+  /// qualquer rebuild disparado pelo próprio encerramento das sessões —
+  /// pintava terminais já descartados. Workspace não selecionado nunca
+  /// crashou porque o `IndexedStack` monta todos mas pinta só o ativo.
+  ///
+  /// Por isso: (1) troca a seleção e espera o destino subir; (2) bloco
+  /// **síncrono** que tira da lista + encerra o runtime + notifica, sem
+  /// `await` no meio (mesma invariante do [closeTab]); (3) persistência.
   Future<void> removeProject(String id) async {
-    // Encerra as worktrees do workspace junto (não deixa fork órfão).
+    if (_projectById(id) == null) return;
+    final selected = _selectedProjectId;
+    final leaving =
+        selected == id ||
+        (_worktrees[id] ?? const <Project>[]).any((f) => f.id == selected);
+
+    // (1) Sai do workspace antes de destruí-lo. Com o destino já ativo (ou
+    // `null` → WelcomeView, caso do único workspace aberto), a UI para de
+    // pintar os panes do que vai morrer.
+    if (leaving) {
+      final next = _selectionAfterClosing(id);
+      _selectedProjectId = next;
+      _clearFocusedNotification();
+      _requestPaneKeyboard();
+      git.watchProject(next);
+      notifyListeners();
+      if (next != null) {
+        await _activateProject(next); // reconstrói o destino (idempotente)
+        unawaited(git.refresh(next));
+        unawaited(_projects.saveLastSelected(realmCtrl.activeId, next));
+      }
+    }
+
+    // (2) Agora sim fecha — sem `await` até o notifyListeners.
     for (final fork in _worktrees.remove(id) ?? const <Project>[]) {
       _disposeProjectRuntime(fork.id);
       _projectList.removeWhere((p) => p.id == fork.id);
     }
     _disposeProjectRuntime(id);
     _projectList.removeWhere((p) => p.id == id);
-    if (_selectedProjectId == id || _projectById(_selectedProjectId) == null) {
-      _selectedProjectId = rootProjects.isEmpty ? null : rootProjects.first.id;
+    // Rede de segurança: seleção apontando pra algo que sumiu junto (ou que já
+    // não existia) cai no mesmo fallback.
+    if (_selectedProjectId != null &&
+        _projectById(_selectedProjectId) == null) {
+      _selectedProjectId = _selectionAfterClosing(id);
+      git.watchProject(_selectedProjectId);
     }
+    notifyListeners();
+
+    // (3) Persistência por último — não segura a troca de workspace.
     await _projects.remove(id);
     await _layoutStore.remove(id);
-    final next = _selectedProjectId;
-    if (next != null) await _activateProject(next);
-    notifyListeners();
   }
 
   /// Encerra o runtime de um projeto (árvore de panes + sessões + foco + caches),
