@@ -32,7 +32,8 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show HitTestResult, PointerScrollEvent, PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
@@ -323,20 +324,43 @@ class _TabStripState extends State<_TabStrip> {
               child: MouseRegion(
                 onEnter: (_) => _setHover(true),
                 onExit: (_) => _setHover(false),
-                child: Scrollbar(
-                  controller: _scroll,
-                  // Só aparece com o mouse em cima (e quando há overflow).
-                  thumbVisibility: _hovering && _overflowing,
-                  thickness: 3,
-                  radius: const Radius.circular(3),
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(
-                      context,
-                    ).copyWith(scrollbars: false),
-                    child: SingleChildScrollView(
-                      controller: _scroll,
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+                child: Listener(
+                  onPointerSignal: (pointerSignal) {
+                    if (pointerSignal is PointerScrollEvent && _scroll.hasClients) {
+                      final dy = pointerSignal.scrollDelta.dy;
+                      final dx = pointerSignal.scrollDelta.dx;
+                      final delta = (dx != 0) ? dx : dy;
+                      if (delta != 0) {
+                        final newOffset = (_scroll.offset + delta).clamp(
+                          0.0,
+                          _scroll.position.maxScrollExtent,
+                        );
+                        _scroll.jumpTo(newOffset);
+                      }
+                    }
+                  },
+                  child: Scrollbar(
+                    controller: _scroll,
+                    // Só aparece com o mouse em cima (e quando há overflow).
+                    thumbVisibility: _hovering && _overflowing,
+                    thickness: 3,
+                    radius: const Radius.circular(3),
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(
+                        scrollbars: false,
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.mouse,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
+                      ),
+                      child: SingleChildScrollView(
+                        controller: _scroll,
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
                         children: [
                           for (var i = 0; i < pane.tabs.length; i++)
                             _TabDropSlot(
@@ -386,6 +410,7 @@ class _TabStripState extends State<_TabStrip> {
                 ),
               ),
             ),
+          ),
             // Overflow: lista todas as abas pra pular direto (só quando estoura).
             if (_overflowing)
               Builder(
