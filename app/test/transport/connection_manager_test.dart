@@ -1367,6 +1367,119 @@ void _registerRoomsTests() {
     );
 
     test(
+      'Pi session display name updates without replacing a mobile-local alias',
+      () async {
+        final ch = _ControllableChannel();
+        final cm = ConnectionManager(
+          factory: (_, _) async => ch,
+          storage: _FakeStorage([_fakePeer()]),
+          emitDebounce: Duration.zero,
+        );
+        await cm.connectTo(_fakePeer());
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        ch.pushControl(const RoomAnnounced(
+          peer: 'epk_test',
+          roomId: 'r1',
+          name: 'mesh-agent',
+          sessionDisplayName: 'Initial task',
+          startedAt: 1,
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        expect(
+          cm.roomsFor('epk_test').single.preferredDisplayName,
+          'Initial task',
+        );
+
+        await cm.setRoomLocalName('epk_test', 'r1', 'Pinned mobile alias');
+        ch.pushControl(const RoomMetaUpdated(
+          peer: 'epk_test',
+          roomId: 'r1',
+          sessionDisplayName: 'Review payments',
+          hasSessionDisplayName: true,
+          hasModel: false,
+          hasThinking: false,
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+
+        final withAlias = cm.roomsFor('epk_test').single;
+        expect(withAlias.sessionDisplayName, 'Review payments');
+        expect(withAlias.localName, 'Pinned mobile alias');
+        expect(withAlias.preferredDisplayName, 'Pinned mobile alias');
+
+        await cm.setRoomLocalName('epk_test', 'r1', '');
+        final withoutAlias = cm.roomsFor('epk_test').single;
+        expect(withoutAlias.localName, isNull);
+        expect(withoutAlias.preferredDisplayName, 'Review payments');
+
+        ch.pushControl(const RoomMetaUpdated(
+          peer: 'epk_test',
+          roomId: 'r1',
+          sessionDisplayName: '',
+          hasSessionDisplayName: true,
+          hasModel: false,
+          hasThinking: false,
+        ));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        final cleared = cm.roomsFor('epk_test').single;
+        expect(cleared.sessionDisplayName, '');
+        expect(cleared.name, 'mesh-agent');
+        expect(cleared.preferredDisplayName, 'mesh-agent');
+
+        cm.dispose();
+      },
+    );
+
+    test(
+      'room snapshots restore cached Pi names, tolerate legacy omission, and persist clear markers',
+      () async {
+        final ch = _ControllableChannel();
+        final storage = _FakeStorage([_fakePeer()]);
+        await storage.saveRooms('epk_test', const [
+          PersistedRoom(
+            roomId: 'r1',
+            startedAt: 1,
+            name: 'mesh-agent',
+            sessionDisplayName: 'Cached Pi name',
+          ),
+        ]);
+        final cm = ConnectionManager(
+          factory: (_, _) async => ch,
+          storage: storage,
+          emitDebounce: Duration.zero,
+        );
+        await cm.boot();
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(cm.roomsFor('epk_test').single.preferredDisplayName, 'Cached Pi name');
+
+        // An old relay does not know display_name; absence must not destroy a
+        // cached value during a mixed-version rollout.
+        ch.pushControl(const RoomsSnapshot(peer: 'epk_test', rooms: [
+          RoomInfo(roomId: 'r1', startedAt: 1, name: 'mesh-agent'),
+        ]));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        expect(cm.roomsFor('epk_test').single.sessionDisplayName, 'Cached Pi name');
+
+        // A new relay includes the empty string to reconcile an offline clear.
+        ch.pushControl(const RoomsSnapshot(peer: 'epk_test', rooms: [
+          RoomInfo(
+            roomId: 'r1',
+            startedAt: 1,
+            name: 'mesh-agent',
+            sessionDisplayName: '',
+          ),
+        ]));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        final cleared = cm.roomsFor('epk_test').single;
+        expect(cleared.sessionDisplayName, '');
+        expect(cleared.preferredDisplayName, 'mesh-agent');
+        expect((await storage.loadRooms('epk_test')).single.sessionDisplayName, '');
+
+        cm.dispose();
+      },
+    );
+
+    test(
       'RoomMetaUpdated for unknown room is a no-op (no crash, no insert)',
       () async {
         final ch = _ControllableChannel();
@@ -1421,8 +1534,10 @@ void _registerRoomsTests() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
 
         final after = cm.roomsFor('epk_test').single;
-        expect(after.name, 'meu-projeto',
-            reason: 'local name override applied');
+        expect(after.name, 'work', reason: 'mesh name remains stable');
+        expect(after.localName, 'meu-projeto',
+            reason: 'local name override applied separately');
+        expect(after.preferredDisplayName, 'meu-projeto');
         expect(after.model, 'claude-sonnet-4.5',
             reason: 'model must survive rename');
         expect(after.cwd, '/Users/jacob/projects/app',

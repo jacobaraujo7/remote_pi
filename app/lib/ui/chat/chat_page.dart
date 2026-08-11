@@ -329,7 +329,8 @@ class ChatPage extends StatelessWidget {
     String? initialTitle,
   ) {
     if (room != null) {
-      if (room.name != null && room.name!.isNotEmpty) return room.name!;
+      final preferred = room.preferredDisplayName;
+      if (preferred != null) return preferred;
       final cwd = room.cwd;
       if (cwd != null && cwd.isNotEmpty) {
         final segs = cwd.split('/').where((s) => s.isNotEmpty).toList();
@@ -342,7 +343,7 @@ class ChatPage extends StatelessWidget {
     // Plan/24-fix-title: Home knows the peer label before /chat
     // mounts; use it instead of the generic 'Remote Pi' placeholder
     // while we wait for the first room_meta_updated to populate
-    // `room.name`.
+    // room metadata.
     if (initialTitle != null && initialTitle.isNotEmpty) return initialTitle;
     return 'Remote Pi';
   }

@@ -391,7 +391,11 @@ export class MeshNode {
       try {
         await candidateRelay.connect({
           roomId,
-          roomMeta: { name: roomName, cwd: paramsAtStart.cwd! },
+          roomMeta: {
+            name: roomName,
+            cwd: paramsAtStart.cwd!,
+            display_name: "",
+          },
         });
       } catch (error) {
         this._closeOwnedRelay(candidateRelay);

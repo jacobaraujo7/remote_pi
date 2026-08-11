@@ -15,6 +15,9 @@ const _kRoomsService = 'dev.remotepi.rooms';
 class PersistedRoom {
   final String roomId;
   final String? name;
+  /// Last Pi `/name` received for this room. Presentation-only; it never
+  /// changes the room id or mesh agent identity.
+  final String? sessionDisplayName;
   final String? cwd;
   final int startedAt;
   /// Local-only override for [name]. When non-null, takes precedence
@@ -28,6 +31,7 @@ class PersistedRoom {
     required this.roomId,
     required this.startedAt,
     this.name,
+    this.sessionDisplayName,
     this.cwd,
     this.localName,
     this.model,
@@ -36,6 +40,7 @@ class PersistedRoom {
   Map<String, dynamic> toJson() => {
     'room_id': roomId,
     'name': name,
+    'display_name': sessionDisplayName,
     'cwd': cwd,
     'started_at': startedAt,
     'local_name': localName,
@@ -45,6 +50,7 @@ class PersistedRoom {
   factory PersistedRoom.fromJson(Map<String, dynamic> j) => PersistedRoom(
     roomId: j['room_id'] as String,
     name: j['name'] as String?,
+    sessionDisplayName: j['display_name'] as String?,
     cwd: j['cwd'] as String?,
     startedAt: (j['started_at'] as num).toInt(),
     localName: j['local_name'] as String?,
@@ -53,6 +59,7 @@ class PersistedRoom {
 
   PersistedRoom copyWith({
     String? name,
+    Object? sessionDisplayName = _unset,
     String? cwd,
     int? startedAt,
     Object? localName = _unset,
@@ -60,6 +67,9 @@ class PersistedRoom {
   }) => PersistedRoom(
     roomId: roomId,
     name: name ?? this.name,
+    sessionDisplayName: identical(sessionDisplayName, _unset)
+        ? this.sessionDisplayName
+        : sessionDisplayName as String?,
     cwd: cwd ?? this.cwd,
     startedAt: startedAt ?? this.startedAt,
     localName: identical(localName, _unset)

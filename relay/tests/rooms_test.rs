@@ -270,7 +270,11 @@ async fn room_announced_includes_model_from_hello() {
                 "type": "hello",
                 "pubkey": B64.encode(vk.to_bytes()),
                 "room_id": "work",
-                "room_meta": {"name": "my-proj", "model": "claude-opus-4-7"},
+                "room_meta": {
+                    "name": "my-proj",
+                    "display_name": "Review authentication",
+                    "model": "claude-opus-4-7"
+                },
             })
             .to_string(),
         ))
@@ -305,6 +309,116 @@ async fn room_announced_includes_model_from_hello() {
         "model must be present in room_announced"
     );
     assert_eq!(v["name"], "my-proj");
+    assert_eq!(v["display_name"], "Review authentication");
+}
+
+/// A Pi `/name` change updates presentation metadata without changing the
+/// stable mesh name or room id.
+#[tokio::test]
+async fn room_meta_update_propagates_session_display_name() {
+    let port = start_relay().await;
+    let sk_pi = random_key();
+    use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
+    let peer_pi = B64.encode(sk_pi.verifying_key().to_bytes());
+
+    let (mut ws_pi, _) = connect_and_auth_with_key(port, &sk_pi).await;
+    let (mut ws_app, _) = connect_and_auth(port).await;
+    ws_app
+        .send(Message::text(
+            json!({"type": "subscribe_rooms", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"display_name": "Review payments"},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+
+    let msg = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for room_meta_updated")
+        .unwrap()
+        .unwrap();
+    let v: serde_json::Value = serde_json::from_str(msg.to_text().unwrap()).unwrap();
+    assert_eq!(v["type"], "room_meta_updated");
+    assert_eq!(v["peer"], peer_pi);
+    assert_eq!(v["room_id"], "main");
+    assert_eq!(v["meta"]["display_name"], "Review payments");
+
+    ws_app
+        .send(Message::text(
+            json!({"type": "rooms_check", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    let snapshot = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for rooms snapshot")
+        .unwrap()
+        .unwrap();
+    let snapshot: serde_json::Value = serde_json::from_str(snapshot.to_text().unwrap()).unwrap();
+    assert_eq!(snapshot["rooms"][0]["room_id"], "main");
+    assert_eq!(snapshot["rooms"][0]["display_name"], "Review payments");
+
+    // Clearing `/name` is an explicit empty string, not an absent field. A
+    // newly connected phone must receive that marker in its initial snapshot
+    // rather than retaining an old cached title.
+    ws_pi
+        .send(Message::text(
+            json!({
+                "type": "room_meta_update",
+                "room_id": "main",
+                "meta": {"display_name": ""},
+            })
+            .to_string(),
+        ))
+        .await
+        .unwrap();
+    let cleared = tokio::time::timeout(tokio::time::Duration::from_secs(1), ws_app.next())
+        .await
+        .expect("timed out waiting for cleared room_meta_updated")
+        .unwrap()
+        .unwrap();
+    let cleared: serde_json::Value = serde_json::from_str(cleared.to_text().unwrap()).unwrap();
+    assert_eq!(cleared["room_id"], "main");
+    assert_eq!(cleared["meta"]["display_name"], "");
+
+    ws_app.close(None).await.unwrap();
+    let (mut ws_reconnected_app, _) = connect_and_auth(port).await;
+    ws_reconnected_app
+        .send(Message::text(
+            json!({"type": "subscribe_rooms", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    ws_reconnected_app
+        .send(Message::text(
+            json!({"type": "rooms_check", "peers": [&peer_pi]}).to_string(),
+        ))
+        .await
+        .unwrap();
+    let reconnected_snapshot = tokio::time::timeout(
+        tokio::time::Duration::from_secs(1),
+        ws_reconnected_app.next(),
+    )
+    .await
+    .expect("timed out waiting for reconnect snapshot")
+    .unwrap()
+    .unwrap();
+    let reconnected_snapshot: serde_json::Value =
+        serde_json::from_str(reconnected_snapshot.to_text().unwrap()).unwrap();
+    assert_eq!(reconnected_snapshot["type"], "rooms");
+    assert_eq!(reconnected_snapshot["rooms"][0]["room_id"], "main");
+    assert_eq!(reconnected_snapshot["rooms"][0]["display_name"], "");
 }
 
 /// Pi sends room_meta_update → subscribers receive room_meta_updated with new model.

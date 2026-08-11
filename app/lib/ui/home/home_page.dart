@@ -435,7 +435,7 @@ class HomePage extends StatelessWidget {
     HomeViewModel vm,
     HomeItem it,
   ) async {
-    final controller = TextEditingController(text: it.room.name ?? '');
+    final controller = TextEditingController(text: it.room.localName ?? '');
     final result = await showDialog<String?>(
       context: context,
       builder: (dCtx) {
@@ -561,21 +561,21 @@ class HomePage extends StatelessWidget {
   /// Plan/24-fix-title: the peer/room label we already know here, so the
   /// Chat AppBar doesn't show '—' / 'Remote Pi' until the ChatViewModel
   /// loads the PeerRecord + the first room_meta_updated arrives. Prefers
-  /// room.name (per-cwd title) → cwd tail → nickname → sessionName.
+  /// mobile alias → Pi `/name` → mesh agent name → cwd tail → pairing fallbacks.
   static String _titleFor(PeerRecord peer, RoomInfo room) {
     final roomCwdTail = room.cwd
         ?.split('/')
         .where((s) => s.isNotEmpty)
         .lastOrNull;
-    return (room.name?.isNotEmpty ?? false)
-        ? room.name!
-        : (roomCwdTail != null && roomCwdTail.isNotEmpty)
+    final preferred = room.preferredDisplayName;
+    return preferred ??
+        ((roomCwdTail != null && roomCwdTail.isNotEmpty)
         ? roomCwdTail
         : (peer.nickname?.isNotEmpty ?? false)
         ? peer.nickname!
         : peer.sessionName.isNotEmpty
         ? peer.sessionName
-        : peer.remoteEpk.substring(0, 8);
+        : peer.remoteEpk.substring(0, 8));
   }
 }
 

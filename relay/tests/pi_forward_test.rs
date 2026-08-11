@@ -67,6 +67,7 @@ fn test_room_meta() -> RoomMeta {
         room_id: "main".to_string(),
         name: None,
         cwd: None,
+        display_name: None,
         model: None,
         thinking: None,
         working: false,

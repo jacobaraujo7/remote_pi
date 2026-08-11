@@ -280,6 +280,47 @@ Detalhes em `plan/28-pi-commands.md`.
 
 ---
 
+## Nome de exibição da sessão Pi
+
+A identidade da sala e o título apresentado no app são campos distintos:
+
+- `room_meta.name`: nome estável do agente na mesh; participa da derivação de
+  `room_id = roomIdFor(cwd, name)` e nunca muda por causa de `/name`.
+- `room_meta.display_name`: nome mutável da conversa Pi (`/name`), usado apenas
+  para apresentação. String vazia significa “sem nome; usar os fallbacks”.
+
+A Pi-extension semeia ambos no `hello`:
+
+```jsonc
+{
+  "type": "hello",
+  "room_id": "<stable-id>",
+  "room_meta": {
+    "name": "backend",
+    "display_name": "Review payment retries",
+    "cwd": "/repo"
+  }
+}
+```
+
+Quando Pi emite `session_info_changed`, a extension envia somente metadata:
+
+```jsonc
+{
+  "type": "room_meta_update",
+  "room_id": "<same-stable-id>",
+  "meta": { "display_name": "Review refunds" }
+}
+```
+
+O relay preserva `name`, `cwd` e `room_id`, atualiza `display_name` e distribui
+`room_meta_updated` aos subscribers. Limpar `/name` envia
+`{"display_name":""}` para que o app reverta sem ambiguidade. A precedência no
+app é: **alias local > Pi `/name` > mesh agent name > cwd**. Apps/relays antigos
+ignoram o campo; rollout seguro: relay → app → pi-extension.
+
+---
+
 ## Imagens (plan/30)
 
 `user_message` aceita um anexo de imagem inline (uma por mensagem hoje),

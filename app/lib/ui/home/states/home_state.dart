@@ -33,10 +33,11 @@ class HomeItem {
 
   const HomeItem({required this.peer, required this.room});
 
-  /// Display name preference: explicit room.name → cwd basename →
-  /// `<peer-nickname>` → fallback session_name.
+  /// Display name preference: mobile alias → Pi `/name` → mesh agent name →
+  /// cwd basename → peer nickname → pairing fallback.
   String get displayName {
-    if (room.name != null && room.name!.isNotEmpty) return room.name!;
+    final preferred = room.preferredDisplayName;
+    if (preferred != null) return preferred;
     final cwd = room.cwd;
     if (cwd != null && cwd.isNotEmpty) {
       final last = cwd.split('/').where((s) => s.isNotEmpty).toList();
@@ -137,7 +138,8 @@ class HomeList extends HomeState {
   }
 
   static String _roomLabel(RoomInfo r) {
-    if (r.name != null && r.name!.isNotEmpty) return r.name!;
+    final preferred = r.preferredDisplayName;
+    if (preferred != null) return preferred;
     final cwd = r.cwd;
     if (cwd != null && cwd.isNotEmpty) {
       final segs = cwd.split('/').where((s) => s.isNotEmpty).toList();

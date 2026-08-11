@@ -192,6 +192,20 @@ void main() {
       expect(preserved.harness!.version, '0.4.0');
     });
 
+    test('PersistedRoom keeps Pi session display name and mobile alias separate', () {
+      const room = PersistedRoom(
+        roomId: 'r1',
+        startedAt: 1,
+        name: 'mesh-agent',
+        sessionDisplayName: 'Review payments',
+        localName: 'Pinned alias',
+      );
+      final restored = PersistedRoom.fromJson(room.toJson());
+      expect(restored.name, 'mesh-agent');
+      expect(restored.sessionDisplayName, 'Review payments');
+      expect(restored.localName, 'Pinned alias');
+    });
+
     test('list/save/load round-trips through fake storage', () async {
       final storage = PairingStorage(_FakeSecureStorage());
       const r = PeerRecord(

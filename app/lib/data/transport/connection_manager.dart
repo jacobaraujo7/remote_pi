@@ -595,6 +595,7 @@ class ConnectionManager extends Service {
         :final peer,
         :final roomId,
         :final name,
+        :final sessionDisplayName,
         :final cwd,
         :final startedAt,
         :final model,
@@ -603,10 +604,11 @@ class ConnectionManager extends Service {
       ):
         final key = toStandardB64(peer);
         final list = _roomsByPeer[key] ?? <RoomInfo>[];
-        // Preserve any localName the user already set for this room
-        // (long-press rename) — only the live metadata comes from the
-        // wire, the rename is local-only.
-        String? preservedName;
+        // Preserve the mobile-only long-press alias. Live mesh/session names
+        // continue to refresh independently from wire metadata.
+        String? preservedLocalName;
+        String? preservedSessionDisplayName;
+        String? preservedAgentName;
         // Plan/28 Wave D — also preserve a previously-learned thinking
         // level when the announce frame omits it. Relays that don't
         // flatten `meta.thinking` will keep `thinking == null` here;
@@ -619,13 +621,18 @@ class ConnectionManager extends Service {
         var preservedWorking = false;
         final existingIdx = list.indexWhere((r) => r.roomId == roomId);
         if (existingIdx >= 0) {
-          preservedName = list[existingIdx].name;
+          preservedLocalName = list[existingIdx].localName;
+          preservedSessionDisplayName = list[existingIdx].sessionDisplayName;
+          preservedAgentName = list[existingIdx].name;
           preservedThinking = list[existingIdx].thinking;
           preservedWorking = list[existingIdx].working;
         }
         final next = RoomInfo(
           roomId: roomId,
-          name: preservedName ?? name,
+          name: name ?? preservedAgentName,
+          sessionDisplayName:
+              sessionDisplayName ?? preservedSessionDisplayName,
+          localName: preservedLocalName,
           cwd: cwd,
           startedAt: startedAt,
           model: model,
@@ -666,6 +673,8 @@ class ConnectionManager extends Service {
       case RoomMetaUpdated(
         :final peer,
         :final roomId,
+        :final sessionDisplayName,
+        :final hasSessionDisplayName,
         :final model,
         :final thinking,
         :final working,
@@ -684,6 +693,9 @@ class ConnectionManager extends Service {
         // (preserve previous value) from "field was explicitly null"
         // (overwrite with null). Without this, a thinking-only update
         // would clobber the previously cached model with null.
+        final nextSessionDisplayName = hasSessionDisplayName
+            ? sessionDisplayName
+            : current.sessionDisplayName;
         final nextModel = hasModel ? model : current.model;
         final nextThinking = hasThinking ? thinking : current.thinking;
         // Plan/32 — `working` is nullable-as-absent: null preserves the
@@ -691,12 +703,14 @@ class ConnectionManager extends Service {
         // non-null sets it. This is what carries the relay's
         // turn_start/turn_end broadcast to the Home dot for EVERY room.
         final nextWorking = working ?? current.working;
-        if (current.model == nextModel &&
+        if (current.sessionDisplayName == nextSessionDisplayName &&
+            current.model == nextModel &&
             current.thinking == nextThinking &&
             current.working == nextWorking) {
           break; // dedup: nothing actually changed
         }
         list[idx] = current.copyWith(
+          sessionDisplayName: nextSessionDisplayName,
           model: nextModel,
           thinking: nextThinking,
           working: nextWorking,
@@ -706,20 +720,25 @@ class ConnectionManager extends Service {
         _persistRoomsForPeer(key);
       case RoomsSnapshot(:final peer, :final rooms):
         final key = toStandardB64(peer);
-        // Merge snapshot into cache: add unknown rooms, refresh
-        // metadata (preserving local rename + previous model when
-        // the snapshot omits it), update live set.
+        // Merge snapshot into cache: add unknown rooms, refresh live metadata,
+        // preserve the mobile-only alias, and retain optional fields when a
+        // legacy relay omits them.
         final existing = _roomsByPeer[key] ?? <RoomInfo>[];
         final byId = {for (final r in existing) r.roomId: r};
         for (final r in rooms) {
-          final preservedName = byId[r.roomId]?.name ?? r.name;
-          final preservedModel = r.model ?? byId[r.roomId]?.model;
+          final previous = byId[r.roomId];
+          final preservedAgentName = r.name ?? previous?.name;
+          final preservedSessionDisplayName =
+              r.sessionDisplayName ?? previous?.sessionDisplayName;
+          final preservedModel = r.model ?? previous?.model;
           // Plan/28 Wave D — same convention as model: keep the
           // previously-known thinking when the snapshot omits it.
           final preservedThinking = r.thinking ?? byId[r.roomId]?.thinking;
           byId[r.roomId] = RoomInfo(
             roomId: r.roomId,
-            name: preservedName,
+            name: preservedAgentName,
+            sessionDisplayName: preservedSessionDisplayName,
+            localName: previous?.localName,
             cwd: r.cwd,
             startedAt: r.startedAt,
             model: preservedModel,
@@ -895,7 +914,9 @@ class ConnectionManager extends Service {
           .map(
             (c) => RoomInfo(
               roomId: c.roomId,
-              name: c.localName ?? c.name,
+              name: c.name,
+              sessionDisplayName: c.sessionDisplayName,
+              localName: c.localName,
               cwd: c.cwd,
               startedAt: c.startedAt,
               model: c.model,
@@ -921,23 +942,15 @@ class ConnectionManager extends Service {
     }
     if (match == null) return;
     final list = _roomsByPeer[peerKey] ?? const <RoomInfo>[];
-    // Read the current on-disk localNames so we don't drop the user's
-    // long-press rename when we re-persist in response to a wire
-    // metadata refresh.
-    final existing = await _storage.loadRooms(match.remoteEpk);
-    final localById = {
-      for (final p in existing)
-        if (p.localName != null && p.localName!.isNotEmpty)
-          p.roomId: p.localName!,
-    };
     final persisted = list
         .map(
           (r) => PersistedRoom(
             roomId: r.roomId,
             name: r.name,
+            sessionDisplayName: r.sessionDisplayName,
             cwd: r.cwd,
             startedAt: r.startedAt,
-            localName: localById[r.roomId],
+            localName: r.localName,
             model: r.model,
           ),
         )
@@ -954,18 +967,15 @@ class ConnectionManager extends Service {
     if (list == null) return;
     final idx = list.indexWhere((r) => r.roomId == roomId);
     if (idx < 0) return;
-    final old = list[idx];
-    // Use copyWith so EVERY field (model, cwd, startedAt, …) is
-    // preserved. The previous explicit constructor call dropped
-    // `model`, which made the tile subtitle fall back to
-    // "Last Paired: …" right after a rename — bug.
-    list[idx] = old.copyWith(
-      name: (name != null && name.isNotEmpty) ? name : old.name,
-    );
+    final normalizedName = name?.trim();
+    final localName = normalizedName == null || normalizedName.isEmpty
+        ? null
+        : normalizedName;
+    list[idx] = list[idx].copyWith(localName: localName);
     // Persist with localName so it survives cold start.
     final cached = await _storage.loadRooms(epk);
     final updated = cached
-        .map((c) => c.roomId == roomId ? c.copyWith(localName: name) : c)
+        .map((c) => c.roomId == roomId ? c.copyWith(localName: localName) : c)
         .toList();
     await _storage.saveRooms(epk, updated);
     if (!_roomsController.isClosed) {

@@ -68,7 +68,11 @@ import type {
   WireImage,
   QueuedMessageItem,
 } from "./protocol/types.js";
-import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
+import {
+  RelayClient,
+  RoomAlreadyOpenError,
+  type RoomMeta,
+} from "./transport/relay_client.js";
 import { PlainPeerChannel } from "./transport/peer_channel.js";
 import {
   createExtensionUiBridge,
@@ -225,7 +229,9 @@ let _myRoomId: string | null = null;   // this Pi's room id (derived from cwd)
 // open instead of starting null. The SDK fires `thinking_level_select`
 // on every change (initial load + user toggle), mirrored to room_meta
 // the same way model is — apps subscribe to one channel for both.
-let _myRoomMeta: { name: string; cwd: string; model?: string; thinking?: ThinkingLevel; working?: boolean } | null = null;
+let _myRoomMeta: RoomMeta | null = null;
+let _currentSessionDisplayName: string | undefined = undefined;
+let _sessionDisplayNameRevision = 0;
 let _currentModel: string | undefined = undefined;  // last-known model name
 let _currentThinking: ThinkingLevel | undefined = undefined;  // last-known thinking level
 
@@ -307,6 +313,47 @@ function _setCurrentModel(name: string): void {
   if (_relay && _myRoomId) {
     _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { model: name } });
   }
+}
+
+/**
+ * Publish Pi's mutable `/name` as presentation-only room metadata. The stable
+ * mesh `name` continues to key `roomIdFor(cwd, name)` and agent addresses; an
+ * empty display_name tells the app to fall back without re-keying the room.
+ */
+function _setSessionDisplayName(name: string | undefined): void {
+  const normalized = name?.trim() || undefined;
+  const changed = normalized !== _currentSessionDisplayName;
+  _currentSessionDisplayName = normalized;
+  if (_myRoomMeta) {
+    _myRoomMeta = { ..._myRoomMeta, display_name: normalized ?? "" };
+  }
+  if (!changed) return;
+
+  _sessionDisplayNameRevision += 1;
+  if (_relay && _myRoomId) {
+    _relay.sendControl({
+      type: "room_meta_update",
+      room_id: _myRoomId,
+      meta: { display_name: normalized ?? "" },
+    });
+  }
+}
+
+/** Publish the latest `/name` after connect when the hello may be stale.
+ * Reconnects can force the patch so subscribers are updated even if the relay
+ * still considers an overlapping old socket the room's announced instance. */
+function _reconcileSessionDisplayNameAfterConnect(
+  relay: RelayClient,
+  roomId: string,
+  revisionAtConnect: number,
+  force = false,
+): void {
+  if (!force && _sessionDisplayNameRevision === revisionAtConnect) return;
+  relay.sendControl({
+    type: "room_meta_update",
+    room_id: roomId,
+    meta: { display_name: _currentSessionDisplayName ?? "" },
+  });
 }
 
 /**
@@ -1049,6 +1096,12 @@ export function _setCurrentModelForTest(name: string | undefined): void {
   _currentModel = name;
 }
 
+/** Test-only: reset the cached Pi session display name (between tests). */
+export function _setSessionDisplayNameForTest(name: string | undefined): void {
+  _currentSessionDisplayName = name?.trim() || undefined;
+  _sessionDisplayNameRevision = 0;
+}
+
 /** Test-only: read the active turn id used for plain `cancel` routing. */
 export function _getCurrentTurnIdForTest(): string | null {
   return _currentTurnId;
@@ -1544,6 +1597,7 @@ async function _attemptReconnect(
   // _relayUrl is stored in canonical http(s):// form — convert at the
   // WS boundary, same as _cmdStart.
   const relay = new RelayClient(toWebSocketUrl(url), edKp);
+  const sessionDisplayNameRevisionAtConnect = _sessionDisplayNameRevision;
 
   try {
     // Replay the same room identity from _cmdStart. Without this the relay
@@ -1569,6 +1623,17 @@ async function _attemptReconnect(
 
   _relay = relay;
   _reconnectAttempt = 0;
+  if (_myRoomId) {
+    _reconcileSessionDisplayNameAfterConnect(
+      relay,
+      _myRoomId,
+      sessionDisplayNameRevisionAtConnect,
+      // A relay may still retain an overlapping half-open socket for this
+      // room. Force a post-auth patch so subscribers see the current title
+      // even when the reconnect hello is not announced as a new room.
+      true,
+    );
+  }
 
   relay.on("close", () => _onRelayClose(relay));
   _stopAutoListener = _installAutoListener(relay);
@@ -2137,6 +2202,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     return undefined;
   });
 
+  // Pi `/name` is presentation metadata only. Keep mesh identity and room id
+  // stable while updating subscribed mobile clients in real time.
+  pi.on("session_info_changed", (event) => {
+    _setSessionDisplayName(event.name);
+  });
+
   // Track active model so the app can show it in the SessionTile (plano 18).
   // SDK fires model_select on settings load + every user switch. We cache the
   // friendly name and broadcast a room_meta_update so the relay can fan it
@@ -2340,6 +2411,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
+    const sessionManager = (ctx as Partial<ExtensionContext>).sessionManager;
+    _setSessionDisplayName(sessionManager?.getSessionName());
     // session_shutdown disposes per-session pi-ask subscriptions. A host that
     // reuses this module instance does NOT re-run the factory, so rebind the
     // bridge here; fresh-module hosts already created theirs in the factory.
@@ -2954,7 +3027,11 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
     _currentThinking = _pi?.getThinkingLevel() as ThinkingLevel | undefined;
   } catch { /* defensive — never block /remote-pi start on this */ }
 
-  const roomMeta: { name: string; cwd: string; model?: string; thinking?: ThinkingLevel } = { name: sessionName, cwd };
+  const roomMeta: RoomMeta = {
+    name: sessionName,
+    cwd,
+    display_name: _currentSessionDisplayName ?? "",
+  };
   const modelName = _currentModelName();
   if (modelName) roomMeta.model = modelName;
   if (_currentThinking) roomMeta.thinking = _currentThinking;
@@ -2962,6 +3039,7 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   // this, reconnect issues a bare hello and the relay creates a "default room"
   // entry that surfaces in the app as a phantom legacy session.
   _myRoomMeta = roomMeta;
+  const sessionDisplayNameRevisionAtConnect = _sessionDisplayNameRevision;
 
   ctx.ui.notify(`[remote-pi] Connecting to relay ${relayUrl} (source: ${source}, room: ${roomId})…`, "info");
 
@@ -3003,6 +3081,11 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   _peerShort = myShort;
   _myRoomId = roomId;
   _state = "started";
+  _reconcileSessionDisplayNameAfterConnect(
+    relay,
+    roomId,
+    sessionDisplayNameRevisionAtConnect,
+  );
   // Set _sessionStartedAt ONLY on first /remote-pi start since process boot.
   // Subsequent start cycles (after stop) preserve the original epoch so the
   // app keeps treating it as the same session (and merges new events from

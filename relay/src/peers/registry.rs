@@ -287,12 +287,15 @@ impl PeerRegistry {
         room_id: &str,
         patch: RoomMetaPatch,
     ) -> bool {
-        let (current_model, current_thinking, current_working) = {
+        let (current_display_name, current_model, current_thinking, current_working) = {
             let mut lock = self.senders.lock().unwrap();
             let key = (peer_id.to_string(), room_id.to_string());
             match lock.get_mut(&key) {
                 Some(v) if !v.is_empty() => {
                     for (_, meta, _) in v.iter_mut() {
+                        if let Some(ref display_name) = patch.display_name {
+                            meta.display_name = Some(display_name.clone());
+                        }
                         if let Some(ref m) = patch.model {
                             meta.model = m.clone();
                         }
@@ -307,6 +310,7 @@ impl PeerRegistry {
                     // now; read the first as the canonical snapshot.
                     let head = v.first().expect("v is non-empty");
                     (
+                        head.1.display_name.clone(),
                         head.1.model.clone(),
                         head.1.thinking.clone(),
                         head.1.working,
@@ -324,6 +328,12 @@ impl PeerRegistry {
         let room_subs = self.rooms.subscribers_of(peer_id).await;
         if !room_subs.is_empty() {
             let mut meta_obj = serde_json::Map::new();
+            if let Some(display_name) = current_display_name {
+                meta_obj.insert(
+                    "display_name".to_string(),
+                    serde_json::Value::String(display_name),
+                );
+            }
             if let Some(m) = &current_model {
                 meta_obj.insert("model".to_string(), serde_json::Value::String(m.clone()));
             }
@@ -397,6 +407,7 @@ mod tests {
             room_id: room_id.into(),
             name: None,
             cwd: None,
+            display_name: None,
             model: None,
             thinking: None,
             working: false,

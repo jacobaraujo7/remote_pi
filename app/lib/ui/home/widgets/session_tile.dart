@@ -89,7 +89,8 @@ class SessionTile extends StatelessWidget {
   String _avatarName() {
     final r = room;
     if (r != null) {
-      if (r.name != null && r.name!.isNotEmpty) return r.name!;
+      final preferred = r.preferredDisplayName;
+      if (preferred != null) return preferred;
       final cwd = r.cwd;
       if (cwd != null && cwd.isNotEmpty) {
         final segs = cwd.split('/').where((s) => s.isNotEmpty).toList();
@@ -143,13 +144,14 @@ class _TitleBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final r = room;
-    // Title preference: explicit room.name → cwd basename → peer
-    // nickname → session name. The cwd path line was dropped on purpose
+    // Title preference: mobile alias → Pi `/name` → mesh agent name → cwd
+    // basename → peer nickname → pairing fallback.
     // — the tile now shows just title + subtitle (model / paired date).
     final String title;
     if (r != null) {
-      if (r.name != null && r.name!.isNotEmpty) {
-        title = r.name!;
+      final preferred = r.preferredDisplayName;
+      if (preferred != null) {
+        title = preferred;
       } else if (r.cwd != null && r.cwd!.isNotEmpty) {
         final segs = r.cwd!.split('/').where((s) => s.isNotEmpty).toList();
         title = segs.isNotEmpty ? segs.last : r.cwd!;

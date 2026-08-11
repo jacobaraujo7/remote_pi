@@ -218,6 +218,7 @@ const {
   _hasPendingReconnect,
   _getMessageBufferForTest,
   _setCurrentModelForTest,
+  _setSessionDisplayNameForTest,
   _setPiForTest,
   _getCurrentTurnIdForTest,
   _getPendingSteerIdsForTest,
@@ -5679,7 +5680,7 @@ describe("cumulative buffer", () => {
 
 // ── model meta in room_meta + model_select hook ──────────────────────────────
 
-describe("model meta", () => {
+describe("room meta", () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     _knownPeers.length = 0;
@@ -5694,6 +5695,7 @@ describe("model meta", () => {
     _defaultConnectImpl = async () => undefined;
     delete process.env["REMOTE_PI_RELAY"];
     _setCurrentModelForTest(undefined);
+    _setSessionDisplayNameForTest(undefined);
     const qr = await import("./pairing/qr.js");
     (qr.qrSession.consumeToken as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (token: string) => {
@@ -5724,6 +5726,101 @@ describe("model meta", () => {
     expect(capturedOpts[0]!.roomMeta?.model).toBe("claude-sonnet-4.5");
     expect(capturedOpts[0]!.roomMeta?.name).toBeTruthy();
     expect(capturedOpts[0]!.roomMeta?.cwd).toBe("/tmp/remote-pi-model-test");
+  });
+
+  test("session_start seeds Pi `/name` into room_meta without changing the mesh name", async () => {
+    const cwd = "/tmp/remote-pi-session-display-name";
+    const capturedOpts: Array<{
+      roomId?: string;
+      roomMeta?: { name?: string; display_name?: string };
+    }> = [];
+    _defaultConnectImpl = async (opts?: unknown) => {
+      capturedOpts.push(opts as typeof capturedOpts[number]);
+    };
+
+    const onSessionStart = captureEventHandler("session_start");
+    onSessionStart(
+      { type: "session_start" },
+      {
+        ...makeMockCtx(cwd),
+        sessionManager: { getSessionName: () => "Implement auth flow" },
+      },
+    );
+
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx(cwd));
+
+    expect(capturedOpts).toHaveLength(1);
+    expect(capturedOpts[0]!.roomMeta?.display_name).toBe("Implement auth flow");
+    expect(capturedOpts[0]!.roomMeta?.name).not.toBe("Implement auth flow");
+    expect(capturedOpts[0]!.roomId).toMatch(/^[A-Za-z0-9_-]{12}$/);
+  });
+
+  test("session_info_changed publishes display_name updates and an empty clear", async () => {
+    captureHandler("remote-pi");
+    await _connectForTest(makeMockCtx("/tmp/remote-pi-session-display-update"));
+
+    const onSessionInfoChanged = captureEventHandler("session_info_changed");
+    onSessionInfoChanged({ type: "session_info_changed", name: "Review payments" });
+    onSessionInfoChanged({ type: "session_info_changed", name: undefined });
+
+    const updates = relayRef.current!.sendControl.mock.calls
+      .map((c) => c[0] as {
+        type: string;
+        room_id?: string;
+        meta?: { display_name?: string };
+      })
+      .filter((f) => f.type === "room_meta_update");
+    expect(updates).toHaveLength(2);
+    expect(updates.map((u) => u.meta?.display_name)).toEqual([
+      "Review payments",
+      "",
+    ]);
+    expect(updates.every((u) => /^[A-Za-z0-9_-]{12}$/.test(u.room_id ?? ""))).toBe(true);
+    expect(new Set(updates.map((u) => u.room_id)).size).toBe(1);
+    expect(relayRef.current!.connect).toHaveBeenCalledTimes(1);
+    expect(relayRef.current!.close).not.toHaveBeenCalled();
+  });
+
+  test("session_info_changed during the initial handshake is reconciled after connect", async () => {
+    let releaseConnect!: () => void;
+    const connectGate = new Promise<void>((resolve) => {
+      releaseConnect = resolve;
+    });
+    const capturedOpts: Array<{
+      roomId?: string;
+      roomMeta?: { display_name?: string };
+    }> = [];
+    _defaultConnectImpl = async (opts?: unknown) => {
+      capturedOpts.push(opts as typeof capturedOpts[number]);
+      await connectGate;
+    };
+
+    captureHandler("remote-pi");
+    const pendingConnect = _connectForTest(
+      makeMockCtx("/tmp/remote-pi-session-display-handshake"),
+    );
+    await vi.waitFor(() => expect(capturedOpts).toHaveLength(1));
+
+    const onSessionInfoChanged = captureEventHandler("session_info_changed");
+    onSessionInfoChanged({ type: "session_info_changed", name: "Handshake title" });
+    expect(capturedOpts[0]!.roomMeta?.display_name).toBe("");
+
+    releaseConnect();
+    await pendingConnect;
+
+    const updates = relayRef.current!.sendControl.mock.calls
+      .map((c) => c[0] as {
+        type: string;
+        room_id?: string;
+        meta?: { display_name?: string };
+      })
+      .filter((f) => f.type === "room_meta_update");
+    expect(updates).toHaveLength(1);
+    expect(updates[0]!.room_id).toBe(capturedOpts[0]!.roomId);
+    expect(updates[0]!.meta?.display_name).toBe("Handshake title");
+    expect(relayRef.current!.connect).toHaveBeenCalledTimes(1);
+    expect(relayRef.current!.close).not.toHaveBeenCalled();
   });
 
   test("hello carries `model` from getModel() when ctx.model is absent (daemon path)", async () => {
@@ -5897,7 +5994,15 @@ describe("model meta", () => {
   test("reconnect replays the same room_id + room_meta from _cmdStart (no phantom 'legacy session')", async () => {
     vi.useFakeTimers();
     try {
-      const capturedOpts: Array<{ roomId?: string; roomMeta?: { name?: string; cwd?: string; model?: string } }> = [];
+      const capturedOpts: Array<{
+        roomId?: string;
+        roomMeta?: {
+          name?: string;
+          cwd?: string;
+          display_name?: string;
+          model?: string;
+        };
+      }> = [];
       _defaultConnectImpl = async (opts?: unknown) => {
         capturedOpts.push(opts as typeof capturedOpts[number]);
       };
@@ -5915,8 +6020,15 @@ describe("model meta", () => {
       const initialRoomId = capturedOpts[0]!.roomId!;
       expect(capturedOpts[0]!.roomMeta?.model).toBe("claude-sonnet-4.5");
 
-      // Drop relay → reconnect path fires
+      // Drop relay, then rename while reconnect is only scheduled. The next
+      // hello carries the value, and a forced post-auth patch ensures existing
+      // subscribers see it even if the relay still has a half-open old socket.
       relayInstances[0]!.emit("close");
+      const onSessionInfoChanged = captureEventHandler("session_info_changed");
+      onSessionInfoChanged({
+        type: "session_info_changed",
+        name: "Changed while disconnected",
+      });
       await vi.advanceTimersByTimeAsync(1_000);
 
       // Second connect call must carry the same roomId + roomMeta (CRITICAL:
@@ -5925,7 +6037,59 @@ describe("model meta", () => {
       expect(capturedOpts).toHaveLength(2);
       expect(capturedOpts[1]!.roomId).toBe(initialRoomId);
       expect(capturedOpts[1]!.roomMeta?.cwd).toBe("/tmp/remote-pi-reconnect-room");
+      expect(capturedOpts[1]!.roomMeta?.display_name).toBe(
+        "Changed while disconnected",
+      );
       expect(capturedOpts[1]!.roomMeta?.model).toBe("claude-sonnet-4.5");
+      const reconnectUpdate = relayInstances[1]!.sendControl.mock.calls[0]![0] as {
+        meta?: { display_name?: string };
+      };
+      expect(reconnectUpdate.meta?.display_name).toBe(
+        "Changed while disconnected",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("session_info_changed during reconnect is reconciled without another reconnect", async () => {
+    vi.useFakeTimers();
+    try {
+      let releaseReconnect!: () => void;
+      const reconnectGate = new Promise<void>((resolve) => {
+        releaseReconnect = resolve;
+      });
+      const capturedOpts: Array<{
+        roomId?: string;
+        roomMeta?: { display_name?: string };
+      }> = [];
+      _defaultConnectImpl = async (opts?: unknown) => {
+        capturedOpts.push(opts as typeof capturedOpts[number]);
+        if (capturedOpts.length === 2) await reconnectGate;
+      };
+
+      captureHandler("remote-pi");
+      await _connectForTest(makeMockCtx("/tmp/remote-pi-display-reconnect-race"));
+      relayInstances[0]!.emit("close");
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(capturedOpts).toHaveLength(2);
+
+      const onSessionInfoChanged = captureEventHandler("session_info_changed");
+      onSessionInfoChanged({ type: "session_info_changed", name: "Reconnect title" });
+      expect(capturedOpts[1]!.roomMeta?.display_name).toBe("");
+
+      releaseReconnect();
+      await vi.waitFor(() => {
+        expect(relayInstances[1]!.sendControl).toHaveBeenCalledTimes(1);
+      });
+      const update = relayInstances[1]!.sendControl.mock.calls[0]![0] as {
+        room_id?: string;
+        meta?: { display_name?: string };
+      };
+      expect(update.room_id).toBe(capturedOpts[0]!.roomId);
+      expect(update.meta?.display_name).toBe("Reconnect title");
+      expect(relayInstances).toHaveLength(2);
+      expect(relayInstances[1]!.close).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
     }

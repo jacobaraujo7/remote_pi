@@ -11,6 +11,7 @@ void main() {
         'peer': 'epk_A',
         'room_id': 'room-uuid-1',
         'name': 'work',
+        'display_name': 'Review authentication',
         'cwd': '/Users/jacob/projects/app',
         'started_at': 1700000000000,
       });
@@ -19,6 +20,7 @@ void main() {
       expect(r.peer, 'epk_A');
       expect(r.roomId, 'room-uuid-1');
       expect(r.name, 'work');
+      expect(r.sessionDisplayName, 'Review authentication');
       expect(r.cwd, '/Users/jacob/projects/app');
       expect(r.startedAt, 1700000000000);
     });
@@ -57,6 +59,7 @@ void main() {
           {
             'room_id': 'r1',
             'name': 'one',
+            'display_name': 'Implement payments',
             'cwd': '/one',
             'started_at': 1000,
           },
@@ -71,6 +74,7 @@ void main() {
       expect(r.peer, 'epk_A');
       expect(r.rooms, hasLength(2));
       expect(r.rooms[0].roomId, 'r1');
+      expect(r.rooms[0].sessionDisplayName, 'Implement payments');
       expect(r.rooms[0].cwd, '/one');
       expect(r.rooms[1].name, isNull);
       expect(r.rooms[1].cwd, isNull);
@@ -108,6 +112,20 @@ void main() {
       },
     );
 
+    test('room_meta_updated parses Pi session display name updates', () {
+      final c = ControlInbound.tryFromJson({
+        'type': 'room_meta_updated',
+        'peer': 'epk_A',
+        'room_id': 'r1',
+        'meta': {'display_name': 'Review payments'},
+      });
+      expect(c, isA<RoomMetaUpdated>());
+      final r = c! as RoomMetaUpdated;
+      expect(r.sessionDisplayName, 'Review payments');
+      expect(r.hasSessionDisplayName, isTrue);
+      expect(r.hasModel, isFalse);
+    });
+
     test(
       'room_meta_updated tolerates missing meta / model (clears value)',
       () {
@@ -126,11 +144,13 @@ void main() {
         roomId: 'r1',
         startedAt: 100,
         name: 'work',
+        sessionDisplayName: 'Review auth',
         cwd: '/x',
         model: 'claude-sonnet-4.5',
       );
       final back = RoomInfo.fromJson(r.toJson());
       expect(back, r);
+      expect(back.sessionDisplayName, 'Review auth');
       expect(back.model, 'claude-sonnet-4.5');
     });
 

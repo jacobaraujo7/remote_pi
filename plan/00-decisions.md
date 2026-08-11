@@ -66,6 +66,7 @@ Numeração `00-` é proposital: este arquivo carrega antes dos planos numerados
 | ~~**Mobile pode ativar sessão histórica**~~ | ~~Não precisa o dev resumir no terminal. App envia `switch_session` e Pi process faz `AgentSessionRuntime.resume()`~~ (revertida 2026-05-18: sem switch_session no MVP) |
 | ~~**Rename em 3 níveis**~~ | ~~Peer no Keychain (local), Projeto em `~/.pi/remote/projects.json` (sincroniza p/ outros celulares pareados), Sessão no metadata JSONL (sincroniza bidirecionalmente com a CLI)~~ (revertida 2026-05-18) |
 | **Rename apenas do pareamento** | Local no Keychain/Keystore do mobile. Nome default = cwd onde o Pi rodou (ex: `remote_pi · feature/protocol`). Sem 3 níveis. |
+| **Pi Session `/name` como título automático** | O nome da conversa do Pi sincroniza como `room_meta.display_name`, separado do `agent_name` estável. Precedência no app: alias local > Pi `/name` > agent name > cwd. Renomear/limpar `/name` não muda mesh address nem `room_id`. Fechado 2026-08-11. |
 | **Trabalho paralelo** | Emerge da arquitetura: N Pi processes pareados = N sessões no app. App mostra todas com swipe entre elas |
 | **Switcher por gesto** | Recomendação UX: swipe da borda esquerda alterna entre últimos N pareamentos |
 

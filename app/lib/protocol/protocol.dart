@@ -33,6 +33,9 @@ sealed class ControlInbound {
         final metaJson = j['meta'] as Map<String, dynamic>?;
         final rawThinking =
             (j['thinking'] as String?) ?? (metaJson?['thinking'] as String?);
+        final sessionDisplayName =
+            (j['display_name'] as String?) ??
+            (metaJson?['display_name'] as String?);
         // Plan/32 — `working` arrives top-level (RoomMeta serializes flat)
         // or nested under `meta.working`; read both for forward-compat.
         final rawWorking =
@@ -41,6 +44,7 @@ sealed class ControlInbound {
           peer: j['peer'] as String,
           roomId: j['room_id'] as String,
           name: j['name'] as String?,
+          sessionDisplayName: sessionDisplayName,
           cwd: j['cwd'] as String?,
           startedAt: (j['started_at'] as num).toInt(),
           model: j['model'] as String?,
@@ -63,12 +67,15 @@ sealed class ControlInbound {
       ),
       'room_meta_updated' => () {
         final meta = j['meta'] as Map<String, dynamic>?;
+        final hasSessionDisplayName =
+            meta?.containsKey('display_name') ?? false;
         final hasModel = meta?.containsKey('model') ?? false;
         final hasThinking = meta?.containsKey('thinking') ?? false;
         final rawThinking = meta?['thinking'] as String?;
         return RoomMetaUpdated(
           peer: j['peer'] as String,
           roomId: j['room_id'] as String,
+          sessionDisplayName: meta?['display_name'] as String?,
           model: meta?['model'] as String?,
           thinking: rawThinking != null
               ? ThinkingLevel.fromWire(rawThinking)
@@ -77,6 +84,7 @@ sealed class ControlInbound {
           // cleared state), so a plain nullable bool models the patch:
           // null = absent (preserve current), true/false = set.
           working: meta?['working'] as bool?,
+          hasSessionDisplayName: hasSessionDisplayName,
           hasModel: hasModel,
           hasThinking: hasThinking,
         );
@@ -171,7 +179,19 @@ const Object _kRoomInfoUnset = Object();
 /// Snapshot of a single Pi room (one cwd / session).
 class RoomInfo {
   final String roomId;
+
+  /// Stable mesh agent name. This identifies the room but is not necessarily
+  /// the title the user assigned to the current Pi conversation.
   final String? name;
+
+  /// Pi's mutable `/name`, synchronized as presentation-only room metadata.
+  /// Empty/null means fall back to [name].
+  final String? sessionDisplayName;
+
+  /// Mobile-only override set by long-press rename. It has highest display
+  /// precedence and is never sent back to Pi or the relay.
+  final String? localName;
+
   final String? cwd;
   final int startedAt;
 
@@ -198,17 +218,31 @@ class RoomInfo {
     required this.roomId,
     required this.startedAt,
     this.name,
+    this.sessionDisplayName,
+    this.localName,
     this.cwd,
     this.model,
     this.thinking,
     this.working = false,
   });
 
+  /// Display precedence shared by Home and Chat. A mobile-local alias wins;
+  /// otherwise Pi's `/name` wins over the stable mesh agent name.
+  String? get preferredDisplayName {
+    for (final candidate in [localName, sessionDisplayName, name]) {
+      if (candidate != null && candidate.trim().isNotEmpty) {
+        return candidate.trim();
+      }
+    }
+    return null;
+  }
+
   factory RoomInfo.fromJson(Map<String, dynamic> j) {
     final rawThinking = j['thinking'] as String?;
     return RoomInfo(
       roomId: j['room_id'] as String,
       name: j['name'] as String?,
+      sessionDisplayName: j['display_name'] as String?,
       cwd: j['cwd'] as String?,
       startedAt: (j['started_at'] as num).toInt(),
       model: j['model'] as String?,
@@ -222,6 +256,7 @@ class RoomInfo {
   Map<String, dynamic> toJson() => {
     'room_id': roomId,
     'name': name,
+    'display_name': sessionDisplayName,
     'cwd': cwd,
     'started_at': startedAt,
     'model': model,
@@ -231,6 +266,8 @@ class RoomInfo {
 
   RoomInfo copyWith({
     String? name,
+    Object? sessionDisplayName = _kRoomInfoUnset,
+    Object? localName = _kRoomInfoUnset,
     String? cwd,
     int? startedAt,
     Object? model = _kRoomInfoUnset,
@@ -239,6 +276,12 @@ class RoomInfo {
   }) => RoomInfo(
     roomId: roomId,
     name: name ?? this.name,
+    sessionDisplayName: identical(sessionDisplayName, _kRoomInfoUnset)
+        ? this.sessionDisplayName
+        : sessionDisplayName as String?,
+    localName: identical(localName, _kRoomInfoUnset)
+        ? this.localName
+        : localName as String?,
     cwd: cwd ?? this.cwd,
     startedAt: startedAt ?? this.startedAt,
     model: identical(model, _kRoomInfoUnset) ? this.model : model as String?,
@@ -253,6 +296,8 @@ class RoomInfo {
       other is RoomInfo &&
       other.roomId == roomId &&
       other.name == name &&
+      other.sessionDisplayName == sessionDisplayName &&
+      other.localName == localName &&
       other.cwd == cwd &&
       other.startedAt == startedAt &&
       other.model == model &&
@@ -260,14 +305,24 @@ class RoomInfo {
       other.working == working;
 
   @override
-  int get hashCode =>
-      Object.hash(roomId, name, cwd, startedAt, model, thinking, working);
+  int get hashCode => Object.hash(
+    roomId,
+    name,
+    sessionDisplayName,
+    localName,
+    cwd,
+    startedAt,
+    model,
+    thinking,
+    working,
+  );
 }
 
 class RoomAnnounced extends ControlInbound {
   final String peer;
   final String roomId;
   final String? name;
+  final String? sessionDisplayName;
   final String? cwd;
   final int startedAt;
 
@@ -288,6 +343,7 @@ class RoomAnnounced extends ControlInbound {
     required this.roomId,
     required this.startedAt,
     this.name,
+    this.sessionDisplayName,
     this.cwd,
     this.model,
     this.thinking,
@@ -319,6 +375,13 @@ class RoomsSnapshot extends ControlInbound {
 class RoomMetaUpdated extends ControlInbound {
   final String peer;
   final String roomId;
+
+  /// Pi's mutable `/name`. Empty string explicitly clears it; absence is
+  /// represented by [hasSessionDisplayName] so unrelated metadata updates do
+  /// not clobber the cached title.
+  final String? sessionDisplayName;
+  final bool hasSessionDisplayName;
+
   final String? model;
 
   /// Plan/28 Wave D — current thinking level, parsed from
@@ -350,6 +413,8 @@ class RoomMetaUpdated extends ControlInbound {
   const RoomMetaUpdated({
     required this.peer,
     required this.roomId,
+    this.sessionDisplayName,
+    this.hasSessionDisplayName = false,
     this.model,
     this.thinking,
     this.working,

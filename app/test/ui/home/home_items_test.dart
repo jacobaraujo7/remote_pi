@@ -61,7 +61,7 @@ void main() {
       },
     );
 
-    test('HomeItem.displayName prefers room.name → cwd basename', () {
+    test('HomeItem.displayName prefers local alias → Pi `/name` → mesh name → cwd', () {
       final namedRoom = HomeItem(
         peer: _peer('A'),
         room: const RoomInfo(
@@ -72,6 +72,29 @@ void main() {
         ),
       );
       expect(namedRoom.displayName, 'project-alpha');
+
+      final sessionNamedRoom = HomeItem(
+        peer: _peer('A'),
+        room: const RoomInfo(
+          roomId: 'r1',
+          startedAt: 1,
+          name: 'mesh-agent',
+          sessionDisplayName: 'Review payments',
+        ),
+      );
+      expect(sessionNamedRoom.displayName, 'Review payments');
+
+      final locallyNamedRoom = HomeItem(
+        peer: _peer('A'),
+        room: const RoomInfo(
+          roomId: 'r1',
+          startedAt: 1,
+          name: 'mesh-agent',
+          sessionDisplayName: 'Review payments',
+          localName: 'Pinned alias',
+        ),
+      );
+      expect(locallyNamedRoom.displayName, 'Pinned alias');
 
       final cwdRoom = HomeItem(
         peer: _peer('A'),

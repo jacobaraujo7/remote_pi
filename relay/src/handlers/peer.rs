@@ -98,6 +98,10 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
             .and_then(|m| m.get("cwd"))
             .and_then(|v| v.as_str())
             .map(String::from);
+        let display_name = room_meta_val
+            .and_then(|m| m.get("display_name"))
+            .and_then(|v| v.as_str())
+            .map(String::from);
         let model = room_meta_val
             .and_then(|m| m.get("model"))
             .and_then(|v| v.as_str())
@@ -118,6 +122,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
             room_id,
             name,
             cwd,
+            display_name,
             model,
             thinking,
             working,
@@ -256,12 +261,13 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                 }
 
                                 // ── room meta update (plano 18 + 28 + 32) ──
-                                // `meta.model`, `meta.thinking` and
-                                // `meta.working` are patched independently: a
+                                // `meta.display_name`, `meta.model`,
+                                // `meta.thinking` and `meta.working` are patched independently: a
                                 // field absent from `meta` is *left alone* on
-                                // the room (not cleared). For the nullable
-                                // string fields, an explicit `null` clears
-                                // them. `working` is a plain bool, so it only
+                                // the room (not cleared). Empty `display_name`
+                                // clears the Pi title; explicit `null` clears
+                                // the nullable model/thinking fields.
+                                // `working` is a plain bool, so it only
                                 // ever toggles — a non-bool/absent value leaves
                                 // it untouched. Mirrors the JSON Merge Patch
                                 // shape clients already produce.
@@ -274,6 +280,10 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     let meta_obj = frame
                                         .get("meta")
                                         .and_then(|v| v.as_object());
+                                    let display_name_patch = meta_obj
+                                        .and_then(|m| m.get("display_name"))
+                                        .and_then(|v| v.as_str())
+                                        .map(String::from);
                                     let model_patch = meta_obj
                                         .and_then(|m| m.get("model"))
                                         .map(|v| v.as_str().map(String::from));
@@ -284,6 +294,7 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                         .and_then(|m| m.get("working"))
                                         .and_then(|v| v.as_bool());
                                     let patch = RoomMetaPatch {
+                                        display_name: display_name_patch,
                                         model: model_patch,
                                         thinking: thinking_patch,
                                         working: working_patch,

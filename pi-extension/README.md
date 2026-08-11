@@ -171,7 +171,7 @@ messages are unaffected.
 
 ## Install
 
-Requirements: Node 20+, Pi (the host coding agent).
+Requirements: Node 20+, Pi 0.80.3+ (the host coding agent).
 
 ```bash
 pi install npm:remote-pi
@@ -403,6 +403,12 @@ Useful commands:
 Name collisions inside a session get a numeric suffix automatically
 (`backend`, `backend#2`, `backend#3`). The broker assigns it and returns the
 real name to the peer.
+
+The mobile session title follows Pi's `/name` automatically. This is
+presentation-only: changing or clearing `/name` does not rename the mesh agent,
+change its address, or derive a new relay room. A mobile-local long-press alias
+still takes precedence over the synchronized Pi title. Use
+`/remote-pi rename` only when you actually intend to change mesh identity.
 
 ---
 

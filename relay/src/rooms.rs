@@ -11,6 +11,10 @@ pub struct RoomMeta {
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<String>,
+    /// Pi's mutable session `/name`, used only as a mobile display label.
+    /// The stable `name` above remains the mesh identity and room-id input.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
     /// Active Claude model for this room (plano 18). None = not reported yet.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
@@ -28,16 +32,15 @@ pub struct RoomMeta {
     pub started_at: i64,
 }
 
-/// Patch over the mutable `RoomMeta` fields. Each entry distinguishes
-/// "field absent in the update" (outer `None`, meaning "leave current") from
-/// "field present in the update" (outer `Some(_)`, whose inner `None` means
-/// "clear to null" and whose inner `Some(s)` means "set to s").
-///
-/// Built by the `room_meta_update` handler from the `meta` JSON object; the
-/// relay never inspects the inner values beyond JSON-shape (they're forwarded
-/// opaquely to subscribers).
+/// Patch over the mutable `RoomMeta` fields. `model` and `thinking` use nested
+/// options: outer `None` leaves the field unchanged, while inner `None` clears
+/// it to null. `display_name` uses an empty string as its explicit clear marker
+/// because the Pi Session name API represents an unset `/name` that way.
 #[derive(Debug, Default, Clone)]
 pub struct RoomMetaPatch {
+    /// Empty string explicitly clears the presentation label while keeping the
+    /// field present for subscribers; absence leaves the current value alone.
+    pub display_name: Option<String>,
     pub model: Option<Option<String>>,
     pub thinking: Option<Option<String>>,
     /// `working` is a non-nullable bool, so the patch is a single `Option`:
@@ -51,7 +54,10 @@ impl RoomMetaPatch {
     /// otherwise). Used by the registry to skip work when callers send empty
     /// `meta: {}`.
     pub fn is_empty(&self) -> bool {
-        self.model.is_none() && self.thinking.is_none() && self.working.is_none()
+        self.display_name.is_none()
+            && self.model.is_none()
+            && self.thinking.is_none()
+            && self.working.is_none()
     }
 }
 

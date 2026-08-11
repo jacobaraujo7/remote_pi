@@ -28,18 +28,29 @@ interface ChallengeMsg { type: "challenge"; nonce: string }
 interface AuthMsg { type: "auth"; sig: string }
 
 export interface RoomMeta {
+  /** Stable mesh identity. This still keys `roomIdFor(cwd, name)`. */
   name: string;
   cwd: string;
+  /** Pi's mutable `/name` value for display in the mobile app. Empty means
+   *  "fall back to the stable mesh name"; it never changes room identity. */
+  display_name: string;
   /** Friendly model name (e.g. "claude-sonnet-4.5"). Optional — pi-ext sends
    *  when `ExtensionContext.model` is available; relay/app tolerate absence. */
   model?: string;
+  thinking?: string;
+  working?: boolean;
 }
 
 /** Control frame sent to relay (not routed to app peer). */
 export interface RoomMetaUpdateFrame {
   type: "room_meta_update";
   room_id: string;
-  meta: { model?: string };
+  meta: {
+    display_name?: string;
+    model?: string;
+    thinking?: string;
+    working?: boolean;
+  };
 }
 
 export interface ConnectOptions {
