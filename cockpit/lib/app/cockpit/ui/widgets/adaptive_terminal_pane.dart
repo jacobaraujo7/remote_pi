@@ -18,6 +18,7 @@ class AdaptiveTerminalPane extends StatelessWidget {
   const AdaptiveTerminalPane({
     super.key,
     required this.terminal,
+    required this.active,
     required this.focusNode,
     required this.textStyle,
     required this.theme,
@@ -28,6 +29,7 @@ class AdaptiveTerminalPane extends StatelessWidget {
   });
 
   final CockpitTerminalController terminal;
+  final bool active;
   final FocusNode focusNode;
   final xterm.TerminalStyle textStyle;
   final xterm.TerminalTheme theme;
@@ -40,6 +42,7 @@ class AdaptiveTerminalPane extends StatelessWidget {
   Widget build(BuildContext context) => switch (terminal) {
     final XtermTerminalController value => TerminalPane(
       terminal: value.terminal,
+      active: active,
       focusNode: focusNode,
       textStyle: textStyle,
       theme: theme,
@@ -49,6 +52,7 @@ class AdaptiveTerminalPane extends StatelessWidget {
     ),
     final GhosttyTerminalController value => _GhosttyPane(
       terminal: value,
+      active: active,
       focusNode: focusNode,
       textStyle: textStyle,
       theme: theme,
@@ -66,6 +70,7 @@ final class _CockpitPasteIntent extends Intent {
 class _GhosttyPane extends StatelessWidget {
   const _GhosttyPane({
     required this.terminal,
+    required this.active,
     required this.focusNode,
     required this.textStyle,
     required this.theme,
@@ -75,6 +80,7 @@ class _GhosttyPane extends StatelessWidget {
   });
 
   final GhosttyTerminalController terminal;
+  final bool active;
   final FocusNode focusNode;
   final xterm.TerminalStyle textStyle;
   final xterm.TerminalTheme theme;
@@ -84,6 +90,12 @@ class _GhosttyPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // IndexedStack mantém a sessão e este widget montados. Remover somente a
+    // view terminal inativa desanexa seus listeners/render objects; o parser e
+    // o scrollback continuam vivos no controller, sem layout/paint invisível a
+    // cada batch de output. Ao reativar, a view reconecta ao estado atual.
+    if (!active) return const SizedBox.expand();
+
     final shortcuts = <ShortcutActivator, Intent>{};
     if (!readOnly && onPaste != null) {
       shortcuts[const SingleActivator(LogicalKeyboardKey.keyV, meta: true)] =

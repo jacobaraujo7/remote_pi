@@ -7,8 +7,9 @@ import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/core/terminal/pty_output_scheduler.dart';
+import 'package:cockpit/app/core/utils/quiet_period_debouncer.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
-import 'package:cockpit/app/cockpit/ui/session/pty_output_coalescer.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
 import 'package:pasteboard/pasteboard.dart';
@@ -272,7 +273,10 @@ class TerminalSession extends PaneItem {
   final TerminalScrollbackStore? _scrollback;
   final StringBuffer _record0 = StringBuffer();
   int _altDepth = 0;
-  Timer? _saveDebounce;
+  late final QuietPeriodDebouncer _saveDebounce = QuietPeriodDebouncer(
+    delay: const Duration(seconds: 1),
+    onQuiet: () => unawaited(_flush()),
+  );
   Timer? _startupTimer;
 
   /// ~2.5 MB ≈ 10000 linhas (casa com `maxLines`). Acima disso, corta a frente.
@@ -370,8 +374,7 @@ class TerminalSession extends PaneItem {
         ..clear()
         ..write(s.substring(s.length - (_kMaxRecordChars * 3 ~/ 4)));
     }
-    _saveDebounce?.cancel();
-    _saveDebounce = Timer(const Duration(seconds: 1), _flush);
+    _saveDebounce.trigger();
   }
 
   /// Atualiza [_cwd] a partir de OSC 7 no chunk. Pega a ÚLTIMA ocorrência (o
@@ -401,7 +404,7 @@ class TerminalSession extends PaneItem {
   @override
   Future<void> dispose() async {
     _notifyDebounce?.cancel();
-    _saveDebounce?.cancel();
+    _saveDebounce.dispose();
     _startupTimer?.cancel();
     unawaited(
       _flush(),

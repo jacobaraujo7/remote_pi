@@ -25,6 +25,7 @@ class TerminalPane extends StatefulWidget {
   const TerminalPane({
     super.key,
     required this.terminal,
+    required this.active,
     required this.focusNode,
     required this.textStyle,
     required this.theme,
@@ -34,6 +35,7 @@ class TerminalPane extends StatefulWidget {
   });
 
   final Terminal terminal;
+  final bool active;
   final FocusNode focusNode;
   final TerminalStyle textStyle;
   final TerminalTheme theme;
@@ -526,6 +528,12 @@ class _TerminalPaneState extends State<TerminalPane>
 
   @override
   Widget build(BuildContext context) {
+    // Mantém este State (ScrollController, seleção e viewport) no IndexedStack,
+    // mas desanexa o RenderTerminal enquanto a tab/workspace está invisível.
+    // Assim writes continuam atualizando o modelo sem agendar layout/paint de
+    // uma superfície que não pode aparecer.
+    if (!widget.active) return const SizedBox.expand();
+
     return MouseRegion(
       cursor: _cursor,
       onHover: (e) {

@@ -434,7 +434,10 @@ class LspClientImpl implements LspClient {
 
   void _onStderrLine(String line) {
     if (line.trim().isEmpty) return;
-    debugPrint('[lsp:${spec.languageId}][err] $line');
+    // Alguns language servers escrevem telemetria verbosa no stderr. Em
+    // produção isso não pode alimentar a fila throttled do debugPrint junto
+    // com terminais, builds e agentes.
+    if (kDebugMode) debugPrint('[lsp:${spec.languageId}][err] $line');
   }
 
   void _onStreamError(Object error, StackTrace stackTrace) {

@@ -15,6 +15,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_composer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_setup_checklist.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
@@ -49,6 +50,7 @@ class PaneView extends StatelessWidget {
     required this.pane,
     required this.vm,
     required this.focused,
+    required this.active,
     required this.onCreateTab,
     required this.onSplit,
     required this.onFillEmpty,
@@ -60,6 +62,7 @@ class PaneView extends StatelessWidget {
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
+  final bool active;
 
   /// Abre uma aba "Novo" (placeholder vazio) — o tipo é escolhido dentro dela.
   final VoidCallback onCreateTab;
@@ -110,6 +113,7 @@ class PaneView extends StatelessWidget {
               pane: pane,
               vm: vm,
               focused: focused,
+              visible: active,
               onCreateTab: onCreateTab,
               onSplit: onSplit,
               onHistoryAgent: onHistoryAgent,
@@ -147,8 +151,8 @@ class PaneView extends StatelessWidget {
       key: ValueKey('body-$tabId'),
       item: session,
       paneId: pane.id,
-      focused: focused && tabId == pane.active,
-      active: tabId == pane.active,
+      focused: active && focused && tabId == pane.active,
+      active: active && tabId == pane.active,
       focusGen: vm.tabFocusGen,
       onFillEmpty: (terminal) => onFillEmpty(tabId, terminal),
     );
@@ -177,6 +181,7 @@ class _TabStrip extends StatefulWidget {
     required this.pane,
     required this.vm,
     required this.focused,
+    required this.visible,
     required this.onCreateTab,
     required this.onSplit,
     required this.onHistoryAgent,
@@ -187,6 +192,7 @@ class _TabStrip extends StatefulWidget {
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
+  final bool visible;
   final VoidCallback onCreateTab;
   final ValueChanged<SplitDir> onSplit;
   final ValueChanged<String> onHistoryAgent;
@@ -351,6 +357,7 @@ class _TabStripState extends State<_TabStrip> {
                               child: _Tab(
                                 item: widget.vm.session(pane.tabs[i]),
                                 paneId: pane.id,
+                                visible: widget.visible,
                                 active: pane.tabs[i] == pane.active,
                                 focused: widget.focused,
                                 onSelect: () =>
@@ -439,6 +446,7 @@ class _Tab extends StatefulWidget {
   const _Tab({
     required this.item,
     required this.paneId,
+    required this.visible,
     required this.active,
     required this.focused,
     required this.onSelect,
@@ -452,6 +460,7 @@ class _Tab extends StatefulWidget {
 
   final PaneItem? item;
   final String paneId;
+  final bool visible;
   final bool active;
   final bool focused;
   final VoidCallback onSelect;
@@ -681,8 +690,9 @@ class _TabState extends State<_Tab> {
   Widget build(BuildContext context) {
     final s = widget.item;
     if (s == null) return const SizedBox.shrink();
-    return ListenableBuilder(
+    return ActiveListenableBuilder(
       listenable: s,
+      active: widget.visible,
       builder: (_, _) {
         final colors = context.colors;
         final isFocusedActive = widget.active && widget.focused;
@@ -1374,6 +1384,7 @@ class _PaneBodyState extends State<_PaneBody> {
             padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
             child: AdaptiveTerminalPane(
               terminal: item.terminal,
+              active: widget.active,
               focusNode: _terminalFocus,
               onKeyEvent: (_) => KeyEventResult.ignored,
               readOnly: true,
@@ -1417,6 +1428,7 @@ class _PaneBodyState extends State<_PaneBody> {
               padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
               child: AdaptiveTerminalPane(
                 terminal: item.terminal,
+                active: widget.active,
                 focusNode: _terminalFocus,
                 // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
                 // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
@@ -1453,8 +1465,9 @@ class _PaneBodyState extends State<_PaneBody> {
     }
 
     final agent = item as AgentSession;
-    return ListenableBuilder(
+    return ActiveListenableBuilder(
       listenable: agent,
+      active: widget.active,
       builder: (context, _) {
         if (agent.status == AgentStatus.empty) {
           // No workspace de sistema "Cockpit" agentes são desligados **sempre**

@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/core/utils/quiet_period_debouncer.dart';
 
 /// Mantém **um emulador [Terminal] por task**, alimentado continuamente pelo
 /// output do runner — independente de haver ou não uma aba aberta. É isso que
@@ -42,7 +42,7 @@ class TaskTerminalStore {
   final _outSubs = <String, StreamSubscription<String>>{};
   final _lastPid = <String, int?>{};
   final _record = <String, StringBuffer>{};
-  final _flushTimers = <String, Timer>{};
+  final _flushDebouncers = <String, QuietPeriodDebouncer>{};
 
   /// Terminal da task (cria um vazio na primeira vez — read-only na UI). O
   /// `onResize` é ligado ao pty pra o output refluir ao tamanho do viewer; na
@@ -99,14 +99,10 @@ class TaskTerminalStore {
       _record[run.taskId]?.clear();
     }
     _outSubs.remove(run.taskId)?.cancel();
-    _outSubs[run.taskId] = _runner
-        .output(run.taskId)
-        .cast<List<int>>()
-        .transform(const Utf8Decoder(allowMalformed: true))
-        .listen((data) {
-          term.write(data);
-          _append(run.taskId, data);
-        });
+    _outSubs[run.taskId] = _runner.output(run.taskId).listen((data) {
+      term.write(data);
+      _append(run.taskId, data);
+    });
   }
 
   /// Acumula o output no buffer da task (ring trim amortizado) e agenda um flush
@@ -120,11 +116,15 @@ class TaskTerminalStore {
         s.substring(s.length - (_kMaxRecordChars * 3 ~/ 4)),
       );
     }
-    _flushTimers[taskId]?.cancel();
-    _flushTimers[taskId] = Timer(
-      const Duration(seconds: 1),
-      () => unawaited(_flush(taskId)),
-    );
+    _flushDebouncers
+        .putIfAbsent(
+          taskId,
+          () => QuietPeriodDebouncer(
+            delay: const Duration(seconds: 1),
+            onQuiet: () => unawaited(_flush(taskId)),
+          ),
+        )
+        .trigger();
   }
 
   Future<void> _flush(String taskId) async {
@@ -140,19 +140,18 @@ class TaskTerminalStore {
   /// Grava agora o output pendente de todas as tasks — chamado no quit do app
   /// (o debounce de 1s pode não ter disparado ainda).
   Future<void> flushAll() async {
-    for (final t in _flushTimers.values) {
-      t.cancel();
+    for (final debouncer in _flushDebouncers.values) {
+      debouncer.cancel();
     }
-    _flushTimers.clear();
     await Future.wait(_record.keys.map(_flush));
   }
 
   void dispose() {
     _sub?.cancel();
-    for (final t in _flushTimers.values) {
-      t.cancel();
+    for (final debouncer in _flushDebouncers.values) {
+      debouncer.dispose();
     }
-    _flushTimers.clear();
+    _flushDebouncers.clear();
     for (final s in _outSubs.values) {
       s.cancel();
     }

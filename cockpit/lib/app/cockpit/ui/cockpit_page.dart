@@ -901,7 +901,13 @@ class _CockpitPageState extends State<CockpitPage> {
                                       key: ValueKey(project.id),
                                       child: ColoredBox(
                                         color: colors.border,
-                                        child: _multiplexer(vm, project.id),
+                                        child: _multiplexer(
+                                          vm,
+                                          project.id,
+                                          active:
+                                              project.id ==
+                                              vm.selectedProjectId,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -1073,13 +1079,22 @@ class _CockpitPageState extends State<CockpitPage> {
     return index < 0 ? 0 : index;
   }
 
-  Widget _multiplexer(CockpitViewModel vm, String projectId) {
+  Widget _multiplexer(
+    CockpitViewModel vm,
+    String projectId, {
+    required bool active,
+  }) {
     final tree = vm.tree(projectId);
     if (tree == null) return const SizedBox.shrink();
-    return _renderNode(vm, projectId, tree);
+    return _renderNode(vm, projectId, tree, active: active);
   }
 
-  Widget _renderNode(CockpitViewModel vm, String projectId, PaneNode node) {
+  Widget _renderNode(
+    CockpitViewModel vm,
+    String projectId,
+    PaneNode node, {
+    required bool active,
+  }) {
     if (node is LeafPane) {
       return PaneDropZone(
         key: ValueKey('drop-${node.id}'),
@@ -1089,7 +1104,8 @@ class _CockpitPageState extends State<CockpitPage> {
           key: ValueKey(node.id),
           pane: node,
           vm: vm,
-          focused: node.id == vm.focusedPaneId(projectId),
+          focused: active && node.id == vm.focusedPaneId(projectId),
+          active: active,
           onCreateTab: () => vm.newEmptyTab(node.id),
           // Aba placeholder "Novo" (nem agente nem terminal): o novo pane vira
           // outro placeholder com o seletor Agent/Terminal (ou terminal direto
@@ -1128,12 +1144,12 @@ class _CockpitPageState extends State<CockpitPage> {
         final first = SizedBox(
           width: isRow ? aSize : null,
           height: isRow ? null : aSize,
-          child: _renderNode(vm, projectId, split.a),
+          child: _renderNode(vm, projectId, split.a, active: active),
         );
         final second = SizedBox(
           width: isRow ? bSize : null,
           height: isRow ? null : bSize,
-          child: _renderNode(vm, projectId, split.b),
+          child: _renderNode(vm, projectId, split.b, active: active),
         );
         final divider = PaneDivider(
           dir: split.dir,
