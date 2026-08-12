@@ -27,10 +27,15 @@ const HALTED_STATES: Record<string, string> = {
  * so it no longer holds the socket the scan found it on. This is reachable
  * rather than theoretical: the owner can exit between reading the socket table
  * and reading its state.
+ *
+ * Linux reports dead under two codes. `proc(5)` gives `X` from 2.6.0 onward
+ * and `x` on 2.6.33 through 3.13, and a missed code would be classified as
+ * working and told it may be busy.
  */
 const EXITED_STATES: Record<string, string> = {
   Z: "a zombie",
   X: "dead",
+  x: "dead",
 };
 
 /**

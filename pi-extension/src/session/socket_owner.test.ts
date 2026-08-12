@@ -25,6 +25,8 @@ describe("describeState", () => {
     // resumable nor merely busy.
     expect(describeState("Z")).toEqual({ state: "a zombie", liveness: "exited" });
     expect(describeState("X")).toEqual({ state: "dead", liveness: "exited" });
+    // Linux spells dead two ways, and the lower-case one is easy to miss.
+    expect(describeState("x")).toEqual({ state: "dead", liveness: "exited" });
   });
 
   test("names the state instead of flattening everything to running", () => {
