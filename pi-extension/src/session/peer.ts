@@ -345,10 +345,27 @@ export class SessionPeer {
 
   private _registerOver(sock: Socket): Promise<string> {
     return new Promise<string>((resolve, reject) => {
-      // The first inbound line MUST be the register_ack. Buffer-aware.
-      const wait = setTimeout(() => reject(new Error("register_ack timeout")), 5_000);
-      const onceListener = (raw: unknown) => {
+      let settled = false;
+      const fail = (err: Error): void => {
+        if (settled) return;
+        settled = true;
         clearTimeout(wait);
+        this._preAckListener = null;
+        // Leader self-registration uses a separate client socket. Destroying it does not close the broker server.
+        // Clear the active socket first. This prevents the close handler from starting a new election after registration failed.
+        if (this.socket === sock) this.socket = null;
+        sock.destroy();
+        reject(err);
+      };
+      // The first inbound line MUST be the register_ack. Buffer-aware.
+      const wait = setTimeout(() => {
+        fail(new Error(
+          `register_ack timeout after ${ACK_TIMEOUT_MS}ms: a listener is bound to ${this.opts.sockPath} but did not answer the register handshake. `
+          + "The broker process may be suspended or its event loop may be blocked. "
+          + "AF_UNIX connect() succeeds as soon as the kernel queues the connection, so leader election cannot detect this by connectivity alone.",
+        ));
+      }, ACK_TIMEOUT_MS);
+      const onceListener = (raw: unknown) => {
         // plan/38: a new broker returns `address_assigned` (canonical key) +
         // `name_assigned` (clean leaf). Read both with cross-fallback so we work
         // against either a new broker OR a legacy one (only `name_assigned`,
@@ -357,12 +374,15 @@ export class SessionPeer {
         const name = typeof ack?.name_assigned === "string" ? ack.name_assigned : ack?.address_assigned;
         const address = typeof ack?.address_assigned === "string" ? ack.address_assigned : ack?.name_assigned;
         if (ack && ack.type === "register_ack" && typeof name === "string" && typeof address === "string") {
+          if (settled) return;
+          settled = true;
+          clearTimeout(wait);
           this.assignedName = name;
           this.assignedAddress = address;
           this._preAckListener = null;
           resolve(name);
         } else {
-          reject(new Error(`expected register_ack, got: ${JSON.stringify(raw)}`));
+          fail(new Error(`expected register_ack, got: ${JSON.stringify(raw)}`));
         }
       };
       this._preAckListener = onceListener;
@@ -378,8 +398,7 @@ export class SessionPeer {
       try {
         sock.write(req);
       } catch (e) {
-        clearTimeout(wait);
-        reject(e as Error);
+        fail(e as Error);
       }
     });
   }
