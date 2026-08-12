@@ -23,17 +23,12 @@ class RevokeDialog extends StatelessWidget {
     final tr = context.t.settings.revokeDialog;
 
     return AlertDialog(
-      padding: const EdgeInsets.all(24),
       content: ConstrainedBox(
-        // 🟢 RESPONSIVIDADE AQUI:
-        // minWidth: garante que em telas maiores o card não fique muito esmagado.
-        // maxWidth: impede que o dialog estique excessivamente em monitores ultra-wide.
-        constraints: const BoxConstraints(minWidth: 280, maxWidth: 360),
+        constraints: const BoxConstraints(maxWidth: 360),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Conteúdo de acordo com o estado atual
             switch (ctrl.stage) {
               RevokeStage.running => _running(context, ctrl),
               RevokeStage.done => _result(
@@ -50,7 +45,7 @@ class RevokeDialog extends StatelessWidget {
               ),
             },
 
-            // Ação no rodapé
+            // Ação no rodapé — centralizado, tamanho intrínseco.
             if (ctrl.stage != RevokeStage.running) ...[
               const SizedBox(height: 20),
               PrimaryButton(
