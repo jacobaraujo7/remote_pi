@@ -37,7 +37,7 @@ describe("SessionPeer registration", () => {
       expect.soft(error).toBeInstanceOf(Error);
       const message = error instanceof Error ? error.message : String(error);
       expect.soft(message).toContain(sockPath);
-      expect.soft(message).toContain("may be suspended or its event loop may be blocked");
+      expect.soft(message).toContain("resume or terminate it, then rejoin");
       expect.soft(sawClose).toBe(true);
     } finally {
       acceptedSocket?.destroy();

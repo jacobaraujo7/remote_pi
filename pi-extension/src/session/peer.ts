@@ -307,15 +307,33 @@ export class SessionPeer {
     const result: ElectionResult = await joinOrLead(this.opts.sockPath);
     if (result.role === "leader") {
       this.role = "leader";
-      this.broker = new Broker({
+      const broker = new Broker({
         server: result.server,
         auditPath: this.opts.auditPath,
       });
+      this.broker = broker;
       // Leader also registers itself as a peer so other followers see it +
       // can address it. We create a self-loopback socket via the broker's
       // internal API: easiest is to open a real client connection back to
       // our own server.
-      return this._registerAsClient();
+      try {
+        return await this._registerAsClient();
+      } catch (err) {
+        // Self-registration failed, so this process cannot act as a peer even
+        // though it now owns the broker path. Release the path rather than hold
+        // it: leaving it bound strands every later joiner behind a broker whose
+        // owner simultaneously reports "join failed".
+        //
+        // The server accepts from the moment Broker is constructed, so a fast
+        // follower may already be attached. close() destroys those sockets, and
+        // a follower that is still joined reads the drop as a leader loss and
+        // re-runs election via _onSocketClose; one already leaving stays put.
+        // Either way it recovers, whereas a stranded path never does.
+        try { await broker.close(); } catch { /* best-effort */ }
+        this.broker = null;
+        this.role = "follower";
+        throw err;
+      }
     } else {
       this.role = "follower";
       this._wireSocket(result.socket);
@@ -328,7 +346,9 @@ export class SessionPeer {
     const sock = createConnection(this.opts.sockPath);
     await new Promise<void>((resolve, reject) => {
       sock.once("connect", () => resolve());
-      sock.once("error", reject);
+      // Destroy before rejecting: a failed connect still leaves a socket object
+      // holding an fd, and nothing downstream ever sees this one.
+      sock.once("error", (err) => { sock.destroy(); reject(err); });
     });
     this._wireSocket(sock);
     return this._registerOver(sock);
@@ -351,18 +371,29 @@ export class SessionPeer {
         settled = true;
         clearTimeout(wait);
         this._preAckListener = null;
-        // Leader self-registration uses a separate client socket. Destroying it does not close the broker server.
-        // Clear the active socket first. This prevents the close handler from starting a new election after registration failed.
+        // Clear the active socket before destroying it, so the close handler does
+        // not read this as a live-connection drop and start a fresh election.
+        // On the leader path this is only the self-loopback client; the broker
+        // server belongs to _joinOrLead and is closed there when we throw.
         if (this.socket === sock) this.socket = null;
         sock.destroy();
         reject(err);
       };
       // The first inbound line MUST be the register_ack. Buffer-aware.
+      //
+      // Reaching this timer means election chose the follower path against a
+      // broker that cannot answer. `tryConnect` only proves the endpoint is
+      // connectable, never that its owner is servicing anything. On POSIX an
+      // AF_UNIX connect() completes as soon as the kernel queues the connection
+      // in the listener backlog, so the owning process need not run at all; a
+      // suspended or event-loop-blocked leader still looks healthy to election.
+      // Only the handshake separates the two, and nothing here can recover on
+      // its own, so the message must name the endpoint and the way to clear it.
       const wait = setTimeout(() => {
         fail(new Error(
-          `register_ack timeout after ${ACK_TIMEOUT_MS}ms: a listener is bound to ${this.opts.sockPath} but did not answer the register handshake. `
-          + "The broker process may be suspended or its event loop may be blocked. "
-          + "AF_UNIX connect() succeeds as soon as the kernel queues the connection, so leader election cannot detect this by connectivity alone.",
+          `register_ack timeout after ${ACK_TIMEOUT_MS}ms: ${this.opts.sockPath} has a listener `
+          + "that never answered the register handshake. Its owning process is probably suspended "
+          + "or blocked; resume or terminate it, then rejoin.",
         ));
       }, ACK_TIMEOUT_MS);
       const onceListener = (raw: unknown) => {
