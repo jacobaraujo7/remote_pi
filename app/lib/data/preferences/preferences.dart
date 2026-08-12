@@ -1,17 +1,16 @@
+import 'package:app/domain/contracts/key_value_store.dart';
+import 'package:app/ui/core/themes/app_font_scale.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeMode;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-import 'package:app/ui/core/themes/app_font_scale.dart';
 
 /// App-wide UI preferences (persisted across launches).
 ///
 /// Extends [ChangeNotifier] so widgets can `context.watch<Preferences>()`
-/// and rebuild on toggle. Backed by [FlutterSecureStorage] (same store
-/// already used by pairing). Call [load] once during bootstrap before
-/// the first frame to hydrate the in-memory cache.
+/// and rebuild on toggle. Backed by a [KeyValueStore] (non-sensitive data —
+/// `shared_preferences` in production). Call [load] once during bootstrap
+/// before the first frame to hydrate the in-memory cache.
 class Preferences extends ChangeNotifier {
-  final FlutterSecureStorage _store;
+  final KeyValueStore _store;
   bool _hideToolCalls = false;
   String? _selectedPeerEpk;
   String? _relayUrl;
@@ -19,8 +18,7 @@ class Preferences extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.system;
   AppFontScale _fontScale = AppFontScale.standard;
 
-  Preferences([FlutterSecureStorage? store])
-      : _store = store ?? const FlutterSecureStorage();
+  Preferences(this._store);
 
   static const _kHideToolCallsKey = 'prefs.hide_tool_calls';
   static const _kSelectedPeerEpkKey = 'prefs.selected_peer_epk';
@@ -84,46 +82,46 @@ class Preferences extends ChangeNotifier {
   /// `copyWith(fontSize: …)` overrides that a typography-only change would miss.
   AppFontScale get fontScale => _fontScale;
 
-  /// Hydrate from secure storage. Safe to call multiple times.
+  /// Hydrate from the key/value store. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
 
-    final raw = await _store.read(key: _kHideToolCallsKey);
+    final raw = await _store.read(_kHideToolCallsKey);
     final next = raw == 'true';
     if (next != _hideToolCalls) {
       _hideToolCalls = next;
       changed = true;
     }
 
-    final selected = await _store.read(key: _kSelectedPeerEpkKey);
+    final selected = await _store.read(_kSelectedPeerEpkKey);
     final cleaned = (selected != null && selected.isNotEmpty) ? selected : null;
     if (cleaned != _selectedPeerEpk) {
       _selectedPeerEpk = cleaned;
       changed = true;
     }
 
-    final relay = await _store.read(key: _kRelayUrlKey);
+    final relay = await _store.read(_kRelayUrlKey);
     final relayCleaned = (relay != null && relay.isNotEmpty) ? relay : null;
     if (relayCleaned != _relayUrl) {
       _relayUrl = relayCleaned;
       changed = true;
     }
 
-    final onboarded = await _store.read(key: _kOnboardingCompletedKey);
+    final onboarded = await _store.read(_kOnboardingCompletedKey);
     final onboardedBool = onboarded == 'true';
     if (onboardedBool != _onboardingCompleted) {
       _onboardingCompleted = onboardedBool;
       changed = true;
     }
 
-    final theme = await _store.read(key: _kThemeModeKey);
+    final theme = await _store.read(_kThemeModeKey);
     final themeMode = _themeModeFromString(theme);
     if (themeMode != _themeMode) {
       _themeMode = themeMode;
       changed = true;
     }
 
-    final scale = AppFontScale.fromName(await _store.read(key: _kFontScaleKey));
+    final scale = AppFontScale.fromName(await _store.read(_kFontScaleKey));
     if (scale != _fontScale) {
       _fontScale = scale;
       changed = true;
@@ -135,10 +133,7 @@ class Preferences extends ChangeNotifier {
   Future<void> setHideToolCalls(bool value) async {
     if (_hideToolCalls == value) return;
     _hideToolCalls = value;
-    await _store.write(
-      key: _kHideToolCallsKey,
-      value: value.toString(),
-    );
+    await _store.write(_kHideToolCallsKey, value.toString());
     notifyListeners();
   }
 
@@ -147,9 +142,9 @@ class Preferences extends ChangeNotifier {
     if (cleaned == _selectedPeerEpk) return;
     _selectedPeerEpk = cleaned;
     if (cleaned == null) {
-      await _store.delete(key: _kSelectedPeerEpkKey);
+      await _store.delete(_kSelectedPeerEpkKey);
     } else {
-      await _store.write(key: _kSelectedPeerEpkKey, value: cleaned);
+      await _store.write(_kSelectedPeerEpkKey, cleaned);
     }
     notifyListeners();
   }
@@ -161,9 +156,7 @@ class Preferences extends ChangeNotifier {
     if (epk == null || epk.isEmpty) {
       return setSelectedPeerEpk(null);
     }
-    final composite = (roomId == null || roomId.isEmpty)
-        ? epk
-        : '$epk:$roomId';
+    final composite = (roomId == null || roomId.isEmpty) ? epk : '$epk:$roomId';
     return setSelectedPeerEpk(composite);
   }
 
@@ -175,9 +168,9 @@ class Preferences extends ChangeNotifier {
     if (cleaned == _relayUrl) return;
     _relayUrl = cleaned;
     if (cleaned == null) {
-      await _store.delete(key: _kRelayUrlKey);
+      await _store.delete(_kRelayUrlKey);
     } else {
-      await _store.write(key: _kRelayUrlKey, value: cleaned);
+      await _store.write(_kRelayUrlKey, cleaned);
     }
     notifyListeners();
   }
@@ -185,10 +178,7 @@ class Preferences extends ChangeNotifier {
   Future<void> setOnboardingCompleted(bool value) async {
     if (_onboardingCompleted == value) return;
     _onboardingCompleted = value;
-    await _store.write(
-      key: _kOnboardingCompletedKey,
-      value: value.toString(),
-    );
+    await _store.write(_kOnboardingCompletedKey, value.toString());
     notifyListeners();
   }
 
@@ -197,7 +187,7 @@ class Preferences extends ChangeNotifier {
   Future<void> setThemeMode(ThemeMode value) async {
     if (_themeMode == value) return;
     _themeMode = value;
-    await _store.write(key: _kThemeModeKey, value: value.name);
+    await _store.write(_kThemeModeKey, value.name);
     notifyListeners();
   }
 
@@ -206,7 +196,7 @@ class Preferences extends ChangeNotifier {
   Future<void> setFontScale(AppFontScale value) async {
     if (_fontScale == value) return;
     _fontScale = value;
-    await _store.write(key: _kFontScaleKey, value: value.name);
+    await _store.write(_kFontScaleKey, value.name);
     notifyListeners();
   }
 

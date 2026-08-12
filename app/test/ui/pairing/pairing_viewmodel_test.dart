@@ -8,7 +8,7 @@ import 'dart:typed_data';
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'package:app/pairing/owner_identity_bridge.dart';
 import 'package:app/pairing/pair_request_flow.dart' show PeerTransport;
 import 'package:app/pairing/storage.dart';
@@ -18,6 +18,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:remote_pi_identity/remote_pi_identity.dart';
+import '../../helpers/fake_key_value_store.dart';
 
 // ---------------------------------------------------------------------------
 // Test infrastructure
@@ -54,55 +55,6 @@ class _MemTransport implements PeerTransport {
   Future<void> close() async {}
 }
 
-/// In-memory fake of FlutterSecureStorage so Preferences can be
-/// constructed in tests without touching the platform channel.
-class _FakeSecureStorage implements FlutterSecureStorage {
-  final Map<String, String> _store = {};
-  @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async => _store[key];
-  @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    if (value == null) {
-      _store.remove(key);
-    } else {
-      _store[key] = value;
-    }
-  }
-
-  @override
-  Future<void> delete({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    _store.remove(key);
-  }
-
-  @override
-  noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
-}
-
 /// Synchronous Preferences subclass for tests. Pre-set relay URL to
 /// `ws://localhost` so it matches `_qrUri` (which still embeds the
 /// legacy `r=ws://localhost`); avoids tripping the relay-mismatch
@@ -112,7 +64,7 @@ class _PrefsForTest extends Preferences {
   final String? _relay;
   _PrefsForTest({String? relay = 'ws://localhost'})
     : _relay = relay,
-      super(_FakeSecureStorage());
+      super(FakeKeyValueStore());
   @override
   String? get relayUrl => _relay;
 }

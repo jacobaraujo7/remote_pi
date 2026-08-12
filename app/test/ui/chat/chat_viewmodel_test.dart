@@ -15,9 +15,10 @@ import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/chat/states/chat_state.dart';
 import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
+import '../../helpers/fake_key_value_store.dart';
 
 class _FakeChannel implements IChannel, IControlLink {
   final _ctrl = StreamController<ServerMessage>.broadcast();
@@ -39,40 +40,6 @@ class _FakeChannel implements IChannel, IControlLink {
 
   void push(ServerMessage m) => _ctrl.add(m);
   void pushControl(ControlInbound m) => _control.add(m);
-}
-
-class _FakeSecureStorage implements FlutterSecureStorage {
-  final Map<String, String> _s = {};
-  @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async => _s[key];
-  @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    if (value == null) {
-      _s.remove(key);
-    } else {
-      _s[key] = value;
-    }
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 const _peer = PeerRecord(
@@ -126,7 +93,7 @@ void main() {
     final boxes = LocalBoxes();
     final sync = SyncService(conn, boxes);
     final read = SessionReadRepository(boxes);
-    final prefs = Preferences(_FakeSecureStorage());
+    final prefs = Preferences(FakeKeyValueStore());
     await prefs.setSelectedPeerEpk(_peer.remoteEpk);
     await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 
@@ -178,7 +145,7 @@ void main() {
       await msgBox.clear();
       final sync = SyncService(conn, boxes);
       final read = SessionReadRepository(boxes);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       await prefs.setSelectedPeerEpk(_peer.remoteEpk);
       await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 
@@ -229,7 +196,7 @@ void main() {
       final boxes = LocalBoxes();
       final sync = SyncService(conn, boxes);
       final read = SessionReadRepository(boxes);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       await prefs.setSelectedPeerEpk(_peer.remoteEpk);
       await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 
@@ -269,7 +236,7 @@ void main() {
     final boxes = LocalBoxes();
     final sync = SyncService(conn, boxes);
     final read = SessionReadRepository(boxes);
-    final prefs = Preferences(_FakeSecureStorage());
+    final prefs = Preferences(FakeKeyValueStore());
     await prefs.setSelectedPeerEpk(_peer.remoteEpk);
     await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 
@@ -338,7 +305,7 @@ void main() {
       (await boxes.msgsBox(_peer.remoteEpk, 'main')).clear();
       final sync = SyncService(conn, boxes);
       final read = SessionReadRepository(boxes);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       await prefs.setSelectedPeerEpk(_peer.remoteEpk);
       await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 
@@ -373,7 +340,7 @@ void main() {
     final boxes = LocalBoxes();
     final sync = SyncService(conn, boxes);
     final read = SessionReadRepository(boxes);
-    final prefs = Preferences(_FakeSecureStorage());
+    final prefs = Preferences(FakeKeyValueStore());
     await prefs.setSelectedPeerEpk(_peer.remoteEpk);
     await prefs.setSelectedRoom(epk: _peer.remoteEpk, roomId: 'main');
 

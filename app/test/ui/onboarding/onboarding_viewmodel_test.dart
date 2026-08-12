@@ -1,56 +1,12 @@
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/ui/onboarding/states/onboarding_state.dart';
 import 'package:app/ui/onboarding/viewmodels/onboarding_viewmodel.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_test/flutter_test.dart';
 
-class _FakeStore implements FlutterSecureStorage {
-  final Map<String, String> _m = {};
-  @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async =>
-      _m[key];
-  @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    if (value == null) {
-      _m.remove(key);
-    } else {
-      _m[key] = value;
-    }
-  }
-  @override
-  Future<void> delete({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async =>
-      _m.remove(key);
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
-}
+import 'package:flutter_test/flutter_test.dart';
+import '../../helpers/fake_key_value_store.dart';
 
 Future<({Preferences prefs, OnboardingViewModel vm})> _setup() async {
-  final prefs = Preferences(_FakeStore());
+  final prefs = Preferences(FakeKeyValueStore());
   final vm = OnboardingViewModel(prefs);
   return (prefs: prefs, vm: vm);
 }

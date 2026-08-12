@@ -85,6 +85,7 @@ dependencies:
   # versionName) so the Android-only in-app update notice can compare it
   # against the release manifest's semver.
   package_info_plus: ^8.0.0
+  shared_preferences: ^2.5.5
 
 dev_dependencies:
   flutter_test:
