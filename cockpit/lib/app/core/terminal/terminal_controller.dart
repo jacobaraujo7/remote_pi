@@ -75,7 +75,9 @@ final class GhosttyTerminalController implements CockpitTerminalController {
         config: const ghost.TerminalConfig(
           cols: 80,
           rows: 25,
-          scrollbackLimit: 10 * 1024 * 1024,
+          // Renomeado no upstream (flterm main): scrollbackLimit -> scrollbackMaxBytes.
+          // Mantemos 10 MB explicito; o novo default e apenas 10 KB.
+          scrollbackMaxBytes: 10 * 1024 * 1024,
         ),
       ) {
     controller.onOutput = (data) {

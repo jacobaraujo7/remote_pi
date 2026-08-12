@@ -31,17 +31,27 @@ class WorktreeNamespace {
   const WorktreeNamespace({
     required this.branches,
     required this.worktreeNames,
+    this.remoteBranches = const <String>{},
+    this.defaultBranch,
   });
 
   const WorktreeNamespace.empty()
     : branches = const <String>{},
-      worktreeNames = const <String>{};
+      worktreeNames = const <String>{},
+      remoteBranches = const <String>{},
+      defaultBranch = null;
 
   /// Nomes de branch locais (`git branch`).
   final Set<String> branches;
 
   /// Nomes (basename) das worktrees existentes (`git worktree list`).
   final Set<String> worktreeNames;
+
+  /// Nomes de branch remotas (`git branch -r`).
+  final Set<String> remoteBranches;
+
+  /// A branch principal padrão (geralmente detectada do remote HEAD).
+  final String? defaultBranch;
 }
 
 /// Lado **mutável** do git pro Cockpit: listar/criar/remover worktrees. Contrato
@@ -72,7 +82,14 @@ abstract class WorktreeManager {
   /// Devolve o handle imediatamente (stream ao vivo); o [WorktreeAddRun.result]
   /// resolve no fim. O post-checkout do repo, se existir, roda dentro do git e
   /// aparece no stream.
-  WorktreeAddRun<Worktree> add(String repoPath, String name, {String? baseRef});
+  WorktreeAddRun<Worktree> add(
+    String repoPath,
+    String name, {
+    String? baseRef,
+    bool copyIgnored = false,
+    bool copyUntracked = false,
+    bool fetchRemote = true,
+  });
 
   /// Remove a worktree em [worktreePath] e, se [branch] não for vazio, apaga a
   /// branch (decisão 6 — `git worktree remove` **antes** de `git branch -D`).

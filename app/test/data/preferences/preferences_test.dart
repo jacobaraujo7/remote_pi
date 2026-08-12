@@ -1,4 +1,5 @@
 import 'package:app/data/preferences/preferences.dart';
+import 'package:app/ui/core/themes/app_font_scale.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -166,6 +167,41 @@ void main() {
         expect(p.selectedRoomId, isNull);
       },
     );
+
+    // Issue #114 — in-app text size.
+    test('fontScale defaults to standard and round-trips through storage', () async {
+      final store = _FakeSecureStorage();
+      final p = Preferences(store);
+      await p.load();
+      expect(p.fontScale, AppFontScale.standard);
+
+      await p.setFontScale(AppFontScale.large);
+      expect(p.fontScale, AppFontScale.large);
+
+      final reloaded = Preferences(store);
+      await reloaded.load();
+      expect(reloaded.fontScale, AppFontScale.large);
+    });
+
+    test('an unknown persisted font scale falls back to standard', () async {
+      final store = _FakeSecureStorage();
+      // A stale/corrupt value must never leave the app at an unreadable size.
+      await store.write(key: 'prefs.font_scale', value: 'gigantic');
+      final p = Preferences(store);
+      await p.load();
+      expect(p.fontScale, AppFontScale.standard);
+    });
+
+    test('setFontScale notifies listeners only on a real change', () async {
+      final p = Preferences(_FakeSecureStorage());
+      var calls = 0;
+      p.addListener(() => calls++);
+
+      await p.setFontScale(AppFontScale.small);
+      expect(calls, 1);
+      await p.setFontScale(AppFontScale.small);
+      expect(calls, 1);
+    });
 
     test('setSelectedRoom with null epk clears the selection', () async {
       final store = _FakeSecureStorage();

@@ -45,9 +45,11 @@ fn main() {
 
     let args = &argv[1..];
     match first {
-        // Hook do Claude Code (antigo binário `cockpit-hook`). Silencioso por
-        // contrato: não escreve no stdout e nunca falha barulhento.
-        "hook" => hook::run(),
+        // Hook de ciclo de vida dos harnesses (antigo binário `cockpit-hook`).
+        // `--harness <nome>` diz de quem veio o evento (default: claude, pros
+        // entries antigos que não passam a flag). Silencioso por contrato: não
+        // escreve no stdout e nunca falha barulhento.
+        "hook" => hook::run(args),
         "send" => commands::send(args),
         "send-key" | "send-keys" => commands::send_key(args),
         "open" => commands::open(args),

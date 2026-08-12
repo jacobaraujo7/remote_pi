@@ -224,6 +224,7 @@ static DWORD WINAPI read_loop(LPVOID arg)
         Dart_PostCObject_DL(options->port, &result);
     }
 
+    free(options);
     return 0;
 }
 
@@ -244,6 +245,12 @@ static void start_read_thread(HANDLE fd, Dart_Port port, HANDLE mutex, BOOL ackR
     {
         free(options);
     }
+    else
+    {
+        // The running thread owns its lifetime; retaining this HANDLE leaks one
+        // kernel object per terminal even after the thread exits.
+        CloseHandle(thread);
+    }
 }
 
 typedef struct WaitExitOptions
@@ -253,6 +260,7 @@ typedef struct WaitExitOptions
     Dart_Port port;
 
     HANDLE hMutex;
+
 } WaitExitOptions;
 
 static DWORD WINAPI wait_exit_thread(LPVOID arg)
@@ -267,9 +275,9 @@ static DWORD WINAPI wait_exit_thread(LPVOID arg)
 
     CloseHandle(options->pid);
     CloseHandle(options->hMutex);
-
     Dart_PostInteger_DL(options->port, exit_code);
 
+    free(options);
     return 0;
 }
 
@@ -280,7 +288,6 @@ static void start_wait_exit_thread(HANDLE pid, Dart_Port port, HANDLE mutex)
     options->pid = pid;
     options->port = port;
     options->hMutex = mutex;
-
     DWORD thread_id;
 
     HANDLE thread = CreateThread(NULL, 0, wait_exit_thread, options, 0, &thread_id);
@@ -288,6 +295,10 @@ static void start_wait_exit_thread(HANDLE pid, Dart_Port port, HANDLE mutex)
     if (thread == NULL)
     {
         free(options);
+    }
+    else
+    {
+        CloseHandle(thread);
     }
 }
 

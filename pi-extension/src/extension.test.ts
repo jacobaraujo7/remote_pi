@@ -373,13 +373,19 @@ describe("extension default export", () => {
     const { pi, registeredCommands } = makeMockPi();
     (extension as ExtensionFactory)(pi);
     // 8 plan-25 + 2 daemon registry (W1) + 6 fleet ops (W2) + 2 install (W3)
-    // + 1 cross-PC inventory (plan-25 W D) + 1 cron (plan-39) + 1 rename (plan/41).
-    expect(registeredCommands).toHaveLength(21);
+    // + 1 cross-PC inventory (plan-25 W D) + 1 cron (plan-39) + 1 rename (plan/41)
+    // + 1 relay control (issue #119 — README documents the verb family).
+    expect(registeredCommands).toHaveLength(23);
+    // `relay` is back as ONE command with verbs (start/stop/status/url), not the
+    // five separate registrations plan/19 trimmed — the README documents it and
+    // without it every `/remote-pi relay …` silently reprinted the status panel.
+    expect(registeredCommands).toContain("remote-pi relay");
+    expect(registeredCommands).toContain("remote-pi config");
     for (const removed of [
       "remote-pi join", "remote-pi leave", "remote-pi sessions",
-      "remote-pi relay", "remote-pi relay start", "remote-pi relay stop",
+      "remote-pi relay start", "remote-pi relay stop",
       "remote-pi relay status", "remote-pi relay url",
-      "remote-pi config", "remote-pi start", "remote-pi list", "remote-pi add-relay",
+      "remote-pi start", "remote-pi list", "remote-pi add-relay",
     ]) {
       expect(registeredCommands).not.toContain(removed);
     }
@@ -1753,6 +1759,41 @@ describe("multi-channel broadcast (W2D)", () => {
     expect(preparation.turnPrefixMessages).toEqual([keepCustom]);
   });
 
+  test("pure-data (display:false) remote-pi events are filtered out of provider and compaction context", () => {
+    // Issue #105: display:false only hides from the TUI; the entry still enters
+    // the LLM context, so relay flaps / name collisions were replayed to the
+    // model on every call.
+    const relayState = { role: "custom", customType: "remote-pi:relay-state", content: "Relay connected", display: false };
+    const nameAssigned = { role: "custom", customType: "remote-pi:name-assigned", content: "Mesh name reassigned", display: false };
+    const paired = { role: "custom", customType: "remote-pi:paired", content: "Paired with Phone", display: false };
+    const keepCustom = { role: "custom", customType: "remote-pi:mesh-message", content: "keep", display: true };
+    const keepForeign = { role: "custom", customType: "other-ext:data", content: "keep", display: false };
+    const keepUser = { role: "user", content: "hello" };
+
+    const onContext = captureEventHandler("context");
+    const result = onContext({
+      type: "context",
+      messages: [relayState, keepCustom, nameAssigned, keepForeign, paired, keepUser],
+    }) as { messages?: unknown[] };
+    expect(result.messages).toEqual([keepCustom, keepForeign, keepUser]);
+
+    const onBeforeCompact = captureEventHandler("session_before_compact");
+    const preparation = {
+      messagesToSummarize: [relayState, keepUser],
+      turnPrefixMessages: [paired, keepCustom],
+    };
+    onBeforeCompact({
+      type: "session_before_compact",
+      preparation,
+      branchEntries: [],
+      reason: "manual",
+      willRetry: false,
+      signal: new AbortController().signal,
+    });
+    expect(preparation.messagesToSummarize).toEqual([keepUser]);
+    expect(preparation.turnPrefixMessages).toEqual([keepCustom]);
+  });
+
   test("registers and uses remote-pi image renderer with Saved fallback", () => {
     const { getRenderer } = captureMessageRenderer();
     const theme = {
@@ -2757,6 +2798,55 @@ describe("/remote-pi set-relay + config", () => {
     expect(ctx.ui.notify).toHaveBeenCalledWith(
       expect.stringContaining("Relay set to http://192.168.1.10:3000"),
       "info",
+    );
+  });
+
+  // Issue #119: `relay url` / `relay stop` were documented in the README but
+  // had no handler — every `relay …` fell through to the status panel, so a
+  // user following the README silently stayed on the community relay.
+  test("relay url persists the URL through the same writer as set-relay", async () => {
+    const relay = captureHandler("remote-pi relay");
+    const ctx = makeMockCtx();
+    await relay("url http://192.168.1.20:3000", ctx);
+
+    expect(_setRelayCalls).toEqual(["http://192.168.1.20:3000"]);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Relay set to http://192.168.1.20:3000"),
+      "info",
+    );
+  });
+
+  test("relay url rejects ws:// like set-relay does", async () => {
+    const relay = captureHandler("remote-pi relay");
+    const ctx = makeMockCtx();
+    await relay("url ws://foo:3000", ctx);
+
+    expect(_setRelayCalls).toHaveLength(0);
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Use http:// or https://"),
+      "error",
+    );
+  });
+
+  test("relay stop on an idle relay reports it instead of silently reprinting status", async () => {
+    const relay = captureHandler("remote-pi relay");
+    const ctx = makeMockCtx();
+    await relay("stop", ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("already disconnected"),
+      "info",
+    );
+  });
+
+  test("relay with an unknown verb prints usage", async () => {
+    const relay = captureHandler("remote-pi relay");
+    const ctx = makeMockCtx();
+    await relay("frobnicate", ctx);
+
+    expect(ctx.ui.notify).toHaveBeenCalledWith(
+      expect.stringContaining("Usage: /remote-pi relay"),
+      "warning",
     );
   });
 

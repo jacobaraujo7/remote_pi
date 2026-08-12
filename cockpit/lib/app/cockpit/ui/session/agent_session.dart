@@ -13,6 +13,7 @@ import 'package:cockpit/app/cockpit/domain/entities/transcript_message.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_entry.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 enum AgentStatus { empty, booting, idle, streaming, crashed }
 
@@ -39,6 +40,11 @@ class AgentSession extends PaneItem {
   /// Disparado quando o agente fecha um turno (`agent_end`). A VM usa pra
   /// notificar o workspace.
   VoidCallback? onTurnEnd;
+
+  /// Disparado quando o processo morre **sem ser pedido** (`RpcProcessExit`).
+  /// Kills intencionais (restart/fechar aba) cancelam o sub de eventos antes,
+  /// então nunca chegam aqui. A VM usa pra notificar o crash (som/banner).
+  VoidCallback? onCrashed;
 
   /// Disparado quando o usuário altera [preferredModelId] ou [preferredThinking].
   /// A VM usa pra agendar um save imediato — sem depender do fim de turno.
@@ -127,6 +133,8 @@ class AgentSession extends PaneItem {
   AssistantTextEntry? _openText;
   ThinkingEntry? _openThinking;
   final Map<String, ToolEntry> _openTools = <String, ToolEntry>{};
+  bool _streamNotifyScheduled = false;
+  bool _disposed = false;
 
   /// Pedidos interativos da extensão (`extension_ui_request`) ainda abertos,
   /// por `id` — pra marcar o card como resolvido ao responder.
@@ -412,6 +420,8 @@ class AgentSession extends PaneItem {
   /// Mata o processo limpo e libera o gateway. Chamado ao fechar a aba.
   @override
   Future<void> dispose() async {
+    _disposed = true;
+    _streamNotifyScheduled = false;
     await _sub?.cancel();
     final gateway = _gateway;
     _gateway = null;
@@ -511,8 +521,12 @@ class AgentSession extends PaneItem {
         _resetOpenBuffers();
       case RpcThinkingDelta(:final delta):
         _appendThinking(delta);
+        _scheduleStreamingNotify();
+        return;
       case RpcTextDelta(:final delta):
         _appendText(delta);
+        _scheduleStreamingNotify();
+        return;
       case RpcTextEnd(:final content):
         _finishText(content);
       case RpcUserMessage(:final text):
@@ -548,6 +562,7 @@ class AgentSession extends PaneItem {
         _status = AgentStatus.crashed;
         _resetOpenBuffers();
         _addInfo('process exited (code=$code)', isError: code != 0);
+        onCrashed?.call();
       case RpcNotice(:final message, :final level):
         _add(NoticeEntry(message, level.index));
       case RpcUiRequest(
@@ -581,7 +596,29 @@ class AgentSession extends PaneItem {
       case RpcUnknown():
         return;
     }
+    // Um evento estrutural torna desnecessário o callback de delta pendente.
+    // Ele continua registrado no SchedulerBinding, mas verá false e será no-op.
+    _streamNotifyScheduled = false;
     notifyListeners();
+  }
+
+  /// Deltas podem chegar muitas vezes no mesmo vsync. O estado continua sendo
+  /// aplicado imediatamente, mas Markdown/layout só é notificado uma vez por
+  /// frame. Isso também faz o snapshot do StringBuffer ser materializado uma
+  /// vez por frame, em vez de copiar a resposta inteira a cada token.
+  void _scheduleStreamingNotify() {
+    // Workspaces ocultos não têm listeners de apresentação. O estado continua
+    // acumulando e será lido no rebuild de reativação, sem manter um vsync
+    // artificial por agente invisível.
+    if (_disposed || _streamNotifyScheduled || !hasListeners) return;
+    _streamNotifyScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      if (_disposed || !_streamNotifyScheduled) return;
+      _streamNotifyScheduled = false;
+      if (!hasListeners) return;
+      notifyListeners();
+    });
+    SchedulerBinding.instance.scheduleFrame();
   }
 
   /// Responde a um pedido interativo da extensão (card do transcript) e marca o
@@ -599,7 +636,7 @@ class AgentSession extends PaneItem {
 
   void _appendText(String delta) {
     final open = _openText ??= _add(AssistantTextEntry());
-    open.text += delta;
+    open.append(delta);
   }
 
   void _finishText(String content) {
@@ -610,7 +647,7 @@ class AgentSession extends PaneItem {
 
   void _appendThinking(String delta) {
     final open = _openThinking ??= _add(ThinkingEntry());
-    open.text += delta;
+    open.append(delta);
   }
 
   void _startTool(String id, String name, Map<String, dynamic> args) {

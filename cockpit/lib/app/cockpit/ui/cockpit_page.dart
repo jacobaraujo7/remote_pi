@@ -225,7 +225,12 @@ class _CockpitPageState extends State<CockpitPage> {
   /// `SettingsController` app-scoped, então a página empurra o valor.
   void _syncNotifications() {
     _vm.setNotificationsEnabled(_settings!.settings.notificationsEnabled);
-    _vm.setSoundEnabled(_settings!.settings.soundEnabled);
+    _vm.setSoundPrefs(
+      events: _settings!.settings.soundEvents,
+      overrides: _settings!.settings.soundOverrides,
+      onActiveTab: _settings!.settings.soundOnActiveTab,
+      volume: _settings!.settings.soundVolume,
+    );
     // Plano 50: perfil de terminal padrão do `+` — mesmo motivo (app-scoped →
     // VM page-scoped). Vale pra abas criadas daqui pra frente.
     _vm.setDefaultTerminalProfileId(
@@ -459,6 +464,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   Future<void> _pullProject(Project project, String rootPath) async {
@@ -471,6 +477,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   Future<void> _pushProject(Project project, String rootPath) async {
@@ -483,6 +490,7 @@ class _CockpitPageState extends State<CockpitPage> {
       output: run.output,
       success: run.exitCode.then((c) => c == 0),
     );
+    await _vm.refreshGitProject(project.id);
   }
 
   /// "Fork Worktree": nova worktree ramificada da branch do fork [base] —
@@ -498,7 +506,20 @@ class _CockpitPageState extends State<CockpitPage> {
       namespace: namespace,
       fork: true,
       hasPostCheckout: hasHook,
-      onCreate: (name) => vm.forkWorktree(base.id, name),
+      onCreate:
+          (
+            name, {
+            baseRef,
+            copyIgnored = false,
+            copyUntracked = false,
+            fetchRemote = true,
+          }) => vm.forkWorktree(
+            base.id,
+            name,
+            copyIgnored: copyIgnored,
+            copyUntracked: copyUntracked,
+            fetchRemote: fetchRemote,
+          ),
     );
   }
 
@@ -545,7 +566,22 @@ class _CockpitPageState extends State<CockpitPage> {
       rootName: _gitOpLabel(root, rootPath),
       namespace: namespace,
       hasPostCheckout: hasHook,
-      onCreate: (name) => vm.createWorktree(root.id, name, rootPath: rootPath),
+      onCreate:
+          (
+            name, {
+            baseRef,
+            copyIgnored = false,
+            copyUntracked = false,
+            fetchRemote = true,
+          }) => vm.createWorktree(
+            root.id,
+            name,
+            rootPath: rootPath,
+            baseRef: baseRef,
+            copyIgnored: copyIgnored,
+            copyUntracked: copyUntracked,
+            fetchRemote: fetchRemote,
+          ),
     );
   }
 
@@ -865,7 +901,13 @@ class _CockpitPageState extends State<CockpitPage> {
                                       key: ValueKey(project.id),
                                       child: ColoredBox(
                                         color: colors.border,
-                                        child: _multiplexer(vm, project.id),
+                                        child: _multiplexer(
+                                          vm,
+                                          project.id,
+                                          active:
+                                              project.id ==
+                                              vm.selectedProjectId,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -908,6 +950,10 @@ class _CockpitPageState extends State<CockpitPage> {
                               onCommitStaged: vm.commitStaged,
                               onLoadCommits: vm.recentCommits,
                               onLoadCommitMessage: vm.commitMessage,
+                              onLoadGitHistory: vm.loadGitHistory,
+                              onLoadGitHistoryFiles: vm.loadGitHistoryFiles,
+                              onOpenGitHistoryDiff: vm.openCommitDiff,
+                              gitHistoryRevision: vm.git.revision,
                               commitMessageGeneratorLabel:
                                   configuredHarnessId?.label,
                               onGenerateCommitMessage:
@@ -926,6 +972,7 @@ class _CockpitPageState extends State<CockpitPage> {
                               gitStatusOf: vm.gitStatusForPath,
                               onOpenFile: (path) =>
                                   vm.openFile(path, isPreview: false),
+                              onOpenChangedFile: vm.openChangedFile,
                               onTapFile: vm.openFile, // clique único = preview
                               onSelectFile:
                                   vm.selectFileInTree, // atualiza highlight
@@ -1032,13 +1079,22 @@ class _CockpitPageState extends State<CockpitPage> {
     return index < 0 ? 0 : index;
   }
 
-  Widget _multiplexer(CockpitViewModel vm, String projectId) {
+  Widget _multiplexer(
+    CockpitViewModel vm,
+    String projectId, {
+    required bool active,
+  }) {
     final tree = vm.tree(projectId);
     if (tree == null) return const SizedBox.shrink();
-    return _renderNode(vm, projectId, tree);
+    return _renderNode(vm, projectId, tree, active: active);
   }
 
-  Widget _renderNode(CockpitViewModel vm, String projectId, PaneNode node) {
+  Widget _renderNode(
+    CockpitViewModel vm,
+    String projectId,
+    PaneNode node, {
+    required bool active,
+  }) {
     if (node is LeafPane) {
       return PaneDropZone(
         key: ValueKey('drop-${node.id}'),
@@ -1048,7 +1104,8 @@ class _CockpitPageState extends State<CockpitPage> {
           key: ValueKey(node.id),
           pane: node,
           vm: vm,
-          focused: node.id == vm.focusedPaneId(projectId),
+          focused: active && node.id == vm.focusedPaneId(projectId),
+          active: active,
           onCreateTab: () => vm.newEmptyTab(node.id),
           // Aba placeholder "Novo" (nem agente nem terminal): o novo pane vira
           // outro placeholder com o seletor Agent/Terminal (ou terminal direto
@@ -1087,12 +1144,12 @@ class _CockpitPageState extends State<CockpitPage> {
         final first = SizedBox(
           width: isRow ? aSize : null,
           height: isRow ? null : aSize,
-          child: _renderNode(vm, projectId, split.a),
+          child: _renderNode(vm, projectId, split.a, active: active),
         );
         final second = SizedBox(
           width: isRow ? bSize : null,
           height: isRow ? null : bSize,
-          child: _renderNode(vm, projectId, split.b),
+          child: _renderNode(vm, projectId, split.b, active: active),
         );
         final divider = PaneDivider(
           dir: split.dir,

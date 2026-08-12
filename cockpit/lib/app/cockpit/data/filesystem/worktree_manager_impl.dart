@@ -63,12 +63,68 @@ class WorktreeManagerImpl implements WorktreeManager {
           .map((l) => l.trim())
           .where((l) => l.isNotEmpty)
           .toSet();
+
+      final remoteBranchRes = await Process.run(git, [
+        '-C',
+        repoPath,
+        'branch',
+        '-r',
+        '--format=%(refname:short)',
+      ]);
+      final remoteBranches = remoteBranchRes.exitCode == 0
+          ? (remoteBranchRes.stdout as String)
+                .split('\n')
+                .map((l) => l.trim())
+                .where((l) => l.isNotEmpty && !l.contains('->'))
+                .toSet()
+          : const <String>{};
+
+      String? defaultBranch;
+      final originHeadRes = await Process.run(git, [
+        '-C',
+        repoPath,
+        'symbolic-ref',
+        'refs/remotes/origin/HEAD',
+        '--short',
+      ]);
+      if (originHeadRes.exitCode == 0) {
+        final val = (originHeadRes.stdout as String).trim();
+        if (val.isNotEmpty) {
+          defaultBranch = val;
+        }
+      }
+      if (defaultBranch == null || defaultBranch.isEmpty) {
+        if (remoteBranches.contains('origin/main')) {
+          defaultBranch = 'origin/main';
+        } else if (remoteBranches.contains('origin/master')) {
+          defaultBranch = 'origin/master';
+        } else if (remoteBranches.isNotEmpty) {
+          defaultBranch = remoteBranches.first;
+        } else {
+          final headRes = await Process.run(git, [
+            '-C',
+            repoPath,
+            'rev-parse',
+            '--abbrev-ref',
+            'HEAD',
+          ]);
+          if (headRes.exitCode == 0) {
+            final val = (headRes.stdout as String).trim();
+            if (val.isNotEmpty) {
+              defaultBranch = val;
+            }
+          }
+        }
+      }
+
       final worktreeNames = (await list(
         repoPath,
       )).map((w) => _basename(w.path)).toSet();
       return WorktreeNamespace(
         branches: branches,
         worktreeNames: worktreeNames,
+        remoteBranches: remoteBranches,
+        defaultBranch: defaultBranch,
       );
     } catch (_) {
       return const WorktreeNamespace.empty();
@@ -104,6 +160,9 @@ class WorktreeManagerImpl implements WorktreeManager {
     String repoPath,
     String name, {
     String? baseRef,
+    bool copyIgnored = false,
+    bool copyUntracked = false,
+    bool fetchRemote = true,
   }) {
     final controller = StreamController<String>();
     final resultCompleter = Completer<Result<Worktree, WorktreeOpError>>();
@@ -111,6 +170,23 @@ class WorktreeManagerImpl implements WorktreeManager {
     () async {
       try {
         final git = await _resolveGit();
+        if (fetchRemote) {
+          await _emit(controller, 'Fetching remote branch updates...');
+          try {
+            final fetchRes = await Process.run(git, ['-C', repoPath, 'fetch']);
+            if (fetchRes.exitCode != 0) {
+              await _emit(
+                controller,
+                'Warning: git fetch failed. Attempting worktree creation anyway.',
+              );
+            }
+          } catch (e) {
+            await _emit(
+              controller,
+              'Warning: failed to run git fetch ($e). Attempting worktree creation anyway.',
+            );
+          }
+        }
         // Regra cross-plataforma: só cria worktree quando a branch NÃO existe.
         // Sem isso, `worktree add -b` falha ("branch already exists") e/ou deixa
         // o repo num estado meio-criado.
@@ -138,6 +214,51 @@ class WorktreeManagerImpl implements WorktreeManager {
           );
           return;
         }
+
+        if (copyIgnored || copyUntracked) {
+          await _emit(controller, 'Copying files to new worktree...');
+          final filesToCopy = <String>{};
+          if (copyIgnored) {
+            final ignored = await _listGitFiles(git, repoPath, [
+              'ls-files',
+              '--others',
+              '--ignored',
+              '--exclude-standard',
+            ]);
+            for (final f in ignored) {
+              if (!f.startsWith('$worktreesSubdir/') &&
+                  !f.startsWith('.pi/remote/worktrees/') &&
+                  !f.startsWith('.git/')) {
+                filesToCopy.add(f);
+              }
+            }
+          }
+          if (copyUntracked) {
+            final untracked = await _listGitFiles(git, repoPath, [
+              'ls-files',
+              '--others',
+              '--exclude-standard',
+            ]);
+            for (final f in untracked) {
+              if (!f.startsWith('$worktreesSubdir/') &&
+                  !f.startsWith('.pi/remote/worktrees/') &&
+                  !f.startsWith('.git/')) {
+                filesToCopy.add(f);
+              }
+            }
+          }
+          if (filesToCopy.isNotEmpty) {
+            await _copyFiles(
+              repoPath,
+              target,
+              filesToCopy.toList(),
+              controller,
+            );
+          } else {
+            await _emit(controller, 'No files to copy.');
+          }
+        }
+
         // Devolve o path **como o git lista** (separadores nativos do SO), não o
         // `target` que montamos com `/`. No Windows o git lista com `\`, então o
         // `target` com `/` não casaria com `list()` → o chamador não encontraria
@@ -166,6 +287,64 @@ class WorktreeManagerImpl implements WorktreeManager {
       output: controller.stream,
       result: resultCompleter.future,
     );
+  }
+
+  Future<List<String>> _listGitFiles(
+    String git,
+    String repoPath,
+    List<String> args,
+  ) async {
+    try {
+      final res = await Process.run(git, ['-C', repoPath, ...args]);
+      if (res.exitCode != 0) return const [];
+      return (res.stdout as String)
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<void> _copyFiles(
+    String repoPath,
+    String targetPath,
+    List<String> relativePaths,
+    StreamController<String> controller,
+  ) async {
+    var count = 0;
+
+    // Deduplicate target parent directories and create them in parallel
+    final parentDirs = relativePaths
+        .map((relPath) => p.dirname(p.join(targetPath, relPath)))
+        .toSet();
+    final dirFutures = parentDirs.map(
+      (dir) => Directory(dir).create(recursive: true),
+    );
+    try {
+      await Future.wait(dirFutures);
+    } catch (e) {
+      await _emit(controller, 'Warning: failed to create directories: $e');
+    }
+
+    // Copy files in parallel, suppressing individual file logs
+    final copyFutures = relativePaths.map((relPath) async {
+      final src = p.join(repoPath, relPath);
+      final dest = p.join(targetPath, relPath);
+      try {
+        final srcFile = File(src);
+        if (await srcFile.exists()) {
+          await srcFile.copy(dest);
+          count++;
+        }
+      } catch (e) {
+        await _emit(controller, 'Warning: failed to copy $relPath: $e');
+      }
+    });
+
+    await Future.wait(copyFutures);
+    await _emit(controller, 'Copied $count file(s) to new worktree.');
   }
 
   /// Guard rail: garante que `.cockpit/worktrees/` está no `.gitignore` da

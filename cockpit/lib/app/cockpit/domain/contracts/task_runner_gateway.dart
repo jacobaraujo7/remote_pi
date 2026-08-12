@@ -8,9 +8,9 @@ abstract class TaskRunnerGateway {
   /// Stream de estados vivos de TODAS as tasks (uma emissão por transição).
   Stream<TaskRun> runs();
 
-  /// Bytes do stdout/stderr de uma task — alimenta o CockpitTerminal dela.
+  /// Texto decodificado do stdout/stderr de uma task — alimenta o terminal.
   /// Stream vazio se a task não está rodando.
-  Stream<List<int>> output(String taskId);
+  Stream<String> output(String taskId);
 
   /// Estado atual conhecido de uma task (idle se nunca rodou).
   TaskRun runOf(String taskId);

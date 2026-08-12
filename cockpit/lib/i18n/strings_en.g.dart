@@ -550,6 +550,12 @@ class Translations$cockpit$worktreeCreateDialog$en {
 	/// en: 'A worktree with that name already exists.'
 	String get errorDuplicateWorktree => 'A worktree with that name already exists.';
 
+	/// en: 'Cannot create branch '${target}' because it conflicts with the existing branch '${existing}'.'
+	String errorBranchHierarchyConflict({required Object target, required Object existing}) => 'Cannot create branch \'${target}\' because it conflicts with the existing branch \'${existing}\'.';
+
+	/// en: 'A branch with a conflicting hierarchy already exists.'
+	String get errorBranchHierarchicalConflictGeneral => 'A branch with a conflicting hierarchy already exists.';
+
 	/// en: 'Fork'
 	String get fork => 'Fork';
 
@@ -558,6 +564,39 @@ class Translations$cockpit$worktreeCreateDialog$en {
 
 	/// en: 'Running…'
 	String get running => 'Running…';
+
+	/// en: 'Advanced Settings'
+	String get advancedSettings => 'Advanced Settings';
+
+	/// en: 'Copy ignored files (.gitignore)'
+	String get copyIgnored => 'Copy ignored files (.gitignore)';
+
+	/// en: 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.'
+	String get copyIgnoredDesc => 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.';
+
+	/// en: 'Copy untracked files'
+	String get copyUntracked => 'Copy untracked files';
+
+	/// en: 'Copies new or modified files that haven't been staged yet.'
+	String get copyUntrackedDesc => 'Copies new or modified files that haven\'t been staged yet.';
+
+	/// en: 'Base branch'
+	String get baseBranch => 'Base branch';
+
+	/// en: 'The branch from which the new worktree and branch will be created.'
+	String get baseBranchDesc => 'The branch from which the new worktree and branch will be created.';
+
+	/// en: 'Fetch remote branch'
+	String get fetchRemote => 'Fetch remote branch';
+
+	/// en: 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.'
+	String get fetchRemoteDesc => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.';
+
+	/// en: 'Search branch...'
+	String get searchBranch => 'Search branch...';
+
+	/// en: 'Back'
+	String get back => 'Back';
 }
 
 // Path: cockpit.subfolderDialog
@@ -1236,6 +1275,72 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Cancel generation'
 	String get cancelGeneration => 'Cancel generation';
+
+	/// en: 'Changes'
+	String get changes => 'Changes';
+
+	/// en: 'History'
+	String get history => 'History';
+
+	/// en: 'Repository'
+	String get historyRepository => 'Repository';
+
+	/// en: 'No Git repository available.'
+	String get historyNoRepository => 'No Git repository available.';
+
+	/// en: 'No commits found.'
+	String get historyEmpty => 'No commits found.';
+
+	/// en: 'Could not load Git history.'
+	String get historyLoadFailed => 'Could not load Git history.';
+
+	/// en: 'Untitled commit'
+	String get historyUntitledCommit => 'Untitled commit';
+
+	/// en: 'now'
+	String get historyNow => 'now';
+
+	/// en: '${count}m ago'
+	String historyMinutesAgo({required Object count}) => '${count}m ago';
+
+	/// en: '${count}h ago'
+	String historyHoursAgo({required Object count}) => '${count}h ago';
+
+	/// en: 'yesterday'
+	String get historyYesterday => 'yesterday';
+
+	/// en: '1d ago'
+	String get historyDayAgo => '1d ago';
+
+	/// en: '${count}d ago'
+	String historyDaysAgo({required Object count}) => '${count}d ago';
+
+	/// en: 'Files changed'
+	String get historyFiles => 'Files changed';
+
+	/// en: 'No files changed.'
+	String get historyFilesEmpty => 'No files changed.';
+
+	/// en: 'Could not load changed files.'
+	String get historyFilesLoadFailed => 'Could not load changed files.';
+
+	/// en: 'Empty tree'
+	String get diffEmptyTree => 'Empty tree';
+
+	/// en: 'Original ${ref}'
+	String diffOriginal({required Object ref}) => 'Original ${ref}';
+
+	/// en: 'Modified ${ref}'
+	String diffModified({required Object ref}) => 'Modified ${ref}';
+
+	/// en: 'Working tree'
+	String get diffWorkingTree => 'Working tree';
+
+	/// en: 'Binary file - no text diff.'
+	String get diffBinaryFile => 'Binary file - no text diff.';
+
+	/// en: 'No changes.'
+	String get diffNoChanges => 'No changes.';
 }
 
 // Path: cockpit.fileViewer
@@ -1914,6 +2019,12 @@ class Translations$cockpit$notifications$en {
 
 	/// en: 'Open'
 	String get open => 'Open';
+
+	/// en: 'Agent needs your input'
+	String get agentNeedsAction => 'Agent needs your input';
+
+	/// en: 'Agent stopped unexpectedly'
+	String get agentCrashed => 'Agent stopped unexpectedly';
 }
 
 // Path: cockpit.terminal
@@ -2510,8 +2621,38 @@ class Translations$settings$page$appearance$en {
 	/// en: 'Terminal font'
 	String get terminalFontTitle => 'Terminal font';
 
-	/// en: 'Uses the code size. Empty = system default.'
-	String get terminalFontDesc => 'Uses the code size. Empty = system default.';
+	/// en: 'Terminal only. Empty = system default.'
+	String get terminalFontDesc => 'Terminal only. Empty = system default.';
+
+	/// en: 'Terminal size'
+	String get terminalSizeTitle => 'Terminal size';
+
+	/// en: 'Off = follows the code size.'
+	String get terminalSizeDesc => 'Off = follows the code size.';
+
+	/// en: 'Follow code size'
+	String get terminalSizeInherit => 'Follow code size';
+
+	/// en: 'Terminal weight'
+	String get terminalWeightTitle => 'Terminal weight';
+
+	/// en: 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.'
+	String get terminalWeightDesc => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.';
+
+	/// en: 'Auto (by screen)'
+	String get terminalWeightAuto => 'Auto (by screen)';
+
+	/// en: 'Light'
+	String get terminalWeightLight => 'Light';
+
+	/// en: 'Normal'
+	String get terminalWeightNormal => 'Normal';
+
+	/// en: 'Medium'
+	String get terminalWeightMedium => 'Medium';
+
+	/// en: 'Semibold'
+	String get terminalWeightSemiBold => 'Semibold';
 
 	/// en: 'Conversation'
 	String get sectionConversation => 'Conversation';
@@ -2545,6 +2686,33 @@ class Translations$settings$page$appearance$en {
 
 	/// en: 'Theme removed.'
 	String get themeDeleted => 'Theme removed.';
+
+	/// en: 'Choose a font'
+	String get fontPickerTitle => 'Choose a font';
+
+	/// en: 'Search fonts'
+	String get fontPickerSearch => 'Search fonts';
+
+	/// en: 'No matching font found on this machine.'
+	String get fontPickerEmpty => 'No matching font found on this machine.';
+
+	/// en: 'included'
+	String get fontPickerBundled => 'included';
+
+	/// en: 'Not listed? Type the exact family name.'
+	String get fontPickerCustom => 'Not listed? Type the exact family name.';
+
+	/// en: 'Family name'
+	String get fontPickerCustomHint => 'Family name';
+
+	/// en: 'Use'
+	String get fontPickerUse => 'Use';
+
+	/// en: 'Default'
+	String get fontPickerDefault => 'Default';
+
+	/// en: 'Not found on this machine — falling back.'
+	String get fontMissing => 'Not found on this machine — falling back.';
 }
 
 // Path: settings.page.notifications
@@ -2579,11 +2747,47 @@ class Translations$settings$page$notifications$en {
 	/// en: 'Request permission'
 	String get requestPermission => 'Request permission';
 
-	/// en: 'Play sound on finish'
-	String get playSoundTitle => 'Play sound on finish';
+	/// en: 'Sounds'
+	String get soundsTitle => 'Sounds';
 
-	/// en: 'Play a short chime when a turn finishes and the window is focused (on any tab or workspace).'
-	String get playSoundDesc => 'Play a short chime when a turn finishes and the window is focused (on any tab or workspace).';
+	/// en: 'Volume'
+	String get soundVolumeTitle => 'Volume';
+
+	/// en: 'Turn completed'
+	String get soundTurnDone => 'Turn completed';
+
+	/// en: 'An agent finished its turn.'
+	String get soundTurnDoneDesc => 'An agent finished its turn.';
+
+	/// en: 'Action required'
+	String get soundActionRequired => 'Action required';
+
+	/// en: 'An agent is waiting for your approval or answer.'
+	String get soundActionRequiredDesc => 'An agent is waiting for your approval or answer.';
+
+	/// en: 'Agent error'
+	String get soundAgentError => 'Agent error';
+
+	/// en: 'An agent process stopped unexpectedly.'
+	String get soundAgentErrorDesc => 'An agent process stopped unexpectedly.';
+
+	/// en: 'Default'
+	String get soundDefault => 'Default';
+
+	/// en: 'Custom: ${name}'
+	String soundCustom({required Object name}) => 'Custom: ${name}';
+
+	/// en: 'Choose file'
+	String get soundChooseFile => 'Choose file';
+
+	/// en: 'Reset to default'
+	String get soundReset => 'Reset to default';
+
+	/// en: 'Also play when this tab is active'
+	String get soundOnActiveTab => 'Also play when this tab is active';
+
+	/// en: 'Preview'
+	String get soundPreview => 'Preview';
 }
 
 // Path: settings.page.shortcuts
@@ -3139,9 +3343,22 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.errorReserved' => 'Reserved position (do not start with "-"/"." or end with ".lock").',
 			'cockpit.worktreeCreateDialog.errorDuplicateBranch' => 'A branch with that name already exists.',
 			'cockpit.worktreeCreateDialog.errorDuplicateWorktree' => 'A worktree with that name already exists.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchyConflict' => ({required Object target, required Object existing}) => 'Cannot create branch \'${target}\' because it conflicts with the existing branch \'${existing}\'.',
+			'cockpit.worktreeCreateDialog.errorBranchHierarchicalConflictGeneral' => 'A branch with a conflicting hierarchy already exists.',
 			'cockpit.worktreeCreateDialog.fork' => 'Fork',
 			'cockpit.worktreeCreateDialog.postCheckoutHint' => 'This repository has a post-checkout hook.',
 			'cockpit.worktreeCreateDialog.running' => 'Running…',
+			'cockpit.worktreeCreateDialog.advancedSettings' => 'Advanced Settings',
+			'cockpit.worktreeCreateDialog.copyIgnored' => 'Copy ignored files (.gitignore)',
+			'cockpit.worktreeCreateDialog.copyIgnoredDesc' => 'Copies files ignored by .gitignore (e.g. .env, local keys) to the new worktree.',
+			'cockpit.worktreeCreateDialog.copyUntracked' => 'Copy untracked files',
+			'cockpit.worktreeCreateDialog.copyUntrackedDesc' => 'Copies new or modified files that haven\'t been staged yet.',
+			'cockpit.worktreeCreateDialog.baseBranch' => 'Base branch',
+			'cockpit.worktreeCreateDialog.baseBranchDesc' => 'The branch from which the new worktree and branch will be created.',
+			'cockpit.worktreeCreateDialog.fetchRemote' => 'Fetch remote branch',
+			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.',
+			'cockpit.worktreeCreateDialog.searchBranch' => 'Search branch...',
+			'cockpit.worktreeCreateDialog.back' => 'Back',
 			'cockpit.subfolderDialog.title' => 'Where to work?',
 			'cockpit.subfolderDialog.empty' => 'No subfolders here.',
 			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Use the root of ${project}',
@@ -3335,6 +3552,28 @@ extension on Translations {
 			'cockpit.fileTreePanel.generateWith' => ({required Object harness}) => 'Generate with ${harness}',
 			'cockpit.fileTreePanel.generateUnavailableWhileAmending' => 'Unavailable while amending a commit',
 			'cockpit.fileTreePanel.cancelGeneration' => 'Cancel generation',
+			'cockpit.fileTreePanel.changes' => 'Changes',
+			'cockpit.fileTreePanel.history' => 'History',
+			'cockpit.fileTreePanel.historyRepository' => 'Repository',
+			'cockpit.fileTreePanel.historyNoRepository' => 'No Git repository available.',
+			'cockpit.fileTreePanel.historyEmpty' => 'No commits found.',
+			'cockpit.fileTreePanel.historyLoadFailed' => 'Could not load Git history.',
+			'cockpit.fileTreePanel.historyUntitledCommit' => 'Untitled commit',
+			'cockpit.fileTreePanel.historyNow' => 'now',
+			'cockpit.fileTreePanel.historyMinutesAgo' => ({required Object count}) => '${count}m ago',
+			'cockpit.fileTreePanel.historyHoursAgo' => ({required Object count}) => '${count}h ago',
+			'cockpit.fileTreePanel.historyYesterday' => 'yesterday',
+			'cockpit.fileTreePanel.historyDayAgo' => '1d ago',
+			'cockpit.fileTreePanel.historyDaysAgo' => ({required Object count}) => '${count}d ago',
+			'cockpit.fileTreePanel.historyFiles' => 'Files changed',
+			'cockpit.fileTreePanel.historyFilesEmpty' => 'No files changed.',
+			'cockpit.fileTreePanel.historyFilesLoadFailed' => 'Could not load changed files.',
+			'cockpit.fileTreePanel.diffEmptyTree' => 'Empty tree',
+			'cockpit.fileTreePanel.diffOriginal' => ({required Object ref}) => 'Original ${ref}',
+			'cockpit.fileTreePanel.diffModified' => ({required Object ref}) => 'Modified ${ref}',
+			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
+			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
+			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
@@ -3506,6 +3745,8 @@ extension on Translations {
 			'cockpit.tasks.quit' => 'Quit',
 			'cockpit.notifications.agentFinished' => 'Agent finished',
 			'cockpit.notifications.open' => 'Open',
+			'cockpit.notifications.agentNeedsAction' => 'Agent needs your input',
+			'cockpit.notifications.agentCrashed' => 'Agent stopped unexpectedly',
 			'cockpit.terminal.cwdFallbackWarning' => ({required Object requested, required Object path}) => 'Warning: the folder "${requested}" does not exist. This terminal opened in "${path}".',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
@@ -3513,6 +3754,8 @@ extension on Translations {
 			'settings.language.portugueseBr' => 'Português (BR)',
 			'settings.language.spanish' => 'Español',
 			'settings.revokeDialog.deviceRemoved' => 'Device removed.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.revokeDialog.failedToRevoke' => 'Failed to revoke the device.',
 			'settings.revokeDialog.revoking' => 'Revoking…',
 			'settings.revokeDialog.revokingDevice' => ({required Object name}) => 'Revoking ${name}…',
@@ -3550,8 +3793,6 @@ extension on Translations {
 			'settings.page.general.checkUpdatesTitle' => 'Check for updates',
 			'settings.page.general.checkUpdatesDesc' => 'How often Cockpit should look for new versions.',
 			'settings.page.general.agentsInUseError' => 'Can\'t turn agents off while an agent tab is open. Close all agent tabs first, then disable it.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.general.updateFrequency.daily' => 'Daily',
 			'settings.page.general.updateFrequency.weekly' => 'Weekly',
 			'settings.page.general.updateFrequency.monthly' => 'Monthly',
@@ -3614,7 +3855,17 @@ extension on Translations {
 			'settings.page.appearance.codeFontDesc' => 'Code and diffs. Empty = system default.',
 			'settings.page.appearance.codeSizeTitle' => 'Code size',
 			'settings.page.appearance.terminalFontTitle' => 'Terminal font',
-			'settings.page.appearance.terminalFontDesc' => 'Uses the code size. Empty = system default.',
+			'settings.page.appearance.terminalFontDesc' => 'Terminal only. Empty = system default.',
+			'settings.page.appearance.terminalSizeTitle' => 'Terminal size',
+			'settings.page.appearance.terminalSizeDesc' => 'Off = follows the code size.',
+			'settings.page.appearance.terminalSizeInherit' => 'Follow code size',
+			'settings.page.appearance.terminalWeightTitle' => 'Terminal weight',
+			'settings.page.appearance.terminalWeightDesc' => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.',
+			'settings.page.appearance.terminalWeightAuto' => 'Auto (by screen)',
+			'settings.page.appearance.terminalWeightLight' => 'Light',
+			'settings.page.appearance.terminalWeightNormal' => 'Normal',
+			'settings.page.appearance.terminalWeightMedium' => 'Medium',
+			'settings.page.appearance.terminalWeightSemiBold' => 'Semibold',
 			'settings.page.appearance.sectionConversation' => 'Conversation',
 			'settings.page.appearance.pinUserMessageTitle' => 'Pin user message',
 			'settings.page.appearance.pinUserMessageDesc' => 'The question stays fixed at the top while the answer scrolls.',
@@ -3626,6 +3877,15 @@ extension on Translations {
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
+			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
+			'settings.page.appearance.fontPickerSearch' => 'Search fonts',
+			'settings.page.appearance.fontPickerEmpty' => 'No matching font found on this machine.',
+			'settings.page.appearance.fontPickerBundled' => 'included',
+			'settings.page.appearance.fontPickerCustom' => 'Not listed? Type the exact family name.',
+			'settings.page.appearance.fontPickerCustomHint' => 'Family name',
+			'settings.page.appearance.fontPickerUse' => 'Use',
+			'settings.page.appearance.fontPickerDefault' => 'Default',
+			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
 			'settings.page.notifications.sectionTitle' => 'Notifications',
 			'settings.page.notifications.enableTitle' => 'Enable notifications',
 			'settings.page.notifications.enableDesc' => 'Alert me when an agent finishes a turn and the window is not focused.',
@@ -3634,8 +3894,20 @@ extension on Translations {
 			'settings.page.notifications.notGrantedDesc' => 'macOS has not granted notification access yet.',
 			'settings.page.notifications.granted' => 'Granted',
 			'settings.page.notifications.requestPermission' => 'Request permission',
-			'settings.page.notifications.playSoundTitle' => 'Play sound on finish',
-			'settings.page.notifications.playSoundDesc' => 'Play a short chime when a turn finishes and the window is focused (on any tab or workspace).',
+			'settings.page.notifications.soundsTitle' => 'Sounds',
+			'settings.page.notifications.soundVolumeTitle' => 'Volume',
+			'settings.page.notifications.soundTurnDone' => 'Turn completed',
+			'settings.page.notifications.soundTurnDoneDesc' => 'An agent finished its turn.',
+			'settings.page.notifications.soundActionRequired' => 'Action required',
+			'settings.page.notifications.soundActionRequiredDesc' => 'An agent is waiting for your approval or answer.',
+			'settings.page.notifications.soundAgentError' => 'Agent error',
+			'settings.page.notifications.soundAgentErrorDesc' => 'An agent process stopped unexpectedly.',
+			'settings.page.notifications.soundDefault' => 'Default',
+			'settings.page.notifications.soundCustom' => ({required Object name}) => 'Custom: ${name}',
+			'settings.page.notifications.soundChooseFile' => 'Choose file',
+			'settings.page.notifications.soundReset' => 'Reset to default',
+			'settings.page.notifications.soundOnActiveTab' => 'Also play when this tab is active',
+			'settings.page.notifications.soundPreview' => 'Preview',
 			'settings.page.shortcuts.notCustomizable' => 'Keyboard shortcuts are not customizable yet.',
 			'settings.page.languages.sectionFormatting' => 'FORMATTING',
 			'settings.page.languages.formatOnSaveTitle' => 'Format on save',

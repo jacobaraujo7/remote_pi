@@ -53,6 +53,13 @@ const EXTRAS: Step[] = [
   {
     star: true,
     tag: "extra",
+    title: "Layouts and tasks in Cockpit",
+    href: "/tutorials/cockpit-layouts",
+    desc: "Commit a .ckp layout that opens your terminals and a tasks.json that runs your dev servers — with profiles and reload on save.",
+  },
+  {
+    star: true,
+    tag: "extra",
     title: "An agent team in Cockpit",
     href: "/tutorials/cockpit-team",
     desc: "Run an orchestrator, backend, and frontend as three panes in Cockpit — each its own folder and AGENTS.md, talking over the remote-pi mesh.",

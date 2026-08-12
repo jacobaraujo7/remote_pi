@@ -395,10 +395,10 @@ Useful commands:
 
 | Command | What it does |
 |---|---|
-| `/remote-pi join [name]` | Join (or create) a session — only needed manually if `auto_start_relay=false` |
-| `/remote-pi leave` | Leave the current session |
-| `/remote-pi sessions` | List local sessions and which are live |
+| `/remote-pi` | Join the local mesh (and start the relay, if enabled) |
+| `/remote-pi peers` | List local + cross-PC mesh peers, grouped by PC |
 | `/remote-pi rename <new>` | Rename this agent in the current session |
+| `/remote-pi stop` | Leave the local mesh and disconnect the relay |
 
 Name collisions inside a session get a numeric suffix automatically
 (`backend`, `backend#2`, `backend#3`). The broker assigns it and returns the
@@ -420,6 +420,9 @@ real name to the peer.
 | `/remote-pi devices` | List paired mobile devices (online/offline per device) |
 | `/remote-pi revoke <shortid>` | Revoke a paired device by its shortid |
 | `/remote-pi set-relay <url>` | Persist a new relay URL (http:// or https://) |
+| `/remote-pi relay [start\|stop\|status]` | Relay-only control — leaves local mesh membership untouched (no verb = toggle) |
+| `/remote-pi relay url <url>` | Same as `set-relay` |
+| `/remote-pi config` | Show the effective relay URL and its source (env / config / default) |
 
 ### Daemon fleet (one supervisor, N background Pis — see [Daemon mode](#daemon-mode))
 

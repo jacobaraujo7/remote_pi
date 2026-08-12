@@ -47,7 +47,11 @@ class CodeEditor extends StatefulWidget {
     required this.controller,
     required this.focusNode,
     this.revealLine,
+    this.revealSelect = true,
     this.revealTick = 0,
+    this.addedLines = const {},
+    this.modifiedLines = const {},
+    this.removedLines = const {},
     this.revealMatchStart,
     this.revealMatchTick = 0,
     this.onGoToDefinition,
@@ -63,8 +67,16 @@ class CodeEditor extends StatefulWidget {
   /// busca. `null` = nenhum pedido.
   final int? revealLine;
 
+  /// Seleciona a linha revelada (busca) ou so posiciona o cursor (Git).
+  final bool revealSelect;
+
   /// Sobe a cada novo pedido de reveal → re-dispara mesmo pra mesma linha.
   final int revealTick;
+
+  /// Decoracoes Git no gutter, com linhas base 1.
+  final Set<int> addedLines;
+  final Set<int> modifiedLines;
+  final Set<int> removedLines;
 
   /// Offset (UTF-16) do início do match atual da busca **no arquivo** (Cmd+F) a
   /// revelar — rola vertical **e** horizontalmente até ele, sem tocar na seleção
@@ -197,8 +209,8 @@ class _CodeEditorState extends State<CodeEditor> {
     });
   }
 
-  /// Rola até a linha [oneBased] (base 1) e a **seleciona** (highlight visual),
-  /// jogando o foco no campo. Posições fora do texto são ignoradas.
+  /// Rola até a linha [oneBased] (base 1). Busca a seleciona; Source Control
+  /// apenas posiciona o cursor e deixa as decoracoes Git explicarem a mudanca.
   void _reveal(int oneBased) {
     final text = widget.controller.text;
     final lines = text.split('\n');
@@ -212,10 +224,9 @@ class _CodeEditorState extends State<CodeEditor> {
     // Extent no INÍCIO da linha (base no fim): a seleção cobre a linha inteira
     // igual, mas o `bringIntoView` do campo segue o extent → rola a horizontal
     // pra esquerda (início), em vez de empurrar pro fim da linha.
-    widget.controller.selection = TextSelection(
-      baseOffset: end,
-      extentOffset: start,
-    );
+    widget.controller.selection = widget.revealSelect
+        ? TextSelection(baseOffset: end, extentOffset: start)
+        : TextSelection.collapsed(offset: start);
     widget.focusNode.requestFocus();
     // Reveal sempre mostra o início da linha → âncora horizontal em 0 (mantém
     // coerência com o `_keepHorizontalOnSelection`, que segura essa seleção).
@@ -487,12 +498,31 @@ class _CodeEditorState extends State<CodeEditor> {
         ),
       );
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.end,
+    final marker = widget.addedLines.contains(oneBased)
+        ? context.colors.online
+        : widget.modifiedLines.contains(oneBased)
+        ? context.colors.accent
+        : widget.removedLines.contains(oneBased)
+        ? context.colors.gitDeleted
+        : null;
+    return Stack(
+      key: marker == null ? null : ValueKey('git-change-line:$oneBased'),
       children: [
-        slot,
-        Text('$oneBased', style: numStyle),
+        if (marker != null)
+          Positioned(
+            top: 0,
+            bottom: 0,
+            left: 0,
+            child: Container(width: 2, color: marker),
+          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            slot,
+            Text('$oneBased', style: numStyle),
+          ],
+        ),
       ],
     );
   }

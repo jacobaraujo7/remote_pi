@@ -2,6 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+import 'package:app/ui/core/themes/app_font_scale.dart';
+
 /// App-wide UI preferences (persisted across launches).
 ///
 /// Extends [ChangeNotifier] so widgets can `context.watch<Preferences>()`
@@ -15,6 +17,7 @@ class Preferences extends ChangeNotifier {
   String? _relayUrl;
   bool _onboardingCompleted = false;
   ThemeMode _themeMode = ThemeMode.system;
+  AppFontScale _fontScale = AppFontScale.standard;
 
   Preferences([FlutterSecureStorage? store])
       : _store = store ?? const FlutterSecureStorage();
@@ -24,6 +27,7 @@ class Preferences extends ChangeNotifier {
   static const _kRelayUrlKey = 'prefs.relay_url';
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
   static const _kThemeModeKey = 'prefs.theme_mode';
+  static const _kFontScaleKey = 'prefs.font_scale';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -75,6 +79,11 @@ class Preferences extends ChangeNotifier {
   /// in `main.dart` and set from the Settings "Display" section.
   ThemeMode get themeMode => _themeMode;
 
+  /// Preferred text size (issue #114). Applied as a `TextScaler` above the
+  /// router in `main.dart`, so it scales the whole UI — including the per-widget
+  /// `copyWith(fontSize: …)` overrides that a typography-only change would miss.
+  AppFontScale get fontScale => _fontScale;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -111,6 +120,12 @@ class Preferences extends ChangeNotifier {
     final themeMode = _themeModeFromString(theme);
     if (themeMode != _themeMode) {
       _themeMode = themeMode;
+      changed = true;
+    }
+
+    final scale = AppFontScale.fromName(await _store.read(key: _kFontScaleKey));
+    if (scale != _fontScale) {
+      _fontScale = scale;
       changed = true;
     }
 
@@ -183,6 +198,15 @@ class Preferences extends ChangeNotifier {
     if (_themeMode == value) return;
     _themeMode = value;
     await _store.write(key: _kThemeModeKey, value: value.name);
+    notifyListeners();
+  }
+
+  /// Persist the preferred [AppFontScale]. Stored by `name` so the value
+  /// survives enum reordering.
+  Future<void> setFontScale(AppFontScale value) async {
+    if (_fontScale == value) return;
+    _fontScale = value;
+    await _store.write(key: _kFontScaleKey, value: value.name);
     notifyListeners();
   }
 

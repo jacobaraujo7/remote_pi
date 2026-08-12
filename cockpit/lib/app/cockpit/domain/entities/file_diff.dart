@@ -51,6 +51,8 @@ class FileDiff {
     required this.path,
     required this.kind,
     this.hunks = const [],
+    this.beforeRevision,
+    this.afterRevision,
   });
 
   const FileDiff.binary(String path)
@@ -66,4 +68,8 @@ class FileDiff {
 
   /// Hunks parseados (vazio para binário/unchanged).
   final List<DiffHunk> hunks;
+
+  /// Primeiro pai e commit que um diff historico compara; nulos no working tree.
+  final String? beforeRevision;
+  final String? afterRevision;
 }

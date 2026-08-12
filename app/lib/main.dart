@@ -100,6 +100,17 @@ class _RemotePiAppState extends State<RemotePiApp> with WidgetsBindingObserver {
           themeMode: prefs.themeMode,
           routerConfig: _router,
           debugShowCheckedModeBanner: false,
+          // Issue #114 — user-chosen text size. Applied here rather than by
+          // scaling `AppTypography`'s base sizes so the many per-widget
+          // `copyWith(fontSize: …)` overrides scale too. `TextScaler.linear`
+          // REPLACES the platform scaler, which is deliberate: Flutter can't
+          // read iOS's per-app Text Size anyway (it only reads the global
+          // accessibility setting), so honoring both would compound them.
+          builder: (context, child) => MediaQuery.withClampedTextScaling(
+            minScaleFactor: prefs.fontScale.factor,
+            maxScaleFactor: prefs.fontScale.factor,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
       ),
     );

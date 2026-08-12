@@ -219,7 +219,10 @@ class PiRpcProcess implements RpcProcessGateway {
   }
 
   void _onStdoutLine(String line) {
-    debugPrint('[rpc-mode-agent][out] $line');
+    // Uma resposta do agente pode gerar centenas de JSONLs. debugPrint não é
+    // removido automaticamente no release e mantém uma fila throttled própria;
+    // logar cada delta duplicava todo o stream e podia competir com a UI.
+    if (kDebugMode) debugPrint('[rpc-mode-agent][out] $line');
     try {
       final decoded = jsonDecode(line);
       if (decoded is! Map<String, dynamic>) {
@@ -253,7 +256,7 @@ class PiRpcProcess implements RpcProcessGateway {
       if (process == null) {
         throw const RpcError('No agent running.');
       }
-      debugPrint('[rpc-mode-agent][in] $line');
+      if (kDebugMode) debugPrint('[rpc-mode-agent][in] $line');
       process.stdin.write(line);
       await process.stdin.flush();
     });
