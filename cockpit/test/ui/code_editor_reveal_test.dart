@@ -1,4 +1,6 @@
+import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
+import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
@@ -17,26 +19,25 @@ void main() {
     int? revealLine,
     bool revealSelect = true,
     int tick = 0,
-    Set<int> addedLines = const {},
-    Set<int> modifiedLines = const {},
-    Set<int> removedLines = const {},
+    ScmLineDecorations scmDecorations = ScmLineDecorations.empty,
+    Brightness brightness = Brightness.dark,
+    double width = 300,
+    double height = 200,
   }) {
     return ShadcnApp(
-      theme: buildTheme(brightness: Brightness.dark),
+      theme: buildTheme(brightness: brightness),
       home: Scaffold(
         child: Center(
           child: SizedBox(
-            width: 300,
-            height: 200,
+            width: width,
+            height: height,
             child: CodeEditor(
               controller: ctrl,
               focusNode: FocusNode(),
               revealLine: revealLine,
               revealSelect: revealSelect,
               revealTick: tick,
-              addedLines: addedLines,
-              modifiedLines: modifiedLines,
-              removedLines: removedLines,
+              scmDecorations: scmDecorations,
               revealMatchStart: revealStart,
               revealMatchTick: tick,
             ),
@@ -44,6 +45,24 @@ void main() {
         ),
       ),
     );
+  }
+
+  bool hasPaintedColor(WidgetTester tester, Key key, Color expected) {
+    return find
+        .descendant(
+          of: find.byKey(key),
+          matching: find.byWidgetPredicate((w) {
+            if (w is ColoredBox) return w.color == expected;
+            if (w is Container) {
+              if (w.color == expected) return true;
+              final d = w.decoration;
+              return d is BoxDecoration && d.color == expected;
+            }
+            return false;
+          }),
+        )
+        .evaluate()
+        .isNotEmpty;
   }
 
   testWidgets('reveal de match assenta sem travar (scroll anexado)', (
@@ -69,17 +88,167 @@ void main() {
         revealLine: 2,
         revealSelect: false,
         tick: 1,
-        addedLines: const {2},
-        modifiedLines: const {3},
-        removedLines: const {4},
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {2},
+          modifiedLines: {3},
+          removalBoundaries: {3},
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('git-change-line:2')), findsOneWidget);
     expect(find.byKey(const ValueKey('git-change-line:3')), findsOneWidget);
-    expect(find.byKey(const ValueKey('git-change-line:4')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('git-removal-boundary:3')),
+      findsOneWidget,
+    );
     expect(ctrl.selection.isCollapsed, isTrue);
+  });
+
+  testWidgets('SCM gutter usa tokens online/accent/gitDeleted', (tester) async {
+    final ctrl = CodeEditingController(text: 'a\nb\nc\n', language: 'txt');
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {1},
+          modifiedLines: {2},
+          removalBoundaries: {0, 3},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      hasPaintedColor(
+        tester,
+        const ValueKey('git-change-line:1'),
+        AppColors.dark.online,
+      ),
+      isTrue,
+    );
+    expect(
+      hasPaintedColor(
+        tester,
+        const ValueKey('git-change-line:2'),
+        AppColors.dark.accent,
+      ),
+      isTrue,
+    );
+    expect(
+      hasPaintedColor(
+        tester,
+        const ValueKey('git-removal-boundary:0'),
+        AppColors.dark.gitDeleted,
+      ),
+      isTrue,
+    );
+    expect(
+      hasPaintedColor(
+        tester,
+        const ValueKey('git-removal-boundary:3'),
+        AppColors.dark.gitDeleted,
+      ),
+      isTrue,
+    );
+  });
+
+  testWidgets('removal boundary 0 aparece na primeira linha visível', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(text: 'only\n', language: 'txt');
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {},
+          modifiedLines: {},
+          removalBoundaries: {0},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // hasScm → Stack ganha git-change-line:1; o vermelho é o boundary 0.
+    expect(find.byKey(const ValueKey('git-change-line:1')), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('git-removal-boundary:0')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('linha SCM fora do viewport não é construída (virtualização)', (
+    tester,
+  ) async {
+    final lines = List.generate(80, (i) => 'line$i').join('\n');
+    final ctrl = CodeEditingController(text: lines, language: 'txt');
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        height: 160,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {1, 70},
+          modifiedLines: {},
+          removalBoundaries: {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('git-change-line:1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('git-change-line:70')), findsNothing);
+  });
+
+  testWidgets('marcador SCM não recebe hit test (IgnorePointer)', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(text: 'a\nb\nc\n', language: 'txt');
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {1},
+          modifiedLines: {},
+          removalBoundaries: {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('git-change-line:1')),
+        matching: find.byType(IgnorePointer),
+      ),
+      findsWidgets,
+    );
+  });
+
+  testWidgets('SCM e diagnostic coexistem na mesma linha do gutter', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(text: 'a\nb\n', language: 'txt')
+      ..diagnostics = const [
+        LspDiagnostic(
+          range: LspRange(LspPosition(0, 0), LspPosition(0, 1)),
+          severity: LspSeverity.error,
+          message: 'boom',
+        ),
+      ];
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {1},
+          modifiedLines: {},
+          removalBoundaries: {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('git-change-line:1')), findsOneWidget);
+    expect(find.byIcon(Icons.error), findsOneWidget);
   });
 
   testWidgets('reveal repetido (navegação entre matches) assenta', (

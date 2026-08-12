@@ -24,6 +24,7 @@ import 'package:cockpit/app/cockpit/data/filesystem/folder_lister_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_command_runner_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_diff_reader_impl.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/git_head_baseline_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_history_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/session_history_impl.dart';
@@ -58,8 +59,11 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_head_baseline_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_history_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
+import 'package:cockpit/app/cockpit/domain/services/scm_baseline_cache.dart';
+import 'package:cockpit/app/cockpit/domain/services/scm_line_decoration_calculator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/realm_repository.dart';
@@ -187,6 +191,11 @@ Future<Module> buildCockpitModule() async {
         ..addLazySingleton<WorktreeManager>(WorktreeManagerImpl.new)
         ..addLazySingleton<GitCommandRunner>(GitCommandRunnerImpl.new)
         ..addLazySingleton<GitDiffReader>(GitDiffReaderImpl.new)
+        ..addLazySingleton<GitHeadBaselineReader>(GitHeadBaselineReaderImpl.new)
+        ..addLazySingleton<ScmBaselineCache>(ScmBaselineCache.new)
+        ..addInstance<ScmLineDecorationCalculator>(
+          const ScmLineDecorationCalculator(),
+        )
         ..addLazySingleton<GitHistoryReader>(GitHistoryReaderImpl.new)
         ..addInstance<SessionHistory>(const SessionHistoryImpl())
         ..addInstance<TerminalGatewayFactory>(const PtyTerminalGatewayFactory())

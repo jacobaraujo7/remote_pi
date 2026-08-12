@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 
+import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -49,9 +50,7 @@ class CodeEditor extends StatefulWidget {
     this.revealLine,
     this.revealSelect = true,
     this.revealTick = 0,
-    this.addedLines = const {},
-    this.modifiedLines = const {},
-    this.removedLines = const {},
+    this.scmDecorations = ScmLineDecorations.empty,
     this.revealMatchStart,
     this.revealMatchTick = 0,
     this.onGoToDefinition,
@@ -73,10 +72,8 @@ class CodeEditor extends StatefulWidget {
   /// Sobe a cada novo pedido de reveal → re-dispara mesmo pra mesma linha.
   final int revealTick;
 
-  /// Decoracoes Git no gutter, com linhas base 1.
-  final Set<int> addedLines;
-  final Set<int> modifiedLines;
-  final Set<int> removedLines;
+  /// Decorações SCM no gutter (linhas base 1 + fronteiras de remoção).
+  final ScmLineDecorations scmDecorations;
 
   /// Offset (UTF-16) do início do match atual da busca **no arquivo** (Cmd+F) a
   /// revelar — rola vertical **e** horizontalmente até ele, sem tocar na seleção
@@ -498,22 +495,52 @@ class _CodeEditorState extends State<CodeEditor> {
         ),
       );
     }
-    final marker = widget.addedLines.contains(oneBased)
+    final scm = widget.scmDecorations;
+    final marker = scm.addedLines.contains(oneBased)
         ? context.colors.online
-        : widget.modifiedLines.contains(oneBased)
+        : scm.modifiedLines.contains(oneBased)
         ? context.colors.accent
-        : widget.removedLines.contains(oneBased)
-        ? context.colors.gitDeleted
         : null;
+    final removalBefore = scm.removalBoundaries.contains(oneBased - 1);
+    final removalAfter =
+        oneBased == _lineCount && scm.removalBoundaries.contains(_lineCount);
+    final hasScm = marker != null || removalBefore || removalAfter;
+    final deleted = context.colors.gitDeleted;
     return Stack(
-      key: marker == null ? null : ValueKey('git-change-line:$oneBased'),
+      key: hasScm ? ValueKey('git-change-line:$oneBased') : null,
       children: [
         if (marker != null)
           Positioned(
             top: 0,
             bottom: 0,
             left: 0,
-            child: Container(width: 2, color: marker),
+            child: IgnorePointer(child: Container(width: 2, color: marker)),
+          ),
+        if (removalBefore)
+          Positioned(
+            top: 0,
+            left: 0,
+            child: IgnorePointer(
+              child: Container(
+                key: ValueKey('git-removal-boundary:${oneBased - 1}'),
+                width: 6,
+                height: 2,
+                color: deleted,
+              ),
+            ),
+          ),
+        if (removalAfter)
+          Positioned(
+            bottom: 0,
+            left: 0,
+            child: IgnorePointer(
+              child: Container(
+                key: ValueKey('git-removal-boundary:$_lineCount'),
+                width: 6,
+                height: 2,
+                color: deleted,
+              ),
+            ),
           ),
         Row(
           mainAxisSize: MainAxisSize.min,

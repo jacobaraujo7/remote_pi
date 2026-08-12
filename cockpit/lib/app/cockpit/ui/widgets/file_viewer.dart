@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_markdown.dart';
@@ -76,6 +77,9 @@ class _FileViewerState extends State<FileViewer> {
   /// Último [FileViewerSession.revealTick] visto — detecta novos pedidos de
   /// "revelar linha" (resultado de busca) vindos da VM.
   int _lastRevealTick = 0;
+
+  /// Últimas decorações SCM publicadas — força rebuild do gutter.
+  ScmLineDecorations _lastScmDecorations = ScmLineDecorations.empty;
 
   CodeEditingController? _ctrl;
   final _focus = FocusNode();
@@ -151,6 +155,7 @@ class _FileViewerState extends State<FileViewer> {
     super.initState();
     _lastObservedPath = widget.session.path;
     _lastRevealTick = widget.session.revealTick;
+    _lastScmDecorations = widget.session.scmDecorations;
     widget.session.addListener(_onSession);
     // Reveal pendente num arquivo markdown/svg → abre direto na fonte (o editor
     // é quem sabe rolar + selecionar a linha; o preview renderizado não).
@@ -162,10 +167,15 @@ class _FileViewerState extends State<FileViewer> {
         ..addListener(_onCtrlChanged);
       // Expõe o save do buffer à sessão pro "Salvar e fechar" (limpo no dispose).
       widget.session.saveDraft = _save;
+      _bindScmCoordinator(_ctrl!);
       _startLsp(text);
     }
     // Aba já nasce focada (ex.: arquivo recém-aberto) → foca o editor.
     _focusEditorIfActive();
+  }
+
+  void _bindScmCoordinator(CodeEditingController controller) {
+    widget.session.scmCoordinator?.attachController(controller);
   }
 
   /// Abre o documento no LSP e passa a escutar os diagnostics deste arquivo.
@@ -251,6 +261,8 @@ class _FileViewerState extends State<FileViewer> {
       _semanticTokens = const <SemanticRange>[];
       _semanticTokensRequested = false;
 
+      widget.session.scmCoordinator?.onSessionPathChanged();
+
       // Recria o controller com o novo conteúdo.
       final text = _editableText;
       if (text != null) {
@@ -258,9 +270,11 @@ class _FileViewerState extends State<FileViewer> {
         _ctrl = CodeEditingController(text: text, language: _language)
           ..addListener(_onCtrlChanged);
         widget.session.saveDraft = _save;
+        _bindScmCoordinator(_ctrl!);
         _startLsp(text);
       } else {
         widget.session.saveDraft = null;
+        widget.session.clearScmDecorations();
       }
       // Força rebuild.
       setState(() {});
@@ -281,6 +295,7 @@ class _FileViewerState extends State<FileViewer> {
         if (mounted && !_dirty && _ctrl != null && _ctrl!.text != text) {
           _ctrl!.text = text;
           _baseline = text;
+          widget.session.scmCoordinator?.onExternalContentAdopted();
           // O disco mudou (agente editou) → mantém o LSP em sync.
           if (_lspOn) {
             unawaited(_vm?.lspChangeDocument(widget.session.path, text));
@@ -320,14 +335,18 @@ class _FileViewerState extends State<FileViewer> {
     });
   }
 
-  /// Reage a mudanças da sessão: novo pedido de reveal (linha de busca) →
-  /// rebuild pra repassar o tick ao [CodeEditor] (e abrir a fonte se markdown).
+  /// Reage a mudanças da sessão: reveal e/ou decorações SCM → rebuild do editor.
   void _onSession() {
-    if (widget.session.revealTick == _lastRevealTick) return;
+    final revealChanged = widget.session.revealTick != _lastRevealTick;
+    final scmChanged = widget.session.scmDecorations != _lastScmDecorations;
+    if (!revealChanged && !scmChanged) return;
     _lastRevealTick = widget.session.revealTick;
+    _lastScmDecorations = widget.session.scmDecorations;
+    final ctrl = _ctrl;
+    if (ctrl != null) _bindScmCoordinator(ctrl);
     if (!mounted) return;
     setState(() {
-      if (_hasPreview) _editing = true;
+      if (revealChanged && _hasPreview) _editing = true;
     });
   }
 
@@ -848,9 +867,7 @@ class _FileViewerState extends State<FileViewer> {
             revealLine: widget.session.revealLine,
             revealSelect: widget.session.revealSelect,
             revealTick: widget.session.revealTick,
-            addedLines: widget.session.addedLines,
-            modifiedLines: widget.session.modifiedLines,
-            removedLines: widget.session.removedLines,
+            scmDecorations: widget.session.scmDecorations,
             revealMatchStart:
                 _findIndex >= 0 && _findIndex < _findMatches.length
                 ? _findMatches[_findIndex].start

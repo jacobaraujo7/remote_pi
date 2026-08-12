@@ -1,5 +1,7 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import 'package:cockpit/app/cockpit/ui/session/scm_line_decoration_coordinator.dart';
 
 /// Uma aba de viewer read-only de arquivo (texto/markdown/imagem). O conteúdo
 /// ([view]) já vem classificado/lido pela VM (binário/vídeo nem chega aqui).
@@ -45,6 +47,7 @@ class FileViewerSession extends PaneItem {
   void retarget(String newPath) {
     if (newPath == path) return;
     path = newPath;
+    scmCoordinator?.onSessionPathChanged();
     notifyListeners();
   }
 
@@ -94,19 +97,28 @@ class FileViewerSession extends PaneItem {
   /// compara o tick pra disparar de novo mesmo sem mudança de [revealLine]).
   int revealTick = 0;
 
-  /// Linhas do working tree decoradas no gutter pelo Source Control.
-  Set<int> addedLines = const {};
-  Set<int> modifiedLines = const {};
-  Set<int> removedLines = const {};
+  /// Decorações SCM do buffer atual vs `HEAD` (estado derivado, efêmero).
+  ScmLineDecorations scmDecorations = ScmLineDecorations.empty;
 
-  void setGitChangeLines({
-    required Set<int> added,
-    required Set<int> modified,
-    required Set<int> removed,
-  }) {
-    addedLines = added;
-    modifiedLines = modified;
-    removedLines = removed;
+  /// Coordenador reativo; criado pela VM em aberturas textuais elegíveis.
+  ScmLineDecorationCoordinator? scmCoordinator;
+
+  void setScmDecorations(ScmLineDecorations value) {
+    if (scmDecorations == value) return;
+    scmDecorations = value;
+    notifyListeners();
+  }
+
+  void attachScmCoordinator(ScmLineDecorationCoordinator coordinator) {
+    scmCoordinator?.dispose();
+    scmCoordinator = coordinator;
+  }
+
+  void clearScmDecorations() {
+    scmCoordinator?.dispose();
+    scmCoordinator = null;
+    if (scmDecorations.isEmpty) return;
+    scmDecorations = ScmLineDecorations.empty;
     notifyListeners();
   }
 
@@ -116,5 +128,12 @@ class FileViewerSession extends PaneItem {
     revealSelect = select;
     revealTick++;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    scmCoordinator?.dispose();
+    scmCoordinator = null;
+    super.dispose();
   }
 }

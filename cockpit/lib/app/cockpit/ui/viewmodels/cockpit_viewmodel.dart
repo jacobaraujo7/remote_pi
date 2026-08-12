@@ -23,7 +23,10 @@ import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_history_reader.dart';
+import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
+import 'package:cockpit/app/cockpit/domain/services/scm_baseline_cache.dart';
+import 'package:cockpit/app/cockpit/domain/services/scm_line_decoration_calculator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/layout_loader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
@@ -58,6 +61,7 @@ import 'package:cockpit/app/cockpit/domain/value_objects/uid.dart';
 import 'package:cockpit/app/cockpit/domain/entities/session_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
+import 'package:cockpit/app/cockpit/ui/session/scm_line_decoration_coordinator.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
@@ -127,6 +131,8 @@ class CockpitViewModel extends ChangeNotifier {
     this._taskRunner,
     this._dbService,
     this._layoutLoader,
+    this._scmBaselineCache,
+    this._scmCalculator,
   ) {
     // Contexto do shell que o GitController precisa (page-scoped, mesma vida).
     git
@@ -136,7 +142,8 @@ class CockpitViewModel extends ChangeNotifier {
       ..pollTargets = _gitPollTargets
       ..onStructuralFsChange = _bumpFileTree
       ..onPoll = _reconcileOpenWorktrees;
-    git.addListener(notifyListeners);
+    _lastGitRevision = git.revision;
+    git.addListener(_onGitNotify);
     realmCtrl.addListener(notifyListeners);
   }
 
@@ -198,7 +205,44 @@ class CockpitViewModel extends ChangeNotifier {
   final GitDiffReader _gitDiff;
   final GitHistoryReader _gitHistory;
   final AutomationController _automation;
+  final ScmBaselineCache _scmBaselineCache;
+  final ScmLineDecorationCalculator _scmCalculator;
   AutomationSelection? _automationSelection;
+  int _lastGitRevision = 0;
+
+  void _onGitNotify() {
+    final rev = git.revision;
+    if (rev != _lastGitRevision) {
+      _lastGitRevision = rev;
+      for (final s in _sessions.values) {
+        if (s is FileViewerSession) {
+          s.scmCoordinator?.onGitRevisionChanged();
+        }
+      }
+    }
+    notifyListeners();
+  }
+
+  void _ensureScmCoordinator(FileViewerSession session) {
+    final editable =
+        session.view is FileViewText ||
+        session.view is FileViewMarkdown ||
+        session.view is FileViewSvg;
+    if (session.scratch || !editable) {
+      session.clearScmDecorations();
+      return;
+    }
+    // Não recria se já existe — o FileViewer mantém o controller ligado.
+    if (session.scmCoordinator != null) return;
+    session.attachScmCoordinator(
+      ScmLineDecorationCoordinator(
+        session: session,
+        cache: _scmBaselineCache,
+        calculator: _scmCalculator,
+        resolveGitRoot: (path) => rootContaining(session.projectId, path),
+      ),
+    );
+  }
 
   void setAutomationSelection(AutomationSelection? selection) {
     _automationSelection = selection;
@@ -641,9 +685,6 @@ class CockpitViewModel extends ChangeNotifier {
     String? inPane,
     bool isPreview = true,
     int? revealLine,
-    Set<int>? addedLines,
-    Set<int>? modifiedLines,
-    Set<int>? removedLines,
   }) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
@@ -664,15 +705,7 @@ class CockpitViewModel extends ChangeNotifier {
         // Se já aberto, só seleciona (mas transforma preview em normal se não é preview).
         if (s.path == path) {
           if (!isPreview && s.isPreview) s.pin();
-          if (addedLines != null &&
-              modifiedLines != null &&
-              removedLines != null) {
-            s.setGitChangeLines(
-              added: addedLines,
-              modified: modifiedLines,
-              removed: removedLines,
-            );
-          }
+          _ensureScmCoordinator(s);
           if (revealLine != null) s.reveal(revealLine, select: false);
           _trees[projectId] = updateLeaf(
             tree,
@@ -698,13 +731,9 @@ class CockpitViewModel extends ChangeNotifier {
       previewCandidate.view = view;
       previewCandidate.dirty = false;
       previewCandidate.revealLine = null;
-      if (addedLines != null && modifiedLines != null && removedLines != null) {
-        previewCandidate.setGitChangeLines(
-          added: addedLines,
-          modified: modifiedLines,
-          removed: removedLines,
-        );
-      }
+      previewCandidate.setScmDecorations(ScmLineDecorations.empty);
+      _ensureScmCoordinator(previewCandidate);
+      previewCandidate.scmCoordinator?.onSessionPathChanged();
       if (revealLine != null) {
         previewCandidate.reveal(revealLine, select: false);
       } else {
@@ -727,13 +756,7 @@ class CockpitViewModel extends ChangeNotifier {
       view: view,
       isPreview: isPreview,
     );
-    if (addedLines != null && modifiedLines != null && removedLines != null) {
-      viewer.setGitChangeLines(
-        added: addedLines,
-        modified: modifiedLines,
-        removed: removedLines,
-      );
-    }
+    _ensureScmCoordinator(viewer);
     if (revealLine != null) viewer.reveal(revealLine, select: false);
     _sessions[viewer.id] = viewer;
     _watchFileViewer(viewer);
@@ -789,8 +812,9 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Abre uma mudanca no arquivo normal, revelando a primeira linha afetada.
-  /// Arquivos apagados nao existem mais no working tree e continuam no diff.
+  /// Abre uma mudança do Source Control no editor normal. Decorações vêm do
+  /// coordenador SCM (buffer vs `HEAD`), não de uma injeção pontual do diff.
+  /// Arquivos apagados não existem mais no working tree e continuam no diff.
   Future<void> openChangedFile(String path) async {
     final projectId = _selectedProjectId;
     if (projectId == null) return;
@@ -801,66 +825,7 @@ class CockpitViewModel extends ChangeNotifier {
     if (_selectedProjectId != projectId || diff.kind == FileDiffKind.deleted) {
       return;
     }
-    final changes = _gitChangeLines(diff);
-    await openFile(
-      path,
-      isPreview: false,
-      revealLine: changes.firstLine,
-      addedLines: changes.added,
-      modifiedLines: changes.modified,
-      removedLines: changes.removed,
-    );
-  }
-
-  ({Set<int> added, Set<int> modified, Set<int> removed, int? firstLine})
-  _gitChangeLines(FileDiff diff) {
-    final added = <int>{};
-    final modified = <int>{};
-    final removed = <int>{};
-    int? firstLine;
-    final pendingRemoved = <DiffLine>[];
-    final pendingAdded = <DiffLine>[];
-
-    void flush() {
-      final pairs = pendingRemoved.length < pendingAdded.length
-          ? pendingRemoved.length
-          : pendingAdded.length;
-      for (var index = 0; index < pairs; index++) {
-        final line = pendingAdded[index].newLine;
-        if (line != null) modified.add(line);
-      }
-      for (final line in pendingAdded.skip(pairs)) {
-        if (line.newLine != null) added.add(line.newLine!);
-      }
-      for (final line in pendingRemoved.skip(pairs)) {
-        if (line.oldLine != null) removed.add(line.oldLine!);
-      }
-      pendingRemoved.clear();
-      pendingAdded.clear();
-    }
-
-    for (final hunk in diff.hunks) {
-      for (final line in hunk.lines) {
-        if (line.kind != DiffLineKind.context) {
-          firstLine ??= line.newLine ?? line.oldLine;
-        }
-        switch (line.kind) {
-          case DiffLineKind.removed:
-            pendingRemoved.add(line);
-          case DiffLineKind.added:
-            pendingAdded.add(line);
-          case DiffLineKind.context:
-            flush();
-        }
-      }
-      flush();
-    }
-    return (
-      added: added,
-      modified: modified,
-      removed: removed,
-      firstLine: firstLine,
-    );
+    await openFile(path, isPreview: false);
   }
 
   /// Abre uma tab `.dbq` **untitled** (scratch, VSCode-style): buffer em
@@ -4745,7 +4710,7 @@ class CockpitViewModel extends ChangeNotifier {
     unawaited(_statusServer.stop());
     // O GitController é dono dos próprios timers/watchers; o módulo o
     // descarta junto com a rota. Aqui só desligamos o repasse de notify.
-    git.removeListener(notifyListeners);
+    git.removeListener(_onGitNotify);
     realmCtrl.removeListener(notifyListeners);
     for (final t in _saveTimers.values) {
       t.cancel();
