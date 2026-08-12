@@ -14,25 +14,39 @@ import { basename } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 
 /**
- * Kernel process states in which a process cannot run its event loop, so no
- * amount of waiting produces a register_ack. Any other state is reported as
- * observed and nothing is inferred from it: a healthy broker under load can
- * miss a fixed deadline, and that is not evidence of a fault.
+ * States a process can be resumed from. These are the only ones that prove no
+ * amount of waiting produces a register_ack while leaving something to act on.
  */
 const HALTED_STATES: Record<string, string> = {
   T: "suspended",
   t: "stopped by a debugger",
+};
+
+/**
+ * States in which the process is already gone. Its descriptors are released,
+ * so it no longer holds the socket the scan found it on. This is reachable
+ * rather than theoretical: the owner can exit between reading the socket table
+ * and reading its state.
+ */
+const EXITED_STATES: Record<string, string> = {
   Z: "a zombie",
   X: "dead",
 };
 
+/**
+ * What can be done about the owner, which is the only distinction the message
+ * acts on. A boolean cannot carry it: a stopped process is resumable, an exited
+ * one needs nothing, and a working one must not be touched on this evidence
+ * alone, because a healthy broker under load can miss a fixed deadline.
+ */
+export type OwnerLiveness = "halted" | "exited" | "active";
+
 export type SocketOwner = {
   pid: number;
   command: string;
-  /** Kernel state as observed, e.g. "suspended" or "running". */
+  /** Kernel state as observed, e.g. "suspended" or "in uninterruptible sleep". */
   state: string;
-  /** True only when the state itself proves the process cannot answer. */
-  halted: boolean;
+  liveness: OwnerLiveness;
 };
 
 /** Listening sockets report `01`; queued and connected ones do not. */
@@ -87,13 +101,40 @@ async function pidHoldingInode(inode: string, deadline: number): Promise<number 
   return null;
 }
 
-async function readState(pid: number): Promise<{ state: string; halted: boolean }> {
+/**
+ * Every state Linux reports in `/proc/<pid>/stat`, in words an operator can
+ * read back. Describing an unresponsive owner demands the state it is actually
+ * in: calling a process in uninterruptible sleep "running" would misdirect the
+ * person deciding what to do about it.
+ */
+const STATE_LABELS: Record<string, string> = {
+  R: "running",
+  S: "sleeping",
+  D: "in uninterruptible sleep",
+  I: "idle",
+  ...EXITED_STATES,
+  ...HALTED_STATES,
+};
+
+/**
+ * Exported so the classification can be tested for every state directly. A
+ * process cannot be driven into each one on demand, and the branch chosen here
+ * decides whether an operator is told to kill something.
+ */
+export function describeState(code: string): { state: string; liveness: OwnerLiveness } {
+  const has = (table: Record<string, string>) =>
+    Object.prototype.hasOwnProperty.call(table, code);
+  return {
+    state: STATE_LABELS[code] ?? `in state ${code}`,
+    liveness: has(HALTED_STATES) ? "halted" : has(EXITED_STATES) ? "exited" : "active",
+  };
+}
+
+async function readState(pid: number): Promise<{ state: string; liveness: OwnerLiveness }> {
   const stat = await readFile(`/proc/${pid}/stat`, "utf8");
   // The command field is parenthesized and may itself contain spaces or
   // parentheses, so the state character is read after the final ')'.
-  const code = stat.slice(stat.lastIndexOf(")") + 2).trim().charAt(0);
-  const halted = Object.prototype.hasOwnProperty.call(HALTED_STATES, code);
-  return { state: halted ? HALTED_STATES[code] : "running", halted };
+  return describeState(stat.slice(stat.lastIndexOf(")") + 2).trim().charAt(0));
 }
 
 /**
@@ -117,8 +158,8 @@ async function lookup(sockPath: string, deadline: number): Promise<SocketOwner |
   if (inode === null) return null;
   const pid = await pidHoldingInode(inode, deadline);
   if (pid === null) return null;
-  const { state, halted } = await readState(pid);
-  return { pid, command: await readCommand(pid), state, halted };
+  const { state, liveness } = await readState(pid);
+  return { pid, command: await readCommand(pid), state, liveness };
 }
 
 /**
@@ -146,28 +187,34 @@ export async function describeSocketOwner(
 
 /**
  * The operator-facing half of a registration timeout. Names the blocker when it
- * is known, and always ends with the same instruction so callers can rely on
- * one recovery contract regardless of what was discoverable.
+ * is known, and always closes with "then rejoin." so callers can assert one
+ * recovery contract regardless of what was discoverable.
  *
- * Only a halted owner earns a specific command. Missing a fixed deadline does
- * not prove a process is broken, and advising an operator to kill a busy broker
- * would turn a slow mesh into a destroyed one.
+ * Each branch says only what its evidence supports. Resuming is offered for a
+ * stopped process and nothing else: it is incoherent for one that is already
+ * running or already gone, and acting on it would destroy a broker whose only
+ * fault was missing a fixed deadline under load.
  */
 export function describeRegistrationBlocker(sockPath: string, owner: SocketOwner | null): string {
   const preamble = `${sockPath} has a listener `;
-  const tail = "resume or terminate it, then rejoin.";
   if (owner === null) {
     return preamble
-      + "that never answered the register handshake. Its owning process is probably suspended "
-      + `or blocked; ${tail}`;
+      + "that never answered the register handshake, and its owner could not be identified; "
+      + "inspect the process holding that socket before acting, then rejoin.";
   }
   const who = `owned by pid ${owner.pid} (${owner.command}), which is ${owner.state} `;
-  if (owner.halted) {
-    return preamble + who
-      + `and cannot answer the register handshake. Resume it with \`kill -CONT ${owner.pid}\` `
-      + `or terminate it, then rejoin.`;
+  switch (owner.liveness) {
+    case "halted":
+      return preamble + who
+        + `and cannot answer the register handshake. Resume it with \`kill -CONT ${owner.pid}\` `
+        + "or terminate it, then rejoin.";
+    case "exited":
+      return preamble + who
+        + "and exited without answering the register handshake. It has already released the "
+        + "socket and needs nothing done to it, then rejoin.";
+    case "active":
+      return preamble + who
+        + "and did not answer the register handshake in time. It may be busy rather than stuck, "
+        + `so inspect pid ${owner.pid} before acting, then rejoin.`;
   }
-  return preamble + who
-    + `and did not answer the register handshake in time. It may be busy rather than stuck, `
-    + `so inspect pid ${owner.pid} before acting; ${tail}`;
 }
