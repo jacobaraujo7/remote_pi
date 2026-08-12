@@ -1,11 +1,15 @@
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
+import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_history_commit.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_history_file_change.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/commit_message_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/git_history_panel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_resize_handle.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/automation.dart';
@@ -66,6 +70,7 @@ class FileTreePanel extends StatefulWidget {
     required this.listChildren,
     required this.gitStatusOf,
     required this.onOpenFile,
+    this.onOpenChangedFile,
     this.onTapFile,
     this.onSelectFile,
     this.onClearSelection,
@@ -100,6 +105,10 @@ class FileTreePanel extends StatefulWidget {
     this.onCommitStaged,
     this.onLoadCommits,
     this.onLoadCommitMessage,
+    this.onLoadGitHistory,
+    this.onLoadGitHistoryFiles,
+    this.onOpenGitHistoryDiff,
+    this.gitHistoryRevision = 0,
     this.onUnstageFile,
     this.onUnstageFiles,
     this.onDiscardFile,
@@ -132,6 +141,25 @@ class FileTreePanel extends StatefulWidget {
   onCommitStaged;
   final Future<List<GitCommit>> Function()? onLoadCommits;
   final Future<String?> Function(String hash)? onLoadCommitMessage;
+
+  /// Historico read-only de uma root. Mantem o contrato separado de
+  /// [GitCommit], que e exclusivo do fluxo de amend.
+  final Future<Result<List<GitHistoryCommit>, GitHistoryError>> Function(
+    String root,
+  )?
+  onLoadGitHistory;
+  final Future<Result<List<GitHistoryFileChange>, GitHistoryError>> Function(
+    String root,
+    String commitHash,
+  )?
+  onLoadGitHistoryFiles;
+  final Future<void> Function(
+    String root,
+    String commitHash,
+    GitHistoryFileChange change,
+  )?
+  onOpenGitHistoryDiff;
+  final int gitHistoryRevision;
 
   /// Source Control: gera uma mensagem a partir do diff isolado do arquivo.
   /// `null` quando nenhum harness configurado está disponível.
@@ -199,6 +227,9 @@ class FileTreePanel extends StatefulWidget {
 
   /// Duplo-clique num arquivo → abre no pane.
   final ValueChanged<String> onOpenFile;
+
+  /// Abre uma mudanca no arquivo e revela sua primeira linha alterada.
+  final Future<void> Function(String path)? onOpenChangedFile;
 
   /// Clique único → abre preview (VSCode-style).
   final ValueChanged<String>? onTapFile;
@@ -284,6 +315,8 @@ class FileTreePanel extends StatefulWidget {
 /// Files · Search · Source Control · Database.
 enum _RightPaneTab { files, search, sourceControl, database }
 
+enum _SourceControlView { changes, history }
+
 /// Intenção de criação inline pendente: dentro de [parentPath], arquivo ou pasta.
 class _PendingCreate {
   const _PendingCreate(this.parentPath, this.isFolder);
@@ -327,6 +360,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// Source Control começa no default global e pode alternar temporariamente
   /// sem afetar a árvore principal de arquivos.
   late bool _sourceControlTree;
+  _SourceControlView _sourceControlView = _SourceControlView.changes;
 
   /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
   /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
@@ -477,8 +511,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
     for (final path in targets) {
       final err = await action(path);
       if (err != null) {
-        if (mounted)
+        if (mounted) {
           await _showGitError(fileOperationErrorMessage(context, err));
+        }
         return;
       }
     }
@@ -1060,22 +1095,22 @@ class _FileTreePanelState extends State<FileTreePanel> {
               title: context.t.cockpit.fileTreePanel.sectionSourceControl,
               actions: [
                 _PanelHeaderAction(
-                  key: const ValueKey('source-control-view-toggle'),
-                  icon: _sourceControlTree
-                      ? Icons.view_list_outlined
-                      : Icons.account_tree_outlined,
-                  tooltip: _sourceControlTree
-                      ? context.t.cockpit.fileTreePanel.viewAsList
-                      : context.t.cockpit.fileTreePanel.viewAsTree,
-                  onTap: () {
-                    final next = !_sourceControlTree;
-                    setState(() => _sourceControlTree = next);
-                    widget.onSourceControlViewModeChanged?.call(
-                      next
-                          ? SourceControlViewMode.tree
-                          : SourceControlViewMode.list,
-                    );
-                  },
+                  key: const ValueKey('source-control-changes-tab'),
+                  icon: Icons.edit_note_outlined,
+                  tooltip: context.t.cockpit.fileTreePanel.changes,
+                  selected: _sourceControlView == _SourceControlView.changes,
+                  onTap: () => setState(
+                    () => _sourceControlView = _SourceControlView.changes,
+                  ),
+                ),
+                _PanelHeaderAction(
+                  key: const ValueKey('source-control-history-tab'),
+                  icon: Icons.history,
+                  tooltip: context.t.cockpit.fileTreePanel.history,
+                  selected: _sourceControlView == _SourceControlView.history,
+                  onTap: () => setState(
+                    () => _sourceControlView = _SourceControlView.history,
+                  ),
                 ),
               ],
             ),
@@ -1093,30 +1128,69 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 : dbMode
                 ? (widget.databasePanel ?? const SizedBox.shrink())
                 : scMode
-                ? _ChangedTree(
-                    rootPath: widget.rootPath,
-                    roots: widget.roots,
-                    onFileContextMenu: _showChangedFileMenu,
-                    onStageToggle: _toggleStage,
-                    onStageAll: _toggleStageAll,
-                    onDiscard: _discardOne,
-                    onDiscardAll: _discardAll,
-                    isFolderExpanded: (path) =>
-                        _sourceControlFolderExpanded[path] ?? true,
-                    onFolderExpansionChanged: (path, expanded) => setState(
-                      () => _sourceControlFolderExpanded[path] = expanded,
-                    ),
-                    stagedPaths: effectiveStaged,
-                    unstagedPaths: effectiveUnstaged,
-                    gitStatusOf: widget.gitStatusOf,
-                    selectedPath: effectiveSelected,
-                    onOpenDiff: widget.onOpenDiff,
-                    viewAsTree: _sourceControlTree,
-                    onTapDiff: (path) {
-                      _select(path);
-                      (widget.onTapDiff ?? widget.onOpenDiff)(path);
-                    },
-                  )
+                ? _sourceControlView == _SourceControlView.history
+                      ? GitHistoryPanel(
+                          roots: [
+                            for (final root in widget.roots)
+                              GitHistoryRoot(
+                                path: root.path,
+                                name: root.name,
+                                branch: root.git?.branch,
+                              ),
+                          ],
+                          loadHistory:
+                              widget.onLoadGitHistory ??
+                              (_) async => const Success([]),
+                          loadFiles:
+                              widget.onLoadGitHistoryFiles ??
+                              (_, _) async => const Success([]),
+                          onOpenFileDiff:
+                              widget.onOpenGitHistoryDiff ?? (_, _, _) async {},
+                          refreshToken: widget.gitHistoryRevision,
+                        )
+                      : _ChangedTree(
+                          rootPath: widget.rootPath,
+                          roots: widget.roots,
+                          onFileContextMenu: _showChangedFileMenu,
+                          onStageToggle: _toggleStage,
+                          onStageAll: _toggleStageAll,
+                          onDiscard: _discardOne,
+                          onDiscardAll: _discardAll,
+                          isFolderExpanded: (path) =>
+                              _sourceControlFolderExpanded[path] ?? true,
+                          onFolderExpansionChanged: (path, expanded) =>
+                              setState(
+                                () => _sourceControlFolderExpanded[path] =
+                                    expanded,
+                              ),
+                          stagedPaths: effectiveStaged,
+                          unstagedPaths: effectiveUnstaged,
+                          gitStatusOf: widget.gitStatusOf,
+                          selectedPath: effectiveSelected,
+                          onOpenDiff: widget.onOpenDiff,
+                          viewAsTree: _sourceControlTree,
+                          onToggleViewMode: () {
+                            final next = !_sourceControlTree;
+                            setState(() => _sourceControlTree = next);
+                            widget.onSourceControlViewModeChanged?.call(
+                              next
+                                  ? SourceControlViewMode.tree
+                                  : SourceControlViewMode.list,
+                            );
+                          },
+                          onTapDiff: (path) {
+                            _select(path);
+                            (widget.onTapDiff ?? widget.onOpenDiff)(path);
+                          },
+                          onOpenFile: (path) {
+                            final openChanged = widget.onOpenChangedFile;
+                            if (openChanged != null) {
+                              openChanged(path);
+                            } else {
+                              widget.onOpenFile(path);
+                            }
+                          },
+                        )
                 : Focus(
                     focusNode: _treeFocus,
                     onKeyEvent: _onTreeKey,
@@ -1153,7 +1227,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     ),
                   ),
           ),
-          if (scMode)
+          if (scMode && _sourceControlView == _SourceControlView.changes)
             _CommitComposer(
               controller: _commitMessage,
               height: _commitHeight,
@@ -2288,7 +2362,9 @@ class _ChangedTree extends StatelessWidget {
     required this.selectedPath,
     required this.onOpenDiff,
     required this.onTapDiff,
+    required this.onOpenFile,
     required this.viewAsTree,
+    required this.onToggleViewMode,
   });
 
   final String rootPath;
@@ -2311,7 +2387,9 @@ class _ChangedTree extends StatelessWidget {
   final String? selectedPath;
   final ValueChanged<String> onOpenDiff;
   final ValueChanged<String> onTapDiff;
+  final ValueChanged<String> onOpenFile;
   final bool viewAsTree;
+  final VoidCallback onToggleViewMode;
 
   @override
   Widget build(BuildContext context) {
@@ -2414,6 +2492,20 @@ class _ChangedTree extends StatelessWidget {
                 style: context.typo.label.copyWith(color: context.colors.text3),
               ),
               const Spacer(),
+              _PanelHeaderAction(
+                key: ValueKey(
+                  staged
+                      ? 'source-control-view-toggle-staged'
+                      : 'source-control-view-toggle',
+                ),
+                icon: viewAsTree
+                    ? Icons.view_list_outlined
+                    : Icons.account_tree_outlined,
+                tooltip: viewAsTree
+                    ? context.t.cockpit.fileTreePanel.viewAsList
+                    : context.t.cockpit.fileTreePanel.viewAsTree,
+                onTap: onToggleViewMode,
+              ),
               AppTooltip(
                 message: context.t.cockpit.fileTreePanel.discardAllChanges,
                 child: HoverTap(
@@ -2481,6 +2573,7 @@ class _ChangedTree extends StatelessWidget {
       selectedPath: selectedPath,
       onOpenDiff: onOpenDiff,
       onTapDiff: onTapDiff,
+      onOpenFile: onOpenFile,
       onFileContextMenu: (path, pos) =>
           onFileContextMenu(path, pos, staged: staged),
       onStageToggle: (path) => onStageToggle(path, staged),
@@ -2507,6 +2600,7 @@ class _ChangedTree extends StatelessWidget {
           selected: f.absPath == selectedPath,
           onTap: () => onTapDiff(f.absPath),
           onDoubleTap: () => onOpenDiff(f.absPath),
+          onOpenFileTap: () => onOpenFile(f.absPath),
           onSecondaryTap: (pos) =>
               onFileContextMenu(f.absPath, pos, staged: staged),
           onTrailingTap: () => onStageToggle(f.absPath, staged),
@@ -2647,6 +2741,7 @@ class _ChangedDirectoryView extends StatefulWidget {
     required this.selectedPath,
     required this.onOpenDiff,
     required this.onTapDiff,
+    required this.onOpenFile,
     required this.onFileContextMenu,
     required this.onStageToggle,
     required this.onStageAll,
@@ -2665,6 +2760,7 @@ class _ChangedDirectoryView extends StatefulWidget {
   final String? selectedPath;
   final ValueChanged<String> onOpenDiff;
   final ValueChanged<String> onTapDiff;
+  final ValueChanged<String> onOpenFile;
   final void Function(String absPath, Offset pos) onFileContextMenu;
   final Future<void> Function(String absPath) onStageToggle;
   final Future<void> Function(List<String> paths) onStageAll;
@@ -2800,6 +2896,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               selectedPath: widget.selectedPath,
               onOpenDiff: widget.onOpenDiff,
               onTapDiff: widget.onTapDiff,
+              onOpenFile: widget.onOpenFile,
               onFileContextMenu: widget.onFileContextMenu,
               onStageToggle: widget.onStageToggle,
               onStageAll: widget.onStageAll,
@@ -2821,6 +2918,7 @@ class _ChangedDirectoryViewState extends State<_ChangedDirectoryView> {
               showDirectory: false,
               onTap: () => widget.onTapDiff(file.absPath),
               onDoubleTap: () => widget.onOpenDiff(file.absPath),
+              onOpenFileTap: () => widget.onOpenFile(file.absPath),
               onSecondaryTap: (pos) =>
                   widget.onFileContextMenu(file.absPath, pos),
               onTrailingTap: () => widget.onStageToggle(file.absPath),
@@ -2846,6 +2944,7 @@ class _ChangedRow extends StatefulWidget {
     required this.selected,
     required this.onTap,
     required this.onDoubleTap,
+    this.onOpenFileTap,
     this.onSecondaryTap,
     this.onTrailingTap,
     this.onDiscardTap,
@@ -2860,6 +2959,7 @@ class _ChangedRow extends StatefulWidget {
   final bool selected;
   final VoidCallback? onTap;
   final VoidCallback? onDoubleTap;
+  final VoidCallback? onOpenFileTap;
 
   /// Botão-direito (posição global do clique) → menu de contexto.
   final void Function(Offset globalPos)? onSecondaryTap;
@@ -2903,7 +3003,8 @@ class _ChangedRowState extends State<_ChangedRow> {
         (widget.selected ? colors.text : colors.text2);
     final actionWidth = _hovered
         ? (widget.onTrailingTap == null ? 0.0 : 27.0) +
-              (widget.onDiscardTap == null ? 0.0 : 27.0)
+              (widget.onDiscardTap == null ? 0.0 : 27.0) +
+              (widget.onOpenFileTap == null ? 0.0 : 27.0)
         : 0.0;
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -2963,6 +3064,26 @@ class _ChangedRowState extends State<_ChangedRow> {
                 ),
                 // Ações posicionadas: a distância da borda não muda quando a
                 // largura do painel muda.
+                if (_hovered && widget.onOpenFileTap != null)
+                  Positioned(
+                    right:
+                        (widget.onTrailingTap == null ? 0 : 27) +
+                        (widget.onDiscardTap == null ? 0 : 27),
+                    top: 1,
+                    bottom: 1,
+                    child: AppTooltip(
+                      message: context.t.cockpit.fileTreePanel.open,
+                      child: HoverTap(
+                        onTap: widget.onOpenFileTap,
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(
+                          Icons.description_outlined,
+                          size: 15,
+                          color: colors.text3,
+                        ),
+                      ),
+                    ),
+                  ),
                 if (_hovered && widget.onDiscardTap != null)
                   Positioned(
                     right: widget.onTrailingTap == null ? 0 : 27,
@@ -3063,10 +3184,12 @@ class _PanelHeaderAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     required this.onTap,
+    this.selected = false,
   });
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -3076,7 +3199,11 @@ class _PanelHeaderAction extends StatelessWidget {
       child: HoverTap(
         onTap: onTap,
         padding: const EdgeInsets.all(3),
-        child: Icon(icon, size: 14, color: colors.text3),
+        child: Icon(
+          icon,
+          size: 14,
+          color: selected ? colors.text : colors.text3,
+        ),
       ),
     );
   }

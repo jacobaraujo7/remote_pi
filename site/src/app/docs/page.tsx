@@ -931,6 +931,12 @@ export default function DocsPage() {
             </Link>
           </li>
           <li>
+            Cockpit reference:{" "}
+            <Link href="/cockpit/docs" className="text-accent underline">
+              CLI, layouts, tasks, themes
+            </Link>
+          </li>
+          <li>
             Source:{" "}
             <a className="text-accent underline" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
               github.com/jacobaraujo7/remote_pi

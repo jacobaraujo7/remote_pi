@@ -30,6 +30,7 @@ const {
   _setKeyringRetryForTest,
   _unlinkIdentityFileForTest,
   _IDENTITY_FILE_FOR_TEST,
+  _setNativeBindingErrorForTest,
 } = storage;
 import type { KeyStoreBackend } from "./storage.js";
 
@@ -92,12 +93,16 @@ beforeEach(async () => {
   // Zero retry delay so persistent-failure tests don't sleep.
   _setKeyringRetryForTest(3, 0);
   await _unlinkIdentityFileForTest();
+  // peers.json now gates identity minting (issues #95/#69), so a container left
+  // by a previous test would make an unrelated "fresh install" case throw.
+  rmSync(join(_tmpHome, ".pi", "remote", "peers.json"), { force: true });
 });
 
 afterEach(() => {
   _setKeyStoreBackendForTest(null);
   _setKeyringExpectedForTest(null);
   _setKeyringRetryForTest(null);
+  _setNativeBindingErrorForTest(null);
   delete process.env.REMOTE_PI_ALLOW_FILE_IDENTITY;
   vi.restoreAllMocks();
 });
@@ -248,6 +253,43 @@ describe("getOrCreateEd25519Keypair — headless Linux fallback", () => {
 
 // ── Locked-keychain protection (the "lost pairing after a week idle" bug) ────
 
+// ── Native binding cannot load (issue #113 — Bun-built pi) ──────────────────
+
+describe("getOrCreateEd25519Keypair — @napi-rs/keyring binding unavailable", () => {
+  test("a binding that never loads falls back to the file identity even on a core-keyring platform", async () => {
+    // A load failure is deterministic: no unlock or retry will fix it, so the
+    // "keyring is locked, refuse to regenerate" guard must not fire — that
+    // would leave the user with no working path at all (issue #113).
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(null);  // real platform check (darwin/win32 on CI hosts)
+    _setNativeBindingErrorForTest(new Error("Cannot find native binding."));
+
+    const kp = await getOrCreateEd25519Keypair();
+    expect(kp.publicKey).toHaveLength(32);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
+
+    // Second call is stable — same identity, read straight off the file.
+    const again = await getOrCreateEd25519Keypair();
+    expect(Buffer.from(again.publicKey).toString("base64"))
+      .toBe(Buffer.from(kp.publicKey).toString("base64"));
+  });
+
+  test("with the binding loadable, a locked core keyring still refuses to regenerate", async () => {
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(null);
+    _setNativeBindingErrorForTest(null);
+    // Only meaningful on a platform whose keyring is a core OS service.
+    if (process.platform !== "darwin" && process.platform !== "win32") return;
+
+    await expect(getOrCreateEd25519Keypair()).rejects.toBeInstanceOf(KeyringUnavailableError);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(false);
+  });
+});
+
 describe("getOrCreateEd25519Keypair — locked keyring does NOT regenerate", () => {
   test("transient read failure recovers via retry → uses keyring entry, no file written", async () => {
     const backend = new InMemoryBackend();
@@ -309,6 +351,55 @@ describe("getOrCreateEd25519Keypair — locked keyring does NOT regenerate", () 
 
     const kp = await getOrCreateEd25519Keypair();
     expect(kp.publicKey.length).toBe(32);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
+  });
+});
+
+// ── Never mint a new identity over existing pairings (issues #95 / #69) ──────
+
+describe("getOrCreateEd25519Keypair — paired devices block identity minting", () => {
+  function seedPairedDevice(): void {
+    mkdirSync(join(_tmpHome, ".pi", "remote"), { recursive: true });
+    writeFileSync(join(_tmpHome, ".pi", "remote", "peers.json"), JSON.stringify({
+      peers: [{ name: "Phone", remote_epk: "AAAA", paired_at: new Date(0).toISOString() }],
+    }));
+  }
+
+  test("unreadable keyring + existing pairings → throws instead of minting (daemon case)", async () => {
+    // systemd --user resolves a different secret-service store than the desktop
+    // session that paired; minting here makes SelfRevoke wipe peers.json.
+    seedPairedDevice();
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(false);  // headless Linux — used to mint silently
+
+    await expect(getOrCreateEd25519Keypair())
+      .rejects.toBeInstanceOf(storage.PairedIdentityMissingError);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(false);
+  });
+
+  test("REMOTE_PI_ALLOW_FILE_IDENTITY=1 still opts out of the guard", async () => {
+    seedPairedDevice();
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(false);
+    process.env.REMOTE_PI_ALLOW_FILE_IDENTITY = "1";
+
+    const kp = await getOrCreateEd25519Keypair();
+    expect(kp.publicKey).toHaveLength(32);
+    expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
+  });
+
+  test("no pairings yet → a genuine first run still mints normally", async () => {
+    const backend = new InMemoryBackend();
+    backend.failAll("read");
+    _setKeyStoreBackendForTest(backend);
+    _setKeyringExpectedForTest(false);
+
+    const kp = await getOrCreateEd25519Keypair();
+    expect(kp.publicKey).toHaveLength(32);
     expect(existsSync(_IDENTITY_FILE_FOR_TEST)).toBe(true);
   });
 });

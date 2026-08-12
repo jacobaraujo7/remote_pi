@@ -167,24 +167,36 @@ export default function CockpitPage() {
               <h2>Agents drive the cockpit.</h2>
               <p>
                 A built-in <code>cockpit</code> CLI, available only inside its
-                terminals, lets an agent type into another tab, read its
-                output, and query your databases.
+                terminals, lets an agent open tabs, type into them, read their
+                output, run your project&apos;s tasks, and query your databases.
               </p>
             </div>
             <div className="reveal" style={{ marginTop: 28, maxWidth: 760 }}>
               <CodeBlock
                 label="Cockpit terminal"
                 prompt
-                code={`# steer another tab
-cockpit send --tab-id 2 "pnpm test"
-cockpit send-key --tab-id 2 Enter
+                code={`# open a worker beside you and steer it
+id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+cockpit send --tab-id "$id" --enter "pnpm test"
 
 # read what it printed
-cockpit read-tab 2 --lines 60
+cockpit read-tab Worker --lines 60
 
-# query a workspace database
+# run and follow the project's tasks
+cockpit list-tasks
+cockpit read-task npm:dev --lines 80
+
+# open a file in the viewer, query a database
+cockpit open src/app.ts
 cockpit db query --db dev-local --sql "SELECT * FROM orders" --limit 50`}
               />
+              <p style={{ marginTop: 18, color: "var(--ink-soft)" }}>
+                Every command, flag, and id convention lives in the{" "}
+                <Link href="/cockpit/docs#cli" className="text-accent underline">
+                  Cockpit reference
+                </Link>
+                .
+              </p>
             </div>
           </section>
 
@@ -196,6 +208,77 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders" --limit 50`}
               <p>
                 Group projects into workspaces, workspaces into realms, and
                 fork onto a fresh git worktree with your whole layout recreated.
+              </p>
+            </div>
+          </section>
+
+          {/* ---------------- LAYOUTS & TASKS ---------------- */}
+          <section id="layouts">
+            <div className="section-head reveal" style={{ marginTop: 110 }}>
+              <span className="eyebrow">Committed setup</span>
+              <h2>Your environment, in the repo.</h2>
+              <p>
+                A <code>.ckp</code> file describes the terminals a project
+                opens — folders, splits, commands — and can apply itself to
+                every new worktree. A <code>.cockpit/tasks.json</code> turns
+                your dev servers into play/stop buttons with profiles and
+                reload on save, on top of the tasks Cockpit already detects
+                from <code>package.json</code> and <code>pubspec.yaml</code>.
+              </p>
+            </div>
+            <div className="reveal" style={{ marginTop: 28, maxWidth: 760 }}>
+              <CodeBlock
+                label="dev.ckp"
+                code={`autorun: worktree
+panes:
+  - name: Agent
+    cwd: .
+    command: claude
+  - name: API
+    cwd: api
+    split: right
+    command: npm run dev`}
+              />
+              <p style={{ marginTop: 18, color: "var(--ink-soft)" }}>
+                Build both from scratch in the{" "}
+                <Link
+                  href="/tutorials/cockpit-layouts"
+                  className="text-accent underline"
+                >
+                  layouts and tasks tutorial
+                </Link>
+                .
+              </p>
+            </div>
+          </section>
+
+          {/* ---------------- MAKE IT YOURS ---------------- */}
+          <section id="yours">
+            <div className="section-head reveal" style={{ marginTop: 110 }}>
+              <span className="eyebrow">Make it yours</span>
+              <h2>Themes, sounds, your language.</h2>
+              <p>
+                Nine built-in themes, or write your own: one JSON file paints
+                the UI, the syntax highlighting, and the terminal palette at
+                once, inheriting everything you don&apos;t declare. Pick the
+                terminal font family, bind a sound to each agent event — turn
+                done, action needed, error — and read the whole interface in
+                English, Portuguese, or Spanish.
+              </p>
+            </div>
+          </section>
+
+          {/* ---------------- TURN STATUS ---------------- */}
+          <section id="status">
+            <div className="section-head reveal" style={{ marginTop: 110 }}>
+              <span className="eyebrow">Turn status</span>
+              <h2>You always know who&apos;s working.</h2>
+              <p>
+                Cockpit hooks into Claude Code and Codex CLI, so each tab shows
+                whether its agent is working, waiting on you, or done — with a
+                chime when the window is focused and a system notification when
+                it isn&apos;t. Nothing to configure: a session started outside
+                Cockpit simply reports nothing.
               </p>
             </div>
           </section>
@@ -232,8 +315,8 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders" --limit 50`}
                 maxWidth: 520,
               }}
             >
-              Free and open source. macOS today, signed and notarized with
-              self-update. Windows coming.
+              Free and open source, for macOS, Windows, and Linux — signed,
+              with in-app updates.
             </p>
             <div
               style={{
@@ -246,6 +329,9 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders" --limit 50`}
             >
               <Link className="btn btn-primary" href="/download">
                 <IconDownload /> Download
+              </Link>
+              <Link className="btn btn-ghost" href="/cockpit/docs">
+                Reference <IconArrow />
               </Link>
               <a
                 className="btn btn-ghost"

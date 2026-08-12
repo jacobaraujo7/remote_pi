@@ -188,10 +188,12 @@ void main() {
       }
     });
 
-    test('os built-in usam o realce GitHub', () {
+    test('built-ins sem paleta própria usam o realce GitHub', () {
       // O `background` é do TEMA (ver o teste do campo unificado), então a
-      // comparação é sobre as cores do código.
+      // comparação é sobre as cores do código. Flexoki é a exceção: a paleta
+      // de syntax *é* o esquema.
       for (final theme in builtInThemes) {
+        if (theme.id == 'flexoki') continue;
         for (final (b, github) in [
           (Brightness.dark, SyntaxColors.githubDark),
           (Brightness.light, SyntaxColors.githubLight),
@@ -203,6 +205,20 @@ void main() {
             reason: 'realce divergiu em ${theme.id} ($b)',
           );
         }
+      }
+    });
+
+    test('Flexoki usa a paleta Flexoki de syntax', () {
+      for (final (b, flexoki) in [
+        (Brightness.dark, SyntaxColors.flexokiDark),
+        (Brightness.light, SyntaxColors.flexokiLight),
+      ]) {
+        final syntax = flexokiTheme.variantFor(b).syntax;
+        expect(
+          syntax.copyWith(background: flexoki.background),
+          flexoki,
+          reason: 'realce Flexoki divergiu em $b',
+        );
       }
     });
 

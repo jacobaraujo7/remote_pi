@@ -22,9 +22,17 @@ typedef struct PtyHandle
 
     int pid;
 
-    pthread_mutex_t mutex;
+    pthread_mutex_t ackMutex;
+
+    pthread_cond_t ackCondition;
 
     bool ackRead;
+
+    // One-bit semaphore: the read thread consumes the permit before each read;
+    // pty_ack_read publishes the next one. A condition variable is used instead
+    // of unlocking a pthread_mutex_t from the Dart thread (cross-thread mutex
+    // unlock is undefined POSIX behaviour and differed between Linux/macOS).
+    bool readAllowed;
 
 } PtyHandle;
 
@@ -32,11 +40,9 @@ typedef struct ReadLoopOptions
 {
     int fd;
 
-    pthread_mutex_t *mutex;
+    PtyHandle *handle;
 
     Dart_Port port;
-
-    bool waitForReadAck;
 
 } ReadLoopOptions;
 
@@ -50,11 +56,16 @@ static void *read_loop(void *arg)
 
     while (1)
     {
-        if (options->waitForReadAck)
+        if (options->handle->ackRead)
         {
-            // if we are in ack mode then we get a mutex here that is
-            // freed again once the chunk of data has been processed
-            pthread_mutex_lock(options->mutex);
+            pthread_mutex_lock(&options->handle->ackMutex);
+            while (!options->handle->readAllowed)
+            {
+                pthread_cond_wait(&options->handle->ackCondition,
+                                  &options->handle->ackMutex);
+            }
+            options->handle->readAllowed = false;
+            pthread_mutex_unlock(&options->handle->ackMutex);
         }
         ssize_t n = read(options->fd, buffer, sizeof(buffer));
 
@@ -78,10 +89,11 @@ static void *read_loop(void *arg)
         Dart_PostCObject_DL(options->port, &result);
     }
 
+    free(options);
     return NULL;
 }
 
-static void start_read_thread(int fd, Dart_Port port, pthread_mutex_t *mutex, bool waitForReadAck)
+static void start_read_thread(int fd, Dart_Port port, PtyHandle *handle)
 {
     ReadLoopOptions *options = malloc(sizeof(ReadLoopOptions));
 
@@ -89,13 +101,18 @@ static void start_read_thread(int fd, Dart_Port port, pthread_mutex_t *mutex, bo
 
     options->port = port;
 
-    options->mutex = mutex;
-
-    options->waitForReadAck = waitForReadAck;
+    options->handle = handle;
 
     pthread_t _thread;
 
-    pthread_create(&_thread, NULL, &read_loop, options);
+    if (pthread_create(&_thread, NULL, &read_loop, options) == 0)
+    {
+        pthread_detach(_thread);
+    }
+    else
+    {
+        free(options);
+    }
 }
 
 typedef struct WaitExitOptions
@@ -123,6 +140,7 @@ static void *wait_exit_thread(void *arg)
         Dart_PostInteger_DL(options->port, -WTERMSIG(status));
     }
 
+    free(options);
     return NULL;
 }
 
@@ -136,7 +154,14 @@ static void start_wait_exit_thread(int pid, Dart_Port port)
 
     pthread_t _thread;
 
-    pthread_create(&_thread, NULL, &wait_exit_thread, options);
+    if (pthread_create(&_thread, NULL, &wait_exit_thread, options) == 0)
+    {
+        pthread_detach(_thread);
+    }
+    else
+    {
+        free(options);
+    }
 }
 
 static void set_environment(char **environment)
@@ -192,10 +217,12 @@ FFI_PLUGIN_EXPORT PtyHandle *pty_create(PtyOptions *options)
 
     handle->ptm = ptm;
     handle->pid = pid;
-    pthread_mutex_init(&handle->mutex, NULL);
+    pthread_mutex_init(&handle->ackMutex, NULL);
+    pthread_cond_init(&handle->ackCondition, NULL);
     handle->ackRead = options->ackRead;
+    handle->readAllowed = true;
 
-    start_read_thread(ptm, options->stdout_port, &handle->mutex, options->ackRead);
+    start_read_thread(ptm, options->stdout_port, handle);
 
     start_wait_exit_thread(pid, options->exit_port);
 
@@ -211,8 +238,10 @@ FFI_PLUGIN_EXPORT void pty_ack_read(PtyHandle *handle)
 {
     if (handle->ackRead)
     {
-        // frees the mutex so that the next chunk of data can be read
-        pthread_mutex_unlock(&handle->mutex);
+        pthread_mutex_lock(&handle->ackMutex);
+        handle->readAllowed = true;
+        pthread_cond_signal(&handle->ackCondition);
+        pthread_mutex_unlock(&handle->ackMutex);
     }
 }
 

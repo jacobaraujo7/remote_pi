@@ -20,6 +20,24 @@ typedef RailRoot = ({String path, String name, GitInfo? git});
 /// path do workspace já existe no realm alvo (um path por realm).
 typedef RealmTarget = ({String id, String name, bool enabled});
 
+/// Branch da root em [rootPath], ou `null` se a root sumiu da lista ou não é
+/// um repo git.
+///
+/// Existe separada porque é a única decisão real do "Copiar branch": em
+/// multirepo o menu devolve `copy-branch|<root>` e alguém precisa traduzir esse
+/// path de volta para a branch — sem inventar uma "branch do workspace", que
+/// não existe quando cada root está numa.
+@visibleForTesting
+String? branchOfRoot(List<RailRoot> roots, String rootPath) {
+  for (final root in roots) {
+    if (root.path == rootPath) {
+      final branch = root.git?.branch;
+      return (branch == null || branch.isEmpty) ? null : branch;
+    }
+  }
+  return null;
+}
+
 /// Rail esquerda (~252px): cabeçalho "Sessions", lista de projetos (avatar +
 /// nome + git + contador de notificações), rodapé com o seletor de realm.
 class ProjectsRail extends StatefulWidget {
@@ -1152,6 +1170,18 @@ class _MenuButton extends StatelessWidget {
           label: context.t.cockpit.projectsRail.copyWorkspaceId,
           icon: Icons.content_copy,
         ),
+        // Só com git: sem repo não há branch a copiar. Em multirepo vira
+        // submenu por root, igual a pull/push — cada root está numa branch
+        // diferente, então "a branch do workspace" não existe.
+        //
+        // Mesmo rótulo e mesmo ícone do "Copiar branch" que o menu de worktree
+        // já tinha: é a mesma ação, só que na raiz.
+        if (roots.any((r) => r.git != null))
+          _gitItem(
+            'copy-branch',
+            context.t.cockpit.projectsRail.copyBranch,
+            Icons.content_copy,
+          ),
         AppMenuItem(
           value: 'config',
           label: context.t.cockpit.projectsRail.settings,
@@ -1176,6 +1206,15 @@ class _MenuButton extends StatelessWidget {
       if (action == 'push') onPush(arg);
       if (action == 'worktree') onCreateWorktree(arg);
       if (action == 'realm') onMoveToRealm(arg);
+      if (action == 'copy-branch') {
+        // Resolvido aqui, e não por callback: a branch já veio no [RailRoot]
+        // que o menu recebeu, então pedir de volta à página só criaria caminho
+        // para divergir do rótulo que o usuário acabou de ler no submenu.
+        final branch = branchOfRoot(roots, arg);
+        if (branch != null) {
+          await Clipboard.setData(ClipboardData(text: branch));
+        }
+      }
       return;
     }
     if (pick == 'copy-id') {

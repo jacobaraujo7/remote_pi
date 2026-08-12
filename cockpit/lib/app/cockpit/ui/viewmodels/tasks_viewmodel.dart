@@ -143,8 +143,8 @@ class TasksViewModel extends ChangeNotifier {
   void resize(String taskId, int rows, int columns) =>
       _runner.resize(taskId, rows, columns);
 
-  /// Bytes do output de uma task (pra um terminal embutido — passo futuro).
-  Stream<List<int>> output(String taskId) => _runner.output(taskId);
+  /// Output decodificado de uma task para o terminal embutido.
+  Stream<String> output(String taskId) => _runner.output(taskId);
 
   void _onRun(TaskRun run) {
     _states[run.taskId] = run;

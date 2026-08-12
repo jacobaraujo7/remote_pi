@@ -36,8 +36,13 @@ import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/theme_store_error_message.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/domain/entities/sound_event.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:media_kit/media_kit.dart' show Media, Player;
+import 'package:path/path.dart' as p;
+import 'package:cockpit/app/core/ui/font_catalog.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/settings/ui/font_picker_dialog.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -1108,6 +1113,41 @@ class _TerminalEngineDropdown extends StatelessWidget {
   }
 }
 
+class _TerminalWeightDropdown extends StatelessWidget {
+  const _TerminalWeightDropdown({required this.value, required this.onChanged});
+
+  final TerminalFontWeight value;
+  final ValueChanged<TerminalFontWeight> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.appearance;
+    String label(TerminalFontWeight weight) => switch (weight) {
+      TerminalFontWeight.auto => tr.terminalWeightAuto,
+      TerminalFontWeight.light => tr.terminalWeightLight,
+      TerminalFontWeight.normal => tr.terminalWeightNormal,
+      TerminalFontWeight.medium => tr.terminalWeightMedium,
+      TerminalFontWeight.semiBold => tr.terminalWeightSemiBold,
+    };
+
+    return _DropdownChip(
+      icon: Icons.format_bold,
+      label: label(value),
+      onTap: () async {
+        final picked = await showAppMenu<TerminalFontWeight>(
+          context,
+          minWidth: 200,
+          items: [
+            for (final weight in TerminalFontWeight.values)
+              AppMenuItem(value: weight, label: label(weight)),
+          ],
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
 class _TerminalProfileDropdown extends StatelessWidget {
   const _TerminalProfileDropdown({
     required this.profiles,
@@ -1250,6 +1290,7 @@ class _AppearancePanel extends StatelessWidget {
                       trailing: _FontField(
                         value: s.codeFont,
                         hint: 'JetBrains Mono',
+                        monospacedOnly: true,
                         onChanged: controller.setCodeFont,
                       ),
                     ),
@@ -1268,7 +1309,27 @@ class _AppearancePanel extends StatelessWidget {
                       trailing: _FontField(
                         value: s.terminalFont,
                         hint: 'Menlo · monospace',
+                        monospacedOnly: true,
                         onChanged: controller.setTerminalFont,
+                      ),
+                    ),
+                    _Row(
+                      title: tr.terminalSizeTitle,
+                      description: tr.terminalSizeDesc,
+                      trailing: _OptionalSizeStepper(
+                        value: s.terminalSize,
+                        inherited: s.codeSize,
+                        min: 9,
+                        max: 24,
+                        onChanged: controller.setTerminalSize,
+                      ),
+                    ),
+                    _Row(
+                      title: tr.terminalWeightTitle,
+                      description: tr.terminalWeightDesc,
+                      trailing: _TerminalWeightDropdown(
+                        value: s.terminalFontWeight,
+                        onChanged: controller.setTerminalFontWeight,
                       ),
                     ),
                   ],
@@ -1335,20 +1396,175 @@ class _NotificationsPanel extends StatelessWidget {
                     ),
                     if (Platform.isMacOS && s.notificationsEnabled)
                       const _NotificationPermissionRow(),
+                  ],
+                ),
+              ),
+              _Section(
+                label: tr.soundsTitle,
+                child: _Card(
+                  children: [
                     _Row(
-                      title: tr.playSoundTitle,
-                      description: tr.playSoundDesc,
-                      trailing: Switch(
-                        value: s.soundEnabled,
-                        onChanged: controller.setSoundEnabled,
+                      title: tr.soundVolumeTitle,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 140,
+                            child: Slider(
+                              value: SliderValue.single(s.soundVolume),
+                              min: 0,
+                              max: 100,
+                              onChanged: (v) =>
+                                  controller.setSoundVolume(v.value),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          SizedBox(
+                            width: 36,
+                            child: Text(
+                              '${s.soundVolume.round()}%',
+                              textAlign: TextAlign.right,
+                              style: context.typo.label.copyWith(
+                                color: context.colors.text3,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    for (final event in SoundEvent.values)
+                      _SoundEventRow(event: event),
                   ],
                 ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Linha de um [SoundEvent]: toggle + áudio custom (`.wav`/`.mp3`) com
+/// preview e volta ao padrão. O arquivo escolhido é **copiado** pro storage
+/// pelo controller ([SettingsController.importSoundOverride]); "reset" apaga a
+/// cópia e volta ao som embarcado.
+class _SoundEventRow extends StatefulWidget {
+  const _SoundEventRow({required this.event});
+  final SoundEvent event;
+
+  @override
+  State<_SoundEventRow> createState() => _SoundEventRowState();
+}
+
+class _SoundEventRowState extends State<_SoundEventRow> {
+  /// Player do preview, criado no primeiro uso (re-`open` reinicia o som).
+  Player? _player;
+
+  @override
+  void dispose() {
+    _player?.dispose();
+    super.dispose();
+  }
+
+  Future<void> _preview(String? customPath, double volume) async {
+    final player = _player ??= Player();
+    final media = customPath != null && File(customPath).existsSync()
+        ? Media(customPath)
+        : Media('asset:///assets/sounds/${widget.event.defaultAsset}');
+    try {
+      await player.setVolume(volume.clamp(0, 100));
+      await player.open(media);
+    } catch (_) {
+      // preview é best-effort; o fallback pro embarcado acontece em runtime
+    }
+  }
+
+  Future<void> _choose() async {
+    final controller = context.read<SettingsController>();
+    final picked = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['wav', 'mp3'],
+    );
+    final path = picked?.files.singleOrNull?.path;
+    if (path == null) return;
+    await controller.importSoundOverride(widget.event, path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final s = controller.settings;
+    final tr = context.t.settings.page.notifications;
+    final colors = context.colors;
+
+    final (title, description) = switch (widget.event) {
+      SoundEvent.turnDone => (tr.soundTurnDone, tr.soundTurnDoneDesc),
+      SoundEvent.actionRequired => (
+        tr.soundActionRequired,
+        tr.soundActionRequiredDesc,
+      ),
+      SoundEvent.agentError => (tr.soundAgentError, tr.soundAgentErrorDesc),
+    };
+    final customPath = s.soundOverrides[widget.event];
+    final enabled = s.soundEvents[widget.event] ?? true;
+    final onActiveTab = s.soundOnActiveTab[widget.event] ?? false;
+    // `agentError` sempre toca (inclusive na aba ativa) — sem toggle.
+    final hasActiveTabToggle = widget.event != SoundEvent.agentError;
+
+    return _Row(
+      title: title,
+      description: customPath == null
+          ? description
+          : tr.soundCustom(name: p.basename(customPath)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          AppTooltip(
+            message: tr.soundPreview,
+            child: IconButton.ghost(
+              icon: Icon(Icons.volume_up_outlined, size: 16),
+              onPressed: () => unawaited(_preview(customPath, s.soundVolume)),
+            ),
+          ),
+          AppTooltip(
+            message: tr.soundChooseFile,
+            child: IconButton.ghost(
+              icon: Icon(Icons.folder_open_outlined, size: 16),
+              onPressed: () => unawaited(_choose()),
+            ),
+          ),
+          if (customPath != null)
+            AppTooltip(
+              message: tr.soundReset,
+              child: IconButton.ghost(
+                icon: Icon(Icons.replay, size: 16, color: colors.text3),
+                onPressed: () => unawaited(
+                  context.read<SettingsController>().clearSoundOverride(
+                    widget.event,
+                  ),
+                ),
+              ),
+            ),
+          if (hasActiveTabToggle)
+            AppTooltip(
+              message: tr.soundOnActiveTab,
+              child: IconButton.ghost(
+                icon: Icon(
+                  Icons.tab,
+                  size: 16,
+                  color: onActiveTab ? colors.accent : colors.text3,
+                ),
+                onPressed: () =>
+                    controller.setSoundOnActiveTab(widget.event, !onActiveTab),
+              ),
+            ),
+          const SizedBox(width: 8),
+          Switch(
+            value: enabled,
+            onChanged: (v) => controller.setSoundEventEnabled(widget.event, v),
+          ),
+        ],
       ),
     );
   }
@@ -2120,47 +2336,139 @@ class _UpdateCheckDropdown extends StatelessWidget {
 }
 
 /// Campo de família de fonte (texto livre; vazio = padrão).
-class _FontField extends StatefulWidget {
+/// Seleção de família de fonte.
+///
+/// Substituiu um campo de texto livre que falhava em silêncio: nome com erro de
+/// digitação ou fonte não instalada caíam no fallback sem nenhum aviso. Agora a
+/// escolha sai de uma lista do que a máquina realmente tem (ver
+/// [showFontPickerDialog]), o nome escolhido é desenhado **na própria fonte**, e
+/// uma família que não resolve é sinalizada aqui no chip.
+class _FontField extends StatelessWidget {
   const _FontField({
     required this.value,
     required this.hint,
     required this.onChanged,
+    this.monospacedOnly = false,
   });
+
   final String? value;
+
+  /// Descrição do padrão do design, mostrada quando não há escolha.
   final String hint;
   final ValueChanged<String?> onChanged;
-
-  @override
-  State<_FontField> createState() => _FontFieldState();
-}
-
-class _FontFieldState extends State<_FontField> {
-  late final TextEditingController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = TextEditingController(text: widget.value ?? '');
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
+  final bool monospacedOnly;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return SizedBox(
-      width: 240,
-      child: TextField(
-        controller: _ctrl,
-        onChanged: (v) => widget.onChanged(v.trim().isEmpty ? null : v.trim()),
-        style: context.typo.body.copyWith(fontSize: 13, color: colors.text),
-        placeholder: Text(widget.hint),
-        borderRadius: BorderRadius.circular(7),
-      ),
+    final family = value;
+    final missing = family != null && !isFontAvailable(family);
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (missing) ...[
+          AppTooltip(
+            message: context.t.settings.page.appearance.fontMissing,
+            child: Icon(Icons.warning_amber, size: 15, color: colors.warn),
+          ),
+          const SizedBox(width: 6),
+        ],
+        HoverTap(
+          color: colors.panel3,
+          borderRadius: BorderRadius.circular(7),
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          onTap: () async {
+            final choice = await showFontPickerDialog(
+              context,
+              current: family,
+              defaultLabel: hint,
+              monospacedOnly: monospacedOnly,
+            );
+            // Dialog dispensado devolve null; só uma escolha real muda algo.
+            if (choice != null) onChanged(choice.family);
+          },
+          child: SizedBox(
+            width: 218,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    family ?? hint,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: family == null
+                        ? context.typo.body.copyWith(
+                            fontSize: 13,
+                            color: colors.text3,
+                          )
+                        : TextStyle(
+                            fontFamily: family,
+                            fontSize: 13,
+                            color: colors.text,
+                          ),
+                  ),
+                ),
+                Icon(Icons.keyboard_arrow_down, size: 16, color: colors.text3),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Stepper de tamanho que aceita "sem valor próprio", herdando de outro ajuste.
+///
+/// Sem override, mostra o valor herdado esmaecido; mexer nos botões passa a
+/// definir um valor explícito, e o terceiro botão desfaz o override.
+class _OptionalSizeStepper extends StatelessWidget {
+  const _OptionalSizeStepper({
+    required this.value,
+    required this.inherited,
+    required this.min,
+    required this.max,
+    required this.onChanged,
+  });
+
+  /// `null` = herdando [inherited].
+  final double? value;
+  final double inherited;
+  final double min;
+  final double max;
+  final ValueChanged<double?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final overridden = value != null;
+    final effective = value ?? inherited;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (overridden)
+          AppTooltip(
+            message: context.t.settings.page.appearance.terminalSizeInherit,
+            child: HoverTap(
+              borderRadius: BorderRadius.circular(7),
+              onTap: () => onChanged(null),
+              child: SizedBox(
+                width: 30,
+                height: 32,
+                child: Icon(Icons.link, size: 15, color: colors.text2),
+              ),
+            ),
+          ),
+        _SizeStepper(
+          value: effective,
+          min: min,
+          max: max,
+          onChanged: onChanged,
+          muted: !overridden,
+        ),
+      ],
     );
   }
 }
@@ -2172,11 +2480,15 @@ class _SizeStepper extends StatelessWidget {
     required this.min,
     required this.max,
     required this.onChanged,
+    this.muted = false,
   });
   final double value;
   final double min;
   final double max;
   final ValueChanged<double> onChanged;
+
+  /// Esmaece o número quando ele é apenas herdado, e não uma escolha.
+  final bool muted;
 
   @override
   Widget build(BuildContext context) {
@@ -2200,7 +2512,7 @@ class _SizeStepper extends StatelessWidget {
               textAlign: TextAlign.center,
               style: context.typo.mono.copyWith(
                 fontSize: 12.5,
-                color: colors.text,
+                color: muted ? colors.text2 : colors.text,
               ),
             ),
           ),

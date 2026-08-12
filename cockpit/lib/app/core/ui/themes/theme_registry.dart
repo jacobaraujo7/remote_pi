@@ -208,6 +208,138 @@ final CockpitThemeSpec panteraTheme = CockpitThemeSpec(
   ),
 );
 
+/// **Flexoki** — esquema de tinta de [Steph Ango](https://stephango.com/flexoki).
+///
+/// Não é um Cockpit tingido: a paleta inteira (UI, syntax e ANSI) vem do
+/// Flexoki. O arranjo é o clássico do Cockpit 1 — chrome mais fundo, conteúdo
+/// um degrau acima — porque as bases oficiais (`black`/`base-950` no escuro,
+/// `base-50`/`paper` no claro) já nascem nessa ordem.
+///
+/// A marca é o **ciano**, não o laranja da família: o laranja Flexoki fica a
+/// <20° do vermelho de erro, e o teste de separação marca/estado (o mesmo que
+/// empurrou o Rosê para o magenta) reprovaria. Ciano é da paleta, se separa
+/// limpo de erro e aviso, e ainda lê como "Flexoki" — não como o azul da marca
+/// Remote Pi.
+///
+/// Syntax e terminal usam as séries oficiais (400 no escuro, 600 no claro). O
+/// fundo do código/terminal continua sendo `ui.panel`, como em todo built-in.
+final CockpitThemeSpec flexokiTheme = CockpitThemeSpec(
+  id: 'flexoki',
+  name: 'Flexoki',
+  author: 'Steph Ango',
+  dark: _variant(
+    ui: AppColors.dark.copyWith(
+      bg: const Color(0xFF100F0F), // black — chrome
+      panel: const Color(0xFF1C1B1A), // base-950 — conteúdo
+      panel2: const Color(0xFF282726), // base-900 — elevado
+      panel3: const Color(0xFF343331), // base-850 — hover
+      border: const Color(0xFF282726),
+      border2: const Color(0xFF403E3C), // base-800
+      text: const Color(0xFFCECDC3), // base-200
+      text2: const Color(0xFF878580), // base-500
+      // base-700 (#575653) e base-600 (#6F6E69) caem abaixo de 3:1 sobre o
+      // elevado — sobe para base-500, o mesmo piso que o Cockpit 2 precisou.
+      text3: const Color(0xFF878580),
+      text4: const Color(0xFF575653), // base-700
+      accent: const Color(0xFF3AA99F), // cyan-400
+      accentText: const Color(0xFF3AA99F),
+      accentSoft: const Color(0x333AA99F),
+      online: const Color(0xFF879A39), // green-400
+      ok: const Color(0xFF879A39),
+      error: const Color(0xFFD14D41), // red-400
+      warn: const Color(0xFFD0A215), // yellow-400
+      edited: const Color(0xFFD0A215),
+      editedBg: const Color(0xFF242018),
+      gitStaged: const Color(0xFF879A39),
+      gitUntracked: const Color(0xFF4385BE), // blue-400
+      gitDeleted: const Color(0xFFD14D41),
+      gitConflict: const Color(0xFFDA702C), // orange-400
+    ),
+    syntax: SyntaxColors.flexokiDark,
+    terminal: cockpitTerminalThemeDark,
+    terminalOverrides: {
+      'cursor': '#3AA99F',
+      'selection': '#3AA99F33',
+      'foreground': '#CECDC3',
+      'black': '#100F0F',
+      'red': '#D14D41',
+      'green': '#879A39',
+      'yellow': '#D0A215',
+      'blue': '#4385BE',
+      'magenta': '#CE5D97',
+      'cyan': '#3AA99F',
+      'white': '#CECDC3',
+      'brightBlack': '#878580',
+      'brightRed': '#D14D41',
+      'brightGreen': '#879A39',
+      'brightYellow': '#D0A215',
+      'brightBlue': '#4385BE',
+      'brightMagenta': '#CE5D97',
+      'brightCyan': '#3AA99F',
+      'brightWhite': '#FFFCF0',
+      'searchHitBackground': '#D0A215',
+      'searchHitBackgroundCurrent': '#3AA99F',
+      'searchHitForeground': '#100F0F',
+    },
+  ),
+  light: _variant(
+    ui: AppColors.light.copyWith(
+      bg: const Color(0xFFF2F0E5), // base-50 — chrome
+      panel: const Color(0xFFFFFCF0), // paper — conteúdo
+      panel2: const Color(0xFFE6E4D9), // base-100 — elevado
+      panel3: const Color(0xFFDAD8CE), // base-150 — hover
+      border: const Color(0xFFDAD8CE),
+      border2: const Color(0xFFCECDC3), // base-200
+      text: const Color(0xFF100F0F), // black
+      text2: const Color(0xFF6F6E69), // base-600
+      // base-500 (#878580) fica a 2,9:1 sobre o elevado — desce para base-600.
+      text3: const Color(0xFF6F6E69),
+      text4: const Color(0xFF878580), // base-500
+      accent: const Color(0xFF24837B), // cyan-600
+      accentText: const Color(0xFF24837B),
+      accentSoft: const Color(0x2224837B),
+      online: const Color(0xFF66800B), // green-600
+      ok: const Color(0xFF66800B),
+      error: const Color(0xFFAF3029), // red-600
+      warn: const Color(0xFFAD8301), // yellow-600
+      edited: const Color(0xFFAD8301),
+      editedBg: const Color(0xFFF5EED6),
+      gitStaged: const Color(0xFF66800B),
+      gitUntracked: const Color(0xFF205EA6), // blue-600
+      gitDeleted: const Color(0xFFAF3029),
+      gitConflict: const Color(0xFFBC5215), // orange-600
+    ),
+    syntax: SyntaxColors.flexokiLight,
+    terminal: cockpitTerminalThemeLight,
+    terminalOverrides: {
+      // No claro a série 400 some sobre o papel (yellow-400 a 2,3:1) — a 600
+      // é a que o próprio Flexoki pede para temas claros.
+      'cursor': '#24837B',
+      'selection': '#24837B22',
+      'foreground': '#100F0F',
+      'black': '#100F0F',
+      'red': '#AF3029',
+      'green': '#66800B',
+      'yellow': '#AD8301',
+      'blue': '#205EA6',
+      'magenta': '#A02F6F',
+      'cyan': '#24837B',
+      'white': '#6F6E69',
+      'brightBlack': '#878580',
+      'brightRed': '#AF3029',
+      'brightGreen': '#66800B',
+      'brightYellow': '#AD8301',
+      'brightBlue': '#205EA6',
+      'brightMagenta': '#A02F6F',
+      'brightCyan': '#24837B',
+      'brightWhite': '#100F0F',
+      'searchHitBackground': '#D0A215',
+      'searchHitBackgroundCurrent': '#24837B',
+      'searchHitForeground': '#100F0F',
+    },
+  ),
+);
+
 // ---------------------------------------------------------------------------
 // Famílias de tom
 // ---------------------------------------------------------------------------
@@ -626,6 +758,7 @@ final List<CockpitThemeSpec> builtInThemes = [
   midnightTheme,
   roseTheme,
   sunTheme,
+  flexokiTheme,
   panteraTheme,
 ];
 

@@ -16,23 +16,25 @@ class JsonlLineSplitter extends StreamTransformerBase<List<int>, String> {
 
   @override
   Stream<String> bind(Stream<List<int>> stream) async* {
-    var buffer = '';
+    final pending = StringBuffer();
     await for (final text in stream.transform(utf8.decoder)) {
-      buffer += text;
-      var index = buffer.indexOf('\n');
+      var start = 0;
+      var index = text.indexOf('\n');
       while (index != -1) {
-        var line = buffer.substring(0, index);
-        buffer = buffer.substring(index + 1);
+        pending.write(text.substring(start, index));
+        var line = pending.toString();
+        pending.clear();
         if (line.endsWith('\r')) {
           line = line.substring(0, line.length - 1);
         }
         if (line.isNotEmpty) yield line;
-        index = buffer.indexOf('\n');
+        start = index + 1;
+        index = text.indexOf('\n', start);
       }
+      if (start < text.length) pending.write(text.substring(start));
     }
-    final tail = buffer.endsWith('\r')
-        ? buffer.substring(0, buffer.length - 1)
-        : buffer;
+    var tail = pending.toString();
+    if (tail.endsWith('\r')) tail = tail.substring(0, tail.length - 1);
     if (tail.isNotEmpty) yield tail;
   }
 }

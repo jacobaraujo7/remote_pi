@@ -24,6 +24,94 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [1.26.0] - 2026-08-11
+
+Codex tabs now report what they are doing, just like Claude Code tabs.
+
+### Added
+
+- **Turn status for the Codex CLI.** A tab running `codex` now shows the
+  spinner while it works, raises the attention badge when it asks for approval,
+  and plays the completion sound when the turn ends — the same treatment Claude
+  Code tabs already had. Notifications when the window is in the background work
+  too.
+- Cockpit sets this up on its own at startup, including Codex's hook trust, so
+  there is nothing to enable or approve by hand. Your own Codex hooks are left
+  untouched, and the rest of `config.toml` is never rewritten. Requires Codex
+  CLI 0.147 or newer; if Codex isn't installed, nothing is created.
+- **Restoring a tab reattaches the right session.** Cockpit now remembers which
+  agent a conversation belongs to, so a restored tab resumes with `codex resume`
+  or `claude --resume` accordingly.
+
+## [1.25.1] - 2026-08-11
+
+A smoother terminal under heavy output, and realm switching that remembers where you were.
+
+### Fixed
+
+- The window no longer freezes when a command floods the terminal with output.
+  PTY output now shares a frame-time budget across every terminal, and hidden
+  terminals stop painting entirely instead of competing for the frame. Thanks,
+  @pretodev.
+- Switching realms (keyboard shortcut or the realm picker) now brings you back to the
+  worktree you were working in, not to its main workspace. If that worktree is
+  gone, focus falls back to the workspace it belonged to.
+- The tab bar scrolls horizontally with the mouse wheel again when there are
+  more tabs than fit the panel. Thanks, @pretodev.
+
+## [1.25.0] - 2026-08-09
+
+Sounds you can tell apart, worktrees you can configure, and one less crash.
+
+### Added
+
+- **A sound per event.** Turn completed, action required and agent error each
+  get their own sound, with a volume control, a preview button, and the option
+  to play even when the tab is already active. Any of them can be swapped for
+  an audio file of your own, or reset back to the default.
+- **Advanced settings when creating a worktree** (thanks, @pretodev). A
+  collapsed section adds: pick the **base branch** instead of always branching
+  from the current HEAD, **fetch the remote** first so that base is up to date,
+  and copy **ignored** (`.env`, local keys) or **untracked** files into the new
+  worktree.
+- **Flexoki theme** (thanks, @pretodev), the first built-in that brings its own
+  syntax palette rather than reusing GitHub's.
+
+### Fixed
+
+- **Closing the selected workspace could take the app down with it** (thanks,
+  @jamesldr). The terminal was freed while its view was still on screen, and
+  the next frame touched memory that was already gone. Being a native crash, it
+  left nothing behind in the logs. Teardown now waits for the views to leave
+  before releasing anything.
+
+## [1.24.0] - 2026-08-07
+
+Git history, a real font picker, and clickable paths that actually click.
+
+### Added
+
+- **Git history panel.** Browse the repository's commits, see which files each
+  one touched, and open the change in the editor from there (thanks,
+  @HumbertoChiesi).
+- **Font picker.** Pick interface, code and terminal fonts from the families
+  installed on the machine, each name drawn in its own font, with search. Typing
+  an exact family name by hand still works.
+- **Terminal size and weight of their own.** The terminal no longer has to
+  follow the code size, and the stroke weight is now a setting. Auto lightens it
+  on low-density screens, where the same font renders heavier, and leaves Retina
+  untouched.
+- **Copy branch** in the workspace menu. In a multi-repo workspace it opens a
+  submenu with one entry per root, like Pull and Push.
+
+### Fixed
+
+- **Clicking a relative file path in the terminal did nothing.** Absolute paths
+  opened, so the failure was easy to miss, but `lib/foo.dart:12:3` is exactly
+  what `dart analyze` and `flutter test` print. Paths are now resolved against
+  the tab's directory. The same click now works in a task's output pane, which
+  had no handler at all.
+
 ## [1.23.0] - 2026-08-06
 
 Themes: eight of them, and any JSON file can become one.

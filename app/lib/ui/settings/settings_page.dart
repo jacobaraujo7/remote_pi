@@ -296,6 +296,34 @@ class _DisplaySection extends StatelessWidget {
             ],
           ),
         ),
+        // Text size — the app hardcodes its font sizes and Flutter can't read
+        // iOS's per-app Text Size, so without this the only way to enlarge chat
+        // text is the OS-wide accessibility setting (issue #114).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Text size',
+                style: context.typo.sansBody.copyWith(color: colors.text),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: SegmentedButton<AppFontScale>(
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final scale in AppFontScale.values)
+                      ButtonSegment(value: scale, label: Text(scale.label)),
+                  ],
+                  selected: {prefs.fontScale},
+                  onSelectionChanged: (s) => prefs.setFontScale(s.first),
+                ),
+              ),
+            ],
+          ),
+        ),
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
           activeThumbColor: colors.accent,

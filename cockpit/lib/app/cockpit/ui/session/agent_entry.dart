@@ -16,14 +16,52 @@ final class UserEntry extends AgentEntry {
 
 /// Texto do assistant, crescendo via `text_delta`.
 final class AssistantTextEntry extends AgentEntry {
-  AssistantTextEntry([this.text = '']);
-  String text;
+  AssistantTextEntry([String text = '']) {
+    this.text = text;
+  }
+
+  final StringBuffer _buffer = StringBuffer();
+  String? _snapshot;
+
+  String get text => _snapshot ??= _buffer.toString();
+
+  set text(String value) {
+    _buffer
+      ..clear()
+      ..write(value);
+    _snapshot = value;
+  }
+
+  void append(String delta) {
+    if (delta.isEmpty) return;
+    _buffer.write(delta);
+    _snapshot = null;
+  }
 }
 
 /// Bloco de raciocínio (`thinking_delta`).
 final class ThinkingEntry extends AgentEntry {
-  ThinkingEntry([this.text = '']);
-  String text;
+  ThinkingEntry([String text = '']) {
+    this.text = text;
+  }
+
+  final StringBuffer _buffer = StringBuffer();
+  String? _snapshot;
+
+  String get text => _snapshot ??= _buffer.toString();
+
+  set text(String value) {
+    _buffer
+      ..clear()
+      ..write(value);
+    _snapshot = value;
+  }
+
+  void append(String delta) {
+    if (delta.isEmpty) return;
+    _buffer.write(delta);
+    _snapshot = null;
+  }
 }
 
 /// Tool call: começa em `tool_execution_start`, fecha em `..._end`.

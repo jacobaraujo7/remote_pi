@@ -1,4 +1,5 @@
 import 'package:cockpit/app/core/domain/entities/automation.dart';
+import 'package:cockpit/app/core/domain/entities/sound_event.dart';
 
 /// Modo de tema escolhido pelo usuário (mapeado pro `ThemeMode` do Flutter na
 /// camada de UI; o domínio não importa Flutter).
@@ -6,6 +7,16 @@ enum AppThemeMode { system, light, dark }
 
 /// Motor VT usado por terminais criados daqui pra frente.
 enum TerminalEngine { ghostty, xterm }
+
+/// Peso do traço da fonte do terminal.
+///
+/// Existe porque a **mesma** fonte, no mesmo tamanho, tem peso aparente
+/// diferente conforme a densidade da tela: o Flutter/Skia no macOS rasteriza
+/// sem hinting e com antialiasing em cinza, o que engorda os traços verticais
+/// quando há poucos pixels por traço. Num monitor de DPR 1 o texto lê como
+/// negrito; no Retina, não. Como a preferência é uma só para todos os monitores,
+/// [auto] resolve por densidade em tempo de render (ver `resolveFor`).
+enum TerminalFontWeight { auto, light, normal, medium, semiBold }
 
 /// Layout inicial das mudanças no painel Source Control.
 enum SourceControlViewMode { list, tree }
@@ -22,6 +33,8 @@ class AppSettings {
     this.codeFont,
     this.codeSize = 13,
     this.terminalFont,
+    this.terminalSize,
+    this.terminalFontWeight = TerminalFontWeight.auto,
     this.themeId = 'cockpit',
     this.pinUserMessage = true,
     this.lastOpenAppId,
@@ -29,7 +42,10 @@ class AppSettings {
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
     this.notificationsEnabled = true,
-    this.soundEnabled = true,
+    this.soundEvents = const <SoundEvent, bool>{},
+    this.soundOverrides = const <SoundEvent, String>{},
+    this.soundOnActiveTab = const <SoundEvent, bool>{},
+    this.soundVolume = 50,
     this.searchPanelHeight = 260,
     this.tasksPanelHeight = 200,
     this.enableAgent = false,
@@ -60,9 +76,18 @@ class AppSettings {
   /// Tamanho da fonte de código (px) — viewer/diff/terminal.
   final double codeSize;
 
-  /// Família da fonte do **terminal** (`null`/vazio = mono padrão do xterm). O
-  /// tamanho segue [codeSize].
+  /// Família da fonte do **terminal** (`null`/vazio = mono padrão do xterm).
   final String? terminalFont;
+
+  /// Tamanho da fonte do terminal (px). `null` = herda [codeSize].
+  ///
+  /// Separado do código porque a densidade da tela muda o que é confortável: o
+  /// mesmo valor que fica bom num Retina fica pequeno num monitor de DPR 1, e
+  /// o terminal é onde isso mais pesa.
+  final double? terminalSize;
+
+  /// Peso do traço no terminal. Ver [TerminalFontWeight].
+  final TerminalFontWeight terminalFontWeight;
 
   /// Id do tema ativo (UI + syntax + terminal num bundle só). Os built-in e os
   /// importados dividem o mesmo espaço de ids, por isso é `String` e não enum:
@@ -94,9 +119,29 @@ class AppSettings {
   /// fora de foco. Editado na aba "Notifications" das Configurações.
   final bool notificationsEnabled;
 
-  /// Tocar um chime curto quando um turno termina com a janela focada (chama
-  /// atenção sem banner do SO). Editado na aba "Notifications".
-  final bool soundEnabled;
+  /// Som ligado/desligado **por evento**. Ausente no mapa = ligado (default de
+  /// todos os eventos). O antigo master switch `soundEnabled` foi absorvido:
+  /// quem o tinha desligado migra pra todos os eventos desligados (fromJson).
+  final Map<SoundEvent, bool> soundEvents;
+
+  /// Caminho de um áudio custom (`.wav`/`.mp3`) por evento. Ausente = som
+  /// embarcado do app. O arquivo é uma **cópia** feita pro storage do app no
+  /// momento do pick (o original pode sumir); limpar o override volta ao
+  /// padrão e apaga a cópia.
+  final Map<SoundEvent, String> soundOverrides;
+
+  /// Tocar o som do evento **mesmo com a aba dele ativa** (janela focada).
+  /// Ausente = `false`: aba ativa fica muda — o usuário já está olhando a
+  /// resposta/prompt. Só faz sentido pra `turnDone`/`actionRequired`
+  /// (`agentError` sempre toca).
+  final Map<SoundEvent, bool> soundOnActiveTab;
+
+  /// Volume dos sons in-app, em % (0–100). Aplica a todos os eventos (default
+  /// 50: os assets embarcados são altos no volume cheio).
+  final double soundVolume;
+
+  /// `true` quando o som do [event] deve tocar.
+  bool soundEnabledFor(SoundEvent event) => soundEvents[event] ?? true;
 
   /// Altura (px) da área de resultados do painel de busca por conteúdo
   /// (find-in-files), ajustável arrastando a borda superior do painel.
@@ -183,6 +228,9 @@ class AppSettings {
     double? codeSize,
     String? terminalFont,
     bool clearTerminalFont = false,
+    double? terminalSize,
+    bool clearTerminalSize = false,
+    TerminalFontWeight? terminalFontWeight,
     String? themeId,
     bool? pinUserMessage,
     String? lastOpenAppId,
@@ -190,7 +238,10 @@ class AppSettings {
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
     bool? notificationsEnabled,
-    bool? soundEnabled,
+    Map<SoundEvent, bool>? soundEvents,
+    Map<SoundEvent, String>? soundOverrides,
+    Map<SoundEvent, bool>? soundOnActiveTab,
+    double? soundVolume,
     double? searchPanelHeight,
     double? tasksPanelHeight,
     bool? enableAgent,
@@ -222,6 +273,10 @@ class AppSettings {
       terminalFont: clearTerminalFont
           ? null
           : (terminalFont ?? this.terminalFont),
+      terminalSize: clearTerminalSize
+          ? null
+          : (terminalSize ?? this.terminalSize),
+      terminalFontWeight: terminalFontWeight ?? this.terminalFontWeight,
       themeId: themeId ?? this.themeId,
       pinUserMessage: pinUserMessage ?? this.pinUserMessage,
       lastOpenAppId: lastOpenAppId ?? this.lastOpenAppId,
@@ -229,7 +284,10 @@ class AppSettings {
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
-      soundEnabled: soundEnabled ?? this.soundEnabled,
+      soundEvents: soundEvents ?? this.soundEvents,
+      soundOverrides: soundOverrides ?? this.soundOverrides,
+      soundOnActiveTab: soundOnActiveTab ?? this.soundOnActiveTab,
+      soundVolume: soundVolume ?? this.soundVolume,
       searchPanelHeight: searchPanelHeight ?? this.searchPanelHeight,
       tasksPanelHeight: tasksPanelHeight ?? this.tasksPanelHeight,
       enableAgent: enableAgent ?? this.enableAgent,
@@ -263,6 +321,8 @@ class AppSettings {
     'codeFont': codeFont,
     'codeSize': codeSize,
     'terminalFont': terminalFont,
+    'terminalSize': terminalSize,
+    'terminalFontWeight': terminalFontWeight.name,
     'themeId': themeId,
     'pinUserMessage': pinUserMessage,
     if (lastOpenAppId != null) 'lastOpenAppId': lastOpenAppId,
@@ -270,7 +330,19 @@ class AppSettings {
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
     if (!notificationsEnabled) 'notificationsEnabled': false,
-    if (!soundEnabled) 'soundEnabled': false,
+    if (soundEvents.isNotEmpty)
+      'sound.events': <String, bool>{
+        for (final e in soundEvents.entries) e.key.name: e.value,
+      },
+    if (soundOverrides.isNotEmpty)
+      'sound.overrides': <String, String>{
+        for (final e in soundOverrides.entries) e.key.name: e.value,
+      },
+    if (soundOnActiveTab.isNotEmpty)
+      'sound.onActiveTab': <String, bool>{
+        for (final e in soundOnActiveTab.entries) e.key.name: e.value,
+      },
+    'sound.volume': soundVolume,
     'searchPanelHeight': searchPanelHeight,
     'tasksPanelHeight': tasksPanelHeight,
     // Sempre gravado (mesmo quando false) para a migração distinguir "install
@@ -327,6 +399,14 @@ class AppSettings {
       codeFont: str(json['codeFont']),
       codeSize: (json['codeSize'] as num?)?.toDouble() ?? 13,
       terminalFont: str(json['terminalFont']),
+      // Ausente = herda o tamanho do código, que é o que valia antes deste
+      // campo existir.
+      terminalSize: (json['terminalSize'] as num?)?.toDouble(),
+      terminalFontWeight: _enumByName(
+        TerminalFontWeight.values,
+        json['terminalFontWeight'],
+        TerminalFontWeight.auto,
+      ),
       themeId: _themeIdFrom(json),
       pinUserMessage: json['pinUserMessage'] as bool? ?? true,
       lastOpenAppId: str(json['lastOpenAppId']),
@@ -334,7 +414,13 @@ class AppSettings {
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
-      soundEnabled: json['soundEnabled'] as bool? ?? true,
+      soundEvents: _migrateSoundEvents(json),
+      soundOverrides: _soundEventMap<String>(json['sound.overrides']),
+      soundOnActiveTab: _soundEventMap<bool>(json['sound.onActiveTab']),
+      soundVolume: ((json['sound.volume'] as num?)?.toDouble() ?? 50).clamp(
+        0,
+        100,
+      ),
       searchPanelHeight: (json['searchPanelHeight'] as num?)?.toDouble() ?? 260,
       tasksPanelHeight: (json['tasksPanelHeight'] as num?)?.toDouble() ?? 200,
       enableAgent: json['enableAgent'] as bool? ?? false,
@@ -365,6 +451,33 @@ class AppSettings {
           : null,
     );
   }
+}
+
+/// Toggles por evento, com migração do antigo master switch `soundEnabled`:
+/// quem o tinha desligado (chave legada `false`) e ainda não tem toggles
+/// próprios recebe todos os eventos desligados — o silêncio escolhido não pode
+/// voltar a tocar num update. A chave legada deixa de ser gravada e some do
+/// arquivo na primeira persistência.
+Map<SoundEvent, bool> _migrateSoundEvents(Map<dynamic, dynamic> json) {
+  final events = _soundEventMap<bool>(json['sound.events']);
+  final legacyOff = json['soundEnabled'] == false;
+  if (legacyOff && events.isEmpty) {
+    return {for (final e in SoundEvent.values) e: false};
+  }
+  return events;
+}
+
+/// Mapa persistido por `SoundEvent.name`. Nome desconhecido (evento removido /
+/// arquivo de versão mais nova) é ignorado; valor de tipo errado idem.
+Map<SoundEvent, V> _soundEventMap<V>(Object? raw) {
+  if (raw is! Map) return <SoundEvent, V>{};
+  final out = <SoundEvent, V>{};
+  raw.forEach((k, v) {
+    if (k is! String || v is! V) return;
+    final event = _nullableEnumByName(SoundEvent.values, k);
+    if (event != null) out[event] = v;
+  });
+  return out;
 }
 
 Map<String, String> _strMap(Object? raw) {

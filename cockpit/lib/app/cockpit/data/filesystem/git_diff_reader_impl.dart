@@ -57,6 +57,86 @@ class GitDiffReaderImpl implements GitDiffReader {
     }
   }
 
+  @override
+  Future<FileDiff> readCommit(
+    String repoPath,
+    String commitHash,
+    String relativePath, {
+    String? previousRelativePath,
+  }) async {
+    final absPath =
+        '${repoPath.endsWith('/') ? repoPath.substring(0, repoPath.length - 1) : repoPath}/$relativePath';
+    try {
+      final git = await _gitBinary.resolve();
+      final parentResult = await Process.run(git, [
+        '-C',
+        repoPath,
+        'show',
+        '--format=%P',
+        '--no-patch',
+        commitHash,
+      ]);
+      if (parentResult.exitCode != 0) return FileDiff.unchanged(absPath);
+      final parentLine = (parentResult.stdout as String).trim();
+      final beforeRevision = parentLine.isEmpty
+          ? null
+          : parentLine.split(RegExp(r'\s+')).first;
+      final renameOrCopy =
+          previousRelativePath != null && previousRelativePath != relativePath;
+      final result = renameOrCopy && beforeRevision != null
+          // `git show <commit> -- old new` separa rename com mudancas em
+          // delete + add. Comparar os blobs diretamente preserva o conteudo
+          // original e modificado como um unico diff.
+          ? await Process.run(git, [
+              '-C',
+              repoPath,
+              'diff',
+              '$beforeRevision:$previousRelativePath',
+              '$commitHash:$relativePath',
+            ])
+          : await Process.run(git, [
+              '-C',
+              repoPath,
+              'show',
+              '--format=',
+              '--first-parent',
+              '--find-renames',
+              commitHash,
+              '--',
+              relativePath,
+            ]);
+      if (result.exitCode != 0) return FileDiff.unchanged(absPath);
+      final out = result.stdout as String;
+      if (_isBinary(out)) {
+        return FileDiff(
+          path: absPath,
+          kind: FileDiffKind.binary,
+          beforeRevision: beforeRevision,
+          afterRevision: commitHash,
+        );
+      }
+
+      final (hunks, kind) = _parse(out);
+      if (hunks.isEmpty) {
+        return FileDiff(
+          path: absPath,
+          kind: FileDiffKind.unchanged,
+          beforeRevision: beforeRevision,
+          afterRevision: commitHash,
+        );
+      }
+      return FileDiff(
+        path: absPath,
+        kind: kind,
+        hunks: hunks,
+        beforeRevision: beforeRevision,
+        afterRevision: commitHash,
+      );
+    } catch (_) {
+      return FileDiff.unchanged(absPath);
+    }
+  }
+
   /// Lê o arquivo untracked inteiro como um único hunk todo-adicionado.
   Future<FileDiff> _untrackedDiff(String absPath) async {
     try {

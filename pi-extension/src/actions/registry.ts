@@ -1,37 +1,67 @@
 /**
- * Plan/28 — ModelRegistry instance shared by the action handlers.
+ * Plan/28 — ModelRegistry access for the action handlers.
  *
- * pi-extension creates its **own** `ModelRegistry` instance alongside the
- * one `AgentSession` instantiates internally. Both read the same on-disk
- * sources (`~/.pi/auth/*`, `~/.pi/models.json`), so they stay in sync —
- * we just call `refresh()` before each `list_models` request to capture
- * changes the user makes via `/login` or `/scoped-models` in the TUI.
+ * The host hands every extension a ready `ModelRegistry` on
+ * `ExtensionContext.modelRegistry` — the same instance `AgentSession` uses
+ * internally. That is the ONLY source we read.
  *
- * Why a fresh instance instead of accessing Pi's: the `ExtensionAPI`
- * surface does not expose `AgentSession`'s registry, and the public
- * factories (`ModelRegistry.create`, `AuthStorage.create`) are the
- * documented way for extensions to read the same catalog. No deep
- * imports, no internal-state coupling — see the probe note in
- * `plan/28-pi-commands.md` Wave 0.
+ * History (issue #112): this module used to build its own registry via
+ * `ModelRegistry.create(AuthStorage.create())`. Both factories were removed
+ * from `@earendil-works/pi-coding-agent` in pi 0.83, so the import crashed the
+ * whole pi process on the first `model_set`/`list_models` from the app
+ * (`undefined is not an object (evaluating 'AuthStorage.create')`, thrown from
+ * the WebSocket line handler). Reading the registry off the live ctx drops the
+ * dependency on that package's factory surface entirely, so a future breaking
+ * change there cannot crash the extension the same way again.
+ *
+ * Two hazards this handles:
+ *
+ * 1. A ctx captured before a session replacement/reload is **stale**, and even
+ *    *reading* `.modelRegistry` on it throws (`assertActive`). Every read is
+ *    wrapped.
+ * 2. There may be no live ctx at all (daemon boot, control channel). Rather
+ *    than throw from a WS callback — an uncaught exception that exits pi — we
+ *    fall back to the last registry that worked, then to a stub whose methods
+ *    never throw and report an empty catalog.
  */
 
-import { ModelRegistry, AuthStorage } from "@earendil-works/pi-coding-agent";
+import type { ActionModelRegistry } from "./handlers.js";
 
-let _registry: ModelRegistry | null = null;
+/** Anything carrying the host registry — `ExtensionContext` and friends. */
+interface RegistryBearingCtx {
+  modelRegistry?: ActionModelRegistry;
+}
+
+let _lastGoodRegistry: ActionModelRegistry | null = null;
 
 /**
- * Lazily instantiate the shared `ModelRegistry`. Subsequent calls return
- * the same instance — keep it cached so `refresh()` cycles are cheap and
- * the underlying `models.json` parse is amortized across requests.
+ * Never-throwing empty catalog. Used only when no ctx has ever been seen —
+ * callers get an empty model list instead of a crashed agent.
  */
-export function ensureModelRegistry(): ModelRegistry {
-  if (!_registry) {
-    _registry = ModelRegistry.create(AuthStorage.create());
+const _stubRegistry: ActionModelRegistry = {
+  refresh() {},
+  getAvailable() { return []; },
+  find() { return undefined; },
+};
+
+/**
+ * Resolve the live host `ModelRegistry` from the most recent extension ctx.
+ * Falls back to the last one that worked, then to an inert stub.
+ */
+export function ensureModelRegistry(ctx?: RegistryBearingCtx | null): ActionModelRegistry {
+  try {
+    const live = ctx?.modelRegistry;
+    if (live) {
+      _lastGoodRegistry = live;
+      return live;
+    }
+  } catch {
+    // stale ctx after session replacement — reading the property throws.
   }
-  return _registry;
+  return _lastGoodRegistry ?? _stubRegistry;
 }
 
 /** Test seam — drop the cached registry so tests can rebuild with fakes. */
 export function _resetModelRegistryForTests(): void {
-  _registry = null;
+  _lastGoodRegistry = null;
 }

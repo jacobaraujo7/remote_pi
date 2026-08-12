@@ -2,7 +2,6 @@ import { writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, chmod, unlink } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { AsyncEntry } from "@napi-rs/keyring";
 import { generateEd25519Keypair, type Ed25519Keypair } from "./crypto.js";
 import { canonicalizeEd25519PublicKey } from "../mesh/encoding.js";
 
@@ -58,6 +57,25 @@ export class KeyringUnavailableError extends Error {
   }
 }
 
+/** Raised when no identity can be resolved (keyring unreadable, no identity
+ *  file) BUT `peers.json` already lists paired devices. Minting a fresh key
+ *  here would make SelfRevoke wipe those pairings — see issues #95 / #69. */
+export class PairedIdentityMissingError extends Error {
+  constructor(pairedCount: number, cause: unknown) {
+    super(
+      `No identity could be read, but ${pairedCount} device(s) are already ` +
+      "paired. Refusing to generate a NEW identity — that would revoke every " +
+      "paired device. This usually means this process cannot reach the same " +
+      "keyring as the session that paired (e.g. a systemd --user daemon vs. " +
+      "your desktop session). Fix the service's keyring access, or pin the " +
+      "identity by copying the paired keypair to ~/.pi/remote/identity.json " +
+      "(0600), which both contexts read first. " +
+      `Cause: ${String(cause)}`,
+    );
+    this.name = "PairedIdentityMissingError";
+  }
+}
+
 const PI_DIR = join(homedir(), ".pi", "remote");
 const IDENTITY_FILE = join(PI_DIR, "identity.json");
 const PEERS_PATH = join(PI_DIR, "peers.json");
@@ -80,19 +98,107 @@ export interface KeyStoreBackend {
   delete(service: string, account: string): Promise<boolean>;
 }
 
+/**
+ * Per-operation timeout for native keyring calls (gnome-keyring / libsecret
+ * via @napi-rs/keyring). A healthy secret service settles in milliseconds; 3s
+ * is generous. The point is NOT speed — it is converting a HANG into a thrown
+ * error. The native getPassword()/setPassword() can block indefinitely when
+ * gnome-keyring waits on a GUI authorization prompt that cannot be shown in
+ * a headless / tmux / non-interactive context. A hang never settles, so
+ * without this guard the promise never rejects and the retry + file-fallback
+ * logic in getOrCreateEd25519Keypair() is unreachable — freezing the entire
+ * /remote-pi pair bootstrap. Raising a real error here lets that fallback
+ * chain run as designed.
+ */
+const KEYRING_OP_TIMEOUT_MS = 3_000;
+
+function _withTimeout<T>(
+  p: Promise<T>,
+  op: string,
+  ms: number = KEYRING_OP_TIMEOUT_MS,
+): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`keyring ${op} timed out after ${ms}ms`)), ms),
+    ),
+  ]);
+}
+
+/**
+ * Lazily loaded `@napi-rs/keyring` binding — issue #113.
+ *
+ * A STATIC `import { AsyncEntry } from "@napi-rs/keyring"` is evaluated when
+ * the extension module is loaded, so a native binding that cannot be resolved
+ * takes the WHOLE extension down at load time ("Failed to load extension …:
+ * Cannot find native binding"). That happens on a Bun-compiled `pi`: the
+ * loader's first branch (`require("./keyring.<triple>.node")`) is fine, but its
+ * fallback (`require("@napi-rs/keyring-<triple>")`, a bare package whose `main`
+ * IS the .node file) resolves under Node and not under Bun — and the message it
+ * prints then blames npm's optional-dependency bug, sending users off to delete
+ * node_modules and losing their other pi packages.
+ *
+ * Loading on first use turns that fatal load error into an ordinary backend
+ * failure, which the existing retry + file-identity fallback already handles.
+ */
+let _asyncEntryCtor: typeof import("@napi-rs/keyring").AsyncEntry | null = null;
+let _nativeBindingError: unknown = null;
+
+async function _loadAsyncEntry(): Promise<typeof import("@napi-rs/keyring").AsyncEntry> {
+  if (_asyncEntryCtor) return _asyncEntryCtor;
+  if (_nativeBindingError) throw _nativeBindingError;
+  try {
+    const mod = await import("@napi-rs/keyring");
+    _asyncEntryCtor = mod.AsyncEntry;
+    return _asyncEntryCtor;
+  } catch (err) {
+    _nativeBindingError = err;
+    throw err;
+  }
+}
+
+/**
+ * Did the native binding fail to LOAD (as opposed to an operation failing)?
+ *
+ * A load failure is deterministic and platform-wide: no retry, no unlock, no
+ * amount of waiting brings the keyring back in this process. So it must NOT be
+ * treated like a transiently locked Keychain — on macOS/Windows that would
+ * throw `KeyringUnavailableError` and leave the user with no working path at
+ * all. The file-identity fallback (with its loud warning) is the only usable
+ * route here, exactly as on headless Linux.
+ */
+function _nativeBindingUnavailable(): boolean {
+  return _nativeBindingError !== null;
+}
+
+/** Test-only: force (or clear with `null`) a memoized binding-load failure, so
+ *  the Bun/no-native-binding branch is reachable without a Bun host. */
+export function _setNativeBindingErrorForTest(err: unknown): void {
+  _asyncEntryCtor = null;
+  _nativeBindingError = err;
+}
+
 class NapiKeyringBackend implements KeyStoreBackend {
   async read(service: string, account: string): Promise<string | undefined> {
+    const AsyncEntry = await _loadAsyncEntry();
     const entry = new AsyncEntry(service, account);
-    return entry.getPassword();  // returns undefined on no-entry
+    return _withTimeout(entry.getPassword(), `read(${service})`);  // undefined on no-entry
   }
   async write(service: string, account: string, value: string): Promise<void> {
+    const AsyncEntry = await _loadAsyncEntry();
     const entry = new AsyncEntry(service, account);
-    await entry.setPassword(value);
+    await _withTimeout(entry.setPassword(value), `write(${service})`);
   }
   async delete(service: string, account: string): Promise<boolean> {
-    const entry = new AsyncEntry(service, account);
+    let entry: InstanceType<typeof import("@napi-rs/keyring").AsyncEntry>;
     try {
-      return await entry.deleteCredential();
+      const AsyncEntry = await _loadAsyncEntry();
+      entry = new AsyncEntry(service, account);
+    } catch {
+      return false;
+    }
+    try {
+      return await _withTimeout(entry.deleteCredential(), `delete(${service})`);
     } catch {
       return false;
     }
@@ -121,6 +227,9 @@ export function _setKeyStoreBackendForTest(backend: KeyStoreBackend | null): voi
 let _keyringExpectedOverride: boolean | null = null;
 function _keyringExpectedAvailable(): boolean {
   if (_keyringExpectedOverride !== null) return _keyringExpectedOverride;
+  // Binding never loaded (Bun-built pi, issue #113) → there is no keyring on
+  // this platform *for this process*, whatever the OS normally offers.
+  if (_nativeBindingUnavailable()) return false;
   return process.platform === "darwin" || process.platform === "win32";
 }
 
@@ -293,9 +402,38 @@ export async function getOrCreateEd25519Keypair(): Promise<Ed25519Keypair> {
     throw new KeyringUnavailableError(keyringError);
   }
 
+  // Issues #95 / #69 — minting a NEW identity when devices are already paired
+  // is destructive, on every platform.
+  //
+  // A daemon started by `systemd --user` resolves a different secret-service
+  // store than the desktop session that ran the pairing, so the keyring read
+  // fails, this path mints a fresh Ed25519 key, and the SelfRevoke poller then
+  // finds that key absent from the relay-side owner envelope, concludes it was
+  // revoked, and wipes `peers.json` — the phone silently goes offline a few
+  // seconds after every `daemon start`. `peers.json` being non-empty is proof
+  // that a working identity existed, so "no key found" here is a broken
+  // environment, not a first run. Fail loud and keep the pairing intact; the
+  // operator can pin the identity to a file (the confirmed workaround) or fix
+  // the service's keyring access.
+  if (!forceFile) {
+    const paired = await listPeers();
+    if (paired.length > 0) {
+      throw new PairedIdentityMissingError(paired.length, keyringError);
+    }
+  }
+
   console.warn(
-    "[remote-pi] keyring unavailable; using file-backed identity at " +
-    `${IDENTITY_FILE}. ${String(keyringError)}`,
+    _nativeBindingUnavailable()
+      // Issue #113: the @napi-rs/keyring native binding could not be loaded at
+      // all (typically a Bun-compiled pi). Name it explicitly — the error the
+      // loader prints blames npm's optional-dependency bug and sends people off
+      // to delete node_modules, which takes their other pi packages with it.
+      ? "[remote-pi] @napi-rs/keyring native binding could not be loaded in this " +
+        `runtime; using file-backed identity at ${IDENTITY_FILE} (0600) instead. ` +
+        "This is expected on a Bun-built pi. Paired devices keyed to a previous " +
+        `keyring identity must be re-paired. ${String(keyringError)}`
+      : "[remote-pi] keyring unavailable; using file-backed identity at " +
+        `${IDENTITY_FILE}. ${String(keyringError)}`,
   );
   const fresh = generateEd25519Keypair();
   await _writeKeypairToFile(fresh);

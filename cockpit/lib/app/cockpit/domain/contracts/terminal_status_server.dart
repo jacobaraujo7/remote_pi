@@ -1,5 +1,6 @@
-/// Atualização de status de um `claude` rodando numa aba de terminal, enviada
-/// pelo helper `cockpit-hook` (instalado nos hooks do Claude Code) via socket.
+/// Atualização de status de um agente rodando numa aba de terminal, enviada
+/// pelo helper `cockpit hook` (instalado nos hooks do Claude Code e do Codex
+/// CLI) via socket.
 class ClaudeStatusUpdate {
   const ClaudeStatusUpdate({
     required this.paneId,
@@ -7,6 +8,7 @@ class ClaudeStatusUpdate {
     this.event,
     this.sessionId,
     this.transcriptPath,
+    this.harness,
   });
 
   /// Id da aba (vem do env `COCKPIT_PANE_ID` injetado na PTV — roteamento).
@@ -21,11 +23,42 @@ class ClaudeStatusUpdate {
   /// helpers antigos (pré-`ev`).
   final String? event;
 
-  /// session_id do claude (pra futura persistência/`--resume`).
+  /// session_id do agente (persistido pra retomar a sessão no restore da aba).
   final String? sessionId;
 
-  /// Caminho do transcript `.jsonl` do claude.
+  /// Caminho do transcript `.jsonl` do agente.
   final String? transcriptPath;
+
+  /// Quem emitiu o evento: `claude` | `codex`. Vem do `--harness` que o
+  /// instalador grava no comando do hook; `null` em helpers antigos (que só
+  /// existiam para o Claude — ver [AgentHarness.fromWire]).
+  final String? harness;
+}
+
+/// Harness que roda numa aba de terminal. O Cockpit precisa distinguir para
+/// **retomar a sessão** no restore: o `session_id` sozinho não diz de quem é, e
+/// o comando de resume difere.
+enum AgentHarness {
+  claude('claude'),
+  codex('codex');
+
+  const AgentHarness(this.wire);
+
+  /// Nome no wire (payload do hook) e no layout persistido.
+  final String wire;
+
+  /// Comando que reata a sessão [sessionId] num shell novo.
+  String resumeCommand(String sessionId) => switch (this) {
+    AgentHarness.claude => 'claude --resume $sessionId',
+    AgentHarness.codex => 'codex resume $sessionId',
+  };
+
+  /// Converte o nome do wire. Desconhecido ou ausente cai em [claude]: layouts
+  /// e helpers anteriores a esta distinção só podiam ser do Claude.
+  static AgentHarness fromWire(String? wire) => AgentHarness.values.firstWhere(
+    (h) => h.wire == wire,
+    orElse: () => AgentHarness.claude,
+  );
 }
 
 /// Comando enviado pela **CLI interna** `cockpit` (binário em `~/.cockpit/bin`)

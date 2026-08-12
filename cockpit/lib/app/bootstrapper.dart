@@ -5,8 +5,10 @@ import 'dart:ui' show AppExitResponse;
 import 'package:cockpit/app/app_module.dart';
 import 'package:cockpit/app/app_widget.dart';
 import 'package:cockpit/app/cockpit/data/hooks/claude_hook_installer_impl.dart';
+import 'package:cockpit/app/cockpit/data/hooks/codex_hook_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/hook_installer.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
@@ -155,16 +157,21 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
           TaskProcessRegistry.cleanOrphans(),
         ]);
 
-        // Hooks do Cockpit no ~/.claude/settings.json (idempotente) pra
-        // sessões `claude` nas abas reportarem status de turno. Não-fatal.
-        unawaited(
-          ClaudeHookInstallerImpl().ensureInstalled().then((r) {
-            r.fold(
-              (_) {},
-              (e) => debugPrint('[claude-hook] install falhou: $e'),
-            );
-          }),
-        );
+        // Hooks do Cockpit nos harnesses suportados (idempotente) pra sessões
+        // de agente nas abas reportarem status de turno: Claude Code em
+        // ~/.claude/settings.json, Codex CLI em ~/.codex/hooks.json (+ trust no
+        // config.toml). Não-fatal e independentes: falha de um não impede o
+        // outro.
+        for (final installer in const <HookInstaller>[
+          ClaudeHookInstallerImpl(),
+          CodexHookInstallerImpl(),
+        ]) {
+          unawaited(
+            installer.ensureInstalled().then((r) {
+              r.fold((_) {}, (e) => debugPrint('[hook] install falhou: $e'));
+            }),
+          );
+        }
 
         final config = await PiSpawnConfig.resolve();
         _appModule = await buildAppModule(config: config);

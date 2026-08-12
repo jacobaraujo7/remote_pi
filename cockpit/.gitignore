@@ -52,3 +52,7 @@ libanaki_*.dylib
 
 # CLI interna (crate Rust em cli/)
 cli/target/
+
+# Saída de golden test que falhou (isolatedDiff/maskedDiff/masterImage/testImage).
+# São artefatos locais de depuração; foram commitados por engano no PR #108.
+**/failures/

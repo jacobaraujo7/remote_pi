@@ -7,4 +7,12 @@ abstract class GitDiffReader {
   /// Trata novo (tudo adicionado), deletado (tudo removido), binário e sem
   /// mudança. Nunca lança — em erro devolve [FileDiffKind.unchanged].
   Future<FileDiff> read(String repoPath, String absPath);
+
+  /// Diff de [relativePath] introduzido por [commitHash].
+  Future<FileDiff> readCommit(
+    String repoPath,
+    String commitHash,
+    String relativePath, {
+    String? previousRelativePath,
+  });
 }

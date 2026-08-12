@@ -15,6 +15,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_composer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_setup_checklist.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
@@ -32,7 +33,8 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show HitTestResult, PointerScrollEvent, PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
@@ -49,6 +51,7 @@ class PaneView extends StatelessWidget {
     required this.pane,
     required this.vm,
     required this.focused,
+    required this.active,
     required this.onCreateTab,
     required this.onSplit,
     required this.onFillEmpty,
@@ -60,6 +63,7 @@ class PaneView extends StatelessWidget {
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
+  final bool active;
 
   /// Abre uma aba "Novo" (placeholder vazio) — o tipo é escolhido dentro dela.
   final VoidCallback onCreateTab;
@@ -110,6 +114,7 @@ class PaneView extends StatelessWidget {
               pane: pane,
               vm: vm,
               focused: focused,
+              visible: active,
               onCreateTab: onCreateTab,
               onSplit: onSplit,
               onHistoryAgent: onHistoryAgent,
@@ -147,8 +152,8 @@ class PaneView extends StatelessWidget {
       key: ValueKey('body-$tabId'),
       item: session,
       paneId: pane.id,
-      focused: focused && tabId == pane.active,
-      active: tabId == pane.active,
+      focused: active && focused && tabId == pane.active,
+      active: active && tabId == pane.active,
       focusGen: vm.tabFocusGen,
       onFillEmpty: (terminal) => onFillEmpty(tabId, terminal),
     );
@@ -177,6 +182,7 @@ class _TabStrip extends StatefulWidget {
     required this.pane,
     required this.vm,
     required this.focused,
+    required this.visible,
     required this.onCreateTab,
     required this.onSplit,
     required this.onHistoryAgent,
@@ -187,6 +193,7 @@ class _TabStrip extends StatefulWidget {
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
+  final bool visible;
   final VoidCallback onCreateTab;
   final ValueChanged<SplitDir> onSplit;
   final ValueChanged<String> onHistoryAgent;
@@ -323,20 +330,43 @@ class _TabStripState extends State<_TabStrip> {
               child: MouseRegion(
                 onEnter: (_) => _setHover(true),
                 onExit: (_) => _setHover(false),
-                child: Scrollbar(
-                  controller: _scroll,
-                  // Só aparece com o mouse em cima (e quando há overflow).
-                  thumbVisibility: _hovering && _overflowing,
-                  thickness: 3,
-                  radius: const Radius.circular(3),
-                  child: ScrollConfiguration(
-                    behavior: ScrollConfiguration.of(
-                      context,
-                    ).copyWith(scrollbars: false),
-                    child: SingleChildScrollView(
-                      controller: _scroll,
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
+                child: Listener(
+                  onPointerSignal: (pointerSignal) {
+                    if (pointerSignal is PointerScrollEvent && _scroll.hasClients) {
+                      final dy = pointerSignal.scrollDelta.dy;
+                      final dx = pointerSignal.scrollDelta.dx;
+                      final delta = (dx != 0) ? dx : dy;
+                      if (delta != 0) {
+                        final newOffset = (_scroll.offset + delta).clamp(
+                          0.0,
+                          _scroll.position.maxScrollExtent,
+                        );
+                        _scroll.jumpTo(newOffset);
+                      }
+                    }
+                  },
+                  child: Scrollbar(
+                    controller: _scroll,
+                    // Só aparece com o mouse em cima (e quando há overflow).
+                    thumbVisibility: _hovering && _overflowing,
+                    thickness: 3,
+                    radius: const Radius.circular(3),
+                    child: ScrollConfiguration(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(
+                        scrollbars: false,
+                        dragDevices: {
+                          PointerDeviceKind.touch,
+                          PointerDeviceKind.mouse,
+                          PointerDeviceKind.trackpad,
+                          PointerDeviceKind.stylus,
+                        },
+                      ),
+                      child: SingleChildScrollView(
+                        controller: _scroll,
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
                         children: [
                           for (var i = 0; i < pane.tabs.length; i++)
                             _TabDropSlot(
@@ -351,6 +381,7 @@ class _TabStripState extends State<_TabStrip> {
                               child: _Tab(
                                 item: widget.vm.session(pane.tabs[i]),
                                 paneId: pane.id,
+                                visible: widget.visible,
                                 active: pane.tabs[i] == pane.active,
                                 focused: widget.focused,
                                 onSelect: () =>
@@ -386,6 +417,7 @@ class _TabStripState extends State<_TabStrip> {
                 ),
               ),
             ),
+          ),
             // Overflow: lista todas as abas pra pular direto (só quando estoura).
             if (_overflowing)
               Builder(
@@ -439,6 +471,7 @@ class _Tab extends StatefulWidget {
   const _Tab({
     required this.item,
     required this.paneId,
+    required this.visible,
     required this.active,
     required this.focused,
     required this.onSelect,
@@ -452,6 +485,7 @@ class _Tab extends StatefulWidget {
 
   final PaneItem? item;
   final String paneId;
+  final bool visible;
   final bool active;
   final bool focused;
   final VoidCallback onSelect;
@@ -681,8 +715,9 @@ class _TabState extends State<_Tab> {
   Widget build(BuildContext context) {
     final s = widget.item;
     if (s == null) return const SizedBox.shrink();
-    return ListenableBuilder(
+    return ActiveListenableBuilder(
       listenable: s,
+      active: widget.visible,
       builder: (_, _) {
         final colors = context.colors;
         final isFocusedActive = widget.active && widget.focused;
@@ -1301,7 +1336,11 @@ class _PaneBodyState extends State<_PaneBody> {
 
     // Viewer de diff (read-only, split): comparação com o HEAD do git.
     if (item is DiffViewerSession) {
-      return DiffViewer(session: item);
+      final vm = context.read<CockpitViewModel>();
+      return DiffViewer(
+        session: item,
+        displayPath: vm.displayPath(item.projectId, item.path),
+      );
     }
 
     // Tabela Redis (plano 52): a tabela editável é a interface única da tab.
@@ -1358,9 +1397,11 @@ class _PaneBodyState extends State<_PaneBody> {
       // ligar teclado/onOutput. Fechar a aba não toca no buffer nem na task.
       final settings = context.watch<SettingsController>().settings;
       final termFont = settings.terminalFont;
+      // Tamanho próprio do terminal; ausente = herda o do código.
+      final termSize = settings.terminalSize ?? settings.codeSize;
       final termStyle = (termFont == null || termFont.isEmpty)
-          ? TerminalStyle(fontSize: settings.codeSize)
-          : TerminalStyle(fontSize: settings.codeSize, fontFamily: termFont);
+          ? TerminalStyle(fontSize: termSize)
+          : TerminalStyle(fontSize: termSize, fontFamily: termFont);
       return _grantsKeyboardOnPointerDown(
         ColoredBox(
           color: context.colors.panel,
@@ -1368,9 +1409,21 @@ class _PaneBodyState extends State<_PaneBody> {
             padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
             child: AdaptiveTerminalPane(
               terminal: item.terminal,
+              active: widget.active,
               focusNode: _terminalFocus,
               onKeyEvent: (_) => KeyEventResult.ignored,
               readOnly: true,
+              // Read-only não quer dizer sem link: a saída de uma task é
+              // justamente onde `dart analyze` e `flutter test` imprimem
+              // `lib/x.dart:12:3`. Sem isto, clicar num erro aqui não fazia
+              // nada. A task não tem shell (logo, não tem OSC 7), então o cwd é
+              // sempre o de execução dela.
+              onOpenFile: (path, {line}) =>
+                  context.read<CockpitViewModel>().openTerminalPath(
+                    path,
+                    cwd: item.workingDirectory,
+                    line: line,
+                  ),
               theme: context.terminalTheme,
               textStyle: termStyle,
             ),
@@ -1383,11 +1436,14 @@ class _PaneBodyState extends State<_PaneBody> {
       final settings = context.watch<SettingsController>().settings;
       final termFont = settings.terminalFont;
       // Fonte exclusiva do terminal (vazia = mono padrão do xterm); tamanho =
-      // "tamanho do código". O zoom da interface é global (Transform em
-      // `_AppZoom`), então não precisa escalar aqui.
+      // "tamanho do código". O zoom da interface NÃO entra aqui de propósito:
+      // o pane do terminal desfaz o zoom geométrico e o reaplica como tamanho
+      // de fonte (ver `_UnzoomBox` em adaptive_terminal_pane.dart), senão o
+      // atlas de glifos do flterm seria ampliado como bitmap.
+      final termSize = settings.terminalSize ?? settings.codeSize;
       final termStyle = (termFont == null || termFont.isEmpty)
-          ? TerminalStyle(fontSize: settings.codeSize)
-          : TerminalStyle(fontSize: settings.codeSize, fontFamily: termFont);
+          ? TerminalStyle(fontSize: termSize)
+          : TerminalStyle(fontSize: termSize, fontFamily: termFont);
       return _grantsKeyboardOnPointerDown(
         _TerminalDropTarget(
           session: item,
@@ -1397,17 +1453,31 @@ class _PaneBodyState extends State<_PaneBody> {
               padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
               child: AdaptiveTerminalPane(
                 terminal: item.terminal,
+                active: widget.active,
                 focusNode: _terminalFocus,
                 // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
                 // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
                 onKeyEvent: (event) => _onTerminalKey(event, item),
                 onPaste: item.pasteFromClipboard,
-                // Cmd+clique num caminho de arquivo do buffer → abre no FileViewer,
-                // resolvido contra o cwd vivo do shell (OSC 7).
+                // Cmd+clique num caminho de arquivo do buffer → abre no
+                // FileViewer, resolvido contra o cwd vivo do shell (OSC 7).
+                //
+                // O fallback pro cwd de spawn não é zelo: **OSC 7 é opcional**.
+                // O zsh do macOS só o emite quando `$TERM_PROGRAM` é
+                // `Apple_Terminal`, então numa aba do Cockpit ele não vem, e
+                // `currentDirectory` fica `null` até nunca. Com `null`, o
+                // resolver desiste de todo caminho **relativo** e o clique não
+                // faz nada — sem erro, sem aviso. Absoluto abria, relativo não,
+                // e relativo é justamente o que `dart analyze` e `flutter test`
+                // imprimem.
+                //
+                // O cwd de spawn erra depois de um `cd` sem OSC 7, mas acerta o
+                // caso comum (rodar o comando na raiz da aba). Errar às vezes é
+                // melhor que não abrir nunca.
                 onOpenFile: (path, {line}) =>
                     context.read<CockpitViewModel>().openTerminalPath(
                       path,
-                      cwd: item.currentDirectory,
+                      cwd: item.currentDirectory ?? item.workingDirectory,
                       line: line,
                     ),
                 theme: context.terminalTheme,
@@ -1420,8 +1490,9 @@ class _PaneBodyState extends State<_PaneBody> {
     }
 
     final agent = item as AgentSession;
-    return ListenableBuilder(
+    return ActiveListenableBuilder(
       listenable: agent,
+      active: widget.active,
       builder: (context, _) {
         if (agent.status == AgentStatus.empty) {
           // No workspace de sistema "Cockpit" agentes são desligados **sempre**
