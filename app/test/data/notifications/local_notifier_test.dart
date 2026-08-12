@@ -1,15 +1,17 @@
-// Plan 58 — testes de notificações (Notifier abstraction).
+// Plan 58 — notification tests (Notifier abstraction).
 import 'package:app/domain/contracts/notifier.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class FakeNotifier implements Notifier {
   int agentFinishedCalls = 0;
-  int playTurnChimeCalls = 0;
   String? lastAgentName;
   String? lastWorkspace;
 
   @override
   Future<void> init() async {}
+
+  @override
+  Future<bool?> hasPermission() async => true;
 
   @override
   Future<void> agentFinished({
@@ -19,11 +21,6 @@ class FakeNotifier implements Notifier {
     agentFinishedCalls++;
     lastAgentName = agentName;
     lastWorkspace = workspace;
-  }
-
-  @override
-  Future<void> playTurnChime() async {
-    playTurnChimeCalls++;
   }
 }
 
@@ -38,12 +35,6 @@ void main() {
       expect(notifier.agentFinishedCalls, 1);
       expect(notifier.lastAgentName, 'Lootia');
       expect(notifier.lastWorkspace, '/home/lootia');
-    });
-
-    test('playTurnChime increments counter', () async {
-      final notifier = FakeNotifier();
-      await notifier.playTurnChime();
-      expect(notifier.playTurnChimeCalls, 1);
     });
 
     test('agentFinished with empty workspace', () async {

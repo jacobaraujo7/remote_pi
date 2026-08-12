@@ -1018,11 +1018,10 @@ class SyncService extends Service {
       _setWorking(false);
     }
     _sawRemoteWorking = false;
-    _checkAllRoomsForAgentFinish();
   }
 
-  /// Plan 58 — percorre todas as salas para detectar quando um agente termina.
-  void _checkAllRoomsForAgentFinish() {
+  /// Plan 58 — walk every room across every peer to detect when an agent finishes a turn.
+  Future<void> _checkAllRoomsForAgentFinish() async {
     final allRooms = _conn.roomsSnapshot;
     final nowWorking = <String>{};
     for (final entry in allRooms.entries) {
@@ -1038,16 +1037,26 @@ class SyncService extends Service {
         final epk = parts[0];
         final roomId = parts.sublist(1).join(':');
         final room = allRooms[epk]?.where((r) => r.roomId == roomId).firstOrNull;
-        final workspace = room?.name ?? room?.cwd ?? '';
-        final peer = _conn.activePeer;
-        final nickname = (peer?.nickname?.isNotEmpty ?? false)
+        final sessionTitle = room?.name ?? room?.cwd ?? '';
+        final peer = await _conn.lookupPeer(epk);
+        // Skip the session the user is currently watching — they see the
+        // agent stop in real time. Compare PeerRecord.remoteEpk so base64
+        // encoding differences between roomsSnapshot keys and _activeEpk
+        // don't cause false negatives.
+        final active = _conn.activePeer;
+        if (active != null && peer != null && active.remoteEpk == peer.remoteEpk && roomId == _activeRoomId) {
+          continue;
+        }
+        final deviceName = (peer?.nickname?.isNotEmpty ?? false)
             ? peer!.nickname!
             : (peer?.sessionName.isNotEmpty ?? false)
                 ? peer!.sessionName
                 : epk.substring(0, 8);
+        // Match Cockpit convention: agentName = session/tab title,
+        // workspace = device/PC name.
         unawaited(_notifier.agentFinished(
-          agentName: nickname,
-          workspace: workspace,
+          agentName: sessionTitle,
+          workspace: deviceName,
         ));
       }
     }

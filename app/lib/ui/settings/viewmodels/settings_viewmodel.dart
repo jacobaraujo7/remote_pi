@@ -2,6 +2,7 @@ import 'package:app/data/mesh/mesh_sync_service.dart';
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/data/transport/relay_config.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/core/viewmodel/viewmodel.dart';
 import 'package:app/ui/settings/states/settings_state.dart';
@@ -14,6 +15,7 @@ class SettingsViewModel extends ViewModel<SettingsState> {
   final PairingStorage _storage;
   final Preferences _prefs;
   final ConnectionManager _conn;
+  final Notifier _notifier;
 
   /// Optional in tests; required in production. The revoke flow drives
   /// it explicitly with `allowEmpty:true` so a revoke of the last
@@ -23,7 +25,7 @@ class SettingsViewModel extends ViewModel<SettingsState> {
   final MeshSyncService? _meshSync;
   bool _disposed = false;
 
-  SettingsViewModel(this._storage, this._prefs, this._conn, [this._meshSync])
+  SettingsViewModel(this._storage, this._prefs, this._conn, this._notifier, [this._meshSync])
     : super(const SettingsLoading()) {
     _load();
   }
@@ -56,6 +58,9 @@ class SettingsViewModel extends ViewModel<SettingsState> {
     await _storage.savePeer(updated);
     await _load();
   }
+
+  /// Whether notifications are enabled AND the OS has granted permission.
+  Future<bool?> get hasNotificationPermission => _notifier.hasPermission();
 
   /// Effective relay URL the app is connecting to right now.
   String get effectiveRelayUrl => resolveRelayUrl(_prefs);

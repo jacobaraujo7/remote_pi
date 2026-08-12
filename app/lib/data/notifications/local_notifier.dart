@@ -1,13 +1,20 @@
 import 'dart:io' show Platform;
 
+import 'package:app/data/preferences/preferences.dart';
 import 'package:app/domain/contracts/notifier.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Notificações nativas via `flutter_local_notifications` (Android/iOS).
 class LocalNotifier implements Notifier {
+  static const _channel = MethodChannel('app.remote_pi/notifications');
+
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
+  final Preferences _prefs;
   int _id = 0;
+
+  LocalNotifier(this._prefs);
 
   @override
   Future<void> init() async {
@@ -29,6 +36,31 @@ class LocalNotifier implements Notifier {
     await _plugin.initialize(
       settings: const InitializationSettings(android: android, iOS: ios),
     );
+    // If the user denied the system permission, reflect that in the toggle
+    // so the UI shows the correct state and the warning message.
+    final permitted = await hasPermission();
+    if (permitted == false) {
+      await _prefs.setNotificationsEnabled(false);
+    }
+  }
+
+  @override
+  Future<bool?> hasPermission() async {
+    if (Platform.isAndroid) {
+      return _plugin
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+    }
+    if (Platform.isIOS) {
+      try {
+        final result = await _channel.invokeMethod<bool>('hasPermission');
+        return result;
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
   }
 
   @override
@@ -36,6 +68,7 @@ class LocalNotifier implements Notifier {
     required String agentName,
     required String workspace,
   }) async {
+    if (!_prefs.notificationsEnabled) return;
     final subtitle = workspace.isEmpty ? agentName : '$agentName · $workspace';
     await _plugin.show(
       id: _id++,

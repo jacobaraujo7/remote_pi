@@ -13,6 +13,7 @@ import 'package:app/ui/core/themes/app_font_scale.dart';
 class Preferences extends ChangeNotifier {
   final FlutterSecureStorage _store;
   bool _hideToolCalls = false;
+  bool _notificationsEnabled = true;
   String? _selectedPeerEpk;
   String? _relayUrl;
   bool _onboardingCompleted = false;
@@ -23,6 +24,7 @@ class Preferences extends ChangeNotifier {
       : _store = store ?? const FlutterSecureStorage();
 
   static const _kHideToolCallsKey = 'prefs.hide_tool_calls';
+  static const _kNotificationsEnabledKey = 'prefs.notifications_enabled';
   static const _kSelectedPeerEpkKey = 'prefs.selected_peer_epk';
   static const _kRelayUrlKey = 'prefs.relay_url';
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
@@ -31,6 +33,10 @@ class Preferences extends ChangeNotifier {
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
+
+  /// Plan 58 — whether native OS notifications are enabled.
+  /// Defaults to true so notifications work from the first launch.
+  bool get notificationsEnabled => _notificationsEnabled;
 
   /// Epoch of the peer the user last picked from Home — the one
   /// `/chat` will connect to when it mounts. Null = no peer selected yet
@@ -95,6 +101,14 @@ class Preferences extends ChangeNotifier {
       changed = true;
     }
 
+    final notifRaw = await _store.read(key: _kNotificationsEnabledKey);
+    // Absent key → default true (opt-out, not opt-in).
+    final notifNext = notifRaw == null ? true : notifRaw == 'true';
+    if (notifNext != _notificationsEnabled) {
+      _notificationsEnabled = notifNext;
+      changed = true;
+    }
+
     final selected = await _store.read(key: _kSelectedPeerEpkKey);
     final cleaned = (selected != null && selected.isNotEmpty) ? selected : null;
     if (cleaned != _selectedPeerEpk) {
@@ -137,6 +151,16 @@ class Preferences extends ChangeNotifier {
     _hideToolCalls = value;
     await _store.write(
       key: _kHideToolCallsKey,
+      value: value.toString(),
+    );
+    notifyListeners();
+  }
+
+  Future<void> setNotificationsEnabled(bool value) async {
+    if (_notificationsEnabled == value) return;
+    _notificationsEnabled = value;
+    await _store.write(
+      key: _kNotificationsEnabledKey,
       value: value.toString(),
     );
     notifyListeners();

@@ -11,6 +11,7 @@ import 'package:app/data/repositories/session_read_repository.dart';
 import 'package:app/data/sync/sync_service.dart';
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/chat/states/chat_state.dart';
@@ -44,6 +45,15 @@ class _FakeChannel implements IChannel, IControlLink {
   }
 
   void push(ServerMessage m) => _ctrl.add(m);
+}
+
+class _FakeNotifier implements Notifier {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<bool?> hasPermission() async => true;
+  @override
+  Future<void> agentFinished({required String agentName, required String workspace}) async {}
 }
 
 class _FakeSecureStorage implements FlutterSecureStorage {
@@ -143,7 +153,7 @@ void main() {
       storage: storage,
     );
     final boxes = LocalBoxes();
-    final sync = SyncService(conn, boxes);
+    final sync = SyncService(conn, boxes, _FakeNotifier());
     final read = SessionReadRepository(boxes);
     final prefs = Preferences(_FakeSecureStorage());
     await prefs.setSelectedPeerEpk(_peer.remoteEpk);
@@ -262,7 +272,7 @@ void main() {
         storage: storage,
       );
       final boxes = LocalBoxes();
-      final sync = SyncService(conn, boxes);
+      final sync = SyncService(conn, boxes, _FakeNotifier());
 
       // No adopt → no live channel → nothing sent, false returned.
       final sent = await sync.respondExtensionUi(

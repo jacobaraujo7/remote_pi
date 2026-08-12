@@ -195,6 +195,20 @@ class ConnectionManager extends Service {
   /// / fresh after disconnect()).
   PeerRecord? get activePeer => _activePeer;
 
+  /// Look up a peer by epk from local storage so callers iterating
+  /// [roomsSnapshot] can resolve the right peer's nickname for a room
+  /// that finished (rather than always getting [activePeer]). Accepts
+  /// both standard and url-safe base64 (the rooms snapshot uses
+  /// standard; storage uses url-safe). Returns null when the epk is
+  /// unknown.
+  Future<PeerRecord?> lookupPeer(String epk) async {
+    final standard = toStandardB64(epk);
+    for (final p in await _storage.listPeers()) {
+      if (toStandardB64(p.remoteEpk) == standard) return p;
+    }
+    return null;
+  }
+
   // ---- Presence (plano 12) -------------------------------------------------
 
   /// Stream of full presence-map snapshots. Subscribers should treat each

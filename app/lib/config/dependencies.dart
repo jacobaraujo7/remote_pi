@@ -110,7 +110,11 @@ Future<void> setupDependencies() async {
   // dispose hook needed.
   _injector.addOther<IImagePickerService>(() => ImagePickerService());
 
-  _injector.addOther<Notifier>(() => LocalNotifier());
+  _injector.addOther<Notifier>(() => LocalNotifier(_injector.get<Preferences>()));
+  // Plan 58 — initialize the notification backend so the plugin requests
+  // Android 13+ permission and configures channels before any agent-finished
+  // event fires.
+  await _injector.get<Notifier>().init();
 
   // Plan 31 — SSOT writer + read-only repos. SyncService is the SINGLE
   // mutator of the message/index/runtime boxes; the read repos only watch.
@@ -155,6 +159,7 @@ Future<void> setupDependencies() async {
       _injector.get<PairingStorage>(),
       _injector.get<Preferences>(),
       _injector.get<ConnectionManager>(),
+      _injector.get<Notifier>(),
       _injector.get<MeshSyncService>(),
     ),
   );
