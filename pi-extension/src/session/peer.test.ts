@@ -38,6 +38,11 @@ describe("SessionPeer registration", () => {
       const message = error instanceof Error ? error.message : String(error);
       expect.soft(message).toContain(sockPath);
       expect.soft(message).toContain("resume or terminate it, then rejoin");
+      // This process owns the unanswered listener, so the diagnosis must name
+      // it rather than leave the operator to search /proc for the blocker.
+      if (process.platform === "linux") {
+        expect.soft(message).toContain(`pid ${process.pid}`);
+      }
       expect.soft(sawClose).toBe(true);
     } finally {
       acceptedSocket?.destroy();

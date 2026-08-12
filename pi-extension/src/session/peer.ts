@@ -12,6 +12,7 @@ import {
 } from "./envelope.js";
 import { joinOrLead, type ElectionResult } from "./leader_election.js";
 import { Broker } from "./broker.js";
+import { describeRegistrationBlocker, describeSocketOwner } from "./socket_owner.js";
 
 /**
  * Symmetric peer-in-session API. Hides whether you are leader or follower;
@@ -366,19 +367,6 @@ export class SessionPeer {
   private _registerOver(sock: Socket): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       let settled = false;
-      const fail = (err: Error): void => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(wait);
-        this._preAckListener = null;
-        // Clear the active socket before destroying it, so the close handler does
-        // not read this as a live-connection drop and start a fresh election.
-        // On the leader path this is only the self-loopback client; the broker
-        // server belongs to _joinOrLead and is closed there when we throw.
-        if (this.socket === sock) this.socket = null;
-        sock.destroy();
-        reject(err);
-      };
       // The first inbound line MUST be the register_ack. Buffer-aware.
       //
       // Reaching this timer means election chose the follower path against a
@@ -387,15 +375,46 @@ export class SessionPeer {
       // AF_UNIX connect() completes as soon as the kernel queues the connection
       // in the listener backlog, so the owning process need not run at all; a
       // suspended or event-loop-blocked leader still looks healthy to election.
-      // Only the handshake separates the two, and nothing here can recover on
-      // its own, so the message must name the endpoint and the way to clear it.
+      //
+      // Nothing here can recover on its own, because the queued connection and
+      // the mesh both belong to that other process. Naming it saves the operator
+      // a manual walk of /proc, but diagnosis must never widen the leak this
+      // path exists to close: the deadline decides the outcome and frees the
+      // descriptor, and only the wording of the rejection is still pending. An
+      // ack arriving after that point is too late to be honoured.
+      //
+      // The deadline is installed before the helpers it calls. JavaScript runs
+      // this executor to completion before any timer callback, so `release` is
+      // always defined by the time the deadline can fire.
       const wait = setTimeout(() => {
-        fail(new Error(
-          `register_ack timeout after ${ACK_TIMEOUT_MS}ms: ${this.opts.sockPath} has a listener `
-          + "that never answered the register handshake. Its owning process is probably suspended "
-          + "or blocked; resume or terminate it, then rejoin.",
-        ));
+        if (settled) return;
+        settled = true;
+        release();
+        void describeSocketOwner(this.opts.sockPath).then((owner) => {
+          reject(new Error(
+            `register_ack timeout after ${ACK_TIMEOUT_MS}ms: `
+            + describeRegistrationBlocker(this.opts.sockPath, owner),
+          ));
+        });
       }, ACK_TIMEOUT_MS);
+      // Releasing is separate from rejecting because the timeout path needs the
+      // descriptor closed at the deadline while it still has a message to build.
+      const release = (): void => {
+        clearTimeout(wait);
+        this._preAckListener = null;
+        // Clear the active socket before destroying it, so the close handler does
+        // not read this as a live-connection drop and start a fresh election.
+        // On the leader path this is only the self-loopback client; the broker
+        // server belongs to _joinOrLead and is closed there when we throw.
+        if (this.socket === sock) this.socket = null;
+        sock.destroy();
+      };
+      const fail = (err: Error): void => {
+        if (settled) return;
+        settled = true;
+        release();
+        reject(err);
+      };
       const onceListener = (raw: unknown) => {
         // plan/38: a new broker returns `address_assigned` (canonical key) +
         // `name_assigned` (clean leaf). Read both with cross-fallback so we work
