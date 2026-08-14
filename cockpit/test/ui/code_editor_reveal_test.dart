@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
@@ -222,6 +223,72 @@ void main() {
       ),
       findsWidgets,
     );
+  });
+
+  testWidgets('overview SCM aparece na faixa do scroll vertical', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(
+      text: List.generate(40, (i) => 'line$i').join('\n'),
+      language: 'txt',
+    );
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        height: 240,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {2, 3, 4},
+          modifiedLines: {20},
+          removalBoundaries: {0, 40},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('git-scm-overview')), findsOneWidget);
+  });
+
+  test('scmOverviewLineForDy mapeia proporção do documento', () {
+    expect(scmOverviewLineForDy(dy: 0, height: 200, lineCount: 40), 1);
+    expect(scmOverviewLineForDy(dy: 100, height: 200, lineCount: 40), 21);
+    expect(scmOverviewLineForDy(dy: 199, height: 200, lineCount: 40), 40);
+    expect(
+      scmOverviewLineForDy(dy: (29.5 / 40) * 200, height: 200, lineCount: 40),
+      30,
+    );
+  });
+
+  testWidgets('tap no overview SCM salta à linha sem selecionar', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(
+      text: List.generate(40, (i) => 'line$i').join('\n'),
+      language: 'txt',
+    );
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        height: 240,
+        scmDecorations: const ScmLineDecorations(
+          addedLines: {30},
+          modifiedLines: {},
+          removalBoundaries: {},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final overview = find.byKey(const ValueKey('git-scm-overview'));
+    expect(overview, findsOneWidget);
+    final box = tester.getRect(overview);
+    final dy = (29.5 / 40) * box.height;
+    await tester.tapAt(Offset(box.center.dx, box.top + dy));
+    await tester.pumpAndSettle(const Duration(seconds: 1));
+
+    expect(ctrl.selection.isCollapsed, isTrue);
+    final expectedStart =
+        List.generate(29, (i) => 'line$i').join('\n').length + 1;
+    expect(ctrl.selection.baseOffset, expectedStart);
   });
 
   testWidgets('SCM e diagnostic coexistem na mesma linha do gutter', (
