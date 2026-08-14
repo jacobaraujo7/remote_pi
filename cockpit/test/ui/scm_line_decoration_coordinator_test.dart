@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cockpit/app/cockpit/domain/contracts/git_head_baseline_reader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_head_baseline.dart';
@@ -359,4 +361,70 @@ void main() {
       session.dispose();
     });
   });
+
+  test('stale baseline miss must not wipe decorations from a newer reload', () {
+    // Boot race: attach lê baseline com root ainda errada (demora e volta
+    // null); git.refresh dispara reload novo que publica; o miss atrasado
+    // NÃO pode chamar clear por cima.
+    fakeAsync((async) {
+      final fake = _GatedReader(blobs: {'/repo/a.txt': 'a\n'});
+      final cache = ScmBaselineCache(fake);
+      final session = _session();
+      final coord = _coord(session, cache, debounce: Duration.zero);
+      final ctrl = CodeEditingController(text: 'a\nb\n', language: 'txt');
+      session.attachScmCoordinator(coord);
+      coord.attachController(ctrl);
+
+      // 1º readTrackedText ficou parado no gate (miss atrasado).
+      async.flushMicrotasks();
+      expect(fake.gates, hasLength(1));
+
+      // Refresh Git → novo reload (2º read) completa e publica.
+      fake.head = 'bbb';
+      coord.onGitRevisionChanged();
+      async.flushMicrotasks();
+      // Libera só o 2º gate (reload novo); o 1º continua pendente.
+      expect(fake.gates, hasLength(2));
+      fake.gates[1].complete();
+      _flush(async);
+      expect(session.scmDecorations.addedLines, contains(2));
+
+      // Miss atrasado completa com null — epoch velho → não limpa.
+      fake.gates[0].complete();
+      _flush(async);
+      expect(session.scmDecorations.addedLines, contains(2));
+
+      coord.dispose();
+      ctrl.dispose();
+      session.dispose();
+    });
+  });
+}
+
+/// Reader que segura cada [readTrackedText] num [Completer] (teste de race).
+class _GatedReader implements GitHeadBaselineReader {
+  _GatedReader({required this.blobs});
+
+  String? head = 'aaa';
+  final Map<String, String> blobs;
+  final List<Completer<void>> gates = <Completer<void>>[];
+
+  @override
+  Future<String?> resolveHeadIdentity(String repoPath) async => head;
+
+  @override
+  Future<GitHeadBaseline?> readTrackedText(
+    String repoPath,
+    String absPath,
+  ) async {
+    final gate = Completer<void>();
+    gates.add(gate);
+    await gate.future;
+    // 1º read (atrasado): simula root/HEAD ainda inválidos no boot.
+    if (identical(gate, gates.first)) return null;
+    final id = head;
+    final text = blobs[absPath];
+    if (id == null || text == null) return null;
+    return GitHeadBaseline(headIdentity: id, content: text);
+  }
 }

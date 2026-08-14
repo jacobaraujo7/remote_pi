@@ -223,6 +223,10 @@ class CockpitViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Garante coordenador SCM na sessão (abertura, restore ou mount do FileViewer).
+  void ensureScmCoordinator(FileViewerSession session) =>
+      _ensureScmCoordinator(session);
+
   void _ensureScmCoordinator(FileViewerSession session) {
     final editable =
         session.view is FileViewText ||
@@ -4192,12 +4196,17 @@ class CockpitViewModel extends ChangeNotifier {
         if (path == null) return false;
         final view = await _fileReader.read(path);
         if (view is FileViewUnsupported) return false;
-        _sessions[id] = FileViewerSession(
+        final viewer = FileViewerSession(
           id: id,
           projectId: project.id,
           path: path,
           view: view,
         );
+        // Same pipeline as openFile: SCM coordinator + live-reload.
+        // Without this, restored tabs have no diff gutter until reopen.
+        _ensureScmCoordinator(viewer);
+        _sessions[id] = viewer;
+        _watchFileViewer(viewer);
         return true;
       case 'diff':
         final path = desc['path'] as String?;

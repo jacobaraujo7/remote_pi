@@ -10,6 +10,10 @@ import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 ///
 /// Publicação assíncrona só ocorre quando sessão, path, identidade do baseline
 /// e buffer revision ainda são os da solicitação.
+///
+/// Reloads de baseline usam [_baselineEpoch]: um resultado atrasado (ex.: root
+/// errada no boot antes do `git.refresh`) não pode limpar/publicar por cima
+/// de um reload mais novo.
 class ScmLineDecorationCoordinator {
   ScmLineDecorationCoordinator({
     required this.session,
@@ -28,6 +32,7 @@ class ScmLineDecorationCoordinator {
   CodeEditingController? _controller;
   Timer? _debounce;
   int _bufferRevision = 0;
+  int _baselineEpoch = 0;
   String? _baselineContent;
   String? _baselineHead;
   bool _disposed = false;
@@ -54,6 +59,9 @@ class ScmLineDecorationCoordinator {
     _clearPublished();
     if (_controller != null) {
       unawaited(_reloadBaselineAndSchedule());
+    } else {
+      _baselineEpoch++;
+      _loadingBaseline = false;
     }
   }
 
@@ -77,6 +85,7 @@ class ScmLineDecorationCoordinator {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
+    _baselineEpoch++;
     _debounce?.cancel();
     _debounce = null;
     _detachControllerOnly();
@@ -96,9 +105,13 @@ class ScmLineDecorationCoordinator {
 
   Future<void> _reloadBaselineAndSchedule() async {
     if (_disposed) return;
+    final epoch = ++_baselineEpoch;
+
     if (session.scratch) {
+      if (epoch != _baselineEpoch) return;
       _baselineContent = null;
       _baselineHead = null;
+      _loadingBaseline = false;
       _clearPublished();
       return;
     }
@@ -106,17 +119,20 @@ class ScmLineDecorationCoordinator {
     final path = session.path;
     final root = resolveGitRoot(path);
     if (root == null) {
+      if (epoch != _baselineEpoch) return;
       _baselineContent = null;
       _baselineHead = null;
+      _loadingBaseline = false;
       _clearPublished();
       return;
     }
 
     _loadingBaseline = true;
-    final requestPath = path;
     final baseline = await cache.baselineFor(root, path);
+    if (_disposed || epoch != _baselineEpoch) return;
+
     _loadingBaseline = false;
-    if (_disposed || session.path != requestPath) return;
+    if (session.path != path) return;
 
     if (baseline == null) {
       _baselineContent = null;

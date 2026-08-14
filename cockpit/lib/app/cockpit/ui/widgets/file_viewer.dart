@@ -167,15 +167,25 @@ class _FileViewerState extends State<FileViewer> {
         ..addListener(_onCtrlChanged);
       // Expõe o save do buffer à sessão pro "Salvar e fechar" (limpo no dispose).
       widget.session.saveDraft = _save;
-      _bindScmCoordinator(_ctrl!);
+      _ensureAndBindScm(_ctrl!);
       _startLsp(text);
     }
     // Aba já nasce focada (ex.: arquivo recém-aberto) → foca o editor.
     _focusEditorIfActive();
   }
 
-  void _bindScmCoordinator(CodeEditingController controller) {
+  /// Garante coordenador na sessão (restore/open) e liga o controller.
+  /// Cobre abas restauradas no boot, onde o FileViewer monta sem ter passado
+  /// por `openFile`.
+  void _ensureAndBindScm(CodeEditingController controller) {
+    final vm = _vm ?? context.read<CockpitViewModel>();
+    _vm = vm;
+    vm.ensureScmCoordinator(widget.session);
     widget.session.scmCoordinator?.attachController(controller);
+  }
+
+  void _bindScmCoordinator(CodeEditingController controller) {
+    _ensureAndBindScm(controller);
   }
 
   /// Abre o documento no LSP e passa a escutar os diagnostics deste arquivo.
