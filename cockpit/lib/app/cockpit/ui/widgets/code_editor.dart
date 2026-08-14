@@ -24,12 +24,13 @@ import 'package:flutter/widgets.dart';
 
 /// Área **editável** de código com gutter de número de linha.
 ///
-/// Layout: `Row[gutter, divisor, scroll horizontal(campo)]` num frame de padding
-/// vertical de 14px. O campo é um [EditableText] com `expands: true` que **é o
-/// dono do scroll vertical** (scroll interno via [_vertical]); o gutter tem
-/// scroll próprio travado ao input, espelhando [_vertical] via [_syncGutter],
-/// pra alinhar 1:1. `IntrinsicWidth` + scroll horizontal externo fazem a linha
-/// longa **não quebrar**.
+/// Layout: `Row[gutter, divisor, scroll horizontal(campo)]` com frame de 14px
+/// no topo (fora dos scrolls) e folga de 14px no fim do conteúdo (dentro dos
+/// scrolls, acima da scrollbar horizontal). O campo é um [EditableText] com
+/// `expands: true` que **é o dono do scroll vertical** (scroll interno via
+/// [_vertical]); o gutter tem scroll próprio travado ao input, espelhando
+/// [_vertical] via [_syncGutter], pra alinhar 1:1. `IntrinsicWidth` + scroll
+/// horizontal externo fazem a linha longa **não quebrar**.
 ///
 /// Por que o campo é o dono do scroll vertical (e não um container externo):
 /// durante um drag de seleção, o `EditableText` recalcula a âncora convertendo a
@@ -311,8 +312,12 @@ class _CodeEditorState extends State<CodeEditor> {
   // Hover de diagnostic ao nível de **linha** (não de coluna): mostra a(s)
   // mensagem(ns) da linha sob o mouse. Suficiente pro "suporte secundário".
   double _lineHeight = 18; // px por linha; recalculado no build via TextPainter
-  static const double _padTop =
-      14; // frame de padding vertical fora dos scrolls
+  /// Frame de padding no topo, fora dos scrolls — gutter e campo começam em y=0.
+  static const double _padTop = 14;
+
+  /// Folga no fim do scroll vertical (gutter + campo) pra última linha assentar
+  /// acima da scrollbar horizontal (overlay no rodapé do viewport).
+  static const double _padBottom = 14;
   int? _hoverLine;
   List<String> _hoverMsgs = const <String>[];
   double _hoverDx = 0;
@@ -668,11 +673,12 @@ class _CodeEditorState extends State<CodeEditor> {
         // sincronizados, mas suas barras duplicariam a barra deste painel.
         child: ScrollConfiguration(
           behavior: const _CodeEditorScrollBehavior(),
-          // O padding de 14px é um frame FIXO fora dos dois scrolls (gutter e
-          // campo), pra ambos começarem o conteúdo em y=0 e rolarem em lockstep
-          // sem que o inset de topo desalinhe ao rolar.
+          // Topo: frame FIXO fora dos scrolls (gutter e campo em y=0, lockstep).
+          // Fundo: a folga mora DENTRO dos scrolls (`_padBottom` no ListView e no
+          // contentPadding do campo) — senão a última linha assenta no fio do
+          // viewport e a scrollbar horizontal (overlay) corta o número/texto.
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            padding: const EdgeInsets.only(top: _padTop),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -698,7 +704,7 @@ class _CodeEditorState extends State<CodeEditor> {
                     child: ListView.builder(
                       controller: _gutter,
                       physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
+                      padding: const EdgeInsets.only(bottom: _padBottom),
                       itemExtent: _lineHeight,
                       itemCount: lineCount,
                       itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
@@ -760,7 +766,10 @@ class _CodeEditorState extends State<CodeEditor> {
                               decoration: const InputDecoration(
                                 isCollapsed: true,
                                 border: InputBorder.none,
-                                contentPadding: EdgeInsets.zero,
+                                // Mesma folga do gutter — mantém lockstep no fim.
+                                contentPadding: EdgeInsets.only(
+                                  bottom: _padBottom,
+                                ),
                               ),
                             ),
                           ),

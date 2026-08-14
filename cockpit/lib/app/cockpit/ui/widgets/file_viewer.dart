@@ -1109,7 +1109,9 @@ class _TextViewState extends State<_TextView> {
           controller: _vertical,
           child: SingleChildScrollView(
             controller: _vertical,
-            padding: const EdgeInsets.symmetric(vertical: 14),
+            // Fundo maior que o topo: a scrollbar horizontal é overlay no
+            // rodapé do viewport e cortava a última linha do gutter/código.
+            padding: const EdgeInsets.fromLTRB(0, 14, 0, 28),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
