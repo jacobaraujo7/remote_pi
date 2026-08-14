@@ -11,7 +11,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Espelha a política de `_ensureScmCoordinator` / `openFile` / `openChangedFile`
-/// do `CockpitViewModel` sem montar o VM inteiro (31 deps).
+/// / `_restoreSession(viewer)` do `CockpitViewModel` sem montar o VM inteiro
+/// (31 deps).
 class _FakeReader implements GitHeadBaselineReader {
   _FakeReader(this.blobs);
 
@@ -112,6 +113,70 @@ void main() {
     expect(session.scmCoordinator, same(first));
 
     session.dispose();
+  });
+
+  test('restauração de sessão: ensure anexa coordenador como na abertura', () {
+    fakeAsync((async) {
+      final fake = _FakeReader({'/repo/a.txt': 'a\n'});
+      final cache = ScmBaselineCache(fake);
+      // Espelha `_restoreSession(viewer)`: cria a sessão e só depois ensure
+      // (antes do FileViewer montar / attachController).
+      final session = FileViewerSession(
+        id: 'v-restored',
+        projectId: 'p',
+        path: '/repo/a.txt',
+        view: const FileViewText('a\nb\n', language: 'txt'),
+      );
+      expect(session.scmCoordinator, isNull);
+
+      ensureScmCoordinator(
+        session,
+        cache: cache,
+        resolveGitRoot: (_) => '/repo',
+      );
+      expect(session.scmCoordinator, isNotNull);
+
+      final ctrl = CodeEditingController(text: 'a\nb\n', language: 'txt');
+      session.scmCoordinator!.attachController(ctrl);
+      _flush(async);
+      expect(session.scmDecorations.addedLines, contains(2));
+
+      session.dispose();
+      ctrl.dispose();
+    });
+  });
+
+  test('attachScmCoordinator notifica para bind tardio do controller', () {
+    fakeAsync((async) {
+      final fake = _FakeReader({'/repo/a.txt': 'a\n'});
+      final cache = ScmBaselineCache(fake);
+      final session = FileViewerSession(
+        id: 'v1',
+        projectId: 'p',
+        path: '/repo/a.txt',
+        view: const FileViewText('a\nb\n', language: 'txt'),
+      );
+
+      var notified = 0;
+      session.addListener(() => notified++);
+
+      ensureScmCoordinator(
+        session,
+        cache: cache,
+        resolveGitRoot: (_) => '/repo',
+      );
+      expect(notified, greaterThan(0));
+      expect(session.scmCoordinator, isNotNull);
+
+      // Simula FileViewer que só liga o controller ao receber o notify.
+      final ctrl = CodeEditingController(text: 'a\nb\n', language: 'txt');
+      session.scmCoordinator!.attachController(ctrl);
+      _flush(async);
+      expect(session.scmDecorations.addedLines, contains(2));
+
+      session.dispose();
+      ctrl.dispose();
+    });
   });
 
   test(

@@ -339,11 +339,11 @@ class _FileViewerState extends State<FileViewer> {
   void _onSession() {
     final revealChanged = widget.session.revealTick != _lastRevealTick;
     final scmChanged = widget.session.scmDecorations != _lastScmDecorations;
+    final ctrl = _ctrl;
+    if (ctrl != null) _bindScmCoordinator(ctrl);
     if (!revealChanged && !scmChanged) return;
     _lastRevealTick = widget.session.revealTick;
     _lastScmDecorations = widget.session.scmDecorations;
-    final ctrl = _ctrl;
-    if (ctrl != null) _bindScmCoordinator(ctrl);
     if (!mounted) return;
     setState(() {
       if (revealChanged && _hasPreview) _editing = true;

@@ -112,6 +112,7 @@ class FileViewerSession extends PaneItem {
   void attachScmCoordinator(ScmLineDecorationCoordinator coordinator) {
     scmCoordinator?.dispose();
     scmCoordinator = coordinator;
+    notifyListeners();
   }
 
   void clearScmDecorations() {
