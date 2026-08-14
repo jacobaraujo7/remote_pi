@@ -5,6 +5,9 @@ import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
+import 'package:flutter/material.dart'
+    as m
+    show Scrollbar, ScrollbarOrientation;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -246,6 +249,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const ValueKey('git-scm-overview')), findsOneWidget);
+    final verticalBar = tester
+        .widgetList<m.Scrollbar>(find.byType(m.Scrollbar))
+        .singleWhere(
+          (bar) => bar.scrollbarOrientation != m.ScrollbarOrientation.bottom,
+        );
+    final metrics = verticalBar.controller!.position;
+    final ruler = tester.widget<EditorOverviewRuler>(
+      find.byType(EditorOverviewRuler),
+    );
+    expect(ruler.scrollViewportExtent, metrics.viewportDimension);
+    expect(
+      ruler.scrollContentExtent,
+      metrics.maxScrollExtent -
+          metrics.minScrollExtent +
+          metrics.viewportDimension,
+    );
   });
 
   test('scmOverviewLineForDy mapeia proporção do documento', () {
@@ -255,6 +274,68 @@ void main() {
     expect(
       scmOverviewLineForDy(dy: (29.5 / 40) * 200, height: 200, lineCount: 40),
       30,
+    );
+  });
+
+  test('overview considera o tamanho mínimo do thumb da scrollbar', () {
+    const lineHeight = 20.0;
+    const lineCount = 400;
+    const contentHeight = 8000.0;
+    const viewport = 212.0;
+    const track = 212.0;
+    final thumb = overviewScrollbarThumbExtent(
+      contentExtent: contentHeight,
+      viewportExtent: viewport,
+      trackPaddingExtent: 0,
+      traversableTrackExtent: track,
+      minThumbExtent: 48,
+    );
+    expect(thumb, 48);
+
+    final geometry = OverviewRulerGeometry(
+      contentExtent: contentHeight,
+      viewportExtent: viewport,
+      trackStart: 0,
+      trackExtent: track,
+      thumbExtent: thumb,
+    );
+
+    // Linha 1 começa no topo da trilha.
+    expect(geometry.contentToTrack(0), 0);
+
+    // Se esse ponto estiver centralizado no viewport, seu indicador coincide
+    // exatamente com o centro do thumb, mesmo com o clamp mínimo de 48 px.
+    const contentPoint = 2010.0;
+    final centeredScrollOffset = contentPoint - viewport / 2;
+    final expectedThumbCenter =
+        (centeredScrollOffset / (contentHeight - viewport)) * (track - thumb) +
+        thumb / 2;
+    final indicatorY = geometry.contentToTrack(contentPoint);
+    expect(indicatorY, closeTo(expectedThumbCenter, 0.001));
+    expect(
+      indicatorY,
+      isNot(
+        closeTo(
+          overviewTrackY(
+            contentOffset: contentPoint,
+            contentHeight: contentHeight,
+            trackHeight: track,
+          ),
+          0.001,
+        ),
+      ),
+    );
+
+    expect(
+      overviewRulerLineForDy(
+        dy: indicatorY,
+        trackHeight: track,
+        lineCount: lineCount,
+        lineHeight: lineHeight,
+        contentExtent: contentHeight,
+        geometry: geometry,
+      ),
+      101,
     );
   });
 
@@ -281,7 +362,14 @@ void main() {
     final overview = find.byKey(const ValueKey('git-scm-overview'));
     expect(overview, findsOneWidget);
     final box = tester.getRect(overview);
-    final dy = (29.5 / 40) * box.height;
+    final ruler = tester.widget<EditorOverviewRuler>(
+      find.byType(EditorOverviewRuler),
+    );
+    final padding = MediaQuery.paddingOf(tester.element(overview));
+    final trackHeight = ruler.scrollViewportExtent! - padding.vertical;
+    final dy =
+        padding.top +
+        ((29.5 * ruler.lineHeight) / ruler.scrollContentExtent!) * trackHeight;
     await tester.tapAt(Offset(box.center.dx, box.top + dy));
     await tester.pumpAndSettle(const Duration(seconds: 1));
 

@@ -314,6 +314,44 @@ class _CodeEditorState extends State<CodeEditor> {
   // Hover de diagnostic ao nível de **linha** (não de coluna): mostra a(s)
   // mensagem(ns) da linha sob o mouse. Suficiente pro "suporte secundário".
   double _lineHeight = 18; // px por linha; recalculado no build via TextPainter
+
+  // Geometria publicada pelo ScrollPosition do TextField. A Scrollbar usa
+  // estes mesmos valores para pintar sua trilha e o overview deve compartilhar
+  // essa referência, em vez de inferi-la pela altura do Stack.
+  double? _overviewContentExtent;
+  double? _overviewViewportExtent;
+
+  bool _updateOverviewMetrics(ScrollMetricsNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) return false;
+    final metrics = notification.metrics;
+    final contentExtent =
+        metrics.maxScrollExtent -
+        metrics.minScrollExtent +
+        metrics.viewportDimension;
+    final viewportExtent = metrics.viewportDimension;
+    if (_overviewContentExtent == contentExtent &&
+        _overviewViewportExtent == viewportExtent) {
+      return false;
+    }
+    setState(() {
+      _overviewContentExtent = contentExtent;
+      _overviewViewportExtent = viewportExtent;
+    });
+    return false;
+  }
+
+  bool _isEditorVerticalScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical || !_vertical.hasClients) {
+      return false;
+    }
+    final notificationContext = notification.context;
+    if (notificationContext == null) return false;
+    return identical(
+      Scrollable.maybeOf(notificationContext)?.position,
+      _vertical.position,
+    );
+  }
+
   /// Frame de padding no topo, fora dos scrolls — gutter e campo começam em y=0.
   static const double _padTop = 14;
 
@@ -456,6 +494,12 @@ class _CodeEditorState extends State<CodeEditor> {
     // de texto repinta sozinho via buildTextSpan; o gutter depende de setState).
     if ((n != _lineCount || !identical(diag, _lastDiag)) && mounted) {
       setState(() {
+        if (n != _lineCount) {
+          // Não pinte um frame com a extensão do documento anterior. O novo
+          // layout publicará as métricas corretas logo após esta reconstrução.
+          _overviewContentExtent = null;
+          _overviewViewportExtent = null;
+        }
         _lineCount = n;
         _lastDiag = diag;
       });
@@ -664,170 +708,176 @@ class _CodeEditorState extends State<CodeEditor> {
     );
     final lineCount = _lineCount;
     final scm = widget.scmDecorations;
+    // `_padTop` fica FORA do Scrollbar vertical: trilha do thumb, overview e
+    // viewport do TextField compartilham a mesma altura (senão os ticks
+    // desalinhavam do scroll por 14px no topo).
     return Scrollbar(
       controller: _horizontal,
       thumbVisibility: true,
       scrollbarOrientation: ScrollbarOrientation.bottom,
       notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-      child: Scrollbar(
-        controller: _vertical,
-        notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
-        // O shadcn adiciona uma scrollbar vertical automática a cada Scrollable
-        // desktop. Gutter e TextField precisam de scrolls próprios para ficarem
-        // sincronizados, mas suas barras duplicariam a barra deste painel.
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Positioned.fill(
-              child: ScrollConfiguration(
-                behavior: const _CodeEditorScrollBehavior(),
-                // Topo: frame FIXO fora dos scrolls (gutter e campo em y=0, lockstep).
-                // Fundo: a folga mora DENTRO dos scrolls (`_padBottom` no ListView e no
-                // contentPadding do campo) — senão a última linha assenta no fio do
-                // viewport e a scrollbar horizontal (overlay) corta o número/texto.
-                child: Padding(
-                  padding: const EdgeInsets.only(top: _padTop),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Gutter — scroll próprio (travado ao input) espelhando `_vertical`.
-                      //
-                      // `ListView.builder` (e não `Column`): com uma Column, um arquivo
-                      // de 5k linhas materializava 5000 Rows+Texts A CADA rebuild — e
-                      // rebuild acontece até quando o mouse cruza uma linha (o tooltip
-                      // de diagnostic faz setState). Virtualizado, só as ~40 linhas
-                      // visíveis são construídas, e `severityForLine` (que varre os
-                      // diagnostics) roda só pra elas.
-                      //
-                      // `itemExtent: _lineHeight` é o que mantém o alinhamento 1:1 com
-                      // o texto — mesma métrica que o campo usa por linha — e ainda dá
-                      // scroll O(1) (o `jumpTo` do `_syncGutter` não precisa medir os
-                      // itens anteriores). Largura fixa porque a ListView, ao contrário
-                      // da Column dentro do SingleChildScrollView, não é intrínseca:
-                      // sem isso o gutter esticaria e comeria o campo.
-                      Padding(
-                        padding: const EdgeInsets.only(left: 14, right: 14),
-                        child: SizedBox(
-                          width: _iconSlot + _digitsWidth,
-                          child: ListView.builder(
-                            controller: _gutter,
-                            physics: const NeverScrollableScrollPhysics(),
-                            padding: const EdgeInsets.only(bottom: _padBottom),
-                            itemExtent: _lineHeight,
-                            itemCount: lineCount,
-                            itemBuilder: (context, i) =>
-                                _gutterLine(i + 1, numStyle),
-                          ),
-                        ),
-                      ),
-                      Container(
-                        width: 1,
-                        color: syntax.base.withValues(alpha: 0.15),
-                      ),
-                      Expanded(
-                        child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            // Largura mínima = viewport (menos o padding H). Sem isso, o
-                            // IntrinsicWidth colapsa o campo a ~0 quando o arquivo está
-                            // vazio (recém-criado) → sem área pra clicar/digitar.
-                            final minWidth = (constraints.maxWidth - 30).clamp(
-                              0.0,
-                              double.infinity,
-                            );
-                            return SingleChildScrollView(
-                              controller: _horizontal,
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.only(
-                                left: 14,
-                                right: 16,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: _padTop),
+          Expanded(
+            child: Scrollbar(
+              controller: _vertical,
+              // Há dois scrollables verticais sob esta barra (gutter e campo).
+              // Aceitar o gutter faria o thumb trocar de geometria conforme a
+              // ordem das notificações, enquanto o overview segue o campo.
+              notificationPredicate: _isEditorVerticalScroll,
+              // O shadcn adiciona uma scrollbar vertical automática a cada
+              // Scrollable desktop. Gutter e TextField precisam de scrolls
+              // próprios para ficarem sincronizados, mas suas barras
+              // duplicariam a barra deste painel.
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Positioned.fill(
+                    child: ScrollConfiguration(
+                      behavior: const _CodeEditorScrollBehavior(),
+                      // Folga inferior DENTRO dos scrolls (`_padBottom`) — a
+                      // última linha assenta acima da scrollbar horizontal.
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Gutter — scroll próprio (travado ao input) espelhando
+                          // `_vertical`.
+                          //
+                          // `ListView.builder` (e não `Column`): com uma Column, um
+                          // arquivo de 5k linhas materializava 5000 Rows+Texts A
+                          // CADA rebuild — e rebuild acontece até quando o mouse
+                          // cruza uma linha (o tooltip de diagnostic faz setState).
+                          // Virtualizado, só as ~40 linhas visíveis são construídas,
+                          // e `severityForLine` (que varre os diagnostics) roda só
+                          // pra elas.
+                          //
+                          // `itemExtent: _lineHeight` é o que mantém o alinhamento
+                          // 1:1 com o texto — mesma métrica que o campo usa por
+                          // linha — e ainda dá scroll O(1) (o `jumpTo` do
+                          // `_syncGutter` não precisa medir os itens anteriores).
+                          // Largura fixa porque a ListView, ao contrário da Column
+                          // dentro do SingleChildScrollView, não é intrínseca:
+                          // sem isso o gutter esticaria e comeria o campo.
+                          Padding(
+                            padding: const EdgeInsets.only(left: 14, right: 14),
+                            child: SizedBox(
+                              width: _iconSlot + _digitsWidth,
+                              child: ListView.builder(
+                                controller: _gutter,
+                                physics: const NeverScrollableScrollPhysics(),
+                                padding: const EdgeInsets.only(
+                                  bottom: _padBottom,
+                                ),
+                                itemExtent: _lineHeight,
+                                itemCount: lineCount,
+                                itemBuilder: (context, i) =>
+                                    _gutterLine(i + 1, numStyle),
                               ),
-                              // `TextField` (e não `EditableText` cru) pra ganhar os
-                              // gestos de seleção do desktop: arrastar com o mouse,
-                              // duplo-clique, Cmd+A. O highlight vem do `buildTextSpan`
-                              // do controller; a decoração é zerada (sem borda/fundo).
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(minWidth: minWidth),
-                                child: IntrinsicWidth(
-                                  child: TextField(
-                                    controller: widget.controller,
-                                    focusNode: widget.focusNode,
-                                    // O campo é o DONO do scroll vertical (scroll interno)
-                                    // → fica parado no espaço global e a âncora da seleção
-                                    // não escorrega durante o auto-scroll do drag.
-                                    scrollController: _vertical,
-                                    style: codeStyle,
-                                    cursorColor: syntax.base,
-                                    maxLines: null,
-                                    minLines: null,
-                                    // Preenche a altura do viewport e rola o conteúdo
-                                    // internamente; o gutter espelha via `_syncGutter`.
-                                    expands: true,
-                                    keyboardType: TextInputType.multiline,
-                                    // `onTap` do próprio TextField dispara DEPOIS que o
-                                    // toque já moveu `controller.selection` pra posição
-                                    // clicada (comportamento interno do EditableText) —
-                                    // por isso lemos a seleção aqui, não num
-                                    // GestureDetector externo (que veria a seleção ANTIGA,
-                                    // antes do TextField processar o tap).
-                                    onTap: _definitionModeActive
-                                        ? _onDefinitionTap
-                                        : null,
-                                    // TextField sempre define seu PRÓPRIO cursor (I-beam)
-                                    // por padrão — sobrescreve o `MouseRegion` externo, que
-                                    // nunca vencia a resolução de cursor (o descendente mais
-                                    // específico ganha). Precisa ser setado aqui pra virar
-                                    // clicável de fato durante o hover de definition.
-                                    mouseCursor: _defCursor,
-                                    decoration: const InputDecoration(
-                                      isCollapsed: true,
-                                      border: InputBorder.none,
-                                      // Mesma folga do gutter — mantém lockstep no fim.
-                                      contentPadding: EdgeInsets.only(
-                                        bottom: _padBottom,
-                                      ),
+                            ),
+                          ),
+                          Container(
+                            width: 1,
+                            color: syntax.base.withValues(alpha: 0.15),
+                          ),
+                          Expanded(
+                            child: LayoutBuilder(
+                              builder: (context, constraints) {
+                                // Largura mínima = viewport (menos o padding H).
+                                // Sem isso, o IntrinsicWidth colapsa o campo a ~0
+                                // quando o arquivo está vazio → sem área pra
+                                // clicar/digitar.
+                                final minWidth = (constraints.maxWidth - 30)
+                                    .clamp(0.0, double.infinity);
+                                return SingleChildScrollView(
+                                  controller: _horizontal,
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.only(
+                                    left: 14,
+                                    right: 16,
+                                  ),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minWidth: minWidth,
+                                    ),
+                                    child: IntrinsicWidth(
+                                      child:
+                                          NotificationListener<
+                                            ScrollMetricsNotification
+                                          >(
+                                            onNotification:
+                                                _updateOverviewMetrics,
+                                            child: TextField(
+                                              controller: widget.controller,
+                                              focusNode: widget.focusNode,
+                                              scrollController: _vertical,
+                                              style: codeStyle,
+                                              cursorColor: syntax.base,
+                                              maxLines: null,
+                                              minLines: null,
+                                              expands: true,
+                                              keyboardType:
+                                                  TextInputType.multiline,
+                                              onTap: _definitionModeActive
+                                                  ? _onDefinitionTap
+                                                  : null,
+                                              mouseCursor: _defCursor,
+                                              decoration: const InputDecoration(
+                                                isCollapsed: true,
+                                                border: InputBorder.none,
+                                                contentPadding: EdgeInsets.only(
+                                                  bottom: _padBottom,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                     ),
                                   ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            // Overview multi-coluna sob a scrollbar (git agora; diagnostics depois).
-            // A Scrollbar pai pinta o thumb por cima desta strip.
-            if (!scm.isEmpty)
-              Positioned(
-                key: const ValueKey('git-scm-overview'),
-                top: _padTop,
-                right: 0,
-                bottom: 0,
-                width: kOverviewGitColumnWidth,
-                child: EditorOverviewRuler(
-                  lineCount: lineCount,
-                  onJumpToLine: (line) => _reveal(line, select: false),
-                  columns: [
-                    // Direita = sob a scrollbar. Colunas futuras (errors) entram
-                    // à esquerda desta.
-                    OverviewRulerColumn(
-                      lane: OverviewRulerLane.git,
-                      width: kOverviewGitColumnWidth,
-                      marks: _scmOverviewMarks(
-                        scm,
-                        added: colors.online,
-                        modified: colors.accent,
-                        deleted: colors.gitDeleted,
+                                );
+                              },
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  // Overview na mesma caixa da Scrollbar vertical (top/bottom
+                  // 0), usando as métricas efetivas do mesmo TextField.
+                  if (!scm.isEmpty &&
+                      _overviewContentExtent != null &&
+                      _overviewViewportExtent != null)
+                    Positioned(
+                      key: const ValueKey('git-scm-overview'),
+                      top: 0,
+                      right: 0,
+                      bottom: 0,
+                      width: kOverviewGitColumnWidth,
+                      child: EditorOverviewRuler(
+                        lineCount: lineCount,
+                        lineHeight: _lineHeight,
+                        scrollContentExtent: _overviewContentExtent,
+                        scrollViewportExtent: _overviewViewportExtent,
+                        onJumpToLine: (line) => _reveal(line, select: false),
+                        columns: [
+                          OverviewRulerColumn(
+                            lane: OverviewRulerLane.git,
+                            width: kOverviewGitColumnWidth,
+                            marks: _scmOverviewMarks(
+                              scm,
+                              added: colors.online,
+                              modified: colors.accent,
+                              deleted: colors.gitDeleted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       ),
     );
   }
