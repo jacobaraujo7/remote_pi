@@ -2075,10 +2075,12 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
 
   _pi = pi;
 
-  // Plan/57 — bridge Pi ask_user and OMP ask clarification flows to the
-  // paired app. Pi ask_user uses its event contract; OMP exposes askDialog on
-  // the ExtensionContext UI object. The bridge is inert for stock Pi hosts
-  // without either surface.
+  // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
+  // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
+  // events bus. OMP's optional askDialog path is attached to the current
+  // session UI below. ask_user without pi-ask doesn't exist, so this never
+  // breaks a Pi that doesn't use the extension. Dispose any prior bridge first
+  // so a factory re-run (new pi session) can't leak subscriptions or double-send.
   _extensionUiBridge?.dispose();
   _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive, {
     hasActivePeer: _anyPeerActive,
@@ -2341,10 +2343,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
-    // session_shutdown disposes the bridge's per-session subscriptions and
-    // restores any OMP askDialog wrapper. Rebind it here when a host reuses
-    // this module instance across a session replacement; fresh-module hosts
-    // already created it in the factory.
+    // session_shutdown disposes per-session pi-ask subscriptions and restores
+    // any OMP askDialog wrapper. A host that reuses this module instance does
+    // NOT re-run the factory, so rebind the bridge here; fresh-module hosts
+    // already created theirs in the factory.
     if (!_extensionUiBridge) {
       _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive, {
         hasActivePeer: _anyPeerActive,

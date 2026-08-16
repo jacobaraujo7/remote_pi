@@ -101,22 +101,20 @@ Then in the Pi chat, run:
 The setup wizard walks you through agent name, session name, and relay choice,
 then prints a QR code. Scan it with the Remote Pi mobile app and you're paired.
 
-### Structured clarification prompts
+### Recommended companion: `@eko24ive/pi-ask`
 
-Remote Pi renders rich clarification prompts in the mobile app when the host
-exposes either:
+```bash
+pi install npm:@eko24ive/pi-ask
+```
 
-- OMP's built-in `ask` tool; no additional package is required.
-- Pi's `ask_user` tool from `@eko24ive/pi-ask`:
+With pi-ask installed, the agent's `ask_user` clarification prompts (structured
+questions with options, multi-select, and previews) render natively in the
+mobile app — answer from your phone and the flow resolves on the desktop.
+Without it, the agent simply asks in plain chat text (also answerable from the
+phone, just unstructured). Remote Pi works either way; pi-ask is optional.
 
-  ```bash
-  pi install npm:@eko24ive/pi-ask
-  ```
-
-Both paths support multiple questions, multi-select options, custom answers,
-descriptions, and previews. Remote Pi races the paired app against the local
-desktop dialog; the first answer wins. With no paired app, OMP falls back to
-its normal local UI.
+OMP's built-in `ask` tool is also bridged to the same mobile prompt surface; it
+does not require installing `@eko24ive/pi-ask`.
 
 ## Status
 
