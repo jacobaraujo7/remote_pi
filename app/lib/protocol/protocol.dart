@@ -1383,14 +1383,10 @@ class Bye extends ServerMessage {
 
 // ---------------------------------------------------------------------------
 // Plan/57 — extension_ui_request bridge (mirror SDK RPC contract)
-//
-// Interactive extension prompts (ask_user today, via @eko24ive/pi-ask) are
-// rendered natively instead of stranding the mobile user. The wire mirrors the
-// SDK's `pi --mode rpc` extension_ui_request / extension_ui_response contract
-// (RpcExtensionUIRequest/Response), so the app and the Cockpit share one
-// interactive-UI vocabulary. pi-ask's richer schema (multi/preview/notes) rides
-// in an optional `ask` envelope; strict handling ignores it. Inert when pi-ask
-// is absent (the tool doesn't exist → no frames ever arrive).
+// Interactive extension prompts are rendered natively instead of stranding
+// the mobile user. Pi's pi-ask `ask_user` flow and OMP's built-in `ask` flow
+// share this wire contract. Rich multi/preview questions ride in an optional
+// `ask` envelope; strict clients can ignore it.
 // ---------------------------------------------------------------------------
 
 /// `select` | `confirm` | `input` | `editor` | `notify` (SDK methods). `notify`
@@ -1413,7 +1409,7 @@ enum ExtensionUiMethod {
   }
 }
 
-/// pi-ask AskQuestionType — `single` (one answer) | `multi` (several) |
+/// Ask question type — `single` (one answer) | `multi` (several) |
 /// `preview` (options carry a preview pane).
 enum AskQuestionWireType {
   single('single'),
@@ -1498,7 +1494,7 @@ class AskQuestionWire {
       );
 }
 
-/// Optional pi-ask enrichment on an `extension_ui_request`. When present, the
+/// Optional rich enrichment on an `extension_ui_request`. When present, the
 /// app renders the full flow (multi/preview/notes) from [questions] instead of
 /// the degraded SDK method. One request carries the whole flow.
 class AskEnrichmentWire {
