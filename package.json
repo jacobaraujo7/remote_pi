@@ -1,0 +1,13 @@
+{
+  "name": "remote-pi-monorepo",
+  "version": "0.6.0",
+  "private": true,
+  "workspaces": [
+    "pi-extension"
+  ],
+  "pi": {
+    "extensions": [
+      "./pi-extension/src/index.ts"
+    ]
+  }
+}
