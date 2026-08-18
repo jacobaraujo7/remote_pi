@@ -563,6 +563,30 @@ class _WorktreeChevron extends StatelessWidget {
   }
 }
 
+class _CardTrailingSlot extends StatelessWidget {
+  const _CardTrailingSlot({
+    required this.menu,
+    required this.hasWorktrees,
+    required this.expanded,
+  });
+
+  final Widget menu;
+  final bool hasWorktrees;
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasWorktrees) return menu;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        menu,
+        _WorktreeChevron(expanded: expanded),
+      ],
+    );
+  }
+}
+
 /// Envolve um badge/chip informativo pra que o clique nele **pare** ali: sem
 /// isto o toque cairia no card e alternaria a lista de worktrees, que não é o
 /// que alguém mirando um indicador espera. Chips com ação própria
@@ -826,26 +850,23 @@ class _RemoteSlot extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (hasWorktrees) ...[
-                  const SizedBox(width: 4),
-                  _WorktreeChevron(expanded: expanded),
-                ],
                 const SizedBox(width: 2),
-                // Builder: o menu ancora no RenderBox do context passado a
-                // showAppMenu. Sem isto, o context do slot inteiro faria o popup
-                // abrir na largura toda (aparecia "embaixo"); com o Builder o
-                // context é o do ícone, igual ao workspace local.
-                Builder(
-                  builder: (iconContext) => GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapUp: (_) => _showMenu(iconContext),
-                    child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: Icon(
-                        Icons.more_vert,
-                        size: 14,
-                        color: context.colors.text3,
+                _CardTrailingSlot(
+                  hasWorktrees: hasWorktrees,
+                  expanded: expanded,
+                  menu: Builder(
+                    // O menu ancora no RenderBox do ícone, não no slot inteiro.
+                    builder: (iconContext) => GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (_) => _showMenu(iconContext),
+                      child: SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: Icon(
+                          Icons.more_vert,
+                          size: 14,
+                          color: context.colors.text3,
+                        ),
                       ),
                     ),
                   ),
@@ -1005,22 +1026,22 @@ class _ProjectItem extends StatelessWidget {
                   ),
                   const SizedBox(width: 4),
                 ],
-                if (hasWorktrees) ...[
-                  _WorktreeChevron(expanded: expanded),
-                  const SizedBox(width: 2),
-                ],
-                _MenuButton(
-                  workspaceId: project.id,
-                  canCreateWorktree: canCreateWorktree,
-                  roots: roots,
-                  onConfigure: onConfigure,
-                  onDelete: onDelete,
-                  onCreateWorktree: onCreateWorktree,
-                  onSync: onSync,
-                  onPull: onPull,
-                  onPush: onPush,
-                  moveTargets: moveTargets,
-                  onMoveToRealm: onMoveToRealm,
+                _CardTrailingSlot(
+                  hasWorktrees: hasWorktrees,
+                  expanded: expanded,
+                  menu: _MenuButton(
+                    workspaceId: project.id,
+                    canCreateWorktree: canCreateWorktree,
+                    roots: roots,
+                    onConfigure: onConfigure,
+                    onDelete: onDelete,
+                    onCreateWorktree: onCreateWorktree,
+                    onSync: onSync,
+                    onPull: onPull,
+                    onPush: onPush,
+                    moveTargets: moveTargets,
+                    onMoveToRealm: onMoveToRealm,
+                  ),
                 ),
               ],
             ),
