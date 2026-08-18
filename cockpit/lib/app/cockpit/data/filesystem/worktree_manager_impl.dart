@@ -234,12 +234,8 @@ class WorktreeManagerImpl implements WorktreeManager {
             }
           }
           if (copyUntracked) {
-            final untracked = await _listGitFiles(git, repoPath, [
-              'ls-files',
-              '--others',
-              '--exclude-standard',
-            ]);
-            for (final f in untracked) {
+            final changed = await _listUntrackedAndModifiedFiles(git, repoPath);
+            for (final f in changed) {
               if (!f.startsWith('$worktreesSubdir/') &&
                   !f.startsWith('.pi/remote/worktrees/') &&
                   !f.startsWith('.git/')) {
@@ -287,6 +283,47 @@ class WorktreeManagerImpl implements WorktreeManager {
       output: controller.stream,
       result: resultCompleter.future,
     );
+  }
+
+  Future<List<String>> _listUntrackedAndModifiedFiles(
+    String git,
+    String repoPath,
+  ) async {
+    try {
+      final res = await Process.run(git, [
+        '-C',
+        repoPath,
+        'status',
+        '--porcelain=v1',
+        '-z',
+        '-uall',
+      ]);
+      if (res.exitCode != 0) return const [];
+      final stdout = res.stdout as String;
+      if (stdout.isEmpty) return const [];
+      final tokens = stdout.split('\u0000');
+      final result = <String>[];
+      for (var i = 0; i < tokens.length; i++) {
+        final token = tokens[i];
+        if (token.length < 4) continue;
+        final x = token[0];
+        final y = token[1];
+        var path = token.substring(3);
+        // Rename/copy no index ou worktree tem o path anterior no próximo token NUL
+        if (x == 'R' || x == 'C' || y == 'R' || y == 'C') {
+          i++;
+        }
+        if (path.endsWith('/')) {
+          path = path.substring(0, path.length - 1);
+        }
+        if (path.isNotEmpty) {
+          result.add(path);
+        }
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<String>> _listGitFiles(
@@ -337,6 +374,11 @@ class WorktreeManagerImpl implements WorktreeManager {
         if (await srcFile.exists()) {
           await srcFile.copy(dest);
           count++;
+        } else {
+          final destFile = File(dest);
+          if (await destFile.exists()) {
+            await destFile.delete();
+          }
         }
       } catch (e) {
         await _emit(controller, 'Warning: failed to copy $relPath: $e');

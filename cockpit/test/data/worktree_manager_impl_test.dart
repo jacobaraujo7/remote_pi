@@ -216,7 +216,7 @@ void main() {
     );
   });
 
-  test('add com copyIgnored e copyUntracked copia os arquivos corretos', () async {
+  test('add com copyIgnored e copyUntracked copia os arquivos corretos e preserva alterações locais em rastreados', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git não disponível no ambiente');
       return;
@@ -233,7 +233,17 @@ void main() {
     final untrackedFile = File('${repo.path}/untracked.txt');
     await untrackedFile.writeAsString('untracked content');
 
-    // 3. Cria worktree com cópia ativada
+    // 3. Modifica um arquivo já rastreado no git (alteração local não commitada)
+    await File('${repo.path}/README.md').writeAsString('hello modified locally');
+
+    // 4. Cria outro arquivo rastreado e adiciona ao stage (staged)
+    await File('${repo.path}/staged.txt').writeAsString('initial staged');
+    await git(['add', 'staged.txt']);
+    await git(['commit', '-m', 'add staged.txt']);
+    await File('${repo.path}/staged.txt').writeAsString('staged change');
+    await git(['add', 'staged.txt']);
+
+    // 5. Cria worktree com cópia ativada
     final run = manager.add(
       repo.path,
       'feat/copy-enabled',
@@ -252,8 +262,14 @@ void main() {
     expect(File('${wt.path}/.env').readAsStringSync(), 'SECRET=123');
     expect(File('${wt.path}/untracked.txt').existsSync(), isTrue);
     expect(File('${wt.path}/untracked.txt').readAsStringSync(), 'untracked content');
+    // Verifica que a alteração local do arquivo rastreado foi copiada para o novo worktree
+    expect(File('${wt.path}/README.md').existsSync(), isTrue);
+    expect(File('${wt.path}/README.md').readAsStringSync(), 'hello modified locally');
+    // Verifica que a alteração staged também foi copiada
+    expect(File('${wt.path}/staged.txt').existsSync(), isTrue);
+    expect(File('${wt.path}/staged.txt').readAsStringSync(), 'staged change');
 
-    // 4. Cria outra worktree com cópias desativadas
+    // 6. Cria outra worktree com cópias desativadas
     final runDisabled = manager.add(
       repo.path,
       'feat/copy-disabled',
@@ -270,5 +286,9 @@ void main() {
 
     expect(File('${wtDisabled.path}/.env').existsSync(), isFalse);
     expect(File('${wtDisabled.path}/untracked.txt').existsSync(), isFalse);
+    // Com cópia desativada, o arquivo rastreado mantém o conteúdo do commit base
+    expect(File('${wtDisabled.path}/README.md').existsSync(), isTrue);
+    expect(File('${wtDisabled.path}/README.md').readAsStringSync(), 'hello');
+    expect(File('${wtDisabled.path}/staged.txt').readAsStringSync(), 'initial staged');
   });
 }
