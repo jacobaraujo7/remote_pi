@@ -39,6 +39,28 @@ String? branchOfRoot(List<RailRoot> roots, String rootPath) {
   return null;
 }
 
+/// O que um clique no **card** do workspace faz (V37). `select` = selecionar o
+/// workspace; `expand` = novo estado da lista de worktrees (`null` = não mexer,
+/// caso do workspace sem fork nenhum — não há lista a alternar).
+///
+/// Não selecionado → seleciona e já deixa a lista aberta (uma ação, dois
+/// resultados). Já selecionado → o clique só alterna a lista.
+@visibleForTesting
+({bool select, bool? expand}) workspaceCardTap({
+  required bool selected,
+  required bool expanded,
+  required bool hasWorktrees,
+}) {
+  if (!hasWorktrees) return (select: !selected, expand: null);
+  // Selecionar nunca recolhe: o clique que traz o workspace pra frente abre a
+  // lista junto. Já selecionado, esse mesmo clique passa a ser só o toggle.
+  return (select: !selected, expand: selected ? !expanded : true);
+}
+
+/// Tempo do toggle de worktrees: o chevron gira e a lista anima a altura nesta
+/// duração. Só esses dois animam — o card/cabeçalho não se move.
+const Duration _kToggleDuration = Duration(milliseconds: 150);
+
 /// Rail esquerda (~252px): cabeçalho "Sessions", lista de projetos (avatar +
 /// nome + git + contador de notificações), rodapé com o seletor de realm.
 class ProjectsRail extends StatefulWidget {
@@ -46,6 +68,8 @@ class ProjectsRail extends StatefulWidget {
     super.key,
     required this.projects,
     required this.worktreesOf,
+    required this.worktreesExpanded,
+    required this.onWorktreesExpanded,
     required this.selectedId,
     required this.notificationCount,
     required this.gitInfo,
@@ -116,6 +140,12 @@ class ProjectsRail extends StatefulWidget {
 
   /// Worktrees (forks) de um workspace raiz, na ordem do git.
   final List<Project> Function(String rootId) worktreesOf;
+
+  /// `true` se a lista de worktrees do workspace raiz está expandida (V37).
+  final bool Function(String rootId) worktreesExpanded;
+
+  /// Expande/recolhe a lista de worktrees de um workspace raiz.
+  final void Function(String rootId, bool expanded) onWorktreesExpanded;
 
   final String? selectedId;
   final int Function(String projectId) notificationCount;
@@ -189,6 +219,20 @@ class _ProjectsRailState extends State<ProjectsRail> {
   void dispose() {
     _scroll.dispose();
     super.dispose();
+  }
+
+  /// Clique no card do workspace [project] (V37): seleciona e/ou alterna a
+  /// lista de worktrees, conforme [workspaceCardTap]. [onSelect] varia entre
+  /// local e remoto — o resto da regra é o mesmo pros dois.
+  void _onCardTap(Project project, VoidCallback onSelect) {
+    final action = workspaceCardTap(
+      selected: project.id == widget.selectedId,
+      expanded: widget.worktreesExpanded(project.id),
+      hasWorktrees: widget.worktreesOf(project.id).isNotEmpty,
+    );
+    if (action.select) onSelect();
+    final expand = action.expand;
+    if (expand != null) widget.onWorktreesExpanded(project.id, expand);
   }
 
   /// Os forks de um workspace, com `isLast` marcado pra linha de árvore fechar
@@ -317,53 +361,88 @@ class _ProjectsRailState extends State<ProjectsRail> {
                                   selected: project.id == widget.selectedId,
                                   git: widget.remoteGitInfoOf(project.id),
                                   moveTargets: widget.moveTargetsOf(project.id),
-                                  onTap: () => widget.onSelectRemote(project.id),
-                                  onAction: (action) => widget
-                                      .onRemoteWorkspaceAction(project.id, action),
-                                  onRemove: () =>
-                                      widget.onRemoveRemoteWorkspace(project.id),
+                                  worktreeCount: widget
+                                      .worktreesOf(project.id)
+                                      .length,
+                                  hasWorktrees: widget
+                                      .worktreesOf(project.id)
+                                      .isNotEmpty,
+                                  expanded: widget.worktreesExpanded(
+                                    project.id,
+                                  ),
+                                  onTap: () => _onCardTap(
+                                    project,
+                                    () => widget.onSelectRemote(project.id),
+                                  ),
+                                  onAction: (action) =>
+                                      widget.onRemoteWorkspaceAction(
+                                        project.id,
+                                        action,
+                                      ),
+                                  onRemove: () => widget
+                                      .onRemoveRemoteWorkspace(project.id),
                                 ),
                               ),
-                              ..._remoteForks(project),
+                              _ForkList(
+                                expanded: widget.worktreesExpanded(project.id),
+                                children: _remoteForks(project),
+                              ),
                             ] else ...[
-                            _WorkspaceReorderable(
-                              projectId: project.id,
-                              title: project.name,
-                              colorValue: project.colorValue,
-                              initial: project.initial,
-                              imagePath: project.imagePath,
-                              onReorder: widget.onReorder,
-                              child: _ProjectItem(
-                                project: project,
-                                selected: project.id == widget.selectedId,
-                                notifications: widget.notificationCount(
-                                  project.id,
+                              _WorkspaceReorderable(
+                                projectId: project.id,
+                                title: project.name,
+                                colorValue: project.colorValue,
+                                initial: project.initial,
+                                imagePath: project.imagePath,
+                                onReorder: widget.onReorder,
+                                child: _ProjectItem(
+                                  project: project,
+                                  selected: project.id == widget.selectedId,
+                                  notifications: widget.notificationCount(
+                                    project.id,
+                                  ),
+                                  git: widget.gitInfo(project.id),
+                                  rootsSummary: widget.rootsSummary(project.id),
+                                  worktreeCount: widget
+                                      .worktreesOf(project.id)
+                                      .length,
+                                  // "Criar worktree" só faz sentido em repo git
+                                  // (single ou multi-root — na multi a page pede
+                                  // a root alvo antes).
+                                  canCreateWorktree:
+                                      widget.gitInfo(project.id) != null ||
+                                      widget.rootsSummary(project.id).$1 > 1,
+                                  hasWorktrees: widget
+                                      .worktreesOf(project.id)
+                                      .isNotEmpty,
+                                  expanded: widget.worktreesExpanded(
+                                    project.id,
+                                  ),
+                                  onTap: () => _onCardTap(
+                                    project,
+                                    () => widget.onSelect(project.id),
+                                  ),
+                                  onConfigure: () =>
+                                      widget.onConfigure(project),
+                                  onDelete: () => widget.onDelete(project),
+                                  roots: widget.rootsOf(project.id),
+                                  onCreateWorktree: (r) =>
+                                      widget.onCreateWorktree(project, r),
+                                  onSync: (r) => widget.onSync(project, r),
+                                  onPull: (r) => widget.onPull(project, r),
+                                  onPush: (r) => widget.onPush(project, r),
+                                  moveTargets: widget.moveTargetsOf(project.id),
+                                  onMoveToRealm: (realmId) =>
+                                      widget.onMoveToRealm(project.id, realmId),
                                 ),
-                                git: widget.gitInfo(project.id),
-                                rootsSummary: widget.rootsSummary(project.id),
-                                // "Criar worktree" só faz sentido em repo git
-                                // (single ou multi-root — na multi a page pede
-                                // a root alvo antes).
-                                canCreateWorktree:
-                                    widget.gitInfo(project.id) != null ||
-                                    widget.rootsSummary(project.id).$1 > 1,
-                                onTap: () => widget.onSelect(project.id),
-                                onConfigure: () => widget.onConfigure(project),
-                                onDelete: () => widget.onDelete(project),
-                                roots: widget.rootsOf(project.id),
-                                onCreateWorktree: (r) =>
-                                    widget.onCreateWorktree(project, r),
-                                onSync: (r) => widget.onSync(project, r),
-                                onPull: (r) => widget.onPull(project, r),
-                                onPush: (r) => widget.onPush(project, r),
-                                moveTargets: widget.moveTargetsOf(project.id),
-                                onMoveToRealm: (realmId) =>
-                                    widget.onMoveToRealm(project.id, realmId),
                               ),
-                            ),
-                            // Worktrees (forks) penduradas abaixo do workspace,
-                            // sempre expandidas (plan/42, decisões 5, 12).
-                            ..._forkItems(project),
+                              // Worktrees (forks) penduradas abaixo do workspace,
+                              // expandidas/recolhidas pelo toggle do card (V37;
+                              // antes eram sempre visíveis — plan/42, dec. 5, 12).
+                              _ForkList(
+                                expanded: widget.worktreesExpanded(project.id),
+                                children: _forkItems(project),
+                              ),
                             ],
                           ],
                         ],
@@ -403,6 +482,91 @@ class _ProjectsRailState extends State<ProjectsRail> {
       ),
     );
   }
+}
+
+/// Lista de worktrees de um workspace, animada em **altura** ao expandir e
+/// recolher (V37). Só ela anima: o card acima mantém a mesma altura o tempo
+/// todo, então nada se desloca além da lista. Recolhida por completo, os itens
+/// saem da árvore (não ficam com altura zero atrás de um clip).
+class _ForkList extends StatelessWidget {
+  const _ForkList({required this.expanded, required this.children});
+
+  final bool expanded;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (children.isEmpty) return const SizedBox.shrink();
+    return AnimatedSize(
+      duration: _kToggleDuration,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: expanded
+          ? Column(mainAxisSize: MainAxisSize.min, children: children)
+          : const SizedBox.shrink(),
+    );
+  }
+}
+
+class _WorktreeSummary extends StatelessWidget {
+  const _WorktreeSummary({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Icon(Icons.call_split, size: 12, color: colors.text3),
+        const SizedBox(width: 6),
+        Text(
+          context.t.cockpit.projectsRail.worktreeCount(n: count),
+          style: context.typo.label.copyWith(color: colors.text2),
+        ),
+      ],
+    );
+  }
+}
+
+/// Chevron do card: aponta pra direita recolhido e gira 90° ao expandir, na
+/// mesma duração da lista. Puramente indicativo — quem recebe o clique é o card
+/// inteiro, então ele não intercepta ponteiro nenhum.
+class _WorktreeChevron extends StatelessWidget {
+  const _WorktreeChevron({required this.expanded});
+
+  final bool expanded;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.cockpit.projectsRail;
+    return AppTooltip(
+      message: expanded ? tr.collapseWorktrees : tr.expandWorktrees,
+      child: AnimatedRotation(
+        turns: expanded ? 0.25 : 0.0,
+        duration: _kToggleDuration,
+        curve: Curves.easeOutCubic,
+        child: Icon(Icons.chevron_right, size: 16, color: context.colors.text3),
+      ),
+    );
+  }
+}
+
+/// Envolve um badge/chip informativo pra que o clique nele **pare** ali: sem
+/// isto o toque cairia no card e alternaria a lista de worktrees, que não é o
+/// que alguém mirando um indicador espera. Chips com ação própria
+/// ([_MultiRootBadge]) já têm o gesto deles e não passam por aqui.
+class _AbsorbCardTap extends StatelessWidget {
+  const _AbsorbCardTap({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    onTap: () {},
+    child: child,
+  );
 }
 
 /// Slot fixo do workspace de sistema "Cockpit": glifo de terminal + rótulo, sem
@@ -463,10 +627,19 @@ class _RemoteSlot extends StatelessWidget {
     required this.selected,
     required this.git,
     required this.moveTargets,
+    required this.worktreeCount,
+    required this.hasWorktrees,
+    required this.expanded,
     required this.onTap,
     required this.onAction,
     required this.onRemove,
   });
+
+  /// `true` se o host tem forks pendurados — só então o chevron aparece.
+  final bool hasWorktrees;
+
+  /// Estado atual da lista de forks (V37).
+  final bool expanded;
 
   final String workspaceId;
   final String name;
@@ -474,6 +647,8 @@ class _RemoteSlot extends StatelessWidget {
 
   /// Realms de destino do "Move to realm" (vazio esconde o item).
   final List<RealmTarget> moveTargets;
+
+  final int worktreeCount;
 
   /// Imagem de fundo do avatar (personalizada nas Configurações), ou `null`.
   final String? imagePath;
@@ -488,6 +663,7 @@ class _RemoteSlot extends StatelessWidget {
     final b = git?.branch;
     return (b == null || b.isEmpty) ? null : b;
   }
+
   final VoidCallback onTap;
 
   /// Ações roteadas pra página: 'pull' | 'push' | 'sync' | 'rename' | 'close'.
@@ -502,7 +678,11 @@ class _RemoteSlot extends StatelessWidget {
       items: [
         if (hasGit) ...[
           AppMenuItem(value: 'sync', label: tr.sync, icon: Icons.sync),
-          AppMenuItem(value: 'pull', label: tr.pull, icon: Icons.arrow_downward),
+          AppMenuItem(
+            value: 'pull',
+            label: tr.pull,
+            icon: Icons.arrow_downward,
+          ),
           AppMenuItem(value: 'push', label: tr.push, icon: Icons.arrow_upward),
           AppMenuItem(
             value: 'worktree',
@@ -574,75 +754,101 @@ class _RemoteSlot extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         onTap: onTap,
         padding: const EdgeInsets.fromLTRB(9, 7, 9, 7),
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Mesmo avatar do workspace local: imagem de fundo quando houver,
-            // senão a inicial sobre a cor. A afordância "remoto" fica no badge
-            // "SSH" à direita.
-            WorkspaceAvatar(
-              imagePath: imagePath,
-              colorValue: colorValue,
-              initial: name.isEmpty ? '?' : name.characters.first.toUpperCase(),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    name,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typo.body.copyWith(
-                      fontSize: 13.5,
-                      color: colors.text,
-                      fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            Row(
+              children: [
+                // Mesmo avatar do workspace local: imagem de fundo quando houver,
+                // senão a inicial sobre a cor. A afordância "remoto" fica no badge
+                // "SSH" à direita.
+                WorkspaceAvatar(
+                  imagePath: imagePath,
+                  colorValue: colorValue,
+                  initial: name.isEmpty
+                      ? '?'
+                      : name.characters.first.toUpperCase(),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        name,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.typo.body.copyWith(
+                          fontSize: 13.5,
+                          color: colors.text,
+                          fontWeight: selected
+                              ? FontWeight.w500
+                              : FontWeight.w400,
+                        ),
+                      ),
+                      // Mesmo badge do local: branch + contador de sujeira, quando
+                      // o git remoto já foi lido (lazy). Sem git → nada.
+                      if (git != null) ...[
+                        const SizedBox(height: 4),
+                        _AbsorbCardTap(child: _GitBadge(info: git!)),
+                      ],
+                    ],
+                  ),
+                ),
+                _AbsorbCardTap(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'SSH',
+                      style: context.typo.label.copyWith(
+                        fontSize: 9,
+                        color: accent,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
-                  // Mesmo badge do local: branch + contador de sujeira, quando
-                  // o git remoto já foi lido (lazy). Sem git → nada.
-                  if (git != null) ...[
-                    const SizedBox(height: 4),
-                    _GitBadge(info: git!),
-                  ],
-                ],
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Text(
-                'SSH',
-                style: context.typo.label.copyWith(
-                  fontSize: 9,
-                  color: accent,
-                  fontWeight: FontWeight.w600,
                 ),
-              ),
-            ),
-            const SizedBox(width: 2),
-            // Builder: o menu ancora no RenderBox do context passado a
-            // showAppMenu. Sem isto, o context do slot inteiro faria o popup
-            // abrir na largura toda (aparecia "embaixo"); com o Builder o
-            // context é o do ícone, igual ao workspace local.
-            Builder(
-              builder: (iconContext) => GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapUp: (_) => _showMenu(iconContext),
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: Icon(
-                    Icons.more_vert,
-                    size: 14,
-                    color: context.colors.text3,
+                if (hasWorktrees) ...[
+                  const SizedBox(width: 4),
+                  _WorktreeChevron(expanded: expanded),
+                ],
+                const SizedBox(width: 2),
+                // Builder: o menu ancora no RenderBox do context passado a
+                // showAppMenu. Sem isto, o context do slot inteiro faria o popup
+                // abrir na largura toda (aparecia "embaixo"); com o Builder o
+                // context é o do ícone, igual ao workspace local.
+                Builder(
+                  builder: (iconContext) => GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapUp: (_) => _showMenu(iconContext),
+                    child: SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: Icon(
+                        Icons.more_vert,
+                        size: 14,
+                        color: context.colors.text3,
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
+            if (hasWorktrees)
+              Padding(
+                padding: const EdgeInsets.only(left: 38, top: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _WorktreeSummary(count: worktreeCount),
+                ),
+              ),
           ],
         ),
       ),
@@ -659,6 +865,9 @@ class _ProjectItem extends StatelessWidget {
     required this.rootsSummary,
     required this.roots,
     required this.canCreateWorktree,
+    required this.worktreeCount,
+    required this.hasWorktrees,
+    required this.expanded,
     required this.onTap,
     required this.onConfigure,
     required this.onDelete,
@@ -682,6 +891,15 @@ class _ProjectItem extends StatelessWidget {
   /// Roots do workspace (submenu das ações git em multi-root).
   final List<RailRoot> roots;
   final bool canCreateWorktree;
+
+  final int worktreeCount;
+
+  /// `true` se o workspace tem worktrees — só então o chevron aparece e o
+  /// clique no card alterna a lista (V37).
+  final bool hasWorktrees;
+
+  /// Estado atual da lista de worktrees (V37).
+  final bool expanded;
   final VoidCallback onTap;
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
@@ -705,80 +923,104 @@ class _ProjectItem extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
         onTap: onTap,
         padding: const EdgeInsets.fromLTRB(9, 7, 5, 7),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            WorkspaceAvatar(
-              imagePath: project.imagePath,
-              colorValue: project.colorValue,
-              initial: project.initial,
-              size: 30,
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    project.name,
-                    overflow: TextOverflow.ellipsis,
-                    style: context.typo.body.copyWith(
-                      fontSize: 13.5,
-                      color: colors.text,
-                      fontWeight: selected ? FontWeight.w500 : FontWeight.w400,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                WorkspaceAvatar(
+                  imagePath: project.imagePath,
+                  colorValue: project.colorValue,
+                  initial: project.initial,
+                  size: 30,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        project.name,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.typo.body.copyWith(
+                          fontSize: 13.5,
+                          color: colors.text,
+                          fontWeight: selected
+                              ? FontWeight.w500
+                              : FontWeight.w400,
+                        ),
+                      ),
+                      // Linha do git — repo git (branch) ou multi-root (agregado);
+                      // pasta comum não mostra nada.
+                      if (gitInfo != null) ...[
+                        const SizedBox(height: 4),
+                        _AbsorbCardTap(child: _GitBadge(info: gitInfo)),
+                      ] else if (rootsSummary.$1 > 1) ...[
+                        const SizedBox(height: 4),
+                        _MultiRootBadge(
+                          roots: rootsSummary.$1,
+                          dirtyRoots: rootsSummary.$2,
+                          rootList: roots,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 6),
+                if (notifications > 0) ...[
+                  _AbsorbCardTap(
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 18),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.accent,
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '$notifications',
+                        textAlign: TextAlign.center,
+                        style: context.typo.mono.copyWith(
+                          fontSize: 11,
+                          color: onColor(colors.accent),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
-                  // Linha do git — repo git (branch) ou multi-root (agregado);
-                  // pasta comum não mostra nada.
-                  if (gitInfo != null) ...[
-                    const SizedBox(height: 4),
-                    _GitBadge(info: gitInfo),
-                  ] else if (rootsSummary.$1 > 1) ...[
-                    const SizedBox(height: 4),
-                    _MultiRootBadge(
-                      roots: rootsSummary.$1,
-                      dirtyRoots: rootsSummary.$2,
-                      rootList: roots,
-                    ),
-                  ],
+                  const SizedBox(width: 4),
                 ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            if (notifications > 0) ...[
-              Container(
-                constraints: const BoxConstraints(minWidth: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.accent,
-                  borderRadius: BorderRadius.circular(20),
+                if (hasWorktrees) ...[
+                  _WorktreeChevron(expanded: expanded),
+                  const SizedBox(width: 2),
+                ],
+                _MenuButton(
+                  workspaceId: project.id,
+                  canCreateWorktree: canCreateWorktree,
+                  roots: roots,
+                  onConfigure: onConfigure,
+                  onDelete: onDelete,
+                  onCreateWorktree: onCreateWorktree,
+                  onSync: onSync,
+                  onPull: onPull,
+                  onPush: onPush,
+                  moveTargets: moveTargets,
+                  onMoveToRealm: onMoveToRealm,
                 ),
-                child: Text(
-                  '$notifications',
-                  textAlign: TextAlign.center,
-                  style: context.typo.mono.copyWith(
-                    fontSize: 11,
-                    color: onColor(colors.accent),
-                    fontWeight: FontWeight.w600,
-                  ),
+              ],
+            ),
+            if (hasWorktrees)
+              Padding(
+                padding: const EdgeInsets.only(left: 40, top: 4),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _WorktreeSummary(count: worktreeCount),
                 ),
               ),
-              const SizedBox(width: 4),
-            ],
-            _MenuButton(
-              workspaceId: project.id,
-              canCreateWorktree: canCreateWorktree,
-              roots: roots,
-              onConfigure: onConfigure,
-              onDelete: onDelete,
-              onCreateWorktree: onCreateWorktree,
-              onSync: onSync,
-              onPull: onPull,
-              onPush: onPush,
-              moveTargets: moveTargets,
-              onMoveToRealm: onMoveToRealm,
-            ),
           ],
         ),
       ),

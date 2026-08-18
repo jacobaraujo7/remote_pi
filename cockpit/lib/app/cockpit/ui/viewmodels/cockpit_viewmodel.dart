@@ -407,6 +407,11 @@ class CockpitViewModel extends ChangeNotifier {
   /// Debounce de gravação por projeto (o resize é arrasto contínuo).
   final Map<String, Timer> _saveTimers = <String, Timer>{};
 
+  /// Override em memória do toggle de worktrees (V37), por workspace raiz. Só
+  /// ganha entrada quando o usuário alterna; a leitura cai no documento de
+  /// layout salvo (e daí no default expandido) enquanto não houver override.
+  final Map<String, bool> _worktreesExpanded = <String, bool>{};
+
   /// `true` enquanto reconstruímos um projeto — evita gravar layout meio-feito.
   bool _restoring = false;
 
@@ -582,6 +587,26 @@ class CockpitViewModel extends ChangeNotifier {
   /// Worktrees (forks) de um workspace raiz, na ordem do git (vazio se nenhuma).
   List<Project> worktreesOf(String rootId) =>
       _worktrees[rootId] ?? const <Project>[];
+
+  /// `true` se a lista de worktrees de [rootId] está expandida no rail (V37).
+  /// Sem override do usuário, vale o que o documento de layout salvo diz — e
+  /// layout antigo/inexistente vem expandido.
+  bool worktreesExpanded(String rootId) =>
+      _worktreesExpanded[rootId] ?? worktreesExpandedOf(_savedLayouts[rootId]);
+
+  /// Expande/recolhe a lista de worktrees de [rootId] e agenda a gravação no
+  /// **mesmo** documento de layout do workspace (sem storage paralelo).
+  void setWorktreesExpanded(String rootId, bool expanded) {
+    if (worktreesExpanded(rootId) == expanded) return;
+    _worktreesExpanded[rootId] = expanded;
+    final saved = _savedLayouts[rootId];
+    _savedLayouts[rootId] = <String, dynamic>{
+      ...?saved,
+      kWorktreesExpandedKey: expanded,
+    };
+    notifyListeners();
+    _scheduleSave(rootId);
+  }
 
   String? get selectedProjectId => _selectedProjectId;
   Project? get selectedProject => _projectById(_selectedProjectId);
@@ -2879,6 +2904,7 @@ class CockpitViewModel extends ChangeNotifier {
     }
     _focused.remove(id);
     _savedLayouts.remove(id);
+    _worktreesExpanded.remove(id);
     git.forget(id);
     _saveTimers.remove(id)?.cancel();
   }
@@ -5199,6 +5225,9 @@ class CockpitViewModel extends ChangeNotifier {
       'focused': _focused[projectId],
       'tree': paneNodeToJson(tree),
       'sessions': sessions,
+      // Toggle de worktrees do rail (V37) — mora no mesmo doc do layout, então
+      // sobrevive à sessão sem inventar outro store.
+      kWorktreesExpandedKey: worktreesExpanded(projectId),
     };
   }
 
@@ -5377,7 +5406,15 @@ class CockpitViewModel extends ChangeNotifier {
     _saveTimers[projectId] = Timer(const Duration(milliseconds: 500), () {
       _saveTimers.remove(projectId);
       final doc = _serializeLayout(projectId);
-      if (doc.isNotEmpty) unawaited(_layoutStore.save(projectId, doc));
+      if (doc.isNotEmpty) {
+        unawaited(_layoutStore.save(projectId, doc));
+      } else {
+        // A rail toggle can happen while an unselected workspace is still
+        // activating and has no pane tree yet. Persist its rail-only document
+        // instead of dropping the user's choice.
+        final saved = _savedLayouts[projectId];
+        if (saved != null) unawaited(_layoutStore.save(projectId, saved));
+      }
     });
   }
 

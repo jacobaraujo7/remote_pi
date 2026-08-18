@@ -549,7 +549,13 @@
 			"sync": "Sincronizar",
 			"pull": "Pull",
 			"push": "Push",
-			"createWorktree": "Criar worktree"
+			"createWorktree": "Criar worktree",
+			"worktreeCount": {
+				"one": "1 worktree",
+				"other": "${n} worktrees"
+			},
+			"expandWorktrees": "Expandir worktrees",
+			"collapseWorktrees": "Recolher worktrees"
 		},
 		"findBar": {
 			"find": "Buscar",
