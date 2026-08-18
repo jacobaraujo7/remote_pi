@@ -119,6 +119,51 @@ void main() {
     }
   });
 
+  test('cinco terminais concorrentes não monopolizam um frame', () {
+    final frames = _ManualFrames();
+    final scheduler = _scheduler(
+      frames,
+      maxCharsPerFrame: 20,
+      maxSliceChars: 4,
+    );
+    final outputs = List.generate(5, (_) => StringBuffer());
+    final workPerFrame = <int, int>{};
+    var frame = 0;
+    final sources = List.generate(
+      outputs.length,
+      (index) => PtyOutputCoalescer(
+        scheduler: scheduler,
+        onFlush: (slice) {
+          outputs[index].write(slice);
+          workPerFrame.update(
+            frame,
+            (value) => value + slice.length,
+            ifAbsent: () => slice.length,
+          );
+        },
+        onAcknowledge: () {},
+      )..add('abcdefghijkl'),
+    );
+
+    while (frames.callbacks.isNotEmpty) {
+      frame++;
+      frames.run();
+      expect(workPerFrame[frame], lessThanOrEqualTo(20));
+      if (frame == 1) {
+        expect(outputs.every((buffer) => buffer.length == 4), isTrue);
+      }
+    }
+
+    expect(
+      outputs.map((buffer) => buffer.toString()),
+      everyElement('abcdefghijkl'),
+    );
+    expect(scheduler.pendingChars, 0);
+    for (final source in sources) {
+      source.dispose();
+    }
+  });
+
   test('budget de tempo adia fontes restantes sem perder dados', () {
     final frames = _ManualFrames();
     var now = 0;

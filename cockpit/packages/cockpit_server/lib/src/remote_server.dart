@@ -10,6 +10,24 @@ class _RpcUnknown implements Exception {
   final String method;
 }
 
+/// Converts a wire-level PTY open request into the host-side spawn spec.
+/// Keeping the mapping in one function prevents flow-control options from
+/// being lost when the request crosses the server boundary.
+PtySpawnSpec ptySpawnSpecFromOpen(PtyOpen message, {String? statusSocketPath}) {
+  final environment = statusSocketPath == null
+      ? message.environment
+      : {...message.environment, 'COCKPIT_STATUS_SOCK': statusSocketPath};
+  return PtySpawnSpec(
+    executable: message.executable,
+    arguments: message.arguments,
+    workingDirectory: message.workingDirectory,
+    environment: environment,
+    rows: message.rows,
+    columns: message.columns,
+    flowControlled: message.flowControlled,
+  );
+}
+
 /// Servidor do protocolo Cockpit Remote sobre socket local (UDS).
 ///
 /// Sessões pertencem ao [TerminalService], não às conexões: um cliente que
@@ -185,21 +203,8 @@ class _Connection {
           // servidor, que reenvia o turno pelo protocolo (Wave G). O env do
           // cliente NÃO sobrescreve isto (o socket do cliente é inalcançável do
           // host).
-          final env = _statusSocketPath == null
-              ? message.environment
-              : {
-                  ...message.environment,
-                  'COCKPIT_STATUS_SOCK': _statusSocketPath!,
-                };
           final info = await _terminals.open(
-            PtySpawnSpec(
-              executable: message.executable,
-              arguments: message.arguments,
-              workingDirectory: message.workingDirectory,
-              environment: env,
-              rows: message.rows,
-              columns: message.columns,
-            ),
+            ptySpawnSpecFromOpen(message, statusSocketPath: _statusSocketPath),
           );
           // Ecoa o `rid`: é ele que diz ao cliente QUAL `pty.open` esta
           // resposta atende. Sem isso, dois opens simultâneos casavam com a
