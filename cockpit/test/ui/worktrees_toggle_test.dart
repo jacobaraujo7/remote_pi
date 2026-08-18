@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/projects_rail.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Toggle de worktrees no card do workspace (V37): a regra do clique e a
 /// persistência do estado dentro do **documento de layout** já existente.
@@ -125,6 +126,16 @@ void main() {
         workspaceCardTap(selected: true, expanded: true, hasWorktrees: false),
         (select: false, expand: null),
       );
+    });
+  });
+
+  group('worktreeChevronIcon', () {
+    test('aponta para a direita quando recolhido', () {
+      expect(worktreeChevronIcon(false), Icons.chevron_right);
+    });
+
+    test('aponta para baixo quando expandido', () {
+      expect(worktreeChevronIcon(true), Icons.keyboard_arrow_down);
     });
   });
 }

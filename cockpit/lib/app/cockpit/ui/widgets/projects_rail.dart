@@ -61,6 +61,10 @@ String? branchOfRoot(List<RailRoot> roots, String rootPath) {
 /// duração. Só esses dois animam — o card/cabeçalho não se move.
 const Duration _kToggleDuration = Duration(milliseconds: 150);
 
+@visibleForTesting
+IconData worktreeChevronIcon(bool expanded) =>
+    expanded ? Icons.keyboard_arrow_down : Icons.chevron_right;
+
 /// Rail esquerda (~252px): cabeçalho "Sessions", lista de projetos (avatar +
 /// nome + git + contador de notificações), rodapé com o seletor de realm.
 class ProjectsRail extends StatefulWidget {
@@ -529,9 +533,9 @@ class _WorktreeSummary extends StatelessWidget {
   }
 }
 
-/// Chevron do card: aponta pra direita recolhido e gira 90° ao expandir, na
-/// mesma duração da lista. Puramente indicativo — quem recebe o clique é o card
-/// inteiro, então ele não intercepta ponteiro nenhum.
+/// Chevron do card: usa glifos explícitos para garantir direita/recolhido e
+/// baixo/expandido em todas as plataformas. Puramente indicativo — quem recebe
+/// o clique é o card inteiro, então ele não intercepta ponteiro nenhum.
 class _WorktreeChevron extends StatelessWidget {
   const _WorktreeChevron({required this.expanded});
 
@@ -542,11 +546,18 @@ class _WorktreeChevron extends StatelessWidget {
     final tr = context.t.cockpit.projectsRail;
     return AppTooltip(
       message: expanded ? tr.collapseWorktrees : tr.expandWorktrees,
-      child: AnimatedRotation(
-        turns: expanded ? 0.25 : 0.0,
+      child: AnimatedSwitcher(
         duration: _kToggleDuration,
-        curve: Curves.easeOutCubic,
-        child: Icon(Icons.chevron_right, size: 16, color: context.colors.text3),
+        switchInCurve: Curves.easeOutCubic,
+        switchOutCurve: Curves.easeInCubic,
+        transitionBuilder: (child, animation) =>
+            FadeTransition(opacity: animation, child: child),
+        child: Icon(
+          worktreeChevronIcon(expanded),
+          key: ValueKey(expanded),
+          size: 16,
+          color: context.colors.text3,
+        ),
       ),
     );
   }
