@@ -52,6 +52,14 @@ class RemoteHostTerminalGateway implements TerminalGateway {
   /// A sessão terminou de fato (processo saiu)? Congelar aqui seria errado.
   bool _exited = false;
 
+  /// A sessão não existia mais no host ao reconectar (servidor reiniciado): não
+  /// há o que retomar, então a aba encerra em vez de ficar muda.
+  bool _sessionLost = false;
+
+  /// A aba encerrou porque a sessão remota se perdeu na reconexão? A UI usa
+  /// para diferenciar de um processo que terminou normalmente.
+  bool get sessionLost => _sessionLost;
+
   @override
   Stream<List<int>> get output => _output.stream;
 
@@ -97,6 +105,19 @@ class RemoteHostTerminalGateway implements TerminalGateway {
     if (id == null) return;
     _service = service;
     try {
+      // A sessão ainda existe no host? Pergunta ANTES de anexar.
+      //
+      // `attach()` devolve um Stream: quando a sessão sumiu, o erro chega pelo
+      // stream (assíncrono), fora deste try, e caía no `onError` -> congela de
+      // novo. A aba ficava viva porém MUDA para sempre, sem nada explicando.
+      // E o caso é comum: se o host ficou fora do ar, o cockpit-server de lá
+      // morreu junto e voltou sem nenhuma das sessões antigas.
+      final alive = await service.sessions();
+      if (!alive.any((s) => s.id == id)) {
+        _sessionLost = true;
+        _closeOutput();
+        return;
+      }
       _listen(service.attach(id, fromOffset: _bytesDelivered));
       // Destrava ANTES do resize: se o resize falhasse, a aba ficava aceitando
       // o attach novo mas com a digitação bloqueada para sempre. O tamanho é

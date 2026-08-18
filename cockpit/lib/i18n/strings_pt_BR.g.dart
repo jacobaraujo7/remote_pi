@@ -714,6 +714,7 @@ class _Translations$cockpit$workspaceSettingsDialog$pt_BR extends Translations$c
 	@override String get changePhoto => 'Alterar foto';
 	@override String get remove => 'Remover';
 	@override String get color => 'Cor';
+	@override String get host => 'Host';
 	@override String get folder => 'Pasta';
 }
 
@@ -2032,6 +2033,7 @@ extension on TranslationsPtBr {
 			'cockpit.workspaceSettingsDialog.changePhoto' => 'Alterar foto',
 			'cockpit.workspaceSettingsDialog.remove' => 'Remover',
 			'cockpit.workspaceSettingsDialog.color' => 'Cor',
+			'cockpit.workspaceSettingsDialog.host' => 'Host',
 			'cockpit.workspaceSettingsDialog.folder' => 'Pasta',
 			'cockpit.realmDialogs.namePlaceholder' => 'Nome do realm',
 			'cockpit.realmDialogs.duplicateName' => 'Já existe um realm com esse nome.',
@@ -2194,9 +2196,9 @@ extension on TranslationsPtBr {
 			'cockpit.tasks.hotRestart' => 'Hot restart',
 			'cockpit.tasks.toggleDebugPaint' => 'Alternar debug paint',
 			'cockpit.tasks.togglePlatform' => 'Alternar plataforma',
-			'cockpit.tasks.quit' => 'Sair',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.tasks.quit' => 'Sair',
 			'cockpit.notifications.agentFinished' => 'Agente terminou',
 			'cockpit.notifications.open' => 'Abrir',
 			'cockpit.notifications.agentNeedsAction' => 'Agente precisa de você',

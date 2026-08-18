@@ -39,6 +39,7 @@ showWorkspaceSettingsDialog(
   required int colorValue,
   required String path,
   String? imagePath,
+  ({String host, String path})? remote,
 }) {
   return showDialog<({String name, int colorValue, String? imagePath})>(
     context: context,
@@ -48,6 +49,7 @@ showWorkspaceSettingsDialog(
       colorValue: colorValue,
       path: path,
       imagePath: imagePath,
+      remote: remote,
     ),
   );
 }
@@ -58,12 +60,19 @@ class _WorkspaceSettingsDialog extends StatefulWidget {
     required this.colorValue,
     required this.path,
     required this.imagePath,
+    this.remote,
   });
 
   final String name;
   final int colorValue;
+
+  /// Pasta LOCAL do workspace. Vazia em workspace remoto e no de sistema; serve
+  /// só para o seletor de imagem abrir num lugar útil.
   final String path;
   final String? imagePath;
+
+  /// Workspace remoto: host e pasta NO HOST. `null` em workspace local.
+  final ({String host, String path})? remote;
 
   @override
   State<_WorkspaceSettingsDialog> createState() =>
@@ -228,28 +237,18 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
                   ),
               ],
             ),
-            const SizedBox(height: 18),
-            Text(
-              tr.folder,
-              style: context.typo.label.copyWith(color: colors.text2),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-              decoration: BoxDecoration(
-                color: colors.panel2,
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(color: colors.border),
-              ),
-              child: Text(
-                widget.path,
-                style: context.typo.mono.copyWith(
-                  fontSize: 12,
-                  color: colors.text2,
-                ),
-              ),
-            ),
+            // Workspace remoto mostra HOST + pasta do host; o local mostra só
+            // a pasta. Sem isso, um workspace remoto exibia um campo "Pasta"
+            // vazio, sem dizer em qual máquina ele vive.
+            if (widget.remote case final remote?) ...[
+              const SizedBox(height: 18),
+              _ReadOnlyField(label: tr.host, value: remote.host),
+              const SizedBox(height: 12),
+              _ReadOnlyField(label: tr.folder, value: remote.path),
+            ] else ...[
+              const SizedBox(height: 18),
+              _ReadOnlyField(label: tr.folder, value: widget.path),
+            ],
           ],
         ),
       ),
@@ -335,6 +334,43 @@ class _PhotoButton extends StatelessWidget {
           Text(label, style: context.typo.label.copyWith(color: fg)),
         ],
       ),
+    );
+  }
+}
+
+/// Rótulo + caixa somente-leitura (host, pasta). Mesma moldura dos demais
+/// campos do dialog; o valor é monoespaçado por ser caminho/endereço.
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: context.typo.label.copyWith(color: colors.text2)),
+        const SizedBox(height: 6),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: colors.panel2,
+            borderRadius: BorderRadius.circular(7),
+            border: Border.all(color: colors.border),
+          ),
+          child: Text(
+            value,
+            style: context.typo.mono.copyWith(
+              fontSize: 12,
+              color: colors.text2,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

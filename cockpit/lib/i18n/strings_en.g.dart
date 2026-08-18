@@ -1414,6 +1414,9 @@ class Translations$cockpit$workspaceSettingsDialog$en {
 	/// en: 'Color'
 	String get color => 'Color';
 
+	/// en: 'Host'
+	String get host => 'Host';
+
 	/// en: 'Folder'
 	String get folder => 'Folder';
 }
@@ -3852,6 +3855,7 @@ extension on Translations {
 			'cockpit.workspaceSettingsDialog.changePhoto' => 'Change photo',
 			'cockpit.workspaceSettingsDialog.remove' => 'Remove',
 			'cockpit.workspaceSettingsDialog.color' => 'Color',
+			'cockpit.workspaceSettingsDialog.host' => 'Host',
 			'cockpit.workspaceSettingsDialog.folder' => 'Folder',
 			'cockpit.realmDialogs.namePlaceholder' => 'Realm name',
 			'cockpit.realmDialogs.duplicateName' => 'A realm with this name already exists.',
@@ -4014,9 +4018,9 @@ extension on Translations {
 			'cockpit.tasks.hotRestart' => 'Hot restart',
 			'cockpit.tasks.toggleDebugPaint' => 'Toggle debug paint',
 			'cockpit.tasks.togglePlatform' => 'Toggle platform',
-			'cockpit.tasks.quit' => 'Quit',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.tasks.quit' => 'Quit',
 			'cockpit.notifications.agentFinished' => 'Agent finished',
 			'cockpit.notifications.open' => 'Open',
 			'cockpit.notifications.agentNeedsAction' => 'Agent needs your input',

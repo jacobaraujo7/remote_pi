@@ -398,6 +398,7 @@
 			"changePhoto": "Alterar foto",
 			"remove": "Remover",
 			"color": "Cor",
+			"host": "Host",
 			"folder": "Pasta"
 		},
 		"realmDialogs": {

@@ -398,6 +398,7 @@
 			"changePhoto": "Cambiar foto",
 			"remove": "Quitar",
 			"color": "Color",
+			"host": "Host",
 			"folder": "Carpeta"
 		},
 		"realmDialogs": {

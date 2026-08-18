@@ -231,8 +231,9 @@ Future<void> _createRemoteWorktreeFlow(
 }
 
 /// Configurações do workspace remoto: mesmo dialog do local (nome + cor +
-/// imagem de fundo), persistido no pin. `path` vai vazio — o picker de imagem é
-/// local, e a pasta do host não existe no cliente.
+/// imagem de fundo), persistido no pin. `path` vai vazio porque é a pasta LOCAL
+/// (usada só pelo picker de imagem, que roda no cliente); a pasta do host, e o
+/// host em si, vão em `remote` para o dialog exibir de onde o workspace vem.
 Future<void> _configureRemoteWorkspace(
   BuildContext context,
   String wsId,
@@ -240,12 +241,22 @@ Future<void> _configureRemoteWorkspace(
   final vm = _vm(context);
   final project = _remoteWorkspace(vm, wsId);
   if (project == null) return;
+  final hostId = project.remoteHostId;
+  final host = hostId == null ? null : _hostById(vm, hostId);
   final result = await showWorkspaceSettingsDialog(
     context,
     name: project.name,
     colorValue: project.colorValue,
     path: '',
     imagePath: project.imagePath,
+    remote: host == null
+        ? null
+        // Nome do host + alvo ssh: o nome é como o usuário o chama, o alvo é
+        // o endereço real (dois hosts podem ter apelidos parecidos).
+        : (
+            host: '${host.name}  (${host.sshTarget})',
+            path: project.remotePath ?? '',
+          ),
   );
   if (result == null) return;
   await vm.updateRemoteWorkspace(

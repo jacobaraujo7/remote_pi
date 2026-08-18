@@ -398,6 +398,7 @@
 			"changePhoto": "Change photo",
 			"remove": "Remove",
 			"color": "Color",
+			"host": "Host",
 			"folder": "Folder"
 		},
 		"realmDialogs": {
