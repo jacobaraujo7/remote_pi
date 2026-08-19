@@ -157,6 +157,35 @@ void main() {
     expect(diff.hunks, isEmpty);
   });
 
+  test('untracked com acentos UTF-8 → texto preservado sem corrupção', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    const accentedContent = 'ação\ntambém\nvocê\ninformação\n';
+    await write('accents.txt', accentedContent);
+    final diff = await reader.read(repo.path, '${repo.path}/accents.txt');
+    expect(diff.kind, FileDiffKind.added);
+    final lines = diff.hunks.expand((h) => h.lines).map((l) => l.text).toList();
+    expect(lines, ['ação', 'também', 'você', 'informação']);
+  });
+
+  test('modificado com acentos UTF-8 → diff preserva acentos', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    await write('a.txt', 'line1\nação\nline3\n');
+    final diff = await reader.read(repo.path, '${repo.path}/a.txt');
+    expect(diff.kind, FileDiffKind.modified);
+    final addedLines = diff.hunks
+        .expand((h) => h.lines)
+        .where((l) => l.kind == DiffLineKind.added)
+        .map((l) => l.text)
+        .toList();
+    expect(addedLines.any((t) => t == 'ação'), isTrue);
+  });
+
   test('binário → FileDiffKind.binary', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git não disponível');
