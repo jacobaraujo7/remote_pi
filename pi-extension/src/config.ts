@@ -19,7 +19,18 @@ const configFile = (): string => path.join(remotePiConfigHome(), "config.json");
  */
 export const kDefaultRelayUrl = "https://relay-rp1.jacobmoura.work";
 
-export type RemotePiConfig = { relay?: string };
+export type RemotePiConfig = {
+  relay?: string;
+  /**
+   * Machine-wide fallback defaults for a session's LOCAL config (the per-cwd
+   * `.pi/remote-pi/config.json`). A field here applies to every cwd that does
+   * not set it via the inline `REMOTE_PI_DIRECT_CONFIG` env or its own file, so
+   * you can pin `auto_start_relay` once — beside `relay` — instead of dropping a
+   * file into every repo. See `session/local_config.ts`. Absent by default, so
+   * omitting it preserves the historical per-cwd-only behaviour exactly.
+   */
+  defaults?: { auto_start_relay?: boolean };
+};
 
 export function loadConfig(): RemotePiConfig {
   try {
