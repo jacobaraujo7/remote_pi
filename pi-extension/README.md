@@ -600,6 +600,18 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
 | `~/.pi/remote/skills/agent-network/SKILL.md` | Per-user | Agent skill the LLM reads |
 
+All paths above derive from a single **state root** — by default `~/.pi/remote`.
+Two environment variables let you relocate it:
+
+| Variable | Behaviour |
+|---|---|
+| `REMOTE_PI_DIR` | Absolute path to the state root. No suffix appended — set this to an XDG-style location like `~/.config/pi/remote-pi`. Takes priority over every other variable. |
+| `REMOTE_PI_HOME` | Stand-in for `$HOME`; state lives at `<REMOTE_PI_HOME>/.pi/remote`. Kept for backward compatibility. |
+
+When both are set, `REMOTE_PI_DIR` wins. Use these to put remote-pi state on a
+specific disk, inside an XDG directory, or anywhere your system's conventions
+dictate — the entire state tree always stays under one root.
+
 Override the relay for a single run without persisting:
 
 ```bash
