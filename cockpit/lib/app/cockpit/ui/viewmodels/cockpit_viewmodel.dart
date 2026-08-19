@@ -1920,7 +1920,10 @@ class CockpitViewModel extends ChangeNotifier {
         return false; // fs.write falhou (permissão, conexão) → não salvou.
       }
     } else {
-      final ok = await _fileReader.write(s.path, content);
+      // Preserva o encoding original do arquivo para evitar diffs artificiais
+      // no Git (ex.: arquivo Latin-1 aberto e salvo sem edição).
+      final encoding = _encodingOf(s.view);
+      final ok = await _fileReader.write(s.path, content, encoding: encoding);
       if (!ok) return false;
     }
     final fresh = await _readFile(s.path);
@@ -1931,6 +1934,15 @@ class CockpitViewModel extends ChangeNotifier {
     }
     return true;
   }
+
+  /// Extrai o [Encoding] original de uma [FileView] editável. Usado no save para
+  /// preservar o encoding do arquivo e não gerar diffs artificiais no Git.
+  static Encoding _encodingOf(FileView view) => switch (view) {
+    FileViewText(:final encoding) => encoding,
+    FileViewMarkdown(:final encoding) => encoding,
+    FileViewSvg(:final encoding) => encoding,
+    _ => utf8,
+  };
 
   // ---- LSP (diagnostics + formatação) ---------------------------------------
 

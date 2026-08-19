@@ -71,21 +71,55 @@ class FileReaderImpl implements FileReader {
     // Banco sqlite (magic header) nunca é texto útil — não abre como viewer;
     // ele aparece como conexão "detected" no painel Database (plano 51).
     if (_isSqlite(bytes)) return const FileViewUnsupported();
-    // UTF-8 tolerante: bytes inválidos (latin-1, binário) viram U+FFFD em vez
-    // de barrar o arquivo. Decisão explícita — abrir qualquer coisa como texto.
-    final text = utf8.decode(bytes, allowMalformed: true);
 
-    if (_markdown.contains(ext)) return FileViewMarkdown(text);
+    // Detecta o encoding real: tenta UTF-8 estrito primeiro; se falhar (bytes
+    // inválidos em UTF-8), usa Latin-1 — que mapeia cada byte 1:1 a um
+    // codepoint Unicode, preservando todos os bytes sem perda.
+    //
+    // Não usamos allowMalformed: isso convertiria bytes inválidos para U+FFFD
+    // (3 bytes em UTF-8), e salvar de volta produziria um arquivo diferente
+    // mesmo sem nenhuma edição (diff artificial no Git).
+    final (text, encoding) = _decodeBytes(bytes);
+
+    if (_markdown.contains(ext)) {
+      return FileViewMarkdown(text, encoding: encoding);
+    }
     // SVG é texto (XML) que também renderiza — fonte editável + preview.
-    if (ext == 'svg') return FileViewSvg(path, text);
-    return FileViewText(text, language: ext.isEmpty ? null : ext);
+    if (ext == 'svg') return FileViewSvg(path, text, encoding: encoding);
+    return FileViewText(text, language: ext.isEmpty ? null : ext, encoding: encoding);
+  }
+
+  /// Decodifica [bytes] detectando o encoding:
+  /// - UTF-8 estrito → retorna `(text, utf8)`
+  /// - Falhou (bytes inválidos) → Latin-1 → retorna `(text, latin1)`
+  ///
+  /// Latin-1 é escolhido porque mapeia cada byte `b` ao codepoint `b`
+  /// (identidade para 0–255), garantindo roundtrip perfeito ao gravar de volta.
+  static (String, Encoding) _decodeBytes(List<int> bytes) {
+    try {
+      return (utf8.decode(bytes), utf8);
+    } on FormatException {
+      return (latin1.decode(bytes), latin1);
+    }
   }
 
   @override
-  Future<bool> write(String path, String content) async {
+  Future<bool> write(String path, String content, {Encoding encoding = utf8}) async {
     try {
-      await File(path).writeAsString(content);
+      // Tenta gravar com o encoding original do arquivo.
+      // Se o conteúdo tiver caracteres fora do alcance do encoding (ex.:
+      // usuário digitou emojis num arquivo Latin-1), faz upgrade para UTF-8.
+      await File(path).writeAsString(content, encoding: encoding);
       return true;
+    } on ArgumentError {
+      // Encoding (ex.: Latin-1) não suporta todos os codepoints do conteúdo
+      // editado — faz upgrade silencioso para UTF-8.
+      try {
+        await File(path).writeAsString(content);
+        return true;
+      } on FileSystemException {
+        return false;
+      }
     } on FileSystemException {
       return false;
     }

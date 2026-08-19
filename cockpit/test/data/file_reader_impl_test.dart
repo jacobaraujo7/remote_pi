@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/filesystem/file_reader_impl.dart';
@@ -83,17 +84,57 @@ void main() {
     );
 
     test(
-      'bytes não-utf8 (latin-1) → FileViewText tolerante (U+FFFD)',
+      'bytes não-utf8 (latin-1) → FileViewText com texto correto e encoding Latin-1',
       () async {
         final dir = await Directory.systemTemp.createTemp('ck_fr_l1');
         addTearDown(() => dir.delete(recursive: true));
-        // 0xE9 = 'é' em latin-1, byte inválido em utf-8 → vira U+FFFD.
+        // 0xE9 = 'é' em Latin-1; byte inválido em UTF-8 estrito.
         final f = File('${dir.path}/cafe.txt')
           ..writeAsBytesSync([0x63, 0x61, 0x66, 0xe9]);
         final view = await reader.read(f.path);
         expect(view, isA<FileViewText>());
-        expect((view as FileViewText).text, contains('caf'));
-        expect(view.text, contains('�'));
+        // Deve decodificar como Latin-1 e mostrar 'é', NÃO U+FFFD.
+        expect((view as FileViewText).text, 'café');
+        // O encoding detectado deve ser Latin-1.
+        expect(view.encoding, latin1);
+      },
+    );
+
+    test(
+      'roundtrip Latin-1: ler + salvar sem edição não muda os bytes no disco',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('ck_fr_rt_l1');
+        addTearDown(() => dir.delete(recursive: true));
+        // Arquivo Latin-1 com "ação" (bytes inválidos em UTF-8).
+        final original = [0x61, 0xe7, 0xe3, 0x6f]; // "ação" em Latin-1
+        final f = File('${dir.path}/acao.txt')..writeAsBytesSync(original);
+
+        final view = await reader.read(f.path) as FileViewText;
+        // Salva sem alterar o conteúdo, usando o encoding original.
+        final ok = await reader.write(f.path, view.text, encoding: view.encoding);
+
+        expect(ok, isTrue);
+        // Os bytes no disco devem ser idênticos aos originais.
+        expect(f.readAsBytesSync(), original);
+      },
+    );
+
+    test(
+      'roundtrip UTF-8: ler + salvar sem edição não muda os bytes no disco',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('ck_fr_rt_utf8');
+        addTearDown(() => dir.delete(recursive: true));
+        // Arquivo UTF-8 com acentos.
+        const content = 'Olá, ação!\n';
+        final original = utf8.encode(content);
+        final f = File('${dir.path}/utf8.txt')..writeAsBytesSync(original);
+
+        final view = await reader.read(f.path) as FileViewText;
+        final ok = await reader.write(f.path, view.text, encoding: view.encoding);
+
+        expect(ok, isTrue);
+        expect(f.readAsBytesSync(), original);
+        expect(view.encoding, utf8);
       },
     );
 
