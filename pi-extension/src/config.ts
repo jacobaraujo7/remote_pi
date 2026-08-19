@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { remotePiHome } from "./paths.js";
 
-const CONFIG_DIR = path.join(os.homedir(), ".pi", "remote");
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+// Resolved at call time via the shared `remotePiHome()` (honours REMOTE_PI_DIR /
+// REMOTE_PI_HOME). Previously hardcoded to `os.homedir()`, which ignored the
+// override every other site honoured and split config.json off from the rest of
+// the state — see paths.ts.
+const configDir = (): string => remotePiHome();
+const configFile = (): string => path.join(remotePiHome(), "config.json");
 
 /**
  * Default community relay. Stored in canonical http(s):// form — conversion
@@ -18,7 +22,7 @@ export type RemotePiConfig = { relay?: string };
 
 export function loadConfig(): RemotePiConfig {
   try {
-    const raw = fs.readFileSync(CONFIG_FILE, "utf8");
+    const raw = fs.readFileSync(configFile(), "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     return parsed as RemotePiConfig;
@@ -28,10 +32,10 @@ export function loadConfig(): RemotePiConfig {
 }
 
 export function saveConfig(patch: Partial<RemotePiConfig>): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(configDir(), { recursive: true });
   const current = loadConfig();
   const next = { ...current, ...patch };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2));
+  fs.writeFileSync(configFile(), JSON.stringify(next, null, 2));
 }
 
 export type RelayResolution = { url: string; source: "env" | "config" | "default" };
