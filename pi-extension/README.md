@@ -600,17 +600,28 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
 | `~/.pi/remote/skills/agent-network/SKILL.md` | Per-user | Agent skill the LLM reads |
 
-All paths above derive from a single **state root** — by default `~/.pi/remote`.
-Two environment variables let you relocate it:
+Every path above **except the global `config.json`** derives from a single
+**state root** — by default `~/.pi/remote`. Two environment variables relocate
+that state root:
 
 | Variable | Behaviour |
 |---|---|
 | `REMOTE_PI_DIR` | Absolute path to the state root. No suffix appended — set this to an XDG-style location like `~/.config/pi/remote-pi`. Takes priority over every other variable. |
 | `REMOTE_PI_HOME` | Stand-in for `$HOME`; state lives at `<REMOTE_PI_HOME>/.pi/remote`. Kept for backward compatibility. |
 
-When both are set, `REMOTE_PI_DIR` wins. Use these to put remote-pi state on a
-specific disk, inside an XDG directory, or anywhere your system's conventions
-dictate — the entire state tree always stays under one root.
+When both are set, `REMOTE_PI_DIR` wins. Use these to put remote-pi **state**
+(sessions, daemon registries, cwd locks, paired identity) on a specific disk,
+inside an XDG directory, or anywhere your system's conventions dictate.
+
+The global `config.json` (relay URL + defaults) is resolved separately, so it
+can sit beside the coding agent's own settings rather than the state tree:
+
+| Variable | Behaviour |
+|---|---|
+| `PI_CODING_AGENT_DIR` | The Pi host's settings root (default `~/.pi`). `config.json` lives at `<PI_CODING_AGENT_DIR>/remote/config.json`, so with the default agent dir the path stays exactly `~/.pi/remote/config.json`. Takes priority for config. |
+
+When `PI_CODING_AGENT_DIR` is unset, `config.json` falls back to the state root
+above (so a pure `REMOTE_PI_DIR` relocation still keeps config beside the rest).
 
 Override the relay for a single run without persisting:
 

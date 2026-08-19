@@ -1,13 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import { remotePiHome } from "./paths.js";
+import { remotePiConfigHome } from "./paths.js";
 
-// Resolved at call time via the shared `remotePiHome()` (honours REMOTE_PI_DIR /
-// REMOTE_PI_HOME). Previously hardcoded to `os.homedir()`, which ignored the
-// override every other site honoured and split config.json off from the rest of
-// the state — see paths.ts.
-const configDir = (): string => remotePiHome();
-const configFile = (): string => path.join(remotePiHome(), "config.json");
+// Resolved at call time via `remotePiConfigHome()` — config.json follows the
+// coding-agent dir (`PI_CODING_AGENT_DIR`), falling back to the state root
+// (`remotePiHome()`, still settable via REMOTE_PI_DIR / REMOTE_PI_HOME). See
+// paths.ts. Previously hardcoded to `os.homedir()`, which ignored every
+// relocation knob and split config.json off from the rest of the install.
+const configDir = (): string => remotePiConfigHome();
+const configFile = (): string => path.join(remotePiConfigHome(), "config.json");
 
 /**
  * Default community relay. Stored in canonical http(s):// form — conversion

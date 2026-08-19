@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from "vitest";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { remotePiHome } from "./paths.js";
+import { remotePiConfigHome, remotePiHome } from "./paths.js";
 
 const SAVED_DIR = process.env["REMOTE_PI_DIR"];
 const SAVED_HOME = process.env["REMOTE_PI_HOME"];
+const SAVED_AGENT_DIR = process.env["PI_CODING_AGENT_DIR"];
 
 function restore(key: string, value: string | undefined): void {
   if (value === undefined) delete process.env[key];
@@ -14,6 +15,7 @@ function restore(key: string, value: string | undefined): void {
 afterEach(() => {
   restore("REMOTE_PI_DIR", SAVED_DIR);
   restore("REMOTE_PI_HOME", SAVED_HOME);
+  restore("PI_CODING_AGENT_DIR", SAVED_AGENT_DIR);
 });
 
 describe("remotePiHome precedence", () => {
@@ -46,5 +48,40 @@ describe("remotePiHome precedence", () => {
     expect(remotePiHome()).toBe("/first");
     process.env["REMOTE_PI_DIR"] = "/second";
     expect(remotePiHome()).toBe("/second");
+  });
+});
+
+describe("remotePiConfigHome precedence", () => {
+  test("PI_CODING_AGENT_DIR unset → falls back to remotePiHome()", () => {
+    delete process.env["PI_CODING_AGENT_DIR"];
+    delete process.env["REMOTE_PI_DIR"];
+    delete process.env["REMOTE_PI_HOME"];
+    expect(remotePiConfigHome()).toBe(join(homedir(), ".pi", "remote"));
+    expect(remotePiConfigHome()).toBe(remotePiHome());
+  });
+
+  test("PI_CODING_AGENT_DIR set → <agentDir>/remote (default ~/.pi keeps historical path)", () => {
+    process.env["PI_CODING_AGENT_DIR"] = join(homedir(), ".pi");
+    expect(remotePiConfigHome()).toBe(join(homedir(), ".pi", "remote"));
+  });
+
+  test("PI_CODING_AGENT_DIR wins over the state resolver (REMOTE_PI_DIR)", () => {
+    process.env["PI_CODING_AGENT_DIR"] = "/agent/home";
+    process.env["REMOTE_PI_DIR"] = "/state/root"; // steers state, not config
+    expect(remotePiConfigHome()).toBe(join("/agent", "home", "remote"));
+    expect(remotePiHome()).toBe("/state/root");
+  });
+
+  test("an empty PI_CODING_AGENT_DIR falls through to remotePiHome()", () => {
+    process.env["PI_CODING_AGENT_DIR"] = "";
+    process.env["REMOTE_PI_DIR"] = "/state/root";
+    expect(remotePiConfigHome()).toBe("/state/root");
+  });
+
+  test("resolved at call time (a later env change is picked up)", () => {
+    process.env["PI_CODING_AGENT_DIR"] = "/first";
+    expect(remotePiConfigHome()).toBe(join("/first", "remote"));
+    process.env["PI_CODING_AGENT_DIR"] = "/second";
+    expect(remotePiConfigHome()).toBe(join("/second", "remote"));
   });
 });
