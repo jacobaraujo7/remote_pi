@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,7 +151,7 @@ class _CopyButtonState extends State<_CopyButton> {
       visualDensity: VisualDensity.compact,
       iconSize: 15,
       splashRadius: 16,
-      tooltip: 'Copy code',
+      tooltip: t.chat.copyCode,
       onPressed: _copy,
       icon: Icon(
         _copied ? LucideIcons.check : LucideIcons.copy,

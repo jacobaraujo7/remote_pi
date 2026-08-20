@@ -5,6 +5,7 @@ import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/data/transport/peer_channel.dart';
 import 'package:app/data/transport/relay_config.dart';
 import 'package:app/pairing/owner_identity_bridge.dart';
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/pairing/pair_request_flow.dart' as pair_flow;
 import 'package:app/pairing/qr_scanner.dart';
 import 'package:app/pairing/storage.dart';
@@ -77,10 +78,10 @@ class PairingViewModel extends ViewModel<PairingState> {
           )
           .timeout(
             const Duration(seconds: 30),
-            onTimeout: () => throw const pair_flow.PairingError(
+            onTimeout: () => throw pair_flow.PairingError(
               code: 'pair_timeout',
               message:
-                  'Timed out — make sure /remote-pi is running on your Mac',
+                  t.pairing.timedOut,
             ),
           );
 
@@ -136,7 +137,7 @@ class PairingViewModel extends ViewModel<PairingState> {
     'token_expired' => 'QR expired — generate a new one on your Mac',
     'token_consumed' => 'QR already used — generate a new one',
     'token_unknown' => 'QR not recognized by Mac — re-run /remote-pi pair',
-    'pair_timeout' => 'Timed out — make sure /remote-pi is running on your Mac',
+    'pair_timeout' => t.pairing.timedOut,
     _ => e.message.isEmpty ? e.code : e.message,
   };
 

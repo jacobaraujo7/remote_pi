@@ -1,3 +1,4 @@
+import 'package:app/i18n/strings.g.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
@@ -21,7 +22,7 @@ class DetailPlaceholder extends StatelessWidget {
               Icon(LucideIcons.messagesSquare, color: colors.muted, size: 56),
               const SizedBox(height: 18),
               Text(
-                'Select a session',
+                t.chat.selectSession,
                 style: TextStyle(
                   fontFamily: kMonoFamily,
                   color: colors.muted2,
@@ -31,7 +32,7 @@ class DetailPlaceholder extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               Text(
-                'Pick a session on the left to open its chat.',
+                t.chat.selectSessionDesc,
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: kMonoFamily,
