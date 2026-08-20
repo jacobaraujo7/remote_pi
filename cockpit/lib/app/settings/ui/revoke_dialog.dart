@@ -25,30 +25,37 @@ class RevokeDialog extends StatelessWidget {
     return AlertDialog(
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 360),
-        child: switch (ctrl.stage) {
-          RevokeStage.running => _running(context, ctrl),
-          RevokeStage.done => _result(
-            context,
-            icon: Icons.check_circle_outline,
-            color: colors.online,
-            message: tr.deviceRemoved,
-          ),
-          RevokeStage.failed => _result(
-            context,
-            icon: Icons.error_outline,
-            color: colors.error,
-            message: ctrl.error ?? tr.failedToRevoke,
-          ),
-        },
-      ),
-      actions: ctrl.stage == RevokeStage.running
-          ? null
-          : [
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            switch (ctrl.stage) {
+              RevokeStage.running => _running(context, ctrl),
+              RevokeStage.done => _result(
+                context,
+                icon: Icons.check_circle_outline,
+                color: colors.online,
+                message: tr.deviceRemoved,
+              ),
+              RevokeStage.failed => _result(
+                context,
+                icon: Icons.error_outline,
+                color: colors.error,
+                message: ctrl.error ?? tr.failedToRevoke,
+              ),
+            },
+
+            // Ação no rodapé — centralizado, tamanho intrínseco.
+            if (ctrl.stage != RevokeStage.running) ...[
+              const SizedBox(height: 20),
               PrimaryButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: Text(tr.ok),
               ),
             ],
+          ],
+        ),
+      ),
     );
   }
 

@@ -65,22 +65,25 @@ class _PairingDialogState extends State<PairingDialog> {
     final colors = context.colors;
 
     return AlertDialog(
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              context.t.settings.pairingDialog.title,
-              style: context.typo.title.copyWith(
-                fontSize: 16,
-                color: colors.text,
+      title: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                context.t.settings.pairingDialog.title,
+                style: context.typo.title.copyWith(
+                  fontSize: 16,
+                  color: colors.text,
+                ),
               ),
             ),
-          ),
-          IconButton.ghost(
-            icon: Icon(Icons.close, size: 17, color: colors.text3),
-            onPressed: () => Navigator.of(context).pop(false),
-          ),
-        ],
+            IconButton.ghost(
+              icon: Icon(Icons.close, size: 17, color: colors.text3),
+              onPressed: () => Navigator.of(context).pop(false),
+            ),
+          ],
+        ),
       ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 380),
@@ -96,21 +99,23 @@ class _PairingDialogState extends State<PairingDialog> {
 
   Widget _connecting(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(size: 34),
-          const SizedBox(height: 18),
-          Text(
-            context.t.settings.pairingDialog.connectingToRelay,
-            style: context.typo.body.copyWith(
-              fontSize: 13.5,
-              color: colors.text2,
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(size: 34),
+            const SizedBox(height: 18),
+            Text(
+              context.t.settings.pairingDialog.connectingToRelay,
+              style: context.typo.body.copyWith(
+                fontSize: 13.5,
+                color: colors.text2,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
