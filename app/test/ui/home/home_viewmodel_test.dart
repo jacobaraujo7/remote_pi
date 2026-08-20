@@ -10,8 +10,9 @@ import 'package:app/protocol/protocol.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/home/states/home_state.dart';
 import 'package:app/ui/home/viewmodels/home_viewmodel.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'package:flutter_test/flutter_test.dart';
+import '../../helpers/fake_key_value_store.dart';
 
 class _FakeStorage extends PairingStorage {
   List<PeerRecord> peers;
@@ -47,50 +48,6 @@ class _FakeStorage extends PairingStorage {
   Future<void> deleteRooms(String epk) async {
     _rooms.remove(epk);
   }
-}
-
-class _FakeSecureStorage implements FlutterSecureStorage {
-  final Map<String, String> _store = {};
-  @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async => _store[key];
-  @override
-  Future<void> write({
-    required String key,
-    required String? value,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async {
-    if (value == null) {
-      _store.remove(key);
-    } else {
-      _store[key] = value;
-    }
-  }
-
-  @override
-  Future<void> delete({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async => _store.remove(key);
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 const _peerA = PeerRecord(
@@ -168,7 +125,7 @@ void main() {
           storage: storage,
           emitDebounce: Duration.zero,
         );
-        final prefs = Preferences(_FakeSecureStorage());
+        final prefs = Preferences(FakeKeyValueStore());
         final vm = HomeViewModel(storage, prefs, conn);
         await conn.connectTo(_peerA);
         await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -215,7 +172,7 @@ void main() {
 
     test('initial state is HomeLoading', () {
       final storage = _FakeStorage([_peerA]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
       expect(vm.state, isA<HomeLoading>());
       vm.dispose();
@@ -223,7 +180,7 @@ void main() {
 
     test('empty storage → HomeNoPeer', () async {
       final storage = _FakeStorage([]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
       await Future<void>.delayed(Duration.zero);
       expect(vm.state, isA<HomeNoPeer>());
@@ -232,7 +189,7 @@ void main() {
 
     test('two peers → HomeList containing both', () async {
       final storage = _FakeStorage([_peerA, _peerB]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
       await Future<void>.delayed(Duration.zero);
 
@@ -244,7 +201,7 @@ void main() {
 
     test('openSession writes selectedPeerEpk to Preferences', () async {
       final storage = _FakeStorage([_peerA, _peerB]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
       await Future<void>.delayed(Duration.zero);
 
@@ -259,7 +216,7 @@ void main() {
       '(no switchTo from Home — boot races would otherwise happen)',
       () async {
         final storage = _FakeStorage([_peerA, _peerB]);
-        final prefs = Preferences(_FakeSecureStorage());
+        final prefs = Preferences(FakeKeyValueStore());
         final connects = <String>[];
         final conn = ConnectionManager(
           factory: (peer, _) async {
@@ -291,7 +248,7 @@ void main() {
 
     test('openSession with unknown epk is a no-op', () async {
       final storage = _FakeStorage([_peerA]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
       await Future<void>.delayed(Duration.zero);
 
@@ -307,7 +264,7 @@ void main() {
       'updated before navigating to /chat (race-condition regression)',
       () async {
         final storage = _FakeStorage([_peerA]);
-        final prefs = Preferences(_FakeSecureStorage());
+        final prefs = Preferences(FakeKeyValueStore());
         final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
         await Future<void>.delayed(Duration.zero);
 
@@ -340,7 +297,7 @@ void main() {
         storage: storage,
         emitDebounce: Duration.zero,
       );
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, conn);
       await conn.connectTo(_peerA);
       await Future<void>.delayed(const Duration(milliseconds: 10));
@@ -387,7 +344,7 @@ void main() {
       'when it changes',
       () async {
         final storage = _FakeStorage([_peerA]);
-        final prefs = Preferences(_FakeSecureStorage());
+        final prefs = Preferences(FakeKeyValueStore());
         final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
         await Future<void>.delayed(Duration.zero);
 
@@ -408,7 +365,7 @@ void main() {
 
     test('counts / visibleItems are empty-safe outside a HomeList', () {
       final storage = _FakeStorage([_peerA]);
-      final prefs = Preferences(_FakeSecureStorage());
+      final prefs = Preferences(FakeKeyValueStore());
       final vm = HomeViewModel(storage, prefs, _conn(storage: storage));
 
       // Synchronously still HomeLoading — the getters must not throw.

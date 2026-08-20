@@ -6,7 +6,9 @@ import 'package:app/data/actions/actions_repository.dart';
 import 'package:app/data/mesh/mesh_client.dart';
 import 'package:app/data/mesh/mesh_sync_service.dart';
 import 'package:app/data/local/boxes.dart';
+import 'package:app/data/local/shared_prefs_key_value_store.dart';
 import 'package:app/data/preferences/preferences.dart';
+import 'package:app/data/preferences/preferences_migration.dart';
 import 'package:app/data/repositories/home_read_repository.dart';
 import 'package:app/data/repositories/session_read_repository.dart';
 import 'package:app/data/sync/sync_service.dart';
@@ -39,9 +41,11 @@ import 'package:app/ui/pairing/viewmodels/pairing_viewmodel.dart';
 import 'package:app/ui/settings/viewmodels/settings_viewmodel.dart';
 import 'package:app/ui/update/viewmodels/update_banner_viewmodel.dart';
 import 'package:cryptography/cryptography.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:remote_pi_identity/remote_pi_identity.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final _injector = CustomInjector();
 
@@ -52,8 +56,10 @@ Future<void> setupDependencies() async {
   // Infrastructure singletons
   _injector.addInstance<PairingStorage>(PairingStorage());
 
-  final prefs = Preferences();
-  await prefs.load();
+  // Plan/storage — preferências de UI migram do SecureStorage para
+  // shared_preferences (dados não-sensíveis). Migração one-time roda antes
+  // do primeiro load(), copiando valores legados e apagando-os do keystore.
+  final prefs = await loadPreferencesWithMigration();
   _injector.addInstance<Preferences>(prefs);
 
   // Plan 31 — local SSOT box facade (boxes already opened + runtime wiped in
@@ -282,6 +288,29 @@ Future<PeerTransport> _productionPairingTransportFactory(
 }
 
 // ---------------------------------------------------------------------------
+
+/// Boot sequence for [Preferences]: obtém o shared_preferences, aplica a
+/// migração one-time do SecureStorage (dados legados) e então hidrata o
+/// cache em memória.
+///
+/// Extraída de [setupDependencies] para ser testável isoladamente: o teste
+/// injeta um `getPrefs` mockado e um `legacy` fake, e verifica o invariante
+/// de negócio — “um usuário existente não perde dados após atualizar” — em
+/// vez de acoplar ao detalhe de ordem interna (migração antes do load).
+Future<Preferences> loadPreferencesWithMigration({
+  Future<SharedPreferences> Function()? getPrefs,
+  FlutterSecureStorage? legacy,
+}) async {
+  final sharedPrefs = await (getPrefs ?? SharedPreferences.getInstance)();
+  final kvStore = SharedPrefsKeyValueStore(sharedPrefs);
+  await migrateLegacySecurePrefs(
+    legacy ?? const FlutterSecureStorage(),
+    kvStore,
+  );
+  final prefs = Preferences(kvStore);
+  await prefs.load();
+  return prefs;
+}
 
 class _CancelledError implements Exception {
   const _CancelledError();

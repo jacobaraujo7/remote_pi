@@ -23,11 +23,12 @@ import 'package:app/ui/chat/chat_page.dart';
 import 'package:app/ui/chat/viewmodels/chat_viewmodel.dart';
 import 'package:app/ui/chat/voice/viewmodels/voice_input_viewmodel.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import 'package:provider/provider.dart';
+
+import '../../helpers/fake_key_value_store.dart';
 
 class _FakeChannel implements IChannel {
   final _ctrl = StreamController<ServerMessage>.broadcast();
@@ -46,21 +47,6 @@ class _FakeStorage extends PairingStorage {
   Future<List<PeerRecord>> listPeers() async => const [];
   @override
   Future<PeerRecord?> loadPeer(String epk) async => null;
-}
-
-class _FakeSecureStorage implements FlutterSecureStorage {
-  @override
-  Future<String?> read({
-    required String key,
-    IOSOptions? iOptions,
-    AndroidOptions? aOptions,
-    LinuxOptions? lOptions,
-    WebOptions? webOptions,
-    MacOsOptions? mOptions,
-    WindowsOptions? wOptions,
-  }) async => null;
-  @override
-  dynamic noSuchMethod(Invocation i) => super.noSuchMethod(i);
 }
 
 class _FakeSpeech implements SpeechService {
@@ -95,7 +81,7 @@ void main() {
       final boxes = LocalBoxes();
       final sync = SyncService(conn, boxes);
       final read = SessionReadRepository(boxes);
-      final prefs = Preferences(_FakeSecureStorage()); // no selected peer
+      final prefs = Preferences(FakeKeyValueStore()); // no selected peer
       final actions = ActionsRepository(conn);
       final vm = ChatViewModel(read, sync, conn, prefs, _FakeStorage());
       final voice = VoiceInputViewModel(_FakeSpeech());
