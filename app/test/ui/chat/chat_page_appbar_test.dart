@@ -15,6 +15,7 @@ import 'package:app/data/sync/sync_service.dart';
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/data/voice/speech_service.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/routing/adaptive.dart';
@@ -46,6 +47,15 @@ class _FakeStorage extends PairingStorage {
   Future<List<PeerRecord>> listPeers() async => const [];
   @override
   Future<PeerRecord?> loadPeer(String epk) async => null;
+}
+
+class _FakeNotifier implements Notifier {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<bool?> hasPermission() async => true;
+  @override
+  Future<void> agentFinished({required String agentName, required String workspace}) async {}
 }
 
 class _FakeSecureStorage implements FlutterSecureStorage {
@@ -93,7 +103,7 @@ void main() {
         storage: _FakeStorage(),
       );
       final boxes = LocalBoxes();
-      final sync = SyncService(conn, boxes);
+      final sync = SyncService(conn, boxes, _FakeNotifier());
       final read = SessionReadRepository(boxes);
       final prefs = Preferences(_FakeSecureStorage()); // no selected peer
       final actions = ActionsRepository(conn);

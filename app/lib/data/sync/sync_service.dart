@@ -18,6 +18,7 @@ import 'package:app/data/local/records/runtime_record.dart';
 import 'package:app/data/local/records/session_index_record.dart';
 import 'package:app/data/sync/sync_events.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/domain/contracts/service.dart';
 import 'package:app/domain/session_state.dart';
 import 'package:app/protocol/protocol.dart';
@@ -27,6 +28,7 @@ import 'package:flutter/foundation.dart';
 class SyncService extends Service {
   final ConnectionManager _conn;
   final LocalBoxes _boxes;
+  final Notifier _notifier;
 
   StreamSubscription<ConnectionStatus>? _connSub;
   StreamSubscription<ServerMessage>? _msgSub;
@@ -95,13 +97,15 @@ class SyncService extends Service {
 
   SyncService(
     this._conn,
-    this._boxes, {
+    this._boxes,
+    this._notifier, {
     this.pendingSendTimeout = const Duration(seconds: 20),
   }) {
     _connSub = _conn.statusStream.listen(_onStatus);
     _roomsSub = _conn.roomsStream.listen((_) {
       _writeRuntime();
       _syncTurnStateFromRoomMeta();
+      _checkAllRoomsForAgentFinish();
     });
     _presenceSub = _conn.presenceStream.listen((_) => _writeRuntime());
     _onStatus(_conn.status); // replay current
@@ -1015,6 +1019,51 @@ class SyncService extends Service {
     }
     _sawRemoteWorking = false;
   }
+
+  /// Plan 58 — walk every room across every peer to detect when an agent finishes a turn.
+  Future<void> _checkAllRoomsForAgentFinish() async {
+    final allRooms = _conn.roomsSnapshot;
+    final nowWorking = <String>{};
+    for (final entry in allRooms.entries) {
+      for (final room in entry.value) {
+        if (_conn.isRoomWorking(entry.key, room.roomId)) {
+          nowWorking.add('${entry.key}:${room.roomId}');
+        }
+      }
+    }
+    for (final key in _prevWorkingRooms) {
+      if (!nowWorking.contains(key)) {
+        final parts = key.split(':');
+        final epk = parts[0];
+        final roomId = parts.sublist(1).join(':');
+        final room = allRooms[epk]?.where((r) => r.roomId == roomId).firstOrNull;
+        final sessionTitle = room?.name ?? room?.cwd ?? '';
+        final peer = await _conn.lookupPeer(epk);
+        // Skip the session the user is currently watching — they see the
+        // agent stop in real time. Compare PeerRecord.remoteEpk so base64
+        // encoding differences between roomsSnapshot keys and _activeEpk
+        // don't cause false negatives.
+        final active = _conn.activePeer;
+        if (active != null && peer != null && active.remoteEpk == peer.remoteEpk && roomId == _activeRoomId) {
+          continue;
+        }
+        final deviceName = (peer?.nickname?.isNotEmpty ?? false)
+            ? peer!.nickname!
+            : (peer?.sessionName.isNotEmpty ?? false)
+                ? peer!.sessionName
+                : epk.substring(0, 8);
+        // Match Cockpit convention: agentName = session/tab title,
+        // workspace = device/PC name.
+        unawaited(_notifier.agentFinished(
+          agentName: sessionTitle,
+          workspace: deviceName,
+        ));
+      }
+    }
+    _prevWorkingRooms = nowWorking;
+  }
+
+  Set<String> _prevWorkingRooms = const {};
 
   void _setWorking(bool on, {String? preview, String? replyTo}) {
     _setActivity(

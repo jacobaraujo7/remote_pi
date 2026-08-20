@@ -85,6 +85,11 @@ dependencies:
   # versionName) so the Android-only in-app update notice can compare it
   # against the release manifest's semver.
   package_info_plus: ^8.0.0
+  slang: ^4.19.0
+  slang_flutter: ^4.19.0
+  flutter_local_notifications: ^22.2.0
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:
@@ -101,6 +106,8 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  slang_build_runner: ^4.19.0
+  build_runner: ^2.15.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

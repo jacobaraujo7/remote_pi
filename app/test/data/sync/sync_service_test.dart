@@ -11,6 +11,7 @@ import 'package:app/data/repositories/session_read_repository.dart';
 import 'package:app/data/sync/sync_service.dart';
 import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/domain/session_state.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart';
@@ -40,8 +41,59 @@ class _FakeChannel implements IChannel, IControlLink {
 }
 
 class _FakeStorage extends PairingStorage {
+  final Map<String, PeerRecord> _peers = {};
+  final Map<String, List<PersistedRoom>> _rooms = {};
+
+  void addPeer(PeerRecord p) => _peers[p.remoteEpk] = p;
+
   @override
-  Future<List<PeerRecord>> listPeers() async => const [];
+  Future<List<PeerRecord>> listPeers() async => _peers.values.toList();
+
+  @override
+  Future<PeerRecord?> loadPeer(String epk) async => _peers[epk];
+
+  @override
+  Future<void> savePeer(PeerRecord r) async => _peers[r.remoteEpk] = r;
+
+  @override
+  Future<void> saveRooms(String epk, List<PersistedRoom> rooms) async =>
+      _rooms[epk] = rooms;
+
+  @override
+  Future<List<PersistedRoom>> loadRooms(String epk) async =>
+      _rooms[epk] ?? const [];
+
+  @override
+  Future<void> deleteRooms(String epk) async => _rooms.remove(epk);
+}
+
+class _FakeNotifier implements Notifier {
+  @override
+  Future<void> init() async {}
+  @override
+  Future<bool?> hasPermission() async => true;
+  @override
+  Future<void> agentFinished({required String agentName, required String workspace}) async {}
+}
+
+/// Plan/58 — captures every [agentFinished] call so tests assert
+/// exactly what _checkAllRoomsForAgentFinish dispatched.
+class _SpyNotifier implements Notifier {
+  final List<({String agentName, String workspace})> calls = [];
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<bool?> hasPermission() async => true;
+
+  @override
+  Future<void> agentFinished({
+    required String agentName,
+    required String workspace,
+  }) async {
+    calls.add((agentName: agentName, workspace: workspace));
+  }
 }
 
 int _counter = 0;
@@ -75,6 +127,7 @@ void main() {
     final sync = SyncService(
       conn,
       boxes,
+      _FakeNotifier(),
       pendingSendTimeout: pendingSendTimeout,
     );
     final epk = 'epk_sync_${++_counter}';
@@ -940,7 +993,7 @@ void main() {
         factory: (_, _) async => _FakeChannel(),
         storage: _FakeStorage(),
       );
-      final sync = SyncService(conn, LocalBoxes(), pendingSendTimeout: short);
+      final sync = SyncService(conn, LocalBoxes(), _FakeNotifier(), pendingSendTimeout: short);
       final epk = 'epk_offline_${++_counter}';
       await sync.activate(epk, 'main');
       await _settle();
@@ -1011,5 +1064,171 @@ void main() {
         s.sync.dispose();
       },
     );
+  });
+
+  // Plan/58 — _checkAllRoomsForAgentFinish behaviour.
+  group('agent-finished notifications', () {
+    Future<({ConnectionManager conn, _FakeChannel ch, SyncService sync, _SpyNotifier spy, _FakeStorage storage, String epk})>
+    setupWithSpy({String nickname = 'MacBook Pro', String sessionName = 'Test Pi'}) async {
+      final ch = _FakeChannel();
+      final storage = _FakeStorage();
+      final epk = 'epk_notify_${++_counter}';
+      final peer = PeerRecord(
+        remoteEpk: epk,
+        sessionName: sessionName,
+        nickname: nickname,
+        relayUrl: 'ws://localhost',
+        pairedAt: '2026-01-01T00:00:00Z',
+      );
+      storage.addPeer(peer);
+      // Also register a second peer so we can switch the active session
+      // away from the peer under test. The notification must only fire for
+      // background sessions, not the one the user is watching.
+      final otherPeer = PeerRecord(
+        remoteEpk: 'other_epk_notify_${++_counter}',
+        sessionName: 'Other Pi',
+        nickname: 'Other',
+        relayUrl: 'ws://localhost',
+        pairedAt: '2026-01-01T00:00:00Z',
+      );
+      storage.addPeer(otherPeer);
+      final conn = ConnectionManager(
+        factory: (_, _) async => ch,
+        storage: storage,
+        emitDebounce: Duration.zero,
+      );
+      final spy = _SpyNotifier();
+      final sync = SyncService(conn, LocalBoxes(), spy);
+      conn.adopt(ch, peer);
+      await _settle();
+      // Switch the writer to the OTHER peer so the peer under test is
+      // considered a background session.
+      await sync.activate(otherPeer.remoteEpk, 'other-room');
+      await _settle();
+      return (conn: conn, ch: ch, sync: sync, spy: spy, storage: storage, epk: epk);
+    }
+
+    test('working→idle fires agentFinished once', () async {
+      final s = await setupWithSpy();
+
+      // Room announced + working=true.
+      s.ch.pushControl(RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1));
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, isEmpty, reason: 'no finish yet — still working');
+
+      // working→idle transition.
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, hasLength(1));
+      expect(s.spy.calls.single.workspace, 'MacBook Pro');
+
+      s.sync.dispose();
+      s.conn.dispose();
+    });
+
+    test('idle→idle does not fire', () async {
+      final s = await setupWithSpy();
+
+      // Room announced idle from the start.
+      s.ch.pushControl(RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1));
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, isEmpty);
+
+      // Another idle broadcast — no transition, no notification.
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, isEmpty, reason: 'idle→idle must not fire');
+
+      s.sync.dispose();
+      s.conn.dispose();
+    });
+
+    test('room that stays working does not fire', () async {
+      final s = await setupWithSpy();
+
+      s.ch.pushControl(RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1));
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, isEmpty);
+
+      // Relay re-sends working=true — no transition, no notification.
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      expect(s.spy.calls, isEmpty, reason: 'working→working must not fire');
+
+      s.sync.dispose();
+      s.conn.dispose();
+    });
+
+    test('uses nickname from lookupPeer, not activePeer', () async {
+      final s = await setupWithSpy(nickname: 'Raspberry Pi 5');
+
+      s.ch.pushControl(RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1));
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+
+      expect(s.spy.calls, hasLength(1));
+      expect(s.spy.calls.single.workspace, 'Raspberry Pi 5',
+          reason: 'nickname from stored PeerRecord, not activePeer fallback');
+
+      s.sync.dispose();
+      s.conn.dispose();
+    });
+
+    test('falls back to sessionName when nickname is empty', () async {
+      final s = await setupWithSpy(nickname: '', sessionName: 'Home Server');
+
+      s.ch.pushControl(RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1));
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      s.ch.pushControl(RoomMetaUpdated(peer: s.epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+
+      expect(s.spy.calls, hasLength(1));
+      expect(s.spy.calls.single.workspace, 'Home Server');
+
+      s.sync.dispose();
+      s.conn.dispose();
+    });
+
+    test('does not notify for the active session the user is watching', () async {
+      final ch = _FakeChannel();
+      final storage = _FakeStorage();
+      final epk = 'epk_active_${++_counter}';
+      final peer = PeerRecord(
+        remoteEpk: epk,
+        sessionName: 'Watched Pi',
+        nickname: 'Main Screen',
+        relayUrl: 'ws://localhost',
+        pairedAt: '2026-01-01T00:00:00Z',
+      );
+      storage.addPeer(peer);
+      final conn = ConnectionManager(
+        factory: (_, _) async => ch,
+        storage: storage,
+        emitDebounce: Duration.zero,
+      );
+      final spy = _SpyNotifier();
+      final sync = SyncService(conn, LocalBoxes(), spy);
+      conn.adopt(ch, peer);
+      await _settle();
+      // Keep the active session ON this peer — the user is watching it.
+
+      ch.pushControl(RoomAnnounced(peer: epk, roomId: 'main', startedAt: 1));
+      ch.pushControl(RoomMetaUpdated(peer: epk, roomId: 'main', working: true, hasModel: false, hasThinking: false));
+      await _settle();
+      ch.pushControl(RoomMetaUpdated(peer: epk, roomId: 'main', working: false, hasModel: false, hasThinking: false));
+      await _settle();
+
+      expect(spy.calls, isEmpty,
+          reason: 'must not notify for the session the user is watching');
+
+      sync.dispose();
+      conn.dispose();
+    });
   });
 }

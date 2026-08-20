@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/connection_manager.dart';
+import 'package:app/domain/contracts/notifier.dart';
 import 'package:app/data/transport/peer_channel.dart';
 import 'package:app/data/transport/relay_config.dart';
 import 'package:app/pairing/pair_request_flow.dart';
@@ -11,6 +12,14 @@ import 'package:app/ui/settings/states/settings_state.dart';
 import 'package:app/ui/settings/viewmodels/settings_viewmodel.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _FakeNotifier implements Notifier {
+  @override Future<void> init() async {}
+  @override Future<bool?> hasPermission() async => true;
+  @override Future<void> agentFinished({required String agentName, required String workspace}) async {}
+}
+
+final _fakeNotifier = _FakeNotifier();
 
 class _NoopTransport implements PeerTransport {
   @override Future<void> send(Uint8List data) async {}
@@ -105,7 +114,7 @@ void main() {
     test('initial state is SettingsLoading', () {
       final storage = _FakeStorage([_peerA()]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       expect(vm.state, isA<SettingsLoading>());
       vm.dispose();
     });
@@ -113,7 +122,7 @@ void main() {
     test('empty storage → SettingsNoPeer', () async {
       final storage = _FakeStorage([]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
       expect(vm.state, isA<SettingsNoPeer>());
       vm.dispose();
@@ -122,7 +131,7 @@ void main() {
     test('peers loaded → SettingsList', () async {
       final storage = _FakeStorage([_peerA()]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       final s = vm.state as SettingsList;
@@ -137,7 +146,7 @@ void main() {
       final prefs = Preferences(_FakeSecureStorage());
       await prefs.setSelectedPeerEpk('epk_A');
 
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.revoke('epk_A');
@@ -155,7 +164,7 @@ void main() {
       final prefs = Preferences(_FakeSecureStorage());
       await prefs.setSelectedPeerEpk('epk_other');
 
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.revoke('epk_A');
@@ -169,7 +178,7 @@ void main() {
     test('setNickname updates state and storage', () async {
       final storage = _FakeStorage([_peerA()]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.setNickname('epk_A', 'Casa');
@@ -187,7 +196,7 @@ void main() {
         _peerA().copyWith(nickname: 'Casa'),
       ]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.setNickname('epk_A', null);
@@ -204,7 +213,7 @@ void main() {
         _peerA().copyWith(nickname: 'Casa'),
       ]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.setNickname('epk_A', '   ');
@@ -218,7 +227,7 @@ void main() {
     test('setNickname is a no-op for unknown epk', () async {
       final storage = _FakeStorage([_peerA()]);
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage));
+      final vm = SettingsViewModel(storage, prefs, _conn(storage: storage), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       await vm.setNickname('epk_does_not_exist', 'Casa');
@@ -234,7 +243,7 @@ void main() {
     test('saveRelayUrl with valid URL persists override + returns null',
         () async {
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn());
+      final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn(), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       final err = await vm.saveRelayUrl('https://custom.example');
@@ -249,7 +258,7 @@ void main() {
       'saveRelayUrl with invalid URL returns error and does NOT persist',
       () async {
         final prefs = Preferences(_FakeSecureStorage());
-        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn());
+        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn(), _fakeNotifier);
         await Future<void>.delayed(Duration.zero);
 
         final err = await vm.saveRelayUrl('not-a-url');
@@ -263,7 +272,7 @@ void main() {
     test('saveRelayUrl rejects ws:// / wss:// with the scheme-specific hint',
         () async {
       final prefs = Preferences(_FakeSecureStorage());
-      final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn());
+      final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn(), _fakeNotifier);
       await Future<void>.delayed(Duration.zero);
 
       final err = await vm.saveRelayUrl('wss://relay.example');
@@ -281,7 +290,7 @@ void main() {
       () async {
         final prefs = Preferences(_FakeSecureStorage());
         await prefs.setRelayUrl('https://x.example');
-        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn());
+        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn(), _fakeNotifier);
         await Future<void>.delayed(Duration.zero);
 
         // Empty → error, override untouched.
@@ -308,7 +317,7 @@ void main() {
       '"use default" button) and reflects a saved override',
       () async {
         final prefs = Preferences(_FakeSecureStorage());
-        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn());
+        final vm = SettingsViewModel(_FakeStorage([]), prefs, _conn(), _fakeNotifier);
         await Future<void>.delayed(Duration.zero);
 
         // No override yet → the field pre-fills with the default endpoint.

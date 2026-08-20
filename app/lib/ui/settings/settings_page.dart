@@ -324,6 +324,8 @@ class _DisplaySection extends StatelessWidget {
             ],
           ),
         ),
+        const _NotificationToggle(),
+
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
           activeThumbColor: colors.accent,
@@ -447,5 +449,54 @@ class _PeerList extends StatelessWidget {
     );
     if (result == null) return; // canceled
     await onSetNickname(peer.remoteEpk, result.isEmpty ? null : result);
+  }
+}
+
+class _NotificationToggle extends StatelessWidget {
+  const _NotificationToggle();
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = context.watch<Preferences>();
+    final vm = context.read<SettingsViewModel>();
+    final colors = context.colors;
+    return SwitchListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+      activeThumbColor: colors.accent,
+      title: Text(
+        'Enable notifications',
+        style: context.typo.sansBody.copyWith(color: colors.text),
+      ),
+      subtitle: Builder(
+        builder: (context) {
+          if (!prefs.notificationsEnabled) {
+            return Text(
+              'Alert me when an agent finishes a turn in a session I\'m not watching.',
+              style: context.typo.sansBody.copyWith(
+                color: colors.muted,
+                fontSize: 12,
+              ),
+            );
+          }
+          return FutureBuilder<bool?>(
+            future: vm.hasNotificationPermission,
+            builder: (context, snap) {
+              final blocked = snap.data == false;
+              return Text(
+                blocked
+                    ? 'Notifications are blocked at the system level. Open your device settings to grant permission.'
+                    : 'Alert me when an agent finishes a turn in a session I\'m not watching.',
+                style: context.typo.sansBody.copyWith(
+                  color: blocked ? colors.error : colors.muted,
+                  fontSize: 12,
+                ),
+              );
+            },
+          );
+        },
+      ),
+      value: prefs.notificationsEnabled,
+      onChanged: (v) => prefs.setNotificationsEnabled(v),
+    );
   }
 }
