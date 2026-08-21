@@ -74,10 +74,12 @@ import {
   createExtensionUiBridge,
   type ExtensionUiBridge,
 } from "./extension_ui_bridge.js";
+import { createProgrammaticRenameApi } from "./programmatic_rename.js";
 import { roomIdFor } from "./rooms.js";
 import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
 import { MeshNode } from "./session/mesh_node.js";
+import { sanitizeMeshName } from "./session/broker.js";
 import {
   handleSessionCompact,
   handleModelSet,
@@ -1106,6 +1108,10 @@ let _pi: ExtensionAPI | null = null;
 // extension factory wires it (and null if the SDK exposes no events bus).
 let _extensionUiBridge: ExtensionUiBridge | null = null;
 
+// Public inter-extension API for dynamic name resolvers. Bound for the active
+// Pi session and disposed on session replacement with the other event bridges.
+let _stopProgrammaticRenameApi: (() => void) | null = null;
+
 let _stopAutoListener: (() => void) | null = null;
 
 // Cached keypair (loaded once, reused across start/pair cycles)
@@ -1707,15 +1713,21 @@ export async function _handleControl(cmd: string): Promise<void> {
  *
  * The explicit name IS persisted (decision E only skips the runtime `#N`).
  */
-async function _renameAgent(newName: string): Promise<void> {
-  if (!newName) return;  // empty rename → no-op
+async function _renameAgent(newName: string): Promise<boolean> {
+  if (!newName) return false;  // empty rename → no-op
   const ctx = _controlCtx();
   const cwd = process.cwd();
+  const desiredName = sanitizeMeshName(newName);
+  const currentName = _meshNode?.name();
+  const alreadyApplied = currentName === desiredName || (
+    !/#\d+$/.test(desiredName) && currentName?.replace(/#\d+$/, "") === desiredName
+  );
   saveLocalConfig(cwd, { agent_name: newName });
+  if (alreadyApplied) return true;
 
   if (!_meshNode) {
     // Not on the mesh yet — config persisted; applies on the next join.
-    return;
+    return true;
   }
 
   // Relay room is derived from the name → cycle it so it follows. Tear down
@@ -1725,13 +1737,17 @@ async function _renameAgent(newName: string): Promise<void> {
   if (wasStarted) _goIdle("peer_stop");
 
   let assigned = newName;
+  let succeeded = true;
   try {
     assigned = await _meshNode.rename(newName);  // broker soft rejoin
   } catch (err) {
+    succeeded = false;
     ctx.ui.notify(`[remote-pi] rename failed: ${String(err)}`, "error");
   }
 
   if (wasStarted && !_disposed) await _cmdStart(ctx);  // relay back up → roomIdFor(cwd, assigned)
+
+  if (!succeeded) return false;
 
   _pi?.sendMessage({
     customType: "remote-pi:name-assigned",
@@ -1741,6 +1757,7 @@ async function _renameAgent(newName: string): Promise<void> {
     details: { requested: newName, assigned, changed: assigned !== newName },
     display: false,
   });
+  return true;
 }
 
 /**
@@ -2083,6 +2100,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   _extensionUiBridge?.dispose();
   _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
 
+  _stopProgrammaticRenameApi?.();
+  _stopProgrammaticRenameApi = createProgrammaticRenameApi(pi, _renameAgent);
+
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
   try {
@@ -2346,6 +2366,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (!_extensionUiBridge) {
       _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
     }
+    if (!_stopProgrammaticRenameApi) {
+      _stopProgrammaticRenameApi = createProgrammaticRenameApi(pi, _renameAgent);
+    }
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2448,6 +2471,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // module instances create their bridge in the factory.
     _extensionUiBridge?.dispose();
     _extensionUiBridge = null;
+    _stopProgrammaticRenameApi?.();
+    _stopProgrammaticRenameApi = null;
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect

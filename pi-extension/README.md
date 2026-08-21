@@ -404,6 +404,24 @@ Name collisions inside a session get a numeric suffix automatically
 (`backend`, `backend#2`, `backend#3`). The broker assigns it and returns the
 real name to the peer.
 
+### Programmatic rename
+
+Other Pi extensions can request the same live rename through Pi's shared event
+bus. Requests are serialized because each rename temporarily rejoins the local
+mesh and may cycle the relay room.
+
+```typescript
+pi.events.emit("remote-pi:rename-request", {
+  version: 1,
+  name: "backend",
+});
+```
+
+`name` must be a non-empty string. Remote Pi trims surrounding whitespace,
+persists the requested base name, and still applies its normal sanitization and
+runtime collision suffix. Repeating the currently assigned base name is a no-op,
+so a polling extension can safely emit its current value.
+
 ---
 
 ## Command reference
