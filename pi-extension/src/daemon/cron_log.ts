@@ -1,6 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { remotePiHome } from "../paths.js";
 
 /**
  * Append-only audit trail for cron fires at `~/.pi/remote/cron.jsonl`.
@@ -36,8 +36,7 @@ export interface CronLogEntry {
 const PREVIEW_LEN = 80;
 
 function logPath(): string {
-  const root = process.env["REMOTE_PI_HOME"] || homedir();
-  return join(root, ".pi", "remote", "cron.jsonl");
+  return join(remotePiHome(), "cron.jsonl");
 }
 
 /** Test/diag-only: the on-disk path. */

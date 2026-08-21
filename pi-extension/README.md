@@ -595,10 +595,55 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 | Path | Scope | What's in it |
 |---|---|---|
 | `<cwd>/.pi/remote-pi/config.json` | Per-directory | `agent_name`, `session_name`, `auto_start_relay` |
-| `~/.pi/remote/config.json` | Per-user | `relay` URL |
+| `~/.pi/remote/config.json` | Per-user | `relay` URL; optional `defaults.auto_start_relay` (machine-wide fallback for per-directory configs) |
 | `~/.pi/remote/peers.json` | Per-machine | Paired mobile devices |
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
 | `~/.pi/remote/skills/agent-network/SKILL.md` | Per-user | Agent skill the LLM reads |
+
+Every path above **except the global `config.json`** derives from a single
+**state root** — by default `~/.pi/remote`. Two environment variables relocate
+that state root:
+
+| Variable | Behaviour |
+|---|---|
+| `REMOTE_PI_DIR` | Absolute path to the state root. No suffix appended — set this to an XDG-style location like `~/.config/pi/remote-pi`. Takes priority over every other variable. |
+| `REMOTE_PI_HOME` | Stand-in for `$HOME`; state lives at `<REMOTE_PI_HOME>/.pi/remote`. Kept for backward compatibility. |
+
+When both are set, `REMOTE_PI_DIR` wins. Use these to put remote-pi **state**
+(sessions, daemon registries, cwd locks, paired identity) on a specific disk,
+inside an XDG directory, or anywhere your system's conventions dictate.
+
+The global `config.json` (relay URL + defaults) is resolved separately, so it
+can sit beside the coding agent's own settings rather than the state tree:
+
+| Variable | Behaviour |
+|---|---|
+| `PI_CODING_AGENT_DIR` | The Pi host's settings root (default `~/.pi`). `config.json` lives at `<PI_CODING_AGENT_DIR>/remote/config.json`, so with the default agent dir the path stays exactly `~/.pi/remote/config.json`. Takes priority for config. |
+
+When `PI_CODING_AGENT_DIR` is unset, `config.json` falls back to the state root
+above (so a pure `REMOTE_PI_DIR` relocation still keeps config beside the rest).
+
+### Global defaults
+
+The global `~/.pi/remote/config.json` can include a `defaults` block that acts
+as a fallback for every per-directory config that doesn't set the field:
+
+```jsonc
+{
+  "relay": "https://relay.yourdomain.tld",
+  "defaults": {
+    "auto_start_relay": true
+  }
+}
+```
+
+This lets you pin `auto_start_relay` once — beside `relay` — instead of
+dropping a `config.json` into every repo. A per-directory file (or the
+`REMOTE_PI_DIRECT_CONFIG` env var) still overrides the global default.
+
+The `defaults` block is read from wherever the global `config.json` resolves, so
+it follows a relocated config: with `PI_CODING_AGENT_DIR` set it lives at
+`<PI_CODING_AGENT_DIR>/remote/config.json` (see the environment overrides above).
 
 Override the relay for a single run without persisting:
 

@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { remotePiConfigHome } from "./paths.js";
 
-const CONFIG_DIR = path.join(os.homedir(), ".pi", "remote");
-const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
+// Resolved at call time via `remotePiConfigHome()` — config.json follows the
+// coding-agent dir (`PI_CODING_AGENT_DIR`), falling back to the state root
+// (`remotePiHome()`, still settable via REMOTE_PI_DIR / REMOTE_PI_HOME). See
+// paths.ts. Previously hardcoded to `os.homedir()`, which ignored every
+// relocation knob and split config.json off from the rest of the install.
+const configDir = (): string => remotePiConfigHome();
+const configFile = (): string => path.join(remotePiConfigHome(), "config.json");
 
 /**
  * Default community relay. Stored in canonical http(s):// form — conversion
@@ -14,11 +19,22 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
  */
 export const kDefaultRelayUrl = "https://relay-rp1.jacobmoura.work";
 
-export type RemotePiConfig = { relay?: string };
+export type RemotePiConfig = {
+  relay?: string;
+  /**
+   * Machine-wide fallback defaults for a session's LOCAL config (the per-cwd
+   * `.pi/remote-pi/config.json`). A field here applies to every cwd that does
+   * not set it via the inline `REMOTE_PI_DIRECT_CONFIG` env or its own file, so
+   * you can pin `auto_start_relay` once — beside `relay` — instead of dropping a
+   * file into every repo. See `session/local_config.ts`. Absent by default, so
+   * omitting it preserves the historical per-cwd-only behaviour exactly.
+   */
+  defaults?: { auto_start_relay?: boolean };
+};
 
 export function loadConfig(): RemotePiConfig {
   try {
-    const raw = fs.readFileSync(CONFIG_FILE, "utf8");
+    const raw = fs.readFileSync(configFile(), "utf8");
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== "object") return {};
     return parsed as RemotePiConfig;
@@ -28,10 +44,10 @@ export function loadConfig(): RemotePiConfig {
 }
 
 export function saveConfig(patch: Partial<RemotePiConfig>): void {
-  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.mkdirSync(configDir(), { recursive: true });
   const current = loadConfig();
   const next = { ...current, ...patch };
-  fs.writeFileSync(CONFIG_FILE, JSON.stringify(next, null, 2));
+  fs.writeFileSync(configFile(), JSON.stringify(next, null, 2));
 }
 
 export type RelayResolution = { url: string; source: "env" | "config" | "default" };
