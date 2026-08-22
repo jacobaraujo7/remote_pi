@@ -744,8 +744,6 @@ class _RailPanel extends StatelessWidget {
             vm.selectProject(id);
             onDismiss();
           },
-          onRemoveRemoteWorkspace: (wsId) =>
-              unawaited(vm.removeRemoteWorkspace(wsId)),
           remoteGitInfoOf: vm.remoteGitInfoOf,
           onRemoteWorkspaceAction: (wsId, action) =>
               handleRemoteWorkspaceAction(context, wsId, action),
