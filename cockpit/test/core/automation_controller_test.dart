@@ -39,14 +39,14 @@ class _Gateway implements AutomationGateway {
 
 void main() {
   const harness = AutomationHarness(
-    id: AutomationHarnessId.codex,
+    id: HarnessKind.codex,
     executablePath: '/usr/bin/codex',
     models: [
       AutomationModel(id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra'),
       AutomationModel(id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol'),
     ],
   );
-  const selection = AutomationSelection(harnessId: AutomationHarnessId.codex);
+  const selection = AutomationSelection(harnessId: HarnessKind.codex);
   const request = AutomationRequest(prompt: 'prompt', repositoryPath: '/repo');
 
   test('discovers installed harnesses and exposes them by id', () async {
@@ -56,7 +56,7 @@ void main() {
     await controller.refresh();
 
     expect(controller.initialized, isTrue);
-    expect(controller.harnessFor(AutomationHarnessId.codex), harness);
+    expect(controller.harnessFor(HarnessKind.codex), harness);
     expect(controller.discovering, isFalse);
     controller.dispose();
   });
@@ -100,7 +100,7 @@ void main() {
 
     final result = await controller.generate(
       selection: const AutomationSelection(
-        harnessId: AutomationHarnessId.codex,
+        harnessId: HarnessKind.codex,
         modelId: 'retired-model',
       ),
       request: request,
@@ -111,7 +111,7 @@ void main() {
       expect(error.kind, AutomationErrorKind.unavailable);
       // O erro carrega os dados, não a frase: quem traduz é a UI.
       expect(error.model, 'retired-model');
-      expect(error.harness, 'Codex CLI');
+      expect(error.harness, 'Codex');
     });
     controller.dispose();
   });
@@ -123,7 +123,7 @@ void main() {
     var cleared = false;
 
     final warning = controller.reconcileStaleModel(
-      harnessId: AutomationHarnessId.codex,
+      harnessId: HarnessKind.codex,
       modelId: 'retired-model',
       clearToCliDefault: () => cleared = true,
     );

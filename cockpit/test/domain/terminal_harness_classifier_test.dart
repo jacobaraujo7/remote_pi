@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_classifier.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -11,7 +11,7 @@ void main() {
             executable: '/usr/local/bin/agy',
             argv: ['agy'],
           ),
-          equals(TerminalHarnessKind.antigravity),
+          equals(HarnessKind.antigravity),
         );
       });
 
@@ -21,14 +21,14 @@ void main() {
             executable: 'agy',
             argv: ['agy', 'resume'],
           ),
-          equals(TerminalHarnessKind.antigravity),
+          equals(HarnessKind.antigravity),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'agy',
             argv: ['agy', 'fix bug in code'],
           ),
-          equals(TerminalHarnessKind.antigravity),
+          equals(HarnessKind.antigravity),
         );
       });
 
@@ -64,14 +64,14 @@ void main() {
             executable: '/usr/bin/claude',
             argv: ['claude'],
           ),
-          equals(TerminalHarnessKind.claudeCode),
+          equals(HarnessKind.claudeCode),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'claude',
             argv: ['claude', '-c'],
           ),
-          equals(TerminalHarnessKind.claudeCode),
+          equals(HarnessKind.claudeCode),
         );
       });
 
@@ -81,7 +81,7 @@ void main() {
             executable: 'node',
             argv: ['node', '/usr/lib/node_modules/@anthropic-ai/claude-code/cli.js'],
           ),
-          equals(TerminalHarnessKind.claudeCode),
+          equals(HarnessKind.claudeCode),
         );
       });
 
@@ -110,14 +110,14 @@ void main() {
             executable: 'codex',
             argv: ['codex'],
           ),
-          equals(TerminalHarnessKind.codex),
+          equals(HarnessKind.codex),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'codex',
             argv: ['codex', 'resume'],
           ),
-          equals(TerminalHarnessKind.codex),
+          equals(HarnessKind.codex),
         );
       });
 
@@ -146,21 +146,21 @@ void main() {
             executable: '/bin/cursor-agent',
             argv: ['cursor-agent'],
           ),
-          equals(TerminalHarnessKind.cursor),
+          equals(HarnessKind.cursor),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'cursor',
             argv: ['cursor'],
           ),
-          equals(TerminalHarnessKind.cursor),
+          equals(HarnessKind.cursor),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: '/home/user/.local/bin/agent',
             argv: ['agent'],
           ),
-          equals(TerminalHarnessKind.cursor),
+          equals(HarnessKind.cursor),
         );
       });
 
@@ -189,14 +189,14 @@ void main() {
             executable: 'copilot',
             argv: ['copilot'],
           ),
-          equals(TerminalHarnessKind.gitHubCopilot),
+          equals(HarnessKind.gitHubCopilot),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'github-copilot',
             argv: ['github-copilot'],
           ),
-          equals(TerminalHarnessKind.gitHubCopilot),
+          equals(HarnessKind.gitHubCopilot),
         );
       });
 
@@ -225,7 +225,7 @@ void main() {
             executable: 'opencode',
             argv: ['opencode'],
           ),
-          equals(TerminalHarnessKind.openCode),
+          equals(HarnessKind.openCode),
         );
       });
 
@@ -254,14 +254,14 @@ void main() {
             executable: 'pi',
             argv: ['pi'],
           ),
-          equals(TerminalHarnessKind.pi),
+          equals(HarnessKind.pi),
         );
         expect(
           TerminalHarnessClassifier.classify(
             executable: 'pi',
             argv: ['pi', '-c'],
           ),
-          equals(TerminalHarnessKind.pi),
+          equals(HarnessKind.pi),
         );
       });
 

@@ -4,7 +4,7 @@ import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_monitor.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/i18n/strings.g.dart';
@@ -159,8 +159,8 @@ class TerminalSession extends PaneItem {
   TerminalStatus _status = TerminalStatus.idle;
   TerminalStatus get status => _status;
 
-  TerminalHarnessKind? _activeHarness;
-  TerminalHarnessKind? get activeHarness => _activeHarness;
+  HarnessKind? _activeHarness;
+  HarnessKind? get activeHarness => _activeHarness;
 
   /// `true` enquanto o harness está processando um turno (acende o spinner).
   @override

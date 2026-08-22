@@ -13,6 +13,7 @@ import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart
 import 'package:cockpit/app/core/domain/entities/setup_check.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/domain/entities/automation.dart';
+import 'package:cockpit/app/core/domain/services/automation_model_catalog.dart';
 import 'package:cockpit/app/core/ui/automation_controller.dart';
 import 'package:cockpit/app/core/ui/automation_error_message.dart';
 import 'package:cockpit/app/core/ui/widgets/macos_notification_instructions_dialog.dart';
@@ -57,6 +58,7 @@ import 'package:cockpit/i18n/strings.g.dart';
 import 'package:cockpit/app/core/routes.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -698,13 +700,14 @@ class _AutomationsPanelState extends State<_AutomationsPanel> {
                         title: tr.model,
                         description: selected == null
                             ? tr.modelUnavailable
+                            : selectedId.pinnedModelId != null
+                            ? tr.modelAutoRouted
                             : selected.models.isEmpty
                             ? tr.modelCliOnly
-                            : tr.modelOptional,
+                            : tr.modelAccountOnly,
                         trailing: _AutomationModelDropdown(
                           value: modelId,
-                          models: selected?.models ?? const <AutomationModel>[],
-                          recommended: selectedId.recommendedModelId,
+                          harness: selected,
                           onChanged: settings.setAutomationModel,
                         ),
                       ),
@@ -740,15 +743,16 @@ class _AutomationHarnessDropdown extends StatelessWidget {
     required this.onChanged,
   });
 
-  final AutomationHarnessId? selected;
+  final HarnessKind? selected;
   final List<AutomationHarness> harnesses;
-  final ValueChanged<AutomationHarnessId?> onChanged;
+  final ValueChanged<HarnessKind?> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return _DropdownChip(
       label:
           selected?.label ?? context.t.settings.page.automations.notConfigured,
+      leading: selected == null ? null : _HarnessIcon(selected!),
       onTap: () async {
         final picked = await showAppMenu<Object>(
           context,
@@ -763,12 +767,13 @@ class _AutomationHarnessDropdown extends StatelessWidget {
               AppMenuItem<Object>(
                 value: harness.id,
                 label: harness.label,
+                leading: _HarnessIcon(harness.id),
                 selected: selected == harness.id,
               ),
           ],
         );
         if (picked == 'disabled') onChanged(null);
-        if (picked is AutomationHarnessId) onChanged(picked);
+        if (picked is HarnessKind) onChanged(picked);
       },
     );
   }
@@ -777,51 +782,77 @@ class _AutomationHarnessDropdown extends StatelessWidget {
 class _AutomationModelDropdown extends StatelessWidget {
   const _AutomationModelDropdown({
     required this.value,
-    required this.models,
+    required this.harness,
     required this.onChanged,
-    this.recommended,
   });
 
   final String? value;
-  final List<AutomationModel> models;
+  final AutomationHarness? harness;
   final ValueChanged<String?> onChanged;
-
-  /// Id recomendado do harness — recebe o sufixo traduzido no menu.
-  final String? recommended;
 
   @override
   Widget build(BuildContext context) {
+    final tr = context.t.settings.page.automations;
+    final models = harness?.models ?? const <AutomationModel>[];
+    final defaultId = harness?.defaultModelId;
     final known = models.where((model) => model.id == value).firstOrNull;
+    // Sem escolha explícita o rótulo mostra para onde o harness vai cair:
+    // "Auto" quando ele roteia sozinho, "CLI default" quando não.
+    final fallbackLabel = defaultId == kAutomationAutoModelId
+        ? tr.modelAuto
+        : tr.modelCliDefault;
     return _DropdownChip(
-      label:
-          known?.label ??
-          value ??
-          context.t.settings.page.automations.modelCliDefault,
-      onTap: () async {
-        final picked = await showAppMenu<String>(
-          context,
-          minWidth: 220,
-          items: [
-            AppMenuItem<String>(
-              value: '',
-              label: context.t.settings.page.automations.modelCliDefault,
-              selected: value == null,
-            ),
-            for (final model in models)
-              AppMenuItem<String>(
-                value: model.id,
-                // O "· Recomendado" é texto de UI, não faz parte do nome do
-                // modelo — por isso mora aqui e não no label da entidade.
-                label: model.id == recommended
-                    ? '${model.label} · '
-                          '${context.t.settings.page.automations.recommendedSuffix}'
-                    : model.label,
-                selected: value == model.id,
-              ),
-          ],
-        );
-        if (picked != null) onChanged(picked.isEmpty ? null : picked);
-      },
+      label: known?.label ?? value ?? fallbackLabel,
+      // Harness com modelo fixo (Copilot em `auto`) não oferece escolha.
+      onTap: harness?.allowsModelChoice != true
+          ? null
+          : () async {
+              final picked = await showAppMenu<String>(
+                context,
+                minWidth: 220,
+                searchHint: tr.modelSearch(count: models.length),
+                collapsedLimit: AutomationModelCatalog.curatedLimit,
+                items: [
+                  AppMenuItem<String>(
+                    value: '',
+                    label: fallbackLabel,
+                    selected: value == null,
+                  ),
+                  for (final model in models)
+                    AppMenuItem<String>(
+                      value: model.id,
+                      // O "· Recomendado" é texto de UI, não faz parte do nome
+                      // do modelo — por isso mora aqui e não no label da
+                      // entidade.
+                      label: model.id == defaultId
+                          ? '${model.label} · ${tr.recommendedSuffix}'
+                          : model.label,
+                      selected: value == model.id,
+                    ),
+                ],
+              );
+              if (picked != null) onChanged(picked.isEmpty ? null : picked);
+            },
+    );
+  }
+}
+
+/// Logo do harness — o mesmo SVG que a aba de terminal usa (catálogo único).
+class _HarnessIcon extends StatelessWidget {
+  const _HarnessIcon(this.kind);
+
+  final HarnessKind kind;
+
+  @override
+  Widget build(BuildContext context) {
+    final spec = kind.spec;
+    return SvgPicture.asset(
+      spec.assetPath,
+      width: 15,
+      height: 15,
+      colorFilter: spec.isMonochrome
+          ? ColorFilter.mode(context.colors.text3, BlendMode.srcIn)
+          : null,
     );
   }
 }
@@ -2353,32 +2384,52 @@ class _Row extends StatelessWidget {
 
 /// Gatilho de dropdown (rótulo + chevron) que abre o `showAppMenu`.
 class _DropdownChip extends StatelessWidget {
-  const _DropdownChip({required this.label, required this.onTap, this.icon});
+  const _DropdownChip({
+    required this.label,
+    required this.onTap,
+    this.icon,
+    this.leading,
+  });
   final String label;
   final IconData? icon;
-  final VoidCallback onTap;
+
+  /// Ícone rico à esquerda (ex.: logo SVG do harness). Vence [icon].
+  final Widget? leading;
+
+  /// `null` desabilita o gatilho: o valor está fixo e não há o que escolher
+  /// (harness com roteamento automático obrigatório).
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final enabled = onTap != null;
     return HoverTap(
-      color: colors.panel3,
+      color: enabled ? colors.panel3 : Colors.transparent,
       borderRadius: BorderRadius.circular(7),
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
+          if (leading != null) ...[
+            leading!,
+            const SizedBox(width: 7),
+          ] else if (icon != null) ...[
             Icon(icon, size: 14, color: colors.text2),
             const SizedBox(width: 7),
           ],
           Text(
             label,
-            style: context.typo.body.copyWith(fontSize: 13, color: colors.text),
+            style: context.typo.body.copyWith(
+              fontSize: 13,
+              color: enabled ? colors.text : colors.text3,
+            ),
           ),
-          const SizedBox(width: 6),
-          Icon(Icons.keyboard_arrow_down, size: 16, color: colors.text3),
+          if (enabled) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.keyboard_arrow_down, size: 16, color: colors.text3),
+          ],
         ],
       ),
     );

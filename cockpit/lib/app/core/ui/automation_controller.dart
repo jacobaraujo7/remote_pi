@@ -24,7 +24,7 @@ class AutomationController extends ChangeNotifier {
   /// Última falha, **sem texto** — a UI traduz com `automationErrorMessage`.
   AutomationError? get error => _error;
 
-  AutomationHarness? harnessFor(AutomationHarnessId? id) {
+  AutomationHarness? harnessFor(HarnessKind? id) {
     if (id == null) return null;
     for (final harness in _harnesses) {
       if (harness.id == id) return harness;
@@ -58,7 +58,7 @@ class AutomationController extends ChangeNotifier {
   /// Limpa um modelId que sumiu da lista descoberta e avisa o usuário.
   /// Retorna o aviso tipado (a UI traduz), ou `null` se nada mudou.
   AutomationError? reconcileStaleModel({
-    required AutomationHarnessId? harnessId,
+    required HarnessKind? harnessId,
     required String? modelId,
     required void Function() clearToCliDefault,
   }) {
@@ -109,12 +109,17 @@ class AutomationController extends ChangeNotifier {
         ),
       );
     }
+    // Sem escolha explícita, cai no padrão do harness — `auto` quando ele
+    // roteia sozinho, senão o modelo que o próprio CLI já usa.
+    final effective = modelId == null || modelId.isEmpty
+        ? selection.withModel(harness.defaultModelId)
+        : selection;
     _generating = true;
     _error = null;
     notifyListeners();
     try {
       return Success(
-        await _gateway.generate(selection: selection, request: request),
+        await _gateway.generate(selection: effective, request: request),
       );
     } on AutomationError catch (error) {
       _error = error;

@@ -76,14 +76,15 @@ class SettingsController extends ChangeNotifier {
   void setSourceControlViewMode(SourceControlViewMode mode) =>
       _apply(_settings.copyWith(sourceControlViewMode: mode));
 
-  void setAutomationHarness(AutomationHarnessId? id) {
+  void setAutomationHarness(HarnessKind? id) {
     _apply(
       _settings.copyWith(
         automationHarnessId: id,
         clearAutomationHarnessId: id == null,
         clearAutomationModelId: id == null,
-        // Não persiste aliases recomendados (sonnet/flash/…): o default do CLI
-        // sobrevive a renomeações; o usuário escolhe um modelId explicitamente.
+        // Trocar de harness volta para o padrão dele (`auto` quando existe,
+        // senão o modelo que o CLI já traz): id de modelo não atravessa
+        // harness, e congelar um aqui envelheceria junto com o catálogo.
         useDefaultAutomationModel: id != null,
       ),
     );

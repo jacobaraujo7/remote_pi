@@ -1,51 +1,44 @@
-enum AutomationHarnessId { pi, claude, codex, gemini, opencode, copilot }
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 
-extension AutomationHarnessIdLabel on AutomationHarnessId {
-  String get label => switch (this) {
-    AutomationHarnessId.pi => 'Pi',
-    AutomationHarnessId.claude => 'Claude Code',
-    AutomationHarnessId.codex => 'Codex CLI',
-    AutomationHarnessId.gemini => 'Gemini CLI',
-    AutomationHarnessId.opencode => 'OpenCode',
-    AutomationHarnessId.copilot => 'Copilot CLI',
+// Quem fala de automação fala de [HarnessKind] — reexportado para não obrigar
+// dois imports em cada arquivo.
+export 'package:cockpit/app/core/domain/entities/harness.dart';
+
+/// Id do modelo de roteamento automático. Quando o harness oferece esse modo,
+/// ele é o padrão: é o único id que nunca quebra por diferença de plano.
+const String kAutomationAutoModelId = 'auto';
+
+extension AutomationHarnessSupport on HarnessKind {
+  HarnessSpec get spec => HarnessCatalog.specs[this]!;
+
+  String get label => spec.label;
+
+  String get executableName => spec.primaryEntryPoint;
+
+  /// Pastas específicas onde procurar o executável além do PATH.
+  /// `cursor-agent` e `agy` instalam em `~/.local/bin` e não aparecem no PATH
+  /// de um app de janela lançado pelo Finder/launcher do desktop.
+  List<String> get unixHomeRelativeCandidates => switch (this) {
+    HarnessKind.cursor => const ['.local/bin/cursor-agent'],
+    HarnessKind.antigravity => const ['.local/bin/agy'],
+    HarnessKind.gitHubCopilot => const ['.local/bin/copilot'],
+    HarnessKind.pi => const ['.local/bin/pi'],
+    _ => const <String>[],
   };
 
-  String get executableName => switch (this) {
-    AutomationHarnessId.pi => 'pi',
-    AutomationHarnessId.claude => 'claude',
-    AutomationHarnessId.codex => 'codex',
-    AutomationHarnessId.gemini => 'gemini',
-    AutomationHarnessId.opencode => 'opencode',
-    AutomationHarnessId.copilot => 'copilot',
+  /// `false` quando o harness não tem catálogo de modelos vinculado à conta.
+  /// Nesses casos o Cockpit não deixa escolher modelo — usa `auto` (Copilot) ou
+  /// o modelo que o próprio CLI já tem configurado (Claude Code), que é sempre
+  /// compatível com o plano do usuário.
+  bool get hasAccountScopedModels => switch (this) {
+    HarnessKind.claudeCode || HarnessKind.gitHubCopilot => false,
+    _ => true,
   };
 
-  /// Modelo equilibrado para a tarefa curta e bem definida de escrever commits.
-  /// Aliases dos CLIs são preferidos quando eles acompanham a linha atual.
-  String? get recommendedModelId => switch (this) {
-    AutomationHarnessId.claude => 'sonnet',
-    AutomationHarnessId.codex => 'gpt-5.6-terra',
-    AutomationHarnessId.gemini => 'flash',
-    _ => null,
-  };
-
-  List<AutomationModel> get builtInModels => switch (this) {
-    AutomationHarnessId.claude => const <AutomationModel>[
-      AutomationModel(id: 'sonnet', label: 'Sonnet'),
-      AutomationModel(id: 'opus', label: 'Opus'),
-    ],
-    AutomationHarnessId.codex => const <AutomationModel>[
-      AutomationModel(id: 'gpt-5.6-terra', label: 'GPT-5.6 Terra'),
-      AutomationModel(id: 'gpt-5.6-sol', label: 'GPT-5.6 Sol'),
-      AutomationModel(id: 'gpt-5.6-luna', label: 'GPT-5.6 Luna'),
-    ],
-    AutomationHarnessId.gemini => const <AutomationModel>[
-      AutomationModel(id: 'flash', label: 'Flash'),
-      AutomationModel(id: 'auto', label: 'Auto'),
-      AutomationModel(id: 'pro', label: 'Pro'),
-      AutomationModel(id: 'flash-lite', label: 'Flash Lite'),
-    ],
-    _ => const <AutomationModel>[],
-  };
+  /// Modelo fixo quando não há escolha possível. Copilot roteia com `auto`, que
+  /// é obrigatório em planos restritos (ex.: Student).
+  String? get pinnedModelId =>
+      this == HarnessKind.gitHubCopilot ? kAutomationAutoModelId : null;
 }
 
 class AutomationModel {
@@ -62,18 +55,34 @@ class AutomationHarness {
     this.models = const <AutomationModel>[],
   });
 
-  final AutomationHarnessId id;
+  final HarnessKind id;
   final String executablePath;
+
+  /// Catálogo já filtrado pela conta e curado (ver `AutomationModelCatalog`).
   final List<AutomationModel> models;
 
   String get label => id.label;
+
+  /// Modelo usado quando o usuário não escolheu nenhum: `auto` quando o harness
+  /// oferece roteamento automático, senão `null` (= default do próprio CLI).
+  String? get defaultModelId =>
+      id.pinnedModelId ??
+      (models.any((model) => model.id == kAutomationAutoModelId)
+          ? kAutomationAutoModelId
+          : null);
+
+  /// `true` quando faz sentido mostrar o seletor de modelo.
+  bool get allowsModelChoice => id.pinnedModelId == null && models.isNotEmpty;
 }
 
 class AutomationSelection {
   const AutomationSelection({required this.harnessId, this.modelId});
 
-  final AutomationHarnessId harnessId;
+  final HarnessKind harnessId;
   final String? modelId;
+
+  AutomationSelection withModel(String? id) =>
+      AutomationSelection(harnessId: harnessId, modelId: id);
 }
 
 class AutomationRequest {
