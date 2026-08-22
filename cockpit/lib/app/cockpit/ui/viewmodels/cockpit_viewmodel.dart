@@ -2148,11 +2148,22 @@ class CockpitViewModel extends ChangeNotifier {
     return null;
   }
 
-  /// Nº de agentes do workspace que terminaram um turno e ainda não foram
-  /// vistos (badge de notificações).
-  int notificationCount(String projectId) => _sessions.values
-      .where((s) => s.projectId == projectId && s.unseenFinish)
-      .length;
+  /// Nº de agentes que terminaram um turno e ainda não foram vistos, **por
+  /// workspace** (badge de notificações da rail).
+  ///
+  /// Mapa, e não uma consulta por id, de propósito: a rail pergunta isso uma
+  /// vez por workspace E por worktree a cada build, e a consulta por id varre
+  /// todas as sessões — o que dava O(itens × sessões) por frame. Uma varredura
+  /// só resolve a rail inteira. Ausente no mapa = zero.
+  Map<String, int> get notificationCounts {
+    final counts = <String, int>{};
+    for (final s in _sessions.values) {
+      if (s.unseenFinish) {
+        counts[s.projectId] = (counts[s.projectId] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
 
   // ---- init -----------------------------------------------------------------
   Future<void> init() async {

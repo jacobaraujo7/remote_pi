@@ -57,7 +57,7 @@ class ProjectsRail extends StatefulWidget {
     required this.worktreesExpanded,
     required this.onWorktreesExpanded,
     required this.selectedId,
-    required this.notificationCount,
+    required this.notificationCounts,
     required this.gitInfo,
     required this.rootsSummary,
     required this.rootsOf,
@@ -130,7 +130,11 @@ class ProjectsRail extends StatefulWidget {
   final void Function(String rootId, bool expanded) onWorktreesExpanded;
 
   final String? selectedId;
-  final int Function(String projectId) notificationCount;
+
+  /// Notificações não vistas por workspace/worktree (ausente = 0). Mapa em vez
+  /// de callback por id: a rail lê isso uma vez por item a cada build, e no VM
+  /// a consulta por id varria todas as sessões — O(itens × sessões) por frame.
+  final Map<String, int> notificationCounts;
   final GitInfo? Function(String projectId) gitInfo;
 
   /// Agregado multi-root: (nº de roots, roots sujas). Só é lido quando
@@ -219,18 +223,121 @@ class _ProjectsRailState extends State<ProjectsRail> {
     );
   }
 
+  /// Um workspace da lista: o card (local ou remoto) + a lista de forks
+  /// pendurada abaixo.
+  ///
+  /// Todo dado por-workspace é resolvido **uma vez** aqui. Antes o `build`
+  /// perguntava as mesmas coisas ao VM várias vezes por item (`worktreesOf` 3x,
+  /// `gitInfo` 2x, `rootsSummary` 2x, `worktreesExpanded` 2x) — e cada uma
+  /// dessas, no `GitController`, realoca a lista de roots.
+  Widget _workspaceBlock(Project project) {
+    final id = project.id;
+    final forks = widget.worktreesOf(id);
+    final hasWorktrees = forks.isNotEmpty;
+    final expanded = widget.worktreesExpanded(id);
+    // Key pelo id: sem ela o estado do _WorkspaceReorderable (o caret de
+    // drop) escorrega pro vizinho quando um workspace sai do meio da lista.
+    final key = ValueKey(id);
+
+    if (project.isRemoteTerminal) {
+      return Column(
+        key: key,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _WorkspaceReorderable(
+            projectId: id,
+            title: project.name,
+            colorValue: project.colorValue,
+            initial: project.initial,
+            imagePath: project.imagePath,
+            onReorder: widget.onReorder,
+            child: _RemoteSlot(
+              workspaceId: id,
+              name: project.name,
+              colorValue: project.colorValue,
+              imagePath: project.imagePath,
+              selected: id == widget.selectedId,
+              git: widget.remoteGitInfoOf(id),
+              moveTargetsOf: () => widget.moveTargetsOf(id),
+              worktreeCount: forks.length,
+              hasWorktrees: hasWorktrees,
+              expanded: expanded,
+              onTap: () => _onCardTap(project, () => widget.onSelectRemote(id)),
+              onToggleExpanded: () => _toggleWorktrees(project),
+              onAction: (action) => widget.onRemoteWorkspaceAction(id, action),
+            ),
+          ),
+          _ForkList(
+            hasWorktrees: hasWorktrees,
+            expanded: expanded,
+            builder: () => _remoteForks(forks),
+          ),
+        ],
+      );
+    }
+
+    final git = widget.gitInfo(id);
+    final rootsSummary = widget.rootsSummary(id);
+    return Column(
+      key: key,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _WorkspaceReorderable(
+          projectId: id,
+          title: project.name,
+          colorValue: project.colorValue,
+          initial: project.initial,
+          imagePath: project.imagePath,
+          onReorder: widget.onReorder,
+          child: _ProjectItem(
+            project: project,
+            selected: id == widget.selectedId,
+            notifications: widget.notificationCounts[id] ?? 0,
+            git: git,
+            rootsSummary: rootsSummary,
+            worktreeCount: forks.length,
+            // "Criar worktree" só faz sentido em repo git (single ou multi-root
+            // — na multi a page pede a root alvo antes).
+            canCreateWorktree: git != null || rootsSummary.$1 > 1,
+            hasWorktrees: hasWorktrees,
+            expanded: expanded,
+            onTap: () => _onCardTap(project, () => widget.onSelect(id)),
+            onToggleExpanded: () => _toggleWorktrees(project),
+            onConfigure: () => widget.onConfigure(project),
+            onDelete: () => widget.onDelete(project),
+            rootsOf: () => widget.rootsOf(id),
+            onCreateWorktree: (r) => widget.onCreateWorktree(project, r),
+            onSync: (r) => widget.onSync(project, r),
+            onPull: (r) => widget.onPull(project, r),
+            onPush: (r) => widget.onPush(project, r),
+            moveTargetsOf: () => widget.moveTargetsOf(id),
+            onMoveToRealm: (realmId) => widget.onMoveToRealm(id, realmId),
+          ),
+        ),
+        // Worktrees (forks) penduradas abaixo do workspace, expandidas/
+        // recolhidas pelo chevron (V37; antes eram sempre visíveis — plan/42,
+        // dec. 5, 12).
+        _ForkList(
+          hasWorktrees: hasWorktrees,
+          expanded: expanded,
+          builder: () => _forkItems(forks),
+        ),
+      ],
+    );
+  }
+
   /// Os forks de um workspace, com `isLast` marcado pra linha de árvore fechar
   /// em "└" no último (a vertical dos demais segue até emendar com o próximo).
-  List<Widget> _forkItems(Project project) {
-    final forks = widget.worktreesOf(project.id);
+  List<Widget> _forkItems(List<Project> forks) {
     return [
       for (var i = 0; i < forks.length; i++)
         _WorktreeItem(
+          key: ValueKey(forks[i].id),
           worktree: forks[i],
           originName: widget.forkOriginName(forks[i].id),
           isLast: i == forks.length - 1,
           selected: forks[i].id == widget.selectedId,
-          notifications: widget.notificationCount(forks[i].id),
+          notifications: widget.notificationCounts[forks[i].id] ?? 0,
           git: widget.gitInfo(forks[i].id),
           onTap: () => widget.onSelect(forks[i].id),
           onRemove: () => widget.onRemoveWorktree(forks[i]),
@@ -244,16 +351,16 @@ class _ProjectsRailState extends State<ProjectsRail> {
   /// Forks (worktrees) de um workspace remoto — mesmo `_WorktreeItem` do local,
   /// mas o git vem do cache remoto (lazy) e as ações roteiam pros handlers que
   /// já ramificam por `isRemoteTerminal`.
-  List<Widget> _remoteForks(Project ws) {
-    final forks = widget.worktreesOf(ws.id);
+  List<Widget> _remoteForks(List<Project> forks) {
     return [
       for (var i = 0; i < forks.length; i++)
         _WorktreeItem(
+          key: ValueKey(forks[i].id),
           worktree: forks[i],
           originName: null,
           isLast: i == forks.length - 1,
           selected: forks[i].id == widget.selectedId,
-          notifications: widget.notificationCount(forks[i].id),
+          notifications: widget.notificationCounts[forks[i].id] ?? 0,
           git: widget.remoteGitInfoOf(forks[i].id),
           onTap: () => widget.onSelectRemote(forks[i].id),
           onRemove: () => widget.onRemoveWorktree(forks[i]),
@@ -319,118 +426,18 @@ class _ProjectsRailState extends State<ProjectsRail> {
                     controller: _scroll,
                     thumbVisibility: true,
                     child: ScrollConfiguration(
-                      behavior: ScrollConfiguration.of(context)
-                          .copyWith(scrollbars: false),
-                      child: ListView(
+                      behavior: ScrollConfiguration.of(
+                        context,
+                      ).copyWith(scrollbars: false),
+                      // .builder: só os workspaces visíveis são construídos.
+                      // Com `children:` a rail montava a lista inteira (card +
+                      // forks de cada um) a cada build, viewport ou não.
+                      child: ListView.builder(
                         controller: _scroll,
                         padding: const EdgeInsets.symmetric(horizontal: 8),
-                        children: [
-                          for (final project in projects) ...[
-                            // Remoto (plano 58): mesmo lugar/realm/reorder que o
-                            // local, mas com o slot SSH + forks remotos.
-                            if (project.isRemoteTerminal) ...[
-                              _WorkspaceReorderable(
-                                projectId: project.id,
-                                title: project.name,
-                                colorValue: project.colorValue,
-                                initial: project.initial,
-                                imagePath: project.imagePath,
-                                onReorder: widget.onReorder,
-                                child: _RemoteSlot(
-                                  workspaceId: project.id,
-                                  name: project.name,
-                                  colorValue: project.colorValue,
-                                  imagePath: project.imagePath,
-                                  selected: project.id == widget.selectedId,
-                                  git: widget.remoteGitInfoOf(project.id),
-                                  moveTargets: widget.moveTargetsOf(project.id),
-                                  worktreeCount: widget
-                                      .worktreesOf(project.id)
-                                      .length,
-                                  hasWorktrees: widget
-                                      .worktreesOf(project.id)
-                                      .isNotEmpty,
-                                  expanded: widget.worktreesExpanded(
-                                    project.id,
-                                  ),
-                                  onTap: () => _onCardTap(
-                                    project,
-                                    () => widget.onSelectRemote(project.id),
-                                  ),
-                                  onToggleExpanded: () =>
-                                      _toggleWorktrees(project),
-                                  onAction: (action) =>
-                                      widget.onRemoteWorkspaceAction(
-                                        project.id,
-                                        action,
-                                      ),
-                                ),
-                              ),
-                              _ForkList(
-                                expanded: widget.worktreesExpanded(project.id),
-                                children: _remoteForks(project),
-                              ),
-                            ] else ...[
-                              _WorkspaceReorderable(
-                                projectId: project.id,
-                                title: project.name,
-                                colorValue: project.colorValue,
-                                initial: project.initial,
-                                imagePath: project.imagePath,
-                                onReorder: widget.onReorder,
-                                child: _ProjectItem(
-                                  project: project,
-                                  selected: project.id == widget.selectedId,
-                                  notifications: widget.notificationCount(
-                                    project.id,
-                                  ),
-                                  git: widget.gitInfo(project.id),
-                                  rootsSummary: widget.rootsSummary(project.id),
-                                  worktreeCount: widget
-                                      .worktreesOf(project.id)
-                                      .length,
-                                  // "Criar worktree" só faz sentido em repo git
-                                  // (single ou multi-root — na multi a page pede
-                                  // a root alvo antes).
-                                  canCreateWorktree:
-                                      widget.gitInfo(project.id) != null ||
-                                      widget.rootsSummary(project.id).$1 > 1,
-                                  hasWorktrees: widget
-                                      .worktreesOf(project.id)
-                                      .isNotEmpty,
-                                  expanded: widget.worktreesExpanded(
-                                    project.id,
-                                  ),
-                                  onTap: () => _onCardTap(
-                                    project,
-                                    () => widget.onSelect(project.id),
-                                  ),
-                                  onToggleExpanded: () =>
-                                      _toggleWorktrees(project),
-                                  onConfigure: () =>
-                                      widget.onConfigure(project),
-                                  onDelete: () => widget.onDelete(project),
-                                  roots: widget.rootsOf(project.id),
-                                  onCreateWorktree: (r) =>
-                                      widget.onCreateWorktree(project, r),
-                                  onSync: (r) => widget.onSync(project, r),
-                                  onPull: (r) => widget.onPull(project, r),
-                                  onPush: (r) => widget.onPush(project, r),
-                                  moveTargets: widget.moveTargetsOf(project.id),
-                                  onMoveToRealm: (realmId) =>
-                                      widget.onMoveToRealm(project.id, realmId),
-                                ),
-                              ),
-                              // Worktrees (forks) penduradas abaixo do workspace,
-                              // expandidas/recolhidas pelo toggle do card (V37;
-                              // antes eram sempre visíveis — plan/42, dec. 5, 12).
-                              _ForkList(
-                                expanded: widget.worktreesExpanded(project.id),
-                                children: _forkItems(project),
-                              ),
-                            ],
-                          ],
-                        ],
+                        itemCount: projects.length,
+                        itemBuilder: (context, i) =>
+                            _workspaceBlock(projects[i]),
                       ),
                     ),
                   ),
@@ -474,20 +481,31 @@ class _ProjectsRailState extends State<ProjectsRail> {
 /// todo, então nada se desloca além da lista. Recolhida por completo, os itens
 /// saem da árvore (não ficam com altura zero atrás de um clip).
 class _ForkList extends StatelessWidget {
-  const _ForkList({required this.expanded, required this.children});
+  const _ForkList({
+    required this.hasWorktrees,
+    required this.expanded,
+    required this.builder,
+  });
 
+  /// `false` → nem o [AnimatedSize] é montado (workspace sem fork nenhum).
+  final bool hasWorktrees;
   final bool expanded;
-  final List<Widget> children;
+
+  /// As linhas das worktrees, construídas **sob demanda**: recolhido, o
+  /// [AnimatedSize] já descartava o conteúdo, mas o chamador montava os
+  /// `_WorktreeItem` assim mesmo — com um `forkOriginName` e um `gitInfo` por
+  /// fork, a cada build, para jogar tudo fora.
+  final List<Widget> Function() builder;
 
   @override
   Widget build(BuildContext context) {
-    if (children.isEmpty) return const SizedBox.shrink();
+    if (!hasWorktrees) return const SizedBox.shrink();
     return AnimatedSize(
       duration: _kToggleDuration,
       curve: Curves.easeOutCubic,
       alignment: Alignment.topCenter,
       child: expanded
-          ? Column(mainAxisSize: MainAxisSize.min, children: children)
+          ? Column(mainAxisSize: MainAxisSize.min, children: builder())
           : const SizedBox.shrink(),
     );
   }
@@ -622,7 +640,7 @@ class _RemoteSlot extends StatelessWidget {
     required this.imagePath,
     required this.selected,
     required this.git,
-    required this.moveTargets,
+    required this.moveTargetsOf,
     required this.worktreeCount,
     required this.hasWorktrees,
     required this.expanded,
@@ -641,8 +659,9 @@ class _RemoteSlot extends StatelessWidget {
   final String name;
   final int colorValue;
 
-  /// Realms de destino do "Move to realm" (vazio esconde o item).
-  final List<RealmTarget> moveTargets;
+  /// Realms de destino do "Move to realm" (vazio esconde o item). Thunk: varre
+  /// os workspaces por realm, e nada disso aparece no card — só no menu.
+  final List<RealmTarget> Function() moveTargetsOf;
 
   final int worktreeCount;
 
@@ -671,6 +690,7 @@ class _RemoteSlot extends StatelessWidget {
   Future<void> _showMenu(BuildContext context, Offset at) async {
     final tr = context.t.cockpit.projectsRail;
     final hasGit = branch != null;
+    final moveTargets = moveTargetsOf(); // resolvido no clique, não por build
     final pick = await showAppMenu<String>(
       context,
       globalPosition: at,
@@ -843,7 +863,7 @@ class _ProjectItem extends StatelessWidget {
     required this.notifications,
     required this.git,
     required this.rootsSummary,
-    required this.roots,
+    required this.rootsOf,
     required this.canCreateWorktree,
     required this.worktreeCount,
     required this.hasWorktrees,
@@ -856,7 +876,7 @@ class _ProjectItem extends StatelessWidget {
     required this.onSync,
     required this.onPull,
     required this.onPush,
-    required this.moveTargets,
+    required this.moveTargetsOf,
     required this.onMoveToRealm,
   });
 
@@ -869,8 +889,11 @@ class _ProjectItem extends StatelessWidget {
   /// [_GitBadge] quando [git] é `null` e há 2+ roots.
   final (int, int) rootsSummary;
 
-  /// Roots do workspace (submenu das ações git em multi-root).
-  final List<RailRoot> roots;
+  /// Roots do workspace (submenu das ações git em multi-root e popup do badge
+  /// multirepo). **Thunk**: resolver a lista custa um `split` e um lookup de
+  /// git por root, e nada disso é desenhado no card — só abre com o menu de
+  /// contexto ou o clique no badge. Antes era resolvido a cada build.
+  final List<RailRoot> Function() rootsOf;
   final bool canCreateWorktree;
 
   final int worktreeCount;
@@ -892,8 +915,10 @@ class _ProjectItem extends StatelessWidget {
   final void Function(String rootPath) onPull;
   final void Function(String rootPath) onPush;
 
-  /// Realms de destino do "Move to realm" (vazio esconde o item).
-  final List<RealmTarget> moveTargets;
+  /// Realms de destino do "Move to realm" (vazio esconde o item). Thunk pela
+  /// mesma razão de [rootsOf] — e este ainda varre a lista de workspaces por
+  /// realm, o que dava O(workspaces²) por build da rail.
+  final List<RealmTarget> Function() moveTargetsOf;
   final void Function(String realmId) onMoveToRealm;
 
   @override
@@ -903,14 +928,14 @@ class _ProjectItem extends StatelessWidget {
     final menu = _WorkspaceMenu(
       workspaceId: project.id,
       canCreateWorktree: canCreateWorktree,
-      roots: roots,
+      rootsOf: rootsOf,
       onConfigure: onConfigure,
       onDelete: onDelete,
       onCreateWorktree: onCreateWorktree,
       onSync: onSync,
       onPull: onPull,
       onPush: onPush,
-      moveTargets: moveTargets,
+      moveTargetsOf: moveTargetsOf,
       onMoveToRealm: onMoveToRealm,
     );
     return Padding(
@@ -964,7 +989,7 @@ class _ProjectItem extends StatelessWidget {
                           _MultiRootBadge(
                             roots: rootsSummary.$1,
                             dirtyRoots: rootsSummary.$2,
-                            rootList: roots,
+                            rootList: rootsOf,
                           ),
                         ],
                       ],
@@ -1029,6 +1054,7 @@ class _ProjectItem extends StatelessWidget {
 /// (ellipsis corta nomes longos). A linha fica **fora** do realce do item.
 class _WorktreeItem extends StatelessWidget {
   const _WorktreeItem({
+    super.key,
     required this.worktree,
     required this.originName,
     required this.isLast,
@@ -1327,9 +1353,13 @@ class _MultiRootBadge extends StatelessWidget {
   });
   final int roots;
   final int dirtyRoots;
-  final List<RailRoot> rootList;
+
+  /// Thunk: as roots só são lidas quando o popup abre — o chip mostra apenas os
+  /// contadores, que já vêm resolvidos em [roots]/[dirtyRoots].
+  final List<RailRoot> Function() rootList;
 
   void _showPopup(BuildContext context) {
+    final rootList = this.rootList();
     final overlay = showPopover<void>(
       context: context,
       alignment: Alignment.topLeft,
@@ -1587,14 +1617,14 @@ class _WorkspaceMenu {
   const _WorkspaceMenu({
     required this.workspaceId,
     required this.canCreateWorktree,
-    required this.roots,
+    required this.rootsOf,
     required this.onConfigure,
     required this.onDelete,
     required this.onCreateWorktree,
     required this.onSync,
     required this.onPull,
     required this.onPush,
-    required this.moveTargets,
+    required this.moveTargetsOf,
     required this.onMoveToRealm,
   });
 
@@ -1605,7 +1635,8 @@ class _WorkspaceMenu {
 
   /// Roots git do workspace. 2+ → as ações git viram **submenu** (escolhe a
   /// root ali mesmo); 1 → executam direto nela (comportamento histórico).
-  final List<RailRoot> roots;
+  /// Thunk: só é resolvido quando o menu abre.
+  final List<RailRoot> Function() rootsOf;
   final VoidCallback onConfigure;
   final VoidCallback onDelete;
   final void Function(String rootPath) onCreateWorktree;
@@ -1615,12 +1646,18 @@ class _WorkspaceMenu {
 
   /// Realms de destino do "Move to realm" (vazio = 0/1 realm → item oculto).
   /// Destino com o mesmo path já presente vem desabilitado (um path por realm).
-  final List<RealmTarget> moveTargets;
+  /// Thunk, como [rootsOf].
+  final List<RealmTarget> Function() moveTargetsOf;
   final void Function(String realmId) onMoveToRealm;
 
   /// Item de ação git: single-root executa direto (`<ação>|<root>`); multi-root
   /// abre submenu com uma entrada por root (roots sem git desabilitadas).
-  AppMenuItem<String> _gitItem(String action, String label, IconData icon) {
+  AppMenuItem<String> _gitItem(
+    List<RailRoot> roots,
+    String action,
+    String label,
+    IconData icon,
+  ) {
     final gitRoots = roots.where((r) => r.git != null).toList();
     if (roots.length <= 1) {
       final path = roots.isEmpty ? '' : roots.first.path;
@@ -1642,24 +1679,35 @@ class _WorkspaceMenu {
   }
 
   Future<void> show(BuildContext context, Offset at) async {
+    // Resolvidos aqui, no clique — não a cada build da rail.
+    final roots = rootsOf();
+    final moveTargets = moveTargetsOf();
     final pick = await showAppMenu<String>(
       context,
       globalPosition: at,
       items: [
         // Ações de sincronização só quando há git (single ou multi-root).
         if (canCreateWorktree) ...[
-          _gitItem('sync', context.t.cockpit.projectsRail.sync, Icons.sync),
           _gitItem(
+            roots,
+            'sync',
+            context.t.cockpit.projectsRail.sync,
+            Icons.sync,
+          ),
+          _gitItem(
+            roots,
             'pull',
             context.t.cockpit.projectsRail.pull,
             Icons.arrow_downward,
           ),
           _gitItem(
+            roots,
             'push',
             context.t.cockpit.projectsRail.push,
             Icons.arrow_upward,
           ),
           _gitItem(
+            roots,
             'worktree',
             context.t.cockpit.projectsRail.createWorktree,
             Icons.call_split,
@@ -1692,6 +1740,7 @@ class _WorkspaceMenu {
         // já tinha: é a mesma ação, só que na raiz.
         if (roots.any((r) => r.git != null))
           _gitItem(
+            roots,
             'copy-branch',
             context.t.cockpit.projectsRail.copyBranch,
             Icons.content_copy,

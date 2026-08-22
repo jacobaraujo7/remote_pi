@@ -124,7 +124,7 @@ Widget _rail({
           worktreesExpanded: (_) => expanded,
           onWorktreesExpanded: onWorktreesExpanded ?? (_, _) {},
           selectedId: selectedId,
-          notificationCount: (_) => 0,
+          notificationCounts: const {},
           gitInfo: (_) => const GitInfo(branch: 'main'),
           rootsSummary: (_) => (1, 0),
           rootsOf: (_) => [
