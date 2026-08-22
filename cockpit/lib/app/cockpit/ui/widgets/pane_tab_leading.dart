@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +24,7 @@ class PaneTabLeading extends StatelessWidget {
     if (session is TerminalSession) {
       final harness = session.activeHarness;
       if (harness != null) {
-        final spec = TerminalHarnessCatalog.getSpec(harness);
+        final spec = HarnessCatalog.getSpec(harness);
         if (spec != null) {
           final colorFilter = spec.isMonochrome
               ? ColorFilter.mode(iconColor, BlendMode.srcIn)

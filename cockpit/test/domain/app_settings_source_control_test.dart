@@ -57,28 +57,46 @@ void main() {
     'automation selection persists defaults and resets them per harness',
     () {
       const settings = AppSettings(
-        automationHarnessId: AutomationHarnessId.codex,
+        automationHarnessId: HarnessKind.codex,
         automationModelId: 'gpt-5.4-mini',
       );
       final restored = AppSettings.fromJson(settings.toJson());
-      expect(restored.automationHarnessId, AutomationHarnessId.codex);
+      expect(restored.automationHarnessId, HarnessKind.codex);
       expect(restored.automationModelId, 'gpt-5.4-mini');
 
-      final migratedClaude = AppSettings.fromJson(const <String, dynamic>{
-        'automation.harnessId': 'claude',
+      // Nomes gravados antes de o catálogo de harness ser unificado com o da
+      // detecção de terminal.
+      for (final legacy in const {
+        'claude': HarnessKind.claudeCode,
+        'copilot': HarnessKind.gitHubCopilot,
+        'opencode': HarnessKind.openCode,
+      }.entries) {
+        final migrated = AppSettings.fromJson(<String, dynamic>{
+          'automation.harnessId': legacy.key,
+        });
+        expect(migrated.automationHarnessId, legacy.value);
+        // Sem modelId gravado o harness fica no padrão dele (auto ou default
+        // do CLI), resolvido contra o catálogo descoberto.
+        expect(migrated.selectedAutomationModelId, isNull);
+      }
+
+      // O Gemini CLI saiu do catálogo: a preferência antiga desliga a
+      // automação em vez de apontar para um harness que não existe mais.
+      final retired = AppSettings.fromJson(const <String, dynamic>{
+        'automation.harnessId': 'gemini',
       });
-      // Legacy installs without modelId still resolve the recommended alias.
-      expect(migratedClaude.selectedAutomationModelId, 'sonnet');
+      expect(retired.automationHarnessId, isNull);
+      expect(retired.automationSelection, isNull);
 
       final store = _Store()..value = settings;
       final controller = SettingsController(store);
       // Nova seleção de harness usa o default do CLI (sem bake de alias).
-      controller.setAutomationHarness(AutomationHarnessId.codex);
+      controller.setAutomationHarness(HarnessKind.codex);
       expect(controller.settings.selectedAutomationModelId, isNull);
       expect(controller.settings.automationModelId, '');
 
-      controller.setAutomationHarness(AutomationHarnessId.pi);
-      expect(controller.settings.automationHarnessId, AutomationHarnessId.pi);
+      controller.setAutomationHarness(HarnessKind.pi);
+      expect(controller.settings.automationHarnessId, HarnessKind.pi);
       expect(controller.settings.selectedAutomationModelId, isNull);
 
       controller.setAutomationModel('anthropic/claude-sonnet-4');

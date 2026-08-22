@@ -1,5 +1,5 @@
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/process_tree_resolver.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,7 +74,7 @@ void main() {
         snapshots: snapshots,
       );
 
-      expect(result, equals(TerminalHarnessKind.pi));
+      expect(result, equals(HarnessKind.pi));
     });
 
     test('nested interactive harnesses selects innermost active harness', () {
@@ -104,7 +104,7 @@ void main() {
         snapshots: snapshots,
       );
 
-      expect(result, equals(TerminalHarnessKind.pi));
+      expect(result, equals(HarnessKind.pi));
     });
 
     test('when nested harness exits, restores enclosing harness', () {
@@ -129,7 +129,7 @@ void main() {
         snapshots: snapshots,
       );
 
-      expect(result, equals(TerminalHarnessKind.claudeCode));
+      expect(result, equals(HarnessKind.claudeCode));
     });
 
     test('suspended or background process is ignored', () {

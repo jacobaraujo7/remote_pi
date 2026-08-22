@@ -1,10 +1,10 @@
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_normalizer.dart';
 
 abstract class TerminalHarnessClassifier {
   /// Classifies a process invocation as a supported interactive harness,
   /// or returns null if it is non-interactive, administrative, or unknown.
-  static TerminalHarnessKind? classify({
+  static HarnessKind? classify({
     required String executable,
     required List<String> argv,
   }) {
@@ -21,8 +21,8 @@ abstract class TerminalHarnessClassifier {
     return isInteractive ? spec.kind : null;
   }
 
-  static TerminalHarnessSpec? _findMatchingSpec(String entryPoint) {
-    for (final spec in TerminalHarnessCatalog.specs.values) {
+  static HarnessSpec? _findMatchingSpec(String entryPoint) {
+    for (final spec in HarnessCatalog.specs.values) {
       if (spec.allEntryPoints.contains(entryPoint)) {
         return spec;
       }
@@ -31,7 +31,7 @@ abstract class TerminalHarnessClassifier {
   }
 
   static bool _isInteractiveInvocation(
-    TerminalHarnessKind kind,
+    HarnessKind kind,
     List<String> args,
   ) {
     // Universal admin/help/version flags
@@ -42,19 +42,19 @@ abstract class TerminalHarnessClassifier {
     }
 
     switch (kind) {
-      case TerminalHarnessKind.antigravity:
+      case HarnessKind.antigravity:
         return _checkAntigravity(args);
-      case TerminalHarnessKind.claudeCode:
+      case HarnessKind.claudeCode:
         return _checkClaudeCode(args);
-      case TerminalHarnessKind.codex:
+      case HarnessKind.codex:
         return _checkCodex(args);
-      case TerminalHarnessKind.cursor:
+      case HarnessKind.cursor:
         return _checkCursor(args);
-      case TerminalHarnessKind.gitHubCopilot:
+      case HarnessKind.gitHubCopilot:
         return _checkGitHubCopilot(args);
-      case TerminalHarnessKind.openCode:
+      case HarnessKind.openCode:
         return _checkOpenCode(args);
-      case TerminalHarnessKind.pi:
+      case HarnessKind.pi:
         return _checkPi(args);
     }
   }

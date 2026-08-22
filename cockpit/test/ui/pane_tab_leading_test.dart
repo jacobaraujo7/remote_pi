@@ -1,6 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
@@ -102,8 +102,8 @@ void main() {
     });
 
     testWidgets('renders SvgPicture for each harness kind correctly', (tester) async {
-      for (final kind in TerminalHarnessKind.values) {
-        final spec = TerminalHarnessCatalog.getSpec(kind)!;
+      for (final kind in HarnessKind.values) {
+        final spec = HarnessCatalog.getSpec(kind)!;
 
         await tester.pumpWidget(
           MaterialApp(
@@ -132,13 +132,13 @@ void main() {
   });
 }
 
-TerminalSession _createDummySessionWithHarness(TerminalHarnessKind kind) {
+TerminalSession _createDummySessionWithHarness(HarnessKind kind) {
   final session = DummyHarnessSession(kind);
   return session;
 }
 
 class DummyHarnessSession extends TerminalSession {
-  final TerminalHarnessKind harnessKind;
+  final HarnessKind harnessKind;
 
   DummyHarnessSession(this.harnessKind)
       : super(
@@ -154,5 +154,5 @@ class DummyHarnessSession extends TerminalSession {
         );
 
   @override
-  TerminalHarnessKind? get activeHarness => harnessKind;
+  HarnessKind? get activeHarness => harnessKind;
 }

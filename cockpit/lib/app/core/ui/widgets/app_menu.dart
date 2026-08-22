@@ -81,6 +81,9 @@ Future<T?> showAppMenu<T>(
   required List<AppMenuItem<T>> items,
   double minWidth = 200,
   Offset? globalPosition,
+  String? searchHint,
+  int searchThreshold = 12,
+  int? collapsedLimit,
 }) {
   final colors = context.colors;
   final anchored = globalPosition == null;
@@ -169,20 +172,11 @@ Future<T?> showAppMenu<T>(
     anchorAlignment: anchored ? Alignment.bottomLeft : Alignment.topLeft,
     offset: anchored ? const Offset(0, 4) : null,
     regionGroupId: groupId,
-    builder: (menuContext) => ConstrainedBox(
-      // maxHeight: sem teto o menu crescia além da tela e as últimas opções
-      // ficavam inalcançáveis (comum no mobile/tela pequena). O MenuPopup do
-      // shadcn tem SingleChildScrollView interno, então limitar a altura já liga
-      // o scroll. ~78% da tela deixa margem pro trigger/bordas.
-      constraints: BoxConstraints(
-        minWidth: minWidth,
-        maxWidth: 320,
-        maxHeight: MediaQuery.sizeOf(menuContext).height * 0.78,
-      ),
+    builder: (menuContext) {
       // DropdownMenu embrulha os MenuButton num MenuGroup (exigido) + MenuPopup.
-      child: DropdownMenu(
+      Widget buildMenu(List<AppMenuItem<T>> visible) => DropdownMenu(
         children: [
-          for (final item in items)
+          for (final item in visible)
             if (item.isDivider)
               const MenuDivider()
             else
@@ -239,8 +233,31 @@ Future<T?> showAppMenu<T>(
                 ),
               ),
         ],
-      ),
-    ),
+      );
+
+      // Lista longa (catálogo de modelos de um harness, por exemplo) ganha um
+      // campo de filtro no topo: sem ele o usuário rola dezenas de itens.
+      final searchable = searchHint != null && items.length > searchThreshold;
+      return ConstrainedBox(
+        // maxHeight: sem teto o menu crescia além da tela e as últimas opções
+        // ficavam inalcançáveis (comum no mobile/tela pequena). O MenuPopup do
+        // shadcn tem SingleChildScrollView interno, então limitar a altura já
+        // liga o scroll. ~78% da tela deixa margem pro trigger/bordas.
+        constraints: BoxConstraints(
+          minWidth: minWidth,
+          maxWidth: 320,
+          maxHeight: MediaQuery.sizeOf(menuContext).height * 0.78,
+        ),
+        child: searchable
+            ? _SearchableMenu<T>(
+                items: items,
+                hint: searchHint,
+                collapsedLimit: collapsedLimit,
+                buildMenu: buildMenu,
+              )
+            : buildMenu(items),
+      );
+    },
   );
   // Fechar o menu raiz (escolha, ESC, clique fora ou outro menu abrindo via
   // trackMenuOverlay) derruba o submenu junto.
@@ -272,5 +289,95 @@ class _AppMenuEntry extends StatelessWidget implements MenuItem {
   @override
   Widget build(BuildContext context) {
     return MouseRegion(onEnter: (_) => onEnter(context), child: child);
+  }
+}
+
+/// Menu com filtro por texto. O campo fica acima do popup (mesma pilha visual
+/// de um command palette) e casa por substring no rótulo e no `value` — em
+/// catálogo de modelo o id costuma ser o que a pessoa lembra, não o label.
+class _SearchableMenu<T> extends StatefulWidget {
+  const _SearchableMenu({
+    required this.items,
+    required this.hint,
+    required this.buildMenu,
+    this.collapsedLimit,
+  });
+
+  final List<AppMenuItem<T>> items;
+  final String hint;
+
+  /// Quantos itens mostrar antes de o usuário digitar. Catálogo de modelo do
+  /// cursor-agent passa de 200 entradas — rolar tudo é pior que buscar. A
+  /// busca continua alcançando a lista inteira.
+  final int? collapsedLimit;
+
+  final Widget Function(List<AppMenuItem<T>> visible) buildMenu;
+
+  @override
+  State<_SearchableMenu<T>> createState() => _SearchableMenuState<T>();
+}
+
+class _SearchableMenuState<T> extends State<_SearchableMenu<T>> {
+  final TextEditingController _controller = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  List<AppMenuItem<T>> get _visible {
+    final query = _query.trim().toLowerCase();
+    if (query.isEmpty) {
+      final limit = widget.collapsedLimit;
+      return limit == null || widget.items.length <= limit
+          ? widget.items
+          : widget.items.take(limit).toList();
+    }
+    return [
+      for (final item in widget.items)
+        if (!item.isDivider &&
+            (item.label.toLowerCase().contains(query) ||
+                '${item.value}'.toLowerCase().contains(query)))
+          item,
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          decoration: BoxDecoration(
+            color: colors.panel,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border),
+          ),
+          padding: const EdgeInsets.all(6),
+          child: TextField(
+            controller: _controller,
+            autofocus: true,
+            placeholder: Text(
+              widget.hint,
+              style: context.typo.body.copyWith(
+                fontSize: 13,
+                color: colors.text4,
+              ),
+            ),
+            style: context.typo.body.copyWith(fontSize: 13, color: colors.text),
+            border: Border.all(color: colors.border),
+            borderRadius: BorderRadius.circular(6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            onChanged: (value) => setState(() => _query = value),
+          ),
+        ),
+        Flexible(child: widget.buildMenu(_visible)),
+      ],
+    );
   }
 }

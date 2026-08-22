@@ -1664,8 +1664,11 @@ class _Translations$settings$page$automations$pt_BR extends Translations$setting
 	@override String get model => 'Modelo';
 	@override String get modelUnavailable => 'A lista de modelos fica indisponível até o harness ser encontrado.';
 	@override String get modelCliOnly => 'Este harness usa o modelo padrão da própria CLI.';
-	@override String get modelOptional => 'Opcional. Deixe em branco para usar o padrão da CLI.';
 	@override String get modelCliDefault => 'Padrão da CLI';
+	@override String get modelAuto => 'Auto';
+	@override String modelSearch({required Object count}) => 'Buscar entre ${count} modelos…';
+	@override String get modelAutoRouted => 'Este harness escolhe o modelo automaticamente.';
+	@override String get modelAccountOnly => 'Só aparecem os modelos liberados na sua conta.';
 	@override String get generateFromSourceControl => 'Gerar pelo Controle de Versão';
 	@override String get generateFromSourceControlDescription => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.';
 	@override String get discoveryFailed => 'Não foi possível descobrir os harnesses de automação instalados.';
@@ -2542,8 +2545,11 @@ extension on TranslationsPtBr {
 			'settings.page.automations.model' => 'Modelo',
 			'settings.page.automations.modelUnavailable' => 'A lista de modelos fica indisponível até o harness ser encontrado.',
 			'settings.page.automations.modelCliOnly' => 'Este harness usa o modelo padrão da própria CLI.',
-			'settings.page.automations.modelOptional' => 'Opcional. Deixe em branco para usar o padrão da CLI.',
 			'settings.page.automations.modelCliDefault' => 'Padrão da CLI',
+			'settings.page.automations.modelAuto' => 'Auto',
+			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
+			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
+			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',

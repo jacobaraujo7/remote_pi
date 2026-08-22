@@ -198,17 +198,19 @@ class AppSettings {
   final SourceControlViewMode sourceControlViewMode;
 
   /// Harness global usado pelas automações. Ausente = automações desabilitadas.
-  final AutomationHarnessId? automationHarnessId;
+  final HarnessKind? automationHarnessId;
 
   /// Modelo opcional do harness. Ausente = usar o default do próprio CLI.
   final String? automationModelId;
 
-  /// Modelo efetivo. String vazia é o sentinel persistido para uma escolha
-  /// explícita de “CLI default”; `null` legado recebe a recomendação do harness.
+  /// Modelo efetivo. String vazia (ou ausência) é o sentinel de “deixar o
+  /// harness decidir”: quem tem roteamento automático usa `auto`, quem não tem
+  /// usa o modelo que o próprio CLI já traz configurado. Resolvido na hora de
+  /// gerar, contra o catálogo descoberto — não dá para congelar aqui, o
+  /// catálogo muda com o plano do usuário.
   String? get selectedAutomationModelId {
     final stored = automationModelId;
-    if (stored != null) return stored.isEmpty ? null : stored;
-    return automationHarnessId?.recommendedModelId;
+    return stored == null || stored.isEmpty ? null : stored;
   }
 
   AutomationSelection? get automationSelection => automationHarnessId == null
@@ -261,7 +263,7 @@ class AppSettings {
     String? locale,
     bool clearLocale = false,
     SourceControlViewMode? sourceControlViewMode,
-    AutomationHarnessId? automationHarnessId,
+    HarnessKind? automationHarnessId,
     bool clearAutomationHarnessId = false,
     String? automationModelId,
     bool clearAutomationModelId = false,
@@ -373,8 +375,7 @@ class AppSettings {
     if (automationHarnessId != null)
       'automation.harnessId': automationHarnessId!.name,
     if (automationHarnessId != null)
-      'automation.modelId':
-          automationModelId ?? automationHarnessId!.recommendedModelId ?? '',
+      'automation.modelId': automationModelId ?? '',
     'updateCheckFrequency': updateCheckFrequency.name,
     if (lastUpdateCheckTime != null)
       'lastUpdateCheckTime': lastUpdateCheckTime!.toIso8601String(),
@@ -386,16 +387,13 @@ class AppSettings {
       return (s == null || s.isEmpty) ? null : s;
     }
 
-    final automationHarnessId = _nullableEnumByName(
-      AutomationHarnessId.values,
+    final automationHarnessId = _harnessByStoredName(
       json['automation.harnessId'],
     );
     final rawAutomationModel = json['automation.modelId'];
-    final automationModelId = json.containsKey('automation.modelId')
-        ? rawAutomationModel is String
-              ? rawAutomationModel.trim()
-              : automationHarnessId?.recommendedModelId
-        : automationHarnessId?.recommendedModelId;
+    final automationModelId = rawAutomationModel is String
+        ? rawAutomationModel.trim()
+        : null;
 
     return AppSettings(
       themeMode: _enumByName(
@@ -519,6 +517,24 @@ T _enumByName<T extends Enum>(List<T> values, Object? raw, T fallback) {
     if (v.name == raw) return v;
   }
   return fallback;
+}
+
+/// Nomes que a versão anterior gravava, antes de o catálogo de harness ser
+/// unificado com o da detecção de terminal. `gemini` não tem equivalente — o
+/// Gemini CLI saiu e os modelos Gemini passaram a vir pelo Antigravity, então
+/// a preferência antiga cai para "não configurado".
+const Map<String, HarnessKind> _legacyHarnessNames = {
+  'claude': HarnessKind.claudeCode,
+  'copilot': HarnessKind.gitHubCopilot,
+  'opencode': HarnessKind.openCode,
+  'codex': HarnessKind.codex,
+  'pi': HarnessKind.pi,
+};
+
+HarnessKind? _harnessByStoredName(Object? raw) {
+  if (raw is! String) return null;
+  return _nullableEnumByName(HarnessKind.values, raw) ??
+      _legacyHarnessNames[raw];
 }
 
 T? _nullableEnumByName<T extends Enum>(List<T> values, Object? raw) {

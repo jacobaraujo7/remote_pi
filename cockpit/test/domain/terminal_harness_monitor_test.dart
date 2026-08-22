@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_monitor.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,7 +50,7 @@ void main() {
         pollInterval: const Duration(milliseconds: 500),
       );
 
-      TerminalHarnessKind? notifiedHarness;
+      HarnessKind? notifiedHarness;
 
       monitor.registerSession(
         sessionId: 'session-1',
@@ -67,7 +67,7 @@ void main() {
       await pumpEventQueue();
 
       expect(fakeProvider.callCount, equals(1));
-      expect(notifiedHarness, equals(TerminalHarnessKind.pi));
+      expect(notifiedHarness, equals(HarnessKind.pi));
 
       monitor.dispose();
     });
@@ -107,8 +107,8 @@ void main() {
         pollInterval: const Duration(milliseconds: 500),
       );
 
-      TerminalHarnessKind? harness1;
-      TerminalHarnessKind? harness2;
+      HarnessKind? harness1;
+      HarnessKind? harness2;
 
       monitor.registerSession(
         sessionId: 'session-1',
@@ -125,8 +125,8 @@ void main() {
       await pumpEventQueue();
       await monitor.poll();
 
-      expect(harness1, equals(TerminalHarnessKind.claudeCode));
-      expect(harness2, equals(TerminalHarnessKind.codex));
+      expect(harness1, equals(HarnessKind.claudeCode));
+      expect(harness2, equals(HarnessKind.codex));
 
       monitor.dispose();
     });
@@ -161,7 +161,7 @@ void main() {
         pollInterval: const Duration(milliseconds: 100),
       );
 
-      TerminalHarnessKind? harness;
+      HarnessKind? harness;
 
       monitor.registerSession(
         sessionId: 'session-1',

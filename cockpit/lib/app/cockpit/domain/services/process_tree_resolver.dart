@@ -1,5 +1,5 @@
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_classifier.dart';
 
 abstract class ProcessTreeResolver {
@@ -8,7 +8,7 @@ abstract class ProcessTreeResolver {
   ///
   /// Returns the innermost active interactive harness in the foreground
   /// ancestry path, or null if no interactive harness is active.
-  static TerminalHarnessKind? resolve({
+  static HarnessKind? resolve({
     required int rootPid,
     required List<ProcessSnapshot> snapshots,
   }) {
@@ -37,7 +37,7 @@ abstract class ProcessTreeResolver {
     // Build paths from rootPid down to leaf nodes
     final paths = _buildAncestryPaths(rootPid, descendantPids, procMap);
 
-    TerminalHarnessKind? deepestHarness;
+    HarnessKind? deepestHarness;
     int maxDepth = -1;
 
     for (final path in paths) {

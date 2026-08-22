@@ -2,14 +2,14 @@ import 'dart:async';
 
 import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
-import 'package:cockpit/app/cockpit/domain/entities/terminal_harness.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/process_tree_resolver.dart';
 
 class SessionAnchor {
   final String sessionId;
   final int? Function() rootPid;
   final String? wslDistro;
-  final void Function(TerminalHarnessKind? newHarness) onHarnessChanged;
+  final void Function(HarnessKind? newHarness) onHarnessChanged;
 
   SessionAnchor({
     required this.sessionId,
@@ -29,7 +29,7 @@ class TerminalHarnessMonitor {
   bool _inFlight = false;
   bool _pendingPoll = false;
   final Map<String, SessionAnchor> _anchors = {};
-  final Map<String, TerminalHarnessKind?> _lastKnownHarness = {};
+  final Map<String, HarnessKind?> _lastKnownHarness = {};
   final Map<String, ProcessTreeProvider> _wslProviderCache = {};
 
   TerminalHarnessMonitor({
@@ -48,7 +48,7 @@ class TerminalHarnessMonitor {
     required String sessionId,
     required int? Function() rootPid,
     String? wslDistro,
-    required void Function(TerminalHarnessKind? newHarness) onHarnessChanged,
+    required void Function(HarnessKind? newHarness) onHarnessChanged,
   }) {
     _anchors[sessionId] = SessionAnchor(
       sessionId: sessionId,
@@ -185,7 +185,7 @@ class TerminalHarnessMonitor {
     _updateHarness(anchor, harness);
   }
 
-  void _updateHarness(SessionAnchor anchor, TerminalHarnessKind? newHarness) {
+  void _updateHarness(SessionAnchor anchor, HarnessKind? newHarness) {
     final previous = _lastKnownHarness[anchor.sessionId];
     if (previous != newHarness) {
       _lastKnownHarness[anchor.sessionId] = newHarness;

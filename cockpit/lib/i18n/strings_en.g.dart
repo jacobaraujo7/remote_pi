@@ -3485,11 +3485,20 @@ class Translations$settings$page$automations$en {
 	/// en: 'This harness uses its CLI default model.'
 	String get modelCliOnly => 'This harness uses its CLI default model.';
 
-	/// en: 'Optional. Leave blank to use the CLI default.'
-	String get modelOptional => 'Optional. Leave blank to use the CLI default.';
-
 	/// en: 'CLI default'
 	String get modelCliDefault => 'CLI default';
+
+	/// en: 'Auto'
+	String get modelAuto => 'Auto';
+
+	/// en: 'Search among ${count} models…'
+	String modelSearch({required Object count}) => 'Search among ${count} models…';
+
+	/// en: 'This harness routes the model automatically.'
+	String get modelAutoRouted => 'This harness routes the model automatically.';
+
+	/// en: 'Only models your account can use are listed.'
+	String get modelAccountOnly => 'Only models your account can use are listed.';
 
 	/// en: 'Generate from Source Control'
 	String get generateFromSourceControl => 'Generate from Source Control';
@@ -4384,8 +4393,11 @@ extension on Translations {
 			'settings.page.automations.model' => 'Model',
 			'settings.page.automations.modelUnavailable' => 'The model list is unavailable until the harness is found.',
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
-			'settings.page.automations.modelOptional' => 'Optional. Leave blank to use the CLI default.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
+			'settings.page.automations.modelAuto' => 'Auto',
+			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
+			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
+			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
