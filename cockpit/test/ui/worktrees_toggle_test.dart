@@ -7,8 +7,9 @@ import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Toggle de worktrees no card do workspace (V37): a regra do clique e a
-/// persistência do estado dentro do **documento de layout** já existente.
+/// Toggle de worktrees no card do workspace (V37): a persistência do estado
+/// dentro do **documento de layout** já existente. A regra do clique (card
+/// seleciona, chevron alterna) é coberta em `projects_rail_context_menu_test`.
 void main() {
   group('worktreesExpandedOf', () {
     test('workspace sem layout salvo nasce expandido', () {
@@ -80,53 +81,6 @@ void main() {
         expect(worktreesExpandedOf(await layouts.load('nunca-salvo')), isTrue);
       },
     );
-  });
-
-  group('workspaceCardTap', () {
-    test('não selecionado: seleciona e abre a lista', () {
-      final action = workspaceCardTap(
-        selected: false,
-        expanded: false,
-        hasWorktrees: true,
-      );
-      expect(action.select, isTrue);
-      expect(action.expand, isTrue);
-    });
-
-    test('não selecionado e já expandido: seleciona e mantém aberto', () {
-      // Selecionar nunca RECOLHE — seria perder a lista sem pedir.
-      final action = workspaceCardTap(
-        selected: false,
-        expanded: true,
-        hasWorktrees: true,
-      );
-      expect(action.select, isTrue);
-      expect(action.expand, isTrue);
-    });
-
-    test('já selecionado: o clique só alterna', () {
-      expect(
-        workspaceCardTap(selected: true, expanded: true, hasWorktrees: true),
-        (select: false, expand: false),
-      );
-      expect(
-        workspaceCardTap(selected: true, expanded: false, hasWorktrees: true),
-        (select: false, expand: true),
-      );
-    });
-
-    test('sem worktrees: nunca mexe no estado da lista', () {
-      // Sem fork não há chevron nem lista; gravar um estado aqui só sujaria o
-      // layout de workspaces que nunca vão mostrar nada.
-      expect(
-        workspaceCardTap(selected: false, expanded: true, hasWorktrees: false),
-        (select: true, expand: null),
-      );
-      expect(
-        workspaceCardTap(selected: true, expanded: true, hasWorktrees: false),
-        (select: false, expand: null),
-      );
-    });
   });
 
   group('worktreeChevronIcon', () {
