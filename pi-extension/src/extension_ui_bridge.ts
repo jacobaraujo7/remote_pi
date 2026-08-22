@@ -405,6 +405,9 @@ function parseOption(value: unknown): AskOptionWire | null {
     description: asString(value.description),
     preview: asString(value.preview),
     freeform: value.freeform === true ? true : undefined,
+    // pi-ask 1.2.0 marks recommended options. Presentation-only metadata —
+    // pass through so clients can highlight it; never sent back on submit.
+    recommended: value.recommended === true ? true : undefined,
   };
 }
 

@@ -373,6 +373,12 @@ class _ExtensionUiSheetState extends State<ExtensionUiSheet> {
                     o.label,
                     style: text.bodyLarge?.copyWith(
                       fontWeight: FontWeight.w600,
+                      // pi-ask `recommended` marker: tint only (no badge).
+                      // A selected tile is already accent-colored, so the
+                      // tint matters only when unselected.
+                      color: o.recommended && !selected
+                          ? colors.accent
+                          : null,
                     ),
                   ),
                 ),

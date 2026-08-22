@@ -1438,12 +1438,17 @@ class AskOptionWire {
   final String? preview;
   final bool freeform;
 
+  /// pi-ask 1.2.0 addition: presentation-only marker — never sent back on
+  /// submit. Drives the accent tint in the option list.
+  final bool recommended;
+
   const AskOptionWire({
     required this.value,
     required this.label,
     this.description,
     this.preview,
     this.freeform = false,
+    this.recommended = false,
   });
 
   factory AskOptionWire.fromJson(Map<String, dynamic> j) {
@@ -1455,6 +1460,7 @@ class AskOptionWire {
       description: j['description'] as String?,
       preview: j['preview'] as String?,
       freeform: (j['freeform'] as bool?) ?? false,
+      recommended: (j['recommended'] as bool?) ?? false,
     );
   }
 }

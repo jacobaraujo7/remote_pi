@@ -40,6 +40,8 @@ export interface AskOptionWire {
   preview?: string;
   /** pi-ask addition: option allows freeform custom entry. */
   freeform?: boolean;
+  /** pi-ask 1.2.0 addition: presentation-only marker (never affects submit). */
+  recommended?: boolean;
 }
 
 export interface AskQuestionWire {
