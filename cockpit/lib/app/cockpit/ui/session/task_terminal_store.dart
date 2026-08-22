@@ -4,6 +4,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/json_log_highlighter.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/core/utils/quiet_period_debouncer.dart';
 
@@ -59,6 +60,11 @@ class TaskTerminalStore {
   /// comandos) pro runner certo (local vs host remoto).
   final _runnerOf = <String, TaskRunnerGateway>{};
   final _record = <String, StringBuffer>{};
+
+  /// Realce de logs JSON estruturados, um por task (stateful: guarda a cauda
+  /// de linha entre chunks). Aplicado aqui — o único ponto onde o output do
+  /// runner encontra o terminal — vale pro runner local E pros remotos.
+  final _highlighters = <String, JsonLogHighlighter>{};
   final _flushDebouncers = <String, QuietPeriodDebouncer>{};
 
   /// Terminal da task (cria um vazio na primeira vez — read-only na UI). O
@@ -102,7 +108,10 @@ class TaskTerminalStore {
   }
 
   void _onRun(TaskRunnerGateway runner, TaskRun run) {
-    if (!run.isActive) return;
+    if (!run.isActive) {
+      if (!run.isTransitioning) _drainHighlighter(run.taskId);
+      return;
+    }
     // Só (re)liga quando é um run NOVO (pid mudou) — building↔running do mesmo
     // processo não re-subscreve.
     if (_lastPid[run.taskId] == run.pid) return;
@@ -116,12 +125,26 @@ class TaskTerminalStore {
     if (_outSubs.containsKey(run.taskId)) {
       term.write('\x1b[H\x1b[2J\x1b[3J');
       _record[run.taskId]?.clear();
+      _highlighters.remove(run.taskId);
     }
     _outSubs.remove(run.taskId)?.cancel();
+    final highlighter = _highlighters[run.taskId] ??= JsonLogHighlighter();
     _outSubs[run.taskId] = runner.output(run.taskId).listen((data) {
-      term.write(data);
-      _append(run.taskId, data);
+      // Log JSON sai colorido pela paleta ANSI do tema; o resto passa intacto.
+      final painted = highlighter.process(data);
+      if (painted.isEmpty) return; // linha incompleta retida
+      term.write(painted);
+      _append(run.taskId, painted);
     });
+  }
+
+  /// Fim do run: a última linha pode ter ficado retida no highlighter esperando
+  /// um `\n` que o processo não chegou a emitir — solta crua pra não sumir.
+  void _drainHighlighter(String taskId) {
+    final pending = _highlighters.remove(taskId)?.flushPending();
+    if (pending == null || pending.isEmpty) return;
+    _terminals[taskId]?.write(pending);
+    _append(taskId, pending);
   }
 
   /// Acumula o output no buffer da task (ring trim amortizado) e agenda um flush
@@ -178,6 +201,7 @@ class TaskTerminalStore {
       s.cancel();
     }
     _outSubs.clear();
+    _highlighters.clear();
     for (final terminal in _terminals.values) {
       terminal.dispose();
     }

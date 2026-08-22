@@ -35,6 +35,7 @@ class TasksViewModel extends ChangeNotifier {
     _sub?.cancel();
     _sub = _runner.runs().listen(_onRun);
   }
+
   StreamSubscription<FileSystemEvent>? _configWatch;
   Timer? _reloadDebounce;
 
@@ -264,6 +265,13 @@ const String _exampleConfig = '''
       "cwd": "site",
       "command": "npm",
       "args": ["run", "dev"]
+      // Browser auto-open. "preview": true (default) opens the first local URL
+      // found in the output; false turns it off; a string opens that fixed URL
+      // right at start.
+      // "preview": "http://localhost:3000",
+      // When it opens: "always" (default: start and restart), "start" (only on
+      // start — Restart and the file watcher won't reopen it) or "never".
+      // "previewOpen": "start",
     },
     {
       "label": "C# Example",

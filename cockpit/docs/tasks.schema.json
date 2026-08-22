@@ -58,6 +58,19 @@
         "profiles": {
           "type": "array",
           "items": { "$ref": "#/$defs/profile" }
+        },
+        "preview": {
+          "oneOf": [
+            { "type": "boolean" },
+            { "type": "string", "format": "uri" }
+          ],
+          "default": true,
+          "description": "Auto-open do navegador: true (default) abre a primeira URL local do output; false desliga; string abre essa URL fixa já no start."
+        },
+        "previewOpen": {
+          "enum": ["always", "start", "never"],
+          "default": "always",
+          "description": "Em quais execuções o preview abre: always (default, start e restart), start (só no start — restart não reabre), never."
         }
       }
     },

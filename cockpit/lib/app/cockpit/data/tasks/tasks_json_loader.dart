@@ -86,6 +86,7 @@ class TasksJsonLoader {
       // `preview`: false desliga o auto-open do navegador; string = URL fixa.
       previewEnabled: m['preview'] != false,
       previewUrl: m['preview'] is String ? m['preview'] as String : null,
+      previewOpen: _previewOpen(m['previewOpen']),
     );
   }
 
@@ -110,6 +111,14 @@ class TasksJsonLoader {
       v is List ? v.map((e) => e.toString()).toList() : const [];
 
   TaskKind _kind(Object? v) => v == 'watch' ? TaskKind.watch : TaskKind.oneShot;
+
+  /// `previewOpen`: `always` (default) | `start` | `never`. Ausente, tipo errado
+  /// ou valor desconhecido → `always`, o comportamento histórico.
+  TaskPreviewOpen _previewOpen(Object? v) => switch (v) {
+    'start' => TaskPreviewOpen.start,
+    'never' => TaskPreviewOpen.never,
+    _ => TaskPreviewOpen.always,
+  };
 
   List<TaskProfile> _profiles(Object? v) {
     if (v is! List) return const [];

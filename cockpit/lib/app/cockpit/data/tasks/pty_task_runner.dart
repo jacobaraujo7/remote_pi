@@ -48,6 +48,16 @@ class PtyTaskRunner implements TaskRunnerGateway {
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
+  }) => _launch(def, profileName: profileName, adHocArgs: adHocArgs);
+
+  /// O spawn de verdade. [restarting] distingue o start inicial do re-spawn do
+  /// [restart] — é isso que faz `previewOpen: "start"` não reabrir o navegador
+  /// a cada restart. Interno de propósito: o contrato do gateway não muda.
+  Future<void> _launch(
+    TaskDefinition def, {
+    String? profileName,
+    List<String> adHocArgs = const [],
+    bool restarting = false,
   }) async {
     if (_running.containsKey(def.id)) return; // idempotente
     if (!_starting.add(def.id)) return; // spawn já em preparação
@@ -115,6 +125,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
       pty,
       def,
       initial,
+      isRestart: restarting,
       onOutput: (data) {
         if (!task.out.isClosed) task.out.add(data);
         _detectProgress(task, data);
@@ -124,11 +135,15 @@ class PtyTaskRunner implements TaskRunnerGateway {
     _running[def.id] = task;
     _emit(initial);
 
-    // `preview` fixo no tasks.json: abre já no start, sem esperar output.
+    // `preview` fixo no tasks.json: abre já no start, sem esperar output. A URL
+    // fixa marca `previewNotified` mesmo com o auto-open suprimido — ela
+    // substitui a detecção por output, não convive com ela.
     final forced = def.previewUrl;
     if (def.previewEnabled && forced != null && forced.isNotEmpty) {
       task.previewNotified = true;
-      if (!_previews.isClosed) _previews.add(TaskPreviewUrl(def.id, forced));
+      if (def.shouldOpenPreview(isRestart: restarting) && !_previews.isClosed) {
+        _previews.add(TaskPreviewUrl(def.id, forced));
+      }
     }
 
     // Decoder incremental + scheduler GLOBAL. O callback de flush alimenta um
@@ -177,7 +192,7 @@ class PtyTaskRunner implements TaskRunnerGateway {
     for (var i = 0; i < 35 && _running.containsKey(taskId); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
-    await start(def, profileName: profileName);
+    await _launch(def, profileName: profileName, restarting: true);
   }
 
   @override
@@ -342,7 +357,8 @@ class PtyTaskRunner implements TaskRunnerGateway {
   /// Primeira URL local do run → emite pro shell abrir o navegador (plano 58).
   /// Mantém uma cauda curta do texto limpo pra URL partida entre chunks.
   void _detectPreviewUrl(_RunningTask task, String data) {
-    if (task.previewNotified || !task.def.previewEnabled) return;
+    if (task.previewNotified) return;
+    if (!task.def.shouldOpenPreview(isRestart: task.isRestart)) return;
     final haystack = task.previewTail + data.replaceAll(_ansiRe, '');
     final match = _localUrlRe.firstMatch(haystack);
     if (match == null) {
@@ -452,6 +468,7 @@ class _RunningTask {
     this.def,
     this.state, {
     required void Function(String data) onOutput,
+    this.isRestart = false,
   }) : coalescer = PtyOutputCoalescer(
          onFlush: onOutput,
          onAcknowledge: pty.ackRead,
@@ -467,6 +484,10 @@ class _RunningTask {
   TaskRun state;
   bool stopping = false;
   bool ended = false;
+
+  /// `true` quando o run nasceu de um restart (botão ou watcher) em vez de um
+  /// start. Só o auto-open do preview olha isso (`previewOpen: "start"`).
+  final bool isRestart;
 
   /// Auto-open do navegador (plano 58): no máximo uma emissão por run.
   bool previewNotified = false;

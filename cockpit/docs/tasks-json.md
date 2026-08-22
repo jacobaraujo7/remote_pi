@@ -92,6 +92,7 @@ subir na árvore), então:
 | `progressPatterns` | array    | não         | `[]`        | Regex begin/end pro badge `building↔running`. |
 | `profiles`         | array    | não         | `[]`        | Variantes de execução (ver abaixo). |
 | `preview`          | bool/str | não         | `true`      | Auto-open do navegador embutido: por padrão a **primeira** URL local do output (`http://localhost:…`) abre uma aba de navegador (re-runs reusam a aba na mesma origem). `false` desliga; uma string (`"http://localhost:8080"`) abre essa URL fixa já no start. Sem webview na plataforma (Linux), abre no browser do SO. |
+| `previewOpen`      | string   | não         | `always`    | **Quando** o preview abre: `always` (start e restart), `start` (só no start — Restart e o restart do watcher não reabrem; um stop + start manual reabre) ou `never`. Ignorado se `preview` é `false`. |
 
 > O cockpit gera o `id` da task automaticamente (`json:<label>`); ele sobrescreve
 > uma task detectada de mesmo `id`.

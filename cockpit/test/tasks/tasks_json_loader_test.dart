@@ -107,6 +107,77 @@ void main() {
     );
   });
 
+  test(
+    'sem preview/previewOpen → default retrocompatível (abre sempre)',
+    () async {
+      await write('{ "tasks": [ { "label": "api", "command": "go" } ] }');
+      final task = (await const TasksJsonLoader().load(tmp.path)).single;
+      expect(task.previewEnabled, isTrue);
+      expect(task.previewUrl, isNull);
+      expect(task.previewOpen, TaskPreviewOpen.always);
+    },
+  );
+
+  test('preview string vira URL fixa; preview false desliga', () async {
+    await write('''
+      { "tasks": [
+        { "label": "fixa", "command": "go", "preview": "http://localhost:8080" },
+        { "label": "off", "command": "go", "preview": false }
+      ] }
+    ''');
+    final tasks = await const TasksJsonLoader().load(tmp.path);
+    final fixa = tasks.firstWhere((t) => t.label == 'fixa');
+    final off = tasks.firstWhere((t) => t.label == 'off');
+    expect(fixa.previewUrl, 'http://localhost:8080');
+    expect(fixa.previewEnabled, isTrue);
+    expect(off.previewEnabled, isFalse);
+    expect(off.previewUrl, isNull);
+  });
+
+  test('previewOpen aceita always/start/never', () async {
+    await write('''
+      { "tasks": [
+        { "label": "a", "command": "go", "previewOpen": "always" },
+        { "label": "s", "command": "go", "previewOpen": "start" },
+        { "label": "n", "command": "go", "previewOpen": "never" }
+      ] }
+    ''');
+    final tasks = await const TasksJsonLoader().load(tmp.path);
+    expect(
+      {for (final t in tasks) t.label: t.previewOpen},
+      {
+        'a': TaskPreviewOpen.always,
+        's': TaskPreviewOpen.start,
+        'n': TaskPreviewOpen.never,
+      },
+    );
+  });
+
+  test('previewOpen inválido ou de tipo errado → always', () async {
+    await write('''
+      { "tasks": [
+        { "label": "typo", "command": "go", "previewOpen": "onstart" },
+        { "label": "tipo", "command": "go", "previewOpen": true }
+      ] }
+    ''');
+    final tasks = await const TasksJsonLoader().load(tmp.path);
+    expect(
+      tasks.map((t) => t.previewOpen),
+      everyElement(TaskPreviewOpen.always),
+    );
+  });
+
+  test('preview false vence previewOpen always', () async {
+    await write('''
+      { "tasks": [
+        { "label": "off", "command": "go", "preview": false, "previewOpen": "always" }
+      ] }
+    ''');
+    final task = (await const TasksJsonLoader().load(tmp.path)).single;
+    expect(task.previewEnabled, isFalse);
+    expect(task.previewOpen, TaskPreviewOpen.always);
+  });
+
   test('task sem label ou command é ignorada', () async {
     await write('''
       { "tasks": [
