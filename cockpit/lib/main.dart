@@ -7,6 +7,7 @@ import 'package:cockpit/app/core/ui/widgets/app_error_view.dart';
 import 'package:cockpit/app/core/ui/widgets/error_report_dialog.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -21,6 +22,20 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 Future<void> main() async {
   await runGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
+
+    // O terminal Ghostty mede a grade antes de montar seu atlas de glifos. Se
+    // JetBrains Mono ainda estiver sendo registrada assincronamente pelo
+    // google_fonts, a primeira medida usa o fallback proporcional e cada
+    // caractere ganha uma celula larga demais ate alguma configuracao de fonte
+    // forcar novo layout. Carregue previamente todos os pesos que o terminal
+    // oferece para que medida e rasterizacao usem a mesma face desde o primeiro
+    // frame.
+    await GoogleFonts.pendingFonts([
+      GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w300),
+      GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w400),
+      GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w500),
+      GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w600),
+    ]);
 
     // Mobile (iPad/Android): todas as orientações liberadas (plano 60, Wave F).
     // Em telas estreitas (portrait de celular) o shell colapsa as panes laterais

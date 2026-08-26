@@ -11,11 +11,29 @@ import 'system_monospace_resolver_stub.dart'
 String resolveGhosttyFontFamily(
   String requested, {
   String? Function()? systemMonospaceResolver,
+  String? Function()? bundledJetBrainsMonoResolver,
 }) {
   final family = requested.trim();
-  if (family.toLowerCase() != 'monospace') return family;
+  // `google_fonts` registra a fonte com uma familia interna versionada, nao
+  // necessariamente com o nome humano "JetBrains Mono". Passar o nome humano
+  // diretamente ao flterm pode fazer o Flutter medir a celula com um fallback
+  // proporcional (o `M` largo) e pintar os demais glifos com outra face. O
+  // resultado visual e um espaco artificial entre todos os caracteres.
+  //
+  // O caller fornece o resolvedor para este helper continuar independente de
+  // google_fonts e permanecer testavel sem carregar assets.
+  String resolveBundledJetBrainsMono(String candidate) {
+    if (candidate.toLowerCase() != 'jetbrains mono') return candidate;
+    final bundled = bundledJetBrainsMonoResolver?.call()?.trim();
+    return bundled == null || bundled.isEmpty ? candidate : bundled;
+  }
+
+  if (family.toLowerCase() != 'monospace') {
+    return resolveBundledJetBrainsMono(family);
+  }
 
   final resolved = (systemMonospaceResolver ?? resolveSystemMonospaceFamily)()
       ?.trim();
-  return resolved == null || resolved.isEmpty ? family : resolved;
+  if (resolved == null || resolved.isEmpty) return family;
+  return resolveBundledJetBrainsMono(resolved);
 }

@@ -9,6 +9,7 @@ import 'package:flterm/flterm.dart' as ghost;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'terminal_pane.dart';
@@ -213,7 +214,14 @@ ghost.TerminalTheme _ghosttyTheme(
   selection: ghost.SelectionTheme(
     background: ghost.DynamicColor.fixed(source.selection),
   ),
-  fontFamily: resolveGhosttyFontFamily(style.fontFamily),
+  // Use a mesma familia interna registrada por google_fonts para medir as
+  // celulas e rasterizar o atlas. Usar apenas o nome humano "JetBrains Mono"
+  // pode cair em fontes diferentes no Flutter Linux e alargar cada celula.
+  fontFamily: resolveGhosttyFontFamily(
+    style.fontFamily,
+    bundledJetBrainsMonoResolver: () =>
+        GoogleFonts.jetBrainsMono(fontWeight: fontWeight).fontFamily,
+  ),
   fontFamilyFallback: style.fontFamilyFallback,
   fontSize: style.fontSize * uiScale,
   fontWeight: fontWeight,
