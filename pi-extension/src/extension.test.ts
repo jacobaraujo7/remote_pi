@@ -4612,6 +4612,12 @@ describe("relay control channel + relay-state event", () => {
     expect(ev!.display).toBe(false);
     expect(ev!.details).toMatchObject({ requested: "Renamed", assigned: "Renamed", changed: false });
 
+    // Pollers may repeat the same resolved name. Do not rejoin the mesh or cycle
+    // the relay when the requested base name is already active.
+    const relayCount = relayInstances.length;
+    await _handleControl("rename:Renamed");
+    expect(relayInstances).toHaveLength(relayCount);
+
     // Clean up: rename churns the real UDS broker (leave+rejoin) and leaves the
     // mesh/relay live — tear down so it can't leak into later tests (an orphaned
     // broker socket makes a subsequent bind flaky).
