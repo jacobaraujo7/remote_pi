@@ -1,9 +1,9 @@
 import { writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, chmod, unlink } from "node:fs/promises";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { generateEd25519Keypair, type Ed25519Keypair } from "./crypto.js";
 import { canonicalizeEd25519PublicKey } from "../mesh/encoding.js";
+import { remotePiHome } from "../paths.js";
 
 /**
  * Pi-secret storage (plan/27 Wave E1).
@@ -76,7 +76,7 @@ export class PairedIdentityMissingError extends Error {
   }
 }
 
-const PI_DIR = join(homedir(), ".pi", "remote");
+const PI_DIR = remotePiHome();
 const IDENTITY_FILE = join(PI_DIR, "identity.json");
 const PEERS_PATH = join(PI_DIR, "peers.json");
 
