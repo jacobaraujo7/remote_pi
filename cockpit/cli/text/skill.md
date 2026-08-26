@@ -1,6 +1,6 @@
 ---
 name: cockpit-cli
-description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to open a new terminal tab or split pane, type text or press keys into your own or another tab, read another tab's or a task's output, list the open tabs/workspaces/tasks, or query the workspace's databases (SQL over registered connections / .dbq files). Triggers on tmux-like control needs — split-window/new-window, send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids — and on database needs: run a SQL query, inspect a schema, list connections, execute a .dbq file. Also covers pane-layout orchestration: applying a `.ckp` layout file (open several terminals/splits and run their commands) via `cockpit orchestrate`.
+description: Drive Cockpit's multiplexed terminals from inside a tab. Use when you (an agent running in a Cockpit terminal) need to open a new terminal tab or split pane, type text or press keys into your own or another tab, read another tab's or a task's output, list the open tabs/workspaces/tasks, query the workspace's databases (SQL over registered connections / .dbq files), or drive the built-in browser tab (read/click/type/screenshot/eval on a page). Triggers on tmux-like control needs — split-window/new-window, send-keys, run a command in another tab, read a tab's scrollback, inspect a task run's output, discover tab or task ids — on database needs: run a SQL query, inspect a schema, list connections, execute a .dbq file — and on browser needs: fill and submit a form, click a link/button, read what's on a page, take a screenshot, run arbitrary JS against a page. Also covers pane-layout orchestration: applying a `.ckp` layout file (open several terminals/splits and run their commands) via `cockpit orchestrate`.
 ---
 
 # cockpit — Cockpit's internal CLI
@@ -48,6 +48,8 @@ Cockpit tabs (it is not on the global PATH).
   `http://` for localhost targets and `https://` otherwise. On platforms
   without an inline webview (Linux) the URL opens in the system browser —
   `--json` output tells you which happened: `{"mode":"inline"|"system","url":…}`.
+  To then **read or interact with** what's on that tab (click, type, screenshot,
+  run JS), see `cockpit browser …` below.
 - `cockpit db <list|schema|query|run|execute>` — query the workspace's
   databases. Connections are registered in `.cockpit/databases.json` (Database
   panel); SQLite files in the repo are auto-detected. Output is **one JSON
@@ -245,6 +247,66 @@ Rules:
 - In the app, right-click a `.ckp` file → **Open layout** does the same as
   `cockpit orchestrate`.
 
+## Browser control (`cockpit browser`)
+
+Once a browser tab is open (`cockpit browse <url>`), `cockpit browser
+<read|click|type|screenshot|eval>` reads and drives it — the Cockpit
+equivalent of a browser-automation extension, but for the app's **built-in**
+webview. Mechanism: injected JavaScript (`evaluateJavascript`), not the
+Chrome DevTools Protocol — WKWebView (macOS) has no public automation
+protocol. Consequence: synthetic clicks/inputs are **not** `isTrusted:
+true` — works on the overwhelming majority of sites, but won't fool an
+explicit `event.isTrusted` check.
+
+Targets the workspace's **single** open browser tab by default (the normal
+case). If more than one is open, pass `--tab-id <id>` (find it with
+`cockpit list-tabs` — browser tabs have `"kind":"browser"`).
+
+- `cockpit browser read [--full]` — lists visible interactive elements
+  (links, buttons, inputs, textareas, selects, `[role=button]`, `[onclick]`,
+  `[tabindex]`) as one JSON line:
+  `{"ok":[{"id":"1-3","role":"textbox","text":"Email","rect":{...}},...]}`.
+  `role` comes from an explicit `role=` attribute or is inferred from the
+  tag. `--full` also includes hidden/off-screen elements (debugging only —
+  you can't usefully click something the user can't see).
+
+  **Ids are ephemeral**: an id is only valid against the `read` that
+  produced it. Read again after any navigation, or after a `click`/`type`
+  that might have changed the page — reusing an old id fails with kind
+  `stale_element_id`, not a silent no-op.
+- `cockpit browser click <id>` — scrolls the element into view and
+  dispatches a synthetic click.
+- `cockpit browser type <id> <text>` — focuses the element and sets its
+  value (`input`/`change` fired); works on `input`, `textarea` and
+  `contenteditable`.
+- `cockpit browser screenshot [--out <path>]` — without `--out`, prints the
+  PNG as base64 (`{"ok":{"base64":"..."}}`); with `--out`, writes the PNG to
+  `<path>` and prints it (`{"ok":{"path":"/abs/shot.png"}}`).
+- `cockpit browser eval <js>` — escape hatch: runs `<js>` and returns the
+  serializable result (`{"ok":<value>}`). Last resort — prefer
+  `read`/`click`/`type`, which don't require you to hand-write a CSS
+  selector against a page you haven't inspected.
+
+Error kinds (`{"error":{"kind","message"}}`, exit 1): `no_browser_tab` (open
+one first with `cockpit browse`), `tab_closed` (the tab was closed —
+open/navigate again), `stale_element_id` (`read` again), `eval_failed`
+(bad JS, or the page rejected it), `ambiguous_browser_tab` (more than one
+browser tab open — pass `--tab-id`).
+
+Fill and submit a form — the canonical chained flow (`read` → pick an id →
+`click`/`type`):
+
+```sh
+cockpit browse http://localhost:3000/login
+cockpit browser read
+# {"ok":[{"id":"1-1","role":"textbox","text":"Email","rect":{...}},
+#        {"id":"1-2","role":"textbox","text":"Password","rect":{...}},
+#        {"id":"1-3","role":"button","text":"Sign in","rect":{...}}]}
+cockpit browser type 1-1 "user@example.com"
+cockpit browser type 1-2 "hunter2"
+cockpit browser click 1-3
+```
+
 ## Target (--tab-id)
 
 Without `--tab-id`, the command acts on **your own tab** (via `$COCKPIT_TAB_ID`,
@@ -317,3 +379,9 @@ cockpit read-tab t4 --lines 60
   terminal and task-output tabs are readable.
 - "no output recorded for task ..." → the task never ran this app boot, or the
   id is wrong — check both with `cockpit list-tasks` (`[output]` = readable).
+- `no_browser_tab` (`cockpit browser …`) → no browser tab open in this
+  workspace; open one with `cockpit browse <url>` first.
+- `stale_element_id` (`cockpit browser click|type`) → the id is from an old
+  `read`, or the page navigated since. Run `cockpit browser read` again.
+- `ambiguous_browser_tab` → more than one browser tab open; pass `--tab-id
+  <id>` (see `cockpit list-tabs`, kind `"browser"`).

@@ -258,6 +258,181 @@ pub fn browse_url(args: &[String]) -> ! {
     std::process::exit(0)
 }
 
+// ---- browser (plano 61) ------------------------------------------------------
+
+/// Kinds estáveis dos erros de `browser *` — mesma reconstrução do
+/// `{"error":{kind,message}}` que [DB_ERROR_KINDS] faz pra `db`/`redis`/`mongo`.
+const BROWSER_ERROR_KINDS: [&str; 5] = [
+    "no_browser_tab",
+    "tab_closed",
+    "stale_element_id",
+    "eval_failed",
+    "ambiguous_browser_tab",
+];
+
+const BROWSER_HELP: &str = "cockpit browser <read|click|type|screenshot|eval> [args...]
+  Controls the inline browser tab via injected JS (no OS-level click/type —
+  synthetic events are NOT `isTrusted`). Targets the workspace's single open
+  browser tab by default; pass --tab-id <id> (from `cockpit list-tabs`, kind
+  \"browser\") to address a specific one when more than one is open.
+
+cockpit browser read [--full] [--tab-id <id>] [--workspace <id|path>]
+  Lists visible interactive elements: [{id, role, text, rect}, ...].
+  --full  also include hidden/off-screen elements (debug).
+  Element ids are ephemeral — valid only against the most recent `read` of
+  that tab; a new `read` (or a page navigation) invalidates old ids.
+
+cockpit browser click <id> [--tab-id <id>] [--workspace <id|path>]
+  Dispatches a synthetic click on the element from the last `read`.
+
+cockpit browser type <id> <text> [--tab-id <id>] [--workspace <id|path>]
+  Focuses the element and sets its value/textContent (input+change fired).
+  Works on input/textarea/contenteditable.
+
+cockpit browser screenshot [--out <path>] [--tab-id <id>] [--workspace <id|path>]
+  Without --out, prints the PNG as base64. With --out, writes the PNG to
+  <path> (resolved from the CLI's cwd) and prints the path.
+
+cockpit browser eval <js> [--tab-id <id>] [--workspace <id|path>]
+  Escape hatch: runs <js> and returns the serializable result. Last resort —
+  read/click/type cover the common case without hand-written selectors.
+
+Output: one JSON line `{\"ok\": <data>}` on success, or
+`{\"error\":{\"kind\",\"message\"}}` (exit 1) — kinds: no_browser_tab,
+tab_closed, stale_element_id, eval_failed, ambiguous_browser_tab.";
+
+pub fn browser(args: &[String]) -> ! {
+    if args.is_empty() || args[0] == "--help" || args[0] == "-h" {
+        if args.is_empty() {
+            eprintln!("{BROWSER_HELP}");
+            std::process::exit(2);
+        }
+        println!("{BROWSER_HELP}");
+        std::process::exit(0);
+    }
+    let sub = args[0].clone();
+    let rest = &args[1..];
+
+    let mut tab_id: Option<String> = None;
+    let mut workspace: Option<String> = None;
+    let mut full = false;
+    let mut out: Option<String> = None;
+    let mut positionals: Vec<String> = Vec::new();
+    let mut pending: Option<String> = None;
+
+    const VALUE_FLAGS: [&str; 3] = ["--tab-id", "--workspace", "--out"];
+
+    for a in rest {
+        if let Some(flag) = pending.take() {
+            match flag.as_str() {
+                "--tab-id" => tab_id = Some(a.clone()),
+                "--workspace" => workspace = Some(a.clone()),
+                "--out" => out = Some(a.clone()),
+                _ => {}
+            }
+            continue;
+        }
+        if a == "--full" {
+            full = true;
+            continue;
+        }
+        if VALUE_FLAGS.contains(&a.as_str()) {
+            pending = Some(a.clone());
+            continue;
+        }
+        if let Some(eq) = a.find('=') {
+            if a.starts_with("--") && eq > 0 {
+                let (key, value) = a.split_at(eq);
+                let value = value[1..].to_string();
+                match key {
+                    "--tab-id" => tab_id = Some(value),
+                    "--workspace" => workspace = Some(value),
+                    "--out" => out = Some(value),
+                    _ => db_fail(
+                        "error",
+                        &format!("unknown flag \"{key}\" (see `cockpit browser --help`)"),
+                    ),
+                }
+                continue;
+            }
+        }
+        positionals.push(a.clone());
+    }
+    if let Some(flag) = pending {
+        db_fail("error", &format!("missing value for {flag}"));
+    }
+
+    let mut cmd_args = Map::new();
+    if let Some(ws) = workspace {
+        cmd_args.insert("workspace".into(), json!(ws));
+    }
+    let wire = match sub.as_str() {
+        "read" => {
+            cmd_args.insert("full".into(), json!(full));
+            "browser-read"
+        }
+        "click" => {
+            if positionals.is_empty() {
+                db_fail("error", "missing <id> (see `cockpit browser read`)");
+            }
+            cmd_args.insert("id".into(), json!(positionals[0]));
+            "browser-click"
+        }
+        "type" => {
+            if positionals.is_empty() {
+                db_fail("error", "missing <id> (see `cockpit browser read`)");
+            }
+            let id = positionals[0].clone();
+            let text = positionals[1..].join(" ");
+            cmd_args.insert("id".into(), json!(id));
+            cmd_args.insert("text".into(), json!(text));
+            "browser-type"
+        }
+        "screenshot" => {
+            if let Some(p) = out {
+                cmd_args.insert("out".into(), json!(resolve_path(&p)));
+            }
+            "browser-screenshot"
+        }
+        "eval" => {
+            if positionals.is_empty() {
+                db_fail("error", "missing <js>");
+            }
+            cmd_args.insert("js".into(), json!(positionals.join(" ")));
+            "browser-eval"
+        }
+        other => db_fail(
+            "error",
+            &format!("unknown subcommand \"{other}\" (see `cockpit browser --help`)"),
+        ),
+    };
+
+    browser_request(wire, cmd_args, tab_id)
+}
+
+/// Envia um comando de navegador e imprime `{"ok": …}` / `{"error": …}`
+/// (mesmo contrato do [nosql_request], kinds diferentes).
+fn browser_request(wire: &str, cmd_args: Map<String, Value>, tab_id: Option<String>) -> ! {
+    let mut req = json!({"cmd": wire, "args": Value::Object(cmd_args)});
+    with_tab_id(&mut req, tab_id.or_else(self_tab_id));
+    let resp = transport::request(req, DB_TIMEOUT);
+    if is_ok(&resp) {
+        let data = resp.get("data").cloned().unwrap_or(Value::Null);
+        println!("{}", json!({"ok": data}));
+        std::process::exit(0);
+    }
+    let raw = transport::error_text(&resp);
+    if let Some(sep) = raw.find(": ") {
+        if sep > 0 {
+            let kind = &raw[..sep];
+            if BROWSER_ERROR_KINDS.contains(&kind) {
+                db_fail(kind, &raw[sep + 2..]);
+            }
+        }
+    }
+    db_fail("error", &raw)
+}
+
 // ---- orchestrate ------------------------------------------------------------
 
 const ORCHESTRATE_HELP: &str = "cockpit orchestrate <file.ckp> [--json]

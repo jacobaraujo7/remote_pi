@@ -24,6 +24,9 @@ USAGE:
                                                file (see `cockpit http --help`)
   cockpit browse <url> [--json]                open the built-in browser tab at
                                                <url> (system browser on Linux)
+  cockpit browser <read|click|type|screenshot|eval>
+                                               control the browser tab via JS
+                                               injection (see `cockpit browser --help`)
   cockpit orchestrate <file.ckp> [--json]      apply a .ckp pane layout (open
                                                terminals/splits + run commands)
   cockpit install-skill   [--force]            install the Claude Code skill
@@ -59,6 +62,18 @@ HTTP (http):
     cockpit http list api/users.http
     cockpit http run  api/users.http --request "Create user"
   Full reference: `cockpit http --help`.
+
+BROWSER (browser):
+  Controls the inline browser tab via injected JS (no CDP for WKWebView —
+  synthetic events are NOT `isTrusted`). Targets the workspace's single open
+  browser tab by default. Examples:
+    cockpit browser read
+    cockpit browser click 3-2
+    cockpit browser type 3-5 "hello@example.com"
+    cockpit browser screenshot --out /tmp/page.png
+    cockpit browser eval "document.title"
+  Element ids from `read` are ephemeral — only valid against that same read.
+  Full reference: `cockpit browser --help`.
 
 IDS:
   Workspace ids are opaque UUIDs — use `workspacePath` (list-tabs) / `path`

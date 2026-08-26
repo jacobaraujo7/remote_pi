@@ -1,4 +1,5 @@
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 /// Completa o scheme de URLs digitadas/recebidas: alvo local ganha http, o
 /// resto https. `0.0.0.0` (bind-address de dev server) vira `localhost`.
@@ -74,6 +75,13 @@ class BrowserSession extends PaneItem {
     seedUrl = null;
     return u;
   }
+
+  /// Controller do webview vivo (plano 61, decisão C): setado por
+  /// [BrowserPane] em `onWebViewCreated`, limpo no `dispose`. É a ponte que
+  /// `CockpitCliHandler` usa pra injetar JS (`browser read/click/type/
+  /// screenshot/eval`) — sem notificação, é lido sob demanda, não observado.
+  /// `null` = aba nunca montou o webview, ou já foi fechada.
+  InAppWebViewController? controller;
 }
 
 extension on String {

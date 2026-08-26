@@ -66,6 +66,7 @@ fn main() {
         "mongo" => commands::mongo(args),
         "new-tab" => commands::new_tab(args),
         "browse" => commands::browse_url(args),
+        "browser" => commands::browser(args),
         "orchestrate" => commands::orchestrate(args),
         "install-skill" => commands::install_skill(args),
         // Atalho: `cockpit <arquivo>` (sem verbo) abre o arquivo — o token
