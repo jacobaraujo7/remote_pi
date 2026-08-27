@@ -7,6 +7,9 @@
  */
 import { describe, expect, test, vi, beforeEach } from "vitest";
 import { EventEmitter } from "node:events";
+import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
+import { Box, Container, Image, Text } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 
 // ── Mock RelayClient ──────────────────────────────────────────────────────────
 
@@ -85,9 +88,12 @@ const {
   routeClientMessage,
   _startRelayForTest,
   _stopForTest,
+  configurePiRuntime,
 } = await import("../src/index.js");
 
-import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
+configurePiRuntime({ SettingsManager, convertToPng, Box, Container, Image, Text, Type });
+
+import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

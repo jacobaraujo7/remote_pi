@@ -20,6 +20,7 @@ import { z } from "zod";
 import { MeshNode } from "../session/mesh_node.js";
 import { loadLocalConfig, defaultAgentName, localConfigExists } from "../session/local_config.js";
 import { formatMeshAckResult } from "./mesh_result.js";
+import { PACKAGE_VERSION } from "../package_version.js";
 import { sessionSockPath, sessionAuditPath, LOCAL_SESSION_NAME } from "../session/global_config.js";
 import { resolveRelayUrl } from "../config.js";
 import { acquireCwdLock, type AcquiredLock } from "../session/cwd_lock.js";
@@ -115,7 +116,7 @@ let degradedReason = "connecting to the mesh…";
 // ── MCP server setup ──────────────────────────────────────────────────────────
 
 const mcp = new McpServer(
-  { name: "remote-pi-mesh", version: "0.4.3" },
+  { name: "remote-pi-mesh", version: PACKAGE_VERSION },
   {
     capabilities: { experimental: { "claude/channel": {} } },
     instructions: [

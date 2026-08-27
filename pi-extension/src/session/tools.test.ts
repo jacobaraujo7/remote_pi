@@ -1,7 +1,15 @@
 import { describe, expect, test, vi } from "vitest";
-import { registerAgentTools } from "./tools.js";
+import { Type } from "typebox";
+import { registerAgentTools as registerAgentToolsWithType } from "./tools.js";
 import { MeshTransportError, type SessionPeer, type AckResult } from "./peer.js";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
+
+function registerAgentTools(
+  pi: Parameters<typeof registerAgentToolsWithType>[0],
+  getSessionPeer: Parameters<typeof registerAgentToolsWithType>[1],
+): void {
+  registerAgentToolsWithType(pi, getSessionPeer, Type);
+}
 
 // Captures tools registered via pi.registerTool so we can invoke them directly.
 function makeMockPi() {

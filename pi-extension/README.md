@@ -171,7 +171,11 @@ messages are unaffected.
 
 ## Install
 
-Requirements: Node 20+, Pi (the host coding agent).
+Requirements: Node 22.19+, Pi 0.84.3+ (the host coding agent).
+
+Remote Pi's Pi extension uses Pi's SDK, TUI, and `typebox` as optional peer
+dependencies, so it runs against the host Pi release instead of shipping a
+second, stale copy. Keep Pi current with `pi update`.
 
 ```bash
 pi install npm:remote-pi
@@ -249,6 +253,17 @@ To remove one:
 
 The shortid is the first 8 chars shown by `devices`.
 
+### Pair-code privacy
+
+The QR URI contains a single-use, expiring pairing token. `/remote-pi pair`
+keeps its `remote-pi:pair-code` custom message in Pi's session stream so
+Cockpit can render the structured QR payload, but removes that exact message
+from provider and compaction contexts. This is deliberately narrow: it does
+not generally filter user-visible `remote-pi:*` messages from model context.
+
+**Credit:** Context-isolation fix contributed by **Harald Kapper**
+(<hk@kapper.net>) of [KAPPER NETWORK-COMMUNICATIONS GmbH](https://kapper.net).
+
 ---
 
 ## The relay
@@ -260,20 +275,20 @@ forwarding, the Relay currently permits a route when any correctly signed Owner
 blob lists both canonical Pi keys. That does not prove the Owner paired with or
 controls either Pi.
 
-### Upgrade order (Relay 0.3 first, then Extension 0.6)
+### Upgrade order (Relay first, then Extension/MCP participants)
 
-Upgrade the **Relay to 0.3 first**: an old Extension can consume the new
-Relay's UUID errors. Extension 0.6 carries a one-release legacy wire-label
-shim, so mixed new/old Extensions interoperate when both select the same unique
-colon-free signed nickname label, or when neither has one and both use the
-canonical standard-padded key prefix. Delimiter or collision cases, like
-divergent nickname views, are unsupported and may be silently dropped by the
-old receiver. Upgrade all Extension/MCP participants in one maintenance window.
+Upgrade the **Relay first**: an old Extension can consume the new Relay's UUID
+errors. Current releases retain a narrow legacy wire-label shim, so mixed
+new/old Extensions interoperate when both select the same unique colon-free
+signed nickname label, or when neither has one and both use the canonical
+standard-padded key prefix. Delimiter or collision cases, like divergent
+nickname views, are unsupported and may be silently dropped by the old
+receiver. Upgrade all Extension/MCP participants in one maintenance window.
 The shim does not replace the receiver-local aliases returned by `list_peers`;
 addresses remain opaque.
 
-Extension 0.6 accepts an old Relay's lowercase 32-hex trusted error ID only as
-a narrow shim for an old Relay or Relay rollback; that shim is not why
+Current Extensions accept an old Relay's lowercase 32-hex trusted error ID only
+as a narrow shim for an old Relay or Relay rollback; that shim is not why
 Relay-first is safe.
 
 You have two options:
@@ -404,6 +419,19 @@ Name collisions inside a session get a numeric suffix automatically
 (`backend`, `backend#2`, `backend#3`). The broker assigns it and returns the
 real name to the peer.
 
+### Claude Code mesh launcher
+
+When the package is globally installed, `remote-pi claude [cwd] [claude-flags…]`
+starts a Claude Code session connected to the same agent mesh. It supplies a
+temporary MCP configuration for the Remote Pi mesh server and injects the
+agent-network protocol for that one session; it does not persist an MCP entry,
+so a normal `claude` launch is unaffected.
+
+It forwards any trailing Claude flags (for example `--resume` or `-c`). The
+launcher currently passes Claude's `--dangerously-skip-permissions` flag and
+enables the local development channel used for immediate mesh-message wakeups.
+Use it only in a workspace where automatic tool approval is appropriate.
+
 ---
 
 ## Command reference
@@ -447,7 +475,9 @@ real name to the peer.
 
 All commands above work both as Pi slash commands (interactive) and as
 shell-level `remote-pi <subcommand>` when the package is installed
-globally (`npm install -g remote-pi`).
+globally (`npm install -g remote-pi`). The global CLI itself is standalone;
+Pi-facing operations such as daemons use the installed Pi runtime's peer
+libraries.
 
 ### Scheduled prompts (`cron`)
 

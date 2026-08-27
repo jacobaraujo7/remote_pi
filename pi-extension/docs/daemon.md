@@ -123,7 +123,7 @@ Reproduce the failure with full visibility:
 
 ```bash
 cd /Users/x/Movies
-REMOTE_PI_DAEMON=1 pi --mode rpc -e $(npm root -g)/remote-pi/dist/index.js
+REMOTE_PI_DAEMON=1 pi --mode rpc -e $(npm root -g)/remote-pi/dist/extension.js
 ```
 
 Common reasons a daemon won't start:

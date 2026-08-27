@@ -26,7 +26,7 @@ import { defaultAgentName, loadLocalConfig, type LocalConfig } from "../session/
 export interface RpcChildOptions {
   /** Path to the `pi` binary. Defaults to "pi" (must be on PATH). */
   piBin?: string;
-  /** Absolute path to the remote-pi `dist/index.js` to load as -e. */
+  /** Absolute path to the remote-pi `dist/extension.js` to load as -e. */
   extensionPath: string;
   /** Working directory for the spawned process. Determines which local
    *  config the extension reads. */

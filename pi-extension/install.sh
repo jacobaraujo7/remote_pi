@@ -6,7 +6,7 @@
 #   curl -fsSL https://remote-pi.jacobmoura.work/install.sh | bash
 #
 # What it does (all user-space, NO sudo, idempotent):
-#   1. Node      — uses the system Node if it's >= 20.6.0; otherwise installs
+#   1. Node      — uses the system Node if it's >= 22.19.0; otherwise installs
 #                  it via nvm under ~/.nvm (never touches the system Node).
 #   2. Pi        — installs the Pi coding agent (npm package
 #                  @earendil-works/pi-coding-agent) into a user-space prefix
@@ -27,9 +27,11 @@ set -euo pipefail
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-MIN_NODE="20.6.0"               # Pi requires Node >= 20.6.0
+MIN_NODE="22.19.0"              # Pi 0.84.3 requires Node >= 22.19.0
+MIN_PI="0.84.3"                  # Remote Pi's minimum host peer version
 NODE_LTS="22"                   # what we install via nvm when Node is missing
 PI_PKG="@earendil-works/pi-coding-agent"
+PI_SPEC="${PI_PKG}@latest"
 PLUGIN_SPEC="npm:remote-pi"
 PLUGIN_NAME="remote-pi"
 USER_PREFIX="$HOME/.local"      # user-space npm global prefix (sudo-free)
@@ -238,9 +240,12 @@ ensure_pi() {
 
   if command -v pi >/dev/null 2>&1; then
     local v; v="$(pi --version 2>/dev/null | head -n1 || true)"
-    ok "Pi already installed (${v:-version unknown}) — skipping"
-    record "Pi:         ${v:-installed} (pre-existing)"
-    return 0
+    if [ -n "$v" ] && version_gte "$v" "$MIN_PI"; then
+      ok "Pi already installed (${v}) — skipping"
+      record "Pi:         ${v} (pre-existing)"
+      return 0
+    fi
+    warn "Pi ${v:-version unknown} is below the required $MIN_PI — upgrading"
   fi
 
   # Guard the no-sudo promise: the global node_modules root must be writable.
@@ -260,13 +265,15 @@ ensure_pi() {
   fi
 
   # User-space global install: --prefix keeps `pi` in ~/.local/bin, no sudo.
-  info "npm install -g --prefix $USER_PREFIX $PI_PKG"
-  npm install -g --prefix "$USER_PREFIX" "$PI_PKG" >/dev/null
+  info "npm install -g --prefix $USER_PREFIX $PI_SPEC"
+  npm install -g --prefix "$USER_PREFIX" "$PI_SPEC" >/dev/null
 
   command -v pi >/dev/null 2>&1 || die "Pi installed but 'pi' is not on PATH (expected $LOCAL_BIN/pi)"
   local v; v="$(pi --version 2>/dev/null | head -n1 || true)"
-  ok "installed Pi (${v:-version unknown})"
-  record "Pi:         ${v:-installed} (${PI_PKG})"
+  [ -n "$v" ] && version_gte "$v" "$MIN_PI" \
+    || die "installed Pi ${v:-version unknown} is still < $MIN_PI"
+  ok "installed Pi (${v})"
+  record "Pi:         ${v} (${PI_PKG})"
 }
 
 # ── 3. remote-pi plugin ──────────────────────────────────────────────────────

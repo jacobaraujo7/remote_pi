@@ -11,7 +11,8 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, wr
 import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
+import { Box, Container, Image, Text, getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
+import { Type } from "typebox";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 const _convertToPngMock = vi.hoisted(() => vi.fn(async () => null));
@@ -238,7 +239,10 @@ const {
   _routeClientMessageFrom,
   _deliverMeshMessageToAgentForTest,
   CTRL_PREFIX,
+  configurePiRuntime,
 } = indexModule;
+const { SettingsManager, convertToPng } = await import("@earendil-works/pi-coding-agent");
+configurePiRuntime({ SettingsManager, convertToPng, Box, Container, Image, Text, Type });
 const { acquireCwdLock } = await import("./session/cwd_lock.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1242,14 +1246,26 @@ describe("multi-channel broadcast (W2D)", () => {
     rmSync(cwd, { recursive: true, force: true });
   });
 
-  test("/remote-pi pair generates QR even when an owner is already attached", async () => {
+  test("/remote-pi pair emits a user-visible pair-code for Cockpit even when an owner is already attached", async () => {
     await _pairForTest("ownerA__1234567890");
     expect(_getActivePeerCountForTest()).toBe(1);
 
-    // QR generation must succeed (no "Already paired" rejection).
+    // Keep the structured pi.sendMessage event: Cockpit consumes it to render
+    // the QR instead of scraping the TUI text.
     const pair = captureHandler("remote-pi pair");
+    const sendMessage = vi.fn();
+    _setPiForTest({ sendMessage, sendUserMessage: () => undefined });
     const ctx = makeMockCtx();
     await pair("", ctx);
+
+    const pairCode = sendMessage.mock.calls
+      .map(([message]) => message as { customType?: string; display?: boolean; details?: { uri?: string; token?: string } })
+      .find((message) => message.customType === "remote-pi:pair-code");
+    expect(pairCode).toMatchObject({
+      customType: "remote-pi:pair-code",
+      display: true,
+      details: { uri: expect.stringMatching(/^remotepi:\/\/pair\?/), token: "test-token" },
+    });
 
     // Should have notified about a QR being ready, not warned about
     // an existing pairing.
@@ -1757,6 +1773,36 @@ describe("multi-channel broadcast (W2D)", () => {
     });
     expect(preparation.messagesToSummarize).toEqual([keepUser]);
     expect(preparation.turnPrefixMessages).toEqual([keepCustom]);
+  });
+
+  test("pair-code messages are filtered out of provider and compaction context without hiding user-visible remote-pi messages", () => {
+    const pairCode = { role: "custom", customType: "remote-pi:pair-code", content: "remotepi://pair?token=secret", display: true };
+    const keepMeshMessage = { role: "custom", customType: "remote-pi:mesh-message", content: "keep", display: true };
+    const keepRevocation = { role: "custom", customType: "remote-pi:mesh-revoked", content: "keep", display: true };
+    const keepUser = { role: "user", content: "hello" };
+
+    const onContext = captureEventHandler("context");
+    const result = onContext({
+      type: "context",
+      messages: [pairCode, keepMeshMessage, keepRevocation, keepUser],
+    }) as { messages?: unknown[] };
+    expect(result.messages).toEqual([keepMeshMessage, keepRevocation, keepUser]);
+
+    const onBeforeCompact = captureEventHandler("session_before_compact");
+    const preparation = {
+      messagesToSummarize: [pairCode, keepUser],
+      turnPrefixMessages: [keepMeshMessage, pairCode, keepRevocation],
+    };
+    onBeforeCompact({
+      type: "session_before_compact",
+      preparation,
+      branchEntries: [],
+      reason: "manual",
+      willRetry: false,
+      signal: new AbortController().signal,
+    });
+    expect(preparation.messagesToSummarize).toEqual([keepUser]);
+    expect(preparation.turnPrefixMessages).toEqual([keepMeshMessage, keepRevocation]);
   });
 
   test("pure-data (display:false) remote-pi events are filtered out of provider and compaction context", () => {

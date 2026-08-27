@@ -94,7 +94,7 @@ function _probeSupervisor(path: string): Promise<boolean> {
 }
 
 export interface SupervisorOptions {
-  /** Absolute path to remote-pi's dist/index.js — passed as -e to each
+  /** Absolute path to remote-pi's dist/extension.js — passed as -e to each
    *  spawned `pi`. Defaults to the location relative to where this file
    *  is bundled (so the supervisor finds itself). */
   extensionPath: string;

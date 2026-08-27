@@ -3,7 +3,7 @@
  * pi-extension — remote-pi slash commands + AgentBridge wiring
  *
  * Exported as ExtensionFactory (default export) to be loaded by Pi SDK:
- *   pi -e $(pwd)/dist/index.js
+ *   pi -e $(pwd)/dist/extension.js
  *
  * State machine:  idle → started → paired
  *   /remote-pi start   connects to relay (idle → started)
@@ -37,7 +37,6 @@ import type {
   ExtensionContext,
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
 import { buildQRUri, qrSession, renderQRAscii, clampPairTtlMs, TOKEN_TTL_MS } from "./pairing/qr.js";
 import {
@@ -108,6 +107,7 @@ import {
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
+import { PACKAGE_VERSION } from "./package_version.js";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chmodSync, mkdtempSync, mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
@@ -122,7 +122,32 @@ import {
   isWebSocketScheme,
   toWebSocketUrl,
 } from "./config.js";
-import { Box, Container, Image, Text } from "@earendil-works/pi-tui";
+
+type PiRuntime = {
+  SettingsManager: typeof import("@earendil-works/pi-coding-agent").SettingsManager;
+  convertToPng: typeof import("@earendil-works/pi-coding-agent").convertToPng;
+  Box: typeof import("@earendil-works/pi-tui").Box;
+  Container: typeof import("@earendil-works/pi-tui").Container;
+  Image: typeof import("@earendil-works/pi-tui").Image;
+  Text: typeof import("@earendil-works/pi-tui").Text;
+  Type: typeof import("typebox").Type;
+};
+
+// `extension.ts` imports Pi-owned modules statically, which lets Pi resolve
+// them from its host runtime. The shared CLI entry intentionally remains free
+// of those imports so `remote-pi` and `remote-pi claude` work as shell tools.
+let _piRuntime: PiRuntime | null = null;
+
+export function configurePiRuntime(runtime: PiRuntime): void {
+  _piRuntime = runtime;
+}
+
+function _requirePiRuntime(): PiRuntime {
+  if (!_piRuntime) {
+    throw new Error("Remote Pi extension runtime was not configured. Load dist/extension.js, not dist/index.js.");
+  }
+  return _piRuntime;
+}
 
 // ── State machine ─────────────────────────────────────────────────────────────
 //
@@ -174,6 +199,7 @@ const _activePeers = new Map<string, PlainPeerChannel>();
 let _peerShort = "";  // shortid of the most recently attached peer (UX hint only)
 
 const REMOTE_PI_RECEIVED_IMAGE_TYPE = "remote-pi:received-image";
+const REMOTE_PI_PAIR_CODE_TYPE = "remote-pi:pair-code";
 const RECEIVED_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
 
 type ReceivedImageDetails = {
@@ -372,6 +398,7 @@ async function _renderablePngPathFromImage(
   if (mime === IMAGE_PREVIEW_MIME) return undefined;
 
   try {
+    const { convertToPng } = _requirePiRuntime();
     const converted = await convertToPng(imageData, mime);
     if (!converted || converted.mimeType !== IMAGE_PREVIEW_MIME || !converted.data) {
       return undefined;
@@ -554,6 +581,7 @@ async function _emitReceivedImagePreviews(
 }
 
 function _registerReceivedImageRenderer(pi: ExtensionAPI): void {
+  const { Box, Container, Image, Text } = _requirePiRuntime();
   pi.registerMessageRenderer<ReceivedImageDetails>(
     REMOTE_PI_RECEIVED_IMAGE_TYPE,
     (message, _options, theme) => {
@@ -616,6 +644,19 @@ function _isReceivedImageContextMessage(message: unknown): boolean {
 }
 
 /**
+ * Pair codes deliberately remain `pi.sendMessage` entries so Cockpit can read
+ * their structured payload, but the QR URI includes a single-use pairing token
+ * and must never reach a provider or compaction summary. Match only this exact
+ * type: other user-visible `remote-pi:*` messages remain model context.
+ */
+function _isPairCodeContextMessage(message: unknown): boolean {
+  return typeof message === "object"
+    && message !== null
+    && (message as { role?: unknown }).role === "custom"
+    && (message as { customType?: unknown }).customType === REMOTE_PI_PAIR_CODE_TYPE;
+}
+
+/**
  * Issue #105 — pure-data events must not reach the model.
  *
  * `display: false` only suppresses TUI rendering. Pi still persists the message
@@ -644,7 +685,9 @@ function _isPureDataContextMessage(message: unknown): boolean {
 function _filterInternalMessagesFromContext<T>(messages: T[] | undefined): T[] {
   return Array.isArray(messages)
     ? messages.filter((message) =>
-        !_isReceivedImageContextMessage(message) && !_isPureDataContextMessage(message))
+        !_isReceivedImageContextMessage(message)
+        && !_isPairCodeContextMessage(message)
+        && !_isPureDataContextMessage(message))
     : [];
 }
 
@@ -1908,27 +1951,11 @@ function _installAutoListener(relay: RelayClient): () => void {
   return () => relay.off("message", onMsg);
 }
 
-/**
- * Plan/27 Wave A: lazily resolve the pi-extension package version from
- * disk so the `pair_ok.harness.version` field reflects what's actually
- * shipped. The lookup is best-effort — a parse failure (or running this
- * file out-of-tree) falls back to "0.0.0" which is still semver-valid
- * and the app tolerates it. Cached at module load.
- */
-function _readExtensionVersion(): string {
-  try {
-    const here = fileURLToPath(import.meta.url);
-    // dist/index.js → ../package.json. src/index.ts under tsx → also one level up.
-    const pkgPath = join(here, "..", "..", "package.json");
-    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
-    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
-  } catch {
-    return "0.0.0";
-  }
-}
+// Resolve once from package.json so the pairing harness and MCP server report
+// the version that was actually shipped, rather than independent literals.
 const _HARNESS = {
   name: "Pi coding agent",
-  version: _readExtensionVersion(),
+  version: PACKAGE_VERSION,
 } as const;
 const _HOSTNAME = hostname();
 
@@ -2043,7 +2070,7 @@ let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort" | "ui"> | null = n
 const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
 
 // A single Pi process can load this extension TWICE in the SAME session:
-// pi-supervisord launches each daemon child as `pi -e <dist>/index.js`, but if
+// pi-supervisord launches each daemon child as `pi -e <dist>/extension.js`, but if
 // remote-pi is ALSO installed as a pi-package (auto-discovered from
 // ~/.pi/agent/extensions or <cwd>/.pi/extensions), Pi loads it a second time
 // for that same session. Both loads receive the same session-scoped `pi` and
@@ -2068,12 +2095,19 @@ function _appliedRegistry(): WeakSet<object> {
   return (g[_APPLIED_REGISTRY_KEY] ??= new WeakSet<object>());
 }
 
+function _registerPiRuntimeFeatures(pi: ExtensionAPI): void {
+  const { Type } = _requirePiRuntime();
+  registerAgentTools(pi, () => _meshNode?.peer() ?? null, Type);
+  _registerReceivedImageRenderer(pi);
+}
+
 const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   const applied = _appliedRegistry();
   if (applied.has(pi)) return;  // this session's pi was already wired
   applied.add(pi);
 
   _pi = pi;
+  _registerPiRuntimeFeatures(pi);
 
   // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
   // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
@@ -2096,15 +2130,9 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
 
   pi.on("resources_discover", () => ({ skillPaths: [skillsDir()] }));
 
-  // Plano 20: agent_send + agent_request tools so the LLM can drive the
-  // session network natively. Getter captures `_meshNode` live so the
-  // tool always sees the current state.
-  registerAgentTools(pi, () => _meshNode?.peer() ?? null);
-  _registerReceivedImageRenderer(pi);
-
-  // Received-image preview entries are for local TUI display only. Pi's custom
-  // messages normally become user-role LLM context, so strip this type before
-  // every provider request; the actual Android image still reaches the model via
+  // Local-only image previews and pairing codes are persisted custom messages,
+  // but must not become user-role LLM context. Pair codes remain emitted via
+  // pi.sendMessage for Cockpit; the actual Android image reaches the model via
   // the paired sendUserMessage call.
   pi.on("context", (event) => ({
     messages: _filterInternalMessagesFromContext(event.messages),
@@ -2931,6 +2959,7 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
       if (live) {
         _currentModel = live.name ?? live.id ?? undefined;
       } else {
+        const { SettingsManager } = _requirePiRuntime();
         const sm = SettingsManager.create(cwd);
         const provider = sm.getDefaultProvider();
         const modelId = sm.getDefaultModel();
@@ -3171,7 +3200,7 @@ async function _cmdPair(ctx: Pick<ExtensionContext, "ui" | "cwd">, args = ""): P
   if (_pi) {
     const qrAscii = renderQRAscii(qrUri);
     _pi.sendMessage({
-      customType: "remote-pi:pair-code",
+      customType: REMOTE_PI_PAIR_CODE_TYPE,
       content:
         `📱 Scan to pair:\n\n${qrAscii}\n` +
         `📋 Or copy this pairing code (camera-less devices):\n\n${qrUri}`,

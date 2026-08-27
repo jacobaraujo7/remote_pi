@@ -1,8 +1,8 @@
 # Remote Pi — Pi Extension (Node + TypeScript)
 
 Extensão para o [Pi coding agent](https://github.com/earendil-works/pi) que
-adiciona o slash command `/remote-pi`. Embarca o SDK do Pi
-(`@earendil-works/pi-coding-agent`) e expõe via WebSocket pro relay.
+adiciona o slash command `/remote-pi`. Usa o SDK do Pi fornecido pelo host
+(como peer dependency) e expõe via WebSocket pro relay.
 
 Faz parte da **mesh de agentes coding cross-PC** do Remote Pi: cada PC
 roda esta extensão (Node daemon) com uma Pi-key Ed25519 no keyring do
@@ -15,11 +15,11 @@ Protocolo, identidades, ACK, roteamento cross-PC e trust model: ver
 
 ## Stack
 
-- Node 20+ / TypeScript 6
+- Node 22.19+ / TypeScript 6
 - **Module system**: ESM only (NodeNext). Imports com extensão `.js` mesmo em `.ts`
 - Package manager: **pnpm** (não usar npm/yarn)
-- Crypto: libsodium-wrappers (Curve25519 + ChaCha20-Poly1305)
-- Pi-secret storage: `@napi-rs/keyring` (Keychain macOS / libsecret Linux desktop / Credential Manager Windows). Headless Linux sem D-Bus cai pra `~/.pi/remote/identity.json` (`chmod 0600`) com warning — instale GNOME Keyring/KWallet pra hardening real.
+- Crypto: `@noble/ed25519`
+- Pi-secret storage: `@napi-rs/keyring` opcional (Keychain macOS / libsecret Linux desktop / Credential Manager Windows). Sem binding/keyring, usa `~/.pi/remote/identity.json` (`chmod 0600`) com warning — instale GNOME Keyring/KWallet pra hardening real.
 
 ## Comandos
 
@@ -51,7 +51,7 @@ Slash commands:
 
 ## Dependências importantes
 
-- `@earendil-works/pi-coding-agent` — SDK do Pi (`AgentSession`, `SessionManager`, `ModelRegistry`)
+- `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui` e `typebox` — peers opcionais do host Pi; mantenha os devDependencies alinhados à release atual do Pi.
 - `ws` — WebSocket client
 
 ## Convenções

@@ -1,5 +1,4 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Type } from "typebox";
 import type { TransportErrorReason } from "./envelope.js";
 import type { AckResult, SessionPeer } from "./peer.js";
 
@@ -7,6 +6,8 @@ const NOT_IN_SESSION = "Not in a session. Run /remote-pi join first";
 const ACK_TIMEOUT_MS = 5_000;
 const LEGACY_REQUEST_TIMEOUT_MS = 30_000;
 const LIST_PEERS_TIMEOUT_MS = 2_000;
+
+type TypeBoxFactory = typeof import("typebox").Type;
 
 interface SendInput {
   to: string;
@@ -54,6 +55,7 @@ interface SendDetails {
 export function registerAgentTools(
   pi: ExtensionAPI,
   getSessionPeer: () => SessionPeer | null,
+  Type: TypeBoxFactory,
 ): void {
   const SendParams = Type.Object({
     to: Type.String({

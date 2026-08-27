@@ -1,10 +1,10 @@
 {
   "name": "remote-pi",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Mobile remote control and local agent mesh for the Pi coding agent. Pair your phone via QR over a relay, watch tool calls in real time, run multi-Pi sessions over a local Unix Domain Socket broker, and let agents talk to each other through structured request/reply.",
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/extension.js",
+  "types": "dist/extension.d.ts",
   "bin": {
     "remote-pi": "dist/index.js",
     "pi-supervisord": "dist/bin/supervisord.js"
@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "dev": "tsx src/index.ts",
     "test": "vitest run",
-    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
+    "test:pack": "tsc && bash scripts/pack-smoke.sh",
+    "prepublishOnly": "tsc --noEmit && vitest run && tsc && bash scripts/pack-smoke.sh"
   },
   "keywords": [
     "pi",
@@ -33,7 +34,7 @@
   ],
   "pi": {
     "extensions": [
-      "./dist"
+      "./dist/extension.js"
     ],
     "image": "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/banner.png"
   },
@@ -57,34 +58,44 @@
     "LICENSE"
   ],
   "engines": {
-    "node": ">=20.0.0"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@google/genai",
-      "esbuild",
-      "koffi",
-      "protobufjs"
-    ]
+    "node": ">=22.19.0"
   },
   "devDependencies": {
-    "@types/node": "^25.8.0",
+    "@earendil-works/pi-coding-agent": "0.84.3",
+    "@earendil-works/pi-tui": "0.84.3",
+    "@types/node": "^22.19.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.22.0",
+    "typebox": "1.3.7",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.79.10",
-    "@earendil-works/pi-tui": "^0.79.10",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "@napi-rs/keyring": "^1.3.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@noble/ed25519": "^3.1.0",
     "croner": "^10.0.1",
     "qrcode-terminal": "^0.12.0",
-    "typebox": "^1.1.38",
-    "ws": "^8.21.0",
+    "ws": "^8.21.3",
     "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "@napi-rs/keyring": "^1.3.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": ">=0.84.3",
+    "@earendil-works/pi-tui": ">=0.84.3",
+    "typebox": ">=1.3.7"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   }
 }
