@@ -18,12 +18,12 @@ cleanup() { rm -rf "$scratch"; }
 trap cleanup EXIT
 mkdir -p "$scratch/pack" "$scratch/extract" "$scratch/home" "$scratch/work"
 
-npm pack --pack-destination "$scratch/pack" --json > "$scratch/pack.json"
+# `npm publish --dry-run` propagates npm_config_dry_run=true to lifecycle
+# scripts. Override it here: this test must create and unpack a real tarball.
+npm_config_dry_run=false npm pack --pack-destination "$scratch/pack" --json > "$scratch/pack.json"
 tarball="$(node - "$scratch/pack.json" "$scratch/pack" <<'NODE'
 const result = require(process.argv[2]);
-const metadata = Array.isArray(result)
-  ? result[0]
-  : result["remote-pi"] ?? Object.values(result)[0];
+const metadata = Array.isArray(result) ? result[0] : Object.values(result)[0];
 if (!metadata?.filename) throw new Error("npm pack did not return a tarball filename");
 process.stdout.write(`${process.argv[3]}/${metadata.filename}`);
 NODE
@@ -35,8 +35,8 @@ pkg="$scratch/extract/package"
 # the unpacked tree too: workspace overrides do not accompany an npm tarball.
 (
   cd "$pkg"
-  npm install --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null
-  npm audit --omit=dev
+  npm_config_dry_run=false npm install --omit=dev --ignore-scripts --no-audit --no-fund >/dev/null
+  npm_config_dry_run=false npm audit --omit=dev
 )
 
 node - "$pkg/package.json" <<'NODE'
@@ -88,6 +88,7 @@ run_pi_smoke() {
 run_pi_smoke "$pkg" "$scratch/pi-package.out"
 run_pi_smoke "$pkg/dist/extension.js" "$scratch/pi-raw-extension.out"
 
+package_name="$(node -p "require('$pkg/package.json').name")"
 version="$(node -p "require('$pkg/package.json').version")"
 set +e
 printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"pack-smoke","version":"1.0.0"}}}' \
@@ -99,4 +100,4 @@ set -e
 [ "$mcp_status" -eq 0 ] || [ "$mcp_status" -eq 124 ] || exit "$mcp_status"
 grep -Fq "\"version\":\"$version\"" "$scratch/mcp.out"
 
-echo "packed artifact smoke test passed (remote-pi@$version)"
+echo "packed artifact smoke test passed ($package_name@$version)"

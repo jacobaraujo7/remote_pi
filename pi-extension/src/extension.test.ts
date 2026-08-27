@@ -2935,6 +2935,19 @@ describe("/remote-pi set-relay + config", () => {
     expect(text).toContain("https://relay-rp1.jacobmoura.work");
   });
 
+  test("/remote-pi status reports the published package name and version", async () => {
+    const status = captureHandler("remote-pi status");
+    const ctx = makeMockCtx();
+    await status("", ctx);
+
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as {
+      name: string;
+      version: string;
+    };
+    const text = (ctx.ui.notify.mock.calls[0]![0]) as string;
+    expect(text).toContain(`Package: ${pkg.name} v${pkg.version}`);
+  });
+
   test("/remote-pi status reflects env override (canonicalized to https://)", async () => {
     // Env var with wss:// is coerced back to https:// by resolveRelayUrl.
     process.env["REMOTE_PI_RELAY"] = "wss://from-env.test";

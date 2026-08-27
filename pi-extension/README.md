@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/logo-full.svg" width="160" alt="Remote Pi logo" />
+  <img src="https://raw.githubusercontent.com/hknet/remote-pi/main/branding/logo-full.svg" width="160" alt="Remote Pi logo" />
 </p>
 
 <h1 align="center">Remote Pi</h1>
@@ -8,7 +8,9 @@
 > superpowers: agents that talk to each other on the same machine, and a mobile
 > app that drives Pi from your phone.
 
-**Homepage:** <https://remote-pi.jacobmoura.work>
+**Repository:** <https://github.com/hknet/remote-pi>
+
+**Project website:** <https://remote-pi.jacobmoura.work>
 
 `/remote-pi` is a single slash command that wires both at once. Run it; the
 first time it asks a couple of questions and you are done.
@@ -27,7 +29,7 @@ document — this README only covers user-facing setup.
 Install the extension (one-time):
 
 ```bash
-pi install npm:remote-pi
+pi install npm:@hk_net/remote-pi
 ```
 
 Then in any Pi terminal:
@@ -178,7 +180,7 @@ dependencies, so it runs against the host Pi release instead of shipping a
 second, stale copy. Keep Pi current with `pi update`.
 
 ```bash
-pi install npm:remote-pi
+pi install npm:@hk_net/remote-pi
 ```
 
 The extension self-registers the `/remote-pi` slash command and deploys an
@@ -314,7 +316,7 @@ keypair authentication, layering a VPN on top means **only your devices** can
 even reach the WebSocket port — defense in depth.
 
 Quick Docker outline (see the
-[relay README](https://github.com/jacobaraujo7/remote_pi/blob/main/relay/README.md#self-hosted-relay-recommended-for-privacy)
+[relay README](https://github.com/hknet/remote-pi/blob/main/relay/README.md#self-hosted-relay-recommended-for-privacy)
 for the full setup, environment variables, and reverse-proxy guidance):
 
 ```bash
@@ -442,7 +444,7 @@ Use it only in a workspace where automatic tool approval is appropriate.
 |---|---|
 | `/remote-pi` | Connect (join local mesh + start relay), or run setup on first use |
 | `/remote-pi setup` | Run the setup wizard and update local config |
-| `/remote-pi status` | Show local mesh + relay status |
+| `/remote-pi status` | Show installed package identity, local mesh + relay status |
 | `/remote-pi stop` | Stop everything for **this** terminal (mesh + relay) |
 | `/remote-pi pair` | Show QR code + copy-paste pairing URI for a new mobile device |
 | `/remote-pi devices` | List paired mobile devices (online/offline per device) |
@@ -475,7 +477,7 @@ Use it only in a workspace where automatic tool approval is appropriate.
 
 All commands above work both as Pi slash commands (interactive) and as
 shell-level `remote-pi <subcommand>` when the package is installed
-globally (`npm install -g remote-pi`). The global CLI itself is standalone;
+globally (`npm install -g @hk_net/remote-pi`). The global CLI itself is standalone;
 Pi-facing operations such as daemons use the installed Pi runtime's peer
 libraries.
 
@@ -532,10 +534,10 @@ See [`docs/daemon.md`](./docs/daemon.md) for troubleshooting.
 
 ```bash
 # Install the package globally so `remote-pi` and `pi-supervisord`
-# are on your PATH (`pi install npm:remote-pi` alone makes the Pi
+# are on your PATH (`pi install npm:@hk_net/remote-pi` alone makes the Pi
 # extension available but does NOT expose the CLI binaries — see
 # https://docs.npmjs.com/cli/v10/configuring-npm/package-json#bin).
-npm install -g remote-pi
+npm install -g @hk_net/remote-pi
 
 # Install the supervisor as a user-level system service. Linux uses
 # systemd --user; macOS uses launchd LaunchAgent. Both auto-start at
@@ -665,24 +667,24 @@ other terminal first.
 ## Branding
 
 Official brand assets live in
-[`/branding`](https://github.com/jacobaraujo7/remote_pi/tree/main/branding) —
+[`/branding`](https://github.com/hknet/remote-pi/tree/main/branding) —
 SVG sources for the logo (full, foreground, background, monochrome) plus a
 banner. See the
-[branding README](https://github.com/jacobaraujo7/remote_pi/blob/main/branding/README.md)
+[branding README](https://github.com/hknet/remote-pi/blob/main/branding/README.md)
 for palette and export sizes.
 
 <table>
   <tr>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/logo-full.svg" width="96" alt="logo-full" /><br/>
+      <img src="https://raw.githubusercontent.com/hknet/remote-pi/main/branding/logo-full.svg" width="96" alt="logo-full" /><br/>
       <sub><code>logo-full</code></sub>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/logo-foreground.svg" width="96" alt="logo-foreground" /><br/>
+      <img src="https://raw.githubusercontent.com/hknet/remote-pi/main/branding/logo-foreground.svg" width="96" alt="logo-foreground" /><br/>
       <sub><code>logo-foreground</code></sub>
     </td>
     <td align="center">
-      <img src="https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/logo-monochrome.svg" width="96" alt="logo-monochrome" /><br/>
+      <img src="https://raw.githubusercontent.com/hknet/remote-pi/main/branding/logo-monochrome.svg" width="96" alt="logo-monochrome" /><br/>
       <sub><code>logo-monochrome</code></sub>
     </td>
   </tr>
@@ -693,10 +695,10 @@ for palette and export sizes.
 ## Links
 
 - Homepage: <https://remote-pi.jacobmoura.work>
-- Source: <https://github.com/jacobaraujo7/remote_pi>
+- Source: <https://github.com/hknet/remote-pi>
 - Pi coding agent: <https://github.com/earendil-works/pi>
-- Relay (self-hosting guide): <https://github.com/jacobaraujo7/remote_pi/blob/main/relay/README.md>
-- Issues / bugs: <https://github.com/jacobaraujo7/remote_pi/issues>
+- Relay (self-hosting guide): <https://github.com/hknet/remote-pi/blob/main/relay/README.md>
+- Issues / bugs: <https://github.com/hknet/remote-pi/issues>
 
 ---
 

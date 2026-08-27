@@ -20,7 +20,7 @@ import { fileURLToPath } from "node:url";
  * Uninstall reverses both. Idempotent — re-running install over an existing
  * unit refreshes it (paths could have changed if user moved node_modules).
  *
- * **What does NOT happen here**: the actual `npm install -g remote-pi` step.
+ * **What does NOT happen here**: the actual `npm install -g @hk_net/remote-pi` step.
  * The user has to make the supervisor bin reachable on disk before install
  * can wire up the service. The `findSupervisorScript` resolver detects
  * common cases (npm global, pnpm global, local dev clone) and yields a
@@ -63,7 +63,7 @@ export function findSupervisorScript(): string {
  * Absolute path to the extension's CLI entry (`dist/index.js`). This is
  * the file we symlink to `~/.local/bin/remote-pi` so the user can run
  * `remote-pi <subcommand>` from any shell after installing the extension
- * through Pi (`pi install npm:remote-pi`).
+ * through Pi (`pi install npm:@hk_net/remote-pi`).
  *
  * Same resolution strategy as `findSupervisorScript`: from
  * `dist/daemon/install.js` → `dist/index.js`.
@@ -208,7 +208,7 @@ export function installService(vars: RenderVars = defaultRenderVars()): InstallR
   if (!existsSync(vars.supervisor)) {
     throw new Error(
       `supervisor script not found at ${vars.supervisor}. ` +
-      "Run `pnpm build` (dev) or `npm install -g remote-pi` (prod) first.",
+      "Run `pnpm build` (dev) or `npm install -g @hk_net/remote-pi` (prod) first.",
     );
   }
 
@@ -426,9 +426,9 @@ function _execElevatedWindows(lines: string[], log: string[]): void {
 
 // ── CLI bin linking (plan/27) ─────────────────────────────────────────────────
 //
-// When the user installs Remote Pi through Pi (`pi install npm:remote-pi`),
+// When the user installs Remote Pi through Pi (`pi install npm:@hk_net/remote-pi`),
 // the extension's `bin` entries in package.json never reach `$PATH` — Pi's
-// installer ignores them. Without `npm install -g remote-pi` a second time,
+// installer ignores them. Without `npm install -g @hk_net/remote-pi` a second time,
 // the user can't run `remote-pi daemon …` from a shell.
 //
 // `linkCliBinaries` writes two symlinks into `~/.local/bin/`:
@@ -442,7 +442,7 @@ function _execElevatedWindows(lines: string[], log: string[]): void {
 // This step is opt-in and runs ONLY when the slash-command path triggers
 // `_cmdInstall` — i.e., the user is inside Pi's TUI. The CLI-mode path
 // (`remote-pi install` invoked from a shell because the user did
-// `npm install -g remote-pi`) MUST NOT symlink — the user already has
+// `npm install -g @hk_net/remote-pi`) MUST NOT symlink — the user already has
 // working bins from npm-global, and stomping them with our symlinks
 // would point them at the *Pi-extension copy* instead of the npm-global
 // copy, which is a different file tree and would diverge on upgrades.
@@ -490,7 +490,7 @@ export function linkCliBinaries(
   const binDir = userLocalBinDir(home);
 
   // Windows (plan/40): no POSIX symlinks. Installing via Pi (`pi install
-  // npm:remote-pi`) never reaches PATH, so write real `.cmd` shims into
+  // npm:@hk_net/remote-pi`) never reaches PATH, so write real `.cmd` shims into
   // `~/.local/bin` and add that dir to the user's PATH (HKCU — no admin).
   if (platform() === "win32") {
     return _linkCliBinariesWindows(home, binDir, paths, opts);

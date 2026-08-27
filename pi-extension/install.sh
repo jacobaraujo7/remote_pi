@@ -11,7 +11,7 @@
 #   2. Pi        — installs the Pi coding agent (npm package
 #                  @earendil-works/pi-coding-agent) into a user-space prefix
 #                  (~/.local) so `pi` lands on ~/.local/bin without root.
-#   3. remote-pi — installs this plugin into Pi (`pi install npm:remote-pi`).
+#   3. remote-pi — installs this plugin into Pi (`pi install npm:@hk_net/remote-pi`).
 #   4. CLI link  — symlinks the `remote-pi` CLI into ~/.local/bin.
 #   5. Supervisor— installs the per-user service (launchd GUI agent on macOS,
 #                  `systemd --user` on Linux) via `remote-pi install`.
@@ -32,12 +32,13 @@ MIN_PI="0.84.3"                  # Remote Pi's minimum host peer version
 NODE_LTS="22"                   # what we install via nvm when Node is missing
 PI_PKG="@earendil-works/pi-coding-agent"
 PI_SPEC="${PI_PKG}@latest"
-PLUGIN_SPEC="npm:remote-pi"
+PLUGIN_PACKAGE="@hk_net/remote-pi"
+PLUGIN_SPEC="npm:${PLUGIN_PACKAGE}"
 PLUGIN_NAME="remote-pi"
 USER_PREFIX="$HOME/.local"      # user-space npm global prefix (sudo-free)
 LOCAL_BIN="$USER_PREFIX/bin"
 
-# Resolved at runtime by ensure_plugin() — `pi install npm:remote-pi` runs
+# Resolved at runtime by ensure_plugin() — `pi install npm:@hk_net/remote-pi` runs
 # `npm install -g`, so the plugin lands under `npm root -g`, NOT in
 # ~/.pi/agent/npm. We can't hardcode it: it depends on the effective npm
 # prefix (nvm dir, ~/.local, a user .npmrc, …). Always ask `npm root -g`.
@@ -284,9 +285,9 @@ ensure_pi() {
 # We check both, current-behavior first, and use whichever exists. Sets the
 # global PLUGIN_DIST. Returns 1 if neither is found.
 plugin_dist_candidates() {
-  printf '%s\n' "$HOME/.pi/agent/npm/node_modules/remote-pi/dist/index.js"
+  printf '%s\n' "$HOME/.pi/agent/npm/node_modules/$PLUGIN_PACKAGE/dist/index.js"
   local root; root="$(npm_global_root)"
-  [ -n "$root" ] && printf '%s\n' "$root/remote-pi/dist/index.js"
+  [ -n "$root" ] && printf '%s\n' "$root/$PLUGIN_PACKAGE/dist/index.js"
 }
 
 resolve_plugin_dist() {
@@ -313,10 +314,10 @@ ensure_plugin() {
   # Pi may install into ~/.pi/agent/npm (>= 0.78) or `npm root -g` (0.73).
   # resolve_plugin_dist() checks both — never a single hardcoded path.
   if ! resolve_plugin_dist; then
-    die "plugin install ran but remote-pi/dist/index.js was not found.
+    die "plugin install ran but $PLUGIN_PACKAGE/dist/index.js was not found.
     Looked in:
-      $HOME/.pi/agent/npm/node_modules/remote-pi/dist/index.js
-      $(npm_global_root)/remote-pi/dist/index.js
+      $HOME/.pi/agent/npm/node_modules/$PLUGIN_PACKAGE/dist/index.js
+      $(npm_global_root)/$PLUGIN_PACKAGE/dist/index.js
     Check the 'pi install $PLUGIN_SPEC' output above."
   fi
   local pkg_json; pkg_json="$(dirname "$(dirname "$PLUGIN_DIST")")/package.json"
@@ -327,7 +328,7 @@ ensure_plugin() {
 
 # ── 4. Link the remote-pi CLI into ~/.local/bin ──────────────────────────────
 #
-# `pi install npm:remote-pi` makes the slash command available inside Pi, but it
+# `pi install npm:@hk_net/remote-pi` makes the slash command available inside Pi, but it
 # does NOT put the `remote-pi` CLI on $PATH. We symlink it ourselves (the same
 # thing `/remote-pi install` does from inside Pi's TUI, which we can't run from a
 # headless installer).

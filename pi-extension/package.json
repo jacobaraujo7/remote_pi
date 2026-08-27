@@ -1,5 +1,5 @@
 {
-  "name": "remote-pi",
+  "name": "@hk_net/remote-pi",
   "version": "0.7.1",
   "description": "Mobile remote control and local agent mesh for the Pi coding agent. Pair your phone via QR over a relay, watch tool calls in real time, run multi-Pi sessions over a local Unix Domain Socket broker, and let agents talk to each other through structured request/reply.",
   "type": "module",
@@ -36,18 +36,22 @@
     "extensions": [
       "./dist/extension.js"
     ],
-    "image": "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/banner.png"
+    "image": "https://raw.githubusercontent.com/hknet/remote-pi/main/branding/banner.png"
   },
   "author": "Jacob Moura <jacobmoura7@gmail.com>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/jacobaraujo7/remote_pi.git",
+    "url": "git+https://github.com/hknet/remote-pi.git",
     "directory": "pi-extension"
   },
-  "homepage": "https://remote-pi.jacobmoura.work",
+  "homepage": "https://github.com/hknet/remote-pi",
   "bugs": {
-    "url": "https://github.com/jacobaraujo7/remote_pi/issues"
+    "url": "https://github.com/hknet/remote-pi/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "files": [
     "dist",

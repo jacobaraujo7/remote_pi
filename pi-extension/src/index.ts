@@ -107,7 +107,7 @@ import {
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
-import { PACKAGE_VERSION } from "./package_version.js";
+import { PACKAGE_NAME, PACKAGE_VERSION } from "./package_version.js";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chmodSync, mkdtempSync, mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
@@ -2634,7 +2634,7 @@ export default extension;
 // ── Command implementations ───────────────────────────────────────────────────
 
 /**
- * `/remote-pi status` — full state snapshot. Two lines: local mesh + relay.
+ * `/remote-pi status` — full state snapshot: package identity, local mesh + relay.
  *
  * Always callable; safe when nothing is up (renders the off variants).
  * Reuses the same icons as the footer so terminal + status output stay
@@ -2666,7 +2666,8 @@ function _cmdStatus(ctx: Pick<ExtensionContext, "ui">): void {
       : `🟡 Relay: on, waiting for first pairing (${relayUrl})`;
   }
 
-  ctx.ui.notify(`[remote-pi]\n  ${meshLine}\n  ${relayLine}`, "info");
+  const packageLine = `📦 Package: ${PACKAGE_NAME} v${PACKAGE_VERSION}`;
+  ctx.ui.notify(`[remote-pi]\n  ${packageLine}\n  ${meshLine}\n  ${relayLine}`, "info");
 }
 
 /**
@@ -3948,10 +3949,10 @@ async function _cronLog(rest: string, ctx: Pick<ExtensionContext, "ui">): Promis
 /**
  * `linkCli` controls whether we symlink `remote-pi` + `pi-supervisord`
  * into `~/.local/bin/`. The slash-command path passes `true` (user is
- * inside Pi's TUI — they installed via `pi install npm:remote-pi` and
+ * inside Pi's TUI — they installed via `pi install npm:@hk_net/remote-pi` and
  * need us to expose the CLI for them). The standalone-CLI path passes
  * `false` because the user is already running our binary from PATH (they
- * did `npm install -g remote-pi`), so re-linking would point their
+ * did `npm install -g @hk_net/remote-pi`), so re-linking would point their
  * `remote-pi` at the Pi-extension copy and diverge on upgrades.
  */
 /** Returns true on success, false when install failed (so the standalone CLI
@@ -5250,7 +5251,7 @@ if (_isDirectRun()) {
   } else if (subcmd === "claude") {
     await _cmdClaudeCli(cliArgs);
   } else if (subcmd === "install") {
-    // CLI mode = user installed via `npm install -g remote-pi`, so the
+    // CLI mode = user installed via `npm install -g @hk_net/remote-pi`, so the
     // `remote-pi` / `pi-supervisord` bins are already on $PATH via npm's
     // global prefix. Explicit `linkCli: false` so we never stomp those
     // with symlinks pointing at a parallel Pi-extension install.
