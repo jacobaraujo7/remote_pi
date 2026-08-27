@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 type LegalShellProps = {
   title: string;
@@ -13,13 +14,14 @@ export function LegalShell({
   subtitle,
   children,
 }: LegalShellProps) {
+  const t = useTranslations("LegalCommon");
   return (
     <div className="page">
       <div className="page-body">
         <div className="wrap">
           <div className="legal">
             <header className="page-head" style={{ maxWidth: "none" }}>
-              <span className="eyebrow">Legal</span>
+              <span className="eyebrow">{t("eyebrow")}</span>
               <h1>{title}</h1>
               <div className="meta-line">
                 <span>Last updated: {lastUpdated}</span>

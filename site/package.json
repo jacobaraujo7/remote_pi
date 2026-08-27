@@ -5,12 +5,14 @@
   "scripts": {
     "dev": "next dev",
     "sync:install": "node scripts/sync-install-sh.mjs",
-    "build": "node scripts/sync-install-sh.mjs && next build",
+    "check:messages": "node scripts/check-messages.mjs",
+    "build": "node scripts/sync-install-sh.mjs && node scripts/check-messages.mjs && next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "next": "16.2.6",
+    "next-intl": "^4.13.7",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },

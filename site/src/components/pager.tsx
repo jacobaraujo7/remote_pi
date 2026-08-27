@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 
 type PagerLink = {
   href: string;
@@ -16,11 +17,12 @@ type PagerProps = {
  * placeholder so the present one keeps its column.
  */
 export function Pager({ prev, next }: PagerProps) {
+  const t = useTranslations("DocsShared");
   return (
-    <nav aria-label="Tutorial navigation" className="pager reveal">
+    <nav aria-label={t("pagerAriaLabel")} className="pager reveal">
       {prev ? (
         <Link className="pager-card" href={prev.href}>
-          <span className="dir">← Previous</span>
+          <span className="dir">← {t("pagerPrev")}</span>
           <span className="ttl">{prev.label}</span>
         </Link>
       ) : (
@@ -28,7 +30,7 @@ export function Pager({ prev, next }: PagerProps) {
       )}
       {next ? (
         <Link className="pager-card next" href={next.href}>
-          <span className="dir">Next →</span>
+          <span className="dir">{t("pagerNext")} →</span>
           <span className="ttl">{next.label}</span>
         </Link>
       ) : (

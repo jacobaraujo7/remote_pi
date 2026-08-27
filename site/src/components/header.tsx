@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import { LogoMark, IconDownload } from "@/components/landing/icons";
+import { LanguageSwitcher } from "@/components/language-switcher";
 
 const GITHUB_URL = "https://github.com/jacobaraujo7/remote_pi";
 
@@ -54,13 +56,14 @@ function HamburgerIcon({ open }: { open: boolean }) {
   );
 }
 
-export function SiteHeader() {
+export function SiteHeader({ localeAware = true }: { localeAware?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const t = useTranslations("SiteHeader");
 
   return (
     <header className="nav">
       <div className="wrap nav-inner">
-        <Link className="brand" href="/" aria-label="Remote Pi — home">
+        <Link className="brand" href="/" aria-label={t("homeAriaLabel")}>
           <span className="mark">
             <LogoMark />
           </span>
@@ -70,16 +73,16 @@ export function SiteHeader() {
         {/* Desktop links */}
         <nav className="nav-links" aria-label="Primary">
           <Link className="lnk" href="/cockpit">
-            Cockpit
+            {t("navCockpit")}
           </Link>
           <Link className="lnk" href="/tutorials">
-            Tutorials
+            {t("navTutorials")}
           </Link>
           <Link className="lnk" href="/docs">
-            Docs
+            {t("navDocs")}
           </Link>
           <Link className="lnk" href="/download">
-            Download
+            {t("navDownload")}
           </Link>
           <a
             className="lnk"
@@ -87,10 +90,11 @@ export function SiteHeader() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            GitHub
+            {t("navGithub")}
           </a>
+          {localeAware ? <LanguageSwitcher /> : null}
           <Link className="nav-cta" href="/#install">
-            <IconDownload /> Install
+            <IconDownload /> {t("install")}
           </Link>
         </nav>
 
@@ -100,7 +104,7 @@ export function SiteHeader() {
           onClick={() => setMenuOpen((s) => !s)}
           aria-expanded={menuOpen}
           aria-controls="mobile-menu"
-          aria-label={menuOpen ? "Fechar menu" : "Abrir menu"}
+          aria-label={menuOpen ? t("closeMenu") : t("openMenu")}
           type="button"
         >
           <HamburgerIcon open={menuOpen} />
@@ -120,28 +124,28 @@ export function SiteHeader() {
               href="/cockpit"
               onClick={() => setMenuOpen(false)}
             >
-              Cockpit
+              {t("navCockpit")}
             </Link>
             <Link
               className="m-lnk"
               href="/tutorials"
               onClick={() => setMenuOpen(false)}
             >
-              Tutorials
+              {t("navTutorials")}
             </Link>
             <Link
               className="m-lnk"
               href="/docs"
               onClick={() => setMenuOpen(false)}
             >
-              Docs
+              {t("navDocs")}
             </Link>
             <Link
               className="m-lnk"
               href="/download"
               onClick={() => setMenuOpen(false)}
             >
-              Download
+              {t("navDownload")}
             </Link>
             <a
               className="m-lnk"
@@ -150,14 +154,15 @@ export function SiteHeader() {
               rel="noopener noreferrer"
               onClick={() => setMenuOpen(false)}
             >
-              GitHub
+              {t("navGithub")}
             </a>
+            {localeAware ? <LanguageSwitcher mobile /> : null}
             <Link
               className="nav-cta m-cta"
               href="/#install"
               onClick={() => setMenuOpen(false)}
             >
-              <IconDownload /> Install
+              <IconDownload /> {t("install")}
             </Link>
           </div>
         </div>

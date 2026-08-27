@@ -1,5 +1,6 @@
-import Link from "next/link";
 import { Fragment } from "react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import {
   IconGateway,
   IconAlwaysOn,
@@ -31,36 +32,6 @@ type Pillar = {
   href: string;
 };
 
-const PILLARS: Pillar[] = [
-  {
-    icon: <IconGateway />,
-    tag: "01 / gateway",
-    title: "Drive any agent from your phone.",
-    proof:
-      "Pair with a QR; send prompts, voice, and images; switch models from anywhere.",
-    link: "How pairing works",
-    href: "#install",
-  },
-  {
-    icon: <IconAlwaysOn />,
-    tag: "02 / daemon",
-    title: "Run as many agents as you want, 24/7.",
-    proof:
-      "Promote any folder to a background daemon; survives logout, answers at 3am.",
-    link: "Daemon how-to",
-    href: "/tutorials/daemon",
-  },
-  {
-    icon: <IconMesh />,
-    tag: "03 / mesh",
-    title: "Every machine, one network.",
-    proof:
-      "Agents across PCs and servers join one mesh under a single key, reachable from your phone.",
-    link: "See the protocol",
-    href: PROTOCOL_URL,
-  },
-];
-
 function PillarLink({ href, label }: { href: string; label: string }) {
   const inner = (
     <>
@@ -89,11 +60,38 @@ function PillarLink({ href, label }: { href: string; label: string }) {
 }
 
 export function Pillars() {
+  const t = useTranslations("Pillars");
+  const pillars: Pillar[] = [
+    {
+      icon: <IconGateway />,
+      tag: t("tag1"),
+      title: t("title1"),
+      proof: t("proof1"),
+      link: t("link1"),
+      href: "#install",
+    },
+    {
+      icon: <IconAlwaysOn />,
+      tag: t("tag2"),
+      title: t("title2"),
+      proof: t("proof2"),
+      link: t("link2"),
+      href: "/tutorials/daemon",
+    },
+    {
+      icon: <IconMesh />,
+      tag: t("tag3"),
+      title: t("title3"),
+      proof: t("proof3"),
+      link: t("link3"),
+      href: PROTOCOL_URL,
+    },
+  ];
   return (
     <section className="section pillars" id="pillars">
       <div className="wrap">
         <div className="pillar-grid">
-          {PILLARS.map((p, i) => (
+          {pillars.map((p, i) => (
             <article
               className="pillar reveal"
               key={p.tag}
@@ -123,54 +121,50 @@ type Store = {
   external?: boolean;
 };
 
-const STORES: Store[] = [
-  {
-    glyph: <IconApple />,
-    top: "Download on the",
-    name: "App Store",
-    sub: "iOS · iPhone & iPad",
-    href: "https://apps.apple.com/app/remote-pi-coding-agent/id6773499691",
-    external: true,
-  },
-  {
-    glyph: <IconPlay />,
-    top: "Get it on",
-    name: "Google Play",
-    sub: "Android",
-    href: "https://play.google.com/store/apps/details?id=work.jacobmoura.remotepi",
-    external: true,
-  },
-  {
-    glyph: <IconAndroid />,
-    top: "Direct download",
-    name: "Android APK",
-    sub: "Signed · with sha256",
-    href: "/download",
-  },
-  {
-    glyph: <IconDownload />,
-    top: "Desktop app",
-    name: "Cockpit",
-    sub: "macOS · Windows · Linux",
-    href: "/cockpit",
-  },
-];
-
 export function GetApp() {
+  const t = useTranslations("GetApp");
+  const stores: Store[] = [
+    {
+      glyph: <IconApple />,
+      top: t("appStoreTop"),
+      name: t("appStoreName"),
+      sub: t("appStoreSub"),
+      href: "https://apps.apple.com/app/remote-pi-coding-agent/id6773499691",
+      external: true,
+    },
+    {
+      glyph: <IconPlay />,
+      top: t("playTop"),
+      name: t("playName"),
+      sub: t("playSub"),
+      href: "https://play.google.com/store/apps/details?id=work.jacobmoura.remotepi",
+      external: true,
+    },
+    {
+      glyph: <IconAndroid />,
+      top: t("apkTop"),
+      name: t("apkName"),
+      sub: t("apkSub"),
+      href: "/download",
+    },
+    {
+      glyph: <IconDownload />,
+      top: t("cockpitTop"),
+      name: t("cockpitName"),
+      sub: t("cockpitSub"),
+      href: "/cockpit",
+    },
+  ];
   return (
     <section className="section" id="get-the-app" style={{ paddingTop: 0 }}>
       <div className="wrap">
         <div className="section-head reveal">
-          <span className="eyebrow">Get the app</span>
-          <h2>Pair your phone, drive your agents.</h2>
-          <p>
-            The authenticator and the remote control. Get it on the App Store or
-            Google Play, grab the Android APK direct, or download the desktop
-            Cockpit.
-          </p>
+          <span className="eyebrow">{t("eyebrow")}</span>
+          <h2>{t("title")}</h2>
+          <p>{t("sub")}</p>
         </div>
         <div className="app-grid">
-          {STORES.map((s, i) => {
+          {stores.map((s, i) => {
             const inner = (
               <>
                 <span className="glyph">{s.glyph}</span>
@@ -211,24 +205,24 @@ export function GetApp() {
 }
 
 /* ---------------- Secondary strip ---------------- */
-const STRIP: { icon: ReactNode; label: string }[] = [
-  { icon: <IconMic />, label: "Voice — dictate, no cloud transcription" },
-  { icon: <IconImage />, label: "Image — send a shot to a multimodal agent" },
-  { icon: <IconOpenSource />, label: "Open source — MIT licensed" },
-  { icon: <IconSelfHost />, label: "Self-host — run the relay behind a VPN" },
-];
-
 export function Strip() {
+  const t = useTranslations("Strip");
+  const strip: { icon: ReactNode; label: string }[] = [
+    { icon: <IconMic />, label: t("voice") },
+    { icon: <IconImage />, label: t("image") },
+    { icon: <IconOpenSource />, label: t("openSource") },
+    { icon: <IconSelfHost />, label: t("selfHost") },
+  ];
   return (
     <div className="strip">
       <div className="wrap">
         <div className="strip-inner">
-          {STRIP.map((s, i) => (
+          {strip.map((s, i) => (
             <Fragment key={s.label}>
               <span className="strip-item">
                 {s.icon} {s.label}
               </span>
-              {i < STRIP.length - 1 && <span className="strip-sep">·</span>}
+              {i < strip.length - 1 && <span className="strip-sep">·</span>}
             </Fragment>
           ))}
         </div>
@@ -239,15 +233,13 @@ export function Strip() {
 
 /* ---------------- GitHub CTA ---------------- */
 export function GithubCTA() {
+  const t = useTranslations("GithubCTA");
   return (
     <section className="cta">
       <div className="wrap cta-inner reveal">
-        <span className="eyebrow">Open source</span>
-        <h2>Open source, all the way down.</h2>
-        <p>
-          Active MVP. Read the source, run the protocol, or self-host the relay —
-          it&apos;s all on GitHub.
-        </p>
+        <span className="eyebrow">{t("eyebrow")}</span>
+        <h2>{t("title")}</h2>
+        <p>{t("sub")}</p>
         <div>
           <a
             className="btn btn-primary"
@@ -255,18 +247,18 @@ export function GithubCTA() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <IconGithub /> View on GitHub
+            <IconGithub /> {t("cta")}
           </a>
         </div>
         <div className="cta-stars">
           <span>
-            <IconStar /> MIT licensed
+            <IconStar /> {t("star1")}
           </span>
           <span>
-            <IconStar /> Self-hostable relay
+            <IconStar /> {t("star2")}
           </span>
           <span>
-            <IconStar /> Harness-agnostic protocol
+            <IconStar /> {t("star3")}
           </span>
         </div>
       </div>
