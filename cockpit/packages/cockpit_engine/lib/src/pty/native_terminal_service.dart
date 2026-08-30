@@ -80,15 +80,29 @@ class NativeTerminalService implements TerminalService {
 
     // Executable vazio = "login shell do HOST": o cliente (ex.: iPad) não sabe
     // qual é o shell do host, então quem resolve é o servidor, aqui, onde o
-    // `$SHELL` do usuário do host está disponível. `-l` (login) carrega
-    // .zprofile/.zshrc → oh-my-zsh e cia. Ver remote_host_terminal_gateway.
+    // ambiente do usuário do host está disponível. Ver
+    // remote_host_terminal_gateway.
+    //
+    // No POSIX, `$SHELL` + `-l` (login) carrega .zprofile/.zshrc → oh-my-zsh e
+    // cia. No Windows **não existe `$SHELL`**, e o fallback `/bin/sh -l` não
+    // existe naquele sistema: o PTY nascia morto e a aba do cliente remoto
+    // ficava eternamente vazia, sem erro visível — o mesmo sintoma que a
+    // `TerminalProfile.hostLoginShell` foi criada para evitar no sentido
+    // contrário (cliente Windows impondo `powershell.exe` a um host macOS).
+    //
+    // A escolha aqui espelha o fallback LOCAL do
+    // `TerminalProfileResolverImpl._platformFallback()`: PowerShell no Windows
+    // comum, `cmd` no Windows ARM (onde o PTY do PowerShell ainda é instável).
+    // E nada de `-l`: é flag POSIX.
     final executable = spec.executable.isNotEmpty
         ? spec.executable
+        : Platform.isWindows
+        ? _windowsDefaultShell()
         : (Platform.environment['SHELL']?.trim().isNotEmpty ?? false)
         ? Platform.environment['SHELL']!.trim()
         : '/bin/sh';
     final arguments = spec.executable.isEmpty && spec.arguments.isEmpty
-        ? const <String>['-l']
+        ? (Platform.isWindows ? const <String>[] : const <String>['-l'])
         : spec.arguments;
 
     final arena = Arena();
@@ -273,7 +287,24 @@ class NativeTerminalService implements TerminalService {
     final session = _session(sessionId);
     _sessions.remove(sessionId);
     if (session.info.isAlive) {
-      Process.killPid(session.info.pid, ProcessSignal.sigkill);
+      // `pty_kill` PRIMEIRO, e não `Process.killPid`: no Windows o kill do Dart
+      // vira `TerminateProcess`, que encerra só o shell e deixa os filhos dele
+      // (e o conhost do ConPTY) órfãos em "Processos em segundo plano" — issue
+      // #163. O nativo alcança a árvore inteira (Job Object no Windows, process
+      // group no POSIX).
+      //
+      // O nativo já existia desde a correção da #163, mas ESTE caminho nunca o
+      // chamava: a correção mexeu no `Pty.kill()` do plugin Flutter, e desde
+      // que o PTY passou a nascer no sidecar (plano 58) quem encerra sessão é
+      // este serviço. Resultado: no Windows o bug seguia vivo com o fix no
+      // repositório — verificado em máquina real, com um `ping -t` sobrevivendo
+      // ao fechamento da aba.
+      final killTree = _bindings.kill;
+      if (killTree == null || killTree(session.handle) != 0) {
+        // Dylib velha (sem o símbolo) ou falha do nativo: o comportamento
+        // antigo ainda é melhor do que não matar nada.
+        Process.killPid(session.info.pid, ProcessSignal.sigkill);
+      }
     }
     session.stdoutPort.close();
     session.exitPort.close();
@@ -336,4 +367,17 @@ class NativeTerminalService implements TerminalService {
         scrollbackLength: info.scrollbackLength,
         exitCode: info.exitCode,
       );
+}
+
+/// Shell padrão de um host Windows quando o cliente pede "o login shell do
+/// host". Espelha o fallback local do `TerminalProfileResolverImpl`: `cmd` no
+/// Windows ARM (o PTY do PowerShell ainda é instável lá), PowerShell no resto.
+/// `%COMSPEC%` entra como último recurso, por ser o único caminho que o próprio
+/// SO garante.
+String _windowsDefaultShell() {
+  if (Platform.version.toLowerCase().contains('arm')) {
+    final comspec = Platform.environment['COMSPEC']?.trim();
+    return (comspec != null && comspec.isNotEmpty) ? comspec : 'cmd.exe';
+  }
+  return 'powershell.exe';
 }

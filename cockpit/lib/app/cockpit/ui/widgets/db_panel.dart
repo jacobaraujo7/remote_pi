@@ -9,6 +9,7 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/cockpit/ui/db_error_message.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_modular/flutter_modular.dart';
@@ -443,7 +444,7 @@ class _SchemaTreeState extends State<_SchemaTree> {
             return _hint('Loading…');
           }
           if (snap.hasError) {
-            return _hint(_errorMessage(snap.error), error: true);
+            return _hint(_errorMessage(context, snap.error), error: true);
           }
           final tables = snap.data ?? const [];
           if (tables.isEmpty) return _hint('No tables.');
@@ -672,7 +673,7 @@ class _MongoCollectionsState extends State<_MongoCollections> {
                   return _hint('Loading…');
                 }
                 if (snap.hasError) {
-                  return _hint(_errorMessage(snap.error), error: true);
+                  return _hint(_errorMessage(context, snap.error), error: true);
                 }
                 final names = snap.data ?? const [];
                 if (names.isEmpty) return _hint('No databases.');
@@ -739,7 +740,7 @@ class _MongoCollectionsState extends State<_MongoCollections> {
           return _hint('Loading…');
         }
         if (snap.hasError) {
-          return _hint(_errorMessage(snap.error), error: true);
+          return _hint(_errorMessage(context, snap.error), error: true);
         }
         final names = snap.data ?? const [];
         if (names.isEmpty) return _hint('No collections.');
@@ -877,8 +878,9 @@ class _ColumnListState extends State<_ColumnList> {
   }
 }
 
-String _errorMessage(Object? e) =>
-    e is DbQueryException ? e.message : e.toString();
+String _errorMessage(BuildContext context, Object? e) => e is DbQueryException
+    ? dbErrorMessage(context, e)
+    : e.toString();
 
 class _Chip extends StatelessWidget {
   const _Chip(this.label);

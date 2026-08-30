@@ -1,3 +1,4 @@
+import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
@@ -5,7 +6,7 @@ import 'package:cockpit/app/cockpit/domain/entities/redis_key.dart';
 import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/redis_browse_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/remote_db_writer.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:flutter/foundation.dart';
@@ -237,6 +238,17 @@ class DatabaseViewModel extends ChangeNotifier {
   Future<List<DbConnection>>? Function(String workspaceId, String root)?
   remoteConnectionsFor;
 
+  /// Escrita da config de banco quando o workspace é REMOTO (plano 62).
+  /// `null` = workspace local, e vale o `_store` + cofre desta máquina.
+  /// Plugado pela página, junto do [remoteConnectionsFor].
+  RemoteDbWriter? Function(String workspaceId)? remoteDbWriterFor;
+
+  /// O workspace ativo é remoto? A UI usa para dizer ONDE a senha vai parar —
+  /// as garantias diferem (arquivo protegido no host vs cofre do SO daqui) e
+  /// quem digita tem o direito de saber.
+  bool get isRemoteWorkspace =>
+      remoteDbWriterFor?.call(_workspaceId ?? '') != null;
+
   Future<void> reload() async {
     final root = _workspaceRoot;
     if (root == null) return;
@@ -271,10 +283,41 @@ class DatabaseViewModel extends ChangeNotifier {
               c.name != (previousName ?? conn.name),
         )
         .toList();
+
+    // Workspace remoto: definição e segredo vão pro HOST (plano 62). Sem este
+    // ramo, o `_store.save` abaixo tentava criar a raiz do host no disco do
+    // cliente e estourava — salvar conexão remota era simplesmente impossível.
+    final remote = remoteDbWriterFor?.call(wsId);
+    if (remote != null) {
+      await remote.saveConnections(root, [...registered, conn]);
+      await _syncRemoteSecret(
+        remote,
+        root,
+        conn,
+        password,
+        previousName: previousName,
+        wsId: wsId,
+      );
+      service.forgetPassword(root, previousName ?? conn.name);
+      service.forgetPassword(root, conn.name);
+      // Passphrase da chave SSH também vai pro cofre do HOST (onda 2): quem
+      // abre o bastion é ele, com a chave privada de lá.
+      await _syncRemoteSshPassphrase(
+        remote,
+        root,
+        conn,
+        sshPassphrase,
+        wsId: wsId,
+        previousName: previousName,
+      );
+      await reload();
+      return;
+    }
+
     await _store.save(root, [...registered, conn]);
 
-    final oldKey = DbQueryService.secretKey(wsId, previousName ?? conn.name);
-    final newKey = DbQueryService.secretKey(wsId, conn.name);
+    final oldKey = DbQueryService.secretKey(root, previousName ?? conn.name);
+    final newKey = DbQueryService.secretKey(root, conn.name);
     if (previousName != null && previousName != conn.name) {
       // Rename: migra a senha guardada pra chave nova antes de apagar a velha
       // — editar sem redigitar a senha NUNCA a perde.
@@ -294,10 +337,11 @@ class DatabaseViewModel extends ChangeNotifier {
     }
     // A senha mudou/migrou de chave: invalida o cache de sessão pra próxima
     // query reler o valor atual (evita usar a senha antiga após uma edição).
-    if (previousName != null) service.forgetPassword(wsId, previousName);
-    service.forgetPassword(wsId, conn.name);
+    if (previousName != null) service.forgetPassword(root, previousName);
+    service.forgetPassword(root, conn.name);
     await _syncSshPassphrase(
       conn,
+      root,
       wsId,
       sshPassphrase,
       previousName: previousName,
@@ -309,15 +353,30 @@ class DatabaseViewModel extends ChangeNotifier {
     final root = _workspaceRoot;
     final wsId = _workspaceId;
     if (root == null || wsId == null) return;
-    await _store.save(root, [
+    final registered = [
       ..._connections.where(
         (c) => c.origin == DbConnectionOrigin.registered && c.name != conn.name,
       ),
-    ]);
-    await _secrets.delete(DbQueryService.secretKey(wsId, conn.name));
-    await _secrets.delete(DbQueryService.sshSecretKey(wsId, conn.name));
-    service.forgetSshPassphrase(wsId, conn.name);
-    service.forgetPassword(wsId, conn.name);
+    ];
+    final remote = remoteDbWriterFor?.call(wsId);
+    if (remote != null) {
+      await remote.saveConnections(root, registered);
+      await remote.deleteSecret(root, conn.name);
+      // O cofre LOCAL pode ainda ter a senha legada desta conexão (cadastrada
+      // antes do plano 62): apagar aqui evita deixar segredo órfão de uma
+      // conexão que não existe mais.
+      await _secrets.delete(DbQueryService.secretKey(root, conn.name));
+      await _secrets.delete(DbQueryService.sshSecretKey(root, conn.name));
+      service.forgetPassword(root, conn.name);
+      service.forgetSshPassphrase(root, conn.name);
+      await reload();
+      return;
+    }
+    await _store.save(root, registered);
+    await _secrets.delete(DbQueryService.secretKey(root, conn.name));
+    await _secrets.delete(DbQueryService.sshSecretKey(root, conn.name));
+    service.forgetSshPassphrase(root, conn.name);
+    service.forgetPassword(root, conn.name);
     // A host key confiada some junto: manter o fingerprint de um bastion que
     // ninguém mais usa só acumula lixo com aparência de decisão de segurança.
     final endpoint = conn.ssh?.endpoint;
@@ -325,26 +384,109 @@ class DatabaseViewModel extends ChangeNotifier {
     await reload();
   }
 
+  /// Senha de uma conexão REMOTA: espelha a regra do caminho local (rename
+  /// migra, desligar o switch apaga, campo vazio mantém), só que o destino é o
+  /// cofre do host.
+  ///
+  /// Faz também a **migração** de quem cadastrou a conexão antes do plano 62: a
+  /// senha ficou no cofre desta máquina, sob a chave derivada do `workspaceId`
+  /// local. Se o usuário não digitou senha nova mas há uma legada aqui, ela é
+  /// empurrada pro host e apagada daqui — a conexão volta a funcionar sem
+  /// ninguém redigitar nada, e de qualquer cliente. Quem nunca editar a
+  /// conexão recebe `password_required` na primeira query, que é uma mensagem
+  /// dizendo exatamente o que fazer.
+  Future<void> _syncRemoteSecret(
+    RemoteDbWriter remote,
+    String root,
+    DbConnection conn,
+    String? password, {
+    required String wsId,
+    String? previousName,
+  }) async {
+    final legacyKey = DbQueryService.secretKey(root, previousName ?? conn.name);
+
+    // Renome: MOVE a chave no host em vez de apagar e torcer. Apagar antes de
+    // saber se dá para regravar perdia a senha sempre que o usuário só mudava
+    // o nome — e, sem leitura de volta, não havia como reconstruí-la daqui.
+    if (previousName != null && previousName != conn.name) {
+      await remote.renameSecret(root, previousName, conn.name);
+    }
+    if (!conn.savePassword) {
+      await remote.deleteSecret(root, conn.name);
+      await _secrets.delete(legacyKey);
+      return;
+    }
+    if (password != null && password.isNotEmpty) {
+      await remote.setSecret(root, conn.name, password);
+      await _secrets.delete(legacyKey);
+      return;
+    }
+    // Sem senha digitada: o renome acima já moveu o que havia no host, então
+    // aqui só resta a MIGRAÇÃO de quem ainda tinha a senha no cofre desta
+    // máquina (cadastro anterior ao cofre único).
+    final legacy = await _secrets.read(legacyKey);
+    if (legacy != null && legacy.isNotEmpty) {
+      await remote.setSecret(root, conn.name, legacy);
+      await _secrets.delete(legacyKey);
+    }
+  }
+
+  /// Passphrase da chave SSH de uma conexão REMOTA: mesma regra da senha —
+  /// desligar o switch apaga, campo vazio mantém, e o que ficou no cofre desta
+  /// máquina migra.
+  Future<void> _syncRemoteSshPassphrase(
+    RemoteDbWriter remote,
+    String root,
+    DbConnection conn,
+    String? passphrase, {
+    required String wsId,
+    String? previousName,
+  }) async {
+    final save = conn.ssh?.savePassphrase ?? false;
+    if (!save) {
+      await remote.setSshPassphrase(root, conn.name, null);
+      return;
+    }
+    if (passphrase != null && passphrase.isNotEmpty) {
+      await remote.setSshPassphrase(root, conn.name, passphrase);
+      await _secrets.delete(
+        DbQueryService.sshSecretKey(root, previousName ?? conn.name),
+      );
+      return;
+    }
+    final legacy = await _secrets.read(
+      DbQueryService.sshSecretKey(root, previousName ?? conn.name),
+      legacyKey: DbQueryService.legacySshSecretKey(wsId, previousName ?? conn.name),
+    );
+    if (legacy != null && legacy.isNotEmpty) {
+      await remote.setSshPassphrase(root, conn.name, legacy);
+    }
+  }
+
   /// Espelha a regra da senha de banco pra passphrase da chave SSH: rename
   /// migra o segredo, desligar o switch apaga, e campo vazio mantém o atual.
   Future<void> _syncSshPassphrase(
     DbConnection conn,
+    String root,
     String wsId,
     String? passphrase, {
     String? previousName,
   }) async {
-    final oldKey = DbQueryService.sshSecretKey(wsId, previousName ?? conn.name);
-    final newKey = DbQueryService.sshSecretKey(wsId, conn.name);
+    final oldKey = DbQueryService.sshSecretKey(root, previousName ?? conn.name);
+    final newKey = DbQueryService.sshSecretKey(root, conn.name);
     final save = conn.ssh?.savePassphrase ?? false;
     if (previousName != null && previousName != conn.name) {
-      final existing = await _secrets.read(oldKey);
+      final existing = await _secrets.read(
+        oldKey,
+        legacyKey: DbQueryService.legacySshSecretKey(wsId, previousName),
+      );
       if (save &&
           existing != null &&
           (passphrase == null || passphrase.isEmpty)) {
         await _secrets.write(newKey, existing);
       }
       await _secrets.delete(oldKey);
-      service.forgetSshPassphrase(wsId, previousName);
+      service.forgetSshPassphrase(root, previousName);
     }
     if (!save) {
       await _secrets.delete(newKey);
@@ -353,7 +495,7 @@ class DatabaseViewModel extends ChangeNotifier {
     }
     // Config mudou (chave nova, host novo): a passphrase de sessão pode não
     // valer mais.
-    service.forgetSshPassphrase(wsId, conn.name);
+    service.forgetSshPassphrase(root, conn.name);
   }
 
   /// Repassa a classificação de chave pro dialog — a UI não fala com `data/`.
@@ -483,17 +625,18 @@ class DatabaseViewModel extends ChangeNotifier {
     String? storedPasswordName,
   }) async {
     final wsId = _workspaceId;
-    if (wsId == null) return 'No workspace is open.';
+    final root = _workspaceRoot;
+    if (wsId == null || root == null) return 'No workspace is open.';
     var effective = (password == null || password.isEmpty) ? null : password;
     if (effective == null && storedPasswordName != null) {
       effective = await _secrets.read(
-        DbQueryService.secretKey(wsId, storedPasswordName),
+        DbQueryService.secretKey(root, storedPasswordName),
+        legacyKey: DbQueryService.legacySecretKey(wsId, storedPasswordName),
       );
     }
     effective ??= conn.urlPassword;
     var target = conn;
-    final root = _workspaceRoot;
-    if (conn.engine == DbEngine.sqlite && root != null) {
+    if (conn.engine == DbEngine.sqlite) {
       final p = conn.sqlitePath;
       final absolute =
           p.startsWith('/') || RegExp(r'^[A-Za-z]:[\\/]').hasMatch(p);
@@ -506,6 +649,7 @@ class DatabaseViewModel extends ChangeNotifier {
       await service.ping(
         target,
         workspaceId: wsId,
+        workspaceRoot: root,
         password: effective,
         sshPassphrase: sshPassphrase,
       );

@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.28.12+75
+version: 1.28.23+86
 
 environment:
   sdk: ^3.12.0
@@ -372,10 +372,10 @@ dependency_overrides:
   flterm:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: cockpit-pin-flterm-ios-recover
+      ref: 3dc78a42b016ba90ef36f50f16f3c28e4a706f50
       path: packages/flterm
   libghostty:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git
-      ref: cockpit-pin-flterm-ios-recover
+      ref: 3dc78a42b016ba90ef36f50f16f3c28e4a706f50
       path: packages/libghostty

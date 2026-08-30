@@ -3,12 +3,17 @@ import '../entities/db_connection.dart';
 /// Executor CLI-only de comandos NoSQL/cache (Redis, Mongo). Fora do contrato
 /// SQL [DbDriver]: recebe o comando cru e devolve o reply já JSON-serializável
 /// (null | num | bool | String | List | Map). Plano 51 (CLI-only).
+/// > O parâmetro `workspaceRoot` é a raiz do workspace **no host** e só o
+/// > runner remoto o usa: é metade da chave do segredo no cofre de lá (plano
+/// > 62). O runner local ignora — o segredo dele vem do cofre do SO desta
+/// > máquina, chaveado por workspaceId.
 abstract interface class NoSqlRunner {
   /// Redis: envia `parts` (`['GET','foo']`) → reply decodificado.
   Future<Object?> redis(
     DbConnection conn,
     List<String> parts, {
     String? password,
+    String workspaceRoot = '',
   });
 
   /// Redis em lote: roda [commands] em sequência numa **única conexão** e
@@ -20,6 +25,7 @@ abstract interface class NoSqlRunner {
     DbConnection conn,
     List<List<String>> commands, {
     String? password,
+    String workspaceRoot = '',
   });
 
   /// Mongo: roda `command` via `runCommand` → documento de resposta.
@@ -33,5 +39,6 @@ abstract interface class NoSqlRunner {
     Map<String, dynamic> command, {
     String? password,
     String? database,
+    String workspaceRoot = '',
   });
 }

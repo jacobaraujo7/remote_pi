@@ -10,6 +10,9 @@ terminals). The `cockpit` command talks to the app and lets you **inject
 text/keys** into any tab and **list** tabs/workspaces. It only exists inside
 Cockpit tabs (it is not on the global PATH).
 
+`ck` is the same binary under a shorter name — use whichever you prefer
+(`ck list-tabs` == `cockpit list-tabs`). Every example below works with both.
+
 > **Tab vs pane.** A **tab** is a single terminal/agent session — that's the
 > unit this CLI addresses (`--tab-id`). A **pane** is the split leaf that can
 > hold several tabs; the CLI does not address it. `list-panes`/`read-pane` and
@@ -36,6 +39,16 @@ Cockpit tabs (it is not on the global PATH).
   ```sh
   id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
   cockpit send --tab-id "$id" --enter "npm test"
+  ```
+- `cockpit close-tab [<label|tab-id>]` — close a tab and print its id: the
+  counterpart of `new-tab`. **Without a target it closes YOUR OWN tab**, which
+  ends the shell you are typing in — pass the target explicitly unless that is
+  what you mean. Closing the last tab of a split removes the split; closing the
+  last tab of a workspace leaves an empty tab behind (same as the tab's "x").
+
+  ```sh
+  id=$(cockpit new-tab --cwd ~/proj --title Worker)
+  cockpit close-tab "$id"     # or: cockpit close-tab Worker
   ```
 - `cockpit open [--tab-id <id>] <file>` — open the file in the app's viewer
   (tab next to the terminal). `cockpit <file>` is the shortcut. The path is

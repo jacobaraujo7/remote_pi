@@ -230,6 +230,48 @@ fn browse_json_ecoa_o_data() {
 }
 
 #[test]
+fn close_tab_sem_alvo_nao_manda_target() {
+    // Sem posicional o app cai na própria tab ($COCKPIT_TAB_ID) — mandar
+    // `target` vazio faria o app tentar resolvê-lo como label.
+    let (req, stdout, _, code) =
+        run_against_fake_app(&["close-tab"], r#"{"ok":true,"data":{"tabId":"t7"}}"#);
+    assert_eq!(req["cmd"], "close-tab");
+    assert!(req["args"].get("target").is_none(), "{:?}", req["args"]);
+    assert_eq!(stdout, "t7\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn close_tab_aceita_label_ou_id_posicional() {
+    let (req, _, _, _) = run_against_fake_app(
+        &["close-tab", "Extension"],
+        r#"{"ok":true,"data":{"tabId":"t3"}}"#,
+    );
+    assert_eq!(req["cmd"], "close-tab");
+    assert_eq!(req["args"]["target"], "Extension");
+}
+
+#[test]
+fn close_tab_json_ecoa_o_data() {
+    let (_, stdout, _, _) = run_against_fake_app(
+        &["close-tab", "--json", "t3"],
+        r#"{"ok":true,"data":{"tabId":"t3"}}"#,
+    );
+    let parsed: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(parsed["tabId"], "t3");
+}
+
+#[test]
+fn close_tab_propaga_erro_do_app() {
+    let (_, _, stderr, code) = run_against_fake_app(
+        &["close-tab", "nope"],
+        r#"{"ok":false,"error":"no tab with id or label \"nope\""}"#,
+    );
+    assert_eq!(code, 1);
+    assert!(stderr.contains("nope"), "{stderr}");
+}
+
+#[test]
 fn open_resolve_caminho_relativo_para_absoluto() {
     let (req, _, _, _) = run_against_fake_app(&["open", "arquivo.txt"], r#"{"ok":true}"#);
     assert_eq!(req["cmd"], "open");

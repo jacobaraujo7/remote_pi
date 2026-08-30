@@ -15,4 +15,12 @@ abstract class WorkspaceLayoutStore {
 
   /// Remove o documento do projeto (ao deletar o projeto).
   Future<void> remove(String projectId);
+
+  /// Todos os documentos salvos, por `projectId`.
+  ///
+  /// Existe para o GC do scrollback: ele precisa conhecer **todo** layout
+  /// persistido, e não só os que já foram carregados em memória. Os forks de
+  /// worktree entram na lista de projetos depois do boot, então varrer apenas
+  /// o que estava carregado apagava o scrollback dos terminais deles.
+  Future<Map<String, Map<String, dynamic>>> loadAll();
 }

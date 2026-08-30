@@ -145,6 +145,55 @@ class DartSshHostConnection {
         );
   }
 
+  /// Encaminha pra uma porta de LOOPBACK remota (`direct-tcpip`) e devolve o
+  /// canal duplex.
+  ///
+  /// É o caminho de host Windows (plano 61): lá o `cockpit-server` não cria
+  /// socket UNIX — `dart:io` não tem AF_UNIX no Windows —, escuta em TCP de
+  /// loopback e anuncia porta+token num arquivo de rendezvous. O
+  /// `forwardLocalUnix` não serve para esse caso.
+  Future<SSHForwardChannel> forwardTcp(int port) async {
+    final client = _client;
+    if (client == null) throw const DartSshException('ssh_not_connected');
+    return client
+        .forwardLocal('127.0.0.1', port)
+        .timeout(
+          _connectTimeout,
+          onTimeout: () => throw const DartSshException('ssh_forward_timeout'),
+        );
+  }
+
+  /// Executa um comando no host devolvendo **exit code, stdout e stderr
+  /// separados** — o que o dialeto de host (`HostShell`) precisa para decidir
+  /// se o comando funcionou.
+  ///
+  /// Existe porque o `run` do `dartssh2` **mescla stderr no stdout** (o default
+  /// é `stderr: true`) e não expõe exit code. Num host Windows isso era veneno:
+  /// `uname -sm && printf %s "\$HOME"` falha, o `cmd.exe` responde em DUAS
+  /// linhas na stderr ("'uname' não é reconhecido…"), e o probe via `run` lia
+  /// aquilo como stdout de duas linhas — exatamente o formato de um POSIX que
+  /// respondeu. O host Windows era classificado como POSIX, o forward ia pro
+  /// `direct-streamlocal` de um socket que não existe, e o erro chegava como
+  /// `SSHChannelOpenError(2: open failed)`.
+  Future<(int, String, String)> runDetailed(String command) async {
+    final client = _client;
+    if (client == null) throw const DartSshException('ssh_not_connected');
+    final result = await client
+        .runWithResult(command)
+        .timeout(
+          _connectTimeout,
+          onTimeout: () => throw const DartSshException('ssh_exec_timeout'),
+        );
+    // Tolerante pelo mesmo motivo do SshTunnel.capture: host Windows responde
+    // na codepage local, e um byte inválido aqui virava FormatException no
+    // lugar do erro real.
+    return (
+      result.exitCode ?? 0,
+      utf8.decode(result.stdout, allowMalformed: true),
+      utf8.decode(result.stderr, allowMalformed: true),
+    );
+  }
+
   /// Executa um comando no host e devolve o stdout (trim). Usado só pra
   /// resolver caminhos (ex.: `$HOME`) — o mobile não faz bootstrap (decisão D).
   Future<String> run(String command) async {
@@ -158,7 +207,10 @@ class DartSshHostConnection {
           _connectTimeout,
           onTimeout: () => throw const DartSshException('ssh_exec_timeout'),
         );
-    return utf8.decode(out).trim();
+    // Tolerante pelo mesmo motivo do SshTunnel.capture: host Windows responde
+    // na codepage local, e um byte inválido aqui virava FormatException no
+    // lugar do erro real.
+    return utf8.decode(out, allowMalformed: true).trim();
   }
 
   Future<void> close() async {

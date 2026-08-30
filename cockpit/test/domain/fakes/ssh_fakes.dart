@@ -1,5 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
-import 'package:cockpit/app/cockpit/domain/entities/ssh_tunnel_config.dart';
+import 'package:cockpit_core/cockpit_core.dart';
 
 /// Túnel de mentira: registra o que foi pedido e devolve uma ponta local fixa.
 /// Deixa os testes provarem a **reescrita de endpoint** sem servidor SSH.

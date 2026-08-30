@@ -104,6 +104,25 @@ Future<void> _run(List<String> args) async {
   if (!Platform.isWindows) {
     ProcessSignal.sigterm.watch().listen((_) => shutdown());
   }
+
+  // Morte ABRUPTA do app (Force Quit, `kill -9`, crash do engine, relaunch do
+  // Sparkle): nenhum handler roda, e fora do Windows não há equivalente do Job
+  // Object para amarrar o filho ao pai. O detector que funciona nos três é o
+  // PIPE: o app segura a ponta de escrita do nosso stdin e nunca escreve nela;
+  // quando ele morre — de qualquer jeito — o kernel fecha o descritor e aqui
+  // chega EOF. Não depende de sinal, de handler, nem de o app se comportar.
+  //
+  // Opt-in por flag de propósito: no bootstrap remoto o servidor sobe com
+  // `nohup … &` por SSH, e lá o stdin fecha assim que o comando ssh retorna —
+  // sem a flag, o servidor remoto morreria ao nascer.
+  if (args.contains('--exit-on-parent-close')) {
+    stdin.listen(
+      (_) {},
+      onDone: () => unawaited(shutdown()),
+      onError: (Object _) => unawaited(shutdown()),
+      cancelOnError: true,
+    );
+  }
 }
 
 String? _argValue(List<String> args, String name) {

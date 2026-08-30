@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
+import 'dart:typed_data';
+
+import 'ssh_log.dart';
 
 /// Abre um canal até `host:port` do outro lado do túnel. É o `forwardLocal` do
 /// cliente SSH, injetado assim pra este servidor não depender do `dartssh2`.
@@ -37,7 +39,7 @@ class LocalSocksServer {
     _sub = _server.listen(
       _accept,
       // A diferença que motiva esta classe.
-      onError: (Object e) => debugPrint('[socks] accept falhou: $e'),
+      onError: (Object e) => sshLog('[socks] accept falhou: $e'),
       cancelOnError: false,
       onDone: () => _listening = false,
     );
@@ -87,7 +89,7 @@ class LocalSocksServer {
       try {
         channel = await _dial(target.host, target.port);
       } on Object catch (e) {
-        debugPrint('[socks] destino ${target.host}:${target.port} recusou: $e');
+        sshLog('[socks] destino ${target.host}:${target.port} recusou: $e');
         _reply(client, _replyHostUnreachable);
         return;
       }
@@ -100,7 +102,7 @@ class LocalSocksServer {
 
       await _pump(reader, client, channel);
     } on Object catch (e) {
-      debugPrint('[socks] conexão abortada: $e');
+      sshLog('[socks] conexão abortada: $e');
     }
   }
 

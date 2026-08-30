@@ -49,6 +49,7 @@ class AppSettings {
     this.searchPanelHeight = 260,
     this.tasksPanelHeight = 200,
     this.enableAgent = false,
+    this.swapSidePanels = false,
     this.railVisible = false,
     this.treeVisible = false,
     this.showCockpit = true,
@@ -157,6 +158,11 @@ class AppSettings {
   /// Com ela desligada, o app não oferece criar aba de agente (só terminal).
   final bool enableAgent;
 
+  /// Troca os painéis laterais de lado: workspaces à direita, arquivos/busca/
+  /// git/database à esquerda. Só a POSIÇÃO muda — largura, visibilidade e
+  /// atalhos de cada painel seguem os mesmos.
+  final bool swapSidePanels;
+
   /// Visibilidade do painel esquerdo (rail de projetos). Persistido entre
   /// sessões; fechado por padrão em instalações novas.
   final bool railVisible;
@@ -253,6 +259,7 @@ class AppSettings {
     double? searchPanelHeight,
     double? tasksPanelHeight,
     bool? enableAgent,
+    bool? swapSidePanels,
     bool? railVisible,
     bool? treeVisible,
     bool? showCockpit,
@@ -300,6 +307,7 @@ class AppSettings {
       searchPanelHeight: searchPanelHeight ?? this.searchPanelHeight,
       tasksPanelHeight: tasksPanelHeight ?? this.tasksPanelHeight,
       enableAgent: enableAgent ?? this.enableAgent,
+      swapSidePanels: swapSidePanels ?? this.swapSidePanels,
       railVisible: railVisible ?? this.railVisible,
       treeVisible: treeVisible ?? this.treeVisible,
       showCockpit: showCockpit ?? this.showCockpit,
@@ -358,6 +366,7 @@ class AppSettings {
     // Sempre gravado (mesmo quando false) para a migração distinguir "install
     // novo" (chave presente = false) de "upgrade sem a flag" (chave ausente).
     'enableAgent': enableAgent,
+    'swapSidePanels': swapSidePanels,
     if (railVisible) 'railVisible': true,
     if (treeVisible) 'treeVisible': true,
     // Sempre gravado: a migração distingue "install novo" (chave presente) de
@@ -431,6 +440,7 @@ class AppSettings {
       searchPanelHeight: (json['searchPanelHeight'] as num?)?.toDouble() ?? 260,
       tasksPanelHeight: (json['tasksPanelHeight'] as num?)?.toDouble() ?? 200,
       enableAgent: json['enableAgent'] as bool? ?? false,
+      swapSidePanels: json['swapSidePanels'] as bool? ?? false,
       railVisible: json['railVisible'] as bool? ?? false,
       treeVisible: json['treeVisible'] as bool? ?? false,
       showCockpit: json['showCockpit'] as bool? ?? true,

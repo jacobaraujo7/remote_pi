@@ -114,6 +114,90 @@ void main() {
     expect(received.status, 'working');
     await socket.close();
   });
+  test('com dois clientes, o comando vai para o DONO da aba', () async {
+    // Desktop e iPad ligados ao mesmo host: responder pelo último que conectou
+    // devolvia as abas do dispositivo errado.
+    final server = _server();
+    await server.bind(path);
+    addTearDown(server.close);
+
+    final dono = await _connectClient(path);
+    final outro = await _connectClient(path);
+    await _claimTab(dono, 'tab-do-ipad');
+
+    var respondeuOutro = false;
+    dono.messages.listen((m) {
+      if (m is! RpcRequest || m.method != 'cli.cmd') return;
+      dono.send(RpcResponse(rid: m.rid, ok: true, data: {'quem': 'dono'}));
+    });
+    outro.messages.listen((m) {
+      if (m is! RpcRequest || m.method != 'cli.cmd') return;
+      respondeuOutro = true;
+      outro.send(RpcResponse(rid: m.rid, ok: true, data: {'quem': 'outro'}));
+    });
+
+    final reply = await _sendCliCommand(server, {
+      'type': 'cmd',
+      'cmd': 'list-panes',
+      'tabId': 'tab-do-ipad',
+    });
+    expect((reply['data'] as Map)['quem'], 'dono');
+    expect(respondeuOutro, isFalse);
+  });
+
+  test('aba órfã com vários clientes explica em vez de chutar', () async {
+    final server = _server();
+    await server.bind(path);
+    addTearDown(server.close);
+
+    final a = await _connectClient(path);
+    await _connectClient(path);
+    a.messages.listen((m) {
+      if (m is RpcRequest && m.method == 'cli.cmd') {
+        a.send(RpcResponse(rid: m.rid, ok: true, data: 'nao deveria'));
+      }
+    });
+
+    final reply = await _sendCliCommand(server, {
+      'type': 'cmd',
+      'cmd': 'list-panes',
+      'tabId': 'tab-de-ninguem',
+    });
+    expect(reply['ok'], isFalse);
+    expect(reply['error'], contains('no attached Cockpit owns tab'));
+  });
+
+  test('cliente único responde mesmo sem reivindicar a aba', () async {
+    // Aba aberta antes deste servidor (processo reiniciado): com um cliente só
+    // não há ambiguidade, então segue funcionando.
+    final server = _server();
+    await server.bind(path);
+    addTearDown(server.close);
+
+    final client = await _connectClient(path);
+    client.messages.listen((m) {
+      if (m is! RpcRequest || m.method != 'cli.cmd') return;
+      client.send(RpcResponse(rid: m.rid, ok: true, data: 'ok'));
+    });
+
+    final reply = await _sendCliCommand(server, {
+      'type': 'cmd',
+      'cmd': 'list-panes',
+      'tabId': 'aba-antiga',
+    });
+    expect(reply['ok'], isTrue);
+    expect(reply['data'], 'ok');
+  });
+}
+
+/// Abre uma PTY por esta conexão declarando `COCKPIT_TAB_ID` — é assim que o
+/// servidor aprende de quem é a aba.
+Future<void> _claimTab(_TestClient client, String tabId) async {
+  final opened = client.messages.firstWhere((m) => m is PtyOpened);
+  client.send(
+    PtyOpen(executable: '/bin/zsh', environment: {'COCKPIT_TAB_ID': tabId}),
+  );
+  await opened.timeout(const Duration(seconds: 5));
 }
 
 RemoteServer _server() =>
@@ -181,6 +265,22 @@ class _TestClient {
 }
 
 class _FakeTerminals implements TerminalService {
+  var _n = 0;
+
+  @override
+  Future<PtySessionInfo> open(PtySpawnSpec spec) async => PtySessionInfo(
+    id: 's${++_n}',
+    pid: _n,
+    executable: spec.executable,
+    rows: 25,
+    columns: 80,
+    scrollbackLength: 0,
+  );
+
+  @override
+  Stream<PtyEvent> attach(String id, {int fromOffset = 0}) =>
+      const Stream<PtyEvent>.empty();
+
   @override
   Future<void> dispose() async {}
   @override

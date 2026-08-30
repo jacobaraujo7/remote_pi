@@ -65,6 +65,7 @@ fn main() {
         "redis" => commands::redis(args),
         "mongo" => commands::mongo(args),
         "new-tab" => commands::new_tab(args),
+        "close-tab" => commands::close_tab(args),
         "browse" => commands::browse_url(args),
         "browser" => commands::browser(args),
         "orchestrate" => commands::orchestrate(args),

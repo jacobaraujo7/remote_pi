@@ -133,6 +133,18 @@ class Project {
   bool get isPathless => isSystemTerminal || isRemoteTerminal;
 
   /// Inicial pro avatar da rail.
+  /// Pasta do workspace **na máquina onde ele vive**: [path] num workspace
+  /// local, [remotePath] num remoto — onde [path] é vazio de propósito, porque
+  /// a pasta não existe no disco do cliente.
+  ///
+  /// Existe porque confundir os dois já custou caro: a CLI usava [path] direto
+  /// e, num workspace remoto, recebia vazio — o que fazia `cockpit db`,
+  /// `list-tasks` e `read-task` recusarem a própria aba com "this pane has no
+  /// workspace folder". Vazio aqui significa mesmo "não tem pasta" (terminal
+  /// de sistema), e só isso.
+  String get effectiveRoot =>
+      isRemoteTerminal ? (remotePath ?? '') : path;
+
   String get initial => name.isNotEmpty ? name[0].toUpperCase() : '?';
 
   Project copyWith({

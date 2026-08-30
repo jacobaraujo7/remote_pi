@@ -1,7 +1,6 @@
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
-import 'package:cockpit/app/core/utils/user_home.dart';
+import 'ssh_tunnel.dart';
 import 'package:dartssh2/dartssh2.dart';
 
 /// Impl do contrato de classificação usado pelo `DbQueryService` — casca fina
@@ -34,9 +33,29 @@ class SshKeyPem {
   /// máquinas do time). Sem HOME resolvível, devolve o path como veio.
   static String expand(String path) {
     if (!path.startsWith('~')) return path;
-    final home = userHome();
+    final home = _home();
     if (home == null) return path;
     return path == '~' ? home : '$home${path.substring(1)}';
+  }
+
+  /// HOME do usuário por plataforma.
+  ///
+  /// Resolvido aqui, e não pelo utilitário do app, porque este motor roda
+  /// também no `cockpit-server` — e ali "a home" é a do HOST, que é justamente
+  /// onde a chave do bastion tem que estar: quem abre o túnel é a máquina que
+  /// abre a conexão com o banco.
+  static String? _home() {
+    final env = Platform.environment;
+    if (Platform.isWindows) {
+      final profile = env['USERPROFILE'];
+      if (profile != null && profile.isNotEmpty) return profile;
+      final drive = env['HOMEDRIVE'];
+      final path = env['HOMEPATH'];
+      final joined = '${drive ?? ''}${path ?? ''}';
+      return joined.isEmpty ? null : joined;
+    }
+    final home = env['HOME'];
+    return (home != null && home.isNotEmpty) ? home : null;
   }
 
   /// Lê o PEM do disco. Arquivo ausente/ilegível vira

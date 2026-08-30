@@ -1695,6 +1695,9 @@ class Translations$cockpit$dbPanel$en {
 
 	/// en: 'No connections yet.'
 	String get noConnections => 'No connections yet.';
+
+	/// en: 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.'
+	String get passwordRequired => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.';
 }
 
 // Path: cockpit.dbMongoView
@@ -1827,6 +1830,9 @@ class Translations$cockpit$dbConnectionDialog$en {
 
 	/// en: 'Save passphrase'
 	String get savePassphrase => 'Save passphrase';
+
+	/// en: 'The password is stored on the host, not on this machine.'
+	String get passwordOnHost => 'The password is stored on the host, not on this machine.';
 }
 
 // Path: cockpit.sshPrompts
@@ -2203,11 +2209,11 @@ class Translations$cockpit$remoteHost$en {
 	/// en: 'No subfolders'
 	String get emptyFolder => 'No subfolders';
 
-	/// en: 'New local workspace'
-	String get newLocal => 'New local workspace';
+	/// en: 'Local'
+	String get newLocal => 'Local';
 
-	/// en: 'New remote workspace'
-	String get newRemote => 'New remote workspace';
+	/// en: 'Remote'
+	String get newRemote => 'Remote';
 
 	/// en: 'Choose a host'
 	String get chooseHost => 'Choose a host';
@@ -2268,6 +2274,12 @@ class Translations$cockpit$remoteHost$en {
 
 	/// en: '${host} is presenting a different SSH key than the one stored. If you did not reinstall that machine, stop and check it — otherwise remove the old entry from ~/.ssh/known_hosts.'
 	String errHostKeyChanged({required Object host}) => '${host} is presenting a different SSH key than the one stored. If you did not reinstall that machine, stop and check it — otherwise remove the old entry from ~/.ssh/known_hosts.';
+
+	/// en: '${host} runs Windows but does not have Cockpit installed. The remote server is installed from the Cockpit bundle already on that machine, so install Cockpit there and try again.'
+	String errHostBundleMissing({required Object host}) => '${host} runs Windows but does not have Cockpit installed. The remote server is installed from the Cockpit bundle already on that machine, so install Cockpit there and try again.';
+
+	/// en: 'Could not identify the operating system of ${host}. The account may have a restricted shell, or no shell at all.'
+	String errHostUnknownOs({required Object host}) => 'Could not identify the operating system of ${host}. The account may have a restricted shell, or no shell at all.';
 
 	/// en: 'Only the public key is here. That works only if the private key is in your SSH agent; otherwise pick the private file (same name, without .pub).'
 	String get errIdentityPublic => 'Only the public key is here. That works only if the private key is in your SSH agent; otherwise pick the private file (same name, without .pub).';
@@ -3100,6 +3112,15 @@ class Translations$settings$page$appearance$en {
 
 	/// en: 'Not found on this machine — falling back.'
 	String get fontMissing => 'Not found on this machine — falling back.';
+
+	/// en: 'Layout'
+	String get sectionLayout => 'Layout';
+
+	/// en: 'Swap side panels'
+	String get swapPanelsTitle => 'Swap side panels';
+
+	/// en: 'Puts workspaces on the right and files, search, git and database on the left.'
+	String get swapPanelsDesc => 'Puts workspaces on the right and files, search, git and database on the left.';
 }
 
 // Path: settings.page.notifications
@@ -4071,6 +4092,7 @@ extension on Translations {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} connections',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
+			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
@@ -4108,6 +4130,7 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
@@ -4148,10 +4171,10 @@ extension on Translations {
 			'cockpit.findBar.badPattern' => 'Bad pattern',
 			'cockpit.findBar.noResults' => 'No results',
 			'cockpit.contentSearch.sectionSearch' => 'SEARCH',
-			'cockpit.contentSearch.searchInFiles' => 'Search in files',
-			'cockpit.contentSearch.matchCase' => 'Match case',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.contentSearch.searchInFiles' => 'Search in files',
+			'cockpit.contentSearch.matchCase' => 'Match case',
 			'cockpit.contentSearch.wholeWord' => 'Whole word',
 			'cockpit.contentSearch.useRegex' => 'Use regular expression',
 			'cockpit.contentSearch.invalidRegex' => 'Invalid regular expression.',
@@ -4201,8 +4224,8 @@ extension on Translations {
 			'cockpit.remoteHost.pickFolderTitle' => ({required Object host}) => 'Open folder on ${host}',
 			'cockpit.remoteHost.openHere' => 'Open here',
 			'cockpit.remoteHost.emptyFolder' => 'No subfolders',
-			'cockpit.remoteHost.newLocal' => 'New local workspace',
-			'cockpit.remoteHost.newRemote' => 'New remote workspace',
+			'cockpit.remoteHost.newLocal' => 'Local',
+			'cockpit.remoteHost.newRemote' => 'Remote',
 			'cockpit.remoteHost.chooseHost' => 'Choose a host',
 			'cockpit.remoteHost.newHostEntry' => 'New host…',
 			'cockpit.remoteHost.editHost' => 'Edit host',
@@ -4223,6 +4246,8 @@ extension on Translations {
 			'cockpit.remoteHost.errIdentity' => 'Pick the private key to authenticate with.',
 			'cockpit.remoteHost.errHostKeyUnknown' => ({required Object host}) => 'Cockpit does not trust ${host} yet. Connect again and confirm the fingerprint.',
 			'cockpit.remoteHost.errHostKeyChanged' => ({required Object host}) => '${host} is presenting a different SSH key than the one stored. If you did not reinstall that machine, stop and check it — otherwise remove the old entry from ~/.ssh/known_hosts.',
+			'cockpit.remoteHost.errHostBundleMissing' => ({required Object host}) => '${host} runs Windows but does not have Cockpit installed. The remote server is installed from the Cockpit bundle already on that machine, so install Cockpit there and try again.',
+			'cockpit.remoteHost.errHostUnknownOs' => ({required Object host}) => 'Could not identify the operating system of ${host}. The account may have a restricted shell, or no shell at all.',
 			'cockpit.remoteHost.errIdentityPublic' => 'Only the public key is here. That works only if the private key is in your SSH agent; otherwise pick the private file (same name, without .pub).',
 			'cockpit.remoteHost.errIdentityNotKey' => 'That file does not look like a private key.',
 			'cockpit.remoteHost.errIdentityMissingFile' => 'That file no longer exists.',
@@ -4371,6 +4396,9 @@ extension on Translations {
 			'settings.page.appearance.fontPickerUse' => 'Use',
 			'settings.page.appearance.fontPickerDefault' => 'Default',
 			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
+			'settings.page.appearance.sectionLayout' => 'Layout',
+			'settings.page.appearance.swapPanelsTitle' => 'Swap side panels',
+			'settings.page.appearance.swapPanelsDesc' => 'Puts workspaces on the right and files, search, git and database on the left.',
 			'settings.page.notifications.sectionTitle' => 'Notifications',
 			'settings.page.notifications.enableTitle' => 'Enable notifications',
 			'settings.page.notifications.enableDesc' => 'Alert me when an agent finishes a turn and the window is not focused.',

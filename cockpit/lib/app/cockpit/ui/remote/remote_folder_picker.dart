@@ -1,6 +1,7 @@
 import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/ui/remote/remote_host_error_message.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/utils/remote_path.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:cockpit_core/cockpit_core.dart';
@@ -101,17 +102,14 @@ class _RemoteFolderPickerState extends State<_RemoteFolderPicker> {
     }
   }
 
-  String get _parent {
-    final trimmed = _path.endsWith('/') && _path.length > 1
-        ? _path.substring(0, _path.length - 1)
-        : _path;
-    final idx = trimmed.lastIndexOf('/');
-    if (idx <= 0) return '/';
-    return trimmed.substring(0, idx);
-  }
-
-  String _join(String dir, String name) =>
-      dir.endsWith('/') ? '$dir$name' : '$dir/$name';
+  // Caminhos do HOST (que pode ser de outra família que a do cliente):
+  // ver `core/utils/remote_path.dart`. Era tudo POSIX cru aqui — em
+  // `C:\\Users\\jacob` o `lastIndexOf('/')` dava -1, então subir uma
+  // pasta caía na raiz e a hierarquia se perdia; o join produzia separador
+  // misto (`C:\\Users\\jacob/pasta`).
+  bool get _atRoot => isRemotePathRoot(_path);
+  String get _parent => remotePathParent(_path);
+  String _join(String dir, String name) => remotePathJoin(dir, name);
 
   @override
   Widget build(BuildContext context) {
@@ -144,7 +142,7 @@ class _RemoteFolderPickerState extends State<_RemoteFolderPicker> {
               children: [
                 IconButton.ghost(
                   density: ButtonDensity.compact,
-                  onPressed: _path == '/' ? null : () => _load(_parent),
+                  onPressed: _atRoot ? null : () => _load(_parent),
                   icon: const Icon(Icons.arrow_upward, size: 15),
                 ),
                 const SizedBox(width: 6),

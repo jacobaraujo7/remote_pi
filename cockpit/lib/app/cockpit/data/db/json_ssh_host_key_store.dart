@@ -1,4 +1,4 @@
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
+import 'package:cockpit_core/cockpit_core.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 
 /// Host keys confiadas (TOFU) numa chave própria do store de settings — reusa

@@ -117,6 +117,42 @@ fastforge package --platform linux --targets deb
 fastforge package --platform linux --targets rpm
 ```
 
+### Buildando numa máquina Linux de verdade (não o runner)
+
+O runner do GitHub já traz os `-dev` que os plugins nativos exigem no CMake; uma
+estação limpa não. Sem eles o `flutter build linux` morre no **configure**, uma
+dependência por vez:
+
+```bash
+sudo apt-get install -y libsecret-1-dev libasound2-dev libmpv-dev libjsoncpp-dev
+```
+
+| pacote | quem exige |
+|---|---|
+| `libsecret-1-dev` | `flutter_secure_storage_linux` |
+| `libasound2-dev` (ALSA) | `volume_controller` |
+| `libmpv-dev` | `media_kit_video` |
+| `libjsoncpp-dev` | bundle Flutter Linux |
+
+São deps de **build**, não de runtime — as de runtime estão no
+`linux/packaging/deb/make_config.yaml`. Para conferir a lista depois de mexer em
+plugins: `grep -rh "pkg_check_modules\|find_package" linux/flutter/ephemeral/.plugin_symlinks/*/linux/CMakeLists.txt`.
+
+**Armadilha do CMake:** um configure que aborta deixa `CMAKE_INSTALL_PREFIX` em
+`/usr/local` no `CMakeCache.txt`, e o `linux/CMakeLists.txt` só o aponta pro
+bundle quando o prefixo ainda está no default inicial. A partir daí todo build
+falha em `file INSTALL cannot copy ... to /usr/local/cockpit: Permission
+denied`, mesmo com as libs já instaladas. Conserto:
+
+```bash
+rm -f build/linux/x64/release/CMakeCache.txt
+rm -rf build/linux/x64/release/CMakeFiles
+```
+
+O `fastforge` (`dart pub global activate fastforge`) sai em
+`dist/<versão>/cockpit-<versão>-linux.deb`; instalar com `sudo dpkg -i`, **com o
+app fechado** — senão os binários trocam embaixo do processo vivo.
+
 Deps de runtime declaradas nos `make_config.yaml` (GTK3 + libs base). **Pendência
 de CI** (passo 3): rodar `ldd` no bundle gerado pra confirmar/expandir as deps, e
 validar instalação em containers `ubuntu:24.04` (deb) e `fedora:40` (rpm) — não

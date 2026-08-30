@@ -204,6 +204,45 @@ pub fn new_tab(args: &[String]) -> ! {
     std::process::exit(0)
 }
 
+// ---- close-tab --------------------------------------------------------------
+
+const CLOSE_TAB_HELP: &str = "cockpit close-tab [<label|tab-id>] [--json]
+  Closes a tab (the counterpart of `new-tab`). Without a target, closes the
+  CURRENT tab — which ends the shell you are typing in.
+  A target may be a stable tab label or a tab-id (see `cockpit list-tabs`).
+  Same behaviour as the tab's \"x\" in the UI: closing the last tab of a split
+  removes the split; closing the last tab of a workspace leaves an empty tab.
+  Prints the id of the closed tab.";
+
+pub fn close_tab(args: &[String]) -> ! {
+    let parsed = Flags::parse(args);
+    if args.iter().any(|a| a == "--help" || a == "-h") {
+        println!("{CLOSE_TAB_HELP}");
+        std::process::exit(0);
+    }
+    let target = parsed.positionals.first().cloned().unwrap_or_default();
+    let mut cmd_args = Map::new();
+    if !target.is_empty() {
+        cmd_args.insert("target".into(), json!(target));
+    }
+    let mut req = json!({"cmd": "close-tab", "args": Value::Object(cmd_args)});
+    // Sem alvo posicional, o server cai na própria tab ($COCKPIT_TAB_ID).
+    with_tab_id(&mut req, parsed.effective_tab_id());
+
+    let resp = transport::request(req, DEFAULT_TIMEOUT);
+    if !is_ok(&resp) {
+        fail_with(&resp);
+    }
+    let data = resp.get("data").cloned().unwrap_or_else(|| json!({}));
+    if parsed.json {
+        println!("{}", data);
+    } else {
+        let id = data.get("tabId").and_then(|v| v.as_str()).unwrap_or("");
+        println!("{id}");
+    }
+    std::process::exit(0)
+}
+
 // ---- browse -----------------------------------------------------------------
 
 const BROWSE_HELP: &str = "cockpit browse <url> [--json]

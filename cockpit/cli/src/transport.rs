@@ -213,8 +213,16 @@ no socket found in ~/.cockpit). Is the app running?",
     }
 }
 
-/// `resp["ok"] == true`.
+/// `resp["ok"] == true`. Emite no **stderr** o aviso que a resposta trouxer.
+///
+/// Aviso vai pro stderr de propósito: o stdout dos comandos de banco é uma
+/// linha JSON que agentes parseiam, e sujá-la quebraria o contrato. Hoje o
+/// único caso é `--workspace` mirando outra máquina — a execução está certa,
+/// mas o resultado tem cara de ser da máquina onde o comando foi digitado.
 pub fn is_ok(resp: &Value) -> bool {
+    if let Some(Value::String(w)) = resp.get("warning") {
+        eprintln!("cockpit: {w}");
+    }
     resp.get("ok") == Some(&Value::Bool(true))
 }
 

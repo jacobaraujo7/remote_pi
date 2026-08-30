@@ -1,5 +1,8 @@
 cockpit — Cockpit's internal CLI (visible only inside the app's terminals)
 
+`ck` is a shorter name for the same command: `ck list-tabs` == `cockpit
+list-tabs`. (If you already have your own `ck` alias, yours wins.)
+
 A **tab** is a terminal/agent session (what this CLI addresses). A **pane** is
 the split leaf that groups tabs — not addressed here. `list-panes`/`read-pane`
 are legacy aliases of `list-tabs`/`read-tab`.
@@ -16,6 +19,8 @@ USAGE:
   cockpit list-tasks      [--json]             list this workspace's tasks (Task Run)
   cockpit new-tab [--cwd <dir>] [--title <name>] [--split h|v]
                                                open a new terminal tab (prints its id)
+  cockpit close-tab [<label|tab-id>]           close a tab (default: the current
+                                               one) — prints the closed tab id
   cockpit db <list|schema|query|run|execute>   SQL databases (see `cockpit db --help`)
   cockpit redis [browse] --db <conn> ...       Redis command / open key table
   cockpit mongo [browse] --db <conn> [--database <name>] ...
@@ -106,10 +111,17 @@ NEW-TAB:
                   Omit to open as a new tab in the same pane.
   Anchored at the emitting tab's pane/workspace. Prints the new tab id.
 
+CLOSE-TAB:
+  cockpit close-tab [<label|tab-id>]
+  Without a target it closes the CURRENT tab — the shell you are typing in
+  ends with it. Closing the last tab of a split removes the split; closing the
+  last tab of a workspace leaves an empty tab (same as the tab's "x" in the UI).
+
 EXAMPLES:
   cockpit send "echo hi" && cockpit send-key Enter
   id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
   cockpit send --tab-id "$id" --enter "npm test"   # text + Enter in one call
+  cockpit close-tab "$id"                      # close it when done (or: Worker)
   cockpit send-key C-c
   cockpit send --tab-id t3 --enter "ls"
   cockpit .zprofile          # opens the file in the viewer (relative to tab cwd)

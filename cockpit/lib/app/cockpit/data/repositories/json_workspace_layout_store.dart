@@ -32,4 +32,15 @@ class JsonWorkspaceLayoutStore implements WorkspaceLayoutStore {
 
   @override
   Future<void> remove(String projectId) => _store.delete(projectId);
+
+  @override
+  Future<Map<String, Map<String, dynamic>>> loadAll() async {
+    final out = <String, Map<String, dynamic>>{};
+    // `keys` é snapshot: carregar dentro do loop não itera o mapa vivo.
+    for (final id in _store.keys.toList()) {
+      final doc = await load(id);
+      if (doc != null) out[id] = doc;
+    }
+    return out;
+  }
 }

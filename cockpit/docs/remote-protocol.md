@@ -100,6 +100,83 @@ Códigos atuais: `handshake_required`, `version_mismatch`, `bad_message`,
 `session_not_found`, `spawn_failed`, `internal`. `code` é contrato (a UI
 traduz por enum); `detail` é texto de terceiros (errno etc.), exibido cru.
 
+## Domínio Bancos de dados — segredos (plano 62)
+
+Query, schema e comandos NoSQL executam **no host** (`db.query`, `db.redis`,
+`db.redisMany`, `db.mongo`), e o descritor de conexão viaja em `params.conn`.
+
+A senha **não** viaja junto. O cofre de senhas é do host — arquivo `0600` em
+`~/.cockpit/db-secrets.json`, chaveado por `(raiz do workspace, nome da
+conexão)` — e o cliente o alimenta por dois métodos **write-only**:
+
+| Método | `params` | Efeito |
+|---|---|---|
+| `db.secretSet` | `root`, `conn`, `value` | grava/substitui a senha da conexão |
+| `db.secretDelete` | `root`, `conn` | apaga a senha da conexão |
+| `db.secretRename` | `root`, `from`, `to` | move a senha para o nome novo |
+| `db.hostKeyTrust` | `endpoint`, `fingerprint` | confia numa host key de bastion |
+
+`db.secretSet`/`db.secretDelete` aceitam `kind`: `password` (default) ou
+`sshPassphrase` — a passphrase da chave do túnel é segredo distinto da senha do
+banco, e a conexão pode ter um sem o outro.
+
+`db.secretRename` existe porque o cliente não pode ler o segredo para regravá-lo
+sob outro nome: sem ele, renomear uma conexão apagava a senha e o usuário só
+descobria na query seguinte.
+
+O conteúdo é cifrado com AES-GCM e chave fixa do produto (modelo do DBeaver).
+É **ofuscação deliberada**: tira o segredo do texto claro em disco, cobrindo
+vazamento acidental (backup, pasta sincronizada, `grep`, print de tela). Não
+defende de quem executa como o dono da conta — a chave está no binário, e não
+poderia ser diferente num servidor que sobe por SSH sem humano presente. Cofre
+em claro (formato anterior) continua sendo lido; a escrita seguinte o regrava
+cifrado, então não há passo de migração.
+
+**Um cofre por máquina.** O mesmo arquivo é usado pelo app quando o workspace é
+LOCAL: a chave é derivada da raiz do workspace (nunca do `workspaceId`, que é
+gerado por máquina), então digitar a senha sentado no host ou a partir de um
+cliente remoto grava na MESMA entrada. Era o contrário antes, e a senha
+digitada no host não valia para cliente nenhum — o `cockpit-server` é headless
+e nunca teve como ler o cofre do SO. O que ficou lá migra sozinho na primeira
+leitura.
+
+
+**Não existe `db.secretGet`, e isso é contrato, não omissão**: o cliente grava
+e apaga, nunca relê. Quem lê é o servidor, ao montar a conexão.
+
+Campos do descritor que fecham o desenho:
+
+| Campo | Significado |
+|---|---|
+| `workspaceRoot` | raiz do workspace no host — primeira metade da chave do segredo |
+| `connName` | nome da conexão — segunda metade |
+| `storedSecret` | `true` = a senha está no cofre do host; `password` vai ausente e o servidor resolve |
+| `password` | só quando `storedSecret` é `false` (conexão que optou por não guardar segredo) |
+
+Com `storedSecret: true` e nada no cofre do host, o servidor responde
+`password_required` em vez de tentar conectar sem senha — o erro do banco
+("authentication failed") mandaria o usuário investigar a coisa errada. O caso
+típico é conexão cadastrada antes deste plano, cuja senha ficou no cofre do
+cliente que a criou.
+
+### Túnel SSH da conexão (plano 62, onda 2)
+
+O descritor carrega o bloco `ssh` da conexão e **quem abre o túnel é o host** —
+ele é quem alcança o bastion e quem tem a chave privada. Antes o bloco não
+viajava, o host recebia `host:porta` cru e discava direto: conexão com bastion
+não funcionava a partir de cliente remoto.
+
+- **Chave e passphrase são as do host.** `keyPath` resolve contra o `~` de lá; a
+  passphrase sai do mesmo cofre da senha, sob `kind: sshPassphrase`.
+- **Mongo vai por SOCKS**, os demais por port-forward — num replica set o driver
+  descobre os membros e passa a discar os hostnames reais, furando porta fixa.
+- **Host key**: o servidor não pergunta nada. Chave desconhecida vira
+  `ssh_tunnel_failed` com detail `<kind>|<mensagem>`, e a mensagem traz o
+  fingerprint. O cliente mostra o diálogo que já tem e confia via
+  `db.hostKeyTrust` — decisão do humano no cliente, estado no host, o mesmo
+  idioma do cofre. Consequência aceita: a primeira conexão a um bastion novo
+  falha uma vez, de propósito.
+
 ## Aberto (para as próximas waves)
 
 - Backpressure/coalescing de output no fio (integrar com o

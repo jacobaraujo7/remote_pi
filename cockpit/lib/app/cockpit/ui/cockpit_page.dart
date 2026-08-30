@@ -1,8 +1,10 @@
+import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/ui/actions/agent_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/remote_workspace_actions.dart';
+import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/workspace_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/worktree_actions.dart';
 import 'package:cockpit/app/core/app_intents.dart';
@@ -28,6 +30,8 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
+import 'package:cockpit/app/cockpit/data/remote/remote_db_writer_impl.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/remote_db_writer.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/gestures.dart' show PointerDownEvent, kBackMouseButton;
 import 'package:flutter/services.dart'
@@ -42,7 +46,6 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/app/core/domain/result.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/database_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/ssh_prompts.dart';
@@ -145,9 +148,20 @@ class _CockpitPageState extends State<CockpitPage> {
     final updateVm = context.read<UpdateViewModel>();
     updateVm.attachSettings(context.read<SettingsController>());
     // Self-update (Sparkle/WinSparkle) é desktop-only; no mobile a loja atualiza.
-    // Evita também o notify-durante-build do setLastUpdateCheckTime no boot iOS.
+    //
+    // Pós-frame, e não direto no initState: `check()` é `async`, mas o corpo até
+    // o 1º `await` roda SÍNCRONO — e ele chega no
+    // `setLastUpdateCheckTime`, que notifica o `SettingsController`. Esse
+    // controller é app-scoped (`ModularApp.provide`, acima do `ShadcnApp`), então
+    // o `_VMInherited<SettingsController>` tentava se marcar dirty no meio do
+    // build da própria CockpitPage → "setState() or markNeedsBuild() called
+    // during build". No Windows isso derrubava o app no boot. Adiar um frame
+    // tira o notify da fase de build sem mudar nada do comportamento.
     if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
-      updateVm.check();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        unawaited(updateVm.check());
+      });
     }
     // Publica o estado do workspace no menu File (New Agent / New Terminal): só
     // habilitam quando há workspace ativo. Re-sincroniza a cada mudança da VM.
@@ -242,9 +256,21 @@ class _CockpitPageState extends State<CockpitPage> {
       }
       // As conexões de um workspace remoto vivem no host
       // (.cockpit/databases.json) — resolução da query E leitura do painel.
-      ..remoteConnectionsFor = _remoteConnectionsFor;
-    context.read<DatabaseViewModel>().remoteConnectionsFor =
-        _remoteConnectionsFor;
+      ..remoteConnectionsFor = _remoteConnectionsFor
+      // Túnel SSH da conexão roda no HOST (onda 2), e o servidor não pergunta
+      // nada: ele falha com o fingerprint. O diálogo é aqui, e o "confio" vai
+      // pro store do host — decisão no humano, estado onde o túnel abre.
+      ..remoteHostKeyTrustFor = (wsId, endpoint, fingerprint) async {
+        final host = _vm.remoteHostForWorkspace(wsId);
+        if (host == null) return;
+        final db = await _vm.remoteHosts.dbServiceFor(host);
+        await db.trustHostKey(endpoint: endpoint, fingerprint: fingerprint);
+      };
+    context.read<DatabaseViewModel>()
+      ..remoteConnectionsFor = _remoteConnectionsFor
+      // Escrita da config de banco de um workspace remoto: definição por
+      // `fs.write` no host, senha no cofre do host (plano 62).
+      ..remoteDbWriterFor = _remoteDbWriterFor;
     // Task Run remoto (plano 58): descoberta via fs.read + execução via terminal
     // do host, roteados quando o workspace ativo é remoto.
     context.read<TasksViewModel>().remoteContextFor = _remoteTaskContextFor;
@@ -285,6 +311,17 @@ class _CockpitPageState extends State<CockpitPage> {
     return loadRemoteConnections(
       () => _vm.remoteHosts.fileServiceFor(host),
       root,
+    );
+  }
+
+  /// Writer remoto de config de banco do workspace [wsId] (plano 62).
+  /// `null` quando o workspace é local — aí vale o store + cofre desta máquina.
+  RemoteDbWriter? _remoteDbWriterFor(String wsId) {
+    final host = _vm.remoteHostForWorkspace(wsId);
+    if (host == null) return null;
+    return RemoteDbWriterImpl(
+      () => _vm.remoteHosts.fileServiceFor(host),
+      () => _vm.remoteHosts.dbServiceFor(host),
     );
   }
 
@@ -505,7 +542,15 @@ class _CockpitPageState extends State<CockpitPage> {
         _focusContentSearch,
     const SingleActivator(LogicalKeyboardKey.keyF, control: true, shift: true):
         _focusContentSearch,
+    // ⌘W / Ctrl+W fecha a ABA (não a janela): é o que a aba de um editor
+    // significa em qualquer IDE. Passa pela mesma confirmação do X do título,
+    // então arquivo não salvo continua perguntando antes de sumir.
+    const SingleActivator(LogicalKeyboardKey.keyW, meta: true): _closeActiveTab,
+    const SingleActivator(LogicalKeyboardKey.keyW, control: true):
+        _closeActiveTab,
   };
+
+  void _closeActiveTab() => unawaited(closeActiveTab(context));
 
   /// ⌘`/Ctrl+` próximo realm; com Shift, anterior. Handler **global** no
   /// [HardwareKeyboard] (registrado no initState), não um `CallbackShortcuts`:
@@ -555,6 +600,12 @@ class _CockpitPageState extends State<CockpitPage> {
         title: vm.selectedDisplayTitle,
         terminalActive: vm.activeTabIsTerminal,
       ),
+    );
+    // Posição dos painéis é preferência do usuário (Configurações → Aparência),
+    // não estado do shell: vem do SettingsController, e `select` faz o page
+    // reconstruir só quando ela muda.
+    final swapped = context.select<SettingsController, bool>(
+      (s) => s.settings.swapSidePanels,
     );
     final colors = context.colors;
 
@@ -613,11 +664,16 @@ class _CockpitPageState extends State<CockpitPage> {
                     railOpen: railVisibleEff,
                     treeOpen: treeVisibleEff,
                     onDismiss: _dismissDrawers,
+                    swapped: swapped,
                     rail: _RailPanel(
                       width: _railWidth,
+                      handleOnLeft: swapped,
                       onDismiss: _dismissDrawers,
+                      // Invertido, arrastar para a ESQUERDA é que alarga — o
+                      // painel cresce sempre em direção ao centro.
                       onResize: (dx) => setState(() {
-                        _railWidth = (_railWidth + dx).clamp(
+                        final delta = swapped ? -dx : dx;
+                        _railWidth = (_railWidth + delta).clamp(
                           _railMin,
                           _railMax,
                         );
@@ -625,13 +681,15 @@ class _CockpitPageState extends State<CockpitPage> {
                     ),
                     center: _CenterPanel(centerKey: _centerKey),
                     tree: _TreePanel(
+                      handleOnLeft: !swapped,
                       treeWidth: _treeWidth,
                       tasksHeight: _tasksHeight,
                       sourceControlViewMode: _sourceControlViewMode,
                       searchFocusSignal: _searchFocusSignal,
                       onDismiss: _dismissDrawers,
                       onResizeTree: (dx) => setState(() {
-                        _treeWidth = (_treeWidth - dx).clamp(
+                        final delta = swapped ? dx : -dx;
+                        _treeWidth = (_treeWidth + delta).clamp(
                           _treeMin,
                           _treeMax,
                         );
@@ -678,11 +736,16 @@ class _RailPanel extends StatelessWidget {
     required this.width,
     required this.onDismiss,
     required this.onResize,
+    this.handleOnLeft = false,
   });
 
   final double width;
   final VoidCallback onDismiss;
   final ValueChanged<double> onResize;
+
+  /// `true` quando o painel está à DIREITA (modo "Inverter panes"): a alça
+  /// muda de borda junto.
+  final bool handleOnLeft;
 
   @override
   Widget build(BuildContext context) {
@@ -755,9 +818,12 @@ class _RailPanel extends StatelessWidget {
           onRemoteWorkspaceAction: (wsId, action) =>
               handleRemoteWorkspaceAction(context, wsId, action),
         ),
-        // Alça de arraste na borda direita (direita = alarga).
+        // Alça de arraste na borda VOLTADA PARA O CENTRO: borda direita quando o
+        // painel está à esquerda, e vice-versa com "Inverter panes" — do outro
+        // lado ela cairia na moldura da janela.
         Positioned(
-          right: 0,
+          left: handleOnLeft ? 0 : null,
+          right: handleOnLeft ? null : 0,
           top: 0,
           bottom: 0,
           child: _ResizeHandle(onDelta: onResize),
@@ -970,7 +1036,12 @@ class _TreePanel extends StatelessWidget {
     required this.onResizeTree,
     required this.onTasksResize,
     required this.onTasksResizeEnd,
+    this.handleOnLeft = true,
   });
+
+  /// `true` quando o painel está à direita (o padrão); vira `false` com
+  /// "Inverter panes", e a alça acompanha.
+  final bool handleOnLeft;
 
   final double treeWidth;
   final double tasksHeight;
@@ -1116,10 +1187,10 @@ class _TreePanel extends StatelessWidget {
                 ),
           footer: const _LspStatusBar(),
         ),
-        // Alça de arraste sobre a borda esquerda do painel
-        // (esquerda = alarga; direita = estreita).
+        // Alça na borda voltada para o centro (ver [_RailPanel]).
         Positioned(
-          left: 0,
+          left: handleOnLeft ? 0 : null,
+          right: handleOnLeft ? null : 0,
           top: 0,
           bottom: 0,
           child: _ResizeHandle(onDelta: onResizeTree),
@@ -1139,6 +1210,7 @@ class _PanelScaffold extends StatelessWidget {
     required this.narrow,
     required this.railOpen,
     required this.treeOpen,
+    required this.swapped,
     required this.rail,
     required this.center,
     required this.tree,
@@ -1153,14 +1225,27 @@ class _PanelScaffold extends StatelessWidget {
   final Widget tree;
   final VoidCallback onDismiss;
 
+  /// "Inverter panes" (Configurações → Aparência): workspaces à direita e
+  /// arquivos/busca/git/database à esquerda. Só a POSIÇÃO muda — cada painel
+  /// mantém largura, visibilidade e atalhos.
+  final bool swapped;
+
   @override
   Widget build(BuildContext context) {
+    // Painel de cada lado. Trocar aqui (e não na ordem dos filhos do Row)
+    // mantém a alça de redimensionar coerente: ela pertence ao painel, e o
+    // painel é que muda de lado.
+    final leftPanel = swapped ? tree : rail;
+    final rightPanel = swapped ? rail : tree;
+    final leftOpen = swapped ? treeOpen : railOpen;
+    final rightOpen = swapped ? railOpen : treeOpen;
+
     if (!narrow) {
       return Row(
         children: [
-          if (railOpen) rail,
+          if (leftOpen) leftPanel,
           Expanded(child: center),
-          if (treeOpen) tree,
+          if (rightOpen) rightPanel,
         ],
       );
     }
@@ -1176,8 +1261,9 @@ class _PanelScaffold extends StatelessWidget {
             ),
           ),
         // top/bottom = 0 estica a pane em altura total; a largura vem da própria.
-        if (railOpen) Positioned(left: 0, top: 0, bottom: 0, child: rail),
-        if (treeOpen) Positioned(right: 0, top: 0, bottom: 0, child: tree),
+        if (leftOpen) Positioned(left: 0, top: 0, bottom: 0, child: leftPanel),
+        if (rightOpen)
+          Positioned(right: 0, top: 0, bottom: 0, child: rightPanel),
       ],
     );
   }

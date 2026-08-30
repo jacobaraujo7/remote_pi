@@ -23,6 +23,40 @@ void main() {
       );
     });
 
+    test('uses the registered bundled JetBrains Mono family', () {
+      expect(
+        resolveGhosttyFontFamily(
+          'JetBrains Mono',
+          bundledJetBrainsMonoResolver: () => 'JetBrainsMono_bundled',
+        ),
+        'JetBrainsMono_bundled',
+      );
+    });
+
+    test(
+      'maps a system monospace resolved as JetBrains Mono to the bundle',
+      () {
+        expect(
+          resolveGhosttyFontFamily(
+            'monospace',
+            systemMonospaceResolver: () => 'JetBrains Mono',
+            bundledJetBrainsMonoResolver: () => 'JetBrainsMono_bundled',
+          ),
+          'JetBrainsMono_bundled',
+        );
+      },
+    );
+
+    test('keeps JetBrains Mono when the bundled resolver is unavailable', () {
+      expect(
+        resolveGhosttyFontFamily(
+          'JetBrains Mono',
+          bundledJetBrainsMonoResolver: () => null,
+        ),
+        'JetBrains Mono',
+      );
+    });
+
     test('falls back to the generic alias when resolution is unavailable', () {
       expect(
         resolveGhosttyFontFamily(

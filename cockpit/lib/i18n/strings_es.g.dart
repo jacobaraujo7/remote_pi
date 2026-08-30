@@ -847,6 +847,7 @@ class _Translations$cockpit$dbPanel$es extends Translations$cockpit$dbPanel$en {
 	@override String footer({required Object n}) => '.cockpit/databases.json · ${n} conexiones';
 	@override String get footerOne => '.cockpit/databases.json · 1 conexión';
 	@override String get noConnections => 'Aún no hay conexiones.';
+	@override String get passwordRequired => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.';
 }
 
 // Path: cockpit.dbMongoView
@@ -905,6 +906,7 @@ class _Translations$cockpit$dbConnectionDialog$es extends Translations$cockpit$d
 	@override String get choosePrivateKeyDialogTitle => 'Elegir clave privada SSH';
 	@override String get keyPassphrase => 'Frase de contraseña de la clave';
 	@override String get savePassphrase => 'Guardar frase de contraseña';
+	@override String get passwordOnHost => 'La contraseña se guarda en el host, no en esta máquina.';
 }
 
 // Path: cockpit.sshPrompts
@@ -1098,8 +1100,8 @@ class _Translations$cockpit$remoteHost$es extends Translations$cockpit$remoteHos
 	@override String pickFolderTitle({required Object host}) => 'Abrir carpeta en ${host}';
 	@override String get openHere => 'Abrir aquí';
 	@override String get emptyFolder => 'Sin subcarpetas';
-	@override String get newLocal => 'Nuevo workspace local';
-	@override String get newRemote => 'Nuevo workspace remoto';
+	@override String get newLocal => 'Local';
+	@override String get newRemote => 'Remoto';
 	@override String get chooseHost => 'Elegir un host';
 	@override String get newHostEntry => 'Nuevo host…';
 	@override String get editHost => 'Editar host';
@@ -1120,6 +1122,8 @@ class _Translations$cockpit$remoteHost$es extends Translations$cockpit$remoteHos
 	@override String get errIdentity => 'Elige la clave privada para autenticarte.';
 	@override String errHostKeyUnknown({required Object host}) => 'Cockpit todavía no confía en ${host}. Conecta de nuevo y confirma la huella.';
 	@override String errHostKeyChanged({required Object host}) => '${host} presenta una clave SSH distinta de la guardada. Si no reinstalaste esa máquina, detente y compruébalo; si la reinstalaste, elimina la entrada antigua de ~/.ssh/known_hosts.';
+	@override String errHostBundleMissing({required Object host}) => '${host} es Windows pero no tiene Cockpit instalado. El servidor remoto se instala desde el bundle de Cockpit que ya está en esa máquina — instálalo allí e inténtalo de nuevo.';
+	@override String errHostUnknownOs({required Object host}) => 'No se pudo identificar el sistema de ${host}. La cuenta puede tener un shell restringido, o ninguno.';
 	@override String get errIdentityPublic => 'Solo está la clave pública. Eso funciona solo si la privada está en tu agente SSH; si no, elige la privada (mismo nombre, sin .pub).';
 	@override String get errIdentityNotKey => 'Ese archivo no parece una clave privada.';
 	@override String get errIdentityMissingFile => 'Ese archivo ya no existe.';
@@ -1509,6 +1513,9 @@ class _Translations$settings$page$appearance$es extends Translations$settings$pa
 	@override String get fontPickerUse => 'Usar';
 	@override String get fontPickerDefault => 'Predeterminada';
 	@override String get fontMissing => 'No se encontró en esta máquina — usando el respaldo.';
+	@override String get sectionLayout => 'Diseño';
+	@override String get swapPanelsTitle => 'Invertir paneles';
+	@override String get swapPanelsDesc => 'Coloca los workspaces a la derecha y archivos, búsqueda, git y base de datos a la izquierda.';
 }
 
 // Path: settings.page.notifications
@@ -2176,6 +2183,7 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} conexiones',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexión',
 			'cockpit.dbPanel.noConnections' => 'Aún no hay conexiones.',
+			'cockpit.dbPanel.passwordRequired' => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Eliminar documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
@@ -2213,6 +2221,7 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit nunca se ha conectado a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confía solo si esta fingerprint coincide con el servidor. Puedes verificarla en el servidor con:',
@@ -2253,10 +2262,10 @@ extension on TranslationsEs {
 			'cockpit.findBar.badPattern' => 'Patrón inválido',
 			'cockpit.findBar.noResults' => 'Sin resultados',
 			'cockpit.contentSearch.sectionSearch' => 'BÚSQUEDA',
-			'cockpit.contentSearch.searchInFiles' => 'Buscar en los archivos',
-			'cockpit.contentSearch.matchCase' => 'Coincidir mayúsculas',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.contentSearch.searchInFiles' => 'Buscar en los archivos',
+			'cockpit.contentSearch.matchCase' => 'Coincidir mayúsculas',
 			'cockpit.contentSearch.wholeWord' => 'Palabra completa',
 			'cockpit.contentSearch.useRegex' => 'Usar expresión regular',
 			'cockpit.contentSearch.invalidRegex' => 'Expresión regular inválida.',
@@ -2306,8 +2315,8 @@ extension on TranslationsEs {
 			'cockpit.remoteHost.pickFolderTitle' => ({required Object host}) => 'Abrir carpeta en ${host}',
 			'cockpit.remoteHost.openHere' => 'Abrir aquí',
 			'cockpit.remoteHost.emptyFolder' => 'Sin subcarpetas',
-			'cockpit.remoteHost.newLocal' => 'Nuevo workspace local',
-			'cockpit.remoteHost.newRemote' => 'Nuevo workspace remoto',
+			'cockpit.remoteHost.newLocal' => 'Local',
+			'cockpit.remoteHost.newRemote' => 'Remoto',
 			'cockpit.remoteHost.chooseHost' => 'Elegir un host',
 			'cockpit.remoteHost.newHostEntry' => 'Nuevo host…',
 			'cockpit.remoteHost.editHost' => 'Editar host',
@@ -2328,6 +2337,8 @@ extension on TranslationsEs {
 			'cockpit.remoteHost.errIdentity' => 'Elige la clave privada para autenticarte.',
 			'cockpit.remoteHost.errHostKeyUnknown' => ({required Object host}) => 'Cockpit todavía no confía en ${host}. Conecta de nuevo y confirma la huella.',
 			'cockpit.remoteHost.errHostKeyChanged' => ({required Object host}) => '${host} presenta una clave SSH distinta de la guardada. Si no reinstalaste esa máquina, detente y compruébalo; si la reinstalaste, elimina la entrada antigua de ~/.ssh/known_hosts.',
+			'cockpit.remoteHost.errHostBundleMissing' => ({required Object host}) => '${host} es Windows pero no tiene Cockpit instalado. El servidor remoto se instala desde el bundle de Cockpit que ya está en esa máquina — instálalo allí e inténtalo de nuevo.',
+			'cockpit.remoteHost.errHostUnknownOs' => ({required Object host}) => 'No se pudo identificar el sistema de ${host}. La cuenta puede tener un shell restringido, o ninguno.',
 			'cockpit.remoteHost.errIdentityPublic' => 'Solo está la clave pública. Eso funciona solo si la privada está en tu agente SSH; si no, elige la privada (mismo nombre, sin .pub).',
 			'cockpit.remoteHost.errIdentityNotKey' => 'Ese archivo no parece una clave privada.',
 			'cockpit.remoteHost.errIdentityMissingFile' => 'Ese archivo ya no existe.',
@@ -2476,6 +2487,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.fontPickerUse' => 'Usar',
 			'settings.page.appearance.fontPickerDefault' => 'Predeterminada',
 			'settings.page.appearance.fontMissing' => 'No se encontró en esta máquina — usando el respaldo.',
+			'settings.page.appearance.sectionLayout' => 'Diseño',
+			'settings.page.appearance.swapPanelsTitle' => 'Invertir paneles',
+			'settings.page.appearance.swapPanelsDesc' => 'Coloca los workspaces a la derecha y archivos, búsqueda, git y base de datos a la izquierda.',
 			'settings.page.notifications.sectionTitle' => 'Notificaciones',
 			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
 			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',

@@ -65,6 +65,20 @@ class DbConnectionStoreImpl implements DbConnectionStore {
     String workspaceRoot,
     List<DbConnection> connections,
   ) async {
+    final file = File('$workspaceRoot/$_dirName/$_fileName');
+    await file.parent.create(recursive: true);
+    await file.writeAsString(encodeDatabasesJson(connections));
+  }
+
+  /// Caminho do `databases.json` relativo à raiz do workspace. O writer remoto
+  /// (plano 62) monta o caminho no HOST com isto, em vez de repetir a string.
+  static const String databasesRelativePath = '$_dirName/$_fileName';
+
+  /// Conteúdo do `databases.json` a partir de [connections]. Extraído do
+  /// [save] para que o caminho remoto grave **byte a byte** o mesmo arquivo —
+  /// duas serializações divergindo produziriam diff espúrio conforme o
+  /// workspace fosse editado do cliente ou do host.
+  static String encodeDatabasesJson(List<DbConnection> connections) {
     final registered =
         connections
             .where((c) => c.origin == DbConnectionOrigin.registered)
@@ -72,14 +86,10 @@ class DbConnectionStoreImpl implements DbConnectionStore {
           // O arquivo também sai ordenado: ele é versionado, e gravar na ordem
           // da memória produzia diff de reordenação a cada salvamento.
           ..sort(DbConnection.compareByName);
-    final file = File('$workspaceRoot/$_dirName/$_fileName');
-    await file.parent.create(recursive: true);
     const encoder = JsonEncoder.withIndent('  ');
-    await file.writeAsString(
-      '${encoder.convert({
-        'databases': [for (final c in registered) c.toJson()],
-      })}\n',
-    );
+    return '${encoder.convert({
+      'databases': [for (final c in registered) c.toJson()],
+    })}\n';
   }
 
   Future<List<DbConnection>> _readFile(

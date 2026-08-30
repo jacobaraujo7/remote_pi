@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:cockpit_core/cockpit_core.dart' show FileService;
+import 'package:cockpit_core/cockpit_core.dart' show FileEntry, FileService;
 
 /// Descobre as **roots git** de uma pasta no host remoto, com a mesma regra do
 /// `GitController.deriveRoots` local (multirepo por detecção implícita):
@@ -27,35 +27,44 @@ class RemoteRootFinder {
   /// centenas de round-trips SSH no boot.
   static const int maxChildren = 60;
 
+  /// Máximo de listagens/leituras em voo ao mesmo tempo. Todas viajam pelo
+  /// **mesmo** canal SSH: disparar as 60 de uma vez não deixa nada mais rápido
+  /// e, no mobile (transporte em Dart, no isolate da UI), engasga o app inteiro
+  /// durante o boot.
+  static const int maxConcurrency = 6;
+
   Future<List<String>> deriveRoots(String path) async {
     final root = _normalize(path);
     if (root.isEmpty) return const [];
-    if (await _hasGit(root)) return [root];
 
-    final List<FileEntryLike> children;
+    final List<FileEntry> rootEntries;
     try {
-      children = [
-        for (final e in await _files.list(root))
-          if (e.isDirectory && !e.name.startsWith('.'))
-            (name: e.name, path: '$root/${e.name}'),
-      ];
+      rootEntries = await _files.list(root);
     } on Object {
       return [root]; // pasta ilegível/host offline → trata como comum
     }
+    // A listagem da raiz responde as DUAS perguntas — "tem `.git`?" e "quais
+    // são as filhas?" —, então é feita uma vez só.
+    if (rootEntries.any((e) => e.name == '.git')) return [root];
+
+    final children = <FileEntryLike>[
+      for (final e in rootEntries)
+        if (e.isDirectory && !e.name.startsWith('.'))
+          (name: e.name, path: '$root/${e.name}'),
+    ];
     if (children.isEmpty || children.length > maxChildren) return [root];
 
-    final flags = await Future.wait([
-      for (final c in children) _hasGit(c.path),
-    ]);
+    final flags = await _mapLimited(children, (c) => _hasGit(c.path));
     final roots = <String>[
       for (var i = 0; i < children.length; i++)
         if (flags[i]) children[i].path,
     ];
     if (roots.isEmpty) return [root];
 
-    final linked = await Future.wait([
-      for (final r in roots) _isWorktreeOfSibling(r, roots),
-    ]);
+    final linked = await _mapLimited(
+      roots,
+      (r) => _isWorktreeOfSibling(r, roots),
+    );
     final kept = <String>[
       for (var i = 0; i < roots.length; i++)
         if (!linked[i]) roots[i],
@@ -63,6 +72,28 @@ class RemoteRootFinder {
     if (kept.isEmpty) return [root];
     kept.sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     return kept;
+  }
+
+  /// `Future.wait` com teto de paralelismo, preservando a ordem de [items].
+  static Future<List<R>> _mapLimited<T, R>(
+    List<T> items,
+    Future<R> Function(T item) task,
+  ) async {
+    final out = List<R?>.filled(items.length, null);
+    var next = 0;
+    Future<void> worker() async {
+      while (true) {
+        final i = next++;
+        if (i >= items.length) return;
+        out[i] = await task(items[i]);
+      }
+    }
+
+    final workers = items.length < maxConcurrency
+        ? items.length
+        : maxConcurrency;
+    await Future.wait([for (var w = 0; w < workers; w++) worker()]);
+    return out.cast<R>();
   }
 
   /// `.git` existe em [dir] — dir **ou arquivo** (worktree usa arquivo).

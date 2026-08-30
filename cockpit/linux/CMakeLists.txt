@@ -176,8 +176,12 @@ if(NOT CARGO_EXECUTABLE)
     "'cargo' não encontrado: a CLI interna (cli/) é um crate Rust e faz parte "
     "do build. Instale o Rust (https://rustup.rs) e rode o build de novo.")
 endif()
+# `build.rs` entra na lista: é ele que assa o flavor no binário, e uma
+# mudança lá não mexe em `src/` — sem isto o CMake daria a CLI por
+# atualizada. Mesma classe do glob do servidor logo abaixo.
 file(GLOB_RECURSE COCKPIT_CLI_SOURCES CONFIGURE_DEPENDS
-  "${COCKPIT_CLI_CRATE}/src/*.rs" "${COCKPIT_CLI_CRATE}/text/*")
+  "${COCKPIT_CLI_CRATE}/src/*.rs" "${COCKPIT_CLI_CRATE}/text/*"
+  "${COCKPIT_CLI_CRATE}/build.rs")
 set(COCKPIT_CLI_BUILT "${COCKPIT_CLI_CRATE}/target/release/cockpit")
 set(COCKPIT_CLI_EXE "${CMAKE_BINARY_DIR}/cockpit-cli")
 # Flavor assado no binário (ver cli/build.rs): decide qual socket a CLI procura
@@ -232,8 +236,16 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${APPLICATION_ID}.metainfo.xml"
 set(COCKPIT_SERVER_PKG "${CMAKE_SOURCE_DIR}/../packages/cockpit_server")
 set(COCKPIT_SERVER_DIR "${CMAKE_BINARY_DIR}/server-bundle")
 set(COCKPIT_SERVER_EXE "${COCKPIT_SERVER_DIR}/bin/cockpit-server")
+# O servidor NÃO é só o pacote dele: depende dos irmãos por `path:`
+# (cockpit_core, cockpit_engine, cockpit_protocol). Com o glob olhando só
+# `cockpit_server/`, editar o engine não invalidava nada e o CMake dava o
+# bundle por atualizado — o build saía com um `cockpit-server` VELHO, em
+# silêncio. Mesmo ajuste do windows/CMakeLists.txt.
 file(GLOB_RECURSE COCKPIT_SERVER_SOURCES CONFIGURE_DEPENDS
-  "${COCKPIT_SERVER_PKG}/bin/*.dart" "${COCKPIT_SERVER_PKG}/lib/*.dart")
+  "${COCKPIT_SERVER_PKG}/bin/*.dart" "${COCKPIT_SERVER_PKG}/lib/*.dart"
+  "${COCKPIT_SERVER_PKG}/../cockpit_core/lib/*.dart"
+  "${COCKPIT_SERVER_PKG}/../cockpit_engine/lib/*.dart"
+  "${COCKPIT_SERVER_PKG}/../cockpit_protocol/lib/*.dart")
 add_custom_command(
   OUTPUT "${COCKPIT_SERVER_EXE}"
   # Bundle limpo: `dart build cli` recusa diretório de saída já existente.

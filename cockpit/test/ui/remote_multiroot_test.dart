@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
@@ -6,6 +7,9 @@ import 'package:cockpit/app/cockpit/domain/entities/remote_workspace_pin.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/remote_hosts_store.dart';
 import 'package:cockpit/app/cockpit/ui/remote/remote_hosts_controller.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/remote_workspace_controller.dart';
+import 'package:cockpit_core/cockpit_core.dart' show GitRunResult, GitStatus;
+import 'package:cockpit_remote/cockpit_remote.dart'
+    show RemoteFileService, RemoteGitService;
 import 'package:flutter_test/flutter_test.dart';
 
 class _EmptyStore implements RemoteHostsStore {
@@ -34,6 +38,48 @@ Project _ws(String id, String remotePath) => Project(
   remoteHostId: 'h1',
   remotePath: remotePath,
 );
+
+/// Controller de hosts com um host e serviços de mentira — o suficiente para
+/// exercitar o caminho de `refreshWorktrees` sem rede.
+class _FakeHosts extends RemoteHostsController {
+  _FakeHosts(this.git) : super(_EmptyStore());
+
+  final _FakeGit git;
+
+  static const RemoteHost _h = RemoteHost(
+    id: 'h1',
+    name: 'host',
+    sshTarget: 'jacob@example',
+  );
+
+  @override
+  List<RemoteHost> get hosts => [_h];
+
+  @override
+  Future<RemoteGitService> gitServiceFor(RemoteHost host) async => git;
+
+  @override
+  Future<RemoteFileService> fileServiceFor(RemoteHost host) async =>
+      _FakeFiles();
+}
+
+class _FakeFiles extends Fake implements RemoteFileService {}
+
+class _FakeGit extends Fake implements RemoteGitService {
+  int runs = 0;
+  final Completer<void> gate = Completer<void>();
+
+  @override
+  Future<GitRunResult> run(String repo, List<String> args) async {
+    runs++;
+    await gate.future;
+    return const GitRunResult(code: 0, stdout: '', stderr: '');
+  }
+
+  @override
+  Future<GitStatus> status(String repoPath) async =>
+      throw StateError('sem status neste teste');
+}
 
 void main() {
   late RemoteWorkspaceController ctrl;
@@ -119,6 +165,27 @@ void main() {
     });
   });
 
+  group('forks (worktrees remotos)', () {
+    test('falha de listagem NÃO apaga os forks já conhecidos', () async {
+      // Regressão da 1.28.12: ao varrer as roots do multirepo, um erro de
+      // listagem virava `continue` e a lista saía vazia — o VM então removia
+      // todos os forks e jogava a seleção de volta no workspace pai. Com host
+      // offline (o caso deste teste, sem conexão nenhuma), o refresh tem de
+      // sair sem aplicar nada.
+      var applied = 0;
+      ctrl.applyForks = (_, _, _) => applied++;
+      await ctrl.refreshWorktrees('ws');
+      expect(applied, 0, reason: 'nada foi aplicado a partir de uma falha');
+    });
+
+    test('workspace sem pasta não dispara refresh', () async {
+      var applied = 0;
+      ctrl.applyForks = (_, _, _) => applied++;
+      await ctrl.refreshWorktrees('desconhecido');
+      expect(applied, 0);
+    });
+  });
+
   test('single-root remoto continua com "o" git do workspace', () {
     ctrl.seedGit(
       'ws',
@@ -127,5 +194,24 @@ void main() {
     );
     expect(ctrl.isMultiRoot('ws'), isFalse);
     expect(ctrl.gitInfoOf('ws')?.branch, 'main');
+  });
+
+  test('refreshWorktrees concorrente não empilha listagens', () async {
+    final git = _FakeGit();
+    final c = RemoteWorkspaceController(_FakeHosts(git));
+    c.resolveProject = (id) => id == 'ws' ? _ws('ws', '/srv/multi') : null;
+    c.selectedId = () => 'ws';
+    c.applyForks = (wsId, forks, originOf) {};
+    c.seedGit('ws', ['/srv/multi'], const {});
+
+    // [ensureLoaded] roda a cada transição de fase da conexão; com o reconnect
+    // em backoff isso vira rajada. O segundo refresh tem de morrer no guard.
+    final a = c.refreshWorktrees('ws');
+    final b = c.refreshWorktrees('ws');
+    await pumpEventQueue();
+    expect(git.runs, 1);
+
+    git.gate.complete();
+    await Future.wait([a, b]);
   });
 }

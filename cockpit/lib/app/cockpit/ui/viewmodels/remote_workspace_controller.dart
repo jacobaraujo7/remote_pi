@@ -75,6 +75,14 @@ class RemoteWorkspaceController extends ChangeNotifier {
   /// lazy-load do badge).
   final Set<String> _loading = <String>{};
 
+  /// Descoberta de roots em voo, por workspace — dois caminhos pedem as roots
+  /// do mesmo workspace na mesma janela e a varredura é cara.
+  final Map<String, Future<List<String>?>> _rootsInFlight =
+      <String, Future<List<String>?>>{};
+
+  /// Workspaces com `refreshWorktrees` em voo (dedup).
+  final Set<String> _refreshingWorktrees = <String>{};
+
   /// Token do último refresh de worktrees por workspace (anti-corrida).
   final Map<String, int> _worktreeToken = <String, int>{};
 
@@ -237,26 +245,52 @@ class RemoteWorkspaceController extends ChangeNotifier {
   /// Roots do workspace, descobertas uma vez e cacheadas. A descoberta custa
   /// listagens SSH, e a topologia de um workspace praticamente não muda —
   /// quem quiser reavaliar chama [forgetRoots].
-  Future<List<String>> _rootsFor(
-    String wsId,
-    String path,
-    RemoteHost host,
-  ) async {
+  Future<List<String>> _rootsFor(String wsId, String path, RemoteHost host) {
     final cached = _roots[wsId];
-    if (cached != null && cached.isNotEmpty) return cached;
+    if (cached != null && cached.isNotEmpty) return Future.value(cached);
+    // Um mesmo workspace é descoberto por dois caminhos na mesma janela
+    // (`_loadGitFor` e `refreshWorktrees`, ambos disparados por
+    // [ensureLoaded]). Sem compartilhar o future em voo, a varredura — dezenas
+    // de listagens SSH — rodaria duas vezes por boot.
+    final running = _rootsInFlight[wsId];
+    if (running != null) return running.then((r) => r ?? [path]);
+    final future = _discoverRoots(path, host);
+    _rootsInFlight[wsId] = future;
+    unawaited(
+      future
+          .then((roots) {
+            // Só cacheia descoberta de verdade: host offline devolve o
+            // fallback single-root, que não pode virar topologia definitiva.
+            if (roots != null && roots.isNotEmpty) _roots[wsId] = roots;
+          })
+          .catchError((_) {})
+          .whenComplete(() {
+            if (identical(_rootsInFlight[wsId], future)) {
+              _rootsInFlight.remove(wsId);
+            }
+          }),
+    );
+    return future.then((r) => r ?? [path]);
+  }
+
+  /// `null` = a descoberta falhou (host offline) — o chamador segue
+  /// single-root, mas nada é cacheado.
+  Future<List<String>?> _discoverRoots(String path, RemoteHost host) async {
     try {
       final finder = RemoteRootFinder(await _hosts.fileServiceFor(host));
       final roots = await finder.deriveRoots(path);
-      if (roots.isNotEmpty) _roots[wsId] = roots;
-      return roots.isEmpty ? [path] : roots;
+      return roots.isEmpty ? null : roots;
     } on Object {
-      return [path]; // host offline → segue single-root
+      return null; // host offline → segue single-root, sem cachear
     }
   }
 
   /// Esquece as roots descobertas de [wsId] (repo clonado/removido na pasta
   /// do workspace) — a próxima leitura redescobre.
-  void forgetRoots(String wsId) => _roots.remove(wsId);
+  void forgetRoots(String wsId) {
+    _roots.remove(wsId);
+    _rootsInFlight.remove(wsId);
+  }
 
   /// Injeta o resultado de uma descoberta + leitura, sem tocar a rede — é o
   /// que permite testar o roteamento por root (a parte onde um erro manda o
@@ -315,6 +349,8 @@ class RemoteWorkspaceController extends ChangeNotifier {
     _roots.remove(wsId);
     _loading.remove(wsId);
     _worktreeToken.remove(wsId);
+    _rootsInFlight.remove(wsId);
+    _refreshingWorktrees.remove(wsId);
   }
 
   Future<GitRunResult> run(String wsId, List<String> args) async {
@@ -344,6 +380,21 @@ class RemoteWorkspaceController extends ChangeNotifier {
   /// Lista e reconcilia os worktrees remotos de [wsId] (slots-fork do rail).
   /// Best-effort: host offline / pasta não-git → sem forks.
   Future<void> refreshWorktrees(String wsId) async {
+    // Dedup de refresh em voo: [ensureLoaded] é chamado a CADA transição de
+    // fase da conexão (e o reconnect faz backoff indefinido), então sem isto
+    // uma rede instável empilha um `git worktree list` por root a cada ciclo,
+    // todos na mesma conexão SSH. No mobile, onde o transporte roda no isolate
+    // da UI, era rajada suficiente para congelar o app.
+    if (_refreshingWorktrees.contains(wsId)) return;
+    _refreshingWorktrees.add(wsId);
+    try {
+      await _refreshWorktrees(wsId);
+    } finally {
+      _refreshingWorktrees.remove(wsId);
+    }
+  }
+
+  Future<void> _refreshWorktrees(String wsId) async {
     final parent = _project(wsId);
     final path = parent?.remotePath;
     if (parent == null ||
@@ -374,7 +425,12 @@ class RemoteWorkspaceController extends ChangeNotifier {
       try {
         entries = await gw.list(root);
       } catch (_) {
-        continue; // root sem git (ou offline) → sem forks, sem derrubar as irmãs
+        // `gw.list` LANÇA em falha justamente para não confundir "sem
+        // worktrees" com "não consegui listar" — se seguíssemos em frente, um
+        // soluço de SSH viraria lista vazia, e [applyForks] apagaria os forks
+        // existentes (jogando a seleção de volta no workspace pai). Aborta o
+        // refresh inteiro e tenta de novo no próximo.
+        return;
       }
       if (_worktreeToken[wsId] != token) return; // obsoleto → descarta
       for (final e in entries) {

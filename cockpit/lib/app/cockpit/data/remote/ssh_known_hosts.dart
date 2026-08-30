@@ -2,6 +2,18 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+/// UTF-8 que não estoura em byte inválido.
+///
+/// O default de `Process.run` é o `systemEncoding` — UTF-8 **estrito** no
+/// macOS/Linux —, e o `result.stdout as String` decodifica na hora. Uma linha
+/// com byte fora do UTF-8 (banner de servidor, mensagem do `ssh-keygen`/
+/// `ssh-keyscan` numa locale não-UTF8) virava `FormatException`. Aqui isso não
+/// aparecia como erro: os dois `catch` abaixo engolem tudo e devolvem
+/// `unknown`/lista vazia, então o efeito era o app achar que um host CONHECIDO
+/// é novo, ou não conseguir mostrar fingerprint nenhum no diálogo de TOFU.
+/// Mesma tolerância do `SshTunnel`.
+const _lenientUtf8 = Utf8Codec(allowMalformed: true);
+
 /// Situação da host key de um destino no `~/.ssh/known_hosts` do usuário.
 enum SshHostKeyStatus {
   /// Já confiada: o `ssh` verifica sozinho e nada precisa ser perguntado.
@@ -43,10 +55,12 @@ class SshKnownHosts {
   /// textual nossa não veria.
   Future<SshHostKeyStatus> lookup(String host, int port) async {
     try {
-      final result = await Process.run('ssh-keygen', [
-        '-F',
-        targetOf(host, port),
-      ]).timeout(_timeout);
+      final result = await Process.run(
+        'ssh-keygen',
+        ['-F', targetOf(host, port)],
+        stdoutEncoding: _lenientUtf8,
+        stderrEncoding: _lenientUtf8,
+      ).timeout(_timeout);
       final found =
           result.exitCode == 0 && (result.stdout as String).trim().isNotEmpty;
       return found ? SshHostKeyStatus.known : SshHostKeyStatus.unknown;
@@ -61,12 +75,17 @@ class SshKnownHosts {
   /// linha, comentários removidos), ou vazio se ninguém respondeu.
   Future<List<String>> scan(String host, int port) async {
     try {
-      final result = await Process.run('ssh-keyscan', [
-        '-T',
-        '5',
-        if (port != 22) ...['-p', '$port'],
-        host,
-      ]).timeout(_timeout);
+      final result = await Process.run(
+        'ssh-keyscan',
+        [
+          '-T',
+          '5',
+          if (port != 22) ...['-p', '$port'],
+          host,
+        ],
+        stdoutEncoding: _lenientUtf8,
+        stderrEncoding: _lenientUtf8,
+      ).timeout(_timeout);
       if (result.exitCode != 0) return const [];
       return (result.stdout as String)
           .split('\n')

@@ -135,11 +135,16 @@ class DiagnosticsLog {
   }
 
   void _append(String entry) {
+    final line = '${DateTime.now().toIso8601String()} $entry\n';
+    // Espelha no console ANTES de olhar o arquivo: em `flutter run` é onde
+    // o dev vê primeiro, e é o ÚNICO canal quando não há arquivo — caso do
+    // iOS/iPad, onde o log fica dentro do sandbox e a UI de "revelar pasta"
+    // não leva a lugar nenhum. Com o `return` antes daqui, um cliente sem
+    // arquivo perdia TODO o diagnóstico, inclusive rodando em debug — que é
+    // exatamente quando alguém está tentando enxergar.
+    debugPrint(line.trimRight());
     final file = currentFile;
     if (file == null) return;
-    final line = '${DateTime.now().toIso8601String()} $entry\n';
-    // Espelha no console: em `flutter run` é onde o dev vê primeiro.
-    debugPrint(line.trimRight());
     try {
       if (_truncated) return;
       if (file.existsSync() && file.lengthSync() > maxFileBytes) {

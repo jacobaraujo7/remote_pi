@@ -409,8 +409,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/flterm"
-      ref: cockpit-pin-flterm-ios-recover
-      resolved-ref: f276e41466ac3e526660d59b33acba20c8eb206b
+      ref: "3dc78a42b016ba90ef36f50f16f3c28e4a706f50"
+      resolved-ref: "3dc78a42b016ba90ef36f50f16f3c28e4a706f50"
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
     version: "0.0.5"
@@ -822,8 +822,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/libghostty"
-      ref: cockpit-pin-flterm-ios-recover
-      resolved-ref: f276e41466ac3e526660d59b33acba20c8eb206b
+      ref: "3dc78a42b016ba90ef36f50f16f3c28e4a706f50"
+      resolved-ref: "3dc78a42b016ba90ef36f50f16f3c28e4a706f50"
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
     version: "0.0.12"

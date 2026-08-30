@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/remote/host_shell/host_shell.dart';
+
 /// Túnel SSH para o socket do `cockpit-server` de um host remoto (plano 58,
 /// Wave 2, decisão G): usa o binário `ssh` DO SISTEMA — nada de biblioteca
 /// SSH nem crypto nossa. `~/.ssh/config`, chaves, agent e ProxyJump valem de
@@ -10,6 +12,9 @@ import 'dart:io';
 /// O forward é de socket UDS→UDS: o servidor remoto escuta só em localhost
 /// (nunca expõe porta de rede) e este túnel materializa aquele socket num
 /// path local. Pro cliente, o resultado é indistinguível do loopback.
+/// UTF-8 que não estoura em byte inválido — ver o comentário em [capture].
+const _lenientUtf8 = Utf8Decoder(allowMalformed: true);
+
 class SshTunnel {
   SshTunnel._(
     this._process,
@@ -53,12 +58,18 @@ class SshTunnel {
   /// ([password] setado, plano 60 Wave C): injeta a senha via `SSH_ASKPASS`
   /// (helper efêmero 0600) e aceita host key nova (`accept-new`); nada de senha
   /// em argv nem em variável de ambiente.
+  ///
+  /// [remote] descreve a PONTA REMOTA, já resolvida pelo dialeto do host
+  /// (`HostShell.readEndpoint`): socket UNIX num host POSIX, porta de loopback
+  /// num host Windows. As duas pontas são independentes — as quatro
+  /// combinações existem, e um cliente Windows falando com host Windows é TCP
+  /// dos dois lados.
   static Future<SshTunnel> open({
     required String target,
+    required RemoteEndpoint remote,
     int port = 22,
     String? password,
     String? identityFile,
-    String remoteSocketPath = r'$HOME/.cockpit/cockpit-server.sock',
     Duration timeout = const Duration(seconds: 15),
   }) async {
     // Ponta local: socket UNIX no POSIX; porta de loopback no Windows.
@@ -80,33 +91,15 @@ class SshTunnel {
     );
 
     try {
-      // O forward streamlocal do OpenSSH NÃO resolve path relativo nem expande
-      // `~`/`$HOME` — precisa de path absoluto. Resolvemos a home remota com um
-      // exec rápido antes de abrir o túnel.
-      var resolvedRemote = remoteSocketPath;
-      if (remoteSocketPath.contains(r'$HOME')) {
-        // `ConnectTimeout` limita o connect TCP, mas não um handshake/auth que
-        // trava depois de conectado — daí o teto explícito também aqui. Este
-        // exec roda ANTES do laço com deadline de [open]; sem teto, ele é o
-        // ponto onde a abertura fica pendurada indefinidamente.
-        final result =
-            await Process.run('ssh', [
-              ...authOpts,
-              target,
-              r'printf %s "$HOME"',
-            ], environment: askpass?.env).timeout(
-              timeout,
-              onTimeout: () =>
-                  throw SshTunnelException('timeout resolving remote home'),
-            );
-        if (result.exitCode != 0) {
-          throw SshTunnelException((result.stderr as String).trim());
-        }
-        resolvedRemote = remoteSocketPath.replaceFirst(
-          r'$HOME',
-          (result.stdout as String).trim(),
-        );
-      }
+      // Ponta remota, no formato que o `-L` espera. O `$HOME` já vem resolvido
+      // de fora: o forward streamlocal do OpenSSH NÃO expande `~`/`$HOME`, e
+      // resolvê-lo aqui custava um `Process.run` extra que, num host Windows,
+      // ainda estourava `FormatException` ao decodificar o erro do `cmd` em
+      // CP-850 (o `systemEncoding` do macOS/Linux é UTF-8 estrito).
+      final remoteSpec = switch (remote) {
+        UnixSocketEndpoint(:final path) => path,
+        TcpEndpoint(:final port) => '127.0.0.1:$port',
+      };
 
       final process = await Process.start('ssh', [
         '-N', // só forward, sem shell
@@ -118,13 +111,13 @@ class SshTunnel {
         if (!useTcp) ...['-o', 'StreamLocalBindUnlink=yes'],
         '-L',
         useTcp
-            ? '127.0.0.1:$localTcpPort:$resolvedRemote'
-            : '$localPath:$resolvedRemote',
+            ? '127.0.0.1:$localTcpPort:$remoteSpec'
+            : '$localPath:$remoteSpec',
         target,
       ], environment: askpass?.env);
 
       final stderrBuffer = StringBuffer();
-      process.stderr.transform(utf8.decoder).listen(stderrBuffer.write);
+      process.stderr.transform(_lenientUtf8).listen(stderrBuffer.write);
       unawaited(process.stdout.drain<void>());
 
       final tunnel = SshTunnel._(
@@ -222,6 +215,24 @@ class SshTunnel {
     if (usingPassword) ...[
       '-o',
       'StrictHostKeyChecking=accept-new',
+      // Senha escolhida no cadastro = senha É o método, não o fallback.
+      //
+      // Sem isto o ssh tenta publickey ANTES (agent + `~/.ssh/id_*` + o que o
+      // `~/.ssh/config` mandar) e o `SSH_ASKPASS` nunca chega a ser chamado:
+      // ou uma chave qualquer entra (e o host conecta como outro usuário do
+      // que o cadastro diz), ou as tentativas estouram o `MaxAuthTries` do
+      // servidor e a conexão morre em "Too many authentication failures" /
+      // "Permission denied (publickey)" — com a senha guardada intacta,
+      // nunca oferecida. Era exatamente o caso de quem cadastra com senha
+      // JUSTAMENTE porque a chave não serve.
+      '-o',
+      'PubkeyAuthentication=no',
+      '-o',
+      'PreferredAuthentications=password,keyboard-interactive',
+      // O helper devolve sempre a MESMA senha: repetir 3x só atrasa o erro
+      // (e conta 3 falhas no log/fail2ban do host).
+      '-o',
+      'NumberOfPasswordPrompts=1',
     ] else ...[
       '-o',
       'BatchMode=yes',
@@ -277,8 +288,12 @@ class SshTunnel {
       await process.stdin.close();
       // Os dois streams em paralelo: ler um de cada vez trava se o outro
       // encher o pipe (o `cat` do push manda MBs pelo canal).
-      final outFuture = process.stdout.transform(utf8.decoder).join();
-      final errFuture = process.stderr.transform(utf8.decoder).join();
+      // Decodificação TOLERANTE: um host Windows responde na codepage local
+      // (CP850/CP1252), não em UTF-8 — a mensagem acentuada do cmd ("'uname'
+      // não é reconhecido…") estourava `FormatException: Missing extension
+      // byte` e escondia o erro de verdade atrás de um erro de decodificação.
+      final outFuture = process.stdout.transform(_lenientUtf8).join();
+      final errFuture = process.stderr.transform(_lenientUtf8).join();
       final stdoutText = await outFuture;
       final stderrText = await errFuture;
       final code = await process.exitCode;

@@ -1,4 +1,4 @@
-import 'ssh_tunnel_config.dart';
+import 'package:cockpit_core/cockpit_core.dart';
 
 /// Engine de banco suportado pela DB tab (plano 51). A ordem é a do popup do
 /// "+" no painel Database; novos engines (MSSQL…) entram aqui + no registry.

@@ -1370,6 +1370,23 @@ class _AppearancePanel extends StatelessWidget {
               // faceta do tema (qual variant dele usar), não uma preferência
               // paralela. Separados, a tela mostrava duas coisas chamadas
               // "Theme" e o usuário tinha de adivinhar qual era qual.
+              // Layout antes do tema: é a preferência que muda a FORMA da tela,
+              // e quem procura por ela procura no topo de Aparência.
+              _Section(
+                label: tr.sectionLayout,
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: tr.swapPanelsTitle,
+                      description: tr.swapPanelsDesc,
+                      trailing: Switch(
+                        value: s.swapSidePanels,
+                        onChanged: controller.setSwapSidePanels,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               _Section(
                 label: tr.sectionTheme,
                 child: Column(

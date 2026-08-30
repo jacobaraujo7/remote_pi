@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -14,10 +15,32 @@ class _FakeFs implements FileService {
   final Map<String, String> files;
 
   int listCalls = 0;
+  int inFlight = 0;
+  int peakInFlight = 0;
+
+  /// Segura as listagens de filhas para medir quantas ficam em voo juntas.
+  bool gate = false;
+  final List<Completer<void>> _held = [];
+
+  void release() {
+    for (final c in _held) {
+      c.complete();
+    }
+    _held.clear();
+    gate = false;
+  }
 
   @override
   Future<List<FileEntry>> list(String path) async {
     listCalls++;
+    if (gate) {
+      inFlight++;
+      if (inFlight > peakInFlight) peakInFlight = inFlight;
+      final c = Completer<void>();
+      _held.add(c);
+      await c.future;
+      inFlight--;
+    }
     final entries = dirs[path];
     if (entries == null) throw StateError('not found: $path');
     return [
@@ -117,7 +140,7 @@ void main() {
     expect(await finder.deriveRoots('/srv/home'), ['/srv/home']);
     // Barrou antes de inspecionar as filhas: só a listagem da raiz e o teste
     // de `.git` da própria pasta.
-    expect(fs.listCalls, lessThanOrEqualTo(2));
+    expect(fs.listCalls, 1);
   });
 
   test('barra final não muda o resultado', () async {
@@ -125,5 +148,32 @@ void main() {
       '/srv/mono': ['.git'],
     });
     expect(await RemoteRootFinder(fs).deriveRoots('/srv/mono/'), ['/srv/mono']);
+  });
+
+  test('a raiz é listada uma vez só (não duplica o round-trip)', () async {
+    final fs = _FakeFs({
+      '/srv/ws': ['app', 'api'],
+      '/srv/ws/app': ['.git'],
+      '/srv/ws/api': ['.git'],
+    });
+    await RemoteRootFinder(fs).deriveRoots('/srv/ws');
+    // 1 na raiz + 1 por filha. A raiz respondia "tem .git?" e "quais filhas?"
+    // em duas listagens; agora é uma.
+    expect(fs.listCalls, 3);
+  });
+
+  test('respeita o teto de listagens simultâneas', () async {
+    final many = [for (var i = 0; i < 40; i++) 'p$i'];
+    final fs = _FakeFs({
+      '/srv/ws': many,
+      for (final p in many) '/srv/ws/$p': ['.git'],
+    })..gate = true;
+    final done = RemoteRootFinder(fs).deriveRoots('/srv/ws');
+    await pumpEventQueue();
+    // Nunca mais que [maxConcurrency] em voo: todas viajam pelo mesmo canal
+    // SSH, e no mobile o transporte divide o isolate com a UI.
+    expect(fs.peakInFlight, lessThanOrEqualTo(RemoteRootFinder.maxConcurrency));
+    fs.release();
+    await done;
   });
 }

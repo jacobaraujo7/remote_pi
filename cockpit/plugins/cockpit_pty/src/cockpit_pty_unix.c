@@ -4,6 +4,7 @@
 #include <stdlib.h>
 
 #include <pthread.h>
+#include <signal.h>
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
@@ -253,6 +254,28 @@ FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols)
     ws.ws_col = cols;
 
     return ioctl(handle->ptm, TIOCSWINSZ, &ws);
+}
+
+/// Encerra o shell e a sessão inteira (sinal ao process group).
+///
+/// Mantido por simetria com a implementação Windows, e disponível a quem
+/// chamar direto. O `kill()` do Dart NÃO usa este caminho em POSIX: lá ele
+/// segue no `Process.killPid`, que já alcançava a sessão (o `forkpty` faz do
+/// shell um líder de sessão) e é o caminho testado em produção. No Windows não
+/// existe equivalente, e é por isso que lá o Job Object é obrigatório.
+FFI_PLUGIN_EXPORT int pty_kill(PtyHandle *handle)
+{
+    if (handle == NULL)
+    {
+        return -1;
+    }
+    // Negativo = grupo inteiro. Se o grupo sumiu (shell já morreu), tenta o
+    // processo direto antes de desistir.
+    if (kill(-handle->pid, SIGTERM) == 0)
+    {
+        return 0;
+    }
+    return kill(handle->pid, SIGTERM) == 0 ? 0 : -1;
 }
 
 FFI_PLUGIN_EXPORT int pty_getpid(PtyHandle *handle)

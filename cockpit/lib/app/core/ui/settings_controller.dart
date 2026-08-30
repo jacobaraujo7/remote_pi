@@ -268,6 +268,10 @@ class SettingsController extends ChangeNotifier {
   void setShowCockpit(bool value) =>
       _apply(_settings.copyWith(showCockpit: value));
 
+  /// Inverte o lado dos painéis laterais (workspaces à direita).
+  void setSwapSidePanels(bool value) =>
+      _apply(_settings.copyWith(swapSidePanels: value));
+
   /// Liga/desliga "iniciar com o sistema": grava a preferência na hora (UI
   /// reflete imediato) e aplica no SO em background; se o SO recusar, reconcilia
   /// a preferência com o estado efetivo lido de volta.

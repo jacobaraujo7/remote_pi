@@ -116,7 +116,18 @@ class SidecarTerminalConnector implements TurnStatusSource {
       final ptyDylib = File('$libDir/${_ptyLibName()}');
       _child = await Process.start(
         binary,
-        ['--socket', socketPath, '--exit-on-idle', '15'],
+        [
+          '--socket',
+          socketPath,
+          '--exit-on-idle',
+          '15',
+          // Amarra a vida do sidecar à do app: quando este processo morre, o
+          // kernel fecha a ponta de escrita do stdin do filho e ele sai por
+          // EOF. Cobre a morte ABRUPTA (Force Quit, kill -9, crash), que o
+          // `dispose()` não cobre porque não chega a rodar. Fora do Windows é
+          // a única amarra que existe — lá o Job Object abaixo já garante.
+          '--exit-on-parent-close',
+        ],
         environment: {
           ...Platform.environment,
           if (ptyDylib.existsSync()) 'COCKPIT_PTY_DYLIB': ptyDylib.path,

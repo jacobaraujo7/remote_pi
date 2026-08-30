@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/data/db/local_socks_server.dart';
-import 'package:cockpit/app/cockpit/data/db/ssh_key_pem.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
-import 'package:cockpit/app/cockpit/domain/entities/ssh_tunnel_config.dart';
+import 'ssh_log.dart';
+
+import 'local_socks_server.dart';
+import 'ssh_key_pem.dart';
+import 'ssh_tunnel.dart';
+import 'ssh_tunnel_config.dart';
 import 'package:dartssh2/dartssh2.dart';
-import 'package:flutter/foundation.dart';
 
 /// Túnel SSH em Dart puro (`dartssh2`) com port-forward local.
 ///
@@ -223,6 +224,8 @@ class SshTunnelImpl implements SshTunnel {
     // pra virar mensagem honesta depois (dentro do handler não dá pra lançar
     // sem o dartssh2 traduzir tudo pra um erro de handshake genérico).
     String? rejection;
+    String? rejectedEndpoint;
+    String? rejectedFingerprint;
 
     final SSHClient client;
     try {
@@ -242,6 +245,10 @@ class SshTunnelImpl implements SshTunnel {
         authTimeout: _handshakeTimeout,
         onVerifyHostKey: (type, fingerprint) async {
           final printed = utf8.decode(fingerprint);
+          // Guardados para a exceção: são o que permite oferecer "confiar"
+          // num cliente do outro lado do protocolo (plano 62, onda 2).
+          rejectedEndpoint = config.endpoint;
+          rejectedFingerprint = printed;
           final known = _hostKeys.trusted(config.endpoint);
           if (known == printed) return true;
           if (known != null) {
@@ -283,6 +290,8 @@ class SshTunnelImpl implements SshTunnel {
         throw SshTunnelException(
           reason.substring(0, split),
           reason.substring(split + 1),
+          endpoint: rejectedEndpoint,
+          fingerprint: rejectedFingerprint,
         );
       }
       if (e is SSHAuthFailError || e is SSHAuthAbortError) {
@@ -354,7 +363,7 @@ class _ActiveTunnel {
     } on Object catch (e) {
       // Porta fechada do outro lado do bastion: derruba só esta conexão — o
       // driver reporta como falha de conexão, que é o que de fato houve.
-      debugPrint('SSH forward to $targetHost:$targetPort failed: $e');
+      sshLog('SSH forward to $targetHost:$targetPort failed: $e');
       await local.close();
       return;
     }

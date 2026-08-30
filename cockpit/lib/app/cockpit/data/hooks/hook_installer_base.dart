@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:cockpit/app/cockpit/domain/contracts/hook_installer.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
@@ -13,6 +16,38 @@ import 'package:cockpit/app/core/domain/result.dart';
 /// (`<cli> hook`) e o mesmo envelope JSON pelo stdin.
 abstract class HookInstallerBase implements HookInstaller {
   const HookInstallerBase();
+
+  /// Serializa, POR CAMINHO DE DESTINO, quem escreve um binário.
+  ///
+  /// O `bootstrapper` dispara os instaladores de Claude e Codex em paralelo
+  /// (`unawaited`, sem esperar um pelo outro), mas os dois materializam **o
+  /// mesmo** `~/.cockpit/bin-<flavor>/cockpit.exe`. Sem isto, ambos veem o
+  /// destino ausente, pulam o delete de [_copyOver] e chamam `File.copy`
+  /// concorrentemente: um vence e o outro morre com `PathExistsException`
+  /// (errno 183) — que é como o bug se manifestava no Windows, inclusive com a
+  /// pasta recém-criada. No POSIX a corrida existia igual, só era silenciosa
+  /// porque lá `copy` sobrescreve.
+  ///
+  /// Estático de propósito: as instâncias são `const` e distintas por harness,
+  /// então o lock precisa viver no tipo, não no objeto.
+  static final Map<String, Future<void>> _writeLocks = {};
+
+  static Future<T> _serialized<T>(String key, Future<T> Function() body) async {
+    final previous = _writeLocks[key];
+    final done = Completer<void>();
+    _writeLocks[key] = done.future;
+    if (previous != null) {
+      // Falha do anterior não contamina o próximo: cada tentativa é
+      // independente e best-effort.
+      await previous.catchError((_) {});
+    }
+    try {
+      return await body();
+    } finally {
+      done.complete();
+      if (identical(_writeLocks[key], done.future)) _writeLocks.remove(key);
+    }
+  }
 
   @override
   Future<Result<void, String>> ensureInstalled() async {
@@ -99,12 +134,67 @@ abstract class HookInstallerBase implements HookInstaller {
       destName: destName,
     );
     if (path == null) return null;
+    await ensureShortAlias(dir, destName);
     try {
       await Process.run(path, <String>['install-skill']);
     } catch (_) {
       /* best-effort */
     }
     return path;
+  }
+
+  /// Nome curto da CLI — `ck` digita melhor que `cockpit` num terminal onde o
+  /// agente (ou o humano) chama o comando o tempo todo.
+  ///
+  /// É o **mesmo binário**, não um segundo programa: nada muda de acordo com o
+  /// nome pelo qual foi invocado, e a ajuda segue dizendo `cockpit`. Se o
+  /// usuário já tem um `ck` próprio, o alias de shell dele vence o PATH e nada
+  /// se quebra.
+  static const String shortAliasName = 'ck';
+
+  /// Cria o alias ao lado da CLI já materializada.
+  ///
+  /// POSIX usa symlink (custo zero em disco). No Windows o symlink exige
+  /// Developer Mode ou privilégio de administrador, então lá é uma cópia do
+  /// mesmo `.exe` — funciona em PowerShell, cmd e git-bash sem privilégio
+  /// nenhum, e evita as pegadinhas de um shim `.cmd` com código de saída e
+  /// aspas em argumentos.
+  ///
+  /// Silencioso: o alias é conveniência, nunca motivo para falhar o boot.
+  @visibleForTesting
+  Future<void> ensureShortAlias(String dirPath, String cliName) async {
+    final aliasName = Platform.isWindows
+        ? '$shortAliasName.exe'
+        : shortAliasName;
+    final target = File('$dirPath/$cliName');
+    final alias = '$dirPath/$aliasName';
+    try {
+      if (!await target.exists()) return;
+      // Mesmo destino para os dois harnesses (ver [_serialized]): sem o lock,
+      // Claude e Codex criam o alias em paralelo e um dos dois falha.
+      await _serialized(alias, () async {
+        if (Platform.isWindows) {
+          final dest = File(alias);
+          if (await _sameContent(target, dest)) return;
+          await _copyOver(target, alias);
+          return;
+        }
+        final link = Link(alias);
+        // Já aponta para o lugar certo? Não mexe. Aponta para outra coisa (ou
+        // sobrou um arquivo solto de uma versão anterior): refaz.
+        if (await link.exists()) {
+          if (await link.target() == cliName) return;
+          await link.delete();
+        } else if (await File(alias).exists()) {
+          await File(alias).delete();
+        }
+        // Alvo RELATIVO: a pasta pode ser movida junto com o `$HOME` (backup,
+        // usuário renomeado) sem o link virar ponteiro morto.
+        await link.create(cliName);
+      });
+    } on Object {
+      /* best-effort */
+    }
   }
 
   /// Copia um binário empacotado ([bundledName]) para `[destDirPath]/[destName]`.
@@ -126,17 +216,57 @@ abstract class HookInstallerBase implements HookInstaller {
 
     final bundled = _bundledHelper(bundledName);
     if (bundled != null && await bundled.exists()) {
-      if (!await _sameContent(bundled, dest)) {
+      // A checagem de conteúdo entra DENTRO do lock junto da cópia: fora dele
+      // ela é só um palpite, e dois instaladores concorrentes decidiriam
+      // "desatualizado" ao mesmo tempo e copiariam em cima um do outro.
+      await _serialized(dest.path, () async {
+        if (await _sameContent(bundled, dest)) return;
         await destDir.create(recursive: true);
-        await bundled.copy(dest.path);
+        await _copyOver(bundled, dest.path);
         await _chmodExec(dest.path);
-      }
+      });
       return hookPath(dest.path);
     }
 
     // Dev / sem bundle: usa cópia pré-existente (colocada manualmente).
     if (await dest.exists()) return hookPath(dest.path);
     return null;
+  }
+
+  /// Copia [src] por cima de [destPath], sobrescrevendo o que estiver lá.
+  ///
+  /// `File.copy` **não** sobrescreve no Windows: o destino existente faz o
+  /// `CopyFile` do Win32 falhar com `ERROR_ALREADY_EXISTS` (errno 183), e a
+  /// instalação do hook morria em `PathExistsException` já na segunda execução
+  /// do app — a primeira criava o arquivo, todas as seguintes batiam nele. No
+  /// POSIX o `copy` sobrescreve sozinho, então o bug só aparecia no Windows.
+  ///
+  /// Remover antes resolve, com um porém: um `.exe` **em uso** não pode ser
+  /// apagado no Windows, mas pode ser **renomeado**. Então, se o delete falhar,
+  /// empurramos o velho para um `.old` ao lado e copiamos por cima — é assim que
+  /// atualizador de binário no Windows funciona. O `.old` é descartável e a
+  /// próxima passada o remove.
+  Future<void> _copyOver(File src, String destPath) async {
+    final dest = File(destPath);
+    try {
+      if (await dest.exists()) await dest.delete();
+    } on FileSystemException {
+      /* provavelmente em uso — o `exists` abaixo decide o que fazer */
+    }
+    // Recheca em vez de renomear direto do `catch`: no Windows o delete de um
+    // arquivo aberto com FILE_SHARE_DELETE pode lançar E ainda assim levar o
+    // arquivo embora. Renomear às cegas nesse caso dava
+    // `PathNotFoundException` — trocando um erro por outro.
+    if (await dest.exists()) {
+      final stale = File('$destPath.old');
+      try {
+        if (await stale.exists()) await stale.delete();
+      } on FileSystemException {
+        /* sobra de uma troca anterior ainda presa; o rename abaixo decide */
+      }
+      await dest.rename(stale.path);
+    }
+    await src.copy(destPath);
   }
 
   /// `true` quando [dest] já é byte-a-byte igual a [src]. O tamanho é só o

@@ -20,6 +20,16 @@ abstract interface class DbConnectionStore {
 /// nunca degradar silenciosamente (lição do pareamento).
 abstract interface class DbSecrets {
   Future<void> write(String key, String value);
-  Future<String?> read(String key);
+
+  /// Lê o segredo de [key].
+  ///
+  /// [legacyKey] é a chave do formato ANTERIOR ao cofre único (plano 62): as
+  /// senhas locais viviam no cofre do SO, chaveadas pelo `workspaceId`, que é
+  /// gerado por máquina. Quando [key] não existe e [legacyKey] sim, o valor é
+  /// **migrado** para o cofre novo e apagado do antigo — é o que faz a senha
+  /// digitada no host, antes desta versão, passar a valer para os clientes
+  /// remotos sem ninguém redigitar.
+  Future<String?> read(String key, {String? legacyKey});
+
   Future<void> delete(String key);
 }

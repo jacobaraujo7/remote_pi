@@ -2212,6 +2212,22 @@ class CockpitViewModel extends ChangeNotifier {
   /// Pane focada do projeto.
   String? focusedPaneId(String projectId) => _focused[projectId];
 
+  /// A aba em foco com o que é preciso para agir sobre ela: pane, id e a
+  /// sessão. Usado pelo ⌘W (que precisa saber se há edição não salva antes de
+  /// fechar); [focusedTabId] continua servindo a quem só quer o id.
+  ///
+  /// `null` quando não há projeto/pane/aba, e também quando a aba é o
+  /// placeholder de pane vazia — que não é fechável.
+  (String paneId, String tabId, PaneItem item)? focusedTab() {
+    final paneId = _focusedLeaf()?.$1;
+    final tabId = focusedTabId;
+    if (paneId == null || tabId == null) return null;
+    final item = _sessions[tabId];
+    if (item == null) return null;
+    if (item is AgentSession && item.status == AgentStatus.empty) return null;
+    return (paneId, tabId, item);
+  }
+
   /// Id da **aba em foco**: a aba ativa da pane focada, no projeto selecionado.
   /// É o que a CLI resolve quando recebe `--focused`, pra uma ferramenta externa
   /// (ex.: ditado por voz) poder digitar onde o usuário está olhando sem
@@ -2291,7 +2307,15 @@ class CockpitViewModel extends ChangeNotifier {
     // GC do scrollback: apaga arquivos de sessões de terminal que sumiram de
     // TODOS os layouts. Varre todos os layouts salvos (não só o ativo: a
     // reconstrução é lazy), senão apagaria o scrollback de projetos não-ativados.
-    unawaited(_scrollback.pruneExcept(_persistedTerminalIds()));
+    // O GC varre os layouts EM DISCO (e não só os carregados acima): os forks
+    // de worktree entram na lista de projetos depois do boot, e varrer apenas
+    // a memória apagava o scrollback dos terminais deles a cada abertura do
+    // app — era por isso que um `claude` num worktree nunca voltava.
+    unawaited(
+      _layoutStore.loadAll().then(
+        (docs) => _scrollback.pruneExcept(_terminalIdsIn(docs.values)),
+      ),
+    );
     // Injeta o workspace de sistema "Cockpit" (terminal-only), se habilitado.
     // Depois do carregamento de layouts (ele não tem layout salvo) e antes da
     // seleção inicial (que pode cair nele no 1º boot).
@@ -4995,14 +5019,13 @@ class CockpitViewModel extends ChangeNotifier {
   }
 
   /// Chaves de scrollback a preservar no GC do boot: o `id` de cada sessão
-  /// `terminal` e o `taskId` de cada `task_output` presentes em QUALQUER layout
-  /// salvo. (O store de scrollback é compartilhado — logs de terminal sob o
-  /// `projectId` real, logs de task sob `__tasks__/<taskId>` —, mas o prune casa
-  /// por nome de arquivo, então o keep-set é a união das duas chaves.) Lê os
-  /// descritores `sessions` dos docs já carregados em [_savedLayouts].
-  Set<String> _persistedTerminalIds() {
+  /// `terminal` e o `taskId` de cada `task_output` citados por [docs]. O store
+  /// de scrollback é compartilhado — logs de terminal sob o `projectId` real,
+  /// logs de task sob `__tasks__/<taskId>` —, mas o prune casa por nome de
+  /// arquivo, então o keep-set é a união das duas chaves.
+  Set<String> _terminalIdsIn(Iterable<Map<String, dynamic>?> docs) {
     final ids = <String>{};
-    for (final doc in _savedLayouts.values) {
+    for (final doc in docs) {
       if (doc == null) continue;
       final sessions = doc['sessions'];
       if (sessions is! Map) continue;
@@ -5069,9 +5092,33 @@ class CockpitViewModel extends ChangeNotifier {
   /// árvore + sessões; senão, abre uma pane vazia. Idempotente: já-ativo é no-op.
   Future<void> _activateProject(String id) async {
     if (_trees.containsKey(id)) return;
+    // Projeto que entrou na lista DEPOIS do boot — todo fork de worktree é
+    // assim, local ou remoto: eles são derivados do `git worktree list`, que
+    // só responde depois das duas passagens de carga do `init`. Sem esta
+    // busca no disco, `_savedLayouts[fork]` vinha ausente e o fork abria numa
+    // pane vazia: as abas salvas não voltavam e o `claude --resume` sumia,
+    // enquanto o workspace pai (carregado no boot) restaurava normalmente.
+    //
+    // A chave AUSENTE é diferente de valor `null`: `null` significa "já
+    // procurei, não há layout" e não repete a leitura.
+    if (!_savedLayouts.containsKey(id)) {
+      _savedLayouts[id] = await _layoutStore.load(id);
+    }
     final doc = _savedLayouts[id];
     if (doc == null) {
       _initTree(id); // síncrono — pane vazia padrão
+      // NOTIFICAR É OBRIGATÓRIO AQUI, e não só no caminho de restore abaixo.
+      // `_initTree` muta `_trees`/`_focused` em silêncio, e no boot este método
+      // roda dentro de um `addPostFrameCallback` — ou seja, DEPOIS do frame que
+      // renderizou com `tree == null`. Sem o notify, o `_multiplexer` fica
+      // preso naquele frame (devolve `SizedBox.shrink()`) e o workspace inteiro
+      // aparece em branco abaixo da topbar, indefinidamente.
+      //
+      // O bug parecia intermitente porque qualquer notify assíncrono posterior
+      // (git.refresh, worktrees, probe de IDEs, sidecar) mascarava a falta
+      // deste — uma corrida. Quando nenhum chegava, a tela ficava cinza até o
+      // usuário clicar em algo, e era isso que "consertava" ao abrir o rail.
+      notifyListeners();
       return;
     }
     _restoring = true;

@@ -439,6 +439,21 @@ class CockpitPtyBindings {
   late final _pty_resize = _pty_resizePtr
       .asFunction<int Function(ffi.Pointer<PtyHandle>, int, int)>();
 
+  /// Encerra o shell e toda a sua descendência. 0 = sucesso.
+  int pty_kill(
+    ffi.Pointer<PtyHandle> handle,
+  ) {
+    return _pty_kill(
+      handle,
+    );
+  }
+
+  late final _pty_killPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Pointer<PtyHandle>)>>(
+          'pty_kill');
+  late final _pty_kill =
+      _pty_killPtr.asFunction<int Function(ffi.Pointer<PtyHandle>)>();
+
   int pty_getpid(
     ffi.Pointer<PtyHandle> handle,
   ) {

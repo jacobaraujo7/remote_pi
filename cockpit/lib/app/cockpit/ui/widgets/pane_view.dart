@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
+import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
@@ -647,26 +648,10 @@ class _TabState extends State<_Tab> {
 
   /// Fecha a aba pedindo confirmação se for um arquivo com edição não salva:
   /// descartar, cancelar ou salvar-e-fechar. Demais abas fecham direto.
-  Future<void> _requestClose() async {
-    final s = widget.item;
-    if (s is! FileViewerSession || !s.dirty) {
-      widget.onClose();
-      return;
-    }
-    final choice = await showCloseDirtyDialog(context, fileName: s.title);
-    if (!mounted) return;
-    switch (choice) {
-      case CloseDirtyChoice.cancel:
-        return;
-      case CloseDirtyChoice.dontSave:
-        widget.onClose();
-      case CloseDirtyChoice.save:
-        // Salva o buffer atual; só fecha se gravou (erro de IO mantém aberto).
-        final ok = await s.saveDraft?.call() ?? false;
-        if (!mounted) return;
-        if (ok) widget.onClose();
-    }
-  }
+  /// Regra compartilhada com o ⌘W (ver `actions/tab_actions.dart`): o X e o
+  /// atalho não podem divergir sobre o que fazer com edição não salva.
+  Future<void> _requestClose() =>
+      requestCloseTab(context, widget.item, widget.onClose);
 
   Future<void> _showTabMenu(BuildContext menuCtx) async {
     final s = widget.item;

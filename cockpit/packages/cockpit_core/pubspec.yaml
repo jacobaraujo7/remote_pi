@@ -6,5 +6,14 @@ publish_to: none
 environment:
   sdk: ^3.9.0
 
+dependencies:
+  # Cofre de senhas de banco cifrado (AES-GCM). Dart puro, sem Flutter — este
+  # pacote é compartilhado pelo app e pelo cockpit-server, e os dois precisam
+  # ler e escrever o MESMO arquivo (plano 62: um cofre por máquina).
+  crypto: ^3.0.7
+  pointycastle: ^4.0.0
+  # Motor de túnel SSH (Dart puro) — ver src/ssh/.
+  dartssh2: ^2.22.4
+
 dev_dependencies:
   test: ^1.25.0

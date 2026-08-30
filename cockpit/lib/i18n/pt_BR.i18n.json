@@ -505,7 +505,8 @@
       "deleteConnectionMessage": "Remover \"${name}\" deste workspace? Qualquer senha salva será descartada. Arquivos .dbq que fazem referência a ela não são afetados.",
       "footer": ".cockpit/databases.json · ${n} conexões",
       "footerOne": ".cockpit/databases.json · 1 conexão",
-      "noConnections": "Nenhuma conexão ainda."
+      "noConnections": "Nenhuma conexão ainda.",
+      "passwordRequired": "Senha não encontrada no host. Abra esta conexão e digite-a de novo — ela fica salva na máquina que executa o banco, não nesta."
     },
     "dbMongoView": {
       "deleteDocumentTitle": "Excluir documento",
@@ -549,7 +550,8 @@
       "choosePrivateKeyPlaceholder": "Escolha uma chave privada…",
       "choosePrivateKeyDialogTitle": "Escolher chave privada SSH",
       "keyPassphrase": "Senha da chave",
-      "savePassphrase": "Salvar senha da chave"
+      "savePassphrase": "Salvar senha da chave",
+      "passwordOnHost": "A senha fica salva no host, não nesta máquina."
     },
     "sshPrompts": {
       "unknownSshHostTitle": "Host SSH desconhecido",
@@ -666,8 +668,8 @@
       "pickFolderTitle": "Abrir pasta em ${host}",
       "openHere": "Abrir aqui",
       "emptyFolder": "Sem subpastas",
-      "newLocal": "Novo workspace local",
-      "newRemote": "Novo workspace remoto",
+      "newLocal": "Local",
+      "newRemote": "Remoto",
       "chooseHost": "Escolher um host",
       "newHostEntry": "Novo host…",
       "editHost": "Editar host",
@@ -688,6 +690,8 @@
       "errIdentity": "Escolha a chave privada para autenticar.",
       "errHostKeyUnknown": "O Cockpit ainda não confia em ${host}. Conecte de novo e confirme o fingerprint.",
       "errHostKeyChanged": "${host} está apresentando uma chave SSH diferente da guardada. Se você não reinstalou essa máquina, pare e verifique — se reinstalou, remova a entrada antiga do ~/.ssh/known_hosts.",
+      "errHostBundleMissing": "${host} é Windows mas não tem o Cockpit instalado. O servidor remoto é instalado a partir do bundle do Cockpit que já está naquela máquina — instale o Cockpit lá e tente de novo.",
+      "errHostUnknownOs": "Não foi possível identificar o sistema de ${host}. A conta pode ter shell restrito, ou nenhum shell.",
       "errIdentityPublic": "Só a chave pública está aqui. Isso só funciona se a privada estiver no seu agente SSH; senão, escolha a privada (mesmo nome, sem .pub).",
       "errIdentityNotKey": "Esse arquivo não parece uma chave privada.",
       "errIdentityMissingFile": "Esse arquivo não existe mais.",
@@ -862,7 +866,10 @@
         "fontPickerCustomHint": "Nome da família",
         "fontPickerUse": "Usar",
         "fontPickerDefault": "Padrão",
-        "fontMissing": "Não encontrada nesta máquina — usando o fallback."
+        "fontMissing": "Não encontrada nesta máquina — usando o fallback.",
+        "sectionLayout": "Layout",
+        "swapPanelsTitle": "Inverter panes",
+        "swapPanelsDesc": "Coloca os workspaces à direita e arquivos, busca, git e banco à esquerda."
       },
       "notifications": {
         "sectionTitle": "Notificações",

@@ -1,8 +1,8 @@
+import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:async';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
-import 'package:cockpit/app/cockpit/domain/entities/ssh_tunnel_config.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/database_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -764,7 +764,7 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
               // connection string mostra o texto na tela, e quem liga esse
               // switch está justamente evitando senha em claro. Preenchido,
               // tem precedência sobre a que estiver na URL.
-              if (_savePassword)
+              if (_savePassword) ...[
                 _field(
                   context.t.cockpit.dbConnectionDialog.password,
                   _pass,
@@ -773,6 +773,19 @@ class _DbConnectionDialogState extends State<DbConnectionDialog> {
                       ? '*******'
                       : null,
                 ),
+                // Workspace remoto: o segredo vai pro cofre do HOST, não pro
+                // desta máquina (plano 62). Dizer isso importa porque as
+                // garantias são outras — e porque é o que faz a conexão
+                // funcionar de qualquer cliente, que era a expectativa.
+                if (widget.viewModel.isRemoteWorkspace)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      context.t.cockpit.dbConnectionDialog.passwordOnHost,
+                      style: typo.label.copyWith(fontSize: 10.5, color: colors.text4),
+                    ),
+                  ),
+              ],
               _sshSection(colors, typo),
             ],
             // Guardrails dos agentes (CLI). GUI nunca é bloqueada.

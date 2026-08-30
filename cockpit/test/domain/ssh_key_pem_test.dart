@@ -1,5 +1,4 @@
-import 'package:cockpit/app/cockpit/data/db/ssh_key_pem.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
+import 'package:cockpit_core/cockpit_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Detecção de chave encriptada (plano 54, passo 4). É o que decide se o

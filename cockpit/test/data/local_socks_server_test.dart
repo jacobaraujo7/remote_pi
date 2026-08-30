@@ -1,7 +1,7 @@
+import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/data/db/local_socks_server.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Canal em memória ligado a um servidor TCP local — faz o papel do

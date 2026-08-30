@@ -100,6 +100,31 @@ void main() {
       await s.remove('p1');
       expect(await s.load('p1'), isNull);
     });
+
+    test(
+      'loadAll devolve TODOS os layouts salvos, inclusive de forks',
+      () async {
+        // O GC do scrollback depende disto: os forks de worktree entram na lista
+        // de projetos depois do boot, então varrer só o que está em memória
+        // apagaria o scrollback dos terminais deles.
+        final s = JsonWorkspaceLayoutStore(store);
+        await s.save('root', {'tree': {}});
+        await s.save('root::/repo/.cockpit/worktrees/fix', {'tree': {}});
+
+        final all = await s.loadAll();
+        expect(
+          all.keys,
+          containsAll(<String>['root', 'root::/repo/.cockpit/worktrees/fix']),
+        );
+      },
+    );
+
+    test('documento corrompido fica de fora do loadAll', () async {
+      final s = JsonWorkspaceLayoutStore(store);
+      await store.put('quebrado', 'nao é json');
+      await s.save('ok', {'tree': {}});
+      expect((await s.loadAll()).keys, ['ok']);
+    });
   });
 
   group('JsonDismissedUpdateStore', () {

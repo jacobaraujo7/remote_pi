@@ -22,6 +22,10 @@ String remoteHostErrorMessage(
     RemoteHostErrorKind.protocol => tr.errInstallFailed(host: host),
     RemoteHostErrorKind.hostKeyUnknown => tr.errHostKeyUnknown(host: host),
     RemoteHostErrorKind.hostKeyChanged => tr.errHostKeyChanged(host: host),
+    RemoteHostErrorKind.hostBundleMissing => tr.errHostBundleMissing(
+      host: host,
+    ),
+    RemoteHostErrorKind.hostUnknownOs => tr.errHostUnknownOs(host: host),
   };
   // Chave trocada tem stderr gigante do ssh (o bloco "REMOTE HOST
   // IDENTIFICATION HAS CHANGED", com arte ASCII) — a frase traduzida já diz o

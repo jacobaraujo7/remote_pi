@@ -111,8 +111,9 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
             handled = true;
             await sub.cancel();
             String? response;
+            void Function()? after;
             try {
-              response = await _dispatch(line);
+              (response, after) = await _dispatch(line);
             } catch (_) {
               response = null;
             }
@@ -125,6 +126,10 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
               }
             }
             socket.destroy();
+            // Efeito pós-resposta (ver `CockpitCommandResult.afterResponse`):
+            // só aqui o `close-tab` da própria aba pode matar o PTY sem levar
+            // junto o `cockpit` que esperava o `ok`.
+            after?.call();
           },
           onError: (_) => socket.destroy(),
           onDone: () {
@@ -135,27 +140,32 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
   }
 
   /// Processa uma linha JSON. Devolve a linha de resposta a escrever de volta
-  /// (comandos da CLI), ou `null` quando não há resposta (status do hook).
-  Future<String?> _dispatch(String raw) async {
+  /// (comandos da CLI) — `null` quando não há resposta (status do hook) — e o
+  /// efeito a rodar DEPOIS de a resposta ter saído (ver
+  /// `CockpitCommandResult.afterResponse`).
+  Future<(String?, void Function()?)> _dispatch(String raw) async {
     final line = raw.trim();
-    if (line.isEmpty) return null;
+    if (line.isEmpty) return (null, null);
     try {
       final decoded = jsonDecode(line);
-      if (decoded is! Map) return null;
+      if (decoded is! Map) return (null, null);
       final isCmd = decoded['type'] == 'cmd';
       // No Windows/TCP, exige o token (anti-spoof do loopback).
       if (_token != null && decoded['tok'] != _token) {
-        return isCmd
-            ? jsonEncode(
-                const CockpitCommandResult.fail('invalid token').toJson(),
-              )
-            : null;
+        return (
+          isCmd
+              ? jsonEncode(
+                  const CockpitCommandResult.fail('invalid token').toJson(),
+                )
+              : null,
+          null,
+        );
       }
       if (isCmd) return _dispatchCommand(decoded);
       // Caminho de status (default / `type` ausente): fire-and-forget.
       final paneId = (decoded['paneId'] ?? '').toString();
       final status = (decoded['st'] ?? '').toString();
-      if (paneId.isEmpty || status.isEmpty) return null;
+      if (paneId.isEmpty || status.isEmpty) return (null, null);
       final sid = (decoded['sid'] ?? '').toString();
       final tx = (decoded['tx'] ?? '').toString();
       final ev = (decoded['ev'] ?? '').toString();
@@ -170,18 +180,23 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
           harness: hn.isEmpty ? null : hn,
         ),
       );
-      return null;
+      return (null, null);
     } catch (_) {
       // linha malformada: sem resposta (a CLI reporta timeout/erro de leitura).
-      return null;
+      return (null, null);
     }
   }
 
-  Future<String?> _dispatchCommand(Map<dynamic, dynamic> decoded) async {
+  Future<(String?, void Function()?)> _dispatchCommand(
+    Map<dynamic, dynamic> decoded,
+  ) async {
     final handler = _onCommand;
     if (handler == null) {
-      return jsonEncode(
-        const CockpitCommandResult.fail('commands unavailable').toJson(),
+      return (
+        jsonEncode(
+          const CockpitCommandResult.fail('commands unavailable').toJson(),
+        ),
+        null,
       );
     }
     final tabRaw = (decoded['tabId'] ?? '').toString();
@@ -194,7 +209,7 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
           : const <String, dynamic>{},
     );
     final result = await handler(command);
-    return jsonEncode(result.toJson());
+    return (jsonEncode(result.toJson()), result.afterResponse);
   }
 
   @override

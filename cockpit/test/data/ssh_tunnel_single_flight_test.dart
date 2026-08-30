@@ -1,6 +1,4 @@
-import 'package:cockpit/app/cockpit/data/db/ssh_tunnel_impl.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/ssh_tunnel.dart';
-import 'package:cockpit/app/cockpit/domain/entities/ssh_tunnel_config.dart';
+import 'package:cockpit_core/cockpit_core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _NoHostKeys implements SshHostKeyStore {

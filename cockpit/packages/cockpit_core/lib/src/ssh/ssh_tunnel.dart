@@ -1,4 +1,4 @@
-import '../entities/ssh_tunnel_config.dart';
+import 'ssh_tunnel_config.dart';
 
 /// Ponta local de um túnel ativo: onde o driver de banco deve conectar.
 /// Sempre em `127.0.0.1` — o listener é do nosso processo e nunca é exposto na
@@ -72,10 +72,24 @@ abstract interface class SshTunnel {
 /// pro chamador decidir (o `ssh_credential_required`, em especial, é o que a
 /// GUI converte em prompt e a CLI em erro honesto).
 class SshTunnelException implements Exception {
-  const SshTunnelException(this.kind, this.message);
+  const SshTunnelException(
+    this.kind,
+    this.message, {
+    this.endpoint,
+    this.fingerprint,
+  });
 
   final String kind;
   final String message;
+
+  /// `user@host:port` do bastion, nos kinds de host key. Preenchido para que
+  /// quem recebe a falha **do outro lado do fio** possa oferecer "confiar"
+  /// sem ter que extrair isso da prosa da mensagem.
+  final String? endpoint;
+
+  /// Fingerprint visto no servidor, nos kinds de host key. É o que o humano
+  /// compara antes de confiar — sem ele, o diálogo não tem o que mostrar.
+  final String? fingerprint;
 
   @override
   String toString() => message;

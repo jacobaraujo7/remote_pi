@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/spawn_directory.dart'
@@ -210,7 +211,14 @@ class RemoteHostTerminalGateway implements TerminalGateway {
       _sessionId = info.id;
       _listen(service.attach(info.id));
       _flushQueue();
-    } on TerminalException {
+    } on TerminalException catch (e) {
+      // Abertura falhou: sem isto a aba some do log e o usuário vê apenas
+      // uma aba muda — foi assim que o `/bin/sh` num host Windows passou
+      // despercebido até alguém rodar o E2E.
+      DiagnosticsLog.instance.log(
+        'remote-term',
+        'abertura do PTY remoto falhou: ${e.kind.name} ${e.detail ?? ''}',
+      );
       _closeOutput();
     }
   }
@@ -223,16 +231,41 @@ class RemoteHostTerminalGateway implements TerminalGateway {
     _queued.clear();
   }
 
+  /// Motivos já registrados, para não encher o log a cada tecla.
+  final Set<String> _loggedBlocks = <String>{};
+
+  /// Registra, UMA vez por motivo, que uma operação da aba não saiu.
+  ///
+  /// A digitação sumir em silêncio é o pior sintoma desta classe: a aba
+  /// parece viva (a saída pode até continuar chegando) e o teclado não faz
+  /// nada, sem erro nenhum. Sem este rastro, diagnosticar exige o aparelho
+  /// em mãos — que é justamente o que não se tem quando o cliente é um iPad.
+  void _logBlocked(String reason) {
+    if (!_loggedBlocks.add(reason)) return;
+    DiagnosticsLog.instance.log(
+      'remote-term',
+      'operação não enviada ($reason): sessão=$_sessionId, '
+          'ready=$_ready, detached=$_detached, killed=$_killed',
+    );
+  }
+
   void _run(void Function() op) {
-    if (_killed) return;
+    if (_killed) {
+      _logBlocked('killed');
+      return;
+    }
     // Congelado: DESCARTA em vez de enfileirar. A fila existe pra abertura
     // (ops que chegam antes do PTY existir); reusá-la aqui despejaria no shell,
     // de uma vez e às cegas, tudo que foi digitado durante a queda — num shell
     // que pode ter mudado de estado nesse meio tempo.
-    if (_detached) return;
+    if (_detached) {
+      _logBlocked('detached');
+      return;
+    }
     if (_ready) {
       op();
     } else {
+      _logBlocked('not-ready');
       _queued.add(op);
     }
   }
@@ -241,14 +274,32 @@ class RemoteHostTerminalGateway implements TerminalGateway {
     if (!_output.isClosed) _output.close();
   }
 
+  /// Quantos writes já saíram — só para o primeiro deixar rastro.
+  int _writes = 0;
+
   @override
-  void write(List<int> data) => _run(() {
-    final id = _sessionId;
-    if (id == null) return;
-    unawaited(
-      _service?.write(id, data is Uint8List ? data : Uint8List.fromList(data)),
-    );
-  });
+  void write(List<int> data) {
+    // A PRIMEIRA tecla é registrada: separa "o teclado não chega no
+    // gateway" de "chega e é bloqueado". Sem esta linha, os dois casos
+    // produzem exatamente o mesmo silêncio no log.
+    if (_writes++ == 0) {
+      DiagnosticsLog.instance.log(
+        'remote-term',
+        'primeiro write da aba: ${data.length}B, sessão=$_sessionId, '
+            'ready=$_ready, detached=$_detached',
+      );
+    }
+    _run(() {
+      final id = _sessionId;
+      if (id == null) return;
+      unawaited(
+        _service?.write(
+          id,
+          data is Uint8List ? data : Uint8List.fromList(data),
+        ),
+      );
+    });
+  }
 
   @override
   void resize(int rows, int columns) {

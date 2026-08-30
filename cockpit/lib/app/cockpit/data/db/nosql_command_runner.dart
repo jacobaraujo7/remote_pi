@@ -23,6 +23,9 @@ class NoSqlRunnerImpl implements NoSqlRunner {
     DbConnection conn,
     List<String> parts, {
     String? password,
+    // Só o runner REMOTO usa (chave do segredo no cofre do host, plano 62);
+    // aqui a senha já vem resolvida do cofre desta máquina.
+    String workspaceRoot = '',
   }) async {
     if (parts.isEmpty) {
       throw const DbQueryException('query_failed', 'Empty Redis command.');
@@ -61,6 +64,7 @@ class NoSqlRunnerImpl implements NoSqlRunner {
     DbConnection conn,
     List<List<String>> commands, {
     String? password,
+    String workspaceRoot = '',
   }) async {
     if (commands.isEmpty) return const [];
     for (final parts in commands) {
@@ -106,6 +110,7 @@ class NoSqlRunnerImpl implements NoSqlRunner {
     Map<String, dynamic> command, {
     String? password,
     String? database,
+    String workspaceRoot = '',
   }) async {
     // Conecta pela **URI**, não por campos soltos: só assim `mongodb+srv://`
     // (Atlas), TLS e query params como `authSource` sobrevivem. A forma antiga

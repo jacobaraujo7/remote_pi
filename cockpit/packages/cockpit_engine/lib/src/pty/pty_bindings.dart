@@ -42,6 +42,8 @@ typedef PtyGetPidC = Int32 Function(Pointer<Void>);
 typedef PtyGetPidDart = int Function(Pointer<Void>);
 typedef PtyAckReadC = Void Function(Pointer<Void>);
 typedef PtyAckReadDart = void Function(Pointer<Void>);
+typedef PtyKillC = Int32 Function(Pointer<Void>);
+typedef PtyKillDart = int Function(Pointer<Void>);
 typedef PtyErrorC = Pointer<Char> Function();
 
 class PtyBindings {
@@ -54,7 +56,20 @@ class PtyBindings {
       resize = lib.lookupFunction<PtyResizeC, PtyResizeDart>('pty_resize'),
       getPid = lib.lookupFunction<PtyGetPidC, PtyGetPidDart>('pty_getpid'),
       ackRead = lib.lookupFunction<PtyAckReadC, PtyAckReadDart>('pty_ack_read'),
-      error = lib.lookupFunction<PtyErrorC, PtyErrorC>('pty_error');
+      error = lib.lookupFunction<PtyErrorC, PtyErrorC>('pty_error'),
+      kill = _lookupKill(lib);
+
+  /// `pty_kill` é OPCIONAL na resolução: uma dylib anterior à issue #163 não
+  /// exporta o símbolo, e um `lookupFunction` direto lançaria no construtor —
+  /// derrubando o serviço de terminais inteiro por causa de uma função de
+  /// encerramento. Ausente, o chamador cai no `Process.killPid` de antes.
+  static PtyKillDart? _lookupKill(DynamicLibrary lib) {
+    try {
+      return lib.lookupFunction<PtyKillC, PtyKillDart>('pty_kill');
+    } on ArgumentError {
+      return null;
+    }
+  }
 
   final PtyInitDart initializeApiDL;
   final PtyCreateC create;
@@ -62,5 +77,9 @@ class PtyBindings {
   final PtyResizeDart resize;
   final PtyGetPidDart getPid;
   final PtyAckReadDart ackRead;
+
+  /// `null` quando a dylib carregada é anterior à issue #163 (ver [_lookupKill]).
+  final PtyKillDart? kill;
+
   final PtyErrorC error;
 }

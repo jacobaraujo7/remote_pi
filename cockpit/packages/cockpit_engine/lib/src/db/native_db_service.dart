@@ -95,10 +95,13 @@ class NativeDbService implements DbService {
     Map<String, Object?> command, {
     String? database,
   }) async {
-    // O cliente já embute a senha na URL do descritor (mesma política do
-    // executor SQL), então a URI aqui é a definitiva. `extendedJsonCodec` OFF:
-    // replies mantêm `{"$oid":…}`/`{"$date":…}` lossless (plano 53).
-    final uri = conn.url;
+    // A URI é a definitiva, com uma ressalva: quando o segredo mora no cofre
+    // DESTE host (plano 62), o cliente manda a URL sem credencial e a senha
+    // chega resolvida em `conn.password` — o construtor por URI do driver não
+    // aceita credencial em parâmetro separado, então ela é injetada no
+    // userinfo aqui. `extendedJsonCodec` OFF: replies mantêm
+    // `{"$oid":…}`/`{"$date":…}` lossless (plano 53).
+    final uri = _mongoUriWithPassword(conn);
     final target = (database != null && database.isNotEmpty)
         ? database
         : _mongoDatabase(conn);
@@ -116,6 +119,23 @@ class NativeDbService implements DbService {
         }
       }),
     );
+  }
+
+  /// URL do Mongo com [RemoteDbConnDescriptor.password] embutida no userinfo,
+  /// quando houver. Espelha o `mongoUriFor` do cliente — inclusive em não
+  /// mexer numa URL que já traz a senha. A string vive só dentro da chamada.
+  static String _mongoUriWithPassword(RemoteDbConnDescriptor conn) {
+    final password = conn.password;
+    if (password == null || password.isEmpty) return conn.url;
+    if (conn.url.isEmpty) return conn.url;
+    final uri = Uri.parse(conn.url);
+    if (uri.userInfo.contains(':')) return conn.url;
+    final user = Uri.encodeComponent(
+      uri.userInfo.isNotEmpty ? uri.userInfo : conn.user,
+    );
+    return uri
+        .replace(userInfo: '$user:${Uri.encodeComponent(password)}')
+        .toString();
   }
 
   /// Banco alvo do Mongo quando o cliente não fixou um: o da URL, senão o

@@ -505,7 +505,8 @@
       "deleteConnectionMessage": "Remove \"${name}\" from this workspace? Any saved password is discarded. .dbq files that reference it are not touched.",
       "footer": ".cockpit/databases.json · ${n} connections",
       "footerOne": ".cockpit/databases.json · 1 connection",
-      "noConnections": "No connections yet."
+      "noConnections": "No connections yet.",
+      "passwordRequired": "Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one."
     },
     "dbMongoView": {
       "deleteDocumentTitle": "Delete document",
@@ -549,7 +550,8 @@
       "choosePrivateKeyPlaceholder": "Choose a private key…",
       "choosePrivateKeyDialogTitle": "Choose SSH private key",
       "keyPassphrase": "Key passphrase",
-      "savePassphrase": "Save passphrase"
+      "savePassphrase": "Save passphrase",
+      "passwordOnHost": "The password is stored on the host, not on this machine."
     },
     "sshPrompts": {
       "unknownSshHostTitle": "Unknown SSH host",
@@ -666,8 +668,8 @@
       "pickFolderTitle": "Open folder on ${host}",
       "openHere": "Open here",
       "emptyFolder": "No subfolders",
-      "newLocal": "New local workspace",
-      "newRemote": "New remote workspace",
+      "newLocal": "Local",
+      "newRemote": "Remote",
       "chooseHost": "Choose a host",
       "newHostEntry": "New host…",
       "editHost": "Edit host",
@@ -688,6 +690,8 @@
       "errIdentity": "Pick the private key to authenticate with.",
       "errHostKeyUnknown": "Cockpit does not trust ${host} yet. Connect again and confirm the fingerprint.",
       "errHostKeyChanged": "${host} is presenting a different SSH key than the one stored. If you did not reinstall that machine, stop and check it — otherwise remove the old entry from ~/.ssh/known_hosts.",
+      "errHostBundleMissing": "${host} runs Windows but does not have Cockpit installed. The remote server is installed from the Cockpit bundle already on that machine, so install Cockpit there and try again.",
+      "errHostUnknownOs": "Could not identify the operating system of ${host}. The account may have a restricted shell, or no shell at all.",
       "errIdentityPublic": "Only the public key is here. That works only if the private key is in your SSH agent; otherwise pick the private file (same name, without .pub).",
       "errIdentityNotKey": "That file does not look like a private key.",
       "errIdentityMissingFile": "That file no longer exists.",
@@ -862,7 +866,10 @@
         "fontPickerCustomHint": "Family name",
         "fontPickerUse": "Use",
         "fontPickerDefault": "Default",
-        "fontMissing": "Not found on this machine — falling back."
+        "fontMissing": "Not found on this machine — falling back.",
+        "sectionLayout": "Layout",
+        "swapPanelsTitle": "Swap side panels",
+        "swapPanelsDesc": "Puts workspaces on the right and files, search, git and database on the left."
       },
       "notifications": {
         "sectionTitle": "Notifications",

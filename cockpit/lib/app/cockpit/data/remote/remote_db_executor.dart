@@ -58,19 +58,20 @@ RemoteDbExecutor buildRemoteDbExecutor(
     required int limit,
     required bool dml,
     String? password,
+    required String workspaceRoot,
   }) async {
     final service = await dbServiceProvider();
     final Map<String, Object?> json;
     try {
       json = await service.query(
-        _descriptor(conn, password),
+        _descriptor(conn, password, workspaceRoot),
         sql,
         limit: limit,
         dml: dml,
       );
     } on DbServiceException catch (e) {
       // Reidrata como o erro que a tab/CLI já conhece.
-      throw DbQueryException(e.kind.name, e.detail ?? e.kind.name);
+      throw _mapped(e);
     }
     return _fromJson(json);
   };
@@ -94,12 +95,16 @@ class _RemoteNoSqlRunner implements NoSqlRunner {
     DbConnection conn,
     List<String> parts, {
     String? password,
+    String workspaceRoot = '',
   }) async {
     final service = await _provider();
     try {
-      return await service.redis(_descriptor(conn, password), parts);
+      return await service.redis(
+        _descriptor(conn, password, workspaceRoot),
+        parts,
+      );
     } on DbServiceException catch (e) {
-      throw DbQueryException(e.kind.name, e.detail ?? e.kind.name);
+      throw _mapped(e);
     }
   }
 
@@ -108,12 +113,16 @@ class _RemoteNoSqlRunner implements NoSqlRunner {
     DbConnection conn,
     List<List<String>> commands, {
     String? password,
+    String workspaceRoot = '',
   }) async {
     final service = await _provider();
     try {
-      return await service.redisMany(_descriptor(conn, password), commands);
+      return await service.redisMany(
+        _descriptor(conn, password, workspaceRoot),
+        commands,
+      );
     } on DbServiceException catch (e) {
-      throw DbQueryException(e.kind.name, e.detail ?? e.kind.name);
+      throw _mapped(e);
     }
   }
 
@@ -123,15 +132,23 @@ class _RemoteNoSqlRunner implements NoSqlRunner {
     Map<String, dynamic> command, {
     String? password,
     String? database,
+    String workspaceRoot = '',
   }) async {
     final service = await _provider();
-    // Mongo conecta pela URI (Atlas/TLS/authSource); a senha do cofre entra no
-    // userinfo aqui, igual ao runner local. O descritor leva a URI já pronta.
+    // Mongo conecta pela URI (Atlas/TLS/authSource). Sem segredo guardado, a
+    // senha entra no userinfo aqui, igual ao runner local; COM segredo no host
+    // (plano 62) a URL vai sem credencial e quem injeta é o servidor, que é o
+    // único lado que conhece a senha.
     final url = NoSqlRunnerImpl.mongoUriFor(conn, password);
     final descriptor = RemoteDbConnDescriptor(
       engine: conn.engine.name,
       url: url,
+      user: conn.user,
       database: conn.database,
+      workspaceRoot: workspaceRoot,
+      connName: conn.name,
+      storedSecret: conn.savePassword,
+      ssh: conn.ssh,
     );
     try {
       return await service.mongo(
@@ -140,23 +157,51 @@ class _RemoteNoSqlRunner implements NoSqlRunner {
         database: database,
       );
     } on DbServiceException catch (e) {
-      throw DbQueryException(e.kind.name, e.detail ?? e.kind.name);
+      throw _mapped(e);
     }
   }
 }
 
-RemoteDbConnDescriptor _descriptor(DbConnection conn, String? password) =>
-    RemoteDbConnDescriptor(
-      engine: conn.engine.name,
-      url: conn.url,
-      host: conn.host,
-      port: conn.port,
-      user: conn.user,
-      database: conn.database,
-      sqlitePath: conn.engine == DbEngine.sqlite ? conn.sqlitePath : '',
-      password: password,
-      useTls: conn.useTls, // Redis: `rediss://` liga TLS no host.
-    );
+RemoteDbConnDescriptor _descriptor(
+  DbConnection conn,
+  String? password,
+  String workspaceRoot,
+) => RemoteDbConnDescriptor(
+  engine: conn.engine.name,
+  url: conn.url,
+  host: conn.host,
+  port: conn.port,
+  user: conn.user,
+  database: conn.database,
+  sqlitePath: conn.engine == DbEngine.sqlite ? conn.sqlitePath : '',
+  password: password,
+  useTls: conn.useTls, // Redis: `rediss://` liga TLS no host.
+  // Chave do segredo no cofre do HOST (plano 62). Com `savePassword` ligado,
+  // `password` acima vai null e é o servidor que resolve por estes dois campos.
+  workspaceRoot: workspaceRoot,
+  connName: conn.name,
+  storedSecret: conn.savePassword,
+  // Túnel SSH: vai no fio para o HOST abrir (onda 2). O cliente não tenta —
+  // ele não alcança o bastion nem tem a chave privada de lá.
+  ssh: conn.ssh,
+);
+
+/// Traduz o erro do serviço remoto pro `kind` que a tab e a CLI conhecem.
+///
+/// `e.kind.name` é camelCase (`connectionFailed`), mas todo o resto do app —
+/// e a lista de kinds da CLI — fala snake_case (`connection_failed`). Sem a
+/// tradução, erro de banco remoto caía sempre no kind genérico da CLI.
+DbQueryException _mapped(DbServiceException e) {
+  final kind = switch (e.kind) {
+    DbErrorKind.connectionFailed => 'connection_failed',
+    DbErrorKind.queryFailed => 'query_failed',
+    DbErrorKind.timeout => 'timeout',
+    DbErrorKind.unsupportedEngine => 'unsupported_engine',
+    DbErrorKind.passwordRequired => 'password_required',
+    DbErrorKind.sshTunnelFailed => 'ssh_tunnel_failed',
+  };
+  return DbQueryException(kind, e.detail ?? kind);
+}
 
 /// Reidrata o `DbResult` a partir do JSON do servidor. Células chegam
 /// normalizadas (int/double/bool/string, ISO-date como string, blob como

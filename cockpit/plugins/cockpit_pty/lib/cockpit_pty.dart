@@ -177,10 +177,17 @@ class Pty {
 
   /// Kill the process running in the pseudo-terminal.
   ///
-  /// When possible, [signal] will be sent to the process. This includes
-  /// Linux and OS X. The default signal is [ProcessSignal.sigterm]
-  /// which will normally terminate the process.
+  /// On POSIX this stays on `Process.killPid`: the signal reaches the whole
+  /// session because `forkpty` makes the shell a session leader, and that path
+  /// has always worked — no reason to risk changing it.
+  ///
+  /// **Windows has no signals.** There, `Process.killPid` becomes
+  /// `TerminateProcess`, which kills only the shell and leaves its children
+  /// (and the ConPTY's conhost) orphaned in Task Manager — issue #163,
+  /// reported with PowerShell 7. So Windows goes through the native
+  /// `pty_kill`, which terminates the Job Object holding the whole tree.
   bool kill([ProcessSignal signal = ProcessSignal.sigterm]) {
+    if (Platform.isWindows) return _bindings.pty_kill(_handle) == 0;
     return Process.killPid(pid, signal);
   }
 
