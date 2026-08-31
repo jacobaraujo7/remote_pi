@@ -1,4 +1,5 @@
 import 'package:cockpit_core/cockpit_core.dart';
+
 import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:io';
 
@@ -11,6 +12,7 @@ import 'package:cockpit/app/core/app_intents.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/automation.dart';
+import 'package:cockpit/app/core/domain/exceptions/neovim_error.dart';
 import 'package:cockpit/app/core/routes.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
@@ -141,7 +143,8 @@ class _CockpitPageState extends State<CockpitPage> {
     _sourceControlViewMode = initialSettings.sourceControlViewMode;
     context.read<CockpitViewModel>()
       ..setDefaultTerminalProfileId(initialSettings.defaultTerminalProfileId)
-      ..setDefaultTerminalEngine(initialSettings.terminalEngine);
+      ..setDefaultTerminalEngine(initialSettings.terminalEngine)
+      ..setNeovimEnabled(initialSettings.neovimEnabled);
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
@@ -182,11 +185,14 @@ class _CockpitPageState extends State<CockpitPage> {
       ..addListener(_syncNotifications)
       ..addListener(_syncCockpit)
       ..addListener(_syncSourceControlViewMode)
-      ..addListener(_syncAutomationSelection);
+      ..addListener(_syncAutomationSelection)
+      ..addListener(_syncNeovim);
+    context.read<CockpitViewModel>().onNeovimError = _showNeovimError;
     _syncLspCommands();
     _syncNotifications();
     _syncCockpit();
     _syncAutomationSelection();
+    _syncNeovim();
     // Restaura a visibilidade dos painéis (rail/árvore) salva na sessão anterior
     // e persiste de volta a cada toggle. A VM é a fonte de verdade em runtime.
     final vm = context.read<CockpitViewModel>();
@@ -423,6 +429,30 @@ class _CockpitPageState extends State<CockpitPage> {
     _vm.setAutomationSelection(_settings!.settings.automationSelection);
   }
 
+  void _syncNeovim() {
+    _vm.setNeovimEnabled(_settings!.settings.neovimEnabled);
+  }
+
+  void _showNeovimError(NeovimError error) {
+    if (!mounted) return;
+    final tr = context.t.cockpit.neovim;
+    final message = switch (error.kind) {
+      NeovimErrorKind.unavailable => tr.unavailable,
+      NeovimErrorKind.connectionFailed ||
+      NeovimErrorKind.timeout => tr.openFailed,
+    };
+    showToast(
+      context: context,
+      location: ToastLocation.bottomRight,
+      builder: (context, overlay) => SurfaceCard(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Text(message, style: context.typo.label),
+        ),
+      ),
+    );
+  }
+
   void _syncLspCommands() {
     final next = _settings!.settings.lspCommands;
     _vm.applyLspCommands(next);
@@ -480,6 +510,8 @@ class _CockpitPageState extends State<CockpitPage> {
     _settings?.removeListener(_syncCockpit);
     _settings?.removeListener(_syncSourceControlViewMode);
     _settings?.removeListener(_syncAutomationSelection);
+    _settings?.removeListener(_syncNeovim);
+    _vm.onNeovimError = null;
     _menuVm?.removeListener(_syncWorkspaceMenu);
     _workspaceMenu?.setWorkspace(hasWorkspace: false);
     // Túneis SSH abertos morrem com o shell — e os prompts vão junto, senão

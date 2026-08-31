@@ -29,12 +29,14 @@ import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
+import 'package:cockpit/app/core/domain/contracts/neovim_gateway.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/sound_event.dart';
 import 'package:cockpit/app/core/domain/entities/automation.dart';
 import 'package:cockpit/app/core/domain/exceptions/automation_error.dart';
 import 'package:cockpit/app/core/domain/exceptions/file_operation_error.dart';
+import 'package:cockpit/app/core/domain/exceptions/neovim_error.dart';
 import 'package:cockpit/app/core/domain/services/commit_message_prompt.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
@@ -72,6 +74,7 @@ import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
@@ -150,6 +153,7 @@ class CockpitViewModel extends ChangeNotifier {
     this.remote,
     this.files,
     this.notifications,
+    this._neovim,
   ) {
     _worktreeReconciler = WorktreeReconciler(_worktreeMgr);
     // Contexto do shell que o GitController precisa (page-scoped, mesma vida).
@@ -250,6 +254,7 @@ class CockpitViewModel extends ChangeNotifier {
   final LayoutLoader _layoutLoader;
   final RemoteHostsController _remoteHosts;
   final TerminalHarnessMonitor _harnessMonitor;
+  final NeovimGateway _neovim;
   final RpcGatewayFactory _factory;
   final FolderLister _folders;
   final SessionHistory _history;
@@ -346,6 +351,13 @@ class CockpitViewModel extends ChangeNotifier {
   final List<Project> _projectList = <Project>[];
   String? _selectedProjectId;
   final Map<String, PaneItem> _sessions = <String, PaneItem>{};
+
+  /// Fila por workspace: dois cliques simultâneos nunca podem observar "sem
+  /// Neovim" e criar duas instâncias.
+  final Map<String, Future<void>> _neovimTails = <String, Future<void>>{};
+
+  /// Erros são tipados; a página traduz e apresenta o toast na borda da UI.
+  void Function(NeovimError error)? onNeovimError;
 
   /// Realms (conjuntos de workspaces) e o recorte ativo. [_projectList] guarda
   /// os workspaces de TODOS os realms (sessões de realms ocultos seguem vivas);
@@ -516,6 +528,10 @@ class CockpitViewModel extends ChangeNotifier {
     _defaultTerminalEngine = engine;
     _taskTerminals.setDefaultEngine(engine);
   }
+
+  bool _neovimEnabled = false;
+
+  void setNeovimEnabled(bool value) => _neovimEnabled = value;
 
   /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
   List<TerminalProfile> get terminalProfiles =>
@@ -1031,6 +1047,17 @@ class CockpitViewModel extends ChangeNotifier {
     final tree = _activeTree;
     final paneId = inPane ?? (projectId == null ? null : _focused[projectId]);
     if (projectId == null || tree == null || paneId == null) return;
+    if (_shouldOpenInNeovim(projectId, path)) {
+      final opened = await _enqueueNeovimOpen(
+        projectId,
+        paneId,
+        path,
+        line: revealLine,
+      );
+      if (opened) return;
+      // Executável ausente/falha de spawn: mantém o usuário produtivo usando o
+      // fluxo integrado já existente. A UI recebe o erro tipado via callback.
+    }
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
     _recordHistoryBeforeSwitch(paneId);
@@ -1119,6 +1146,156 @@ class CockpitViewModel extends ChangeNotifier {
     _sessions[viewer.id] = viewer;
     _watchFileViewer(viewer);
     _placeNewViewer(viewer, projectId, paneId, tree, isPreview: isPreview);
+  }
+
+  static const Set<String> _neovimInternalExtensions = {
+    // Editores com runner próprio.
+    'http', 'dbq',
+    // Visualizações de mídia do Cockpit.
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'svg',
+    'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv',
+    'mp3', 'wav', 'aac', 'm4a', 'flac', 'ogg', 'opus',
+  };
+
+  bool _shouldOpenInNeovim(String projectId, String path) {
+    if (!_neovimEnabled || _isRemoteWorkspace(projectId)) return false;
+    final name = path.split('/').last;
+    final dot = name.lastIndexOf('.');
+    final ext = dot <= 0 ? '' : name.substring(dot + 1).toLowerCase();
+    return !_neovimInternalExtensions.contains(ext);
+  }
+
+  Future<bool> _enqueueNeovimOpen(
+    String projectId,
+    String paneId,
+    String path, {
+    int? line,
+  }) async {
+    final previous = _neovimTails[projectId] ?? Future<void>.value();
+    final turn = Completer<void>();
+    final tail = turn.future;
+    _neovimTails[projectId] = tail;
+    await previous;
+    try {
+      return await _openInNeovim(projectId, paneId, path, line: line);
+    } finally {
+      turn.complete();
+      if (identical(_neovimTails[projectId], tail)) {
+        _neovimTails.remove(projectId);
+      }
+    }
+  }
+
+  Future<bool> _openInNeovim(
+    String projectId,
+    String paneId,
+    String path, {
+    int? line,
+  }) async {
+    final executable = await _neovim.executable();
+    if (executable == null) {
+      onNeovimError?.call(const NeovimError(NeovimErrorKind.unavailable));
+      return false;
+    }
+
+    NeovimSession? existing;
+    for (final session in _sessions.values) {
+      if (session is NeovimSession && session.projectId == projectId) {
+        existing = session;
+        break;
+      }
+    }
+
+    if (existing != null && await _waitForNeovim(existing)) {
+      final result = await existing.open(path, line: line);
+      if (result.isSuccess) {
+        _focusNeovim(existing);
+        return true;
+      }
+    }
+
+    final currentTree = _trees[projectId];
+    if (currentTree == null) return false;
+    final oldLeafId = existing == null
+        ? null
+        : leafOfTab(projectId, existing.id);
+    final targetPane = oldLeafId ?? paneId;
+    final leaf = findLeaf(currentTree, targetPane);
+    if (leaf == null) return false;
+
+    if (existing != null) {
+      _sessions.remove(existing.id);
+      await existing.dispose();
+    }
+
+    final address = _neovim.serverAddress(projectId);
+    await _neovim.prepareServer(address);
+    final session = NeovimSession(
+      id: _nid('n'),
+      projectId: projectId,
+      workingDirectory: _projectById(projectId)?.path ?? '',
+      terminalGateway: _gatewayForProject(projectId),
+      neovimGateway: _neovim,
+      executable: executable,
+      serverAddress: address,
+      lastPath: path,
+      lastLine: line,
+      engine: _defaultTerminalEngine,
+    );
+    _sessions[session.id] = session;
+
+    final oldId = existing?.id;
+    final active = _sessions[leaf.active];
+    final replaceEmpty =
+        active is AgentSession && active.status == AgentStatus.empty;
+    _trees[projectId] = updateLeaf(currentTree, leaf.id, (p) {
+      if (oldId != null && p.tabs.contains(oldId)) {
+        return p.copyWith(
+          tabs: p.tabs.map((id) => id == oldId ? session.id : id).toList(),
+          active: session.id,
+        );
+      }
+      if (replaceEmpty) {
+        return p.copyWith(
+          tabs: p.tabs.map((id) => id == p.active ? session.id : id).toList(),
+          active: session.id,
+        );
+      }
+      return p.copyWith(tabs: [...p.tabs, session.id], active: session.id);
+    });
+    if (replaceEmpty) _disposeSession(leaf.active);
+    _focused[projectId] = leaf.id;
+    notifyListeners();
+    if (!await _waitForNeovim(session)) {
+      onNeovimError?.call(const NeovimError(NeovimErrorKind.connectionFailed));
+      if (_sessions[session.id] == session) {
+        closeTab(leaf.id, session.id);
+      }
+      return false;
+    }
+    return true;
+  }
+
+  Future<bool> _waitForNeovim(NeovimSession session) async {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      if (await session.isAlive()) return true;
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    return false;
+  }
+
+  void _focusNeovim(NeovimSession session) {
+    final tree = _trees[session.projectId];
+    final leafId = leafOfTab(session.projectId, session.id);
+    if (tree == null || leafId == null) return;
+    _recordHistoryBeforeSwitch(leafId);
+    _trees[session.projectId] = updateLeaf(
+      tree,
+      leafId,
+      (leaf) => leaf.copyWith(active: session.id),
+    );
+    _focused[session.projectId] = leafId;
+    notifyListeners();
   }
 
   /// Insere uma aba de viewer recém-criada na pane [paneId]: substitui o
@@ -1888,12 +2065,7 @@ class CockpitViewModel extends ChangeNotifier {
   Future<void> openTerminalPath(String token, {String? cwd, int? line}) async {
     final abs = _resolveTerminalPath(token, cwd);
     if (abs == null) return;
-    await openFile(abs, isPreview: false);
-    if (line != null) {
-      for (final s in _sessions.values) {
-        if (s is FileViewerSession && s.path == abs) s.reveal(line);
-      }
-    }
+    await openFile(abs, isPreview: false, revealLine: line);
   }
 
   /// Resolve um token de caminho do terminal para absoluto: expande `~`, junta
@@ -1948,10 +2120,7 @@ class CockpitViewModel extends ChangeNotifier {
   Future<void> openSearchResult(String relative, int line) async {
     final abs = _absoluteOf(relative);
     if (abs == null) return;
-    await openFile(abs);
-    for (final s in _sessions.values) {
-      if (s is FileViewerSession && s.path == abs) s.reveal(line);
-    }
+    await openFile(abs, revealLine: line);
   }
 
   /// `true` se [path] está **dentro** do workspace [projectId] (ele mesmo ou
@@ -5186,6 +5355,36 @@ class CockpitViewModel extends ChangeNotifier {
     }
 
     switch (desc['type']) {
+      case 'neovim':
+        if (!_neovimEnabled || project.isRemoteTerminal) return false;
+        if (_sessions.values.whereType<NeovimSession>().any(
+          (session) => session.projectId == project.id,
+        )) {
+          return false;
+        }
+        final path = desc['path'] as String?;
+        if (path == null || path.isEmpty) return false;
+        final executable = await _neovim.executable();
+        if (executable == null) return false;
+        final address = _neovim.serverAddress(project.id);
+        await _neovim.prepareServer(address);
+        _sessions[id] = NeovimSession(
+          id: id,
+          projectId: project.id,
+          workingDirectory: project.path,
+          terminalGateway: _gatewayForProject(project.id),
+          neovimGateway: _neovim,
+          executable: executable,
+          serverAddress: address,
+          lastPath: path,
+          lastLine: desc['line'] as int?,
+          engine: _enumByName(
+            TerminalEngine.values,
+            desc['engine'],
+            _defaultTerminalEngine,
+          ),
+        );
+        return true;
       case 'terminal':
         // Carrega o scrollback salvo e o reproduz no terminal restaurado. O
         // `\x1bc` (RIS) prepended limpa qualquer modo residual (alt-screen) em
@@ -5471,8 +5670,12 @@ class CockpitViewModel extends ChangeNotifier {
     final newSessions = <String, dynamic>{};
     for (final entry in sessionsJson.entries) {
       final desc = Map<String, dynamic>.from(entry.value as Map);
-      // worktree não replica viewers nem diffs (efêmeros)
-      if (desc['type'] == 'viewer' || desc['type'] == 'diff') continue;
+      // worktree não replica viewers/diffs nem a instância de editor do pai.
+      if (desc['type'] == 'viewer' ||
+          desc['type'] == 'diff' ||
+          desc['type'] == 'neovim') {
+        continue;
+      }
       // Zera qualquer estado de continuação — o worktree é um workspace novo,
       // sessões começam do zero. `sessionPath` (agente) e `claude_sid`
       // (terminal: dispararia `claude --resume <sid>` do pai) reanexariam a
@@ -5535,6 +5738,14 @@ class CockpitViewModel extends ChangeNotifier {
   }
 
   Map<String, dynamic> _sessionToJson(PaneItem s, Project project) {
+    if (s is NeovimSession) {
+      return <String, dynamic>{
+        'type': 'neovim',
+        'path': s.lastPath,
+        if (s.lastLine != null) 'line': s.lastLine,
+        'engine': s.terminal.engine.name,
+      };
+    }
     if (s is TerminalSession) {
       return <String, dynamic>{
         'type': 'terminal',
