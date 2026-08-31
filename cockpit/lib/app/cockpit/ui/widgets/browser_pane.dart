@@ -65,6 +65,11 @@ class _BrowserPaneState extends State<BrowserPane> {
   @override
   void dispose() {
     widget.session.removeListener(_onSession);
+    // Só limpa se ainda for o nosso controller — evita corrida de dispose
+    // fora de ordem sobrescrevendo um controller mais novo.
+    if (identical(widget.session.controller, _web)) {
+      widget.session.controller = null;
+    }
     _urlCtrl.dispose();
     _urlFocus.dispose();
     super.dispose();
@@ -226,6 +231,7 @@ class _BrowserPaneState extends State<BrowserPane> {
                 ),
                 onWebViewCreated: (web) {
                   _web = web;
+                  widget.session.controller = web;
                   final pending = _pendingUrl;
                   _pendingUrl = null;
                   if (pending != null && pending != initial) {

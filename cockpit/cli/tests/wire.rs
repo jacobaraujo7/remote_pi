@@ -468,6 +468,150 @@ fn acha_o_socket_bem_conhecido_sem_env_nenhuma() {
     );
 }
 
+// ---- browser (plano 61) ------------------------------------------------------
+
+#[test]
+fn browser_read_manda_full_false_por_padrao() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["browser", "read"],
+        r#"{"ok":true,"data":[{"id":"1-1","role":"button","text":"Go","rect":{"x":0,"y":0,"w":10,"h":10}}]}"#,
+    );
+    assert_eq!(req["cmd"], "browser-read");
+    assert_eq!(req["args"]["full"], false);
+    assert_eq!(req["tabId"], "t7", "cai no COCKPIT_TAB_ID sem --tab-id");
+    // Compara como Value (não string literal): sem a feature `preserve_order`
+    // o serde_json reordena as chaves alfabeticamente na saída.
+    let parsed: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(parsed["ok"][0]["id"], "1-1");
+    assert_eq!(parsed["ok"][0]["role"], "button");
+    assert_eq!(parsed["ok"][0]["text"], "Go");
+    assert_eq!(parsed["ok"][0]["rect"]["w"], 10);
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn browser_read_full_liga_a_flag() {
+    let (req, _, _, _) = run_against_fake_app(&["browser", "read", "--full"], r#"{"ok":true,"data":[]}"#);
+    assert_eq!(req["args"]["full"], true);
+}
+
+#[test]
+fn browser_click_manda_o_id_posicional() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["browser", "click", "3-2"],
+        r#"{"ok":true,"data":{"ok":true}}"#,
+    );
+    assert_eq!(req["cmd"], "browser-click");
+    assert_eq!(req["args"]["id"], "3-2");
+    assert_eq!(stdout, "{\"ok\":{\"ok\":true}}\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn browser_click_sem_id_falha_antes_de_conectar() {
+    // Sem app nenhum de pé: se o binário tentasse conectar, isto daria exit 3
+    // (ver `sem_app_nenhum_falha_com_exit_3`), não 2 — a validação de
+    // argumento tem que acontecer ANTES do socket.
+    let out = Command::new(env!("CARGO_BIN_EXE_cockpit"))
+        .args(["browser", "click"])
+        .env_remove("COCKPIT_STATUS_SOCK")
+        .env_remove("COCKPIT_STATUS_PORT")
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(1));
+}
+
+#[test]
+fn browser_type_junta_as_palavras_soltas_no_texto() {
+    let (req, _, _, code) = run_against_fake_app(
+        &["browser", "type", "3-5", "hello", "world"],
+        r#"{"ok":true,"data":{"ok":true}}"#,
+    );
+    assert_eq!(req["cmd"], "browser-type");
+    assert_eq!(req["args"]["id"], "3-5");
+    assert_eq!(req["args"]["text"], "hello world");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn browser_screenshot_resolve_out_para_caminho_absoluto() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["browser", "screenshot", "--out", "shot.png"],
+        r#"{"ok":true,"data":{"path":"/tmp/shot.png"}}"#,
+    );
+    assert_eq!(req["cmd"], "browser-screenshot");
+    let out = req["args"]["out"].as_str().unwrap();
+    assert!(out.starts_with('/'), "esperava absoluto, veio {out}");
+    assert!(out.ends_with("/shot.png"), "{out}");
+    assert_eq!(stdout, "{\"ok\":{\"path\":\"/tmp/shot.png\"}}\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn browser_screenshot_sem_out_nao_manda_o_campo() {
+    let (req, _, _, _) = run_against_fake_app(
+        &["browser", "screenshot"],
+        r#"{"ok":true,"data":{"base64":"iVBORw0="}}"#,
+    );
+    assert!(
+        req["args"].get("out").is_none(),
+        "sem --out, args não deveria ter a chave: {req}"
+    );
+}
+
+#[test]
+fn browser_eval_manda_o_js_e_imprime_o_contrato() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["browser", "eval", "document.title"],
+        r#"{"ok":true,"data":"My Page"}"#,
+    );
+    assert_eq!(req["cmd"], "browser-eval");
+    assert_eq!(req["args"]["js"], "document.title");
+    assert_eq!(stdout, "{\"ok\":\"My Page\"}\n");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn browser_erro_conhecido_vira_kind_estruturado() {
+    let resp =
+        r#"{"ok":false,"error":"stale_element_id: element id is from an old read — read again"}"#;
+    let (_, stdout, _, code) = run_against_fake_app(&["browser", "click", "x-1"], resp);
+    let parsed: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(parsed["error"]["kind"], "stale_element_id");
+    assert_eq!(
+        parsed["error"]["message"],
+        "element id is from an old read — read again"
+    );
+    assert_eq!(code, 1);
+}
+
+#[test]
+fn browser_erro_desconhecido_cai_no_kind_generico() {
+    let resp = r#"{"ok":false,"error":"algo inesperado"}"#;
+    let (_, stdout, _, code) = run_against_fake_app(&["browser", "read"], resp);
+    let parsed: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(parsed["error"]["kind"], "error");
+    assert_eq!(parsed["error"]["message"], "algo inesperado");
+    assert_eq!(code, 1);
+}
+
+#[test]
+fn browser_tab_id_e_workspace_vao_pro_wire() {
+    let (req, _, _, _) = run_against_fake_app(
+        &[
+            "browser",
+            "read",
+            "--tab-id",
+            "t9",
+            "--workspace",
+            "/proj",
+        ],
+        r#"{"ok":true,"data":[]}"#,
+    );
+    assert_eq!(req["tabId"], "t9");
+    assert_eq!(req["args"]["workspace"], "/proj");
+}
+
 #[test]
 fn sem_app_nenhum_falha_com_exit_3() {
     let dir = unique_dir("cockpit-noapp");

@@ -1,10 +1,12 @@
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException;
 
+import 'package:cockpit/app/cockpit/data/browser/browser_bridge.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
+import 'package:cockpit/app/cockpit/domain/entities/browser_element.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/dbq_document.dart';
@@ -29,6 +31,7 @@ import 'package:cockpit/app/cockpit/ui/session/terminal_read_window.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart' show SplitDir;
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 
 /// Atende os comandos da CLI interna `cockpit` (mesmo socket do
 /// `TerminalStatusServer`), extraído do `CockpitViewModel` (refactor
@@ -733,6 +736,114 @@ class CockpitCliHandler {
           });
         });
 
+      // `cockpit browser read|click|type|screenshot|eval` (plano 61): controle
+      // do navegador embutido via injeção de JS (`evaluateJavascript`) — sem
+      // CDP disponível pra WKWebView. Ver `browser_bridge.dart`.
+      case 'browser-read':
+        return _browserCommand(c, (session, web) async {
+          final full = c.args['full'] == true;
+          await web.evaluateJavascript(source: browserBridgeJs);
+          final raw = await web.evaluateJavascript(
+            source: 'window.__cockpitBrowser.read($full);',
+          );
+          if (raw is! String) {
+            throw const BrowserAutomationException(
+              'eval_failed',
+              'browser bridge returned no data (page may not have finished '
+                  'loading)',
+            );
+          }
+          final decoded = jsonDecode(raw) as List<dynamic>;
+          return CockpitCommandResult.ok([
+            for (final e in decoded)
+              BrowserElement.fromJson(e as Map<String, dynamic>).toJson(),
+          ]);
+        });
+
+      case 'browser-click':
+        return _browserCommand(c, (session, web) async {
+          final id = (c.args['id'] ?? '').toString();
+          if (id.isEmpty) {
+            return const CockpitCommandResult.fail(
+              'missing <id> (see `cockpit browser read`)',
+            );
+          }
+          final raw = await web.evaluateJavascript(
+            source: _safeBridgeCall(
+              'window.__cockpitBrowser.click(${jsonEncode(id)})',
+            ),
+          );
+          return _handleBridgeAck(raw);
+        });
+
+      case 'browser-type':
+        return _browserCommand(c, (session, web) async {
+          final id = (c.args['id'] ?? '').toString();
+          if (id.isEmpty) {
+            return const CockpitCommandResult.fail(
+              'missing <id> (see `cockpit browser read`)',
+            );
+          }
+          final text = (c.args['text'] ?? '').toString();
+          final raw = await web.evaluateJavascript(
+            source: _safeBridgeCall(
+              'window.__cockpitBrowser.type(${jsonEncode(id)}, '
+              '${jsonEncode(text)})',
+            ),
+          );
+          return _handleBridgeAck(raw);
+        });
+
+      case 'browser-screenshot':
+        return _browserCommand(c, (session, web) async {
+          final bytes = await web.takeScreenshot();
+          if (bytes == null) {
+            throw const BrowserAutomationException(
+              'eval_failed',
+              'screenshot failed (webview may not be ready)',
+            );
+          }
+          final out = (c.args['out'] ?? '').toString();
+          if (out.isEmpty) {
+            return CockpitCommandResult.ok({'base64': base64Encode(bytes)});
+          }
+          try {
+            await File(out).writeAsBytes(bytes);
+          } on FileSystemException catch (e) {
+            throw BrowserAutomationException(
+              'eval_failed',
+              'could not write "$out": ${e.message}',
+            );
+          }
+          return CockpitCommandResult.ok({'path': out});
+        });
+
+      case 'browser-eval':
+        return _browserCommand(c, (session, web) async {
+          final js = (c.args['js'] ?? '').toString();
+          if (js.isEmpty) {
+            return const CockpitCommandResult.fail(
+              'missing <js> (see `cockpit browser eval --help`)',
+            );
+          }
+          final raw = await web.evaluateJavascript(source: _evalWrapper(js));
+          if (raw is! String) {
+            throw const BrowserAutomationException(
+              'eval_failed',
+              'evaluateJavascript returned no data',
+            );
+          }
+          final decoded = jsonDecode(raw);
+          if (decoded is Map<String, dynamic> &&
+              decoded.containsKey('__cockpitError')) {
+            throw BrowserAutomationException(
+              'eval_failed',
+              decoded['__cockpitError'].toString(),
+            );
+          }
+          return CockpitCommandResult.ok(decoded);
+        });
+
       default:
         return CockpitCommandResult.fail('unknown command: "${c.cmd}"');
     }
@@ -955,6 +1066,145 @@ class CockpitCliHandler {
     }
   });
 
+  /// Resolve a aba de navegador alvo de um `browser *` (plano 61). Duas
+  /// formas de endereçar, na mesma flag `--tab-id`:
+  /// - aponta direto pra uma `BrowserSession` (id tirado de `list-tabs`) → é
+  ///   essa a aba, sem olhar workspace;
+  /// - resolve pra outra coisa (o normal: a tab do terminal que emitiu o
+  ///   comando) → vira só sinal de **workspace** (mesma regra do
+  ///   `_dbCommand`), e a aba de navegador é a única existente naquele
+  ///   workspace. Zero ou mais de uma = erro tipado, nunca chute.
+  Future<Result<BrowserSession, String>> _resolveBrowserSession(
+    CockpitCommand c,
+  ) async {
+    final explicitId = c.tabId;
+    if (explicitId != null && explicitId.isNotEmpty) {
+      final direct = _vm.session(explicitId);
+      if (direct is BrowserSession) return Success(direct);
+    }
+    Project? project;
+    final ws = (c.args['workspace'] ?? '').toString();
+    if (ws.isNotEmpty) {
+      for (final p in _vm.projects) {
+        if (p.id == ws || p.path == ws) {
+          project = p;
+          break;
+        }
+      }
+      if (project == null) {
+        return Failure('no workspace matches "$ws"');
+      }
+    } else {
+      final sender = explicitId == null || explicitId.isEmpty
+          ? null
+          : _vm.session(explicitId);
+      project = sender == null ? null : _vm.projectById(sender.projectId);
+      if (project == null) {
+        return const Failure(
+          'not inside a Cockpit pane — pass --workspace <id|path> or '
+          '--tab-id <browser-tab-id> (see `cockpit list-tabs`)',
+        );
+      }
+    }
+    if (project.isSystemTerminal || project.path.isEmpty) {
+      return const Failure('this pane has no workspace folder');
+    }
+    final tabs = _vm.allSessions
+        .whereType<BrowserSession>()
+        .where((s) => s.projectId == project!.id)
+        .toList();
+    if (tabs.isEmpty) {
+      return const Failure(
+        'no_browser_tab: no browser tab open in this workspace (open one '
+        'first with `cockpit browse <url>`)',
+      );
+    }
+    if (tabs.length > 1) {
+      return Failure(
+        'ambiguous_browser_tab: multiple browser tabs open '
+        '(${tabs.map((s) => s.id).join(', ')}) — pass --tab-id <id>',
+      );
+    }
+    return Success(tabs.single);
+  }
+
+  /// Molde dos comandos `browser *`: resolve a aba (acima), garante que o
+  /// webview está vivo, e converte [BrowserAutomationException] em
+  /// `fail("<kind>: <mensagem>")` (mesmo contrato do `_dbCommand`).
+  Future<CockpitCommandResult> _browserCommand(
+    CockpitCommand c,
+    Future<CockpitCommandResult> Function(
+      BrowserSession session,
+      InAppWebViewController web,
+    )
+    action,
+  ) async {
+    final resolved = await _resolveBrowserSession(c);
+    if (resolved case Failure(:final error)) {
+      return CockpitCommandResult.fail(error);
+    }
+    final session = (resolved as Success<BrowserSession, String>).value;
+    final web = session.controller;
+    if (web == null) {
+      return const CockpitCommandResult.fail(
+        'tab_closed: browser tab has no active webview (it may have just '
+        'been opened, or the tab was closed)',
+      );
+    }
+    try {
+      return await action(session, web);
+    } on BrowserAutomationException catch (e) {
+      return CockpitCommandResult.fail('${e.kind}: ${e.message}');
+    }
+  }
+
+  /// Envolve uma chamada ao bridge (`click`/`type`) com um guard pra bridge
+  /// ausente — acontece se a página navegou depois do `read` sem `read` de
+  /// novo: o `window.__cockpitBrowser` da página anterior sumiu junto. Vira
+  /// `stale_element_id` (mesma família de erro de um id velho), não exceção
+  /// solta do lado Dart.
+  String _safeBridgeCall(String call) =>
+      '(function(){ if (!window.__cockpitBrowser) '
+      'return JSON.stringify({error:"stale_element_id"}); '
+      'return $call; })();';
+
+  /// Decodifica o retorno `{ok:true}` / `{error:"..."}` de `click`/`type`.
+  CockpitCommandResult _handleBridgeAck(Object? raw) {
+    if (raw is! String) {
+      throw const BrowserAutomationException(
+        'eval_failed',
+        'browser bridge returned no data (page may not have finished '
+            'loading)',
+      );
+    }
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    final error = decoded['error'] as String?;
+    if (error == 'stale_element_id') {
+      throw const BrowserAutomationException(
+        'stale_element_id',
+        'element id is from an old `read` (or the page navigated) — read '
+            'again',
+      );
+    }
+    if (error != null) {
+      throw BrowserAutomationException('eval_failed', error);
+    }
+    return const CockpitCommandResult.ok({'ok': true});
+  }
+
+  /// Envolve a expressão do `browser eval` pra devolver sempre uma linha
+  /// JSON: resultado serializável vira `json`, função/símbolo ou exceção JS
+  /// viram `{__cockpitError}` (decodificado no case como `eval_failed`).
+  String _evalWrapper(String js) =>
+      '(function(){ try { var r = ($js); '
+      'if (typeof r === "function" || typeof r === "symbol") { '
+      'throw new Error("result not serializable (" + typeof r + ")"); } '
+      'var json = JSON.stringify(r === undefined ? null : r); '
+      'if (json === undefined) { throw new Error("result not serializable"); } '
+      'return json; } catch (e) { '
+      'return JSON.stringify({__cockpitError: String((e && e.message) || e)}); '
+      '} })();';
+
   /// Resolve o alvo de um `read-pane`: primeiro por id exato (`t3`), depois
   /// por `manualLabel` (case-insensitive). Label ambíguo = erro — nunca chuta
   /// pane (mesma regra do dispatch de orquestração).
@@ -984,6 +1234,7 @@ class CockpitCliHandler {
     if (s is TaskOutputSession) return 'task';
     if (s is RedisBrowserSession) return 'redis';
     if (s is MongoBrowserSession) return 'mongo';
+    if (s is BrowserSession) return 'browser';
     return 'other';
   }
 
