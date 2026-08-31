@@ -1,12 +1,14 @@
 import 'package:cockpit/app/core/data/automation/cli_automation_gateway.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_client_impl.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
+import 'package:cockpit/app/core/data/neovim/neovim_gateway_impl.dart';
 import 'package:cockpit/app/core/data/relay/pairing_gateway_impl.dart';
 import 'package:cockpit/app/core/data/relay/revoke_gateway_impl.dart';
 import 'package:cockpit/app/core/data/setup/environment_probe_impl.dart';
 import 'package:cockpit/app/core/data/setup/system_permissions_impl.dart';
 import 'package:cockpit/app/core/domain/contracts/environment_probe.dart';
 import 'package:cockpit/app/core/domain/contracts/lsp_client.dart';
+import 'package:cockpit/app/core/domain/contracts/neovim_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/pairing_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/revoke_gateway.dart';
 import 'package:cockpit/app/core/domain/contracts/system_permissions.dart';
@@ -61,6 +63,7 @@ Module buildCoreModule({
       ..addInstance<TerminalProfileResolver>(terminalProfiles)
       ..addInstance<LspClientFactory>(lspFactory)
       ..addInstance<AutomationController>(automation)
+      ..addLazySingleton<NeovimGateway>(NeovimGatewayImpl.new)
       ..addLazySingleton<LspServerPool>(LspServerPool.new)
       ..add<PairingGatewayFactory>(PairingGatewayFactoryImpl.new)
       ..add<RevokeGatewayFactory>(RevokeGatewayFactoryImpl.new)

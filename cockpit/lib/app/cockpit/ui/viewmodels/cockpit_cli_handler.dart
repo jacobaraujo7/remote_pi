@@ -23,6 +23,7 @@ import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
@@ -254,6 +255,14 @@ class CockpitCliHandler {
           return CockpitCommandResult.fail(
             'tab "${s.id}" is not in any pane (already closed?)',
           );
+        }
+        if (s is NeovimSession) {
+          final modified = await s.hasModifiedBuffers();
+          if (modified case Success(value: true)) {
+            return const CockpitCommandResult.fail(
+              'Neovim has modified buffers; close it from the UI to confirm',
+            );
+          }
         }
         // O fechamento roda DEPOIS da resposta (`afterResponse`): fechar a
         // própria aba emissora mata o PTY — e com ele o shell e o processo
