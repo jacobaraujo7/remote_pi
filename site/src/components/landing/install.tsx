@@ -1,11 +1,14 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import { IconCopy, IconCheck } from "@/components/landing/icons";
 
 type TermLine = { p: string; c: string };
 type InstallTab = {
+  key: "fresh" | "hasPi";
   label: string;
+  tabLabel: string;
   lines: TermLine[];
   copy: string;
   note: ReactNode;
@@ -13,42 +16,38 @@ type InstallTab = {
 
 const CURL = "curl -fsSL https://remote-pi.jacobmoura.work/install.sh | bash";
 
-const INSTALL_TABS: Record<string, InstallTab> = {
-  "No Pi yet": {
-    label: "bash — fresh machine",
-    lines: [{ p: "$", c: CURL }],
-    copy: CURL,
-    note: (
-      <>
-        Installs <b>Pi</b>, the Remote&nbsp;Pi plugin, and the always-on
-        supervisor — then prints the pairing step. No sudo; everything lands in
-        your home directory.
-      </>
-    ),
-  },
-  "Already have Pi": {
-    label: "bash + Pi",
-    lines: [
-      { p: "$", c: "pi install npm:remote-pi" },
-      { p: "›", c: "/remote-pi" },
-      { p: "›", c: "/remote-pi pair" },
-    ],
-    copy: "pi install npm:remote-pi",
-    note: (
-      <>
-        Run the first line in your shell; the <code>/remote-pi</code> lines run
-        inside <b>Pi</b>. The first <code>/remote-pi</code> is a quick setup
-        wizard (name + relay), then <b>pair</b> shows a QR you scan with the app.
-      </>
-    ),
-  },
-};
-
 export function Install() {
-  const tabs = Object.keys(INSTALL_TABS);
-  const [active, setActive] = useState(tabs[0]);
+  const t = useTranslations("Install");
+  const tabs: InstallTab[] = [
+    {
+      key: "fresh",
+      tabLabel: t("tabFresh"),
+      label: t("labelFresh"),
+      lines: [{ p: "$", c: CURL }],
+      copy: CURL,
+      note: t.rich("noteFresh", {
+        b: (chunks) => <b>{chunks}</b>,
+      }),
+    },
+    {
+      key: "hasPi",
+      tabLabel: t("tabHasPi"),
+      label: t("labelHasPi"),
+      lines: [
+        { p: "$", c: "pi install npm:remote-pi" },
+        { p: "›", c: "/remote-pi" },
+        { p: "›", c: "/remote-pi pair" },
+      ],
+      copy: "pi install npm:remote-pi",
+      note: t.rich("noteHasPi", {
+        b: (chunks) => <b>{chunks}</b>,
+        code: (chunks) => <code>{chunks}</code>,
+      }),
+    },
+  ];
+  const [active, setActive] = useState(tabs[0].key);
   const [copied, setCopied] = useState(false);
-  const data = INSTALL_TABS[active];
+  const data = tabs.find((tab) => tab.key === active) ?? tabs[0];
 
   const copy = () => {
     if (navigator.clipboard) navigator.clipboard.writeText(data.copy);
@@ -60,29 +59,26 @@ export function Install() {
     <section className="section" id="install">
       <div className="wrap">
         <div className="section-head reveal">
-          <span className="eyebrow">Install</span>
-          <h2>One command, then scan a QR.</h2>
-          <p>
-            No accounts, no sign-up. Add the plugin to Pi, pair your phone once,
-            and you&apos;re driving every agent from your pocket.
-          </p>
+          <span className="eyebrow">{t("eyebrow")}</span>
+          <h2>{t("title")}</h2>
+          <p>{t("sub")}</p>
         </div>
 
         <div className="install-card reveal">
           <div className="tabs" role="tablist" aria-label="Install Remote Pi">
-            {tabs.map((t) => (
+            {tabs.map((tab) => (
               <button
-                key={t}
+                key={tab.key}
                 type="button"
                 role="tab"
-                aria-selected={t === active}
-                className={`tab ${t === active ? "active" : ""}`}
+                aria-selected={tab.key === active}
+                className={`tab ${tab.key === active ? "active" : ""}`}
                 onClick={() => {
-                  setActive(t);
+                  setActive(tab.key);
                   setCopied(false);
                 }}
               >
-                {t}
+                {tab.tabLabel}
               </button>
             ))}
           </div>
@@ -100,7 +96,7 @@ export function Install() {
                 className={`copy-btn ${copied ? "copied" : ""}`}
                 onClick={copy}
               >
-                {copied ? <IconCheck /> : <IconCopy />} {copied ? "Copied" : "Copy"}
+                {copied ? <IconCheck /> : <IconCopy />} {copied ? t("copied") : t("copy")}
               </button>
             </div>
             <div className="term-body">

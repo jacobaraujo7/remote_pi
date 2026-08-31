@@ -1,0 +1,32 @@
+# Remote Pi
+
+> Remote Pi pairs your phone with any Pi coding agent — drive it from your pocket, keep a fleet running 24/7, and link every machine into one mesh. Open source, self-hostable.
+
+## Cockpit
+
+- [Remote Pi Cockpit](https://remote-pi.jacobmoura.work/cockpit): A fast, local, multiplexed terminal where an IDE emerges around your agents — code viewer, diagnostics, git, databases. Free, open source, for macOS, Windows, and Linux.
+- [Cockpit Reference](https://remote-pi.jacobmoura.work/cockpit/docs): Full reference for the Cockpit app and its built-in `cockpit` CLI — tabs, workspaces, layouts, tasks, databases, themes.
+
+## Mobile app
+
+- [Download](https://remote-pi.jacobmoura.work/download): Get the Remote Pi phone app (iOS App Store, Google Play, or direct Android APK) and the desktop Cockpit builds.
+- [Why Pi](https://remote-pi.jacobmoura.work/why): Why remote-pi keeps Pi alive 24/7 and puts it in your pocket, and when a batteries-included platform is a better fit instead.
+
+## Docs
+
+- [Documentation](https://remote-pi.jacobmoura.work/docs): General Remote Pi documentation — pairing, the relay, the agent mesh, and the Pi-side extension.
+
+## Tutorials
+
+- [Getting started](https://remote-pi.jacobmoura.work/tutorials/getting-started): Install Pi, add the Remote Pi plugin, and pair your phone for the first time.
+- [Daemon how-to](https://remote-pi.jacobmoura.work/tutorials/daemon): Promote a folder to a 24/7 background agent that survives logout.
+- [Local mesh](https://remote-pi.jacobmoura.work/tutorials/mesh-local): Connect multiple agents on one machine through the local UDS broker.
+- [Remote mesh](https://remote-pi.jacobmoura.work/tutorials/mesh-remote): Link agents across machines through the relay under one Owner key.
+- [Claude mesh](https://remote-pi.jacobmoura.work/tutorials/claude-mesh): Wire Claude Code into the Pi Agent Network mesh.
+- [Cockpit layouts](https://remote-pi.jacobmoura.work/tutorials/cockpit-layouts): Commit `.ckp` layouts and `.cockpit/tasks.json` so every worktree opens ready to work.
+- [Cockpit team](https://remote-pi.jacobmoura.work/tutorials/cockpit-team): Share Cockpit workspaces and conventions across a team.
+
+## GitHub
+
+- [remote_pi](https://github.com/jacobaraujo7/remote_pi): Source code, issues, and the open protocol — MIT licensed.
+- [Protocol](https://github.com/jacobaraujo7/remote_pi/blob/main/PROTOCOL.md): The harness-agnostic wire protocol connecting phone, relay, and Pi-side agents.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 
 export type TocItem = {
   id: string;
@@ -14,7 +15,8 @@ export type TocItem = {
  * entry is correct even though sections carry a transform during reveal.
  */
 export function DocsToc({ items }: { items: TocItem[] }) {
-  const ids = items.flatMap((t) => [t.id, ...(t.sub?.map((s) => s.id) ?? [])]);
+  const t = useTranslations("DocsShared");
+  const ids = items.flatMap((item) => [item.id, ...(item.sub?.map((s) => s.id) ?? [])]);
   const [active, setActive] = useState(ids[0]);
 
   useEffect(() => {
@@ -46,11 +48,11 @@ export function DocsToc({ items }: { items: TocItem[] }) {
 
   return (
     <aside className="toc">
-      <div className="toc-label">On this page</div>
+      <div className="toc-label">{t("tocOnThisPage")}</div>
       <ul className="toc-list">
-        {items.map((t) => [
-          link(t.id, t.label, false),
-          ...(t.sub ? t.sub.map((s) => link(s.id, s.label, true)) : []),
+        {items.map((item) => [
+          link(item.id, item.label, false),
+          ...(item.sub ? item.sub.map((s) => link(s.id, s.label, true)) : []),
         ])}
       </ul>
     </aside>

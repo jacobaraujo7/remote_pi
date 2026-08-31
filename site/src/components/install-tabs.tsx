@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { CodeBlock } from "./code-block";
 
 const CURL = "curl -fsSL https://remote-pi.jacobmoura.work/install.sh | bash";
@@ -9,6 +10,8 @@ const HAVE_PI = `pi install npm:remote-pi
 /remote-pi pair`;
 
 type Tab = {
+  key: "fresh" | "hasPi";
+  tabLabel: string;
   label: string;
   code: string;
   note: string;
@@ -31,43 +34,47 @@ type InstallTabsProps = {
  * Pi" adds the plugin to an existing Pi.
  */
 export function InstallTabs({ curlReady = true }: InstallTabsProps) {
-  const tabs: Record<string, Tab> = {
-    "No Pi yet": {
-      label: "bash — one command",
+  const t = useTranslations("DocsShared");
+  const tabs: Tab[] = [
+    {
+      key: "fresh",
+      tabLabel: t("installTabsFreshTab"),
+      label: t("installTabsFreshLabel"),
       code: CURL,
       prompt: true,
       disabled: !curlReady,
-      note: "Installs Pi, the Remote Pi plugin, and the always-on supervisor, then prints the pairing step. No sudo — everything lands in your home directory.",
+      note: t("installTabsFreshNote"),
     },
-    "Already have Pi": {
-      label: "pi — three commands",
+    {
+      key: "hasPi",
+      tabLabel: t("installTabsHasPiTab"),
+      label: t("installTabsHasPiLabel"),
       code: HAVE_PI,
       prompt: false,
-      note: "Run them in order: install the plugin, run the setup wizard, then show the pairing QR. Each is explained below.",
+      note: t("installTabsHasPiNote"),
     },
-  };
-  const keys = Object.keys(tabs);
+  ];
   const [active, setActive] = useState(
-    keys.find((k) => !tabs[k].disabled) ?? keys[0],
+    tabs.find((tab) => !tab.disabled)?.key ?? tabs[0].key,
   );
-  const d = tabs[active];
+  const d = tabs.find((tab) => tab.key === active) ?? tabs[0];
 
   return (
     <div className="install-card" style={{ marginTop: 22 }}>
-      <div className="tabs" role="tablist" aria-label="Install Remote Pi">
-        {keys.map((t) => (
+      <div className="tabs" role="tablist" aria-label={t("installTabsAriaLabel")}>
+        {tabs.map((tab) => (
           <button
-            key={t}
+            key={tab.key}
             type="button"
             role="tab"
-            aria-selected={t === active}
-            aria-disabled={tabs[t].disabled || undefined}
-            disabled={tabs[t].disabled}
-            className={`tab ${t === active ? "active" : ""}`}
-            onClick={() => !tabs[t].disabled && setActive(t)}
+            aria-selected={tab.key === active}
+            aria-disabled={tab.disabled || undefined}
+            disabled={tab.disabled}
+            className={`tab ${tab.key === active ? "active" : ""}`}
+            onClick={() => !tab.disabled && setActive(tab.key)}
           >
-            {t}
-            {tabs[t].disabled ? " · soon" : ""}
+            {tab.tabLabel}
+            {tab.disabled ? ` · ${t("installTabsSoon")}` : ""}
           </button>
         ))}
       </div>
