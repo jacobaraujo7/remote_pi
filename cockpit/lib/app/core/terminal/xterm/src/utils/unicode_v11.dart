@@ -502,7 +502,18 @@ class UnicodeV11 {
   int wcwidth(int codePoint) {
     if (codePoint < 32) return 0;
     if (codePoint < 127) return 1;
-    if (codePoint < 65536) return table[codePoint];
+    // Keep this lookup defensive. The generated BMP table normally has one
+    // entry per code point, but a stale/partially generated release asset can
+    // contain only the first 256 entries. Terminal output must not crash just
+    // because it contains a character such as U+0100.
+    if (codePoint < 65536 && codePoint < table.length) {
+      return table[codePoint];
+    }
+    if (codePoint < 65536) {
+      if (bisearch(codePoint, BMP_COMBINING)) return 0;
+      if (bisearch(codePoint, BMP_WIDE)) return 2;
+      return 1;
+    }
     if (bisearch(codePoint, HIGH_COMBINING)) return 0;
     if (bisearch(codePoint, HIGH_WIDE)) return 2;
     return 1;
