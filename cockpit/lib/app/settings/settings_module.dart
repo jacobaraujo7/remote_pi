@@ -8,6 +8,7 @@ import 'package:cockpit/app/settings/ui/connectivity_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/cron_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/daemons_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
+import 'package:cockpit/app/settings/ui/neovim_settings_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
 import 'package:cockpit/app/settings/ui/settings_page.dart';
 import 'package:cockpit/app/core/routes.dart';
@@ -56,6 +57,9 @@ Module buildSettingsModule() => createModule(
           ..addChangeNotifier<SettingsEnvGate>(SettingsEnvGate.new)
           ..addChangeNotifier<NotificationsViewModel>(
             NotificationsViewModel.new,
+          )
+          ..addChangeNotifier<NeovimSettingsViewModel>(
+            NeovimSettingsViewModel.new,
           ),
         child: (context, state) => SettingsPage(
           initialTab: state.arguments is SettingsTab

@@ -104,6 +104,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 
 	// Translations
 	@override late final _Translations$cockpit$confirmDialog$pt_BR confirmDialog = _Translations$cockpit$confirmDialog$pt_BR._(_root);
+	@override late final _Translations$cockpit$neovim$pt_BR neovim = _Translations$cockpit$neovim$pt_BR._(_root);
 	@override late final _Translations$cockpit$historyDialog$pt_BR historyDialog = _Translations$cockpit$historyDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$pt_BR worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$subfolderDialog$pt_BR subfolderDialog = _Translations$cockpit$subfolderDialog$pt_BR._(_root);
@@ -313,6 +314,20 @@ class _Translations$cockpit$confirmDialog$pt_BR extends Translations$cockpit$con
 	@override String unsavedChangesMessage({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?';
 	@override String get dontSave => 'Não salvar';
 	@override String get saveAndClose => 'Salvar e fechar';
+}
+
+// Path: cockpit.neovim
+class _Translations$cockpit$neovim$pt_BR extends Translations$cockpit$neovim$en {
+	_Translations$cockpit$neovim$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get unavailable => 'O Neovim não está disponível. Abrindo no Cockpit.';
+	@override String get openFailed => 'Não foi possível acessar o Neovim. Abrindo no Cockpit.';
+	@override String get unsavedTitle => 'Buffers não salvos no Neovim';
+	@override String get unsavedMessage => 'O Neovim tem buffers modificados. Fechar a aba e descartar essas alterações?';
+	@override String get closeAnyway => 'Fechar mesmo assim';
 }
 
 // Path: cockpit.historyDialog
@@ -1377,6 +1392,11 @@ class _Translations$settings$page$general$pt_BR extends Translations$settings$pa
 
 	// Translations
 	@override String get sectionAgent => 'Agente';
+	@override String get sectionEditor => 'Editor';
+	@override String get neovimTitle => 'Abrir arquivos no Neovim';
+	@override String get neovimChecking => 'Procurando o Neovim…';
+	@override String get neovimNotFound => 'O Neovim não foi encontrado na PATH do seu shell.';
+	@override String get neovimRefresh => 'Verificar novamente';
 	@override String get enableAgentsTitle => 'Ativar agentes';
 	@override String get enableAgentsDesc => 'Mostra a opção de abrir abas de agente (pi). Quando desligado, o Cockpit funciona apenas como workspace de terminal.';
 	@override String get showCockpitTitle => 'Mostrar terminal do Cockpit';
@@ -1832,6 +1852,11 @@ extension on TranslationsPtBr {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?',
 			'cockpit.confirmDialog.dontSave' => 'Não salvar',
 			'cockpit.confirmDialog.saveAndClose' => 'Salvar e fechar',
+			'cockpit.neovim.unavailable' => 'O Neovim não está disponível. Abrindo no Cockpit.',
+			'cockpit.neovim.openFailed' => 'Não foi possível acessar o Neovim. Abrindo no Cockpit.',
+			'cockpit.neovim.unsavedTitle' => 'Buffers não salvos no Neovim',
+			'cockpit.neovim.unsavedMessage' => 'O Neovim tem buffers modificados. Fechar a aba e descartar essas alterações?',
+			'cockpit.neovim.closeAnyway' => 'Fechar mesmo assim',
 			'cockpit.historyDialog.title' => 'Histórico de sessões',
 			'cockpit.historyDialog.subtitle' => 'Abrir uma substitui a transcrição atual deste agente',
 			'cockpit.historyDialog.empty' => 'Nenhuma sessão salva nesta pasta.',
@@ -2257,13 +2282,13 @@ extension on TranslationsPtBr {
 			'cockpit.findBar.wholeWord' => 'Palavra inteira',
 			'cockpit.findBar.useRegex' => 'Usar expressão regular',
 			'cockpit.findBar.previous' => 'Anterior (⇧⏎)',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.findBar.next' => 'Próximo (⏎)',
 			'cockpit.findBar.close' => 'Fechar (Esc)',
 			'cockpit.findBar.badPattern' => 'Padrão inválido',
 			'cockpit.findBar.noResults' => 'Nenhum resultado',
 			'cockpit.contentSearch.sectionSearch' => 'BUSCA',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.contentSearch.searchInFiles' => 'Buscar nos arquivos',
 			'cockpit.contentSearch.matchCase' => 'Diferenciar maiúsculas',
 			'cockpit.contentSearch.wholeWord' => 'Palavra inteira',
@@ -2384,6 +2409,11 @@ extension on TranslationsPtBr {
 			'settings.page.nav.automations' => 'Automações',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
 			'settings.page.general.sectionAgent' => 'Agente',
+			'settings.page.general.sectionEditor' => 'Editor',
+			'settings.page.general.neovimTitle' => 'Abrir arquivos no Neovim',
+			'settings.page.general.neovimChecking' => 'Procurando o Neovim…',
+			'settings.page.general.neovimNotFound' => 'O Neovim não foi encontrado na PATH do seu shell.',
+			'settings.page.general.neovimRefresh' => 'Verificar novamente',
 			'settings.page.general.enableAgentsTitle' => 'Ativar agentes',
 			'settings.page.general.enableAgentsDesc' => 'Mostra a opção de abrir abas de agente (pi). Quando desligado, o Cockpit funciona apenas como workspace de terminal.',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal do Cockpit',

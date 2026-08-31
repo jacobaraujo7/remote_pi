@@ -39,6 +39,7 @@ import 'package:cockpit/app/settings/ui/connectivity_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/cron_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/daemons_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
+import 'package:cockpit/app/settings/ui/neovim_settings_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/pairing_dialog.dart';
 import 'package:cockpit/app/settings/ui/revoke_dialog.dart';
 import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
@@ -123,7 +124,9 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     // Sonda o ambiente para decidir se as abas remotas aparecem.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<SettingsEnvGate>().check();
+      if (!mounted) return;
+      context.read<SettingsEnvGate>().check();
+      context.read<NeovimSettingsViewModel>().check();
     });
   }
 
@@ -466,6 +469,7 @@ class _GeneralPanel extends StatelessWidget {
     final s = controller.settings;
     // `agentTabsInUse` é publicado pelo shell (cross-route) via bridge app-scoped.
     final agentsInUse = context.watch<WorkspaceMenuBridge>().agentTabsInUse;
+    final neovim = context.watch<NeovimSettingsViewModel>();
     final tr = context.t.settings.page.general;
 
     return SingleChildScrollView(
@@ -521,6 +525,42 @@ class _GeneralPanel extends StatelessWidget {
                         trailing: Switch(
                           value: s.launchAtStartup,
                           onChanged: controller.setLaunchAtStartup,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                _Section(
+                  label: tr.sectionEditor,
+                  child: _Card(
+                    children: [
+                      _Row(
+                        title: tr.neovimTitle,
+                        description: neovim.checking
+                            ? tr.neovimChecking
+                            : neovim.executable ?? tr.neovimNotFound,
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AppTooltip(
+                              message: tr.neovimRefresh,
+                              child: IconButton.outline(
+                                onPressed: neovim.checking
+                                    ? null
+                                    : () => neovim.check(refresh: true),
+                                icon: neovim.checking
+                                    ? const CircularProgressIndicator(size: 14)
+                                    : const Icon(Icons.refresh, size: 16),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Switch(
+                              value: s.neovimEnabled,
+                              onChanged: neovim.available || s.neovimEnabled
+                                  ? controller.setNeovimEnabled
+                                  : null,
+                            ),
+                          ],
                         ),
                       ),
                     ],

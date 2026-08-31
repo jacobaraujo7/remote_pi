@@ -102,6 +102,13 @@
       "dontSave": "Don't save",
       "saveAndClose": "Save & close"
     },
+    "neovim": {
+      "unavailable": "Neovim is not available. Opening in Cockpit instead.",
+      "openFailed": "Could not reach Neovim. Opening in Cockpit instead.",
+      "unsavedTitle": "Unsaved Neovim buffers",
+      "unsavedMessage": "Neovim has modified buffers. Close the tab and discard those changes?",
+      "closeAnyway": "Close anyway"
+    },
     "historyDialog": {
       "title": "Session history",
       "subtitle": "Opening one replaces this agent's current transcript",
@@ -754,6 +761,11 @@
       },
       "general": {
         "sectionAgent": "Agent",
+        "sectionEditor": "Editor",
+        "neovimTitle": "Open files in Neovim",
+        "neovimChecking": "Looking for Neovim…",
+        "neovimNotFound": "Neovim was not found in your shell PATH.",
+        "neovimRefresh": "Check again",
         "enableAgentsTitle": "Enable agents",
         "enableAgentsDesc": "Show the option to open agent tabs (pi). When off, Cockpit works as a terminal-only workspace.",
         "showCockpitTitle": "Show Cockpit terminal",

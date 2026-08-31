@@ -7,6 +7,7 @@ import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
@@ -172,6 +173,7 @@ const double _kTabWidth = 188;
 
 /// Ícone por tipo de aba (usado na aba e no dropdown "todas as abas").
 IconData _tabIcon(PaneItem? item) {
+  if (item is NeovimSession) return Icons.edit_note_outlined;
   if (item is TerminalSession) return Icons.terminal_outlined;
   if (item is TaskOutputSession) return Icons.play_circle_outline;
   if (item is FileViewerSession) return Icons.description_outlined;

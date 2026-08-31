@@ -102,6 +102,13 @@
       "dontSave": "Não salvar",
       "saveAndClose": "Salvar e fechar"
     },
+    "neovim": {
+      "unavailable": "O Neovim não está disponível. Abrindo no Cockpit.",
+      "openFailed": "Não foi possível acessar o Neovim. Abrindo no Cockpit.",
+      "unsavedTitle": "Buffers não salvos no Neovim",
+      "unsavedMessage": "O Neovim tem buffers modificados. Fechar a aba e descartar essas alterações?",
+      "closeAnyway": "Fechar mesmo assim"
+    },
     "historyDialog": {
       "title": "Histórico de sessões",
       "subtitle": "Abrir uma substitui a transcrição atual deste agente",
@@ -754,6 +761,11 @@
       },
       "general": {
         "sectionAgent": "Agente",
+        "sectionEditor": "Editor",
+        "neovimTitle": "Abrir arquivos no Neovim",
+        "neovimChecking": "Procurando o Neovim…",
+        "neovimNotFound": "O Neovim não foi encontrado na PATH do seu shell.",
+        "neovimRefresh": "Verificar novamente",
         "enableAgentsTitle": "Ativar agentes",
         "enableAgentsDesc": "Mostra a opção de abrir abas de agente (pi). Quando desligado, o Cockpit funciona apenas como workspace de terminal.",
         "showCockpitTitle": "Mostrar terminal do Cockpit",

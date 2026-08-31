@@ -151,6 +151,7 @@ class Translations$cockpit$en {
 
 	// Translations
 	late final Translations$cockpit$confirmDialog$en confirmDialog = Translations$cockpit$confirmDialog$en.internal(_root);
+	late final Translations$cockpit$neovim$en neovim = Translations$cockpit$neovim$en.internal(_root);
 	late final Translations$cockpit$historyDialog$en historyDialog = Translations$cockpit$historyDialog$en.internal(_root);
 	late final Translations$cockpit$worktreeCreateDialog$en worktreeCreateDialog = Translations$cockpit$worktreeCreateDialog$en.internal(_root);
 	late final Translations$cockpit$subfolderDialog$en subfolderDialog = Translations$cockpit$subfolderDialog$en.internal(_root);
@@ -478,6 +479,30 @@ class Translations$cockpit$confirmDialog$en {
 
 	/// en: 'Save & close'
 	String get saveAndClose => 'Save & close';
+}
+
+// Path: cockpit.neovim
+class Translations$cockpit$neovim$en {
+	Translations$cockpit$neovim$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Neovim is not available. Opening in Cockpit instead.'
+	String get unavailable => 'Neovim is not available. Opening in Cockpit instead.';
+
+	/// en: 'Could not reach Neovim. Opening in Cockpit instead.'
+	String get openFailed => 'Could not reach Neovim. Opening in Cockpit instead.';
+
+	/// en: 'Unsaved Neovim buffers'
+	String get unsavedTitle => 'Unsaved Neovim buffers';
+
+	/// en: 'Neovim has modified buffers. Close the tab and discard those changes?'
+	String get unsavedMessage => 'Neovim has modified buffers. Close the tab and discard those changes?';
+
+	/// en: 'Close anyway'
+	String get closeAnyway => 'Close anyway';
 }
 
 // Path: cockpit.historyDialog
@@ -2778,6 +2803,21 @@ class Translations$settings$page$general$en {
 	/// en: 'Agent'
 	String get sectionAgent => 'Agent';
 
+	/// en: 'Editor'
+	String get sectionEditor => 'Editor';
+
+	/// en: 'Open files in Neovim'
+	String get neovimTitle => 'Open files in Neovim';
+
+	/// en: 'Looking for Neovim…'
+	String get neovimChecking => 'Looking for Neovim…';
+
+	/// en: 'Neovim was not found in your shell PATH.'
+	String get neovimNotFound => 'Neovim was not found in your shell PATH.';
+
+	/// en: 'Check again'
+	String get neovimRefresh => 'Check again';
+
 	/// en: 'Enable agents'
 	String get enableAgentsTitle => 'Enable agents';
 
@@ -3741,6 +3781,11 @@ extension on Translations {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” has unsaved changes. Save them before closing?',
 			'cockpit.confirmDialog.dontSave' => 'Don\'t save',
 			'cockpit.confirmDialog.saveAndClose' => 'Save & close',
+			'cockpit.neovim.unavailable' => 'Neovim is not available. Opening in Cockpit instead.',
+			'cockpit.neovim.openFailed' => 'Could not reach Neovim. Opening in Cockpit instead.',
+			'cockpit.neovim.unsavedTitle' => 'Unsaved Neovim buffers',
+			'cockpit.neovim.unsavedMessage' => 'Neovim has modified buffers. Close the tab and discard those changes?',
+			'cockpit.neovim.closeAnyway' => 'Close anyway',
 			'cockpit.historyDialog.title' => 'Session history',
 			'cockpit.historyDialog.subtitle' => 'Opening one replaces this agent\'s current transcript',
 			'cockpit.historyDialog.empty' => 'No saved sessions in this folder.',
@@ -4166,13 +4211,13 @@ extension on Translations {
 			'cockpit.findBar.wholeWord' => 'Whole word',
 			'cockpit.findBar.useRegex' => 'Use regular expression',
 			'cockpit.findBar.previous' => 'Previous (⇧⏎)',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.findBar.next' => 'Next (⏎)',
 			'cockpit.findBar.close' => 'Close (Esc)',
 			'cockpit.findBar.badPattern' => 'Bad pattern',
 			'cockpit.findBar.noResults' => 'No results',
 			'cockpit.contentSearch.sectionSearch' => 'SEARCH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.contentSearch.searchInFiles' => 'Search in files',
 			'cockpit.contentSearch.matchCase' => 'Match case',
 			'cockpit.contentSearch.wholeWord' => 'Whole word',
@@ -4293,6 +4338,11 @@ extension on Translations {
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.nav.remoteHosts' => 'Remote hosts',
 			'settings.page.general.sectionAgent' => 'Agent',
+			'settings.page.general.sectionEditor' => 'Editor',
+			'settings.page.general.neovimTitle' => 'Open files in Neovim',
+			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
+			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
+			'settings.page.general.neovimRefresh' => 'Check again',
 			'settings.page.general.enableAgentsTitle' => 'Enable agents',
 			'settings.page.general.enableAgentsDesc' => 'Show the option to open agent tabs (pi). When off, Cockpit works as a terminal-only workspace.',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
