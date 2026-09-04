@@ -2077,11 +2077,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
 
   // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
   // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
-  // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
-  // Pi that doesn't use the extension. Dispose any prior bridge first so a
-  // factory re-run (new pi session) can't leak subscriptions or double-send.
+  // events bus. OMP's optional askDialog path is attached to the current
+  // session UI below. ask_user without pi-ask doesn't exist, so this never
+  // breaks a Pi that doesn't use the extension. Dispose any prior bridge first
+  // so a factory re-run (new pi session) can't leak subscriptions or double-send.
   _extensionUiBridge?.dispose();
-  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive, {
+    hasActivePeer: _anyPeerActive,
+  });
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
@@ -2340,12 +2343,19 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
     _lastEventCtx = ctx;
-    // session_shutdown disposes per-session pi-ask subscriptions. A host that
-    // reuses this module instance does NOT re-run the factory, so rebind the
-    // bridge here; fresh-module hosts already created theirs in the factory.
+    // session_shutdown disposes per-session pi-ask subscriptions and restores
+    // any OMP askDialog wrapper. A host that reuses this module instance does
+    // NOT re-run the factory, so rebind the bridge here; fresh-module hosts
+    // already created theirs in the factory.
     if (!_extensionUiBridge) {
-      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive, {
+        hasActivePeer: _anyPeerActive,
+      });
     }
+    // OMP exposes its built-in rich `ask` dialog on the ExtensionContext UI
+    // object. The bridge detects that optional method at runtime, so stock Pi
+    // remains unchanged while OMP prompts can race the paired app.
+    _extensionUiBridge?.attachOmpAskDialog(ctx.ui);
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
