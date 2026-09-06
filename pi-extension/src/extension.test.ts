@@ -1894,6 +1894,25 @@ describe("multi-channel broadcast (W2D)", () => {
     expect(echo?.inner).not.toHaveProperty("streaming_behavior");
   });
 
+  test("app slash command opts into Pi command dispatch", async () => {
+    await _pairForTest("ownerA__1234567890");
+    const sendUserMessage = vi.fn();
+    _setPiForTest({ sendUserMessage, sendMessage: () => undefined });
+
+    relayRef.current!.emit("message", JSON.stringify({
+      peer: "ownerA__1234567890",
+      ct: Buffer.from(JSON.stringify({
+        type: "user_message", id: "msg-command", text: "/btw why?",
+      })).toString("base64"),
+    }));
+    await new Promise<void>((r) => setImmediate(r));
+
+    expect(sendUserMessage).toHaveBeenCalledWith("/btw why?", {
+      deliverAs: "steer",
+      expandPromptTemplates: true,
+    });
+  });
+
   test(
     "plan/43: active steering calls sendUserMessage(deliverAs='steer')",
     async () => {

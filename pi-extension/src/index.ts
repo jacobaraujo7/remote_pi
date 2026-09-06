@@ -4073,8 +4073,12 @@ function _wakeAgent(
     return { ok: false, detail };
   }
   try {
-    const options = steeringBehavior
-      ? ({ deliverAs: steeringBehavior })
+    const expandPromptTemplates = typeof content === "string" && content.startsWith("/");
+    const options = steeringBehavior || expandPromptTemplates
+      ? {
+          ...(steeringBehavior ? { deliverAs: steeringBehavior } : {}),
+          ...(expandPromptTemplates ? { expandPromptTemplates: true } : {}),
+        }
       : undefined;
     _pi.sendUserMessage(content, options);
     return { ok: true };
