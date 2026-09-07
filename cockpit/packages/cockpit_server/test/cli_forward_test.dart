@@ -217,9 +217,7 @@ Future<Map<String, Object?>> _sendCliCommand(
       .transform(const LineSplitter())
       .first;
   final token = _token(server);
-  socket.write(
-    '${jsonEncode({...command, if (token != null) 'tok': token})}\n',
-  );
+  socket.write('${jsonEncode({...command, 'tok': ?token})}\n');
   await socket.flush();
   final reply = await line.timeout(const Duration(seconds: 5));
   return (jsonDecode(reply) as Map).cast<String, Object?>();

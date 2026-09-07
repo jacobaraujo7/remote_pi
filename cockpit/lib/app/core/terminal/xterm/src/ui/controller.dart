@@ -10,12 +10,10 @@ import 'package:cockpit/app/core/terminal/xterm/src/ui/selection_mode.dart';
 
 class TerminalController with ChangeNotifier {
   TerminalController({
-    SelectionMode selectionMode = SelectionMode.line,
-    PointerInputs pointerInputs = const PointerInputs({PointerInput.tap}),
+    this._selectionMode = SelectionMode.line,
+    this._pointerInputs = const PointerInputs({PointerInput.tap}),
     bool suspendPointerInput = false,
-  }) : _selectionMode = selectionMode,
-       _pointerInputs = pointerInputs,
-       _suspendPointerInputs = suspendPointerInput;
+  }) : _suspendPointerInputs = suspendPointerInput;
 
   CellAnchor? _selectionBase;
   CellAnchor? _selectionExtent;

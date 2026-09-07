@@ -290,6 +290,29 @@ class SettingsController extends ChangeNotifier {
   void setLastUpdateCheckTime(DateTime time) =>
       _apply(_settings.copyWith(lastUpdateCheckTime: time));
 
+  /// Adiciona [path] à lista de shells POSIX personalizados e persiste.
+  ///
+  /// Não verifica se o arquivo existe — o chamador deve fazê-lo antes. No-op
+  /// se o caminho já estiver na lista (idempotente).
+  void addCustomShellPath(String path) {
+    final trimmed = path.trim();
+    if (trimmed.isEmpty) return;
+    if (_settings.customShellPaths.contains(trimmed)) return;
+    _apply(
+      _settings.copyWith(
+        customShellPaths: [..._settings.customShellPaths, trimmed],
+      ),
+    );
+  }
+
+  /// Remove [path] da lista de shells POSIX personalizados e persiste.
+  /// No-op se o caminho não estiver na lista.
+  void removeCustomShellPath(String path) {
+    final next = _settings.customShellPaths.where((p) => p != path).toList();
+    if (next.length == _settings.customShellPaths.length) return; // não mudou
+    _apply(_settings.copyWith(customShellPaths: next));
+  }
+
   /// Persiste a visibilidade dos painéis do shell (rail de projetos + árvore de
   /// arquivos) para restaurar no próximo boot. Não faz `notifyListeners` porque
   /// a fonte de verdade em runtime é a `CockpitViewModel` — aqui só grava.

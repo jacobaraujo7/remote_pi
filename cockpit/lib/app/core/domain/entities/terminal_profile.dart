@@ -16,8 +16,8 @@ class TerminalProfile {
   /// Nunca persistimos o objeto inteiro: perfis são re-descobertos a cada boot
   /// e a config referencia por [id].
   ///
-  /// Formato: `powershell` | `cmd` | `wsl:<distro>` | `login-shell` |
-  /// `custom:<uuid>`.
+  /// Formato: `powershell` | `cmd` | `wsl:<distro>` | `posix:<path>` |
+  /// `login-shell` (legado, migrado automaticamente) | `custom:<uuid>`.
   final String id;
 
   /// Rótulo de exibição (`PowerShell`, `Ubuntu (WSL)`, `zsh (login)`).
@@ -50,6 +50,10 @@ class TerminalProfile {
 
   /// Prefixo de [id] dos perfis de distro WSL.
   static const String wslPrefix = 'wsl:';
+
+  /// Prefixo de [id] dos perfis POSIX descobertos via `/etc/shells`.
+  /// Formato: `'posix:/bin/zsh'`, `'posix:/usr/local/bin/fish'`, …
+  static const String posixPrefix = 'posix:';
 
   /// [id] do perfil de login shell POSIX (macOS/Linux).
   static const String loginShellId = 'login-shell';

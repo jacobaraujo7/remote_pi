@@ -26,11 +26,10 @@ class AgentSession extends PaneItem {
     required this.id,
     required this.projectId,
     required this.workingDirectory,
-    required RpcGatewayFactory factory,
+    required this._factory,
     String? title,
     this.autoStartRelay = false,
-  }) : _factory = factory,
-       _title = title ?? 'New agent';
+  }) : _title = title ?? 'New agent';
 
   @override
   final String id;

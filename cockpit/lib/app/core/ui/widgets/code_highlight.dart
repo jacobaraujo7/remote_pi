@@ -788,8 +788,9 @@ List<InlineSpan> _applyOverlays(List<_Leaf> leaves, _Overlays overlays) {
     // real leaf↔tokens, não pelo total de tokens do arquivo.
     for (var i = semIdx; i < semanticTokens.length; i++) {
       final t = semanticTokens[i];
-      if (t.start >= end)
+      if (t.start >= end) {
         break; // ordenados → nenhum token daqui em diante toca esta leaf
+      }
       if (t.start > start && t.start < end) cuts.add(t.start);
       if (t.end > start && t.end < end) cuts.add(t.end);
     }

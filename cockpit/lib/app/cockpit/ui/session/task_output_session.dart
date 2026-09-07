@@ -12,10 +12,10 @@ class TaskOutputSession extends PaneItem {
     required this.id,
     required this.projectId,
     required this.taskId,
-    required String label,
+    required this._label,
     required this.terminal,
     required this.workingDirectory,
-  }) : _label = label;
+  });
 
   @override
   final String id;

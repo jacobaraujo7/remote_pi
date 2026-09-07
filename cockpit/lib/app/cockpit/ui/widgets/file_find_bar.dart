@@ -32,11 +32,12 @@ FileFindResult computeFileMatches(
   final RegExp re;
   try {
     var pattern = regex ? query : RegExp.escape(query);
-    if (wholeWord)
+    if (wholeWord) {
       pattern =
           r'\b(?:'
           '$pattern'
           r')\b';
+    }
     re = RegExp(pattern, caseSensitive: caseSensitive, multiLine: true);
   } catch (_) {
     return const FileFindResult(<MatchSpan>[], invalidRegex: true);

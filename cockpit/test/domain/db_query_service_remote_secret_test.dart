@@ -101,10 +101,7 @@ void main() {
     // remoto e lia o store LOCAL — caminho que não existe no disco do cliente.
     final f = build([pg()]);
 
-    final conns = await f.service.connections(
-      '/srv/proj',
-      workspaceId: 'w1',
-    );
+    final conns = await f.service.connections('/srv/proj', workspaceId: 'w1');
 
     expect(conns.single.name, 'prod');
   });

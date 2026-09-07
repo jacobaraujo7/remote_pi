@@ -1678,6 +1678,7 @@ class _Translations$settings$page$terminal$pt_BR extends Translations$settings$p
 	@override String get shellTitle => 'Shell';
 	@override String get shellDesc => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.';
 	@override String get noWslMessage => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.';
+	@override late final _Translations$settings$page$terminal$customShells$pt_BR customShells = _Translations$settings$page$terminal$customShells$pt_BR._(_root);
 }
 
 // Path: settings.page.appearance
@@ -1967,6 +1968,20 @@ class _Translations$settings$page$general$updateFrequency$pt_BR extends Translat
 	@override String get weekly => 'Semanalmente';
 	@override String get monthly => 'Mensalmente';
 	@override String get never => 'Nunca';
+}
+
+// Path: settings.page.terminal.customShells
+class _Translations$settings$page$terminal$customShells$pt_BR extends Translations$settings$page$terminal$customShells$en {
+	_Translations$settings$page$terminal$customShells$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get addInDropdown => 'Adicionar shell personalizado…';
+	@override String get removeInDropdown => 'Remover shell personalizado';
+	@override String get dialogTitle => 'Adicionar Shell Personalizado';
+	@override String get placeholder => '/caminho/para/o/shell';
+	@override String get errorNotFound => 'Shell não encontrado neste caminho.';
 }
 
 /// The flat map containing all translations for locale <pt-BR>.
@@ -2762,6 +2777,11 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.',
 			'settings.page.terminal.noWslMessage' => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.',
+			'settings.page.terminal.customShells.addInDropdown' => 'Adicionar shell personalizado…',
+			'settings.page.terminal.customShells.removeInDropdown' => 'Remover shell personalizado',
+			'settings.page.terminal.customShells.dialogTitle' => 'Adicionar Shell Personalizado',
+			'settings.page.terminal.customShells.placeholder' => '/caminho/para/o/shell',
+			'settings.page.terminal.customShells.errorNotFound' => 'Shell não encontrado neste caminho.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
@@ -2998,13 +3018,13 @@ extension on TranslationsPtBr {
 			'automation.error.busy' => 'Já há uma mensagem de commit sendo gerada.',
 			'automation.error.unknown' => 'A automação não conseguiu gerar uma mensagem de commit.',
 			'automation.error.noWorkspace' => 'Nenhum workspace selecionado.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.fileOutsideWorkspace' => 'O arquivo está fora das raízes do workspace.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Não foi possível ler o arquivo: ${detail}',
 			'automation.error.binaryFile' => 'Não é possível gerar mensagem de commit para um arquivo binário.',
 			'automation.error.noFileChanges' => 'Não há mudanças a descrever neste arquivo.',
 			'automation.error.noStagedChanges' => 'Não há mudanças no stage a descrever.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.multipleRepositories' => 'As mudanças no stage pertencem a repositórios diferentes. Gere uma de cada vez.',
 			'automation.error.diffUnavailable' => 'Não foi possível ler o diff.',
 			'automation.error.notConfigured' => 'Configure um harness de mensagem de commit em Configurações.',

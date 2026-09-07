@@ -49,8 +49,9 @@ abstract class ProcessTreeResolver {
 
         // Skip non-foreground or suspended processes
         if (!proc.isForeground) continue;
-        if (proc.state != null && proc.state!.toUpperCase().contains('T'))
+        if (proc.state != null && proc.state!.toUpperCase().contains('T')) {
           continue;
+        }
 
         final kind = TerminalHarnessClassifier.classify(
           executable: proc.executable,

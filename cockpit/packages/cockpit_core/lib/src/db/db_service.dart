@@ -103,8 +103,11 @@ class RemoteDbConnDescriptor {
   /// Cópia apontando para a ponta local do túnel (SQL e Redis, que leem
   /// [host]/[port]). A URL também é reescrita: o Postgres tira `sslmode` dela,
   /// e deixar host/porta divergindo entre os dois campos é armadilha.
-  RemoteDbConnDescriptor withEndpoint(String newHost, int newPort) =>
-      _copy(host: newHost, port: newPort, url: _urlWithEndpoint(newHost, newPort));
+  RemoteDbConnDescriptor withEndpoint(String newHost, int newPort) => _copy(
+    host: newHost,
+    port: newPort,
+    url: _urlWithEndpoint(newHost, newPort),
+  );
 
   /// Cópia com proxy SOCKS5 na URL — o caminho do Mongo.
   ///

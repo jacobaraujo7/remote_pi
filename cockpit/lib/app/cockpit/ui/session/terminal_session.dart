@@ -31,7 +31,7 @@ class TerminalSession extends PaneItem {
     required this.id,
     required this.projectId,
     required this.workingDirectory,
-    required TerminalGateway gateway,
+    required this._gateway,
     required this.profile,
     String? title,
     Map<String, String> spawnEnv = const <String, String>{},
@@ -39,10 +39,8 @@ class TerminalSession extends PaneItem {
     String? replay,
     String? startupCommand,
     TerminalEngine engine = TerminalEngine.xterm,
-    TerminalHarnessMonitor? monitor,
-  }) : _gateway = gateway,
-       _scrollback = scrollbackStore,
-       _monitor = monitor,
+    this._monitor,
+  }) : _scrollback = scrollbackStore,
        _title = title ?? 'New terminal' {
     // O `ShiftEnterInputHandler` (antes do padrão) faz Shift+Enter virar quebra
     // de linha nos harnesses (claude, codex, pi) em vez de submeter; ele lê o

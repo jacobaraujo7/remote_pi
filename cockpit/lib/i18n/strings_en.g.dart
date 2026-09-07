@@ -3376,6 +3376,8 @@ class Translations$settings$page$terminal$en {
 
 	/// en: 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.'
 	String get noWslMessage => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.';
+
+	late final Translations$settings$page$terminal$customShells$en customShells = Translations$settings$page$terminal$customShells$en.internal(_root);
 }
 
 // Path: settings.page.appearance
@@ -4081,6 +4083,30 @@ class Translations$settings$page$general$updateFrequency$en {
 
 	/// en: 'Never'
 	String get never => 'Never';
+}
+
+// Path: settings.page.terminal.customShells
+class Translations$settings$page$terminal$customShells$en {
+	Translations$settings$page$terminal$customShells$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Add custom shell…'
+	String get addInDropdown => 'Add custom shell…';
+
+	/// en: 'Remove custom shell'
+	String get removeInDropdown => 'Remove custom shell';
+
+	/// en: 'Add Custom Shell'
+	String get dialogTitle => 'Add Custom Shell';
+
+	/// en: '/path/to/shell'
+	String get placeholder => '/path/to/shell';
+
+	/// en: 'Shell not found at this path.'
+	String get errorNotFound => 'Shell not found at this path.';
 }
 
 /// The flat map containing all translations for locale <en>.
@@ -4876,6 +4902,11 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
+			'settings.page.terminal.customShells.addInDropdown' => 'Add custom shell…',
+			'settings.page.terminal.customShells.removeInDropdown' => 'Remove custom shell',
+			'settings.page.terminal.customShells.dialogTitle' => 'Add Custom Shell',
+			'settings.page.terminal.customShells.placeholder' => '/path/to/shell',
+			'settings.page.terminal.customShells.errorNotFound' => 'Shell not found at this path.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
@@ -5112,13 +5143,13 @@ extension on Translations {
 			'automation.error.busy' => 'Another commit message is already being generated.',
 			'automation.error.unknown' => 'The automation could not generate a commit message.',
 			'automation.error.noWorkspace' => 'No workspace selected.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.fileOutsideWorkspace' => 'File is outside the workspace roots.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Could not read the file: ${detail}',
 			'automation.error.binaryFile' => 'A commit message cannot be generated for a binary file.',
 			'automation.error.noFileChanges' => 'There are no changes to describe for this file.',
 			'automation.error.noStagedChanges' => 'There are no staged changes to describe.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.multipleRepositories' => 'Staged changes belong to multiple repositories. Generate them separately.',
 			'automation.error.diffUnavailable' => 'Could not read the diff.',
 			'automation.error.notConfigured' => 'Configure a commit message harness in Settings.',

@@ -3534,8 +3534,9 @@ class CockpitViewModel extends ChangeNotifier {
     String root, {
     int limit = 100,
   }) async {
-    if (_activeRemoteHost() == null)
+    if (_activeRemoteHost() == null) {
       return _gitHistory.read(root, limit: limit);
+    }
     try {
       final r = await (await _activeRemoteGit()).run(root, [
         'log',

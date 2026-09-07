@@ -1148,8 +1148,46 @@ class _StorageSectionState extends State<_StorageSection> {
 /// sumiu — uma distro WSL desinstalada), o `effectiveDefault` cai no fallback da
 /// plataforma, que é o PowerShell — e é ele que aparece marcado aqui, porque é o
 /// que de fato vai abrir.
-class _TerminalPanel extends StatelessWidget {
+class _TerminalPanel extends StatefulWidget {
   const _TerminalPanel();
+
+  @override
+  State<_TerminalPanel> createState() => _TerminalPanelState();
+}
+
+class _TerminalPanelState extends State<_TerminalPanel> {
+  /// Abre o dialog de path e, se confirmado, persiste + seleciona o novo shell.
+  Future<void> _addCustom() async {
+    final path = await showDialog<String>(
+      context: context,
+      barrierColor: context.colors.scrim,
+      builder: (_) => const _AddCustomShellDialog(),
+    );
+    if (!mounted || path == null) return;
+    final profile = TerminalProfile(
+      id: '${TerminalProfile.posixPrefix}$path',
+      label: path.split('/').last,
+      executable: path,
+      args: const <String>['-l'],
+    );
+    inject<TerminalProfileResolver>().addCustomProfile(profile);
+    final ctrl = context.read<SettingsController>();
+    ctrl.addCustomShellPath(path);
+    ctrl.setDefaultTerminalProfileId(profile.id);
+  }
+
+  /// Remove um shell personalizado do cache e das settings.
+  void _removeCustom(String profileId) {
+    if (!profileId.startsWith(TerminalProfile.posixPrefix)) return;
+    final path = profileId.substring(TerminalProfile.posixPrefix.length);
+    inject<TerminalProfileResolver>().removeCustomProfile(profileId);
+    final ctrl = context.read<SettingsController>();
+    // Limpa o padrão se era este shell (cai no fallback de plataforma).
+    if (ctrl.settings.defaultTerminalProfileId == profileId) {
+      ctrl.setDefaultTerminalProfileId(null);
+    }
+    ctrl.removeCustomShellPath(path);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1163,6 +1201,10 @@ class _TerminalPanel extends StatelessWidget {
     final effective = resolver.effectiveDefault(
       controller.settings.defaultTerminalProfileId,
     );
+    // IDs dos shells adicionados manualmente (path no prefix posix:).
+    final customIds = controller.settings.customShellPaths
+        .map((p) => '${TerminalProfile.posixPrefix}$p')
+        .toSet();
     final tr = context.t.settings.page.terminal;
 
     return SingleChildScrollView(
@@ -1189,15 +1231,20 @@ class _TerminalPanel extends StatelessWidget {
                           onChanged: controller.setTerminalEngine,
                         ),
                       ),
-                    if (Platform.isWindows)
+                    if (profiles.isNotEmpty)
                       _Row(
                         title: tr.shellTitle,
                         description: tr.shellDesc,
                         trailing: _TerminalProfileDropdown(
                           profiles: profiles,
                           value: effective,
+                          customShellIds: customIds,
                           onChanged: (p) =>
                               controller.setDefaultTerminalProfileId(p.id),
+                          onAddCustom: Platform.isWindows ? null : _addCustom,
+                          onRemoveCustom: Platform.isWindows
+                              ? null
+                              : _removeCustom,
                         ),
                       ),
                   ],
@@ -1205,9 +1252,11 @@ class _TerminalPanel extends StatelessWidget {
               ),
               // Sem WSL instalado a lista tem só PowerShell e cmd. Dizer isso é
               // melhor que deixar o usuário achar que a detecção falhou.
-              if (!profiles.any(
-                (p) => p.id.startsWith(TerminalProfile.wslPrefix),
-              ))
+              // A mensagem é específica do Windows; no POSIX não há WSL.
+              if (Platform.isWindows &&
+                  !profiles.any(
+                    (p) => p.id.startsWith(TerminalProfile.wslPrefix),
+                  ))
                 Padding(
                   padding: const EdgeInsets.only(left: 4, right: 4),
                   child: Text(
@@ -1221,6 +1270,109 @@ class _TerminalPanel extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Dialog simples para adicionar um shell em caminho personalizado.
+///
+/// Retorna o caminho validado (executável existente no disco) ou `null` se o
+/// usuário cancelar.
+class _AddCustomShellDialog extends StatefulWidget {
+  const _AddCustomShellDialog();
+
+  @override
+  State<_AddCustomShellDialog> createState() => _AddCustomShellDialogState();
+}
+
+class _AddCustomShellDialogState extends State<_AddCustomShellDialog> {
+  final _ctrl = TextEditingController();
+  bool _validating = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _confirm() async {
+    final path = _ctrl.text.trim();
+    if (path.isEmpty) return;
+    setState(() {
+      _validating = true;
+      _error = null;
+    });
+    final exists = await File(path).exists();
+    if (!mounted) return;
+    if (!exists) {
+      setState(() {
+        _validating = false;
+        _error = context.t.settings.page.terminal.customShells.errorNotFound;
+      });
+      return;
+    }
+    Navigator.of(context).pop(path);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.terminal.customShells;
+    final colors = context.colors;
+    return AlertDialog(
+      title: Text(
+        tr.dialogTitle,
+        style: context.typo.title.copyWith(fontSize: 15, color: colors.text),
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            TextField(
+              controller: _ctrl,
+              autofocus: true,
+              placeholder: Text(
+                tr.placeholder,
+                style: context.typo.mono.copyWith(
+                  fontSize: 12.5,
+                  color: colors.text3,
+                ),
+              ),
+              style: context.typo.mono.copyWith(
+                fontSize: 12.5,
+                color: colors.text,
+              ),
+              borderRadius: BorderRadius.circular(7),
+              onSubmitted: (_) => _confirm(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _error!,
+                style: context.typo.label.copyWith(color: colors.error),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        GhostButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(context.t.common.cancel),
+        ),
+        PrimaryButton(
+          onPressed: _validating ? null : _confirm,
+          child: _validating
+              ? const SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(context.t.common.confirm),
+        ),
+      ],
     );
   }
 }
@@ -1296,42 +1448,114 @@ class _TerminalProfileDropdown extends StatelessWidget {
     required this.profiles,
     required this.value,
     required this.onChanged,
+    this.customShellIds = const {},
+    this.onAddCustom,
+    this.onRemoveCustom,
   });
 
   final List<TerminalProfile> profiles;
   final TerminalProfile value;
   final ValueChanged<TerminalProfile> onChanged;
 
+  /// IDs dos perfis adicionados manualmente pelo usuário (ex.: posix:/Users/…/fish).
+  final Set<String> customShellIds;
+
+  /// Abre o fluxo de adição de shell personalizado. `null` = sem opção no menu.
+  final VoidCallback? onAddCustom;
+
+  /// Chamado com o id do perfil a remover. `null` = sem opção no menu.
+  final ValueChanged<String>? onRemoveCustom;
+
+  // Sentinelas internas — nunca coincidem com um id de perfil real.
+  static const _kAdd = '__add_custom__';
+  static const _kRemovePrefix = '__remove__:';
+  // Valor do cabeçalho de submenu (nunca devolvido — só filhos são).
+  static const _kRemoveMenu = '__remove_menu__';
+
   /// Mesmo mapa do seletor do `+` — `IconData` é do Flutter, então não mora no
   /// `TerminalProfile` (agnóstico de UI por design).
   static IconData _iconFor(TerminalProfile p) {
     if (p.id.startsWith(TerminalProfile.wslPrefix)) return Icons.dns_outlined;
     if (p.id == TerminalProfile.cmdId) return Icons.terminal_outlined;
+    if (p.id.startsWith(TerminalProfile.posixPrefix)) {
+      return Icons.terminal_outlined;
+    }
     return Icons.code;
   }
 
   @override
   Widget build(BuildContext context) {
+    final tr = context.t.settings.page.terminal.customShells;
+    final autoProfiles = profiles
+        .where((p) => !customShellIds.contains(p.id))
+        .toList();
+    final customProfiles = profiles
+        .where((p) => customShellIds.contains(p.id))
+        .toList();
+    final hasRemove = customProfiles.isNotEmpty && onRemoveCustom != null;
+
     return _DropdownChip(
       icon: _iconFor(value),
       label: value.label,
       onTap: () async {
         final picked = await showAppMenu<String>(
           context,
-          minWidth: 200,
+          minWidth: 220,
           items: [
-            for (final p in profiles)
+            // Shells detectados automaticamente
+            for (final p in autoProfiles)
               AppMenuItem(
                 value: p.id,
                 label: p.label,
                 icon: _iconFor(p),
                 selected: p.id == value.id,
               ),
+            // Shells adicionados manualmente — separados por divisor
+            if (customProfiles.isNotEmpty) ...[
+              AppMenuItem.divider(),
+              for (final p in customProfiles)
+                AppMenuItem(
+                  value: p.id,
+                  label: p.label,
+                  icon: _iconFor(p),
+                  selected: p.id == value.id,
+                ),
+            ],
+            // Ações — divisor + "Adicionar" (+ "Remover" se houver custom)
+            AppMenuItem.divider(),
+            if (onAddCustom != null)
+              AppMenuItem(
+                value: _kAdd,
+                label: tr.addInDropdown,
+                icon: Icons.add,
+              ),
+            if (hasRemove)
+              AppMenuItem(
+                value: _kRemoveMenu,
+                label: tr.removeInDropdown,
+                icon: Icons.delete_outline,
+                danger: true,
+                children: [
+                  for (final p in customProfiles)
+                    AppMenuItem(
+                      value: '$_kRemovePrefix${p.id}',
+                      label: p.executable,
+                      danger: true,
+                    ),
+                ],
+              ),
           ],
         );
         if (picked == null) return;
-        final profile = profiles.where((p) => p.id == picked).firstOrNull;
-        if (profile != null) onChanged(profile);
+        if (picked == _kAdd) {
+          onAddCustom?.call();
+        } else if (picked.startsWith(_kRemovePrefix)) {
+          final id = picked.substring(_kRemovePrefix.length);
+          onRemoveCustom?.call(id);
+        } else {
+          final profile = profiles.where((p) => p.id == picked).firstOrNull;
+          if (profile != null) onChanged(profile);
+        }
       },
     );
   }

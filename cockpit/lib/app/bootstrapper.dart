@@ -210,6 +210,7 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         _appModule = await buildAppModule(
           config: config,
           windowActivity: _windowActivity,
+          customShellPaths: _settings?.settings.customShellPaths ?? const [],
         );
       })();
 

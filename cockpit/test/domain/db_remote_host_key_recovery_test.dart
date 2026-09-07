@@ -78,10 +78,7 @@ void main() {
   });
 
   test('usuário recusa: nada é confiado e o erro sobe', () async {
-    final f = build(
-      failWith: hostKeyUnknown(),
-      verdict: HostKeyVerdict.reject,
-    );
+    final f = build(failWith: hostKeyUnknown(), verdict: HostKeyVerdict.reject);
 
     await expectLater(run(f.service), throwsA(isA<DbQueryException>()));
     expect(f.trusted, isEmpty);

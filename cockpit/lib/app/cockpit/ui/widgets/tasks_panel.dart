@@ -431,8 +431,9 @@ class _ProfileChip extends StatelessWidget {
         ],
       ),
     );
-    if (!canCycle)
+    if (!canCycle) {
       return Padding(padding: const EdgeInsets.only(right: 2), child: chip);
+    }
     return AppTooltip(
       message: context.t.cockpit.tasksPanel.switchProfileTooltip,
       child: HoverTap(
