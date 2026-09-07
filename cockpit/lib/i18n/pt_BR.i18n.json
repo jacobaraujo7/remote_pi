@@ -942,7 +942,14 @@
         "engineDesc": "Usado por novas abas de terminal e buffers de saída de tasks. Abas abertas mantêm o motor atual.",
         "shellTitle": "Shell",
         "shellDesc": "Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.",
-        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui."
+        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.",
+        "customShells": {
+          "addInDropdown": "Adicionar shell personalizado…",
+          "removeInDropdown": "Remover shell personalizado",
+          "dialogTitle": "Adicionar Shell Personalizado",
+          "placeholder": "/caminho/para/o/shell",
+          "errorNotFound": "Shell não encontrado neste caminho."
+        }
       },
       "appearance": {
         "sectionTheme": "Tema",

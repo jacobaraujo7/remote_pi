@@ -79,9 +79,7 @@ void main() {
     // Formato anterior à cifragem: mapa direto, chave separada por NUL.
     File(path)
       ..createSync(recursive: true)
-      ..writeAsStringSync(
-        jsonEncode({'/srv/proj\u0000dev': 'senha-antiga'}),
-      );
+      ..writeAsStringSync(jsonEncode({'/srv/proj\u0000dev': 'senha-antiga'}));
 
     final store = DbSecretStore(path: path);
     expect(store.read('/srv/proj', 'dev'), 'senha-antiga');
@@ -96,7 +94,8 @@ void main() {
 
   test('envelope adulterado não derruba o servidor: cofre vazio', () {
     DbSecretStore(path: path).write('/srv/proj', 'dev', 's3cr3t');
-    final env = jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+    final env =
+        jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
     // Vira um byte do ciphertext: o GCM é autenticado, então tem que recusar.
     final d = base64.decode(env['d']! as String);
     d[0] = d[0] ^ 0xff;

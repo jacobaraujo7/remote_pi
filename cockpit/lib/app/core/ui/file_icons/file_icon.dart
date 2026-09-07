@@ -77,10 +77,9 @@ class FileTypeIcon extends StatelessWidget {
   const FileTypeIcon.folder(
     this.name, {
     super.key,
-    bool open = false,
+    this._open = false,
     this.size = 16,
-  }) : _isFolder = true,
-       _open = open;
+  }) : _isFolder = true;
 
   /// Nome do arquivo ou da pasta (basename, não o caminho).
   final String name;

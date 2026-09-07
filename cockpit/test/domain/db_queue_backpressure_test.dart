@@ -237,14 +237,14 @@ class _NoRunner implements NoSqlRunner {
     DbConnection conn,
     List<String> parts, {
     String? password,
-  String workspaceRoot = '',
+    String workspaceRoot = '',
   }) async => null;
   @override
   Future<List<Object?>> redisMany(
     DbConnection conn,
     List<List<String>> commands, {
     String? password,
-  String workspaceRoot = '',
+    String workspaceRoot = '',
   }) async => const [];
   @override
   Future<Object?> mongo(
@@ -252,6 +252,6 @@ class _NoRunner implements NoSqlRunner {
     Map<String, dynamic> command, {
     String? password,
     String? database,
-  String workspaceRoot = '',
+    String workspaceRoot = '',
   }) async => null;
 }

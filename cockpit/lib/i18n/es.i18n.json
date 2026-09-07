@@ -942,7 +942,14 @@
         "engineDesc": "Usado por nuevas pestañas de terminal y buffers de salida de tasks. Las pestañas abiertas mantienen su motor actual.",
         "shellTitle": "Shell",
         "shellDesc": "Qué shell abren las nuevas pestañas de terminal. La flecha junto al + sigue abriendo cualquier otro, solo para esa pestaña.",
-        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí."
+        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí.",
+        "customShells": {
+          "addInDropdown": "Agregar shell personalizado…",
+          "removeInDropdown": "Eliminar shell personalizado",
+          "dialogTitle": "Agregar Shell Personalizado",
+          "placeholder": "/ruta/al/shell",
+          "errorNotFound": "Shell no encontrado en esta ruta."
+        }
       },
       "appearance": {
         "sectionTheme": "Tema",

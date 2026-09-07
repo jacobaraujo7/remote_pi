@@ -22,4 +22,14 @@ abstract class TerminalProfileResolver {
   /// Nunca devolve `null`: perfil ausente/inválido jamais bloqueia a abertura
   /// do terminal.
   TerminalProfile effectiveDefault(String? configuredId);
+
+  /// Adiciona [profile] ao cache em runtime (idempotente por [TerminalProfile.id]).
+  ///
+  /// Usado para shells personalizados definidos pelo usuário que não são
+  /// detectados automaticamente. O [CockpitViewModel] encontrará o perfil via
+  /// [profileById] na próxima abertura de aba.
+  void addCustomProfile(TerminalProfile profile);
+
+  /// Remove o perfil de [id] do cache. No-op se o id não existir.
+  void removeCustomProfile(String id);
 }

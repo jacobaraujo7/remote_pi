@@ -18,13 +18,21 @@ import 'package:flutter_modular/flutter_modular.dart';
 Future<Module> buildAppModule({
   required PiSpawnConfig config,
   required WindowActivityController windowActivity,
+  List<String> customShellPaths = const [],
 }) async {
   // Plano 50: descobre os perfis de terminal e injeta a instância **já
   // aquecida** — o `+` resolve o padrão de forma síncrona ao criar a aba. Aqui
   // (e não no `core_module`) porque `register` é síncrono e não há bind async;
   // este builder já é `Future`. Precisa ser `addInstance` (não `.new`): o cache
   // é por instância, e um lazySingleton nasceria frio. `discover()` nunca lança.
-  final terminalProfiles = TerminalProfileResolverImpl();
+  //
+  // `customShellPaths`: shells em caminhos fora do padrão (ex.: fish num prefix
+  // Homebrew personalizado) persistidos em `AppSettings`. Passados aqui para
+  // que já estejam no cache aquecido — o usuário não precisa fechar e reabrir o
+  // app após adicionar um shell nas configurações do boot anterior.
+  final terminalProfiles = TerminalProfileResolverImpl(
+    customPaths: customShellPaths.isEmpty ? null : customShellPaths,
+  );
   await terminalProfiles.discover();
 
   final core = buildCoreModule(

@@ -64,10 +64,9 @@ class _InfiniteScrollView extends SingleChildRenderObjectWidget {
 class _RenderInfiniteScrollView extends RenderShiftedBox {
   _RenderInfiniteScrollView({
     RenderBox? child,
-    required ViewportOffset position,
+    required this._position,
     required ScrollCallback onScroll,
-  }) : _position = position,
-       _scrollCallback = onScroll,
+  }) : _scrollCallback = onScroll,
        super(child);
 
   ViewportOffset _position;

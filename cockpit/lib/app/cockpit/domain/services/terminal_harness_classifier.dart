@@ -106,8 +106,9 @@ abstract class TerminalHarnessClassifier {
     };
     for (int i = 0; i < args.length; i++) {
       final arg = args[i];
-      if (i == 0 && adminSubcommandsOrModes.contains(arg.toLowerCase()))
+      if (i == 0 && adminSubcommandsOrModes.contains(arg.toLowerCase())) {
         return false;
+      }
     }
     return true;
   }
@@ -133,8 +134,9 @@ abstract class TerminalHarnessClassifier {
     const adminSubcommands = {'auth', 'config', 'alias', 'version', 'help'};
     for (int i = 0; i < args.length; i++) {
       final arg = args[i];
-      if (arg == '-p' || arg == '--prompt' || arg == '-i' || arg == '--input')
+      if (arg == '-p' || arg == '--prompt' || arg == '-i' || arg == '--input') {
         return false;
+      }
       if (i == 0 && adminSubcommands.contains(arg.toLowerCase())) return false;
     }
     return true;
@@ -151,8 +153,9 @@ abstract class TerminalHarnessClassifier {
     };
     for (int i = 0; i < args.length; i++) {
       final arg = args[i];
-      if (i == 0 && adminSubcommandsOrModes.contains(arg.toLowerCase()))
+      if (i == 0 && adminSubcommandsOrModes.contains(arg.toLowerCase())) {
         return false;
+      }
     }
     return true;
   }
@@ -172,13 +175,15 @@ abstract class TerminalHarnessClassifier {
       if (arg == '-p' || arg == '--print') return false;
       if (arg.startsWith('--mode=')) {
         final modeVal = arg.substring('--mode='.length).toLowerCase();
-        if (modeVal == 'text' || modeVal == 'json' || modeVal == 'rpc')
+        if (modeVal == 'text' || modeVal == 'json' || modeVal == 'rpc') {
           return false;
+        }
       }
       if (arg == '--mode' && i + 1 < args.length) {
         final modeVal = args[i + 1].toLowerCase();
-        if (modeVal == 'text' || modeVal == 'json' || modeVal == 'rpc')
+        if (modeVal == 'text' || modeVal == 'json' || modeVal == 'rpc') {
           return false;
+        }
       }
       if (i == 0 && adminSubcommands.contains(arg.toLowerCase())) return false;
     }

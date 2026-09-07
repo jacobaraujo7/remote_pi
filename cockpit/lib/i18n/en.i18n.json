@@ -942,7 +942,14 @@
         "engineDesc": "Used by new terminal tabs and task output buffers. Open tabs keep their current engine.",
         "shellTitle": "Shell",
         "shellDesc": "Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.",
-        "noWslMessage": "No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here."
+        "noWslMessage": "No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.",
+        "customShells": {
+          "addInDropdown": "Add custom shell…",
+          "removeInDropdown": "Remove custom shell",
+          "dialogTitle": "Add Custom Shell",
+          "placeholder": "/path/to/shell",
+          "errorNotFound": "Shell not found at this path."
+        }
       },
       "appearance": {
         "sectionTheme": "Theme",

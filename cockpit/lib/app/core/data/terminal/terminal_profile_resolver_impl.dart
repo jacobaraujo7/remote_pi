@@ -12,6 +12,39 @@ import 'package:cockpit/app/core/utils/login_shell.dart';
 typedef RawProcessRunner =
     Future<ProcessResult> Function(String executable, List<String> arguments);
 
+/// Lê `/etc/shells` e devolve as linhas não-comentadas — ponto de injeção pro
+/// testes. Cada linha é um caminho absoluto de shell (ex.: `/bin/zsh`).
+typedef EtcShellsReader = Future<List<String>> Function();
+
+/// Basenames de shells voltados para uso interativo em terminal.
+///
+/// Shells de sistema (`sh`, `dash`, `csh`, `tcsh`) não são incluídos:
+/// são adequados para scripts mas raramente usados como shell de usuário.
+const Set<String> _kInteractiveShells = {
+  'bash', 'zsh', 'fish',
+  'ksh', 'ksh93', 'mksh', // KornShell e variantes modernas
+  'elvish', // Elvish
+  'nu', 'nushell', // Nushell
+  'xonsh', // Xonsh
+  'ion', // Ion (Redox)
+  'pwsh', // PowerShell Core no Linux/macOS
+};
+
+/// Caminhos adicionais a sondar além do `/etc/shells`.
+///
+/// Shells instalados via Homebrew tipicamente ficam em `/opt/homebrew/bin`
+/// (Apple Silicon) ou `/usr/local/bin` (Intel) e **não** são adicionados
+/// automaticamente ao `/etc/shells` — o usuário precisa fazê-lo
+/// manualmente (`echo /opt/homebrew/bin/fish | sudo tee -a /etc/shells`).
+/// Sondar esses caminhos garante que fish e bash modernos apareçam mesmo
+/// sem o passo manual.
+const List<String> _kDefaultExtraProbePaths = [
+  '/opt/homebrew/bin/fish', // fish · Homebrew Apple Silicon
+  '/usr/local/bin/fish', // fish · Homebrew Intel
+  '/opt/homebrew/bin/bash', // bash moderno · Homebrew Apple Silicon
+  '/usr/local/bin/bash', // bash moderno · Homebrew Intel
+];
+
 /// Descoberta de perfis por plataforma (plano 50).
 ///
 /// - **Windows**: PowerShell 7 (`pwsh.exe`) e Windows PowerShell (
@@ -30,6 +63,9 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
     bool? isWindowsArm,
     Future<String> Function()? loginShell,
     Future<bool> Function(String)? executableExists,
+    EtcShellsReader? readEtcShells,
+    List<String>? extraProbePaths,
+    List<String>? customPaths,
   }) : _env = environment ?? Platform.environment,
        _run = runProcess ?? _defaultRun,
        _os = operatingSystem ?? Platform.operatingSystem,
@@ -38,7 +74,10 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
        _isWindowsArm =
            isWindowsArm ?? Platform.version.toLowerCase().contains('arm'),
        _loginShell = loginShell ?? resolveLoginShell,
-       _exists = executableExists ?? isExecutableAvailable;
+       _exists = executableExists ?? isExecutableAvailable,
+       _readEtcShells = readEtcShells ?? _defaultReadEtcShells,
+       _extraProbePaths = extraProbePaths ?? _kDefaultExtraProbePaths,
+       _initialCustomPaths = customPaths ?? const [];
 
   final Map<String, String> _env;
   final RawProcessRunner _run;
@@ -46,6 +85,9 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
   final bool _isWindowsArm;
   final Future<String> Function() _loginShell;
   final Future<bool> Function(String) _exists;
+  final EtcShellsReader _readEtcShells;
+  final List<String> _extraProbePaths;
+  final List<String> _initialCustomPaths;
 
   static const _timeout = Duration(seconds: 4);
 
@@ -54,6 +96,25 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
 
   static Future<ProcessResult> _defaultRun(String exe, List<String> args) =>
       Process.run(exe, args, stdoutEncoding: null, stderrEncoding: null);
+
+  /// Lê `/etc/shells` e devolve os caminhos não-comentados.
+  ///
+  /// `/etc/shells` é o inventário oficial dos shells de login no POSIX:
+  /// cada linha não-comentada é o caminho absoluto de um shell válido.
+  /// Falha silenciosa (arquivo ausente, permissão negada) → lista vazia.
+  static Future<List<String>> _defaultReadEtcShells() async {
+    try {
+      final file = File('/etc/shells');
+      if (!await file.exists()) return const [];
+      final lines = await file.readAsLines();
+      return lines
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty && !l.startsWith('#'))
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
 
   bool get _isWindows => _os == 'windows';
 
@@ -81,6 +142,24 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
   }
 
   @override
+  void addCustomProfile(TerminalProfile profile) {
+    final cache = _cache;
+    // discover() ainda não rodou → no-op (o perfil chegará via _initialCustomPaths
+    // se o caller construiu o resolver com o path já na lista; adições runtime
+    // só fazem sentido depois do aquecimento, que ocorre no boot).
+    if (cache == null) return;
+    if (cache.any((p) => p.id == profile.id)) return; // idempotente
+    _cache = [...cache, profile];
+  }
+
+  @override
+  void removeCustomProfile(String id) {
+    final cache = _cache;
+    if (cache == null) return;
+    _cache = cache.where((p) => p.id != id).toList();
+  }
+
+  @override
   TerminalProfile effectiveDefault(String? configuredId) {
     if (configuredId != null && configuredId.isNotEmpty) {
       final match = profileById(configuredId);
@@ -102,10 +181,12 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
       return profileById(wanted) ??
           (_isWindowsArm ? _cmdProfile() : _powershellProfile());
     }
-    // POSIX: `loginShellOrFallback()` é síncrono e lê o cache do login_shell
-    // (aquecido no boot); se ainda não resolveu, degrada pro $SHELL/fallback.
-    return profileById(TerminalProfile.loginShellId) ??
-        _loginShellProfile(loginShellOrFallback());
+    // POSIX: o login shell é sempre o primeiro da lista (ver _discoverPosix).
+    // `loginShellOrFallback()` é síncrono: lê o cache aquecido no boot.
+    final cache = _cache;
+    return (cache != null && cache.isNotEmpty)
+        ? cache.first
+        : _posixShellProfile(loginShellOrFallback());
   }
 
   Future<List<TerminalProfile>> _discover() async {
@@ -114,8 +195,57 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
   }
 
   Future<List<TerminalProfile>> _discoverPosix() async {
-    final shell = await _loginShell();
-    return <TerminalProfile>[_loginShellProfile(shell)];
+    final loginShell = await _loginShell();
+    final etcShells = await _readEtcShells();
+
+    final seen = <String>{};
+    final allPaths = <String>[];
+
+    // 1. Login shell do usuário sempre primeiro — independente do basename.
+    if (loginShell.isNotEmpty) {
+      seen.add(loginShell);
+      allPaths.add(loginShell);
+    }
+
+    // 2. /etc/shells filtrado para shells interativos conhecidos.
+    //    sh, dash, csh, tcsh e similares são shells de script: aparecem
+    //    no /etc/shells mas raramente são usados como terminal do dia-a-dia.
+    for (final path in etcShells) {
+      if (_isInteractiveShell(path) && seen.add(path)) allPaths.add(path);
+    }
+
+    // 3. Caminhos extras — shells instalados via gestor de pacotes (ex.:
+    //    fish/bash via Homebrew) que não ficam automaticamente em /etc/shells.
+    for (final path in _extraProbePaths) {
+      if (_isInteractiveShell(path) && seen.add(path)) allPaths.add(path);
+    }
+
+    // 4. Caminhos definidos manualmente pelo usuário — bypass do filtro de
+    //    shells interativos (o usuário já sabe o que está fazendo). Apenas
+    //    deduplicamos; a existência no disco é verificada no loop abaixo.
+    for (final path in _initialCustomPaths) {
+      if (seen.add(path)) allPaths.add(path);
+    }
+
+    // Filtra para apenas os que existem como executáveis no disco.
+    final profiles = <TerminalProfile>[];
+    for (final path in allPaths) {
+      if (await _existsSafe(path)) profiles.add(_posixShellProfile(path));
+    }
+
+    // Ultra-fallback: /etc/shells pode não existir em containers mínimos.
+    if (profiles.isEmpty) {
+      final shell = loginShell.isNotEmpty ? loginShell : '/bin/sh';
+      return [_posixShellProfile(shell)];
+    }
+    return profiles;
+  }
+
+  /// Retorna true para shells voltados ao uso interativo (bash, zsh, fish, …).
+  /// sh, dash, csh, tcsh e demais shells de sistema são excluídos.
+  static bool _isInteractiveShell(String path) {
+    final name = path.split('/').last;
+    return _kInteractiveShells.contains(name);
   }
 
   Future<List<TerminalProfile>> _discoverWindows() async {
@@ -245,13 +375,15 @@ class TerminalProfileResolverImpl implements TerminalProfileResolver {
     executable: _env['ComSpec'] ?? _env['COMSPEC'] ?? 'cmd.exe',
   );
 
+  /// Um perfil para um shell POSIX descoberto via `/etc/shells` (ou login shell).
+  ///
   /// `-l` (login shell), igual ao Terminal.app/iTerm: um app GUI aberto pelo
   /// Finder herda só o PATH mínimo, e sem `-l` o shell pula o `.zprofile`
   /// (Homebrew, `path_helper`, Docker…). Ver `pty_terminal_gateway.dart`.
-  TerminalProfile _loginShellProfile(String shell) => TerminalProfile(
-    id: TerminalProfile.loginShellId,
-    label: '${_basename(shell)} (login)',
-    executable: shell,
+  TerminalProfile _posixShellProfile(String path) => TerminalProfile(
+    id: '${TerminalProfile.posixPrefix}$path',
+    label: _basename(path),
+    executable: path,
     args: const <String>['-l'],
   );
 

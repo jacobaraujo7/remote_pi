@@ -62,6 +62,7 @@ class AppSettings {
     this.automationModelId,
     this.updateCheckFrequency = UpdateCheckFrequency.daily,
     this.lastUpdateCheckTime,
+    this.customShellPaths = const <String>[],
   });
 
   final AppThemeMode themeMode;
@@ -232,6 +233,12 @@ class AppSettings {
   /// Data da última verificação de atualização.
   final DateTime? lastUpdateCheckTime;
 
+  /// Caminhos de shells POSIX adicionados manualmente pelo usuário — para
+  /// shells instalados em locais não detectados automaticamente (ex.:
+  /// Homebrew num prefix personalizado como `~/.homebrew/bin/fish`).
+  /// Ignorado no Windows.
+  final List<String> customShellPaths;
+
   AppSettings copyWith({
     AppThemeMode? themeMode,
     String? interfaceFont,
@@ -277,6 +284,7 @@ class AppSettings {
     bool useDefaultAutomationModel = false,
     UpdateCheckFrequency? updateCheckFrequency,
     DateTime? lastUpdateCheckTime,
+    List<String>? customShellPaths,
   }) {
     return AppSettings(
       themeMode: themeMode ?? this.themeMode,
@@ -329,6 +337,7 @@ class AppSettings {
           : (automationModelId ?? this.automationModelId),
       updateCheckFrequency: updateCheckFrequency ?? this.updateCheckFrequency,
       lastUpdateCheckTime: lastUpdateCheckTime ?? this.lastUpdateCheckTime,
+      customShellPaths: customShellPaths ?? this.customShellPaths,
     );
   }
 
@@ -388,6 +397,8 @@ class AppSettings {
     'updateCheckFrequency': updateCheckFrequency.name,
     if (lastUpdateCheckTime != null)
       'lastUpdateCheckTime': lastUpdateCheckTime!.toIso8601String(),
+    if (customShellPaths.isNotEmpty)
+      'terminal.custom_shell_paths': customShellPaths,
   };
 
   factory AppSettings.fromJson(Map<dynamic, dynamic> json) {
@@ -467,6 +478,7 @@ class AppSettings {
       lastUpdateCheckTime: json['lastUpdateCheckTime'] != null
           ? DateTime.tryParse(json['lastUpdateCheckTime'] as String)
           : null,
+      customShellPaths: _strList(json['terminal.custom_shell_paths']),
     );
   }
 }
@@ -505,6 +517,15 @@ Map<String, String> _strMap(Object? raw) {
     if (k is String && v is String && v.trim().isNotEmpty) out[k] = v;
   });
   return out;
+}
+
+List<String> _strList(Object? raw) {
+  if (raw is! List) return const <String>[];
+  return raw
+      .whereType<String>()
+      .map((s) => s.trim())
+      .where((s) => s.isNotEmpty)
+      .toList();
 }
 
 /// Resolve o `themeId` salvo, caindo no tema oficial quando ausente.

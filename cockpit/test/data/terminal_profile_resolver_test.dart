@@ -186,21 +186,222 @@ void main() {
 
   group('TerminalProfileResolverImpl · POSIX', () {
     test(
-      'descobre um único perfil login-shell via resolveLoginShell',
+      'login shell vem primeiro; sh/dash filtrados; bash+zsh de /etc/shells incluídos',
       () async {
         final resolver = TerminalProfileResolverImpl(
           operatingSystem: 'macos',
           runProcess: _FakeRunner(const {}).call,
           loginShell: () async => '/opt/homebrew/bin/fish',
+          executableExists: (exe) async => true,
+          extraProbePaths: const [], // desativa sonda Homebrew neste teste
+          readEtcShells: () async => [
+            '/bin/sh', // excluído — shell de sistema
+            '/bin/dash', // excluído — shell de sistema
+            '/bin/bash',
+            '/bin/zsh',
+            '/opt/homebrew/bin/fish', // duplicata do login shell — ignorada
+          ],
+        );
+
+        final profiles = await resolver.discover();
+        // fish (login shell) + bash + zsh = 3 entradas; sh e dash filtrados
+        expect(profiles, hasLength(3));
+
+        final fish = profiles.first;
+        expect(fish.id, '${TerminalProfile.posixPrefix}/opt/homebrew/bin/fish');
+        expect(fish.executable, '/opt/homebrew/bin/fish');
+        expect(fish.args, ['-l']);
+        expect(fish.label, 'fish');
+
+        final ids = profiles.map((p) => p.id).toList();
+        expect(ids, [
+          '${TerminalProfile.posixPrefix}/opt/homebrew/bin/fish',
+          '${TerminalProfile.posixPrefix}/bin/bash',
+          '${TerminalProfile.posixPrefix}/bin/zsh',
+        ]);
+      },
+    );
+
+    test(
+      'login shell é incluído mesmo que não seja um shell interativo padrão',
+      () async {
+        // Raro, mas possível: usuário com /bin/sh como login shell (containers).
+        // O login shell deve aparecer independente do filtro _kInteractiveShells.
+        final resolver = TerminalProfileResolverImpl(
+          operatingSystem: 'linux',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/sh',
+          executableExists: (exe) async => true,
+          extraProbePaths: const [],
+          readEtcShells: () async => const [],
         );
 
         final profiles = await resolver.discover();
         expect(profiles, hasLength(1));
-        final p = profiles.single;
-        expect(p.id, TerminalProfile.loginShellId);
-        expect(p.executable, '/opt/homebrew/bin/fish');
-        expect(p.args, ['-l']);
-        expect(p.label, 'fish (login)');
+        expect(profiles.first.executable, '/bin/sh');
+      },
+    );
+
+    test(
+      'fish encontrado via extraProbePaths mesmo sem estar em /etc/shells',
+      () async {
+        // Caso real no macOS: fish instalado via Homebrew mas /etc/shells
+        // não atualizado manualmente.
+        final resolver = TerminalProfileResolverImpl(
+          operatingSystem: 'macos',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/zsh',
+          executableExists: (exe) async =>
+              exe == '/bin/zsh' || exe == '/opt/homebrew/bin/fish',
+          extraProbePaths: const ['/opt/homebrew/bin/fish'],
+          readEtcShells: () async => ['/bin/zsh'],
+        );
+
+        final profiles = await resolver.discover();
+        final ids = profiles.map((p) => p.id).toList();
+        expect(
+          ids,
+          contains('${TerminalProfile.posixPrefix}/opt/homebrew/bin/fish'),
+        );
+        expect(ids, contains('${TerminalProfile.posixPrefix}/bin/zsh'));
+        // fish não deve aparecer antes do login shell (zsh)
+        expect(ids.first, '${TerminalProfile.posixPrefix}/bin/zsh');
+      },
+    );
+
+    test('shells que não existem no disco são excluídos', () async {
+      const installed = {'/bin/bash', '/bin/zsh'};
+      final resolver = TerminalProfileResolverImpl(
+        operatingSystem: 'linux',
+        runProcess: _FakeRunner(const {}).call,
+        loginShell: () async => '/bin/bash',
+        executableExists: (exe) async => installed.contains(exe),
+        extraProbePaths: const [],
+        readEtcShells: () async => ['/bin/bash', '/bin/zsh', '/usr/bin/fish'],
+      );
+
+      final profiles = await resolver.discover();
+      final ids = profiles.map((p) => p.id).toList();
+      expect(ids, [
+        '${TerminalProfile.posixPrefix}/bin/bash',
+        '${TerminalProfile.posixPrefix}/bin/zsh',
+      ]);
+      // fish não existe no disco — não aparece
+      expect(
+        ids,
+        isNot(contains('${TerminalProfile.posixPrefix}/usr/bin/fish')),
+      );
+    });
+
+    test('/etc/shells ausente → apenas o login shell', () async {
+      final resolver = TerminalProfileResolverImpl(
+        operatingSystem: 'macos',
+        runProcess: _FakeRunner(const {}).call,
+        loginShell: () async => '/bin/zsh',
+        executableExists: (exe) async => exe == '/bin/zsh',
+        extraProbePaths: const [],
+        readEtcShells: () async => const [],
+      );
+
+      final profiles = await resolver.discover();
+      expect(profiles, hasLength(1));
+      expect(profiles.first.id, '${TerminalProfile.posixPrefix}/bin/zsh');
+      expect(profiles.first.label, 'zsh');
+    });
+
+    test(
+      'customPaths incluídos mesmo sem estarem em /etc/shells (bypass do filtro interativo)',
+      () async {
+        // Caso do fish em prefix pessoal: não está em /etc/shells, não é detectado
+        // pelo extraProbePaths — só chega via customPaths.
+        const fishPath = '/Users/silas/.homebrew/bin/fish';
+        final resolver = TerminalProfileResolverImpl(
+          operatingSystem: 'macos',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/zsh',
+          executableExists: (exe) async => exe == '/bin/zsh' || exe == fishPath,
+          extraProbePaths: const [],
+          readEtcShells: () async => ['/bin/zsh'],
+          customPaths: const [fishPath],
+        );
+
+        final profiles = await resolver.discover();
+        final ids = profiles.map((p) => p.id).toList();
+        // zsh (login shell, primeiro) + fish (custom path) = 2
+        expect(profiles, hasLength(2));
+        expect(ids.first, '${TerminalProfile.posixPrefix}/bin/zsh');
+        expect(ids, contains('${TerminalProfile.posixPrefix}$fishPath'));
+      },
+    );
+
+    test(
+      'addCustomProfile após discover adiciona ao cache; removeCustomProfile remove',
+      () async {
+        const fishPath = '/Users/silas/.homebrew/bin/fish';
+        final resolver = TerminalProfileResolverImpl(
+          operatingSystem: 'macos',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/zsh',
+          executableExists: (exe) async => exe == '/bin/zsh',
+          extraProbePaths: const [],
+          readEtcShells: () async => ['/bin/zsh'],
+        );
+        await resolver.discover();
+
+        final profile = TerminalProfile(
+          id: '${TerminalProfile.posixPrefix}$fishPath',
+          label: 'fish',
+          executable: fishPath,
+          args: const ['-l'],
+        );
+        // Adicionar
+        resolver.addCustomProfile(profile);
+        expect(
+          resolver.cachedProfiles.map((p) => p.id),
+          contains('${TerminalProfile.posixPrefix}$fishPath'),
+        );
+        // Idempotente
+        resolver.addCustomProfile(profile);
+        expect(
+          resolver.cachedProfiles
+              .where((p) => p.id == '${TerminalProfile.posixPrefix}$fishPath')
+              .length,
+          1,
+        );
+        // Remover
+        resolver.removeCustomProfile('${TerminalProfile.posixPrefix}$fishPath');
+        expect(
+          resolver.cachedProfiles.map((p) => p.id),
+          isNot(contains('${TerminalProfile.posixPrefix}$fishPath')),
+        );
+      },
+    );
+
+    test(
+      'addCustomProfile antes do discover → no-op (cache ainda não existe)',
+      () async {
+        final resolver = TerminalProfileResolverImpl(
+          operatingSystem: 'macos',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/zsh',
+          executableExists: (exe) async => true,
+          extraProbePaths: const [],
+          readEtcShells: () async => ['/bin/zsh'],
+        );
+        // Chama antes do discover — não deve inicializar _cache como lista vazia
+        // (o que impediria o discover de rodar depois).
+        const profile = TerminalProfile(
+          id: 'posix:/some/shell',
+          label: 'shell',
+          executable: '/some/shell',
+        );
+        resolver.addCustomProfile(profile);
+
+        // discover ainda deve funcionar e popular o cache normalmente.
+        final profiles = await resolver.discover();
+        expect(profiles, isNotEmpty);
+        // O perfil adicionado antes do discover NÃO aparece (foi no-op).
+        expect(profiles.map((p) => p.id), isNot(contains('posix:/some/shell')));
       },
     );
   });
@@ -245,14 +446,41 @@ void main() {
       },
     );
 
-    test('POSIX id nulo → fallback login-shell', () async {
+    test('POSIX id nulo → primeiro perfil (login shell)', () async {
       final r = TerminalProfileResolverImpl(
         operatingSystem: 'linux',
         runProcess: _FakeRunner(const {}).call,
         loginShell: () async => '/usr/bin/zsh',
+        executableExists: (exe) async => true,
+        extraProbePaths: const [],
+        readEtcShells: () async => ['/bin/bash', '/usr/bin/zsh'],
       );
       await r.discover();
-      expect(r.effectiveDefault(null).id, TerminalProfile.loginShellId);
+      // Login shell (/usr/bin/zsh) sempre vem primeiro
+      expect(
+        r.effectiveDefault(null).id,
+        '${TerminalProfile.posixPrefix}/usr/bin/zsh',
+      );
     });
+
+    test(
+      'POSIX id legado "login-shell" → fallback pro primeiro perfil',
+      () async {
+        final r = TerminalProfileResolverImpl(
+          operatingSystem: 'macos',
+          runProcess: _FakeRunner(const {}).call,
+          loginShell: () async => '/bin/zsh',
+          executableExists: (exe) async => true,
+          extraProbePaths: const [],
+          readEtcShells: () async => ['/bin/bash', '/bin/zsh'],
+        );
+        await r.discover();
+        // 'login-shell' não existe mais no cache → cai no _platformFallback → primeiro
+        expect(
+          r.effectiveDefault(TerminalProfile.loginShellId).id,
+          '${TerminalProfile.posixPrefix}/bin/zsh',
+        );
+      },
+    );
   });
 }

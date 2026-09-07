@@ -378,9 +378,7 @@ class BufferLine with IndexedItem {
 /// of the cell. Anchors are guaranteed to be stable, retaining their relative
 /// position to each other after mutations to the buffer.
 class CellAnchor {
-  CellAnchor(int offset, {BufferLine? owner})
-    : _offset = offset,
-      _owner = owner;
+  CellAnchor(int offset, {this._owner}) : _offset = offset;
 
   int _offset;
 

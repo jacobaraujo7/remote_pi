@@ -23,14 +23,11 @@ import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 /// Encapsulates the logic for painting various terminal elements.
 class CockpitTerminalPainter {
   CockpitTerminalPainter({
-    required TerminalTheme theme,
-    required TerminalStyle textStyle,
-    required TextScaler textScaler,
-    required double devicePixelRatio,
-  }) : _textStyle = textStyle,
-       _theme = theme,
-       _textScaler = textScaler,
-       _devicePixelRatio = devicePixelRatio;
+    required this._theme,
+    required this._textStyle,
+    required this._textScaler,
+    required this._devicePixelRatio,
+  });
 
   /// A lookup table from terminal colors to Flutter colors.
   late var _colorPalette = PaletteBuilder(_theme).build();
