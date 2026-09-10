@@ -8,6 +8,9 @@ enum AppThemeMode { system, light, dark }
 /// Motor VT usado por terminais criados daqui pra frente.
 enum TerminalEngine { ghostty, xterm }
 
+/// Motor usado para abrir arquivos de texto editáveis.
+enum FileEditorEngine { cockpit, neovim }
+
 /// Peso do traço da fonte do terminal.
 ///
 /// Existe porque a **mesma** fonte, no mesmo tamanho, tem peso aparente
@@ -41,7 +44,7 @@ class AppSettings {
     this.lspCommands = const <String, String>{},
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
-    this.neovimEnabled = false,
+    this.fileEditorEngine = FileEditorEngine.cockpit,
     this.notificationsEnabled = true,
     this.soundEvents = const <SoundEvent, bool>{},
     this.soundOverrides = const <SoundEvent, String>{},
@@ -118,9 +121,9 @@ class AppSettings {
   /// Formatar automaticamente ao salvar (Cmd+S).
   final bool formatOnSave;
 
-  /// Abre arquivos comuns numa instância Neovim por workspace/worktree.
-  /// Desligado por padrão; visualizações especializadas continuam internas.
-  final bool neovimEnabled;
+  /// Motor global de arquivos comuns. Visualizações especializadas e arquivos
+  /// remotos continuam no Cockpit, independentemente desta preferência.
+  final FileEditorEngine fileEditorEngine;
 
   /// Disparar notificações do SO quando um agente termina um turno com a janela
   /// fora de foco. Editado na aba "Notifications" das Configurações.
@@ -256,7 +259,7 @@ class AppSettings {
     Map<String, String>? lspCommands,
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
-    bool? neovimEnabled,
+    FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
     Map<SoundEvent, bool>? soundEvents,
     Map<SoundEvent, String>? soundOverrides,
@@ -305,7 +308,7 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
-      neovimEnabled: neovimEnabled ?? this.neovimEnabled,
+      fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       soundEvents: soundEvents ?? this.soundEvents,
       soundOverrides: soundOverrides ?? this.soundOverrides,
@@ -354,7 +357,7 @@ class AppSettings {
     if (lspCommands.isNotEmpty) 'lspCommands': lspCommands,
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
-    if (neovimEnabled) 'editor.neovim.enabled': true,
+    'editor.engine': fileEditorEngine.name,
     if (!notificationsEnabled) 'notificationsEnabled': false,
     if (soundEvents.isNotEmpty)
       'sound.events': <String, bool>{
@@ -437,7 +440,13 @@ class AppSettings {
       lspCommands: _strMap(json['lspCommands']),
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
-      neovimEnabled: json['editor.neovim.enabled'] as bool? ?? false,
+      fileEditorEngine: _enumByName(
+        FileEditorEngine.values,
+        json['editor.engine'],
+        json['editor.neovim.enabled'] == true
+            ? FileEditorEngine.neovim
+            : FileEditorEngine.cockpit,
+      ),
       notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
       soundEvents: _migrateSoundEvents(json),
       soundOverrides: _soundEventMap<String>(json['sound.overrides']),

@@ -213,8 +213,8 @@ class SettingsController extends ChangeNotifier {
   void setFormatOnSave(bool value) =>
       _apply(_settings.copyWith(formatOnSave: value));
 
-  void setNeovimEnabled(bool value) =>
-      _apply(_settings.copyWith(neovimEnabled: value));
+  void setFileEditorEngine(FileEditorEngine engine) =>
+      _apply(_settings.copyWith(fileEditorEngine: engine));
 
   void setNotificationsEnabled(bool value) =>
       _apply(_settings.copyWith(notificationsEnabled: value));

@@ -65,6 +65,7 @@ import 'package:cockpit/app/cockpit/domain/entities/session_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
 import 'package:cockpit/app/cockpit/domain/services/worktree_reconciler.dart';
+import 'package:cockpit/app/cockpit/domain/services/file_editor_facade.dart';
 import 'package:cockpit/app/cockpit/ui/session/scm_line_decoration_coordinator.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
@@ -161,6 +162,12 @@ class CockpitViewModel extends ChangeNotifier {
     this.notifications,
     this._neovim,
   ) {
+    _fileEditorFacade = FileEditorFacade(
+      FileEditorRegistry({
+        FileEditorEngine.cockpit: _openWithCockpitEditor,
+        FileEditorEngine.neovim: _openWithNeovimEditor,
+      }),
+    );
     _worktreeReconciler = WorktreeReconciler(_worktreeMgr);
     // Contexto do shell que o GitController precisa (page-scoped, mesma vida).
     git
@@ -535,9 +542,10 @@ class CockpitViewModel extends ChangeNotifier {
     _taskTerminals.setDefaultEngine(engine);
   }
 
-  bool _neovimEnabled = false;
+  late final FileEditorFacade _fileEditorFacade;
 
-  void setNeovimEnabled(bool value) => _neovimEnabled = value;
+  void setFileEditorEngine(FileEditorEngine engine) =>
+      _fileEditorFacade.engine = engine;
 
   /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
   List<TerminalProfile> get terminalProfiles =>
@@ -1107,7 +1115,15 @@ class CockpitViewModel extends ChangeNotifier {
   /// resultante — enfiar o modo nos quatro caminhos de abertura (já aberta,
   /// remota, preview reusado, aba nova) espalharia a decisão por todos eles.
   Future<void> openFileAsSource(String path) async {
-    await openFile(path, isPreview: false);
+    final result = await _dispatchFileOpen(
+      path,
+      isPreview: false,
+      asSource: true,
+    );
+    if (result?.engine != FileEditorEngine.cockpit ||
+        result?.outcome != FileOpenOutcome.opened) {
+      return;
+    }
     for (final s in _sessions.values) {
       if (s is FileViewerSession && s.path == path && !s.rawSource) {
         s.toggleRawSource();
@@ -1121,31 +1137,74 @@ class CockpitViewModel extends ChangeNotifier {
     bool isPreview = true,
     int? revealLine,
   }) async {
-    // Pasta `.notebook` é um documento (caderno), não uma pasta a expandir.
-    if (isNotebookFolder(path.split('/').last)) {
-      openNotebook(path);
-      return;
-    }
+    await _dispatchFileOpen(
+      path,
+      inPane: inPane,
+      isPreview: isPreview,
+      revealLine: revealLine,
+    );
+  }
+
+  Future<FileOpenResult?> _dispatchFileOpen(
+    String path, {
+    String? inPane,
+    bool isPreview = true,
+    int? revealLine,
+    bool asSource = false,
+  }) async {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     final paneId = inPane ?? (projectId == null ? null : _focused[projectId]);
-    if (projectId == null || tree == null || paneId == null) return;
-    if (_shouldOpenInNeovim(projectId, path)) {
-      final opened = await _enqueueNeovimOpen(
-        projectId,
-        paneId,
-        path,
-        line: revealLine,
-      );
-      if (opened) return;
-      // Executável ausente/falha de spawn: mantém o usuário produtivo usando o
-      // fluxo integrado já existente. A UI recebe o erro tipado via callback.
+    if (projectId == null || tree == null || paneId == null) return null;
+    return _fileEditorFacade.open(
+      FileOpenRequest(
+        path: path,
+        projectId: projectId,
+        paneId: paneId,
+        isRemote: _isRemoteWorkspace(projectId),
+        isPreview: isPreview,
+        revealLine: revealLine,
+        asSource: asSource,
+        isNotebook: isNotebookFolder(path.split('/').last),
+        focusPane: inPane != null,
+      ),
+    );
+  }
+
+  Future<FileOpenOutcome> _openWithCockpitEditor(
+    FileOpenRequest request,
+  ) async {
+    if (request.isNotebook) {
+      openNotebook(request.path);
+      return FileOpenOutcome.opened;
     }
+    await _openFileInCockpit(request);
+    return FileOpenOutcome.opened;
+  }
+
+  Future<FileOpenOutcome> _openWithNeovimEditor(FileOpenRequest request) async {
+    final opened = await _enqueueNeovimOpen(
+      request.projectId,
+      request.paneId,
+      request.path,
+      line: request.revealLine,
+    );
+    return opened ? FileOpenOutcome.opened : FileOpenOutcome.notHandled;
+  }
+
+  Future<void> _openFileInCockpit(FileOpenRequest request) async {
+    final path = request.path;
+    final projectId = request.projectId;
+    final tree = _trees[projectId];
+    final paneId = request.paneId;
+    final isPreview = request.isPreview;
+    final revealLine = request.revealLine;
+    if (tree == null) return;
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
     _recordHistoryBeforeSwitch(paneId);
     // Soltar um arquivo numa pane específica também a foca.
-    if (inPane != null) _focused[projectId] = inPane;
+    if (request.focusPane) _focused[projectId] = paneId;
 
     // Se isPreview, tenta reutilizar a aba de preview existente ou substituir a ativa.
     // Se não é preview, cria uma aba normal (comportamento original).
@@ -1231,23 +1290,6 @@ class CockpitViewModel extends ChangeNotifier {
     _sessions[viewer.id] = viewer;
     _watchFileViewer(viewer);
     _placeNewViewer(viewer, projectId, paneId, tree, isPreview: isPreview);
-  }
-
-  static const Set<String> _neovimInternalExtensions = {
-    // Editores com runner próprio.
-    'http', 'dbq',
-    // Visualizações de mídia do Cockpit.
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'svg',
-    'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv',
-    'mp3', 'wav', 'aac', 'm4a', 'flac', 'ogg', 'opus',
-  };
-
-  bool _shouldOpenInNeovim(String projectId, String path) {
-    if (!_neovimEnabled || _isRemoteWorkspace(projectId)) return false;
-    final name = path.split('/').last;
-    final dot = name.lastIndexOf('.');
-    final ext = dot <= 0 ? '' : name.substring(dot + 1).toLowerCase();
-    return !_neovimInternalExtensions.contains(ext);
   }
 
   Future<bool> _enqueueNeovimOpen(
@@ -5645,18 +5687,47 @@ class CockpitViewModel extends ChangeNotifier {
       return sub.isEmpty ? project.path : '${project.path}/$sub';
     }
 
+    Future<bool> restoreCockpitViewer(String path) async {
+      final view = await _readFile(path);
+      if (view is FileViewUnsupported) return false;
+      final viewer = FileViewerSession(
+        id: id,
+        projectId: project.id,
+        path: path,
+        view: view,
+      );
+      viewer.boardAsList = desc['boardAsList'] as bool? ?? false;
+      viewer.rawSource = desc['rawSource'] as bool? ?? false;
+      viewer.restoreManualLabel(desc['label'] as String?);
+      _applyKanbanBoardTitle(viewer);
+      _ensureScmCoordinator(viewer);
+      _sessions[id] = viewer;
+      _watchFileViewer(viewer);
+      return true;
+    }
+
     switch (desc['type']) {
+      case 'file_engine':
       case 'neovim':
-        if (!_neovimEnabled || project.isRemoteTerminal) return false;
+        final path = desc['path'] as String?;
+        if (path == null || path.isEmpty) return false;
+        final fileEngine = desc['type'] == 'neovim'
+            ? FileEditorEngine.neovim
+            : _enumByName(
+                FileEditorEngine.values,
+                desc['fileEngine'],
+                FileEditorEngine.cockpit,
+              );
+        if (fileEngine != FileEditorEngine.neovim || project.isRemoteTerminal) {
+          return restoreCockpitViewer(path);
+        }
         if (_sessions.values.whereType<NeovimSession>().any(
           (session) => session.projectId == project.id,
         )) {
-          return false;
+          return restoreCockpitViewer(path);
         }
-        final path = desc['path'] as String?;
-        if (path == null || path.isEmpty) return false;
         final executable = await _neovim.executable();
-        if (executable == null) return false;
+        if (executable == null) return restoreCockpitViewer(path);
         final address = _neovim.serverAddress(project.id);
         await _neovim.prepareServer(address);
         _sessions[id] = NeovimSession(
@@ -5671,7 +5742,7 @@ class CockpitViewModel extends ChangeNotifier {
           lastLine: desc['line'] as int?,
           engine: _enumByName(
             TerminalEngine.values,
-            desc['engine'],
+            desc['type'] == 'neovim' ? desc['engine'] : desc['terminalEngine'],
             _defaultTerminalEngine,
           ),
         );
@@ -5725,30 +5796,7 @@ class CockpitViewModel extends ChangeNotifier {
       case 'viewer':
         final path = desc['path'] as String?;
         if (path == null) return false;
-        // `_readFile` roteia pro host quando o workspace ativo é remoto (o
-        // restore no boot roda só pro projeto selecionado); local usa o
-        // `_fileReader`. Sem isto, aba de arquivo de workspace remoto tentava
-        // ler no disco do cliente e caía fora (não restaurava).
-        final view = await _readFile(path);
-        if (view is FileViewUnsupported) return false;
-        final viewer = FileViewerSession(
-          id: id,
-          projectId: project.id,
-          path: path,
-          view: view,
-        );
-        viewer.boardAsList = desc['boardAsList'] as bool? ?? false;
-        viewer.rawSource = desc['rawSource'] as bool? ?? false;
-        // Rótulo salvo primeiro, frontmatter depois: num `.kanban` o `title:`
-        // do arquivo é a fonte de verdade e sobrescreve o que veio do layout.
-        viewer.restoreManualLabel(desc['label'] as String?);
-        _applyKanbanBoardTitle(viewer);
-        // Same pipeline as openFile: SCM coordinator + live-reload.
-        // Without this, restored tabs have no diff gutter until reopen.
-        _ensureScmCoordinator(viewer);
-        _sessions[id] = viewer;
-        _watchFileViewer(viewer);
-        return true;
+        return restoreCockpitViewer(path);
       case 'diff':
         final path = desc['path'] as String?;
         if (path == null) return false;
@@ -5979,7 +6027,8 @@ class CockpitViewModel extends ChangeNotifier {
       // worktree não replica viewers/diffs nem a instância de editor do pai.
       if (desc['type'] == 'viewer' ||
           desc['type'] == 'diff' ||
-          desc['type'] == 'neovim') {
+          desc['type'] == 'neovim' ||
+          desc['type'] == 'file_engine') {
         continue;
       }
       // Zera qualquer estado de continuação — o worktree é um workspace novo,
@@ -6046,10 +6095,11 @@ class CockpitViewModel extends ChangeNotifier {
   Map<String, dynamic> _sessionToJson(PaneItem s, Project project) {
     if (s is NeovimSession) {
       return <String, dynamic>{
-        'type': 'neovim',
+        'type': 'file_engine',
+        'fileEngine': FileEditorEngine.neovim.name,
         'path': s.lastPath,
         if (s.lastLine != null) 'line': s.lastLine,
-        'engine': s.terminal.engine.name,
+        'terminalEngine': s.terminal.engine.name,
       };
     }
     if (s is TerminalSession) {

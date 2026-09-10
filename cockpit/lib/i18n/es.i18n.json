@@ -895,7 +895,9 @@
       "general": {
         "sectionAgent": "Agente",
         "sectionEditor": "Editor",
-        "neovimTitle": "Abrir archivos en Neovim",
+      "editorEngineTitle": "Motor",
+      "editorEngineCockpit": "Cockpit (predeterminado)",
+      "editorEngineNeovim": "Neovim",
         "neovimChecking": "Buscando Neovim…",
         "neovimNotFound": "Neovim no se encontró en la PATH de tu shell.",
         "neovimRefresh": "Comprobar de nuevo",

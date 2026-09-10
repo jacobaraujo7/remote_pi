@@ -14,17 +14,42 @@ class _Store implements SettingsStore {
 }
 
 void main() {
-  test('Neovim is disabled by default and absent from compact JSON', () {
+  test('Cockpit editor is the default and uses the stable engine key', () {
     const settings = AppSettings();
-    expect(settings.neovimEnabled, isFalse);
+    expect(settings.fileEditorEngine, FileEditorEngine.cockpit);
+    expect(settings.toJson()['editor.engine'], 'cockpit');
     expect(settings.toJson(), isNot(contains('editor.neovim.enabled')));
   });
 
-  test('Neovim preference round-trips with a stable key', () {
-    const settings = AppSettings(neovimEnabled: true);
+  test('Neovim engine round-trips with a stable key', () {
+    const settings = AppSettings(fileEditorEngine: FileEditorEngine.neovim);
     final json = settings.toJson();
-    expect(json['editor.neovim.enabled'], isTrue);
-    expect(AppSettings.fromJson(json).neovimEnabled, isTrue);
+    expect(json['editor.engine'], 'neovim');
+    expect(
+      AppSettings.fromJson(json).fileEditorEngine,
+      FileEditorEngine.neovim,
+    );
+  });
+
+  test('legacy Neovim boolean migrates and new key takes precedence', () {
+    expect(
+      AppSettings.fromJson({'editor.neovim.enabled': true}).fileEditorEngine,
+      FileEditorEngine.neovim,
+    );
+    expect(
+      AppSettings.fromJson({
+        'editor.engine': 'cockpit',
+        'editor.neovim.enabled': true,
+      }).fileEditorEngine,
+      FileEditorEngine.cockpit,
+    );
+  });
+
+  test('unknown editor engine falls back to Cockpit', () {
+    expect(
+      AppSettings.fromJson({'editor.engine': 'flack'}).fileEditorEngine,
+      FileEditorEngine.cockpit,
+    );
   });
 
   test('SettingsController persists Neovim changes', () async {
@@ -32,10 +57,10 @@ void main() {
     final controller = SettingsController(store);
     await controller.load();
 
-    controller.setNeovimEnabled(true);
+    controller.setFileEditorEngine(FileEditorEngine.neovim);
     await Future<void>.delayed(Duration.zero);
 
-    expect(controller.settings.neovimEnabled, isTrue);
-    expect(store.saved?.neovimEnabled, isTrue);
+    expect(controller.settings.fileEditorEngine, FileEditorEngine.neovim);
+    expect(store.saved?.fileEditorEngine, FileEditorEngine.neovim);
   });
 }

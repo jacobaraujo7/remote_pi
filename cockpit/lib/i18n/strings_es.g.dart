@@ -1622,7 +1622,9 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	// Translations
 	@override String get sectionAgent => 'Agente';
 	@override String get sectionEditor => 'Editor';
-	@override String get neovimTitle => 'Abrir archivos en Neovim';
+	@override String get editorEngineTitle => 'Motor';
+	@override String get editorEngineCockpit => 'Cockpit (predeterminado)';
+	@override String get editorEngineNeovim => 'Neovim';
 	@override String get neovimChecking => 'Buscando Neovim…';
 	@override String get neovimNotFound => 'Neovim no se encontró en la PATH de tu shell.';
 	@override String get neovimRefresh => 'Comprobar de nuevo';
@@ -2511,13 +2513,13 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.testing' => 'Probando conexión…',
 			'cockpit.dbConnectionDialog.connectionOk' => 'Conexión OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Fallo en la conexión',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexión',
 			'cockpit.dbConnectionDialog.newTitle' => 'Nueva conexión',
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexión no válida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
@@ -2562,8 +2564,6 @@ extension on TranslationsEs {
 			'cockpit.findBar.wholeWord' => 'Palabra completa',
 			'cockpit.findBar.useRegex' => 'Usar expresión regular',
 			'cockpit.findBar.previous' => 'Anterior (⇧⏎)',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.findBar.next' => 'Siguiente (⏎)',
 			'cockpit.findBar.close' => 'Cerrar (Esc)',
 			'cockpit.findBar.badPattern' => 'Patrón inválido',
@@ -2744,7 +2744,9 @@ extension on TranslationsEs {
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
 			'settings.page.general.sectionAgent' => 'Agente',
 			'settings.page.general.sectionEditor' => 'Editor',
-			'settings.page.general.neovimTitle' => 'Abrir archivos en Neovim',
+			'settings.page.general.editorEngineTitle' => 'Motor',
+			'settings.page.general.editorEngineCockpit' => 'Cockpit (predeterminado)',
+			'settings.page.general.editorEngineNeovim' => 'Neovim',
 			'settings.page.general.neovimChecking' => 'Buscando Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim no se encontró en la PATH de tu shell.',
 			'settings.page.general.neovimRefresh' => 'Comprobar de nuevo',
@@ -3025,6 +3027,8 @@ extension on TranslationsEs {
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} no respondió en ${seconds} segundos.',
 			'automation.error.cancelled' => 'Se canceló la generación del mensaje de commit.',
@@ -3037,8 +3041,6 @@ extension on TranslationsEs {
 			'automation.error.fileOutsideWorkspace' => 'El archivo está fuera de las raíces del workspace.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'No se pudo leer el archivo: ${detail}',
 			'automation.error.binaryFile' => 'No se puede generar un mensaje de commit para un archivo binario.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.noFileChanges' => 'No hay cambios que describir en este archivo.',
 			'automation.error.noStagedChanges' => 'No hay cambios en stage que describir.',
 			'automation.error.multipleRepositories' => 'Los cambios en stage pertenecen a varios repositorios. Genéralos por separado.',

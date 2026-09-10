@@ -3245,8 +3245,14 @@ class Translations$settings$page$general$en {
 	/// en: 'Editor'
 	String get sectionEditor => 'Editor';
 
-	/// en: 'Open files in Neovim'
-	String get neovimTitle => 'Open files in Neovim';
+	/// en: 'Engine'
+	String get editorEngineTitle => 'Engine';
+
+	/// en: 'Cockpit (default)'
+	String get editorEngineCockpit => 'Cockpit (default)';
+
+	/// en: 'Neovim'
+	String get editorEngineNeovim => 'Neovim';
 
 	/// en: 'Looking for Neovim…'
 	String get neovimChecking => 'Looking for Neovim…';
@@ -4650,13 +4656,13 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.testing' => 'Testing connection…',
 			'cockpit.dbConnectionDialog.connectionOk' => 'Connection OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Connection failed',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.editTitle' => 'Edit connection',
 			'cockpit.dbConnectionDialog.newTitle' => 'New connection',
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
@@ -4701,8 +4707,6 @@ extension on Translations {
 			'cockpit.findBar.wholeWord' => 'Whole word',
 			'cockpit.findBar.useRegex' => 'Use regular expression',
 			'cockpit.findBar.previous' => 'Previous (⇧⏎)',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.findBar.next' => 'Next (⏎)',
 			'cockpit.findBar.close' => 'Close (Esc)',
 			'cockpit.findBar.badPattern' => 'Bad pattern',
@@ -4883,7 +4887,9 @@ extension on Translations {
 			'settings.page.nav.remoteHosts' => 'Remote hosts',
 			'settings.page.general.sectionAgent' => 'Agent',
 			'settings.page.general.sectionEditor' => 'Editor',
-			'settings.page.general.neovimTitle' => 'Open files in Neovim',
+			'settings.page.general.editorEngineTitle' => 'Engine',
+			'settings.page.general.editorEngineCockpit' => 'Cockpit (default)',
+			'settings.page.general.editorEngineNeovim' => 'Neovim',
 			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
 			'settings.page.general.neovimRefresh' => 'Check again',
@@ -5164,6 +5170,8 @@ extension on Translations {
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
@@ -5176,8 +5184,6 @@ extension on Translations {
 			'automation.error.fileOutsideWorkspace' => 'File is outside the workspace roots.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Could not read the file: ${detail}',
 			'automation.error.binaryFile' => 'A commit message cannot be generated for a binary file.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.noFileChanges' => 'There are no changes to describe for this file.',
 			'automation.error.noStagedChanges' => 'There are no staged changes to describe.',
 			'automation.error.multipleRepositories' => 'Staged changes belong to multiple repositories. Generate them separately.',

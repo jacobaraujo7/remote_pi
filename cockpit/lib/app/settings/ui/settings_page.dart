@@ -40,6 +40,7 @@ import 'package:cockpit/app/settings/ui/cron_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/daemons_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/notifications_viewmodel.dart';
 import 'package:cockpit/app/settings/ui/neovim_settings_viewmodel.dart';
+import 'package:cockpit/app/settings/domain/editor_appearance_policy.dart';
 import 'package:cockpit/app/settings/ui/pairing_dialog.dart';
 import 'package:cockpit/app/settings/ui/revoke_dialog.dart';
 import 'package:cockpit/app/settings/ui/settings_env_gate.dart';
@@ -535,7 +536,7 @@ class _GeneralPanel extends StatelessWidget {
                   child: _Card(
                     children: [
                       _Row(
-                        title: tr.neovimTitle,
+                        title: tr.editorEngineTitle,
                         description: neovim.checking
                             ? tr.neovimChecking
                             : neovim.executable ?? tr.neovimNotFound,
@@ -554,11 +555,10 @@ class _GeneralPanel extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Switch(
-                              value: s.neovimEnabled,
-                              onChanged: neovim.available || s.neovimEnabled
-                                  ? controller.setNeovimEnabled
-                                  : null,
+                            _FileEditorEngineDropdown(
+                              value: s.fileEditorEngine,
+                              neovimAvailable: neovim.available,
+                              onChanged: controller.setFileEditorEngine,
                             ),
                           ],
                         ),
@@ -1296,6 +1296,48 @@ class _TerminalEngineDropdown extends StatelessWidget {
   }
 }
 
+class _FileEditorEngineDropdown extends StatelessWidget {
+  const _FileEditorEngineDropdown({
+    required this.value,
+    required this.neovimAvailable,
+    required this.onChanged,
+  });
+
+  final FileEditorEngine value;
+  final bool neovimAvailable;
+  final ValueChanged<FileEditorEngine> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.general;
+    String label(FileEditorEngine engine) => switch (engine) {
+      FileEditorEngine.cockpit => tr.editorEngineCockpit,
+      FileEditorEngine.neovim => tr.editorEngineNeovim,
+    };
+
+    return _DropdownChip(
+      icon: Icons.code,
+      label: label(value),
+      onTap: () async {
+        final picked = await showAppMenu<FileEditorEngine>(
+          context,
+          minWidth: 210,
+          items: [
+            for (final engine in FileEditorEngine.values)
+              AppMenuItem(
+                value: engine,
+                label: label(engine),
+                selected: engine == value,
+                enabled: engine != FileEditorEngine.neovim || neovimAvailable,
+              ),
+          ],
+        );
+        if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
 class _TerminalWeightDropdown extends StatelessWidget {
   const _TerminalWeightDropdown({required this.value, required this.onChanged});
 
@@ -1484,25 +1526,27 @@ class _AppearancePanel extends StatelessWidget {
                         onChanged: controller.setInterfaceSize,
                       ),
                     ),
-                    _Row(
-                      title: tr.codeFontTitle,
-                      description: tr.codeFontDesc,
-                      trailing: _FontField(
-                        value: s.codeFont,
-                        hint: 'JetBrains Mono',
-                        monospacedOnly: true,
-                        onChanged: controller.setCodeFont,
+                    if (EditorAppearancePolicy.showCodeFont(s))
+                      _Row(
+                        title: tr.codeFontTitle,
+                        description: tr.codeFontDesc,
+                        trailing: _FontField(
+                          value: s.codeFont,
+                          hint: 'JetBrains Mono',
+                          monospacedOnly: true,
+                          onChanged: controller.setCodeFont,
+                        ),
                       ),
-                    ),
-                    _Row(
-                      title: tr.codeSizeTitle,
-                      trailing: _SizeStepper(
-                        value: s.codeSize,
-                        min: 9,
-                        max: 20,
-                        onChanged: controller.setCodeSize,
+                    if (EditorAppearancePolicy.showCodeSize(s))
+                      _Row(
+                        title: tr.codeSizeTitle,
+                        trailing: _SizeStepper(
+                          value: s.codeSize,
+                          min: 9,
+                          max: 20,
+                          onChanged: controller.setCodeSize,
+                        ),
                       ),
-                    ),
                     _Row(
                       title: tr.terminalFontTitle,
                       description: tr.terminalFontDesc,

@@ -147,7 +147,7 @@ class _CockpitPageState extends State<CockpitPage> {
     context.read<CockpitViewModel>()
       ..setDefaultTerminalProfileId(initialSettings.defaultTerminalProfileId)
       ..setDefaultTerminalEngine(initialSettings.terminalEngine)
-      ..setNeovimEnabled(initialSettings.neovimEnabled);
+      ..setFileEditorEngine(initialSettings.fileEditorEngine);
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
     context.read<CockpitViewModel>().init();
@@ -189,13 +189,13 @@ class _CockpitPageState extends State<CockpitPage> {
       ..addListener(_syncCockpit)
       ..addListener(_syncSourceControlViewMode)
       ..addListener(_syncAutomationSelection)
-      ..addListener(_syncNeovim);
+      ..addListener(_syncFileEditorEngine);
     context.read<CockpitViewModel>().onNeovimError = _showNeovimError;
     _syncLspCommands();
     _syncNotifications();
     _syncCockpit();
     _syncAutomationSelection();
-    _syncNeovim();
+    _syncFileEditorEngine();
     // Restaura a visibilidade dos painéis (rail/árvore) salva na sessão anterior
     // e persiste de volta a cada toggle. A VM é a fonte de verdade em runtime.
     final vm = context.read<CockpitViewModel>();
@@ -432,8 +432,8 @@ class _CockpitPageState extends State<CockpitPage> {
     _vm.setAutomationSelection(_settings!.settings.automationSelection);
   }
 
-  void _syncNeovim() {
-    _vm.setNeovimEnabled(_settings!.settings.neovimEnabled);
+  void _syncFileEditorEngine() {
+    _vm.setFileEditorEngine(_settings!.settings.fileEditorEngine);
   }
 
   void _showNeovimError(NeovimError error) {
@@ -513,7 +513,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _settings?.removeListener(_syncCockpit);
     _settings?.removeListener(_syncSourceControlViewMode);
     _settings?.removeListener(_syncAutomationSelection);
-    _settings?.removeListener(_syncNeovim);
+    _settings?.removeListener(_syncFileEditorEngine);
     _vm.onNeovimError = null;
     _menuVm?.removeListener(_syncWorkspaceMenu);
     _workspaceMenu?.setWorkspace(hasWorkspace: false);
