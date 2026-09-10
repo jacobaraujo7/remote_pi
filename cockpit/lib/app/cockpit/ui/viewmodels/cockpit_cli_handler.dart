@@ -15,6 +15,7 @@ import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_host.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_workspace_pin.dart';
+import 'package:cockpit/app/cockpit/data/remote/ssh_tunnel.dart';
 import 'package:cockpit/app/cockpit/domain/entities/sql_statements.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_access_gate.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
@@ -1236,16 +1237,31 @@ class CockpitCliHandler {
     var p = rawPath.trim();
     if (p == '~' || p.startsWith('~/')) {
       try {
-        final service = await _vm.remoteHosts.fileServiceFor(host);
-        final remoteHome = await service.home();
-        if (remoteHome.isNotEmpty) {
+        final (code, out, _) = await SshTunnel.capture(
+          host.sshTarget,
+          r'printf %s "$HOME"',
+          port: host.port,
+          identityFile: host.effectiveIdentityFile,
+        );
+        if (code == 0 && out.trim().isNotEmpty) {
+          final remoteHome = out.trim();
           final normalizedHome = remoteHome.endsWith('/')
               ? remoteHome.substring(0, remoteHome.length - 1)
               : remoteHome;
           p = p == '~' ? normalizedHome : '$normalizedHome/${p.substring(2)}';
         }
       } catch (_) {
-        // Best-effort: se a conexão imediata falhar, mantém o path com ~
+        // Fallback: tenta via fileService se capture falhar
+        try {
+          final service = await _vm.remoteHosts.fileServiceFor(host);
+          final remoteHome = await service.home();
+          if (remoteHome.isNotEmpty) {
+            final normalizedHome = remoteHome.endsWith('/')
+                ? remoteHome.substring(0, remoteHome.length - 1)
+                : remoteHome;
+            p = p == '~' ? normalizedHome : '$normalizedHome/${p.substring(2)}';
+          }
+        } catch (_) {}
       }
     }
     while (p.length > 1 && (p.endsWith('/') || p.endsWith(r'\'))) {
