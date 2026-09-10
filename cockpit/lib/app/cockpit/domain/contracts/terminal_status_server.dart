@@ -66,7 +66,8 @@ enum AgentHarness {
 class CockpitCommand {
   const CockpitCommand({required this.cmd, this.tabId, this.args = const {}});
 
-  /// Verbo no wire: `write` (send/send-key) | `list-panes` | `list-workspaces`.
+  /// Verbo no wire: `write` (send/send-key) | `list-panes` | `list-workspaces` |
+  /// `new-workspace` | `close-workspace` | `rename-workspace`.
   final String cmd;
 
   /// Pane alvo (default = `$COCKPIT_PANE_ID` resolvido pela CLI). `null` só nos

@@ -487,3 +487,171 @@ fn sem_app_nenhum_falha_com_exit_3() {
         String::from_utf8_lossy(&out.stderr)
     );
 }
+
+#[test]
+fn new_workspace_manda_path_resolvido_e_nome_opcional() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["new-workspace", "my/project", "--name", "My Project"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-1","name":"My Project","path":"/resolved/my/project","tabs":1}}"#,
+    );
+    assert_eq!(req["type"], "cmd");
+    assert_eq!(req["cmd"], "new-workspace");
+    assert!(
+        req["args"]["path"].as_str().unwrap().ends_with("my/project"),
+        "path deve ser absoluto: {}",
+        req["args"]["path"]
+    );
+    assert_eq!(req["args"]["name"], "My Project");
+    assert_eq!(stdout.trim(), "ws-uuid-1");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn new_remote_workspace_com_flags_host_e_path() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &[
+            "new-remote-workspace",
+            "--host",
+            "workspace-scott-meyer-2",
+            "--path",
+            "/home/ubuntu/repo-worktrees/task-1",
+            "--name",
+            "task-1",
+        ],
+        r#"{"ok":true,"data":{"id":"__remote__1::/home/ubuntu/repo-worktrees/task-1","name":"task-1","path":"/home/ubuntu/repo-worktrees/task-1","host":"workspace-scott-meyer-2","tabs":1}}"#,
+    );
+    assert_eq!(req["type"], "cmd");
+    assert_eq!(req["cmd"], "new-workspace");
+    assert_eq!(req["args"]["host"], "workspace-scott-meyer-2");
+    assert_eq!(
+        req["args"]["path"],
+        "/home/ubuntu/repo-worktrees/task-1",
+        "caminho remoto deve ser preservado exatamente como passado"
+    );
+    assert_eq!(req["args"]["name"], "task-1");
+    assert_eq!(
+        stdout.trim(),
+        "__remote__1::/home/ubuntu/repo-worktrees/task-1"
+    );
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn new_workspace_com_host_e_posicional_remoto() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &[
+            "new-workspace",
+            "/home/ubuntu/worktree",
+            "--host",
+            "workspace-vm",
+            "--json",
+        ],
+        r#"{"ok":true,"data":{"id":"__remote__2::/home/ubuntu/worktree","name":"worktree","path":"/home/ubuntu/worktree","host":"workspace-vm","tabs":1}}"#,
+    );
+    assert_eq!(req["cmd"], "new-workspace");
+    assert_eq!(req["args"]["host"], "workspace-vm");
+    assert_eq!(req["args"]["path"], "/home/ubuntu/worktree");
+    let parsed: Value = serde_json::from_str(&stdout).expect("JSON válido");
+    assert_eq!(parsed["id"], "__remote__2::/home/ubuntu/worktree");
+    assert_eq!(parsed["host"], "workspace-vm");
+    assert_eq!(code, 0);
+}
+
+
+#[test]
+fn new_workspace_json_ecoa_o_objeto_completo() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["new-workspace", "/tmp/proj", "--json"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-2","name":"proj","path":"/tmp/proj","tabs":1}}"#,
+    );
+    assert_eq!(req["cmd"], "new-workspace");
+    assert_eq!(req["args"]["path"], "/tmp/proj");
+    assert!(req["args"].get("name").is_none());
+    let parsed: Value = serde_json::from_str(&stdout).expect("JSON válido");
+    assert_eq!(parsed["id"], "ws-uuid-2");
+    assert_eq!(parsed["tabs"], 1);
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn open_workspace_e_alias_de_new_workspace() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["open-workspace", "/tmp/proj2"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-3","name":"proj2","path":"/tmp/proj2","tabs":1}}"#,
+    );
+    assert_eq!(req["cmd"], "new-workspace");
+    assert_eq!(req["args"]["path"], "/tmp/proj2");
+    assert_eq!(stdout.trim(), "ws-uuid-3");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn close_workspace_com_alvo_manda_target() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["close-workspace", "ws-uuid-1"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-1","path":"/tmp/proj","closed":true}}"#,
+    );
+    assert_eq!(req["cmd"], "close-workspace");
+    assert_eq!(req["args"]["target"], "ws-uuid-1");
+    assert_eq!(stdout.trim(), "ws-uuid-1");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn close_workspace_sem_alvo_cai_na_tab_do_ambiente() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["close-workspace"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-4","path":"/tmp/proj4","closed":true}}"#,
+    );
+    assert_eq!(req["cmd"], "close-workspace");
+    assert!(req["args"].get("target").is_none());
+    assert_eq!(req["tabId"], "t7");
+    assert_eq!(stdout.trim(), "ws-uuid-4");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn close_workspace_json_ecoa_data() {
+    let (_, stdout, _, code) = run_against_fake_app(
+        &["close-workspace", "ws-uuid-1", "--json"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-1","path":"/tmp/proj","closed":true}}"#,
+    );
+    let parsed: Value = serde_json::from_str(&stdout).expect("JSON válido");
+    assert_eq!(parsed["closed"], true);
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn rename_workspace_manda_target_e_name() {
+    let (req, stdout, _, code) = run_against_fake_app(
+        &["rename-workspace", "ws-uuid-1", "Novo Nome"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-1","name":"Novo Nome","path":"/tmp/proj"}}"#,
+    );
+    assert_eq!(req["cmd"], "rename-workspace");
+    assert_eq!(req["args"]["target"], "ws-uuid-1");
+    assert_eq!(req["args"]["name"], "Novo Nome");
+    assert_eq!(stdout.trim(), "ws-uuid-1");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn rename_workspace_json_ecoa_data() {
+    let (_, stdout, _, code) = run_against_fake_app(
+        &["rename-workspace", "ws-uuid-1", "Novo Nome", "--json"],
+        r#"{"ok":true,"data":{"id":"ws-uuid-1","name":"Novo Nome","path":"/tmp/proj"}}"#,
+    );
+    let parsed: Value = serde_json::from_str(&stdout).expect("JSON válido");
+    assert_eq!(parsed["name"], "Novo Nome");
+    assert_eq!(code, 0);
+}
+
+#[test]
+fn workspace_erros_propagam_exit_1() {
+    let (_, _, stderr, code) = run_against_fake_app(
+        &["new-workspace", "/nonexistent"],
+        r#"{"ok":false,"error":"directory not found: /nonexistent"}"#,
+    );
+    assert_eq!(code, 1);
+    assert!(stderr.contains("directory not found: /nonexistent"));
+}
+

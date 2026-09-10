@@ -222,6 +222,18 @@ Cockpit tabs (it is not on the global PATH).
   accepts). Resolve a tab by its stable `label`, not the dynamic `title`.
 - `cockpit list-workspaces [--json]` — open projects: `id` (opaque UUID),
   `name`, `path` (root on disk), `tabs`.
+- `cockpit new-workspace <path> [--host <ssh-target>] [--name <title>] [--json]`
+  (aliases: `open-workspace`, `new-remote-workspace`) — add `<path>` as a top-level
+  project in Cockpit's rail (local or remote), select it, and ensure an initial
+  terminal tab is opened. For remote workspaces, pass `--host` (SSH host or
+  `~/.ssh/config` alias). Idempotent: focuses an already open workspace.
+  Prints the workspace id (or full object with `--json`).
+- `cockpit close-workspace [<id|path>] [--json]` — remove a top-level project
+  from Cockpit (ends its tabs; files on disk are kept). Target may be an id,
+  path, or unique name (default: current workspace). Prints the closed workspace id.
+- `cockpit rename-workspace [<id|path>] <new-name> [--json]` — update the
+  display title of a workspace in the rail. Target may be an id, path, or
+  unique name (default: current workspace).
 - `cockpit orchestrate <file.ckp> [--json]` — apply a **pane layout** to the
   current workspace: opens the terminals/splits declared in the file and types
   each pane's `command`. Idempotent merge: a pane whose `name` already exists

@@ -243,6 +243,305 @@ pub fn close_tab(args: &[String]) -> ! {
     std::process::exit(0)
 }
 
+// ---- workspaces -------------------------------------------------------------
+
+const NEW_WORKSPACE_HELP: &str = "cockpit new-workspace <path> [--host <ssh-target>] [--name <title>] [--json]
+  Adds a top-level workspace in Cockpit's sidebar (local or remote), selects it,
+  and ensures an initial terminal tab is opened.
+  Aliases: `cockpit open-workspace`, `cockpit new-remote-workspace`
+  If the directory is already open, focuses it and returns the existing workspace.
+  --host <target> SSH host or alias from ~/.ssh/config (creates a remote workspace)
+  --path <path>   path (alternative to positional <path>)
+  --name <title>  custom display title (default: folder name)
+  --tab-id <id>   caller tab (default: this tab / $COCKPIT_TAB_ID)
+  --json          output workspace as JSON: {\"id\": \"...\", \"name\": \"...\", \"path\": \"...\", \"tabs\": N}
+  Prints the workspace id.";
+
+pub fn new_workspace(args: &[String]) -> ! {
+    let mut path: Option<String> = None;
+    let mut host: Option<String> = None;
+    let mut name: Option<String> = None;
+    let mut tab_id: Option<String> = None;
+    let mut as_json = false;
+
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--help" || a == "-h" {
+            println!("{NEW_WORKSPACE_HELP}");
+            std::process::exit(0);
+        }
+        if a == "--json" {
+            as_json = true;
+            i += 1;
+            continue;
+        }
+        if a == "--host" || a == "--remote" {
+            if i + 1 >= args.len() {
+                die("cockpit new-workspace: --host requires a value", 2);
+            }
+            i += 1;
+            host = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--host=").or_else(|| a.strip_prefix("--remote=")) {
+            host = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a == "--path" {
+            if i + 1 >= args.len() {
+                die("cockpit new-workspace: --path requires a value", 2);
+            }
+            i += 1;
+            path = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--path=") {
+            path = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a == "--name" {
+            if i + 1 >= args.len() {
+                die("cockpit new-workspace: --name requires a value", 2);
+            }
+            i += 1;
+            name = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--name=") {
+            name = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a == "--tab-id" || a == "-t" {
+            if i + 1 >= args.len() {
+                die("cockpit: --tab-id requires a value", 2);
+            }
+            i += 1;
+            tab_id = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--tab-id=") {
+            tab_id = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a.starts_with('-') {
+            die(&format!("cockpit: unknown flag \"{a}\""), 2);
+        }
+        if path.is_none() {
+            path = Some(a.to_string());
+        }
+        i += 1;
+    }
+
+    let raw_path = match path {
+        Some(p) if !p.is_empty() => p,
+        _ => die("cockpit new-workspace: missing <path> (or --path <path>)", 2),
+    };
+
+    let target_path = if host.is_some() {
+        // Caminho no HOST remoto: não resolve contra o cwd local
+        raw_path
+    } else {
+        resolve_path(&raw_path)
+    };
+
+    let mut cmd_args = Map::new();
+    cmd_args.insert("path".into(), json!(target_path));
+    if let Some(h) = host.filter(|h| !h.is_empty()) {
+        cmd_args.insert("host".into(), json!(h));
+    }
+    if let Some(n) = name.filter(|n| !n.is_empty()) {
+        cmd_args.insert("name".into(), json!(n));
+    }
+
+    let mut req = json!({"cmd": "new-workspace", "args": Value::Object(cmd_args)});
+    with_tab_id(&mut req, tab_id.or_else(self_tab_id));
+
+    let resp = transport::request(req, DEFAULT_TIMEOUT);
+    if !is_ok(&resp) {
+        fail_with(&resp);
+    }
+    let data = resp.get("data").cloned().unwrap_or_else(|| json!({}));
+    if as_json {
+        println!("{}", data);
+    } else {
+        let id = data.get("id").and_then(Value::as_str).unwrap_or("");
+        println!("{id}");
+    }
+    std::process::exit(0)
+}
+
+const CLOSE_WORKSPACE_HELP: &str = "cockpit close-workspace [<id|path>] [--tab-id <id>] [--json]
+  Closes a top-level project from Cockpit (ends its agents/tabs; folder on
+  disk is kept).
+  Without a target, closes the workspace owning the current tab (or currently
+  selected workspace).
+  Target may be a workspace UUID, directory path, or unique name.
+  --tab-id <id>   caller tab (default: this tab / $COCKPIT_TAB_ID)
+  --json          output as JSON: {\"id\": \"...\", \"path\": \"...\", \"closed\": true}
+  Prints the closed workspace id.";
+
+pub fn close_workspace(args: &[String]) -> ! {
+    let mut target: Option<String> = None;
+    let mut as_json = false;
+    let mut tab_id: Option<String> = None;
+
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--help" || a == "-h" {
+            println!("{CLOSE_WORKSPACE_HELP}");
+            std::process::exit(0);
+        }
+        if a == "--json" {
+            as_json = true;
+            i += 1;
+            continue;
+        }
+        if a == "--tab-id" || a == "-t" {
+            if i + 1 >= args.len() {
+                die("cockpit: --tab-id requires a value", 2);
+            }
+            i += 1;
+            tab_id = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--tab-id=") {
+            tab_id = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a.starts_with('-') {
+            die(&format!("cockpit: unknown flag \"{a}\""), 2);
+        }
+        if target.is_none() {
+            target = Some(a.to_string());
+        }
+        i += 1;
+    }
+
+    let mut cmd_args = Map::new();
+    if let Some(t) = target.filter(|t| !t.is_empty()) {
+        let resolved = if t.starts_with('~')
+            || t.starts_with('.')
+            || t.contains('/')
+            || t.contains('\\')
+        {
+            resolve_path(&t)
+        } else {
+            t
+        };
+        cmd_args.insert("target".into(), json!(resolved));
+    }
+    let mut req = json!({"cmd": "close-workspace", "args": Value::Object(cmd_args)});
+    with_tab_id(&mut req, tab_id.or_else(self_tab_id));
+
+    let resp = transport::request(req, DEFAULT_TIMEOUT);
+    if !is_ok(&resp) {
+        fail_with(&resp);
+    }
+    let data = resp.get("data").cloned().unwrap_or_else(|| json!({}));
+    if as_json {
+        println!("{}", data);
+    } else {
+        let id = data.get("id").and_then(Value::as_str).unwrap_or("");
+        println!("{id}");
+    }
+    std::process::exit(0)
+}
+
+const RENAME_WORKSPACE_HELP: &str = "cockpit rename-workspace [<id|path>] <new-name> [--tab-id <id>] [--json]
+  Renames the display title of a workspace in Cockpit's rail.
+  Target may be a workspace UUID, directory path, or unique name.
+  Without target, renames the workspace owning the current tab.
+  --tab-id <id>   caller tab (default: this tab / $COCKPIT_TAB_ID)
+  --json          output as JSON: {\"id\": \"...\", \"name\": \"...\", \"path\": \"...\"}
+  Prints the updated workspace id.";
+
+pub fn rename_workspace(args: &[String]) -> ! {
+    let mut target: Option<String> = None;
+    let mut new_name: Option<String> = None;
+    let mut tab_id: Option<String> = None;
+    let mut as_json = false;
+
+    let mut i = 0usize;
+    while i < args.len() {
+        let a = args[i].as_str();
+        if a == "--help" || a == "-h" {
+            println!("{RENAME_WORKSPACE_HELP}");
+            std::process::exit(0);
+        }
+        if a == "--json" {
+            as_json = true;
+            i += 1;
+            continue;
+        }
+        if a == "--tab-id" || a == "-t" {
+            if i + 1 >= args.len() {
+                die("cockpit: --tab-id requires a value", 2);
+            }
+            i += 1;
+            tab_id = Some(args[i].clone());
+            i += 1;
+            continue;
+        } else if let Some(v) = a.strip_prefix("--tab-id=") {
+            tab_id = Some(v.to_string());
+            i += 1;
+            continue;
+        }
+        if a.starts_with('-') {
+            die(&format!("cockpit: unknown flag \"{a}\""), 2);
+        }
+        if target.is_none() {
+            target = Some(a.to_string());
+        } else if new_name.is_none() {
+            new_name = Some(a.to_string());
+        }
+        i += 1;
+    }
+
+    let (target_val, raw_name) = match (target, new_name) {
+        (Some(t), Some(n)) => (Some(t), n),
+        (Some(n), None) => (None, n),
+        _ => die("cockpit rename-workspace: missing workspace name", 2),
+    };
+
+    let mut cmd_args = Map::new();
+    if let Some(t) = target_val.filter(|t| !t.is_empty()) {
+        let resolved = if t.starts_with('~')
+            || t.starts_with('.')
+            || t.contains('/')
+            || t.contains('\\')
+        {
+            resolve_path(&t)
+        } else {
+            t
+        };
+        cmd_args.insert("target".into(), json!(resolved));
+    }
+    cmd_args.insert("name".into(), json!(raw_name));
+
+    let mut req = json!({"cmd": "rename-workspace", "args": Value::Object(cmd_args)});
+    with_tab_id(&mut req, tab_id.or_else(self_tab_id));
+
+    let resp = transport::request(req, DEFAULT_TIMEOUT);
+    if !is_ok(&resp) {
+        fail_with(&resp);
+    }
+    let data = resp.get("data").cloned().unwrap_or_else(|| json!({}));
+    if as_json {
+        println!("{}", data);
+    } else {
+        let id = data.get("id").and_then(Value::as_str).unwrap_or("");
+        println!("{id}");
+    }
+    std::process::exit(0)
+}
+
 // ---- browse -----------------------------------------------------------------
 
 const BROWSE_HELP: &str = "cockpit browse <url> [--json]

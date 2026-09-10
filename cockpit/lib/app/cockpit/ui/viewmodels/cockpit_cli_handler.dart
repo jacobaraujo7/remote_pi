@@ -1,5 +1,6 @@
+import 'dart:async' show unawaited;
 import 'dart:convert';
-import 'dart:io' show Directory, File, FileSystemException;
+import 'dart:io' show Directory, File, FileSystemException, Platform;
 
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
@@ -12,12 +13,15 @@ import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/entities/remote_host.dart';
+import 'package:cockpit/app/cockpit/domain/entities/remote_workspace_pin.dart';
 import 'package:cockpit/app/cockpit/domain/entities/sql_statements.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_access_gate.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
+import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
@@ -385,6 +389,177 @@ class CockpitCliHandler {
             )
             .toList();
         return CockpitCommandResult.ok(ws);
+
+      // `cockpit new-workspace <path> [--host <host>] [--name <name>]`
+      // `cockpit new-remote-workspace --host <host> --path <path> [--name <name>]`
+      // Adiciona um workspace como projeto de primeiro nível no rail (local ou
+      // remoto). Idempotente: se já estiver aberto, seleciona e devolve os
+      // dados do workspace.
+      case 'new-remote-workspace':
+      case 'new-workspace':
+      case 'open-workspace':
+        final hostRef = (c.args['host'] ?? '').toString().trim();
+        final rawPath = (c.args['path'] ?? '').toString().trim();
+        if (rawPath.isEmpty) {
+          return const CockpitCommandResult.fail('missing path');
+        }
+        final rawName = (c.args['name'] ?? '').toString().trim();
+        final customName = rawName.isEmpty ? null : rawName;
+
+        if (hostRef.isNotEmpty) {
+          // Workspace REMOTO (plano 58 / dd-swarm):
+          // Resolve host existente (por id/sshTarget/nome) ou registra
+          // automaticamente com o sshTarget (ex: alias do ~/.ssh/config).
+          final host = await _resolveOrRegisterRemoteHost(hostRef);
+          final cleanPath = _cleanRemotePath(rawPath);
+          await _vm.createRemoteWorkspace(host.id, cleanPath);
+          final workspaceId =
+              '${Project.remotePrefix}${RemoteWorkspacePin.idFor(host.id, cleanPath)}';
+          if (customName != null) {
+            await _vm.updateRemoteWorkspace(workspaceId, name: customName);
+          }
+          final sessions = _vm.allSessions
+              .where((s) => s.projectId == workspaceId)
+              .toList();
+          if (sessions.isEmpty ||
+              sessions.every(
+                (s) => s is AgentSession && s.status == AgentStatus.empty,
+              )) {
+            _vm.newTerminalTab(cwd: cleanPath);
+          }
+          final project = _vm.projectById(workspaceId);
+          final tabCount = _vm.allSessions
+              .where((s) => s.projectId == workspaceId)
+              .length;
+          return CockpitCommandResult.ok({
+            'id': workspaceId,
+            'name': project?.name ?? (customName ?? cleanPath),
+            'path': project?.effectiveRoot ?? cleanPath,
+            'host': host.sshTarget,
+            'tabs': tabCount,
+          });
+        }
+
+        // Workspace LOCAL
+        final cleanPath = _cleanWorkspacePath(rawPath);
+        if (!_isRemoteTab(c.tabId) && !await Directory(cleanPath).exists()) {
+          return CockpitCommandResult.fail('directory not found: "$cleanPath"');
+        }
+
+        final project = await _vm.addProject(cleanPath, name: customName);
+        _vm.selectProject(project.id);
+
+        if (customName != null && customName != project.name) {
+          await _vm.updateProject(project.id, name: customName);
+        }
+
+        final sessions = _vm.allSessions
+            .where((s) => s.projectId == project.id)
+            .toList();
+        if (sessions.isEmpty ||
+            sessions.every(
+              (s) => s is AgentSession && s.status == AgentStatus.empty,
+            )) {
+          _vm.newTerminalTab(cwd: project.effectiveRoot);
+        }
+
+        final resolved = _vm.projectById(project.id) ?? project;
+        final tabCount = _vm.allSessions
+            .where((s) => s.projectId == resolved.id)
+            .length;
+
+        return CockpitCommandResult.ok({
+          'id': resolved.id,
+          'name': resolved.name,
+          'path': resolved.effectiveRoot,
+          'tabs': tabCount,
+        });
+
+      // `cockpit close-workspace [<id|path>]` — fecha/remove o workspace do
+      // Cockpit (mantém os arquivos no disco). Suporta workspaces locais e remotos.
+      // O encerramento roda em `afterResponse` para permitir que o socket
+      // responda antes de derrubar o PTY/shell caso o comando venha de dentro
+      // do workspace fechado.
+      case 'close-workspace':
+        final target = (c.args['target'] ?? '').toString().trim();
+        final Project? project;
+        if (target.isNotEmpty) {
+          project = _resolveWorkspace(target);
+          if (project == null) {
+            return CockpitCommandResult.fail('no workspace matches "$target"');
+          }
+        } else {
+          final sender = c.tabId == null ? null : _vm.session(c.tabId!);
+          project = sender != null
+              ? _vm.projectById(sender.projectId)
+              : _vm.selectedProject;
+          if (project == null) {
+            return const CockpitCommandResult.fail(
+              'missing target workspace (pass <id|path> or run inside a Cockpit workspace)',
+            );
+          }
+        }
+        if (project.isSystemTerminal) {
+          return const CockpitCommandResult.fail(
+            'cannot close the system terminal workspace',
+          );
+        }
+        final isRemote = project.isRemoteTerminal;
+        final closingId = project.id;
+        final closingPath = project.effectiveRoot;
+        return CockpitCommandResult.ok({
+          'id': closingId,
+          'path': closingPath,
+          'closed': true,
+        }, () {
+          if (isRemote) {
+            unawaited(_vm.removeRemoteWorkspace(closingId));
+          } else {
+            unawaited(_vm.removeProject(closingId));
+          }
+        });
+
+      // `cockpit rename-workspace [<id|path>] <new-name>` — renomeia o título
+      // de exibição do workspace no rail (local ou remoto).
+      case 'rename-workspace':
+        final target = (c.args['target'] ?? '').toString().trim();
+        final newName = (c.args['name'] ?? '').toString().trim();
+        if (newName.isEmpty) {
+          return const CockpitCommandResult.fail('missing new workspace name');
+        }
+        final Project? project;
+        if (target.isNotEmpty) {
+          project = _resolveWorkspace(target);
+          if (project == null) {
+            return CockpitCommandResult.fail('no workspace matches "$target"');
+          }
+        } else {
+          final sender = c.tabId == null ? null : _vm.session(c.tabId!);
+          project = sender != null
+              ? _vm.projectById(sender.projectId)
+              : _vm.selectedProject;
+          if (project == null) {
+            return const CockpitCommandResult.fail(
+              'missing target workspace (pass <id|path> or run inside a Cockpit workspace)',
+            );
+          }
+        }
+        if (project.isSystemTerminal) {
+          return const CockpitCommandResult.fail(
+            'cannot rename the system terminal workspace',
+          );
+        }
+        if (project.isRemoteTerminal) {
+          await _vm.updateRemoteWorkspace(project.id, name: newName);
+        } else {
+          await _vm.updateProject(project.id, name: newName);
+        }
+        final renamed = _vm.projectById(project.id) ?? project;
+        return CockpitCommandResult.ok({
+          'id': renamed.id,
+          'name': renamed.name,
+          'path': renamed.effectiveRoot,
+        });
 
       // `cockpit read-pane [<label|tab-id>]` — devolve uma janela de linhas do
       // buffer renderizado do pane (texto plano, sem ANSI — é o que o xterm já
@@ -1055,6 +1230,90 @@ class CockpitCliHandler {
     return Failure(
       'no tab with id or label "$target" (see `cockpit list-tabs`)',
     );
+  }
+
+  String _cleanRemotePath(String path) {
+    var p = path.trim();
+    while (p.length > 1 && (p.endsWith('/') || p.endsWith(r'\'))) {
+      p = p.substring(0, p.length - 1);
+    }
+    return p;
+  }
+
+  Future<RemoteHost> _resolveOrRegisterRemoteHost(String hostRef) async {
+    final clean = hostRef.trim();
+    for (final h in _vm.remoteHosts.hosts) {
+      if (h.id == clean ||
+          h.sshTarget == clean ||
+          h.name.toLowerCase() == clean.toLowerCase() ||
+          h.host == clean) {
+        return h;
+      }
+    }
+    await _vm.addRemoteHost(
+      name: clean,
+      sshTarget: clean,
+    );
+    for (final h in _vm.remoteHosts.hosts) {
+      if (h.sshTarget == clean || h.name == clean) {
+        return h;
+      }
+    }
+    return _vm.remoteHosts.hosts.last;
+  }
+
+  String _cleanWorkspacePath(String path) {
+    var p = normalizePath(path).trim();
+    if (p == '~' || p.startsWith('~/')) {
+      final home = Platform.environment['HOME'] ??
+          Platform.environment['USERPROFILE'];
+      if (home != null && home.isNotEmpty) {
+        final normHome = normalizePath(home);
+        p = p == '~' ? normHome : '$normHome${p.substring(1)}';
+      }
+    }
+    while (p.length > 1 && p.endsWith('/')) {
+      p = p.substring(0, p.length - 1);
+    }
+    return p;
+  }
+
+  Project? _resolveWorkspace(String target) {
+    if (target.isEmpty) return null;
+    final normalized = normalizePath(target);
+    final clean = _cleanWorkspacePath(target);
+    for (final p in _vm.projects) {
+      if (p.id == target ||
+          p.id == '${Project.remotePrefix}$target' ||
+          p.id.replaceFirst(Project.remotePrefix, '') == target) {
+        return p;
+      }
+      if (p.path == target || p.path == normalized || p.path == clean) return p;
+      if (p.effectiveRoot == target ||
+          p.effectiveRoot == normalized ||
+          p.effectiveRoot == clean) {
+        return p;
+      }
+      if (p.remotePath == target || p.remotePath == clean) return p;
+    }
+    try {
+      final dir = Directory(clean);
+      if (dir.existsSync()) {
+        final abs = _cleanWorkspacePath(dir.absolute.path);
+        for (final p in _vm.projects) {
+          if (p.path == abs || p.effectiveRoot == abs) {
+            return p;
+          }
+        }
+      }
+    } catch (_) {
+      /* ignore invalid path syntax */
+    }
+    final byName = _vm.projects
+        .where((p) => p.name.toLowerCase() == target.toLowerCase())
+        .toList();
+    if (byName.length == 1) return byName.first;
+    return null;
   }
 
   String _paneKind(PaneItem s) {
