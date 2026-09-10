@@ -411,7 +411,7 @@ class CockpitCliHandler {
           // Resolve host existente (por id/sshTarget/nome) ou registra
           // automaticamente com o sshTarget (ex: alias do ~/.ssh/config).
           final host = await _resolveOrRegisterRemoteHost(hostRef);
-          final cleanPath = _cleanRemotePath(rawPath);
+          final cleanPath = await _resolveRemotePath(host, rawPath);
           await _vm.createRemoteWorkspace(host.id, cleanPath);
           final workspaceId =
               '${Project.remotePrefix}${RemoteWorkspacePin.idFor(host.id, cleanPath)}';
@@ -1232,8 +1232,22 @@ class CockpitCliHandler {
     );
   }
 
-  String _cleanRemotePath(String path) {
-    var p = path.trim();
+  Future<String> _resolveRemotePath(RemoteHost host, String rawPath) async {
+    var p = rawPath.trim();
+    if (p == '~' || p.startsWith('~/')) {
+      try {
+        final service = await _vm.remoteHosts.fileServiceFor(host);
+        final remoteHome = await service.home();
+        if (remoteHome.isNotEmpty) {
+          final normalizedHome = remoteHome.endsWith('/')
+              ? remoteHome.substring(0, remoteHome.length - 1)
+              : remoteHome;
+          p = p == '~' ? normalizedHome : '$normalizedHome/${p.substring(2)}';
+        }
+      } catch (_) {
+        // Best-effort: se a conexão imediata falhar, mantém o path com ~
+      }
+    }
     while (p.length > 1 && (p.endsWith('/') || p.endsWith(r'\'))) {
       p = p.substring(0, p.length - 1);
     }
