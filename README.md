@@ -113,6 +113,9 @@ mobile app — answer from your phone and the flow resolves on the desktop.
 Without it, the agent simply asks in plain chat text (also answerable from the
 phone, just unstructured). Remote Pi works either way; pi-ask is optional.
 
+OMP's built-in `ask` tool is also bridged to the same mobile prompt surface; it
+does not require installing `@eko24ive/pi-ask`.
+
 ## Status
 
 The MVP is functional. Planning notes and roadmap live in [`plan/`](./plan).
