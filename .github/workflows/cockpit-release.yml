@@ -375,6 +375,10 @@ jobs:
 
       - name: Build + empacota
         run: |
+          g++ -std=c++14 linux/runner/gpu_environment.cc \
+            linux/runner/gpu_environment_test.cc \
+            -Ilinux/runner -o "$RUNNER_TEMP/gpu-environment-test"
+          "$RUNNER_TEMP/gpu-environment-test"
           flutter pub get
           flutter build windows --release
           # Gate do sidecar: sem o bundle do cockpit-server o app cai no

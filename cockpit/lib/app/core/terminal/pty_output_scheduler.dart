@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
 
 /// Orça o trabalho de todos os PTYs do app de forma global e justa.
 ///
@@ -120,6 +121,11 @@ final class PtyOutputScheduler {
       }
     } finally {
       _draining = false;
+      LinuxPerformanceDiagnostics.instance.record(LinuxPerfMetric.pty, {
+        LinuxPerfField.durationUs: _clockMicros() - startedAt,
+        LinuxPerfField.pending: _pendingChars,
+        LinuxPerfField.sources: _ready.length,
+      });
       _ensureFrame();
     }
   }

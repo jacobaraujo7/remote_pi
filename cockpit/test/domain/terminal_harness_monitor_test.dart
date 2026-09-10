@@ -206,6 +206,53 @@ void main() {
 
       monitor.dispose();
     });
+
+    test('hidden stable sessions use the idle safety interval', () async {
+      final fakeProvider = FakeProcessTreeProvider();
+      final monitor = TerminalHarnessMonitor(
+        provider: fakeProvider,
+        pollInterval: const Duration(milliseconds: 20),
+        idlePollInterval: const Duration(milliseconds: 80),
+      );
+
+      monitor.registerSession(
+        sessionId: 'session-1',
+        rootPid: () => 100,
+        onHarnessChanged: (_) {},
+      );
+      await pumpEventQueue();
+      final afterRegistration = fakeProvider.callCount;
+
+      await Future<void>.delayed(const Duration(milliseconds: 110));
+      expect(fakeProvider.callCount, greaterThan(afterRegistration));
+      expect(
+        fakeProvider.callCount,
+        lessThan(5),
+        reason: 'hidden sessions must not retain the old high-rate poll',
+      );
+      monitor.dispose();
+    });
+
+    test('becoming visible triggers an immediate coalesced refresh', () async {
+      final fakeProvider = FakeProcessTreeProvider();
+      final monitor = TerminalHarnessMonitor(
+        provider: fakeProvider,
+        pollInterval: const Duration(days: 1),
+        idlePollInterval: const Duration(days: 1),
+      );
+      monitor.registerSession(
+        sessionId: 'session-1',
+        rootPid: () => 100,
+        onHarnessChanged: (_) {},
+      );
+      await pumpEventQueue();
+      final beforeVisible = fakeProvider.callCount;
+
+      monitor.setSessionVisible('session-1', true);
+      await pumpEventQueue();
+      expect(fakeProvider.callCount, beforeVisible + 1);
+      monitor.dispose();
+    });
   });
 }
 

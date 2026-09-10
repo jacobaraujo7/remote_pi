@@ -234,11 +234,13 @@ class _TabStripState extends State<_TabStrip> {
     super.didUpdateWidget(old);
     final activeChanged = old.pane.active != widget.pane.active;
     final countChanged = old.pane.tabs.length != widget.pane.tabs.length;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (activeChanged || countChanged) _scrollActiveIntoView();
-      _syncOverflow();
-    });
+    if (activeChanged || countChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _scrollActiveIntoView();
+        _syncOverflow();
+      });
+    }
   }
 
   @override
@@ -336,10 +338,6 @@ class _TabStripState extends State<_TabStrip> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final pane = widget.pane;
-    // Re-checa overflow a cada layout (resize de pane, add/remove de aba).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _syncOverflow();
-    });
     // Drop do SO na faixa de abas → abre como aba, em qualquer tipo de pane
     // (em terminal, é aqui em cima que se solta pra abrir aba; o corpo insere
     // o caminho).
@@ -390,58 +388,71 @@ class _TabStripState extends State<_TabStrip> {
                           PointerDeviceKind.stylus,
                         },
                       ),
-                      child: SingleChildScrollView(
-                        controller: _scroll,
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          children: [
-                            for (var i = 0; i < pane.tabs.length; i++)
-                              _TabDropSlot(
-                                index: i,
-                                onInsert: (data, index) =>
-                                    widget.vm.moveTabToIndex(
-                                      data.paneId,
-                                      data.tabId,
+                      child: NotificationListener<ScrollMetricsNotification>(
+                        onNotification: (_) {
+                          // Dispara somente quando viewport/content realmente
+                          // muda, em vez de agendar callback em todo rebuild do
+                          // CockpitViewModel.
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) _syncOverflow();
+                          });
+                          return false;
+                        },
+                        child: SingleChildScrollView(
+                          controller: _scroll,
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              for (var i = 0; i < pane.tabs.length; i++)
+                                _TabDropSlot(
+                                  index: i,
+                                  onInsert: (data, index) =>
+                                      widget.vm.moveTabToIndex(
+                                        data.paneId,
+                                        data.tabId,
+                                        pane.id,
+                                        index,
+                                      ),
+                                  child: _Tab(
+                                    item: widget.vm.session(pane.tabs[i]),
+                                    paneId: pane.id,
+                                    visible: widget.visible,
+                                    active: pane.tabs[i] == pane.active,
+                                    focused: widget.focused,
+                                    onSelect: () => widget.vm.selectTab(
                                       pane.id,
-                                      index,
+                                      pane.tabs[i],
                                     ),
-                                child: _Tab(
-                                  item: widget.vm.session(pane.tabs[i]),
-                                  paneId: pane.id,
-                                  visible: widget.visible,
-                                  active: pane.tabs[i] == pane.active,
-                                  focused: widget.focused,
-                                  onSelect: () => widget.vm.selectTab(
-                                    pane.id,
-                                    pane.tabs[i],
+                                    onClose: () => widget.vm.closeTab(
+                                      pane.id,
+                                      pane.tabs[i],
+                                    ),
+                                    onRename: (name) => widget.onRenameAgent(
+                                      pane.tabs[i],
+                                      name,
+                                    ),
+                                    onSetLabel: (label) => widget.vm
+                                        .setPaneLabel(pane.tabs[i], label),
+                                    onResetLabel: () =>
+                                        widget.vm.resetPaneLabel(pane.tabs[i]),
+                                    onToggleRelay: () =>
+                                        widget.onToggleRelayAgent(pane.tabs[i]),
+                                    onHistory: () =>
+                                        widget.onHistoryAgent(pane.tabs[i]),
                                   ),
-                                  onClose: () =>
-                                      widget.vm.closeTab(pane.id, pane.tabs[i]),
-                                  onRename: (name) =>
-                                      widget.onRenameAgent(pane.tabs[i], name),
-                                  onSetLabel: (label) => widget.vm.setPaneLabel(
-                                    pane.tabs[i],
-                                    label,
-                                  ),
-                                  onResetLabel: () =>
-                                      widget.vm.resetPaneLabel(pane.tabs[i]),
-                                  onToggleRelay: () =>
-                                      widget.onToggleRelayAgent(pane.tabs[i]),
-                                  onHistory: () =>
-                                      widget.onHistoryAgent(pane.tabs[i]),
                                 ),
+                              // Windows: "+" e a seta formam um grupo — a divisória
+                              // fica só no fim dele. Ausente no POSIX (lá só existe
+                              // o login shell, sem escolha a fazer).
+                              _TabAdd(
+                                onTap: widget.onCreateTab,
+                                trailingBorder:
+                                    !widget.vm.showTerminalProfilePicker,
                               ),
-                            // Windows: "+" e a seta formam um grupo — a divisória
-                            // fica só no fim dele. Ausente no POSIX (lá só existe
-                            // o login shell, sem escolha a fazer).
-                            _TabAdd(
-                              onTap: widget.onCreateTab,
-                              trailingBorder:
-                                  !widget.vm.showTerminalProfilePicker,
-                            ),
-                            if (widget.vm.showTerminalProfilePicker)
-                              _TabProfilePicker(vm: widget.vm),
-                          ],
+                              if (widget.vm.showTerminalProfilePicker)
+                                _TabProfilePicker(vm: widget.vm),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -1393,12 +1404,24 @@ class _PaneBodyState extends State<_PaneBody> {
   @override
   void initState() {
     super.initState();
+    if (widget.item case final TerminalSession session) {
+      session.setVisible(widget.active);
+    }
     if (_wantsTerminalFocus && widget.focused) _requestTerminalFocusSoon();
   }
 
   @override
   void didUpdateWidget(_PaneBody old) {
     super.didUpdateWidget(old);
+    if (widget.item case final TerminalSession session) {
+      if (old.item != widget.item || old.active != widget.active) {
+        if (old.item case final TerminalSession oldSession
+            when oldSession != session) {
+          oldSession.setVisible(false);
+        }
+        session.setVisible(widget.active);
+      }
+    }
     if (!_wantsTerminalFocus) return;
     if (widget.focused && (!old.focused || widget.focusGen != old.focusGen)) {
       // Também re-pede o foco quando só a *geração* mudou: clicar na aba que
@@ -1457,6 +1480,9 @@ class _PaneBodyState extends State<_PaneBody> {
 
   @override
   void dispose() {
+    if (widget.item case final TerminalSession session) {
+      session.setVisible(false);
+    }
     _scroll.dispose();
     _terminalFocus.dispose();
     super.dispose();

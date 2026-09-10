@@ -4,19 +4,24 @@ import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart'
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/process_tree_resolver.dart';
+import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
 
 class SessionAnchor {
   final String sessionId;
   final int? Function() rootPid;
   final String? wslDistro;
   final void Function(HarnessKind? newHarness) onHarnessChanged;
+  bool visible;
+  DateTime lastActivity;
 
   SessionAnchor({
     required this.sessionId,
     required this.rootPid,
     this.wslDistro,
     required this.onHarnessChanged,
-  });
+    this.visible = false,
+    DateTime? lastActivity,
+  }) : lastActivity = lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
 }
 
 class TerminalHarnessMonitor {
@@ -24,6 +29,9 @@ class TerminalHarnessMonitor {
   final Map<String, ProcessTreeProvider>? wslProvidersByDistro;
   final ProcessTreeProvider Function(String distro)? wslProviderForDistro;
   final Duration pollInterval;
+  final Duration idlePollInterval;
+  final Duration inactivePollInterval;
+  final bool Function()? windowIsActive;
 
   Timer? _timer;
   bool _inFlight = false;
@@ -38,10 +46,13 @@ class TerminalHarnessMonitor {
     this.wslProviderForDistro,
     // Baseline safety net for silent exits / nested tools. Interactive
     // launches are kicked immediately from TerminalSession (Enter/output).
-    this.pollInterval = const Duration(milliseconds: 250),
+    this.pollInterval = const Duration(seconds: 2),
+    this.idlePollInterval = const Duration(seconds: 5),
+    this.inactivePollInterval = const Duration(seconds: 10),
+    this.windowIsActive,
   });
 
-  bool get isRunning => _timer != null;
+  bool get isRunning => _anchors.isNotEmpty && (_timer != null || _inFlight);
   int get registeredCount => _anchors.length;
 
   void registerSession({
@@ -58,7 +69,7 @@ class TerminalHarnessMonitor {
     );
 
     if (_timer == null && _anchors.isNotEmpty) {
-      _startTimer();
+      _scheduleNextPoll();
     }
     // Immediate poll on registration (and whenever a session is (re)bound).
     requestPoll();
@@ -75,8 +86,13 @@ class TerminalHarnessMonitor {
   }
 
   /// Ask for a poll as soon as possible. Coalesces with an in-flight poll.
-  void requestPoll() {
+  void requestPoll({String? sessionId}) {
     if (_anchors.isEmpty) return;
+    if (sessionId != null) {
+      _anchors[sessionId]?.lastActivity = DateTime.now();
+    }
+    _timer?.cancel();
+    _timer = null;
     if (_inFlight) {
       _pendingPoll = true;
       return;
@@ -84,9 +100,32 @@ class TerminalHarnessMonitor {
     unawaited(poll());
   }
 
-  void _startTimer() {
+  /// Informa se uma sessão tem superfície visível. A sessão e seu PTY
+  /// continuam vivos; isto governa somente a frequência do safety poll.
+  void setSessionVisible(String sessionId, bool visible) {
+    final anchor = _anchors[sessionId];
+    if (anchor == null || anchor.visible == visible) return;
+    anchor.visible = visible;
+    anchor.lastActivity = DateTime.now();
+    if (visible) requestPoll(sessionId: sessionId);
+  }
+
+  void _scheduleNextPoll() {
     _timer?.cancel();
-    _timer = Timer.periodic(pollInterval, (_) => requestPoll());
+    if (_anchors.isEmpty) {
+      _timer = null;
+      return;
+    }
+    final windowActive = windowIsActive?.call() ?? true;
+    final hasVisible = _anchors.values.any((anchor) => anchor.visible);
+    final hasRecentActivity = _anchors.values.any(
+      (anchor) =>
+          DateTime.now().difference(anchor.lastActivity) < idlePollInterval,
+    );
+    final delay = !windowActive
+        ? inactivePollInterval
+        : (hasVisible || hasRecentActivity ? pollInterval : idlePollInterval);
+    _timer = Timer(delay, requestPoll);
   }
 
   void _stopTimer() {
@@ -101,6 +140,7 @@ class TerminalHarnessMonitor {
     }
     _inFlight = true;
     _pendingPoll = false;
+    final stopwatch = Stopwatch()..start();
 
     try {
       // Group sessions into native host vs WSL by distro
@@ -152,10 +192,16 @@ class TerminalHarnessMonitor {
     } catch (_) {
       // Fallback silently on error
     } finally {
+      LinuxPerformanceDiagnostics.instance.record(LinuxPerfMetric.processScan, {
+        LinuxPerfField.durationUs: stopwatch.elapsedMicroseconds,
+        LinuxPerfField.sessions: _anchors.length,
+      });
       _inFlight = false;
       if (_pendingPoll && _anchors.isNotEmpty) {
         _pendingPoll = false;
         scheduleMicrotask(requestPoll);
+      } else {
+        _scheduleNextPoll();
       }
     }
   }

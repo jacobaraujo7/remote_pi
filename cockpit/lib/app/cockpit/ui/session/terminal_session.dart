@@ -12,6 +12,7 @@ import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/core/terminal/pty_output_scheduler.dart';
 import 'package:cockpit/app/core/utils/quiet_period_debouncer.dart';
+import 'package:cockpit/app/core/utils/bounded_text_buffer.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
@@ -314,7 +315,9 @@ class TerminalSession extends PaneItem {
   // da frente de uma vez (trim amortizado). Só main-screen — enquanto em
   // alt-screen (TUI: vim/lazygit), a saída é efêmera e NÃO entra no registro.
   final TerminalScrollbackStore? _scrollback;
-  final StringBuffer _record0 = StringBuffer();
+  late final BoundedTextBuffer _record0 = BoundedTextBuffer(
+    maxLength: _kMaxRecordChars,
+  );
   int _altDepth = 0;
   late final QuietPeriodDebouncer _saveDebounce = QuietPeriodDebouncer(
     delay: const Duration(seconds: 1),
@@ -428,13 +431,7 @@ class TerminalSession extends PaneItem {
     // tocou alt-screen → descarta chunk.
     if (!wasMain || _altDepth != 0) return;
 
-    _record0.write(data);
-    if (_record0.length > _kMaxRecordChars) {
-      final s = _record0.toString();
-      _record0
-        ..clear()
-        ..write(s.substring(s.length - (_kMaxRecordChars * 3 ~/ 4)));
-    }
+    _record0.add(data);
     _saveDebounce.trigger();
   }
 
@@ -453,7 +450,7 @@ class TerminalSession extends PaneItem {
       return;
     }
     _lastHarnessKickAt = now;
-    monitor.requestPoll();
+    monitor.requestPoll(sessionId: id);
 
     if (!burst) return;
     for (final t in _harnessKickTimers) {
@@ -467,9 +464,13 @@ class TerminalSession extends PaneItem {
           Duration(milliseconds: 120),
           Duration(milliseconds: 280),
         ])
-          Timer(delay, monitor.requestPoll),
+          Timer(delay, () => monitor.requestPoll(sessionId: id)),
       ]);
   }
+
+  /// Atualiza apenas a prioridade de observação do harness. O PTY e os
+  /// processos nunca são pausados quando a aba/workspace fica oculto.
+  void setVisible(bool visible) => _monitor?.setSessionVisible(id, visible);
 
   /// Atualiza [_cwd] a partir de OSC 7 no chunk. Pega a ÚLTIMA ocorrência (o
   /// prompt mais recente). Notifica a VM quando muda → persiste no layout.

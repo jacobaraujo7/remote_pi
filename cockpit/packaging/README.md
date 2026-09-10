@@ -229,3 +229,15 @@ URLs são `https://rp-s3.jacobmoura.work/downloads/cockpit/appcast-{macos,window
 - Passo 4: layout/`latest.json` na VPS.
 - Passo 5: página de downloads no `site/`.
 - Passo 6: runbook de release (bump `version:` → tag → CI → smoke test).
+# Linux: política de GPU híbrida
+
+O bootstrap nativo do Cockpit seleciona a GPU integrada por padrão e remove,
+somente do processo do Cockpit, variáveis NVIDIA herdadas da sessão gráfica.
+Para comparar ou forçar a GPU dedicada, inicie com
+`COCKPIT_USE_NVIDIA=1 cockpit`. O startup log registra `gpu_policy`,
+`GDK_BACKEND` e `XDG_SESSION_TYPE` sem registrar comandos ou conteýo do usuário.
+
+Matriz de diagnóstico Linux: Intel/Wayland é o caminho de produção; compare
+NVIDIA/Wayland com o opt-in acima e Intel/XWayland com `GDK_BACKEND=x11` apenas
+para isolar falhas. Rollback é remover a chamada
+`configure_linux_gpu_environment()`; nenhuma configuração global é alterada.

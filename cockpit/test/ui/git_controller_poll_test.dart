@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
@@ -18,6 +20,21 @@ class _CountingReader implements GitStatusReader {
   @override
   Future<GitInfo?> read(String path) async {
     reads++;
+    return null;
+  }
+}
+
+class _GatedReader implements GitStatusReader {
+  final gates = <String, Completer<void>>{};
+  var active = 0;
+  var maxActive = 0;
+
+  @override
+  Future<GitInfo?> read(String path) async {
+    active++;
+    if (active > maxActive) maxActive = active;
+    await gates.putIfAbsent(path, Completer<void>.new).future;
+    active--;
     return null;
   }
 }
@@ -102,4 +119,40 @@ void main() {
       activity.dispose();
     });
   });
+
+  test(
+    'refresh scheduler bounds concurrency and coalesces duplicate keys',
+    () async {
+      final scheduler = GitRefreshScheduler(maxConcurrent: 2);
+      final gates = <String, Completer<void>>{};
+      var active = 0;
+      var maxActive = 0;
+      var duplicateRuns = 0;
+
+      Future<void> job(String key) async {
+        active++;
+        maxActive = active > maxActive ? active : maxActive;
+        if (key == 'a') duplicateRuns++;
+        await gates.putIfAbsent(key, Completer<void>.new).future;
+        active--;
+      }
+
+      final futures = <Future<void>>[
+        scheduler.schedule('a', () => job('a')),
+        scheduler.schedule('b', () => job('b')),
+        scheduler.schedule('c', () => job('c')),
+        scheduler.schedule('a', () => job('a'), priority: true),
+      ];
+      await pumpEventQueue();
+      expect(maxActive, 2);
+    expect(duplicateRuns, 1, reason: 'rerun waits for the active flight');
+      gates['a']!.complete();
+      await pumpEventQueue();
+    gates['b']!.complete();
+    gates['c']!.complete();
+    await Future.wait(futures);
+    expect(duplicateRuns, 2, reason: 'active duplicate coalesces to one rerun');
+      expect(maxActive, 2);
+    },
+  );
 }

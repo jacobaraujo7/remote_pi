@@ -437,6 +437,7 @@ class CockpitViewModel extends ChangeNotifier {
   /// também entram em [_projectList] (pro IndexedStack e o lookup).
   final Map<String, List<Project>> _worktrees = <String, List<Project>>{};
   late final WorktreeReconciler _worktreeReconciler;
+  int _worktreePollCursor = 0;
 
   /// Root (path absoluto) que **originou** cada fork (fork.id → root path).
   /// Em single-root é o próprio path do pai; em multi-root, o repo filho de
@@ -5955,11 +5956,9 @@ class CockpitViewModel extends ChangeNotifier {
     });
   }
 
-  /// Reconcilia as worktrees de TODOS os workspaces raiz abertos contra o git —
-  /// disparado a cada tick do poll do [GitController]. Pega worktrees criadas ou
-  /// removidas por fora (outro terminal, o terminal do próprio fork) sem exigir
-  /// reabrir o workspace. [_refreshWorktrees] deduplica e só notifica se a lista
-  /// mudou, então o custo em repos parados é nulo.
+  /// Reconcilia a raiz selecionada e uma raiz inativa por tick. Antes, cada tick
+  /// percorria TODAS as roots e criava uma tempestade de `git worktree list`
+  /// justamente quando builds e agentes também disputavam disco/CPU.
   void _reconcileOpenWorktrees() {
     // Snapshot: [_refreshWorktrees] muda [_projectList] (após um await), então
     // não iteramos a lista viva.
@@ -5967,9 +5966,17 @@ class CockpitViewModel extends ChangeNotifier {
         .where((p) => p.parentId == null && !p.isSystemTerminal)
         .map((p) => p.id)
         .toList();
-    for (final rootId in roots) {
-      unawaited(_refreshWorktrees(rootId));
+    if (roots.isEmpty) return;
+    final selectedRoot = _selectedProjectId == null
+        ? null
+        : _rootOf(_selectedProjectId!);
+    if (selectedRoot != null && roots.contains(selectedRoot)) {
+      unawaited(_refreshWorktrees(selectedRoot));
     }
+    final inactive = roots.where((id) => id != selectedRoot).toList();
+    if (inactive.isEmpty) return;
+    _worktreePollCursor %= inactive.length;
+    unawaited(_refreshWorktrees(inactive[_worktreePollCursor++]));
   }
 
   /// Reconcilia as worktrees de um workspace raiz contra o git (decisões 4, 5,

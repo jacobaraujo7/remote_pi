@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cockpit/app/bootstrapper.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/diagnostics/error_handlers.dart';
+import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
 import 'package:cockpit/app/core/ui/widgets/app_error_view.dart';
 import 'package:cockpit/app/core/ui/widgets/error_report_dialog.dart';
 import 'package:cockpit/i18n/strings.g.dart';
@@ -63,6 +64,7 @@ Future<void> main() async {
     final version = await _resolveVersion();
     setDiagnosticsAppVersion(version);
     await DiagnosticsLog.instance.init(appVersion: version);
+    LinuxPerformanceDiagnostics.instance.start();
 
     // Erro de build vira painel legível em vez da caixa cinza do Flutter.
     AppErrorView.install();

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io'
     show
         Directory,
@@ -12,8 +13,8 @@ import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
-import 'package:cockpit/app/cockpit/domain/utils/coalescing_single_flight.dart';
 import 'package:cockpit/app/core/ui/window_activity_controller.dart';
+import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
 import 'package:flutter/foundation.dart';
 
 typedef DirectoryWatch = Stream<FileSystemEvent> Function(String path);
@@ -127,8 +128,7 @@ class GitController extends ChangeNotifier {
   bool _pollRequested = false;
   String? _watchedProjectId;
   static const Duration _gitPollInterval = Duration(seconds: 3);
-  final CoalescingSingleFlight<String> _refreshFlights =
-      CoalescingSingleFlight<String>();
+  final GitRefreshScheduler _refreshScheduler = GitRefreshScheduler();
 
   // ---- leitura --------------------------------------------------------------
 
@@ -257,8 +257,11 @@ class GitController extends ChangeNotifier {
   /// (todos), ao selecionar e no fim de turno do agente (que pode ter mexido
   /// em arquivos). Reavalia as **roots** (implícitas, do filesystem) e lê o
   /// git de cada uma — single-root é o caso N=1 e se comporta como sempre.
-  Future<void> refresh(String projectId) =>
-      _refreshFlights.run(projectId, () => _refreshOnce(projectId));
+  Future<void> refresh(String projectId) => _refreshScheduler.schedule(
+    projectId,
+    () => _refreshOnce(projectId),
+    priority: selectedProjectId?.call() == projectId,
+  );
 
   Future<void> _refreshOnce(String projectId) async {
     final path = resolvePath?.call(projectId);
@@ -552,5 +555,114 @@ class GitController extends ChangeNotifier {
     _cancelWatch();
     _gitPoll?.cancel();
     super.dispose();
+  }
+}
+
+/// Fila global, limitada e coalescida para leituras Git. O limite evita que o
+/// restore de muitos workspaces dispute CPU/I/O com builds e com o isolate de
+/// UI. Requisições repetidas compartilham o mesmo Future e uma requisição do
+/// workspace selecionado pode promover uma entrada ainda não iniciada.
+@visibleForTesting
+final class GitRefreshScheduler {
+  GitRefreshScheduler({this.maxConcurrent = 2}) : assert(maxConcurrent > 0);
+
+  final int maxConcurrent;
+  final LinkedHashSet<String> _priority = LinkedHashSet<String>();
+  final LinkedHashSet<String> _normal = LinkedHashSet<String>();
+  final Map<String, Future<void> Function()> _jobs = {};
+  final Map<String, Future<void> Function()> _rerunJobs = {};
+  final Map<String, Completer<void>> _completers = {};
+  final Set<String> _activeKeys = {};
+  final Set<String> _priorityReruns = {};
+  final Set<String> _rerunConsumed = {};
+  int _active = 0;
+
+  @visibleForTesting
+  int get activeCount => _active;
+
+  @visibleForTesting
+  int get queuedCount => _jobs.length;
+
+  Future<void> schedule(
+    String key,
+    Future<void> Function() job, {
+    bool priority = false,
+  }) {
+    final existing = _completers[key];
+    if (existing != null) {
+      if (_activeKeys.contains(key)) {
+        if (!_rerunConsumed.contains(key)) {
+          _rerunJobs[key] = job;
+          if (priority) _priorityReruns.add(key);
+        }
+      } else {
+        _jobs[key] = job;
+        if (priority && _normal.remove(key)) _priority.add(key);
+      }
+      return existing.future;
+    }
+    final completer = Completer<void>();
+    _completers[key] = completer;
+    _jobs[key] = job;
+    (priority ? _priority : _normal).add(key);
+    _drain();
+    return completer.future;
+  }
+
+  void _drain() {
+    while (_active < maxConcurrent && _jobs.isNotEmpty) {
+      final key = _takeNext();
+      final job = _jobs.remove(key)!;
+      _active++;
+      _activeKeys.add(key);
+      final stopwatch = Stopwatch()..start();
+      Future<void>.sync(job).then<void>(
+        (_) => _complete(key, stopwatch: stopwatch),
+        onError: (Object error, StackTrace stack) {
+          _active--;
+          _activeKeys.remove(key);
+          _rerunJobs.remove(key);
+          _priorityReruns.remove(key);
+          _rerunConsumed.remove(key);
+          _recordMetric(stopwatch, failed: true);
+          _completers.remove(key)?.completeError(error, stack);
+          _drain();
+        },
+      );
+    }
+  }
+
+  String _takeNext() {
+    final queue = _priority.isNotEmpty ? _priority : _normal;
+    final key = queue.first;
+    queue.remove(key);
+    return key;
+  }
+
+  void _complete(String key, {required Stopwatch stopwatch}) {
+    _active--;
+    _activeKeys.remove(key);
+    _recordMetric(stopwatch, failed: false);
+    final rerun = _rerunJobs.remove(key);
+    if (rerun != null) {
+      _rerunConsumed.add(key);
+      _jobs[key] = rerun;
+      final priority = _priorityReruns.remove(key);
+      (priority ? _priority : _normal).add(key);
+      _drain();
+      return;
+    }
+    _rerunConsumed.remove(key);
+    _completers.remove(key)?.complete();
+    _drain();
+  }
+
+  void _recordMetric(Stopwatch stopwatch, {required bool failed}) {
+    LinuxPerformanceDiagnostics.instance.record(LinuxPerfMetric.gitRefresh, {
+      LinuxPerfField.durationUs: stopwatch.elapsedMicroseconds,
+      LinuxPerfField.active: _active,
+      LinuxPerfField.queued: _jobs.length,
+      LinuxPerfField.failed: failed ? 1 : 0,
+    });
   }
 }
