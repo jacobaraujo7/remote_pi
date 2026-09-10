@@ -250,7 +250,11 @@ Future<Module> buildCockpitModule({
         )
         ..addLazySingleton<ProcessTreeProvider>(createHostProcessTreeProvider)
         ..addLazySingleton<TerminalHarnessMonitor>(
-          CockpitTerminalHarnessMonitor.new,
+          // Feature-scoped binds cannot resolve services exposed only through
+          // ModularApp.provide. Thread the bootstrap-owned activity instance
+          // explicitly, as already done for the route-scoped GitController.
+          (ProcessTreeProvider provider) =>
+              CockpitTerminalHarnessMonitor(provider, windowActivity),
         )
         ..addLazySingleton<TerminalStatusServer>(TerminalStatusServerImpl.new)
         ..addLazySingleton<TaskRunnerGateway>(PtyTaskRunner.new)
