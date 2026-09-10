@@ -3,8 +3,9 @@
 # SUPORTA build hooks (native assets do anaki), ao contrário do
 # `dart compile exe`. O resultado (bin/ + lib/) vai para
 #   Resources/cockpit-server-bundle/{bin,lib}
-# e o app resolve o binário lá (SidecarTerminalConnector). O exe carrega as
-# dylibs (anaki + pty) de ../lib via rpath.
+# e o app resolve o binário lá (SidecarTerminalConnector). Além do sidecar
+# Darwin, empacota o target de bootstrap remoto em
+#   Resources/cockpit-server-bundle/targets/linux-arm64/{bin,lib}.
 #
 # ATENÇÃO — arquitetura: fatia única (a do host que buildou), no nome sem
 # sufixo (`bin/cockpit-server`), que é o fallback do resolver. No CI, o
@@ -48,6 +49,12 @@ mv "$BUNDLE"/bundle/* "$DEST"/
 mv "$DEST/bin/cockpit_server" "$DEST/bin/cockpit-server"
 cp "$PTY" "$DEST/lib/libcockpit_pty.dylib"
 chmod +x "$DEST/bin/cockpit-server"
+
+# Target de bootstrap para os VMs Linux arm64 de workspaces remotos. Fica
+# isolado do sidecar macOS para o resolver nunca tentar executar um ELF local.
+# O helper também produz libcockpit_pty.so e a CLI Rust para o host remoto.
+"$ROOT/tool/build-linux-arm64-server-bundle.sh" \
+  "$DEST/targets/linux-arm64"
 
 # CLI `cockpit` embarcada AO LADO do server (plano 60, Wave G): o server instala
 # o hook do agente no ~/.claude do host apontando pra `cockpit hook`, e a acha

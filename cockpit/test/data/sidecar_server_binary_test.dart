@@ -32,11 +32,14 @@ void main() {
     expect(SidecarTerminalConnector.serverBinaryIn(bin.path, arch: 'x64'), x64);
   });
 
-  test('cai no nome sem sufixo (bundle de arquitetura única)', () {
+  test('cai no nome sem sufixo para a arquitetura nativa', () {
     final plain = touch(SidecarTerminalConnector.serverExeName);
 
     expect(
-      SidecarTerminalConnector.serverBinaryIn(bin.path, arch: 'arm64'),
+      SidecarTerminalConnector.serverBinaryIn(
+        bin.path,
+        arch: SidecarTerminalConnector.hostArch,
+      ),
       plain,
     );
   });
@@ -45,13 +48,103 @@ void main() {
     expect(SidecarTerminalConnector.serverBinaryIn(bin.path), isNull);
   });
 
-  test('a fatia pedida ausente não impede achar a outra pelo nome puro', () {
-    final plain = touch(SidecarTerminalConnector.serverExeName);
-    touch(SidecarTerminalConnector.serverExeFor('x64'));
+  test('target de outro OS usa a raiz targets/<os>-<arch>', () {
+    final root = bin.path;
+    final crossOs = SidecarTerminalConnector.hostOs == 'linux'
+        ? 'darwin'
+        : 'linux';
+    final targetBin = Directory('$root/targets/$crossOs-arm64/bin')
+      ..createSync(recursive: true);
+    final target = File(
+      '${targetBin.path}/${SidecarTerminalConnector.serverExeNameFor(crossOs)}',
+    )..writeAsStringSync('cross');
 
     expect(
-      SidecarTerminalConnector.serverBinaryIn(bin.path, arch: 'arm64'),
-      plain,
+      SidecarTerminalConnector.serverBinaryInBundle(
+        root,
+        os: crossOs,
+        arch: 'arm64',
+      ),
+      target.path,
+    );
+  });
+
+  test('mesmo OS em outra arquitetura rejeita binário sem sufixo', () {
+    final root = bin.path;
+    final nativeBin = Directory('$root/bin')..createSync();
+    File(
+      '${nativeBin.path}/${SidecarTerminalConnector.serverExeName}',
+    ).writeAsStringSync('native');
+    final otherArch = SidecarTerminalConnector.hostArch == 'arm64'
+        ? 'x64'
+        : 'arm64';
+
+    expect(
+      SidecarTerminalConnector.serverBinaryInBundle(
+        root,
+        os: SidecarTerminalConnector.hostOs,
+        arch: otherArch,
+      ),
+      isNull,
+    );
+  });
+
+  test('env override também é rejeitado para outra arquitetura', () {
+    final root = bin.path;
+    final nativeBin = Directory('$root/bin')..createSync();
+    final envBinary = File('$root/from-env')..writeAsStringSync('native');
+    final otherArch = SidecarTerminalConnector.hostArch == 'arm64'
+        ? 'x64'
+        : 'arm64';
+
+    expect(
+      SidecarTerminalConnector.resolveServerBundleBinaryFrom(
+        os: SidecarTerminalConnector.hostOs,
+        arch: otherArch,
+        nativeBinDirs: [nativeBin.path],
+        environmentBinary: envBinary.path,
+      ),
+      isNull,
+    );
+  });
+
+  test('mesmo OS em outra arquitetura aceita fatia explícita', () {
+    final root = bin.path;
+    final nativeBin = Directory('$root/bin')..createSync();
+    final otherArch = SidecarTerminalConnector.hostArch == 'arm64'
+        ? 'x64'
+        : 'arm64';
+    final slice = File(
+      '${nativeBin.path}/${SidecarTerminalConnector.serverExeFor(otherArch)}',
+    )..writeAsStringSync('slice');
+
+    expect(
+      SidecarTerminalConnector.serverBinaryInBundle(
+        root,
+        os: SidecarTerminalConnector.hostOs,
+        arch: otherArch,
+      ),
+      slice.path,
+    );
+  });
+
+  test('target de outro OS nunca cai no binário nativo', () {
+    final root = bin.path;
+    final nativeBin = Directory('$root/bin')..createSync();
+    File(
+      '${nativeBin.path}/${SidecarTerminalConnector.serverExeName}',
+    ).writeAsStringSync('native');
+    final crossOs = SidecarTerminalConnector.hostOs == 'linux'
+        ? 'darwin'
+        : 'linux';
+
+    expect(
+      SidecarTerminalConnector.serverBinaryInBundle(
+        root,
+        os: crossOs,
+        arch: 'arm64',
+      ),
+      isNull,
     );
   });
 }

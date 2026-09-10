@@ -85,6 +85,8 @@ O `cargo` é resolvido pelo PATH e, como fallback, em `~/.cargo/bin` — o mesmo
 lugar onde o rustup instala. Isso cobre IDE/launcher que não herda o PATH do
 shell de login; se faltar mesmo, o CMake para no configure com a causa.
 
+- `rustup target add aarch64-unknown-linux-gnu` — uma vez; o build macOS usa
+  esse target + Zig para embarcar o cockpit-server/CLI dos hosts Linux arm64
 - `flutter pub get` — instala deps
 - `flutter analyze` — lint estático (deve passar zero issues)
 - `flutter test` — testes

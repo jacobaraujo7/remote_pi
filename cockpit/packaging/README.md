@@ -48,8 +48,9 @@ linux/packaging/rpm/make_config.yaml
 ## macOS — build + sign + DMG + notarize + staple (ponta a ponta)
 
 Validado localmente em 2026-06-12 (DMG aceito pelo Gatekeeper). Pré-requisitos:
-identidade **"Developer ID Application: Jacob Moura (U843T2P7A2)"** no Keychain e
-a API key do App Store Connect.
+identidade **"Developer ID Application: Jacob Moura (U843T2P7A2)"** no Keychain,
+a API key do App Store Connect, Zig 0.16.0 e o target Rust usado pela CLI do
+servidor Linux remoto (`rustup target add aarch64-unknown-linux-gnu`).
 
 ```bash
 cd cockpit

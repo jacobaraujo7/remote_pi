@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/remote/host_shell/host_shell.dart';
@@ -8,6 +9,39 @@ class PosixHostShell extends HostShell {
   PosixHostShell({required super.probe, required super.exec});
 
   static const _serverDir = r'$HOME/.cockpit/server';
+  static const _manifestPath = '$_serverDir/bundle.manifest';
+  static const _installLock = r'$HOME/.cockpit/server.install.lock';
+
+  // Diretórios nunca podem ser promovidos para o live com `mv source live`:
+  // se `live` surgir entre o teste e o mv, POSIX manda `source` para dentro
+  // dele. `rename(2)` troca/falha no caminho exato e, portanto, não aninha.
+  static const _noNestRename = r'''
+no_nest_rename() {
+  if mv --version 2>/dev/null | grep -q 'GNU coreutils'; then
+    mv -T -- "$1" "$2"
+    return $?
+  fi
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$1" "$2" <<'PY'
+import os
+import sys
+
+try:
+    os.rename(sys.argv[1], sys.argv[2])
+except OSError as error:
+    print('cockpit-server rename failed: %s' % error, file=sys.stderr)
+    raise SystemExit(1)
+PY
+    return $?
+  fi
+  if command -v perl >/dev/null 2>&1; then
+    perl -e 'rename($ARGV[0], $ARGV[1]) or die "cockpit-server rename failed: $!\n"' "$1" "$2"
+    return $?
+  fi
+  echo "cockpit-server needs GNU mv -T, python3, or perl for a safe directory rename" >&2
+  return 69
+}
+''';
 
   @override
   String get serverBinaryPath => '$_serverDir/bin/cockpit-server';
@@ -47,7 +81,8 @@ class PosixHostShell extends HostShell {
   @override
   Future<bool> serverInstalled() async {
     final (code, out, _) = await exec(
-      'test -x $serverBinaryPath && echo yes || echo no',
+      'test -x $serverBinaryPath && test -f $_manifestPath && '
+      'echo yes || echo no',
     );
     return code == 0 && out.trim().endsWith('yes');
   }
@@ -64,39 +99,211 @@ class PosixHostShell extends HostShell {
   }
 
   @override
+  Future<String?> bundleManifestSha256() async {
+    final (code, out, _) = await exec(
+      'sha256sum $_manifestPath 2>/dev/null || '
+      'shasum -a 256 $_manifestPath 2>/dev/null',
+    );
+    if (code != 0) return null;
+    final token = out.trim().split(RegExp(r'\s+')).firstOrNull;
+    return (token != null && token.length == 64) ? token.toLowerCase() : null;
+  }
+
+  @override
   Future<void> killServer() async {
     await exec('pkill -f "$serverBinaryPath" || true');
   }
 
   @override
   Future<void> installFromClient(ClientBundle bundle) async {
-    Future<void> push(String local, String remote) async {
-      final bytes = await File(local).readAsBytes();
-      final (code, _, err) = await exec(
-        'mkdir -p ~/.cockpit/server/bin ~/.cockpit/server/lib && '
-        'cat > $remote && chmod +x $remote',
-        stdinBytes: bytes,
-      );
-      if (code != 0) throw HostShellException(err);
-    }
+    final manifest = await bundle.buildManifest();
+    final token = '$pid-${DateTime.now().microsecondsSinceEpoch}';
+    final stage = r'$HOME/.cockpit/server.staging-' + token;
+    final backup = r'$HOME/.cockpit/server.previous-' + token;
+    final conflict = r'$HOME/.cockpit/server.conflict-' + token;
 
-    await push(bundle.serverBinary, '~/.cockpit/server/bin/cockpit-server');
-
-    final libDir = Directory('${bundle.root}/lib');
-    if (libDir.existsSync()) {
-      for (final f in libDir.listSync().whereType<File>()) {
-        await push(f.path, '~/.cockpit/server/lib/${_basename(f.path)}');
+    Future<void> run(String command, {List<int>? stdinBytes}) async {
+      final (code, out, err) = await exec(command, stdinBytes: stdinBytes);
+      if (code != 0) {
+        throw HostShellException(err.isNotEmpty ? err : out);
       }
     }
 
-    // CLI ao lado do servidor: o servidor põe a pasta dela no PATH das PTYs, e
-    // é o que faz `cockpit …` responder num terminal remoto. Vai junto em toda
-    // (re)instalação, senão ficaria mais velha que o servidor que a invoca.
-    final cli = File('${bundle.root}/bin/cockpit');
-    if (cli.existsSync()) {
-      await push(cli.path, '~/.cockpit/server/bin/cockpit');
-      // Alias curto: symlink, que no POSIX custa zero em disco.
-      await exec('ln -sf cockpit ~/.cockpit/server/bin/ck');
+    var locked = false;
+    var promotionStarted = false;
+    var swapped = false;
+    try {
+      // `mkdir` é o mutex portátil entre processos/clientes. O mtime recebe
+      // heartbeat antes de cada upload; só um lock sem heartbeat por 10min é
+      // recuperado. Espera limitada evita deixar a UI presa indefinidamente.
+      await run('''
+mkdir -p "\$HOME/.cockpit"
+attempt=0
+while ! mkdir "$_installLock" 2>/dev/null; do
+  if find "$_installLock" -prune -mmin +10 -print 2>/dev/null | grep -q .; then
+    abandoned="$_installLock.abandoned-$token"
+    if mv "$_installLock" "\$abandoned" 2>/dev/null; then
+      rm -rf "\$abandoned"
+      continue
+    fi
+  fi
+  attempt=\$((attempt + 1))
+  if [ "\$attempt" -ge 30 ]; then
+    echo "cockpit-server install lock timed out" >&2
+    exit 75
+  fi
+  sleep 1
+done
+printf '%s\n' '$token' > "$_installLock/owner"
+touch "$_installLock"
+''');
+      locked = true;
+
+      Future<void> runLocked(String command, {List<int>? stdinBytes}) => run('''
+if [ "\$(cat "$_installLock/owner" 2>/dev/null)" != "$token" ]; then
+  echo "cockpit-server install lock lost" >&2
+  exit 75
+fi
+touch "$_installLock"
+$command
+''', stdinBytes: stdinBytes);
+
+      Future<void> push(ClientBundleFile file) async {
+        final parent = file.remotePath.split('/').first;
+        await runLocked(
+          'mkdir -p "$stage/$parent" && '
+          'cat > "$stage/${file.remotePath}" && '
+          'chmod +x "$stage/${file.remotePath}"',
+          stdinBytes: await File(file.localPath).readAsBytes(),
+        );
+      }
+
+      // Sob o lock, recupera um swap antigo interrompido e remove somente
+      // stages que não podem mais pertencer a uma transação ativa.
+      await runLocked('''
+$_noNestRename
+if { [ ! -e "$_serverDir" ] && [ ! -L "$_serverDir" ]; }; then
+  set -- "\$HOME/.cockpit"/server.previous-*
+  if [ -e "\$1" ] || [ -L "\$1" ]; then
+    no_nest_rename "\$1" "$_serverDir" || {
+      echo "cockpit-server could not safely recover prior backup" >&2
+      exit 76
+    }
+  fi
+fi
+for stale in "\$HOME/.cockpit"/server.staging-*; do
+  if [ -d "\$stale" ]; then rm -rf "\$stale"; fi
+done
+if [ -e "$backup" ] || [ -L "$backup" ]; then
+  echo "cockpit-server transaction backup path is occupied: $backup" >&2
+  exit 76
+fi
+mkdir -p "$stage"
+''');
+
+      for (final file in manifest.files) {
+        await push(file);
+      }
+
+      // O marcador vai por ÚLTIMO: sem ele, serverInstalled() trata qualquer
+      // resto de upload interrompido como incompleto e tenta de novo.
+      await runLocked(
+        'cat > "$stage/bundle.manifest"',
+        stdinBytes: utf8.encode(manifest.contents),
+      );
+
+      // Verifica cada byte ainda no staging e só então promove. O lock impede
+      // dois instaladores cooperantes. Renames para o live usam uma primitiva
+      // que nunca interpreta um destino que apareceu na corrida como diretório.
+      promotionStarted = true;
+      await runLocked('''
+set -eu
+$_noNestRename
+rollback_live() {
+  if [ ! -e "$backup" ] && [ ! -L "$backup" ]; then return 0; fi
+  if [ -e "$_serverDir" ] || [ -L "$_serverDir" ]; then
+    if [ -e "$conflict" ] || [ -L "$conflict" ]; then
+      echo "cockpit-server rollback conflict path is occupied: $conflict" >&2
+      return 1
+    fi
+    if ! mv "$_serverDir" "$conflict"; then
+      echo "cockpit-server could not quarantine unexpected live directory" >&2
+      return 1
+    fi
+  fi
+  if [ -e "$_serverDir" ] || [ -L "$_serverDir" ]; then
+    echo "cockpit-server live directory still exists during rollback" >&2
+    return 1
+  fi
+  no_nest_rename "$backup" "$_serverDir"
+}
+cd "$stage"
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256sum -c bundle.manifest
+else
+  shasum -a 256 -c bundle.manifest
+fi
+if [ -x bin/cockpit ]; then ln -sf cockpit bin/ck; fi
+if [ -e "$_serverDir" ] || [ -L "$_serverDir" ]; then
+  mv "$_serverDir" "$backup"
+fi
+if [ -e "$_serverDir" ] || [ -L "$_serverDir" ]; then
+  rollback_live ||
+    echo "cockpit-server rollback incomplete; backup preserved at $backup" >&2
+  echo "cockpit-server live directory changed during promotion" >&2
+  exit 76
+fi
+if no_nest_rename "$stage" "$_serverDir"; then
+  # Só o sucesso definitivo da promoção autoriza apagar o known-good.
+  rm -rf "$backup" || true
+else
+  rollback_live ||
+    echo "cockpit-server rollback incomplete; backup preserved at $backup" >&2
+  exit 1
+fi
+''');
+      swapped = true;
+    } finally {
+      if (locked) {
+        // Ainda sob o lock, repara a janela live→backup caso o transporte tenha
+        // caído entre os dois renames. Um live ambíguo é preservado no conflito
+        // desta transação; o backup só volta depois de o caminho live sumir.
+        if (!swapped) {
+          try {
+            final failedStageCleanup = promotionStarted
+                ? ''
+                : 'rm -rf "$stage"';
+            await exec('''
+$_noNestRename
+if [ "\$(cat "$_installLock/owner" 2>/dev/null)" = "$token" ]; then
+  if [ -e "$backup" ] || [ -L "$backup" ]; then
+    if [ -e "$_serverDir" ] || [ -L "$_serverDir" ]; then
+      if [ ! -e "$conflict" ] && [ ! -L "$conflict" ]; then
+        mv "$_serverDir" "$conflict" || true
+      fi
+    fi
+    if { [ ! -e "$_serverDir" ] && [ ! -L "$_serverDir" ]; }; then
+      no_nest_rename "$backup" "$_serverDir" ||
+        echo "cockpit-server final recovery left backup at $backup" >&2
+    fi
+  fi
+  $failedStageCleanup
+fi
+''');
+          } on Object {
+            // Transporte caiu: o próximo dono recupera backup e stages stale.
+          }
+        }
+        try {
+          await exec('''
+if [ "\$(cat "$_installLock/owner" 2>/dev/null)" = "$token" ]; then
+  rm -rf "$_installLock"
+fi
+''');
+        } on Object {
+          // O lock ganha recovery por mtime se o transporte não voltar.
+        }
+      }
     }
   }
 
@@ -130,9 +337,6 @@ class PosixHostShell extends HostShell {
     );
     return out;
   }
-
-  static String _basename(String path) =>
-      path.split(Platform.pathSeparator).last;
 }
 
 /// Falha crua do host (stderr de terceiros). Vira `detail` de um

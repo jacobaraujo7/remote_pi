@@ -268,9 +268,8 @@ class SidecarTerminalConnector implements TurnStatusSource {
     return '${dir.path}/cockpit-server$suffix.sock';
   }
 
-  /// Resolve o binário do servidor no bundle `bin/`+`lib/` (dart build cli).
-  /// Ordem: env → bundle do app → app-managed (`~/.cockpit/server`) →
-  /// build de dev (`build/server-bundle`, fluxo `flutter run` no repo).
+  /// Resolve o binário NATIVO do servidor no bundle `bin/`+`lib/`.
+  /// Bundles de outras plataformas são usados apenas pelo bootstrap SSH.
   String? _resolveServerBinary() => resolveServerBundleBinary();
 
   /// Nome da lib nativa do PTY por plataforma (o servidor a carrega por FFI).
@@ -281,8 +280,10 @@ class SidecarTerminalConnector implements TurnStatusSource {
       : 'cockpit_pty.dll';
 
   /// Nome do executável do servidor no disco (Windows carrega a extensão).
-  static String get serverExeName =>
-      Platform.isWindows ? 'cockpit-server.exe' : 'cockpit-server';
+  static String get serverExeName => serverExeNameFor(hostOs);
+
+  static String serverExeNameFor(String os) =>
+      os == 'windows' ? 'cockpit-server.exe' : 'cockpit-server';
 
   /// Mesmo executável, com sufixo de arquitetura (`cockpit-server-arm64`).
   ///
@@ -292,8 +293,10 @@ class SidecarTerminalConnector implements TurnStatusSource {
   /// o binário morre nas duas arquiteturas. Então o bundle traz uma fatia por
   /// arquitetura, cada uma um Mach-O fino e válido, e quem escolhe é o
   /// runtime. Ver `tool/lipo-server-bundle.sh`.
-  static String serverExeFor(String arch) =>
-      Platform.isWindows ? 'cockpit-server-$arch.exe' : 'cockpit-server-$arch';
+  static String serverExeFor(String arch, {String? os}) =>
+      (os ?? hostOs) == 'windows'
+      ? 'cockpit-server-$arch.exe'
+      : 'cockpit-server-$arch';
 
   /// Arquitetura deste processo (`arm64` | `x64`), lida do `Platform.version`
   /// (`... on "macos_arm64"`) — a fonte confiável, como no resolver de perfis.
@@ -301,12 +304,21 @@ class SidecarTerminalConnector implements TurnStatusSource {
       Platform.version.toLowerCase().contains('arm') ? 'arm64' : 'x64';
 
   /// Escolhe o executável do servidor dentro de um `bin/`, preferindo a fatia
-  /// de [arch] (default: a desta máquina) e caindo no nome sem sufixo — que é
-  /// o layout de bundle de arquitetura única (dev, Windows, Linux).
-  static String? serverBinaryIn(String binDir, {String? arch}) {
+  /// de [arch]. O nome sem sufixo só é elegível para a arquitetura deste
+  /// processo, salvo quando [targetSpecificDir] garante a arquitetura no nome
+  /// do diretório (`targets/linux-arm64`).
+  static String? serverBinaryIn(
+    String binDir, {
+    String? os,
+    String? arch,
+    bool targetSpecificDir = false,
+  }) {
+    final requestedOs = os ?? hostOs;
+    final requestedArch = arch ?? hostArch;
     for (final name in <String>[
-      serverExeFor(arch ?? hostArch),
-      serverExeName,
+      serverExeFor(requestedArch, os: requestedOs),
+      if (targetSpecificDir || requestedArch == hostArch)
+        serverExeNameFor(requestedOs),
     ]) {
       final candidate = '$binDir/$name';
       if (File(candidate).existsSync()) return candidate;
@@ -314,22 +326,73 @@ class SidecarTerminalConnector implements TurnStatusSource {
     return null;
   }
 
-  /// Resolve o binário do servidor no bundle `bin/`+`lib/` (dart build cli).
-  /// Ordem: env → bundle do app → app-managed (`~/.cockpit/server`) →
-  /// build de dev (`build/server-bundle`, fluxo `flutter run` no repo).
+  /// Resolve o binário do servidor num bundle produzido por `dart build cli`.
   ///
-  /// Reusado pelo bootstrap SSH (RemoteHostConnector) como fonte local.
-  static String? resolveServerBundleBinary({String? arch}) {
-    final fromEnv = Platform.environment['COCKPIT_SERVER_BIN'];
-    if (fromEnv != null && fromEnv.isNotEmpty && File(fromEnv).existsSync()) {
-      return fromEnv;
+  /// O bundle nativo mantém o layout histórico `<root>/{bin,lib}`. Targets de
+  /// bootstrap cross-platform ficam isolados em
+  /// `<root>/targets/<os>-<arch>/{bin,lib}`, para o sidecar local nunca escolher
+  /// por engano um ELF e para o bootstrap inferir as libs do mesmo target a
+  /// partir do caminho do executável.
+  ///
+  /// Ordem das raízes: env (somente target nativo) → bundle do app →
+  /// app-managed (`~/.cockpit/server`) → build de dev.
+  static String? resolveServerBundleBinary({String? os, String? arch}) =>
+      resolveServerBundleBinaryFrom(
+        os: os ?? hostOs,
+        arch: arch ?? hostArch,
+        nativeBinDirs: serverBundleBinDirs(),
+        environmentBinary: Platform.environment['COCKPIT_SERVER_BIN'],
+      );
+
+  /// Núcleo injetável do resolver: permite provar que nem o env override nem o
+  /// nome puro escapam para um host da mesma plataforma em outra arquitetura.
+  @visibleForTesting
+  static String? resolveServerBundleBinaryFrom({
+    required String os,
+    required String arch,
+    required List<String> nativeBinDirs,
+    String? environmentBinary,
+  }) {
+    if (os == hostOs && arch == hostArch) {
+      final fromEnv = environmentBinary;
+      if (fromEnv != null && fromEnv.isNotEmpty && File(fromEnv).existsSync()) {
+        return fromEnv;
+      }
     }
-    for (final dir in serverBundleBinDirs()) {
-      final found = serverBinaryIn(dir, arch: arch);
+    for (final nativeBinDir in nativeBinDirs) {
+      final found = serverBinaryInBundle(
+        Directory(nativeBinDir).parent.path,
+        os: os,
+        arch: arch,
+      );
       if (found != null) return found;
     }
     return null;
   }
+
+  /// Resolve dentro de uma raiz de bundle explícita. Separado para tornar o
+  /// contrato de layout verificável sem depender da localização do executável.
+  @visibleForTesting
+  static String? serverBinaryInBundle(
+    String root, {
+    required String os,
+    required String arch,
+  }) {
+    final binDir = os == hostOs ? '$root/bin' : '$root/targets/$os-$arch/bin';
+    return serverBinaryIn(
+      binDir,
+      os: os,
+      arch: arch,
+      targetSpecificDir: os != hostOs,
+    );
+  }
+
+  /// Sistema deste processo no mesmo vocabulário de `uname`/`probeHost`.
+  static String get hostOs => Platform.isMacOS
+      ? 'darwin'
+      : Platform.isLinux
+      ? 'linux'
+      : 'windows';
 
   /// Pastas `bin/` onde o bundle do servidor pode estar, em ordem de prioridade.
   static List<String> serverBundleBinDirs() {

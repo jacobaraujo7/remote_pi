@@ -19,7 +19,7 @@ void main() {
     HostKeyPrompt? prompt,
   }) => RemoteHostConnector(
     host,
-    localServerBinaryResolver: ({String? arch}) => null,
+    localServerBinaryResolver: ({String? os, String? arch}) => null,
     hostKeyPrompt: prompt,
     knownHosts: knownHosts,
   );

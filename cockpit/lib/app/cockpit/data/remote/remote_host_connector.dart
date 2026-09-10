@@ -1,8 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:crypto/crypto.dart' show sha256;
-
 import 'package:cockpit/app/cockpit/data/remote/dartssh_host_connection.dart';
 import 'package:cockpit/app/cockpit/data/remote/mobile_ssh_key_store.dart';
 import 'package:cockpit/app/cockpit/data/remote/ssh_worker_connection.dart';
@@ -60,6 +58,19 @@ enum RemoteHostErrorKind {
   hostKeyChanged,
 }
 
+/// Gate one-shot que só fecha depois de um probe concluído. Exceção mantém o
+/// gate aberto para o retry; separado para testar a semântica sem SSH real.
+class ServerFreshnessProbeGate {
+  bool completed = false;
+
+  Future<bool> run(Future<bool> Function() probe) async {
+    if (completed) return false;
+    final result = await probe();
+    completed = true;
+    return result;
+  }
+}
+
 class RemoteHostException implements Exception {
   const RemoteHostException(this.kind, [this.detail]);
   final RemoteHostErrorKind kind;
@@ -90,12 +101,11 @@ class RemoteHostConnector {
 
   final RemoteHost host;
 
-  /// Resolve o binário local do cockpit-server (o mesmo do sidecar) usado como
-  /// fonte do bootstrap, para a arquitetura pedida (`arm64` | `x64`). Quem
-  /// manda é o `uname -sm` DO HOST, não a arquitetura desta máquina: um bundle
-  /// macOS traz as duas fatias, e mandar a errada instalava um binário que o
-  /// host não executa — falha que só aparecia como "não conectou".
-  final String? Function({String? arch}) localServerBinaryResolver;
+  /// Resolve o cockpit-server embarcado usado como fonte do bootstrap, para o
+  /// sistema e arquitetura pedidos (`darwin`/`linux`, `arm64`/`x64`). Quem
+  /// manda é o probe DO HOST, não a plataforma desta máquina: uma Release
+  /// macOS também pode trazer um target Linux para workspaces remotos.
+  final String? Function({String? os, String? arch}) localServerBinaryResolver;
 
   /// Resolve a senha SSH do host (auth por senha), lida do Keychain sob
   /// demanda. `null` = auth por chave (default). Plano 60, Wave C.
@@ -289,12 +299,29 @@ class RemoteHostConnector {
     // pronto — o bootstrap só rodava quando ninguém atendia, então um host
     // instalado uma vez ficava congelado para sempre naquela versão. Uma vez
     // por host por sessão (a comparação custa um SSH).
-    if (connection != null && !_serverFreshnessChecked) {
-      _serverFreshnessChecked = true;
-      if (await _remoteServerIsStale(shell)) {
-        _staleServer = true;
-        await connection.close();
-        connection = null;
+    if (connection != null && !_serverFreshness.completed) {
+      try {
+        if (await _serverFreshness.run(() => _remoteServerIsStale(shell))) {
+          _staleServer = true;
+          await connection.close();
+          connection = null;
+        }
+      } on Object {
+        // O probe usa o mesmo transporte SSH. Se ele falha, não adota a
+        // conexão meio-aberta nem vaza o túnel; e o gate continua aberto para
+        // a próxima tentativa.
+        try {
+          await connection?.close();
+        } on Object {
+          // Preserva a falha original do probe.
+        }
+        try {
+          await tunnel.close();
+        } on Object {
+          // Preserva a falha original do probe.
+        }
+        _tunnel = null;
+        rethrow;
       }
     }
     if (connection == null) {
@@ -534,50 +561,43 @@ class RemoteHostConnector {
   /// oposto da promessa de retomar de onde parou.
   static const _remoteIdleSeconds = 120;
 
-  /// `true` quando o binário do host **existe mas é diferente** do que este
-  /// cliente instalaria: o processo velho precisa morrer para o novo valer.
+  /// `true` quando o bundle do host difere do que este cliente instalaria: o
+  /// processo velho precisa morrer para a troca transacional valer.
   bool _staleServer = false;
 
   /// A comparação de versão do servidor roda uma vez por host por sessão —
   /// reconectar (o que acontece a cada oscilação de rede) não paga o SSH extra
   /// de novo.
-  bool _serverFreshnessChecked = false;
+  final _serverFreshness = ServerFreshnessProbeGate();
 
-  /// Compara o `cockpit-server` do host com o que este cliente enviaria.
+  /// Compara o manifesto de TODO o bundle com o que este cliente enviaria.
   ///
   /// Só vale quando o cliente é a FONTE da instalação: num host Windows quem
   /// instala é o próprio host, a partir do bundle do app de lá (D2), então o
-  /// binário local desta máquina não é referência de nada — comparar acusaria
-  /// "desatualizado" em todo boot e derrubaria o servidor remoto sem motivo.
+  /// binário local desta máquina não é referência de nada. Para POSIX, o
+  /// resolver devolve `null` se este build não embarca aquele target; nesse
+  /// caso o cliente também não tem autoridade para julgar o servidor remoto.
   Future<bool> _remoteServerIsStale(HostShell shell) async {
     if (shell.installsFromHostBundle) return false;
-    // Host de OUTRA plataforma: este cliente não tem binário para enviar (o
-    // `.deb` traz só o ELF do Linux, o `.app` só o Mach-O), então não é fonte
-    // da instalação e não tem autoridade para julgá-la.
-    //
-    // Sem esta linha o resolver caía no nome sem sufixo e devolvia o binário
-    // da PRÓPRIA plataforma: o hash nunca batia com o do host, todo boot
-    // acusava "desatualizado", e o cliente DERRUBAVA uma conexão que estava
-    // funcionando para tentar um bootstrap que o guard de OS logo abaixo
-    // recusa. Cliente Linux + host macOS ficava sem conexão nenhuma.
-    if (shell.probe.os != _localOsName) return false;
-    final local = localServerBinaryResolver(arch: shell.probe.arch);
+    final local = localServerBinaryResolver(
+      os: shell.probe.os,
+      arch: shell.probe.arch,
+    );
     if (local == null) return false;
-    final remoteHash = await shell.serverSha256();
-    if (remoteHash == null) return false;
     try {
-      final localHash = sha256.convert(await File(local).readAsBytes());
-      return localHash.toString() != remoteHash;
+      final bundle = ClientBundle(
+        root: File(local).parent.parent.path,
+        serverBinary: local,
+      );
+      final localDigest = (await bundle.buildManifest()).digest;
+      final remoteDigest = await shell.bundleManifestSha256();
+      // Ausência migra instalações antigas (que só comparavam o executável) e
+      // restos de uma instalação interrompida para o formato transacional.
+      return remoteDigest == null || localDigest != remoteDigest;
     } on FileSystemException {
       return false;
     }
   }
-
-  static String get _localOsName => Platform.isMacOS
-      ? 'darwin'
-      : Platform.isLinux
-      ? 'linux'
-      : 'windows';
 
   Future<void> _installAndStartServer(HostShell shell) async {
     var installed = await shell.serverInstalled();
@@ -595,18 +615,13 @@ class RemoteHostConnector {
           );
         }
       } else {
-        // POSIX: o bundle vem DESTE cliente, então precisa ser da plataforma
-        // do host. Antes o Mach-O do macOS era empurrado pra qualquer host e o
-        // servidor morria no `nohup` sem deixar rastro.
-        if (shell.probe.os != _localOsName) {
-          _setPhase(RemoteHostPhase.failed);
-          throw RemoteHostException(
-            RemoteHostErrorKind.serverInstallFailed,
-            'host runs ${shell.probe.os}; '
-            'this build only ships a $_localOsName cockpit-server',
-          );
-        }
-        final binary = localServerBinaryResolver(arch: shell.probe.arch);
+        // POSIX: o bundle vem DESTE cliente e o resolver exige um target exato.
+        // Isso evita tanto mandar Mach-O para Linux quanto cair no binário
+        // nativo sem sufixo quando o host roda outra plataforma.
+        final binary = localServerBinaryResolver(
+          os: shell.probe.os,
+          arch: shell.probe.arch,
+        );
         if (binary == null) {
           _setPhase(RemoteHostPhase.failed);
           throw RemoteHostException(
@@ -622,7 +637,6 @@ class RemoteHostConnector {
         // isso que só acontece quando o binário realmente mudou.
         if (_staleServer) {
           await shell.killServer();
-          _staleServer = false;
         }
         try {
           await shell.installFromClient(
@@ -631,6 +645,8 @@ class RemoteHostConnector {
               serverBinary: binary,
             ),
           );
+          // Só fica fresh DEPOIS de upload, verificação e swap concluírem.
+          _staleServer = false;
         } on HostShellException catch (e) {
           _setPhase(RemoteHostPhase.failed);
           throw RemoteHostException(
@@ -640,11 +656,6 @@ class RemoteHostConnector {
         }
       }
     }
-    if (_staleServer) {
-      await shell.killServer();
-      _staleServer = false;
-    }
-
     try {
       await shell.startServer(idleSeconds: _remoteIdleSeconds);
     } on HostShellException catch (e) {

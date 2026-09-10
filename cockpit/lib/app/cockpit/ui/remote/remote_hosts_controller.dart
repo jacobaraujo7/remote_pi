@@ -325,10 +325,10 @@ class RemoteHostsController extends ChangeNotifier {
     return '${existing + 1}';
   }
 
-  /// Fonte local do bootstrap remoto. [arch] vem do `uname -sm` do HOST, não
-  /// desta máquina — o bundle macOS traz as duas fatias do servidor.
-  String? _resolveLocalServerBinary({String? arch}) =>
-      SidecarTerminalConnector.resolveServerBundleBinary(arch: arch);
+  /// Fonte embarcada do bootstrap remoto. [os]/[arch] vêm do probe do HOST,
+  /// não desta máquina; o bundle macOS também pode trazer targets Linux.
+  String? _resolveLocalServerBinary({String? os, String? arch}) =>
+      SidecarTerminalConnector.resolveServerBundleBinary(os: os, arch: arch);
 
   @override
   void dispose() {

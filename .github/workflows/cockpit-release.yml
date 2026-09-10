@@ -154,14 +154,14 @@ jobs:
 
       # A CLI interna (`cockpit-cli`, crate em cockpit/cli) é compilada pelo
       # Run Script phase do Xcode como binário UNIVERSAL: o build_cli.sh gera
-      # arm64 + x86_64 e junta com `lipo`. O runner é Apple Silicon, então o
-      # target Intel precisa estar instalado — sem ele o app sai sem a fatia
-      # x86_64 e a CLI/hook não funcionam em Mac Intel.
-      - name: Rust + target Intel (CLI interna universal)
+      # arm64 + x86_64 e junta com `lipo`. O mesmo build empacota uma CLI Linux
+      # arm64 ao lado do cockpit-server cross-compiled para workspaces remotos.
+      - name: Rust + targets macOS universal e Linux arm64
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
           rustup default stable
-          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin \
+            aarch64-unknown-linux-gnu
           cargo --version
 
       - name: Baixa a fatia x86_64 do cockpit-server
@@ -234,6 +234,22 @@ jobs:
             want=$([ "$arch" = x64 ] && echo x86_64 || echo arm64)
             lipo -archs "$exe" | grep -q "$want" || {
               echo "::error::cockpit-server-$arch não é $want"; exit 1; }
+          done
+          # Gate do target enviado aos VMs de workspaces remotos. `file` prova
+          # que server, PTY e CLI são ELF aarch64, e não Mach-O do cliente.
+          LINUX_BUNDLE="$SERVER_BUNDLE/targets/linux-arm64"
+          for f in "$LINUX_BUNDLE/bin/cockpit-server" \
+                   "$LINUX_BUNDLE/bin/cockpit" \
+                   "$LINUX_BUNDLE/lib/libcockpit_pty.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_mongodb.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_mssql.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_mysql.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_postgres.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_redis.so" \
+                   "$LINUX_BUNDLE/lib/libanaki_sqlite.so"; do
+            [ -f "$f" ] || { echo "::error::$f ausente"; exit 1; }
+            file "$f" | grep -q 'ELF 64-bit.*ARM aarch64' || {
+              echo "::error::$f não é Linux arm64"; file "$f"; exit 1; }
           done
           # Smoke test do binário assinado: sobe o servidor e exige o socket.
           # É o gate que faltava — o bundle universal da 1.28.0 passou por todas

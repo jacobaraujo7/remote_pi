@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/remote/host_shell/host_shell.dart';
 import 'package:cockpit/app/cockpit/data/remote/host_shell/posix_host_shell.dart';
@@ -14,15 +15,62 @@ class _FakeExec {
 
   final List<(int, String, String)> Function(String command) _replies;
   final List<String> commands = [];
+  final List<List<int>?> stdinPayloads = [];
 
   Future<(int, String, String)> call(
     String command, {
     List<int>? stdinBytes,
   }) async {
     commands.add(command);
+    stdinPayloads.add(stdinBytes);
     final replies = _replies(command);
     return replies.isEmpty ? (0, '', '') : replies.first;
   }
+}
+
+/// Executa os comandos POSIX de verdade, mas com HOME isolado. Assim os testes
+/// de rollback cobrem renames e o filesystem, não só substrings do shell gerado.
+class _RealPosixExec {
+  _RealPosixExec({required this.home, String? pathPrefix})
+    : _path = [
+        ?pathPrefix,
+        '/usr/local/bin',
+        '/opt/homebrew/bin',
+        '/usr/bin',
+        '/bin',
+        '/usr/sbin',
+        '/sbin',
+      ].join(':');
+
+  final String home;
+  final String _path;
+
+  Future<(int, String, String)> call(
+    String command, {
+    List<int>? stdinBytes,
+  }) async {
+    final process = await Process.start(
+      '/bin/sh',
+      ['-c', command],
+      environment: {'HOME': home, 'PATH': _path},
+    );
+    final stdout = process.stdout.transform(utf8.decoder).join();
+    final stderr = process.stderr.transform(utf8.decoder).join();
+    if (stdinBytes != null) process.stdin.add(stdinBytes);
+    await process.stdin.close();
+    final code = await process.exitCode;
+    return (code, await stdout, await stderr);
+  }
+}
+
+ClientBundle _posixTestBundle(Directory root) {
+  final bin = Directory('${root.path}/bin')..createSync();
+  final lib = Directory('${root.path}/lib')..createSync();
+  final server = File('${bin.path}/cockpit-server')
+    ..writeAsStringSync('new-server');
+  File('${bin.path}/cockpit').writeAsStringSync('new-cli');
+  File('${lib.path}/libcockpit_pty.dylib').writeAsStringSync('new-pty');
+  return ClientBundle(root: root.path, serverBinary: server.path);
 }
 
 /// Desfaz o `-EncodedCommand`: base64 → UTF-16LE → script. É assim que os
@@ -277,6 +325,450 @@ void main() {
 
       expect(exec.commands.single, contains('libcockpit_pty.so'));
     });
+
+    test('serverInstalled exige executável e manifesto completo', () async {
+      final exec = _FakeExec((_) => [(0, 'yes', '')]);
+      expect(await shellWith(exec).serverInstalled(), isTrue);
+      expect(exec.commands.single, contains('test -x'));
+      expect(exec.commands.single, contains('bundle.manifest'));
+    });
+
+    test('freshness lê o digest do manifesto instalado', () async {
+      final hash = 'B' * 64;
+      final exec = _FakeExec((_) => [(0, hash, '')]);
+      expect(await shellWith(exec).bundleManifestSha256(), hash.toLowerCase());
+      expect(exec.commands.single, contains('bundle.manifest'));
+    });
+
+    test(
+      'instala no staging, verifica manifesto e só então troca o live',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'cockpit-posix-install',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final bin = Directory('${root.path}/bin')..createSync();
+        final lib = Directory('${root.path}/lib')..createSync();
+        final server = File('${bin.path}/cockpit-server')
+          ..writeAsStringSync('server');
+        File('${bin.path}/cockpit').writeAsStringSync('cli');
+        File('${lib.path}/libcockpit_pty.dylib').writeAsStringSync('pty');
+        final exec = _FakeExec((_) => [(0, '', '')]);
+
+        await shellWith(exec).installFromClient(
+          ClientBundle(root: root.path, serverBinary: server.path),
+        );
+
+        final manifestIndex = exec.commands.indexWhere(
+          (command) =>
+              command.contains('cat >') && command.contains('bundle.manifest'),
+        );
+        final swapIndex = exec.commands.indexWhere(
+          (command) => command.contains('sha256sum -c bundle.manifest'),
+        );
+        expect(manifestIndex, greaterThan(0));
+        expect(swapIndex, greaterThan(manifestIndex));
+        expect(exec.commands.first, contains('while ! mkdir'));
+        expect(exec.commands.first, contains('server.install.lock'));
+        expect(exec.commands.first, contains('-mmin +10'));
+        expect(exec.commands.first, contains('attempt" -ge 30'));
+        final staleCleanupIndex = exec.commands.indexWhere(
+          (command) => command.contains('server.staging-*'),
+        );
+        expect(staleCleanupIndex, greaterThan(0));
+        expect(staleCleanupIndex, lessThan(manifestIndex));
+        expect(exec.commands[swapIndex], contains('server.previous-'));
+        expect(
+          exec.commands[swapIndex],
+          contains('no_nest_rename "\$HOME/.cockpit/server.staging-'),
+        );
+        expect(exec.commands[swapIndex], contains('mv -T -- "\$1" "\$2"'));
+        expect(exec.commands[swapIndex], contains('os.rename'));
+        expect(exec.commands[swapIndex], contains('perl -e'));
+        expect(
+          exec.commands[swapIndex],
+          contains('needs GNU mv -T, python3, or perl'),
+        );
+        expect(exec.commands[swapIndex], isNot(contains('mv "\$1" "\$2"')));
+        expect(exec.commands[swapIndex], contains('"\$HOME/.cockpit/server"'));
+        expect(
+          exec.commands[swapIndex],
+          isNot(contains('mv "\$HOME/.cockpit/server.staging-')),
+        );
+        expect(
+          exec.commands[swapIndex],
+          contains('live directory changed during promotion'),
+        );
+        expect(
+          exec.commands.last,
+          contains('rm -rf "\$HOME/.cockpit/server.install.lock"'),
+        );
+        final manifestText = utf8.decode(exec.stdinPayloads[manifestIndex]!);
+        expect(manifestText, contains('  bin/cockpit-server\n'));
+        expect(manifestText, contains('  bin/cockpit\n'));
+        expect(manifestText, contains('  lib/libcockpit_pty.dylib\n'));
+      },
+    );
+
+    test('upload interrompido não promove staging parcial', () async {
+      final root = Directory.systemTemp.createTempSync('cockpit-posix-fail');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final bin = Directory('${root.path}/bin')..createSync();
+      final lib = Directory('${root.path}/lib')..createSync();
+      final server = File('${bin.path}/cockpit-server')
+        ..writeAsStringSync('server');
+      File('${lib.path}/libcockpit_pty.dylib').writeAsStringSync('pty');
+      final exec = _FakeExec(
+        (command) => command.contains('libcockpit_pty.dylib')
+            ? [(1, '', 'network cut')]
+            : [(0, '', '')],
+      );
+
+      await expectLater(
+        shellWith(exec).installFromClient(
+          ClientBundle(root: root.path, serverBinary: server.path),
+        ),
+        throwsA(
+          isA<HostShellException>().having(
+            (error) => error.detail,
+            'detail',
+            'network cut',
+          ),
+        ),
+      );
+
+      expect(
+        exec.commands,
+        isNot(contains(contains('sha256sum -c bundle.manifest'))),
+      );
+      final cleanupIndex = exec.commands.indexWhere(
+        (command) =>
+            command.contains('rm -rf "\$HOME/.cockpit/server.staging-'),
+      );
+      expect(cleanupIndex, greaterThan(0));
+      expect(exec.commands[cleanupIndex], contains('server.previous-'));
+      expect(exec.commands.last, contains('server.install.lock'));
+      expect(exec.commands.last, contains('rm -rf'));
+    });
+
+    test('lock ocupado/timeout impede qualquer upload ou promoção', () async {
+      final root = Directory.systemTemp.createTempSync('cockpit-posix-locked');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final bin = Directory('${root.path}/bin')..createSync();
+      final server = File('${bin.path}/cockpit-server')
+        ..writeAsStringSync('server');
+      final exec = _FakeExec(
+        (command) => command.contains('while ! mkdir')
+            ? [(75, '', 'install lock timed out')]
+            : [(0, '', '')],
+      );
+
+      await expectLater(
+        shellWith(exec).installFromClient(
+          ClientBundle(root: root.path, serverBinary: server.path),
+        ),
+        throwsA(
+          isA<HostShellException>().having(
+            (error) => error.detail,
+            'detail',
+            'install lock timed out',
+          ),
+        ),
+      );
+
+      expect(exec.commands, hasLength(1));
+      expect(exec.stdinPayloads, everyElement(isNull));
+    });
+
+    test('falha na promoção repara backup antes de soltar o lock', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'cockpit-posix-rollback',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+      final bin = Directory('${root.path}/bin')..createSync();
+      final server = File('${bin.path}/cockpit-server')
+        ..writeAsStringSync('server');
+      final exec = _FakeExec(
+        (command) => command.contains('sha256sum -c bundle.manifest')
+            ? [(76, '', 'cut between renames')]
+            : [(0, '', '')],
+      );
+
+      await expectLater(
+        shellWith(exec).installFromClient(
+          ClientBundle(root: root.path, serverBinary: server.path),
+        ),
+        throwsA(isA<HostShellException>()),
+      );
+
+      final promotionIndex = exec.commands.indexWhere(
+        (command) => command.contains('sha256sum -c bundle.manifest'),
+      );
+      final recoveryIndex = exec.commands.lastIndexWhere(
+        (command) =>
+            !command.contains('sha256sum -c bundle.manifest') &&
+            command.contains(
+              'no_nest_rename "\$HOME/.cockpit/server.previous-',
+            ) &&
+            command.contains('"\$HOME/.cockpit/server"'),
+      );
+      final releaseIndex = exec.commands.lastIndexWhere(
+        (command) =>
+            command.contains('rm -rf "\$HOME/.cockpit/server.install.lock"'),
+      );
+      expect(recoveryIndex, greaterThan(promotionIndex));
+      expect(releaseIndex, greaterThan(recoveryIndex));
+      expect(
+        exec.commands[recoveryIndex],
+        isNot(contains('rm -rf "\$HOME/.cockpit/server.previous-')),
+      );
+    });
+
+    test(
+      'guard de promoção põe live inesperado em conflito sem aninhar backup',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'cockpit-posix-guard-fs',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final home = Directory('${root.path}/home')..createSync();
+        final cockpit = Directory('${home.path}/.cockpit')..createSync();
+        final live = Directory('${cockpit.path}/server')..createSync();
+        File('${live.path}/known-good').writeAsStringSync('old');
+        final fakeBin = Directory('${root.path}/fake-bin')..createSync();
+        final fakeMv = File('${fakeBin.path}/mv')
+          ..writeAsStringSync(r'''#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "mv (GNU coreutils) test double"
+  exit 0
+fi
+if [ "$1" = "-T" ] && [ "$2" = "--" ]; then
+  source=$3
+  destination=$4
+  case "$source" in
+    "$HOME/.cockpit/server.staging-"*)
+      if [ "$destination" = "$HOME/.cockpit/server" ]; then
+        # A corrida acontece dentro da primitiva, depois de qualquer guard.
+        mkdir -p "$destination"
+        printf '%s' unexpected > "$destination/unexpected"
+        exit 1
+      fi
+      ;;
+  esac
+  exec /bin/mv "$source" "$destination"
+fi
+exec /bin/mv "$@"
+''');
+        Process.runSync('/bin/chmod', ['+x', fakeMv.path]);
+        final bundleRoot = Directory('${root.path}/bundle')..createSync();
+        final exec = _RealPosixExec(home: home.path, pathPrefix: fakeBin.path);
+        final shell = PosixHostShell(probe: _posixProbe, exec: exec.call);
+
+        await expectLater(
+          shell.installFromClient(_posixTestBundle(bundleRoot)),
+          throwsA(isA<HostShellException>()),
+        );
+
+        expect(File('${live.path}/known-good').readAsStringSync(), 'old');
+        expect(
+          live.listSync().where(
+            (entity) => entity.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('server.previous-'),
+          ),
+          isEmpty,
+        );
+        final conflicts = cockpit
+            .listSync()
+            .where(
+              (entity) => entity.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('server.conflict-'),
+            )
+            .toList();
+        expect(conflicts, hasLength(1));
+        expect(
+          File('${conflicts.single.path}/unexpected').readAsStringSync(),
+          'unexpected',
+        );
+        expect(
+          cockpit.listSync().where(
+            (entity) => entity.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('server.previous-'),
+          ),
+          isEmpty,
+        );
+        final stages = cockpit
+            .listSync()
+            .whereType<Directory>()
+            .where(
+              (directory) => directory.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('server.staging-'),
+            )
+            .toList();
+        expect(stages, hasLength(1));
+        expect(
+          File('${stages.single.path}/bin/cockpit-server').readAsStringSync(),
+          'new-server',
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test(
+      'recovery anterior recusa live surgido no rename sem aninhar backup',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'cockpit-posix-prior-recovery-race',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final home = Directory('${root.path}/home')..createSync();
+        final cockpit = Directory('${home.path}/.cockpit')..createSync();
+        final prior = Directory('${cockpit.path}/server.previous-interrupted')
+          ..createSync();
+        File('${prior.path}/known-good').writeAsStringSync('old');
+        final fakeBin = Directory('${root.path}/fake-bin')..createSync();
+        final fakeMv = File('${fakeBin.path}/mv')
+          ..writeAsStringSync(r'''#!/bin/sh
+if [ "$1" = "--version" ]; then
+  echo "mv (GNU coreutils) test double"
+  exit 0
+fi
+if [ "$1" = "-T" ] && [ "$2" = "--" ]; then
+  source=$3
+  destination=$4
+  case "$source" in
+    "$HOME/.cockpit/server.previous-"*)
+      if [ "$destination" = "$HOME/.cockpit/server" ]; then
+        mkdir -p "$destination"
+        printf '%s' raced > "$destination/unexpected"
+        exit 1
+      fi
+      ;;
+  esac
+  exec /bin/mv "$source" "$destination"
+fi
+exec /bin/mv "$@"
+''');
+        Process.runSync('/bin/chmod', ['+x', fakeMv.path]);
+        final bundleRoot = Directory('${root.path}/bundle')..createSync();
+        final exec = _RealPosixExec(home: home.path, pathPrefix: fakeBin.path);
+        final shell = PosixHostShell(probe: _posixProbe, exec: exec.call);
+
+        await expectLater(
+          shell.installFromClient(_posixTestBundle(bundleRoot)),
+          throwsA(isA<HostShellException>()),
+        );
+
+        expect(File('${prior.path}/known-good').readAsStringSync(), 'old');
+        expect(
+          File('${cockpit.path}/server/unexpected').readAsStringSync(),
+          'raced',
+        );
+        expect(
+          Directory(
+            '${cockpit.path}/server/server.previous-interrupted',
+          ).existsSync(),
+          isFalse,
+        );
+        expect(
+          cockpit.listSync().where(
+            (entity) => entity.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('server.staging-'),
+          ),
+          isEmpty,
+        );
+      },
+      skip: Platform.isWindows,
+    );
+
+    test(
+      'finally preserva live ambíguo e restaura backup sem aninhamento',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'cockpit-posix-finally-fs',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+        final home = Directory('${root.path}/home')..createSync();
+        final cockpit = Directory('${home.path}/.cockpit')..createSync();
+        final live = Directory('${cockpit.path}/server')..createSync();
+        File('${live.path}/known-good').writeAsStringSync('old');
+        final bundleRoot = Directory('${root.path}/bundle')..createSync();
+        final realExec = _RealPosixExec(home: home.path);
+
+        Future<(int, String, String)> interruptedExec(
+          String command, {
+          List<int>? stdinBytes,
+        }) async {
+          if (command.contains('sha256sum -c bundle.manifest')) {
+            final stage = cockpit.listSync().whereType<Directory>().singleWhere(
+              (directory) => directory.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('server.staging-'),
+            );
+            final token = stage.path
+                .split(Platform.pathSeparator)
+                .last
+                .substring('server.staging-'.length);
+            live.renameSync('${cockpit.path}/server.previous-$token');
+            live.createSync();
+            File('${live.path}/unexpected').writeAsStringSync('ambiguous');
+            return (76, '', 'simulated transport cut between renames');
+          }
+          return realExec.call(command, stdinBytes: stdinBytes);
+        }
+
+        final shell = PosixHostShell(probe: _posixProbe, exec: interruptedExec);
+        await expectLater(
+          shell.installFromClient(_posixTestBundle(bundleRoot)),
+          throwsA(isA<HostShellException>()),
+        );
+
+        expect(File('${live.path}/known-good').readAsStringSync(), 'old');
+        expect(
+          live.listSync().where(
+            (entity) => entity.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('server.previous-'),
+          ),
+          isEmpty,
+        );
+        final conflicts = cockpit
+            .listSync()
+            .where(
+              (entity) => entity.path
+                  .split(Platform.pathSeparator)
+                  .last
+                  .startsWith('server.conflict-'),
+            )
+            .toList();
+        expect(conflicts, hasLength(1));
+        expect(
+          File('${conflicts.single.path}/unexpected').readAsStringSync(),
+          'ambiguous',
+        );
+        expect(
+          cockpit.listSync().where(
+            (entity) => entity.path
+                .split(Platform.pathSeparator)
+                .last
+                .startsWith('server.previous-'),
+          ),
+          isEmpty,
+        );
+      },
+      skip: Platform.isWindows,
+    );
 
     test('não instala a partir do host — é caminho de Windows', () async {
       final exec = _FakeExec((_) => [(0, '', '')]);
