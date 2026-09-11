@@ -40,7 +40,8 @@ class ClaudeStatusUpdate {
 /// o comando de resume difere.
 enum AgentHarness {
   claude('claude'),
-  codex('codex');
+  codex('codex'),
+  pi('pi');
 
   const AgentHarness(this.wire);
 
@@ -49,8 +50,15 @@ enum AgentHarness {
 
   /// Comando que reata a sessão [sessionId] num shell novo.
   String resumeCommand(String sessionId) => switch (this) {
-    AgentHarness.claude => 'claude --resume $sessionId',
-    AgentHarness.codex => 'codex resume $sessionId',
+    AgentHarness.claude => sessionId == 'latest' || sessionId.isEmpty
+        ? 'claude -c'
+        : 'claude --resume $sessionId',
+    AgentHarness.codex => sessionId == 'latest' || sessionId.isEmpty
+        ? 'codex resume --last'
+        : 'codex resume $sessionId',
+    AgentHarness.pi => sessionId == 'latest' || sessionId.isEmpty
+        ? 'pi -c'
+        : 'pi --session $sessionId',
   };
 
   /// Converte o nome do wire. Desconhecido ou ausente cai em [claude]: layouts

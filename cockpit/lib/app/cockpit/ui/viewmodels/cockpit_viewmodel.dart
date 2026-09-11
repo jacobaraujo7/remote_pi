@@ -5859,8 +5859,19 @@ class CockpitViewModel extends ChangeNotifier {
         // hook) pra reatar a sessão no restore. `harness` diz de quem é o id —
         // sem ele o restore assumiria Claude e o `codex` daria "No conversation
         // found". Chave `claude_sid` mantida por compat com layouts antigos.
-        if (s.claudeSessionId != null) 'claude_sid': s.claudeSessionId,
-        if (s.claudeSessionId != null) 'harness': s.agentHarness.wire,
+        if (s.claudeSessionId != null) ...{
+          'claude_sid': s.claudeSessionId,
+          'harness': s.agentHarness.wire,
+        } else if (s.activeHarness == HarnessKind.pi) ...{
+          'claude_sid': 'latest',
+          'harness': AgentHarness.pi.wire,
+        } else if (s.activeHarness == HarnessKind.claudeCode) ...{
+          'claude_sid': 'latest',
+          'harness': AgentHarness.claude.wire,
+        } else if (s.activeHarness == HarnessKind.codex) ...{
+          'claude_sid': 'latest',
+          'harness': AgentHarness.codex.wire,
+        },
       };
     }
     if (s is FileViewerSession) {
