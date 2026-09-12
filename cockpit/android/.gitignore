@@ -1,0 +1,5 @@
+# Assinatura de release: o keystore e as senhas nunca entram no git.
+# Backup do keystore fora do repo (iCloud, como o do app mobile).
+key.properties
+**/*.keystore
+**/*.jks
