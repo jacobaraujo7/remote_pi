@@ -1,7 +1,8 @@
 # Release do Cockpit (plano 43, passo 3).
 #
 # Trigger: tag `cockpit-v<versão>` (a versão DEVE bater com o pubspec.yaml).
-# Produz: GitHub Release com 6 artefatos + SHA256SUMS + latest.json.
+# Produz: GitHub Release com 8 artefatos (macOS, Windows, Linux x2 deb/rpm,
+# Android apk arm64 + aab) + SHA256SUMS + latest.json.
 # Publicação: o job final envia latest.json + appcasts direto pro rp-s3 via
 # PUT /upload (Bearer RP_S3_UPLOAD_TOKEN) — ver rp-s3/README.md. Sem gate
 # manual: a release vai ao ar assim que o workflow termina.
@@ -607,9 +608,105 @@ jobs:
           path: cockpit/out/*
           if-no-files-found: error
 
+  android:
+    name: Android apk (arm64) + aab
+    needs: meta
+    runs-on: ubuntu-24.04
+    defaults: { run: { working-directory: cockpit } }
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # libghostty compila a lib do ghostty pro alvo Android com Zig (mesmo
+      # hook e mesma versão fixa dos jobs desktop).
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      # Keystore e senhas vêm dos secrets COCKPIT_ANDROID_*; o Gradle lê o
+      # android/key.properties (ver android/app/build.gradle.kts). Sem os
+      # secrets o build cairia na chave de DEBUG em silêncio — o passo de
+      # verificação abaixo é o que impede isso de virar release.
+      - name: Restaura keystore e key.properties
+        env:
+          KEYSTORE_B64: ${{ secrets.COCKPIT_ANDROID_KEYSTORE }}
+          STORE_PASSWORD: ${{ secrets.COCKPIT_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.COCKPIT_ANDROID_KEY_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.COCKPIT_ANDROID_KEY_ALIAS }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::secret COCKPIT_ANDROID_KEYSTORE ausente — release Android exige o keystore"
+            exit 1
+          fi
+          mkdir -p android/keystore
+          echo "$KEYSTORE_B64" | base64 -d > android/keystore/cockpit-release.jks
+          cat > android/key.properties <<EOF
+          storePassword=$STORE_PASSWORD
+          keyPassword=$KEY_PASSWORD
+          keyAlias=$KEY_ALIAS
+          storeFile=keystore/cockpit-release.jks
+          EOF
+
+      - name: Build apk (arm64) + aab
+        run: |
+          flutter pub get
+          # APK só arm64 pro download direto (é o que celular/tablet usa; o fat
+          # APK passa de 130 MB). O AAB é o entregável da Play Store, que
+          # divide por ABI sozinha.
+          flutter build apk --release --split-per-abi --target-platform android-arm64 \
+            --android-skip-build-dependency-validation
+          flutter build appbundle --release \
+            --android-skip-build-dependency-validation
+          mkdir -p out
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk \
+            "out/RemotePiCockpit-${VERSION}-android-arm64.apk"
+          cp build/app/outputs/bundle/release/app-release.aab \
+            "out/RemotePiCockpit-${VERSION}-android.aab"
+          ls -la out
+
+      - name: Verifica assinatura (anti-fallback de debug)
+        env:
+          STORE_PASSWORD: ${{ secrets.COCKPIT_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.COCKPIT_ANDROID_KEY_ALIAS }}
+        run: |
+          BT=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
+          KS_CERT=$(keytool -list -v -keystore android/keystore/cockpit-release.jks \
+            -alias "$KEY_ALIAS" -storepass "$STORE_PASSWORD" \
+            | grep -m1 "SHA256:" | awk '{print $NF}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          for f in out/*.apk; do
+            APK_CERT=$("$ANDROID_HOME/build-tools/$BT/apksigner" verify --print-certs "$f" \
+              | grep -m1 "SHA-256 digest" | awk '{print $NF}' | tr -d ':' | tr '[:upper:]' '[:lower:]')
+            echo "$f: $APK_CERT (keystore: $KS_CERT)"
+            if [ -z "$APK_CERT" ] || [ "$APK_CERT" != "$KS_CERT" ]; then
+              echo "::error::$f não está assinado com o keystore release (fallback de debug?)"
+              exit 1
+            fi
+          done
+          # AAB: jarsigner lê a assinatura do bundle direto.
+          jarsigner -verify -keystore android/keystore/cockpit-release.jks \
+            -storepass "$STORE_PASSWORD" out/*.aab | grep -q "jar verified" \
+            || { echo "::error::AAB não verificou com o keystore release"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: cockpit/out/*
+          if-no-files-found: error
+
   publish:
     name: GitHub Release + latest.json
-    needs: [meta, macos, windows, linux]
+    needs: [meta, macos, windows, linux, android]
     runs-on: ubuntu-24.04
     env:
       VERSION: ${{ needs.meta.outputs.version }}
@@ -654,6 +751,8 @@ jobs:
               *_arm64.deb)          p=linux   a=arm64     fmt=deb ;;
               *.x86_64.rpm)         p=linux   a=x64       fmt=rpm ;;
               *.aarch64.rpm)        p=linux   a=arm64     fmt=rpm ;;
+              *android-arm64.apk)   p=android a=arm64     fmt=apk ;;
+              *android.aab)         p=android a=universal fmt=aab ;;
               *) continue ;;
             esac
             jq -n --arg platform "$p" --arg arch "$a" --arg format "$fmt" \
@@ -664,8 +763,8 @@ jobs:
               >> artifacts.ndjson
           done
           COUNT=$(jq -s length artifacts.ndjson)
-          if [ "$COUNT" -ne 6 ]; then
-            echo "::error::esperava 6 artefatos no manifest, achei $COUNT"
+          if [ "$COUNT" -ne 8 ]; then
+            echo "::error::esperava 8 artefatos no manifest, achei $COUNT"
             exit 1
           fi
           # Notas: primeira seção do CHANGELOG; fallback genérico. O markdown

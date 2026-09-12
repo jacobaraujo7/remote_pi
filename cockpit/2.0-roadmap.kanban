@@ -69,6 +69,9 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 ## Doing
 - [ ] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
+      <!-- comment: 2026-09-12T19:20 -->
+      Job `android` added to cockpit-release.yml: restores the keystore from COCKPIT_ANDROID_* secrets (uploaded), builds the arm64 APK (split, ~45 MB) and the AAB, verifies the APK cert against the keystore (fails on debug fallback) and jarsigner-verifies the AAB, uploads both; publish now expects 8 artifacts and lists android apk/aab in latest.json. First real run happens on the next cockpit-v* tag.
+
       GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
 - [ ] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
       <!-- comment: 2026-09-12T18:40 -->
