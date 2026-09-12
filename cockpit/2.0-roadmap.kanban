@@ -8,37 +8,31 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 
 
-- [ ] Document the new features on the Cockpit page of the site <!-- id: k2 labels: docs -->
-      `../site`: .env.cockpit, Restart tab, Neovim, workspace CLI, remote hosts, Gallery documents, Database panel and everything else that shipped since the page was last updated.
 
 
-- [ ] Windows code signing via SignPath OSS <!-- id: k3 labels: cd -->
-      Application submitted on signpath.org (MIT license added 2026-07-30). Once approved, integrate signing into the windows job of cockpit-release.yml. Unsigned builds keep triggering SmartScreen.
 
 
-- [ ] Excalidraw <!-- id: k4 labels: feature -->
-      Embed Excalidraw as a whiteboard document (.excalidraw) for sketches and architecture drawings.
+
+
+
+
+
+- [ ] Possibilidade de Caffeinate <!-- id: k4 labels: feature -->
+
+- [ ] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
 
 
 - [ ] In-app Help section (user manual) <!-- id: k5 labels: docs, feature -->
       A Help entry inside Cockpit the user can read like a manual: shortcuts, panels, Gallery documents, CLI verbs, remote workspaces.
 
-
-
+- [ ] Windows code signing via SignPath OSS <!-- id: k3 labels: cd -->
+      Application submitted on signpath.org (MIT license added 2026-07-30). Once approved, integrate signing into the windows job of cockpit-release.yml. Unsigned builds keep triggering SmartScreen.
 
 - [ ] "Open with Cockpit" from the OS file manager <!-- id: k6 labels: feature -->
       Document-type association (Info.plist on macOS, extension registration on Windows/Linux) plus the open-file handler: opens a lightweight file window without showing the full workspace.
 
-
-- [ ] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
-      GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
-
-
-- [ ] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
-
-
-- [ ] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
-
+- [ ] Document the new features on the Cockpit page of the site <!-- id: k2 labels: docs -->
+      `../site`: .env.cockpit, Restart tab, Neovim, workspace CLI, remote hosts, Gallery documents, Database panel and everything else that shipped since the page was last updated.
 
 - [ ] Multi-window: detach a file tab into its own window <!-- id: k10 labels: feature -->
       Viewer, .kanban, .html, .http, .dbq and diff tabs carry only a path and a mode, so a second window can rebuild them. Each Flutter window is a separate engine/isolate: state crosses only as messages. This slice gives most of the two-monitor value.
@@ -52,22 +46,36 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 - [ ] Remote workspace redesign (plan 58) <!-- id: k13 labels: feature -->
       Remote workspace = a host folder with worktrees, git and file tree like local; pick the folder when connecting; the "+" becomes a Local/Remote menu instead of a fixed button.
+      <!-- comment: 2026-09-12T16:59 -->
+      Precisamos entender melhor sobre isso
+
 
 
 - [ ] Mobile client usable (plan 59, waves 1+) <!-- id: k14 labels: mobile -->
       Wave 0 done (iOS/Android projects, landscape). The Android/iOS test and store cards depend on the remote client being usable on a tablet.
+      <!-- comment: 2026-09-12T16:59 -->
+      Entender melhor
+
 
 
 - [ ] Multi-window: detach a terminal tab <!-- id: k15 labels: feature blockedBy: k10 -->
       Needs the PTY hosted outside the window process. The sidecar terminal gateway (remote mode) already does that: make it the default local path, then detaching becomes attaching the same session id in another window. Bonus: terminals survive a UI crash. Decide whether this lands in 2.0 or after.
 
-- [ ] Consolidated 2.0.0 release notes <!-- id: k1 labels: docs blockedBy: k16, k2 -->
-      Every 1.x since 1.28.0 is a 2.0 beta. Write the single 2.0.0 section from the 1.x changelog entries; it is what Sparkle and the download page will show.
-
 - [ ] Remove the native Pi agent (pi --mode rpc) from the binary <!-- id: k16 labels: feature -->
       Decided 2026-09-12: the native agent tab is deprecated and leaves in 2.0. Few people use it, the terminal path (claude, codex, pi in a terminal tab with hooks) is the product, and the agent tab never got .env.cockpit, Restart or extension UI requests. Delete the agent tab, the RPC harness (cockpit/data/rpc), the composer, the enableAgent setting and its migration, the pi daemon/cron integration that depends on it, and the i18n keys. Do it LAST, right before the store publications, so nothing else on this board depends on the removal and the binary ships without it. Closes the "Pi extension UI requests are dropped" bug as won't fix.
 
+- [ ] Consolidated 2.0.0 release notes <!-- id: k1 labels: docs blockedBy: k16, k2 -->
+      Every 1.x since 1.28.0 is a 2.0 beta. Write the single 2.0.0 section from the 1.x changelog entries; it is what Sparkle and the download page will show.
+
 ## Doing
+- [ ] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
+      GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
+- [ ] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
+      <!-- comment: 2026-09-12T18:10 -->
+      Android bring-up done: applicationId work.jacobmoura.cockpit (same as iOS), label "Cockpit Remote", adaptive icon copied from ../app/android, release keystore generated (android/keystore/cockpit-release.jks, gitignored; back it up to iCloud like the mobile app one; passwords in android/key.properties), Gradle signing wired, permissions INTERNET + ACCESS_NETWORK_STATE + POST_NOTIFICATIONS + cleartext for http dev servers. Toolchain pinned to AGP 8.11.1/Gradle 8.14 (AGP 9 rejects flutter_inappwebview's proguard file). First signed APK built: ~/Desktop/CockpitRemote-1.28.31-android.apk. Blocker for reproducible builds: anaki_* hooks throw on Android/iOS; fixed in anakiORM (tag cockpit-pin-mobile-hooks) but must be PUBLISHED to pub.dev (git checkout has no desktop binaries).
+
+
+
 
 ## Review
 

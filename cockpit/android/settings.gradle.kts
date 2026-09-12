@@ -19,8 +19,13 @@ pluginManagement {
 
 plugins {
     id("dev.flutter.flutter-plugin-loader") version "1.0.0"
-    id("com.android.application") version "9.1.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.4.0" apply false
+    // AGP 8.11.1 / Kotlin 2.2.20 / Gradle 8.14: a MESMA toolchain do app mobile
+    // (../app/android). O template do Flutter 3.47 trazia AGP 9.1, que recusa o
+    // `proguard-android.txt` ainda usado pelo flutter_inappwebview_android 1.1.3
+    // e derruba o assembleRelease antes de assinar. Subir de volta só quando o
+    // plugin migrar pra `proguard-android-optimize.txt`.
+    id("com.android.application") version "8.11.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
 }
 
 include(":app")

@@ -56,3 +56,9 @@ cli/target/
 # Saída de golden test que falhou (isolatedDiff/maskedDiff/masterImage/testImage).
 # São artefatos locais de depuração; foram commitados por engano no PR #108.
 **/failures/
+
+# Assinatura Android (ver android/.gitignore)
+android/key.properties
+android/keystore/
+*.jks
+*.keystore

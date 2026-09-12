@@ -2,10 +2,19 @@
     <!-- SSH (dartssh2) + webview do navegador embutido precisam de rede em
          release (debug/profile já tinham; o main vale pra todos os builds). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Estado da rede: o retry de reconexão e o badge do host olham se há
+         conectividade antes de tentar o SSH de novo. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Android 13+: sem esta permissão (pedida em runtime) o aviso de fim de
+         turno do agente (flutter_local_notifications) nunca aparece. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
         android:label="Cockpit Remote"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: o navegador embutido abre dev servers do host
+             por http:// (túnel SSH local); sem isto o Android bloqueia. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -44,6 +53,16 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- url_launcher: abrir links http/https no navegador do sistema
+             (fallback do navegador embutido e links da UI). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="http"/>
         </intent>
     </queries>
 </manifest>
