@@ -13,26 +13,26 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_mongodb
-      sha256: "289d995ffd5fdba8897417cb516df22583b78f72d8bf27e073f874b5eae522ec"
+      sha256: "36921adcb3df189c4279d45ca54e74c058ff0de2660a6735d4a6db5b739d1171"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.7"
+    version: "0.1.8"
   anaki_mssql:
     dependency: "direct main"
     description:
       name: anaki_mssql
-      sha256: "163513855104aca18f3d1fbb52dd33354aec6d823169cf7351f8c381db35bc0c"
+      sha256: "23a6a16f69f4da718254ac8a4c262b56698b23680e44ef5aa914ade3f969eedd"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.5"
+    version: "0.1.6"
   anaki_mysql:
     dependency: "direct main"
     description:
       name: anaki_mysql
-      sha256: "7629c4457fb23b8f8820e35806b4dc9b30cbea6dd008c0b5b82bfada84c23f40"
+      sha256: "4441db23899855e4b5cffb8a8c85f38cc9586e4da6e8b35b0afc81aef086dbce"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.7"
+    version: "0.1.8"
   anaki_orm:
     dependency: "direct main"
     description:
@@ -45,26 +45,26 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_postgres
-      sha256: "7e562310b55bf743733ea882f0808cb48642bd1e280c36655f38098e6fcc7861"
+      sha256: "1bba18d3a3ba092b40ee21a91878976216105259f90f86b4d3678deb9e9d42c1"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.6"
+    version: "0.1.7"
   anaki_redis:
     dependency: "direct main"
     description:
       name: anaki_redis
-      sha256: "456f7072f176a83c2d767577608c8bf920de1c2c3bf28c812fd1e5edb0149d8d"
+      sha256: "7175e514a6ec262085527645ad8702b6a9df551752d414568e4de818839f3aef"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.4"
+    version: "0.1.5"
   anaki_sqlite:
     dependency: "direct main"
     description:
       name: anaki_sqlite
-      sha256: d789ffded55658f58c8c0966f4dcdd4afd01b30952c97be555f92dae195d8340
+      sha256: d67b2d6c7f8aa87a5a1bfa24cb713d79216df55ab6e0f23f3aad6ec7860454b2
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.4"
+    version: "0.1.5"
   analyzer:
     dependency: transitive
     description:
