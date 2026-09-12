@@ -20,6 +20,9 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 - [ ] Possibilidade de Caffeinate <!-- id: k4 labels: feature -->
 
 - [ ] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
+      <!-- comment: 2026-09-12T20:05 -->
+      iOS tests passed on device. Store prep: bundle id switched to work.jacobmoura.cockpit.remote (the plain id was taken by the BDZ7AJ7ZN2 team via Xcode automatic signing); .remote and .remote.debug registered in team U843T2P7A2 through the App Store Connect API; ITSAppUsesNonExemptEncryption=false and PrivacyInfo.xcprivacy added to the Runner target. `flutter build ios --release --no-codesign` OK with the new id. Next: create the app record in App Store Connect with the .remote id, decide iPad-only vs iPhone, screenshots, privacy policy URL, demo SSH host for the reviewer.
+
 
 
 - [ ] In-app Help section (user manual) <!-- id: k5 labels: docs, feature -->

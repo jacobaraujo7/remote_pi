@@ -68,5 +68,10 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Export compliance: o SSH usa so algoritmos padrao (canal seguro e
+	     autenticacao), categoria isenta; sem isto cada upload trava na
+	     pergunta do App Store Connect. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 </dict>
 </plist>
