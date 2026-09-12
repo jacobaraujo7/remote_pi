@@ -71,6 +71,9 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 - [ ] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
       GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
 - [ ] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
+      <!-- comment: 2026-09-12T18:40 -->
+      Blocker cleared: anaki_* hooks published to pub.dev (sqlite 0.1.5, postgres 0.1.7, mysql 0.1.8, mssql 0.1.6, redis 0.1.5, mongodb 0.1.8), constraints bumped in cockpit (666617b6). `flutter build apk` and `flutter run` on Android now work with no override. Pixel Tablet emulator (API 36, arm64) boots the app fine.
+
       <!-- comment: 2026-09-12T18:10 -->
       Android bring-up done: applicationId work.jacobmoura.cockpit (same as iOS), label "Cockpit Remote", adaptive icon copied from ../app/android, release keystore generated (android/keystore/cockpit-release.jks, gitignored; back it up to iCloud like the mobile app one; passwords in android/key.properties), Gradle signing wired, permissions INTERNET + ACCESS_NETWORK_STATE + POST_NOTIFICATIONS + cleartext for http dev servers. Toolchain pinned to AGP 8.11.1/Gradle 8.14 (AGP 9 rejects flutter_inappwebview's proguard file). First signed APK built: ~/Desktop/CockpitRemote-1.28.31-android.apk. Blocker for reproducible builds: anaki_* hooks throw on Android/iOS; fixed in anakiORM (tag cockpit-pin-mobile-hooks) but must be PUBLISHED to pub.dev (git checkout has no desktop binaries).
 
