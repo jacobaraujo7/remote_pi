@@ -71,6 +71,18 @@
 	<!-- Export compliance: o SSH usa so algoritmos padrao (canal seguro e
 	     autenticacao), categoria isenta; sem isto cada upload trava na
 	     pergunta do App Store Connect. -->
+	<!-- Purpose strings exigidas pelo upload (ITMS-90683): os plugins do
+	     navegador embutido (flutter_inappwebview) e do file_picker referenciam
+	     estas APIs mesmo sem o Cockpit usa-las por conta propria. Sem a frase o
+	     Transporter recusa o pacote. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Cockpit does not use the camera itself. A web page opened in the built-in browser may request it.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Cockpit does not use the microphone itself. A web page opened in the built-in browser may request it.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Lets you pick an image from your library to attach to a file or a web page in the built-in browser.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Cockpit does not use your location itself. A web page opened in the built-in browser may request it.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>
