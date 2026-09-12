@@ -609,11 +609,13 @@ void main() {
     // Comentários: ícone + contagem.
     expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
     expect(find.text('1'), findsWidgets);
-    // k3 está bloqueado por k2 (pendente); k1 já terminou e não conta.
-    expect(find.text('blocked by 1'), findsOneWidget);
+    // k3 está bloqueado por k2 (pendente); k1 já terminou e não conta. Só
+    // ícone + número, e o card bloqueado perde o botão de avançar (os outros
+    // dois abertos continuam com ele: Testar e o placeholder não existe).
     expect(find.byIcon(Icons.lock_outline), findsOneWidget);
-    // k1 e k2 seguram k3: cada um mostra "blocks 1".
-    expect(find.text('blocks 1'), findsNWidgets(2));
+    expect(find.byIcon(Icons.arrow_forward), findsOneWidget);
+    // Quem bloqueia não mostra nada.
+    expect(find.byIcon(Icons.account_tree_outlined), findsNothing);
 
     // Filtro "Blocked" deixa só o k3.
     await tester.tap(find.byIcon(Icons.filter_alt_outlined));

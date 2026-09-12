@@ -524,8 +524,6 @@
       "addBlocker": "Add a blocking card",
       "searchCards": "Search cards",
       "unknownCard": "unknown",
-      "blockedByN": "blocked by ${n}",
-      "blocksN": "blocks ${n}",
       "boardView": "Board",
       "listView": "List",
       "refresh": "Refresh from disk",

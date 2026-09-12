@@ -524,8 +524,6 @@
       "addBlocker": "Agregar tarjeta bloqueante",
       "searchCards": "Buscar tarjetas",
       "unknownCard": "desconocida",
-      "blockedByN": "bloqueado por ${n}",
-      "blocksN": "bloquea ${n}",
       "boardView": "Tablero",
       "listView": "Lista",
       "refresh": "Actualizar desde el disco",

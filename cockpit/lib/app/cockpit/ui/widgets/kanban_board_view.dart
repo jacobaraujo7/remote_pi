@@ -1368,10 +1368,14 @@ class _CardTile extends StatelessWidget {
                           children: [
                             Expanded(child: title),
                             const SizedBox(width: 8),
-                            _AdvanceButton(
-                              done: isLastColumn,
-                              onTap: onAdvance,
-                            ),
+                            // Card bloqueado não oferece o "avançar": é o
+                            // sinal de que não deve seguir. Arrastar continua
+                            // livre — é representação, não proibição.
+                            if (!doc.isBlocked(card))
+                              _AdvanceButton(
+                                done: isLastColumn,
+                                onTap: onAdvance,
+                              ),
                           ],
                         ),
                         if (card.labels.isNotEmpty) ...[
@@ -1418,8 +1422,9 @@ class _CardTile extends StatelessWidget {
 }
 
 /// Rodapé do card: `#id`, ícone de comentários com a contagem (só se há
-/// algum) e o estado de dependência — cadeado com "blocked by N" enquanto um
-/// bloqueador ainda não terminou, ou "blocks N" no card que segura outros.
+/// algum) e, se o card está bloqueado, o cadeado com a quantidade de
+/// bloqueadores pendentes — só ícone e número, como os comentários. O card
+/// que bloqueia outros não mostra nada: quem precisa saber é quem espera.
 /// Tudo derivado do documento; nada aqui é editável.
 class _CardFooter extends StatelessWidget {
   const _CardFooter({required this.card, required this.doc});
@@ -1441,7 +1446,6 @@ class _CardFooter extends StatelessWidget {
         if (doc.columnOf(b) != last) b,
     ];
     final blocked = pending.isNotEmpty;
-    final blocks = doc.blocksCount(card);
     Widget stat(IconData icon, String text, {Color? color, String? tip}) {
       final row = Row(
         mainAxisSize: MainAxisSize.min,
@@ -1472,12 +1476,10 @@ class _CardFooter extends StatelessWidget {
         if (blocked)
           stat(
             Icons.lock_outline,
-            tr.blockedByN(n: pending.length),
+            '${pending.length}',
             color: colors.warn,
-            tip: pending.map((b) => b.title).join('\n'),
-          )
-        else if (blocks > 0)
-          stat(Icons.account_tree_outlined, tr.blocksN(n: blocks)),
+            tip: '${tr.blockedBy}\n${pending.map((b) => b.title).join('\n')}',
+          ),
       ],
     );
   }

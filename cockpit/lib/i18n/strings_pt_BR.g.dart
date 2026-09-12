@@ -876,8 +876,6 @@ class _Translations$cockpit$kanbanView$pt_BR extends Translations$cockpit$kanban
 	@override String get addBlocker => 'Adicionar card bloqueador';
 	@override String get searchCards => 'Buscar cards';
 	@override String get unknownCard => 'desconhecido';
-	@override String blockedByN({required Object n}) => 'bloqueado por ${n}';
-	@override String blocksN({required Object n}) => 'bloqueia ${n}';
 	@override String get boardView => 'Quadro';
 	@override String get listView => 'Lista';
 	@override String get refresh => 'Atualizar do disco';
@@ -2491,8 +2489,6 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.addBlocker' => 'Adicionar card bloqueador',
 			'cockpit.kanbanView.searchCards' => 'Buscar cards',
 			'cockpit.kanbanView.unknownCard' => 'desconhecido',
-			'cockpit.kanbanView.blockedByN' => ({required Object n}) => 'bloqueado por ${n}',
-			'cockpit.kanbanView.blocksN' => ({required Object n}) => 'bloqueia ${n}',
 			'cockpit.kanbanView.boardView' => 'Quadro',
 			'cockpit.kanbanView.listView' => 'Lista',
 			'cockpit.kanbanView.refresh' => 'Atualizar do disco',
@@ -2554,10 +2550,10 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.insert' => 'Inserir',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
@@ -3068,10 +3064,10 @@ extension on TranslationsPtBr {
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.edit' => 'Editar',
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Remover',

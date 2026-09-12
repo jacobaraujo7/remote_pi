@@ -1758,12 +1758,6 @@ class Translations$cockpit$kanbanView$en {
 	/// en: 'unknown'
 	String get unknownCard => 'unknown';
 
-	/// en: 'blocked by ${n}'
-	String blockedByN({required Object n}) => 'blocked by ${n}';
-
-	/// en: 'blocks ${n}'
-	String blocksN({required Object n}) => 'blocks ${n}';
-
 	/// en: 'Board'
 	String get boardView => 'Board';
 
@@ -4676,8 +4670,6 @@ extension on Translations {
 			'cockpit.kanbanView.addBlocker' => 'Add a blocking card',
 			'cockpit.kanbanView.searchCards' => 'Search cards',
 			'cockpit.kanbanView.unknownCard' => 'unknown',
-			'cockpit.kanbanView.blockedByN' => ({required Object n}) => 'blocked by ${n}',
-			'cockpit.kanbanView.blocksN' => ({required Object n}) => 'blocks ${n}',
 			'cockpit.kanbanView.boardView' => 'Board',
 			'cockpit.kanbanView.listView' => 'List',
 			'cockpit.kanbanView.refresh' => 'Refresh from disk',
@@ -4739,10 +4731,10 @@ extension on Translations {
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.insert' => 'Insert',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
@@ -5253,10 +5245,10 @@ extension on Translations {
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.edit' => 'Edit',
 			'settings.remoteHosts.reconnect' => 'Reconnect',
 			'settings.remoteHosts.remove' => 'Remove',
