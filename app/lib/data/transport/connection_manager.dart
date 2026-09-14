@@ -167,6 +167,35 @@ class ConnectionManager extends Service {
     _startWatchdog();
   }
 
+  /// Called when the app returns to the foreground.
+  ///
+  /// Sockets do not survive backgrounding — the OS resets them, which the relay
+  /// sees as `peer_stream_error: Connection reset by peer (os error 104)` (errno
+  /// 104, i.e. RST) after only 5-38s of healthy traffic. And while the process
+  /// is frozen no retry can run at all, so the first attempt after a return to
+  /// the foreground is what the user actually waits for. Two things make that
+  /// attempt as early as possible:
+  ///
+  ///  * a pending backoff timer is cancelled, so we don't sit out up to 30s of
+  ///    [_kBackoff] scheduled for a loss the user never saw; and
+  ///  * the ladder is reset, so if the socket turns out to be dead after all,
+  ///    the retry [_onChannelLost] schedules is immediate rather than 5-30s.
+  ///
+  /// An Online status is deliberately left alone: probing a socket that may
+  /// well have survived a quick app switch would open a second connection for
+  /// the same (peer, room) — and duplicates have been observed in the relay
+  /// logs, including one that then exchanged nothing at all.
+  void onForeground() {
+    _retryTimer?.cancel();
+    _retryTimer = null;
+    _retryAttempt = 0;
+    final peer = _activePeer;
+    if (peer == null) return;
+    if (_connectInFlight) return;
+    if (_status is StatusOnline) return;
+    _connect(peer);
+  }
+
   /// Plan-18 follow-up — periodically checks for stuck offline state
   /// and forces a reconnect attempt. Runs every 15s. Cheap; only
   /// fires the actual `_scheduleRetry` when the conditions match.

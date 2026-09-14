@@ -1030,6 +1030,81 @@ void main() {
       },
     );
   });
+  // -------------------------------------------------------------------------
+  // onForeground — returning from the background should not wait out a backoff
+  // that was scheduled for a socket loss the user never saw.
+  // -------------------------------------------------------------------------
+  group('onForeground', () {
+    test('cancels a pending backoff and retries at once', () async {
+      var attempts = 0;
+      final cm = ConnectionManager(
+        factory: (_, token) async {
+          attempts++;
+          if (attempts == 1) throw Exception('first attempt fails');
+          return _makeChannel();
+        },
+        storage: _FakeStorage([_fakePeer()]),
+        emitDebounce: Duration.zero,
+      );
+
+      await cm.boot();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(cm.status, isA<StatusRetrying>());
+      expect(attempts, 1);
+
+      cm.onForeground();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(
+        attempts,
+        2,
+        reason: 'resume connects immediately instead of waiting out _kBackoff',
+      );
+      expect(cm.status, isA<StatusOnline>());
+      cm.dispose();
+    });
+
+    test('leaves a live socket alone — no duplicate connection', () async {
+      var attempts = 0;
+      final cm = ConnectionManager(
+        factory: (_, token) async {
+          attempts++;
+          return _makeChannel();
+        },
+        storage: _FakeStorage([_fakePeer()]),
+        emitDebounce: Duration.zero,
+      );
+
+      await cm.boot();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(cm.status, isA<StatusOnline>());
+      expect(attempts, 1);
+
+      cm.onForeground();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(
+        attempts,
+        1,
+        reason: 'an app switch must not open a second socket for the same room',
+      );
+      cm.dispose();
+    });
+
+    test('is a no-op with no active peer', () async {
+      final cm = ConnectionManager(
+        factory: (_, token) async => _makeChannel(),
+        storage: _FakeStorage([]),
+        emitDebounce: Duration.zero,
+      );
+
+      await cm.boot();
+      cm.onForeground();
+
+      expect(cm.status, isA<StatusNoPeer>());
+      cm.dispose();
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
