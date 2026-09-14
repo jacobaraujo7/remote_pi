@@ -71,6 +71,105 @@ describe("extension_ui_bridge", () => {
     const pi = {} as unknown as ExtensionAPI;
     expect(createExtensionUiBridge(pi, () => {})).toBeNull();
   });
+  it("bridges OMP askDialog to the paired app and resolves a rich answer", async () => {
+    const bus = fakeBus();
+    const sent: ServerMessage[] = [];
+    const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m), {
+      hasActivePeer: () => true,
+    })!;
+    let localAborted = false;
+    const ui = {
+      askDialog: (
+        _questions: unknown[],
+        options?: { signal?: AbortSignal },
+      ) =>
+        new Promise<unknown>((resolve) => {
+          options?.signal?.addEventListener("abort", () => {
+            localAborted = true;
+            resolve(undefined);
+          });
+        }),
+    };
+
+    bridge.attachOmpAskDialog(ui);
+    const pending = ui.askDialog([
+      {
+        id: "goal",
+        question: "What is the goal?",
+        header: "Goal",
+        options: [
+          { label: "Ship it", description: "Finish the change" },
+          { label: "Pause" },
+        ],
+        multi: true,
+      },
+    ]);
+
+    expect(sent).toHaveLength(1);
+    const request = sent[0];
+    expect(request?.type).toBe("extension_ui_request");
+    if (!request || request.type !== "extension_ui_request") return;
+    expect(request.id).toMatch(/^omp:ask:/);
+    expect(request.method).toBe("select");
+    expect(request.ask?.source).toBe("omp-ask");
+    expect(request.ask?.questions[0]?.type).toBe("multi");
+    const option = request.ask?.questions[0]?.options[0]?.value;
+    expect(option).toBe("goal:0");
+
+    bridge.respond({
+      type: "extension_ui_response",
+      id: request.id,
+      ask: {
+        flow_id: request.id,
+        kind: "answer",
+        mode: "submit",
+        answers: { goal: { values: [option!] } },
+      },
+    });
+
+    await expect(pending).resolves.toEqual({
+      kind: "submit",
+      results: [
+        {
+          id: "goal",
+          question: "What is the goal?",
+          options: ["Ship it", "Pause"],
+          multi: true,
+          selectedOptions: ["Ship it"],
+          customInput: undefined,
+          note: undefined,
+        },
+      ],
+    });
+    expect(localAborted).toBe(true);
+    expect(sent.at(-1)).toMatchObject({
+      type: "extension_ui_request",
+      id: request.id,
+      method: "notify",
+    });
+    bridge.dispose();
+  });
+
+  it("falls back to OMP's local askDialog when no app is paired", async () => {
+    const bus = fakeBus();
+    const sent: ServerMessage[] = [];
+    const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m), {
+      hasActivePeer: () => false,
+    })!;
+    const localResult = {
+      kind: "submit" as const,
+      results: [],
+    };
+    const askDialog = vi.fn(async () => localResult);
+    const ui = { askDialog };
+
+    bridge.attachOmpAskDialog(ui);
+    await expect(ui.askDialog([])).resolves.toEqual(localResult);
+    expect(askDialog).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveLength(0);
+    bridge.dispose();
+  });
+
 
   it("translates a pi-ask `started` event into one extension_ui_request", () => {
     const bus = fakeBus();
