@@ -13,7 +13,7 @@ use tracing::{debug, info, warn};
 
 use crate::AppState;
 use crate::auth::challenge::{
-    HELLO_TIMEOUT_MS, challenge_line, gen_nonce, parse_hello, verify_auth,
+    AUTH_TIMEOUT_MS, HELLO_TIMEOUT_MS, challenge_line, gen_nonce, parse_hello, verify_auth,
 };
 use crate::protocol::outer::{OuterEnvelope, parse_line};
 use crate::rooms::{RoomMeta, RoomMetaPatch};
@@ -67,17 +67,41 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
     let peer_addr = peer_addr.to_string();
     let (mut sink, mut stream) = socket.split();
 
+    // Every step of the handshake is logged, so "the client shows reconnecting"
+    // can be answered with *where* it stopped: upgrade accepted → hello →
+    // challenge → auth. Before this, the pre-auth phase was near-silent (a
+    // single `_ =>` arm covered timeout, clean end and stream error alike), and
+    // step 3 below returned without logging anything at all.
+    debug!(addr = %peer_addr, "websocket upgrade accepted");
+
     // ── 1. Wait for hello (with timeout) ──────────────────────────────────
     let hello_result =
         tokio::time::timeout(Duration::from_millis(HELLO_TIMEOUT_MS), stream.next()).await;
 
     let hello_text = match hello_result {
         Ok(Some(Ok(Message::Text(t)))) => t,
-        _ => {
-            warn!(addr = %peer_addr, "no hello received, closing");
+        Ok(Some(Ok(other))) => {
+            warn!(addr = %peer_addr, frame = ?other, "expected a text hello, closing");
+            return;
+        }
+        Ok(Some(Err(e))) => {
+            warn!(addr = %peer_addr, err = %e, "stream error before hello, closing");
+            return;
+        }
+        Ok(None) => {
+            warn!(addr = %peer_addr, "stream ended before hello, closing");
+            return;
+        }
+        Err(_) => {
+            warn!(
+                addr = %peer_addr,
+                timeout_ms = HELLO_TIMEOUT_MS,
+                "no hello within timeout, closing"
+            );
             return;
         }
     };
+    debug!(addr = %peer_addr, "hello received");
 
     let vk = match parse_hello(&hello_text) {
         Ok(vk) => vk,
@@ -94,13 +118,38 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
         .await
         .is_err()
     {
+        warn!(addr = %peer_addr, "failed to send challenge, closing");
         return;
     }
+    debug!(addr = %peer_addr, "challenge sent, awaiting auth");
 
     // ── 3. Receive and verify auth ────────────────────────────────────────
-    let auth_text = match stream.next().await {
-        Some(Ok(Message::Text(t))) => t,
-        _ => return,
+    // Bounded by AUTH_TIMEOUT_MS: this await used to be unbounded, so a client
+    // that went away between the challenge and its reply left the task and the
+    // socket alive until TCP noticed.
+    let auth_text = match time::timeout(Duration::from_millis(AUTH_TIMEOUT_MS), stream.next()).await
+    {
+        Ok(Some(Ok(Message::Text(t)))) => t,
+        Ok(Some(Ok(other))) => {
+            warn!(addr = %peer_addr, frame = ?other, "expected a text auth, closing");
+            return;
+        }
+        Ok(Some(Err(e))) => {
+            warn!(addr = %peer_addr, err = %e, "stream error while awaiting auth, closing");
+            return;
+        }
+        Ok(None) => {
+            warn!(addr = %peer_addr, "stream ended while awaiting auth, closing");
+            return;
+        }
+        Err(_) => {
+            warn!(
+                addr = %peer_addr,
+                timeout_ms = AUTH_TIMEOUT_MS,
+                "no auth within timeout, closing"
+            );
+            return;
+        }
     };
 
     if let Err(e) = verify_auth(&nonce, &vk, &auth_text) {
