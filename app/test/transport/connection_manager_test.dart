@@ -1105,6 +1105,38 @@ void main() {
       cm.dispose();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Activation failure. Everything between the factory returning and
+  // `_replaySubscriptions()` finishing can throw, and the channel is already
+  // authenticated on the relay by then — so failing to close it leaks a live
+  // socket that the relay sees as connected-but-silent. It used to be dropped
+  // on the floor. (Observed for real as a socket with rx_text=0 rx_control=0
+  // tx_text=0 overlapping a healthy one, both reset in the same instant.)
+  // -------------------------------------------------------------------------
+  group('connect — activation failure', () {
+    test('closes the channel instead of leaking it', () async {
+      final ch = _ThrowingControlChannel();
+      final cm = ConnectionManager(
+        factory: (_, token) async => ch,
+        storage: _FakeStorage([_fakePeer()]),
+        emitDebounce: Duration.zero,
+      );
+
+      // Populates the subscription list while there is no channel yet, so the
+      // failure lands in _replaySubscriptions — i.e. after the WS handshake.
+      cm.subscribeToPeers(const ['epk_other']);
+      await cm.boot();
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(
+        ch.closeCalls,
+        greaterThan(0),
+        reason: 'an authenticated channel that failed activation must be closed',
+      );
+      cm.dispose();
+    });
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1113,6 +1145,34 @@ void main() {
 // tests. Also implements [IControlLink] so presence tests can inject
 // frames and inspect outbound `subscribe_presence`/`presence_check`.
 // ---------------------------------------------------------------------------
+
+/// A channel whose control frames throw, simulating activation failing *after*
+/// the WebSocket handshake has already succeeded on the relay.
+class _ThrowingControlChannel implements IChannel, IControlLink {
+  int closeCalls = 0;
+  final _ctrl = StreamController<ServerMessage>.broadcast();
+  final _controlCtrl = StreamController<ControlInbound>.broadcast();
+
+  @override
+  Stream<ServerMessage> get serverMessages => _ctrl.stream;
+
+  @override
+  Stream<ControlInbound> get controlFrames => _controlCtrl.stream;
+
+  @override
+  Future<void> send(ClientMessage msg) async {}
+
+  @override
+  void sendControl(Map<String, dynamic> json) =>
+      throw StateError('activation failed');
+
+  @override
+  Future<void> close() async {
+    closeCalls++;
+    if (!_ctrl.isClosed) await _ctrl.close();
+    if (!_controlCtrl.isClosed) await _controlCtrl.close();
+  }
+}
 
 class _ControllableChannel implements IChannel, IControlLink {
   final _ctrl = StreamController<ServerMessage>.broadcast();

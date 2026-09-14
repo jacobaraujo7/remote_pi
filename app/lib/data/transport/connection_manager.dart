@@ -512,6 +512,13 @@ class ConnectionManager extends Service {
     final token = CancelToken();
     _connectCancel = token;
     _connectInFlight = true;
+    // Held outside the try so the catch can release it: everything between the
+    // factory returning and `_replaySubscriptions()` finishing is activation
+    // work that can throw (a send onto a socket the phone has just reset, for
+    // instance). Without this the channel stayed open — already authenticated
+    // on the relay, never subscribed, never closed — which is precisely the
+    // idle socket the relay logs show overlapping a healthy one.
+    IChannel? ch;
     // Plan 17 fix — set the destination room from the persisted
     // PeerRecord BEFORE emitting StatusOnline so the very first send
     // after connect goes to the right (peer, room) on the relay. If
@@ -541,7 +548,7 @@ class ConnectionManager extends Service {
     _emit(const StatusConnecting());
 
     try {
-      final ch = await _factory(peer, token);
+      ch = await _factory(peer, token);
       if (token.isCancelled) {
         await ch.close();
         return;
@@ -557,6 +564,15 @@ class ConnectionManager extends Service {
       _watchControl(ch);
       _replaySubscriptions();
     } catch (e) {
+      // Never leak the socket: if activation threw, or the attempt was
+      // superseded between the factory returning and here, this channel is
+      // still authenticated on the relay and would sit idle until the OS
+      // reaps it.
+      try {
+        await ch?.close();
+      } catch (_) {
+        // Already gone; nothing to release.
+      }
       if (!token.isCancelled) _scheduleRetry(peer);
     } finally {
       // Only clear the flight flag if THIS call is still the active
