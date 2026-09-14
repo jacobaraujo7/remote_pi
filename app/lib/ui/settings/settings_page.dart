@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/relay_config.dart';
 import 'package:app/pairing/storage.dart';
@@ -324,6 +326,33 @@ class _DisplaySection extends StatelessWidget {
             ],
           ),
         ),
+        // Hardware volume keys as a text-size shortcut. The keys have to be
+        // consumed natively to keep them from changing media volume, so this
+        // toggle is the way back to normal volume behaviour.
+        //
+        // Android-only: the feature lives in MainActivity.dispatchKeyEvent and
+        // iOS has no supported way to consume the hardware volume keys, so the
+        // switch is hidden there rather than shown inert — same "nada no iOS"
+        // treatment as the update banner (see config/dependencies.dart).
+        if (Platform.isAndroid)
+          SwitchListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+            activeThumbColor: colors.accent,
+            title: Text(
+              'Volume keys resize text',
+              style: context.typo.sansBody.copyWith(color: colors.text),
+            ),
+            subtitle: Text(
+              'Volume up/down steps the text size. While on, the keys no '
+              'longer change media volume.',
+              style: context.typo.sansBody.copyWith(
+                color: colors.muted,
+                fontSize: 12,
+              ),
+            ),
+            value: prefs.volumeKeysResizeText,
+            onChanged: (v) => prefs.setVolumeKeysResizeText(v),
+          ),
         SwitchListTile(
           contentPadding: const EdgeInsets.symmetric(horizontal: 18),
           activeThumbColor: colors.accent,
