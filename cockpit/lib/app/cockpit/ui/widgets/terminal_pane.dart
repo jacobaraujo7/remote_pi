@@ -157,8 +157,13 @@ class _TerminalPaneState extends State<TerminalPane>
   }
 
   TerminalLineHit? _lineAt(CellOffset cell) {
-    final lines = widget.terminal.buffer.lines;
+    final buffer = widget.terminal.buffer;
+    final lines = buffer.lines;
     if (cell.y < 0 || cell.y >= lines.length) return null;
+    final cursor = buffer.absoluteCursorY;
+    final hasOutput =
+        cursor > 0 || buffer.cursorX > 0 || lines[0].getText().isNotEmpty;
+    if (!hasOutput || cell.y > cursor) return null;
     var first = cell.y;
     while (first > 0 && lines[first].isWrapped) {
       first--;

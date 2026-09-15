@@ -158,12 +158,22 @@ class _GhosttyPaneState extends State<_GhosttyPane> {
     if (_visibleCellHeight <= 0) return null;
     final row = (local.dy / _visibleCellHeight).floor();
     if (row < 0 || row >= rows) return null;
-    ghost_internal.LogicalLine? line;
-    for (final candidate in ghost_internal.LogicalLine.visible(
+    final lines = ghost_internal.LogicalLine.visible(
       impl.terminal,
       rows: rows,
       cols: cols,
-    )) {
+    );
+    final cursor = _renderState.cursor.position;
+    var lastUsedRow = cursor.row > 0 || cursor.col > 0 ? cursor.row : -1;
+    for (final candidate in lines) {
+      for (final cell in candidate.cells) {
+        if (cell.row > lastUsedRow) lastUsedRow = cell.row;
+      }
+    }
+    if (row > lastUsedRow) return null;
+
+    ghost_internal.LogicalLine? line;
+    for (final candidate in lines) {
       if (candidate.cells.any((cell) => cell.row == row)) {
         line = candidate;
         break;

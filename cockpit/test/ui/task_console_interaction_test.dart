@@ -51,4 +51,43 @@ void main() {
       greaterThan(request!.line!.firstViewportRow),
     );
   });
+
+  testWidgets('nao resolve linhas ainda nao preenchidas pelo console', (
+    tester,
+  ) async {
+    final terminal = Terminal(maxLines: 100)..write('uma linha');
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    TerminalContextMenuRequest? request;
+
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(size: Size(180, 160)),
+        child: Directionality(
+          textDirection: TextDirection.ltr,
+          child: SizedBox(
+            width: 180,
+            height: 160,
+            child: TerminalPane(
+              terminal: terminal,
+              active: true,
+              focusNode: focusNode,
+              textStyle: const TerminalStyle(fontSize: 14),
+              theme: TerminalThemes.defaultTheme,
+              onKeyEvent: (_) => KeyEventResult.ignored,
+              enableLineHover: true,
+              onContextMenu: (value) => request = value,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    await tester.tapAt(const Offset(20, 140), buttons: kSecondaryMouseButton);
+    await tester.pump();
+
+    expect(request, isNotNull);
+    expect(request!.line, isNull);
+  });
 }
