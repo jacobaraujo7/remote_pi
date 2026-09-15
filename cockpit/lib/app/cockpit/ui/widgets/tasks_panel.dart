@@ -19,6 +19,7 @@ class TasksPanel extends StatefulWidget {
   const TasksPanel({
     super.key,
     required this.cwd,
+    this.sourceWorkspaceCwd,
     required this.listHeight,
     required this.onResizeDelta,
     required this.onResizeEnd,
@@ -26,6 +27,7 @@ class TasksPanel extends StatefulWidget {
 
   /// Pasta do projeto selecionado. Trocar dispara nova descoberta.
   final String cwd;
+  final String? sourceWorkspaceCwd;
 
   /// Altura da área de lista (redimensionável, espelha o painel de SEARCH).
   final double listHeight;
@@ -41,15 +43,24 @@ class _TasksPanelState extends State<TasksPanel> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<TasksViewModel>().loadFor(widget.cwd);
+      if (mounted) {
+        context.read<TasksViewModel>().loadFor(
+          widget.cwd,
+          sourceWorkspaceCwd: widget.sourceWorkspaceCwd,
+        );
+      }
     });
   }
 
   @override
   void didUpdateWidget(covariant TasksPanel old) {
     super.didUpdateWidget(old);
-    if (old.cwd != widget.cwd) {
-      context.read<TasksViewModel>().loadFor(widget.cwd);
+    if (old.cwd != widget.cwd ||
+        old.sourceWorkspaceCwd != widget.sourceWorkspaceCwd) {
+      context.read<TasksViewModel>().loadFor(
+        widget.cwd,
+        sourceWorkspaceCwd: widget.sourceWorkspaceCwd,
+      );
     }
   }
 
@@ -115,22 +126,55 @@ class _TasksPanelState extends State<TasksPanel> {
   /// cria um modelo de exemplo no projeto.
   Widget _empty(BuildContext context, TasksViewModel vm) {
     final colors = context.colors;
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            context.t.cockpit.tasksPanel.noTasks,
+          Text.rich(
+            TextSpan(
+              text: context.t.cockpit.tasksPanel.noTasks,
+              children: [
+                if (vm.canImport) ...[
+                  const TextSpan(text: ' '),
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.baseline,
+                    baseline: TextBaseline.alphabetic,
+                    child: LinkButton(
+                      density: ButtonDensity.compact,
+                      onPressed: vm.importing ? null : vm.importWorkspaceConfig,
+                      child: Text(
+                        vm.importing
+                            ? context.t.cockpit.tasksPanel.importingTasks
+                            : context.t.cockpit.tasksPanel.importWorkspaceTasks,
+                        style: context.typo.label.copyWith(
+                          color: colors.text2,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
             style: context.typo.label.copyWith(color: colors.text3),
           ),
+          if (vm.importNotice != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              vm.importNotice == TaskImportNotice.sourceMissing
+                  ? context.t.cockpit.tasksPanel.importSourceMissing
+                  : context.t.cockpit.tasksPanel.importFailed,
+              style: context.typo.label.copyWith(color: colors.text3),
+            ),
+          ],
           // Criar o tasks.json de exemplo é local-only (o remoto edita no
           // host); no remoto o botão some e o vazio fica só informativo.
           if (vm.hasProject && !vm.hasConfig && !vm.isRemote) ...[
             const SizedBox(height: 10),
             HoverTap(
               borderRadius: BorderRadius.circular(6),
-              onTap: vm.createExampleConfig,
+              onTap: vm.importing ? null : vm.createExampleConfig,
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 10,

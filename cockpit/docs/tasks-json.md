@@ -68,6 +68,18 @@ subir na árvore), então:
 }
 ```
 
+## Importar de um workspace para um worktree
+
+Em um worktree local sem `.cockpit/tasks.json`, o painel vazio de Tasks oferece
+o link **Importar do workspace**. Ao clicar, o Cockpit copia o
+arquivo do workspace pai, mesmo que ele não seja rastreado pelo Git ou esteja
+no `.gitignore`. Se a origem não tiver o arquivo, o painel informa isso sem
+criar uma configuração. Arquivos existentes no destino não são substituídos.
+
+A cópia é independente: alterações posteriores não são sincronizadas. O conteúdo
+é preservado e caminhos relativos passam a ser resolvidos no worktree. Importar
+não executa tasks automaticamente. Essa opção está disponível apenas localmente.
+
 ## Campos
 
 ### Raiz
