@@ -66,6 +66,7 @@ class TaskTerminalStore {
   /// runner encontra o terminal — vale pro runner local E pros remotos.
   final _highlighters = <String, JsonLogHighlighter>{};
   final _flushDebouncers = <String, QuietPeriodDebouncer>{};
+  final _cleared = <String>{};
 
   /// Terminal da task (cria um vazio na primeira vez — read-only na UI). O
   /// `onResize` é ligado ao pty pra o output refluir ao tamanho do viewer; na
@@ -101,10 +102,28 @@ class TaskTerminalStore {
       sessionId: taskId,
     );
     if (raw == null || raw.isEmpty) return;
+    if (_cleared.contains(taskId)) return;
     if (_outSubs.containsKey(taskId)) return; // run vivo já alimenta o terminal
     if (_record[taskId]?.isNotEmpty ?? false) return;
     term.restore('\x1bc$raw');
     (_record[taskId] ??= StringBuffer()).write(raw);
+  }
+
+  /// Limpa o output visível e persistido sem interferir no processo da task.
+  /// Output que chegar durante o delete é salvo novamente ao final, evitando a
+  /// corrida em que a exclusão apagaria logs produzidos depois do clique.
+  Future<void> clear(String taskId) async {
+    _cleared.add(taskId);
+    _flushDebouncers[taskId]?.cancel();
+    _record[taskId]?.clear();
+    _highlighters[taskId]?.clearPending();
+    _terminals[taskId]?.clearBuffer();
+
+    await _scrollback.delete(projectId: _kTasksProject, sessionId: taskId);
+
+    if (_record[taskId]?.isNotEmpty ?? false) {
+      await _flush(taskId);
+    }
   }
 
   void _onRun(TaskRunnerGateway runner, TaskRun run) {
@@ -202,6 +221,7 @@ class TaskTerminalStore {
     }
     _outSubs.clear();
     _highlighters.clear();
+    _cleared.clear();
     for (final terminal in _terminals.values) {
       terminal.dispose();
     }

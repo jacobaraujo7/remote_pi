@@ -520,6 +520,9 @@ class _Translations$cockpit$tasksPanel$es extends Translations$cockpit$tasksPane
 	@override String get importingTasks => 'Importando tasks…';
 	@override String get importSourceMissing => 'El workspace de origen no tiene un archivo de tasks.';
 	@override String get importFailed => 'No se pudieron importar las tasks. Inténtalo de nuevo.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar todo';
+	@override String get clearConsole => 'Limpiar consola';
 }
 
 // Path: cockpit.cockpitPage
@@ -2262,6 +2265,9 @@ extension on TranslationsEs {
 			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
 			'cockpit.tasksPanel.importSourceMissing' => 'El workspace de origen no tiene un archivo de tasks.',
 			'cockpit.tasksPanel.importFailed' => 'No se pudieron importar las tasks. Inténtalo de nuevo.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar todo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpiar consola',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Elige la carpeta del proyecto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Elige la carpeta del workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renombrado',
@@ -2568,11 +2574,11 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexión',
 			'cockpit.dbPanel.noConnections' => 'Aún no hay conexiones.',
 			'cockpit.dbPanel.passwordRequired' => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Eliminar documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Actualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
@@ -3082,11 +3088,11 @@ extension on TranslationsEs {
 			'settings.page.automations.modelCliOnly' => 'Este harness usa el modelo predeterminado de su CLI.',
 			'settings.page.automations.modelCliDefault' => 'Predeterminado de la CLI',
 			'settings.page.automations.modelAuto' => 'Auto',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControl' => 'Generar desde Control de versiones',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit envía solo el diff seleccionado y los asuntos de los commits recientes. Los patrones habituales de credenciales y los archivos sensibles se redactan antes de ejecutar el harness.',
 			'settings.page.automations.discoveryFailed' => 'No se pudieron descubrir los harnesses de automatización instalados.',
