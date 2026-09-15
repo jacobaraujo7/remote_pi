@@ -24,6 +24,14 @@ class _Gateway implements NeovimGateway {
   Future<bool> isAlive(String executable, String address) async => false;
 
   @override
+  Future<Result<void, NeovimError>> redraw(
+    String executable,
+    String address, {
+    int? columns,
+    int? rows,
+  }) async => const Success(null);
+
+  @override
   Future<Result<void, NeovimError>> openRemote(
     String executable,
     String address,

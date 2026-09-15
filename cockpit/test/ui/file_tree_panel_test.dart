@@ -17,6 +17,94 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
   group('FileTreePanel selection', () {
+    testWidgets('reveal returns to Files and scrolls the target into view', (
+      tester,
+    ) async {
+      const target = '/workspace/deep-target.dart';
+      var revealGen = 0;
+      String? revealPath;
+      String? selectedPath;
+      late StateSetter rebuild;
+
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: SizedBox(
+                height: 180,
+                child: StatefulBuilder(
+                  builder: (context, setState) {
+                    rebuild = setState;
+                    return FileTreePanel(
+                      rootPath: '/workspace',
+                      revision: 1,
+                      selectedPath: selectedPath,
+                      revealPath: revealPath,
+                      revealGen: revealGen,
+                      listChildren: (_) async => [
+                        for (var i = 0; i < 20; i++)
+                          FileNode(
+                            name: 'file-$i.dart',
+                            path: '/workspace/file-$i.dart',
+                            isDirectory: false,
+                          ),
+                        const FileNode(
+                          name: 'deep-target.dart',
+                          path: target,
+                          isDirectory: false,
+                        ),
+                      ],
+                      gitStatusOf: (_) => null,
+                      onOpenFile: (_) {},
+                      onOpenDiff: (_) {},
+                      isGitRepo: true,
+                      changedPaths: const ['/workspace/change.dart'],
+                      onOpenWith: (_) {},
+                      onCreateInFolder: (_, _) {},
+                      onCreate: (_, _, _) async => const Success(null),
+                      onRename: (_, _) async => const Success(null),
+                      onDelete: (_) async => const Success(null),
+                      onMove: (_, _) async => const Success(null),
+                      onCopy: (_) {},
+                      onCut: (_) {},
+                      onPaste: (_) async => const Success(null),
+                      canPaste: false,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('source-control-tab')));
+      await tester.pumpAndSettle();
+      expect(find.text('deep-target.dart'), findsNothing);
+
+      rebuild(() {
+        selectedPath = target;
+        revealPath = target;
+        revealGen++;
+      });
+      await tester.pumpAndSettle();
+
+      expect(find.text('deep-target.dart'), findsOneWidget);
+      final scrollables = tester.stateList<ScrollableState>(
+        find.descendant(
+          of: find.byType(FileTreePanel),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      expect(
+        scrollables.any(
+          (state) => state.position.hasPixels && state.position.pixels > 0,
+        ),
+        isTrue,
+      );
+    });
+
     testWidgets(
       'clicking on a file triggers onSelectFile and onTapFile callbacks',
       (tester) async {

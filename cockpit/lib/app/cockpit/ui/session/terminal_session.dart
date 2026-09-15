@@ -128,7 +128,12 @@ class TerminalSession extends PaneItem {
         _kickHarnessMonitor(burst: true);
       }
     };
-    terminal.onResize = (columns, rows) => _gateway.resize(rows, columns);
+    terminal.onResize = (columns, rows) {
+      _viewportColumns = columns;
+      _viewportRows = rows;
+      if (!_firstViewportResize.isCompleted) _firstViewportResize.complete();
+      _gateway.resize(rows, columns);
+    };
     // Programas mudam o título da janela via OSC 0/2 (ex.: shell mostra o cwd,
     // `vim`/`ssh` mostram o arquivo/host). Refletimos isso no nome da aba.
     terminal.onTitleChanged = (osc) {
@@ -170,6 +175,36 @@ class TerminalSession extends PaneItem {
   /// pra persistir o cwd vivo no layout — assim o restore sobe o shell onde o
   /// usuário parou, não no cwd inicial da aba.
   VoidCallback? onCwdChanged;
+
+  int? _viewportColumns;
+  int? _viewportRows;
+  final Completer<void> _firstViewportResize = Completer<void>();
+
+  /// Última grade medida pela view, sem recorrer ao tamanho inicial da PTY.
+  ({int columns, int rows})? get viewportSize {
+    final columns = _viewportColumns;
+    final rows = _viewportRows;
+    if (columns == null || rows == null) return null;
+    return (columns: columns, rows: rows);
+  }
+
+  /// Reaplica à PTY a grade efetivamente medida pela view.
+  ///
+  /// TUIs podem nascer na grade provisória 80x25 antes do primeiro layout. Ao
+  /// reativar uma aba, a view também pode ter sido redimensionada enquanto
+  /// estava desmontada. Esperar a primeira medida e repeti-la elimina ambos os
+  /// casos sem depender de um segundo resize do usuário.
+  Future<void> synchronizeViewport() async {
+    if (_viewportColumns == null || _viewportRows == null) {
+      await _firstViewportResize.future.timeout(
+        const Duration(milliseconds: 500),
+        onTimeout: () {},
+      );
+    }
+    final columns = _viewportColumns;
+    final rows = _viewportRows;
+    if (columns != null && rows != null) _gateway.resize(rows, columns);
+  }
 
   TerminalStatus _status = TerminalStatus.idle;
   TerminalStatus get status => _status;
