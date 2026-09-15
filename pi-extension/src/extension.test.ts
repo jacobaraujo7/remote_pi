@@ -4855,6 +4855,42 @@ describe("relay reconnect", () => {
     }
   });
 
+  test("a failed mesh join closes the candidate that may already own the broker", async () => {
+    // A candidate that loses the ack handshake can still have won the election
+    // and bound the broker socket. If _cmdJoin only notifies, that idle session
+    // keeps brokering the machine's mesh, so close must run on this path too.
+    const meshNodeModule = await import("./session/mesh_node.js");
+    const connectSpy = vi.spyOn(meshNodeModule.MeshNode.prototype, "connect")
+      .mockRejectedValue(new Error("register_ack timeout: broker never answered"));
+    const closeSpy = vi.spyOn(meshNodeModule.MeshNode.prototype, "close")
+      .mockResolvedValue(undefined);
+    const cwd = `/tmp/remote-pi-join-fail-${process.pid}-${Date.now()}`;
+    const ctx = makeMockCtx(cwd);
+
+    try {
+      process.env["REMOTE_PI_DIRECT_CONFIG"] = JSON.stringify({
+        agent_name: "join-fail",
+        auto_start_relay: false,
+      });
+      const root = captureHandler("remote-pi");
+      await root("", ctx);
+
+      expect(connectSpy).toHaveBeenCalledTimes(1);
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+      expect(_hasMeshNodeForTest()).toBe(false);
+      // The user is still told, so cleanup must not swallow the failure.
+      expect(ctx.ui.notify).toHaveBeenCalledWith(
+        expect.stringContaining("join failed"),
+        "error",
+      );
+    } finally {
+      delete process.env["REMOTE_PI_DIRECT_CONFIG"];
+      connectSpy.mockRestore();
+      closeSpy.mockRestore();
+      _resetCwdLockForTest();
+    }
+  });
+
   test("/remote-pi stop cancels delayed keypair resolve before any Relay side effect", async () => {
     const storage = await import("./pairing/storage.js");
     const getKeypair = vi.mocked(storage.getOrCreateEd25519Keypair);
