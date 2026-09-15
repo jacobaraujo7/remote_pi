@@ -916,6 +916,18 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
+
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
 }
 
 // Path: cockpit.cockpitPage
@@ -4445,6 +4457,10 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -4754,12 +4770,12 @@ extension on Translations {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Refresh',
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
@@ -5268,12 +5284,12 @@ extension on Translations {
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
