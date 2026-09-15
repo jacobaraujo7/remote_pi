@@ -232,13 +232,15 @@ URLs são `https://rp-s3.jacobmoura.work/downloads/cockpit/appcast-{macos,window
 - Passo 6: runbook de release (bump `version:` → tag → CI → smoke test).
 # Linux: política de GPU híbrida
 
-O bootstrap nativo do Cockpit seleciona a GPU integrada por padrão e remove,
-somente do processo do Cockpit, variáveis NVIDIA herdadas da sessão gráfica.
+O bootstrap nativo do Cockpit seleciona a GPU integrada e XWayland por padrão e
+remove, somente do processo do Cockpit, variáveis NVIDIA herdadas da sessão
+gráfica. Isso evita que o EGL da NVIDIA entre no processo em sessões Wayland
+híbridas. Um `GDK_BACKEND` definido explicitamente continua sendo respeitado.
 Para comparar ou forçar a GPU dedicada, inicie com
 `COCKPIT_USE_NVIDIA=1 cockpit`. O startup log registra `gpu_policy`,
 `GDK_BACKEND` e `XDG_SESSION_TYPE` sem registrar comandos ou conteýo do usuário.
 
-Matriz de diagnóstico Linux: Intel/Wayland é o caminho de produção; compare
-NVIDIA/Wayland com o opt-in acima e Intel/XWayland com `GDK_BACKEND=x11` apenas
-para isolar falhas. Rollback é remover a chamada
+Matriz de diagnóstico Linux: Intel/XWayland é o caminho seguro de produção;
+compare NVIDIA/Wayland com `COCKPIT_USE_NVIDIA=1 GDK_BACKEND=wayland cockpit` e
+Intel/Wayland com `GDK_BACKEND=wayland cockpit`. Rollback é remover a chamada
 `configure_linux_gpu_environment()`; nenhuma configuração global é alterada.
