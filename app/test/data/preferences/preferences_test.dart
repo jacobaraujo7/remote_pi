@@ -203,6 +203,32 @@ void main() {
       expect(calls, 1);
     });
 
+    test('sttLocale defaults to null (system default) and round-trips', () async {
+      final store = _FakeSecureStorage();
+      final p = Preferences(store);
+      await p.load();
+      expect(p.sttLocale, isNull);
+
+      await p.setSttLocale('he_IL');
+      expect(p.sttLocale, 'he_IL');
+
+      final reloaded = Preferences(store);
+      await reloaded.load();
+      expect(reloaded.sttLocale, 'he_IL');
+    });
+
+    test('setSttLocale(null) clears the override from storage', () async {
+      final store = _FakeSecureStorage();
+      final p = Preferences(store);
+      await p.setSttLocale('he_IL');
+      await p.setSttLocale(null);
+      expect(p.sttLocale, isNull);
+
+      final reloaded = Preferences(store);
+      await reloaded.load();
+      expect(reloaded.sttLocale, isNull);
+    });
+
     test('setSelectedRoom with null epk clears the selection', () async {
       final store = _FakeSecureStorage();
       final p = Preferences(store);
