@@ -76,6 +76,8 @@ class _TerminalPaneState extends State<TerminalPane>
   /// Abaixo disso é clique/duplo-clique — esses seguem no gesto do xterm.
   static const _dragSlop = 3.0;
 
+  static const _lineHoverOpacity = 0.12;
+
   Offset? _downLocal; // pointer-down em coords do RenderTerminal
   Offset? _pointer; // última posição do ponteiro (mesmas coords)
   CellAnchor? _anchor; // início fixo da seleção (acompanha o buffer)
@@ -196,7 +198,7 @@ class _TerminalPaneState extends State<TerminalPane>
           widget.terminal.viewWidth,
           next.lastViewportRow,
         ),
-        color: widget.theme.selection.withValues(alpha: 0.28),
+        color: widget.theme.selection.withValues(alpha: _lineHoverOpacity),
       );
     }
   }

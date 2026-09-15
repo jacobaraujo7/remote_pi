@@ -1,23 +1,25 @@
 // ignore_for_file: implementation_imports, invalid_use_of_internal_member
 
-import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/core/terminal/terminal_font_weight.dart';
 import 'package:cockpit/app/core/terminal/terminal_zoom.dart';
-import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:flterm/flterm.dart' as ghost;
 import 'package:flterm/src/controller/terminal_controller.dart'
     as ghost_internal;
 import 'package:flterm/src/links/logical_line.dart' as ghost_internal;
+import 'package:flterm/src/rendering/font/measure_cell_metrics.dart'
+    as ghost_internal;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:libghostty/libghostty.dart' as native;
+import 'package:url_launcher/url_launcher.dart';
 
 import 'terminal_pane.dart';
 
@@ -118,6 +120,9 @@ class _GhosttyPaneState extends State<_GhosttyPane> {
   TerminalLineHit? _hoverLine;
   Offset? _lastHoverLocal;
   Size? _lastSize;
+  double _visibleCellHeight = 0;
+
+  static const _lineHoverOpacity = 0.12;
 
   @override
   void initState() {
@@ -150,7 +155,9 @@ class _GhosttyPaneState extends State<_GhosttyPane> {
     final rows = _renderState.rows;
     final cols = _renderState.cols;
     if (rows <= 0 || cols <= 0) return null;
-    final row = (local.dy / size.height * rows).floor().clamp(0, rows - 1);
+    if (_visibleCellHeight <= 0) return null;
+    final row = (local.dy / _visibleCellHeight).floor();
+    if (row < 0 || row >= rows) return null;
     ghost_internal.LogicalLine? line;
     for (final candidate in ghost_internal.LogicalLine.visible(
       impl.terminal,
@@ -224,6 +231,17 @@ class _GhosttyPaneState extends State<_GhosttyPane> {
       uiScale,
       fontWeight,
     );
+    final metrics = ghost_internal.measureCellMetrics(
+      fontSize: ghosttyTheme.fontSize,
+      fontWeight: ghosttyTheme.fontWeight,
+      fontFamily: ghosttyTheme.fontFamily,
+      fontFamilyFallback: ghosttyTheme.fontFamilyFallback,
+      devicePixelRatio: View.of(context).devicePixelRatio,
+    );
+    // O TerminalView e layoutado em uiScale e pintado reduzido pelo
+    // TerminalUnzoomBox. Esta e a altura exata da celula nas coordenadas do
+    // overlay; usar altura-do-painel / linhas acumulava a sobra do grid.
+    _visibleCellHeight = metrics.cellHeight / uiScale;
 
     final Widget terminalView = ghost.TerminalView(
       // IDENTIDADE GLOBAL e estável por sessão (o controller é único por aba).
@@ -311,18 +329,16 @@ class _GhosttyPaneState extends State<_GhosttyPane> {
                       Positioned(
                         left: 0,
                         right: 0,
-                        top:
-                            _hoverLine!.firstViewportRow *
-                            (_lastSize!.height / _renderState.rows),
+                        top: _hoverLine!.firstViewportRow * _visibleCellHeight,
                         height:
                             (_hoverLine!.lastViewportRow -
                                 _hoverLine!.firstViewportRow +
                                 1) *
-                            (_lastSize!.height / _renderState.rows),
+                            _visibleCellHeight,
                         child: IgnorePointer(
                           child: ColoredBox(
                             color: widget.theme.selection.withValues(
-                              alpha: 0.28,
+                              alpha: _lineHoverOpacity,
                             ),
                           ),
                         ),
