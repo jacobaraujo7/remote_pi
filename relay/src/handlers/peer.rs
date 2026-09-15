@@ -450,6 +450,34 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     {
                                         PiForwardResult::Forwarded => {}
                                         PiForwardResult::TransportError(err_msg) => {
+                                            // The reason was previously only ever sent to
+                                            // the sender, so a Pi reported "denied" while
+                                            // the relay said nothing at all about why the
+                                            // frame was refused. Metadata only — the
+                                            // envelope body is never inspected here.
+                                            let why = match &err_msg {
+                                                Message::Text(text) => serde_json::from_str::<
+                                                    serde_json::Value,
+                                                >(
+                                                    text
+                                                )
+                                                .ok()
+                                                .and_then(|value| {
+                                                    value
+                                                        .get("envelope")
+                                                        .and_then(|env| env.get("body"))
+                                                        .and_then(|body| body.get("reason"))
+                                                        .and_then(|reason| reason.as_str())
+                                                        .map(str::to_owned)
+                                                })
+                                                .unwrap_or_else(|| "unknown".to_owned()),
+                                                _ => "unknown".to_owned(),
+                                            };
+                                            warn!(
+                                                peer = %peer_short,
+                                                reason = %why,
+                                                "pi_envelope rejected"
+                                            );
                                             if send_or_log(
                                                 &mut sink,
                                                 err_msg,
