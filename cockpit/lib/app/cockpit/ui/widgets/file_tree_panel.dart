@@ -429,6 +429,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
         widget.revealGen != _revealGen) {
       _revealGen = widget.revealGen;
       _revealExpand = _ancestorDirs(widget.revealPath);
+      _tab = _RightPaneTab.files;
       setState(() {});
     }
   }
@@ -990,6 +991,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
       pending: _pending,
       renaming: _renaming,
       selectedPath: effectiveSelected,
+      revealPath: widget.revealPath,
       revealExpand: _revealExpand,
       revealGen: _revealGen,
       collapseGen: _collapseGen,
@@ -1594,6 +1596,7 @@ class _TreeEdit {
     required this.pending,
     required this.renaming,
     required this.selectedPath,
+    required this.revealPath,
     required this.revealExpand,
     required this.revealGen,
     required this.collapseGen,
@@ -1626,6 +1629,7 @@ class _TreeEdit {
   final _PendingCreate? pending;
   final String? renaming;
   final String? selectedPath;
+  final String? revealPath;
 
   /// Folders (paths) a expandir no reveal atual + a geração (consumida 1× por
   /// [_Folder]). Ver [FileTreePanel.revealPath].
@@ -1760,50 +1764,105 @@ class _DirViewState extends State<_DirView> {
             _NodeDraggable(
               path: node.path,
               name: node.name,
-              child: _Row(
-                depth: widget.depth,
-                isFolder: false,
-                name: node.name,
-                path: node.path,
-                rootPath: widget.rootPath,
-                selected: node.path == edit.selectedPath,
-                renaming: edit.renaming == node.path,
-                gitStatus: edit.gitStatusOf(node.path),
-                onTap: () {
-                  edit.onSelect(node.path, false);
-                  edit.onSelectFile?.call(node.path);
-                  edit.onTapFile?.call(node.path);
-                },
-                onDoubleTap: () => edit.onOpenFile(node.path),
-                onOpenWith: () => edit.onOpenWith(node.path),
-                onOpenInWindow: edit.onOpenInWindow == null
-                    ? null
-                    : () => edit.onOpenInWindow!(node.path),
-                onOpenLayout:
-                    edit.onOpenLayout == null ||
-                        !node.name.toLowerCase().endsWith('.ckp')
-                    ? null
-                    : () => edit.onOpenLayout!(node.path),
-                onOpenAsSource:
-                    edit.onOpenAsSource == null ||
-                        !node.name.toLowerCase().endsWith('.kanban')
-                    ? null
-                    : () => edit.onOpenAsSource!(node.path),
-                onStartRename: () => edit.onStartRename(node.path),
-                onCommitRename: (name) => edit.onCommitRename(node.path, name),
-                onCancelRename: edit.onCancelRename,
-                onDelete: () => edit.onRequestDelete(node.path),
-                onShowDiff: () => edit.onShowDiff(node.path),
-                onCopy: () => edit.onCopy(node.path),
-                onCut: () => edit.onCut(node.path),
-                // Arquivo cola na pasta-mãe.
-                onPaste: () => edit.onRequestPaste(widget.path),
-                canPaste: edit.canPaste,
+              child: _RevealTarget(
+                active: node.path == edit.revealPath,
+                generation: edit.revealGen,
+                child: _Row(
+                  depth: widget.depth,
+                  isFolder: false,
+                  name: node.name,
+                  path: node.path,
+                  rootPath: widget.rootPath,
+                  selected: node.path == edit.selectedPath,
+                  renaming: edit.renaming == node.path,
+                  gitStatus: edit.gitStatusOf(node.path),
+                  onTap: () {
+                    edit.onSelect(node.path, false);
+                    edit.onSelectFile?.call(node.path);
+                    edit.onTapFile?.call(node.path);
+                  },
+                  onDoubleTap: () => edit.onOpenFile(node.path),
+                  onOpenWith: () => edit.onOpenWith(node.path),
+                  onOpenInWindow: edit.onOpenInWindow == null
+                      ? null
+                      : () => edit.onOpenInWindow!(node.path),
+                  onOpenLayout:
+                      edit.onOpenLayout == null ||
+                          !node.name.toLowerCase().endsWith('.ckp')
+                      ? null
+                      : () => edit.onOpenLayout!(node.path),
+                  onOpenAsSource:
+                      edit.onOpenAsSource == null ||
+                          !node.name.toLowerCase().endsWith('.kanban')
+                      ? null
+                      : () => edit.onOpenAsSource!(node.path),
+                  onStartRename: () => edit.onStartRename(node.path),
+                  onCommitRename: (name) =>
+                      edit.onCommitRename(node.path, name),
+                  onCancelRename: edit.onCancelRename,
+                  onDelete: () => edit.onRequestDelete(node.path),
+                  onShowDiff: () => edit.onShowDiff(node.path),
+                  onCopy: () => edit.onCopy(node.path),
+                  onCut: () => edit.onCut(node.path),
+                  // Arquivo cola na pasta-mãe.
+                  onPaste: () => edit.onRequestPaste(widget.path),
+                  canPaste: edit.canPaste,
+                ),
               ),
             ),
       ],
     );
   }
+}
+
+/// Rola a árvore quando o alvo finalmente é montado. Como os diretórios são
+/// lazy, esse momento pode ocorrer vários frames depois do pedido de reveal.
+class _RevealTarget extends StatefulWidget {
+  const _RevealTarget({
+    required this.active,
+    required this.generation,
+    required this.child,
+  });
+
+  final bool active;
+  final int generation;
+  final Widget child;
+
+  @override
+  State<_RevealTarget> createState() => _RevealTargetState();
+}
+
+class _RevealTargetState extends State<_RevealTarget> {
+  int _handledGeneration = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleReveal();
+  }
+
+  @override
+  void didUpdateWidget(_RevealTarget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleReveal();
+  }
+
+  void _scheduleReveal() {
+    if (!widget.active || widget.generation == _handledGeneration) return;
+    _handledGeneration = widget.generation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !widget.active) return;
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOut,
+      );
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class _Folder extends StatefulWidget {

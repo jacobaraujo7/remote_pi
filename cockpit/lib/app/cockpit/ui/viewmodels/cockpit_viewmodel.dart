@@ -11,6 +11,7 @@ import 'dart:io'
 import 'dart:math' show max;
 
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
@@ -1356,9 +1357,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
 
     if (existing != null && await _waitForNeovim(existing)) {
+      // A aba pode ter ficado desmontada enquanto o pane/janela mudava de
+      // tamanho. Ativá-la primeiro permite que a view publique a grade atual;
+      // só então pedimos ao Neovim que desenhe o novo buffer.
+      _focusNeovim(existing);
+      await SchedulerBinding.instance.endOfFrame;
+      await existing.synchronizeDisplay();
       final result = await existing.open(path, line: line);
       if (result.isSuccess) {
-        _focusNeovim(existing);
         return true;
       }
     }
@@ -1391,6 +1397,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       lastLine: line,
       engine: _defaultTerminalEngine,
     );
+    _watchNeovimSession(session);
     _sessions[session.id] = session;
 
     final oldId = existing?.id;
@@ -1414,6 +1421,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     });
     if (replaceEmpty) _disposeSession(leaf.active);
     _focused[projectId] = leaf.id;
+    _requestPaneKeyboard();
     notifyListeners();
     if (!await _waitForNeovim(session)) {
       onNeovimError?.call(const NeovimError(NeovimErrorKind.connectionFailed));
@@ -1422,7 +1430,31 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       }
       return false;
     }
+    await SchedulerBinding.instance.endOfFrame;
+    await session.synchronizeDisplay();
     return true;
+  }
+
+  void _watchNeovimSession(NeovimSession session) {
+    session.onActivePathChanged = (path) {
+      unawaited(_revealNeovimPath(session, path));
+    };
+  }
+
+  Future<void> _revealNeovimPath(NeovimSession session, String path) async {
+    if (_sessions[session.id] != session ||
+        session.projectId != _selectedProjectId ||
+        !isInsideProject(session.projectId, path) ||
+        !await File(path).exists()) {
+      return;
+    }
+    // A consulta ao filesystem é assíncrona; não deixa uma resposta antiga
+    // vencer uma troca de buffer mais recente.
+    if (_sessions[session.id] != session || session.lastPath != path) return;
+    _selectedFileInTree = path;
+    _treeRevealPath = path;
+    _treeRevealGen++;
+    notifyListeners();
   }
 
   Future<bool> _waitForNeovim(NeovimSession session) async {
@@ -1444,6 +1476,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       (leaf) => leaf.copyWith(active: session.id),
     );
     _focused[session.projectId] = leafId;
+    _requestPaneKeyboard();
     notifyListeners();
   }
 
@@ -5986,7 +6019,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         if (executable == null) return restoreCockpitViewer(path);
         final address = _neovim.serverAddress(project.id);
         await _neovim.prepareServer(address);
-        _sessions[id] = NeovimSession(
+        final neovimSession = NeovimSession(
           id: id,
           projectId: project.id,
           workingDirectory: project.path,
@@ -6002,6 +6035,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
             _defaultTerminalEngine,
           ),
         );
+        _watchNeovimSession(neovimSession);
+        _sessions[id] = neovimSession;
         return true;
       case 'terminal':
         // Carrega o scrollback salvo e o reproduz no terminal restaurado. O
