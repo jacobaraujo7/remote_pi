@@ -150,7 +150,10 @@ class PaneView extends StatelessWidget {
                   : IndexedStack(
                       index: activeIndex,
                       sizing: StackFit.expand,
-                      children: [for (final id in tabs) _keyedBody(id)],
+                      children: [
+                        for (final id in tabs)
+                          _keyedBody(id, shown: tabs[activeIndex]),
+                      ],
                     ),
             ),
           ],
@@ -162,15 +165,18 @@ class PaneView extends StatelessWidget {
   /// Corpo de uma aba, com key estável por sessão — preserva o State através de
   /// troca e reordenação de abas. Só a aba ativa recebe `focused`; do contrário
   /// vários terminais montados disputariam o foco do teclado.
-  Widget _keyedBody(String tabId) {
+  Widget _keyedBody(String tabId, {required String shown}) {
     final session = vm.session(tabId);
     if (session == null) return SizedBox.shrink(key: ValueKey('body-$tabId'));
     return _PaneBody(
       key: ValueKey('body-$tabId'),
       item: session,
       paneId: pane.id,
-      focused: active && focused && tabId == pane.active,
-      active: active && tabId == pane.active,
+      // Compara com a aba efetivamente exibida (índice resolvido), não com o
+      // `active` cru: um id transitoriamente inválido nunca deixa a pane
+      // inteira inativa (terminal em branco).
+      focused: active && focused && tabId == shown,
+      active: active && tabId == shown,
       focusGen: vm.tabFocusGen,
       onFillEmpty: (terminal) => onFillEmpty(tabId, terminal),
     );
@@ -728,7 +734,8 @@ class _TabState extends State<_Tab> {
         // do terminal, e um quadro aberto o dia todo merece um nome melhor que
         // o do arquivo.
         if (viewer != null) ...[
-          // Cópia solta numa janela de documento (a aba continua aqui).
+          // Move o arquivo pra uma janela de documento: a aba daqui fecha
+          // (com a mesma confirmação de edição não salva do ⌘W).
           if (!isMobilePlatform && !viewer.scratch)
             AppMenuItem(
               value: 'open-window',
@@ -807,7 +814,10 @@ class _TabState extends State<_Tab> {
       case 'pin':
         if (viewer != null) viewer.pin();
       case 'open-window':
-        if (viewer != null) unawaited(DocumentWindows.open(viewer.path));
+        if (viewer != null) {
+          unawaited(DocumentWindows.open(viewer.path));
+          await _requestClose();
+        }
       case 'copy-id':
         if (terminal != null) {
           await Clipboard.setData(ClipboardData(text: terminal.id));

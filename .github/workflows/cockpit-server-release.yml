@@ -1,0 +1,157 @@
+# Release avulsa do cockpit-server (plano 2.0, k25).
+#
+# Trigger: tag `cockpit-server-v<versão>` (a versão DEVE bater com o
+# `version:` do cockpit/pubspec.yaml: cliente e servidor andam juntos, o
+# mobile recusa versão diferente). Separada da release do app de propósito:
+# são dois jobs Linux nativos, sem Flutter, e terminam em poucos minutos.
+#
+# Produz: GitHub Release `cockpit-server-v<versão>` com
+#   cockpit-server-<versão>-linux-x86_64.zip
+#   cockpit-server-<versão>-linux-arm64.zip
+#   SHA256SUMS
+# É o que o instalador (cockpit/install-server.sh, servido pelo site e pelo raw) baixa.
+# Layout do zip: cockpit/tool/build-server-zip.sh.
+
+name: cockpit-server-release
+
+on:
+  push:
+    tags: ["cockpit-server-v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag (ex: cockpit-server-v1.28.33); precisa existir"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cockpit-server-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  FLUTTER_VERSION: "3.47.3"
+
+jobs:
+  meta:
+    name: Valida tag ↔ pubspec
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - id: v
+        run: |
+          TAG_VERSION="${RELEASE_TAG#cockpit-server-v}"
+          PUB_VERSION="$(sed -n 's/^version: *\([0-9][0-9.]*\).*/\1/p' cockpit/pubspec.yaml)"
+          echo "tag=$TAG_VERSION pubspec=$PUB_VERSION"
+          [ "$TAG_VERSION" = "$PUB_VERSION" ] || {
+            echo "::error::tag $RELEASE_TAG não bate com pubspec ($PUB_VERSION)"; exit 1; }
+          echo "version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: zip (${{ matrix.arch }})
+    needs: meta
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    defaults: { run: { working-directory: cockpit } }
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      # Só o Dart SDK interessa (dart build cli), mas o SDK que embarca no
+      # Flutter é o mesmo que o app usa: mantém servidor e cliente no mesmo
+      # compilador.
+      - uses: subosito/flutter-action@v2
+        if: matrix.arch == 'x86_64'
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      # Não existe SDK empacotado de Flutter pra linux-arm64 (flutter-action
+      # falha em host ARM). Mesmo caminho do job linux-arm64 do app: git +
+      # bootstrap do tool, que baixa o Dart SDK arm64.
+      - name: Flutter arm64 (via git)
+        if: matrix.arch == 'arm64'
+        run: |
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/dart" --version
+      - name: Rust (CLI + native assets do anaki)
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update || true
+          rustup default stable
+          cargo --version
+      - name: Deps de sistema
+        env: { DEBIAN_FRONTEND: noninteractive }
+        run: |
+          sudo -E apt-get update
+          sudo -E apt-get install -y clang zip
+      - name: Testes do servidor (inclui o subcomando service, só roda em Linux)
+        run: |
+          cd packages/cockpit_server
+          dart pub get
+          dart test
+      - name: Build + zip
+        timeout-minutes: 30
+        run: ./tool/build-server-zip.sh out
+      - name: Smoke do instalador (instala no próprio runner)
+        run: |
+          cd "$RUNNER_TEMP"
+          unzip -q "$GITHUB_WORKSPACE/cockpit/out/cockpit-server-${VERSION}-linux-${{ matrix.arch }}.zip"
+          ./cockpit-server/install.sh
+          test -x "$HOME/.cockpit/server/bin/cockpit-server"
+          test -L "$HOME/.local/bin/cockpit-server"
+          [ "$("$HOME/.cockpit/server/bin/cockpit-server" --version)" = "$VERSION" ]
+          # Segunda rodada = no-op (idempotência).
+          ./cockpit-server/install.sh | grep -q "already installed"
+          # Serviço: o runner tem systemd --user? Se não, o comando falha alto
+          # e é isso que queremos ver no log; não bloqueia a release.
+          "$HOME/.cockpit/server/bin/cockpit-server" service status || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: server-${{ matrix.arch }}
+          path: cockpit/out/*.zip
+          if-no-files-found: error
+
+  publish:
+    name: GitHub Release
+    needs: [meta, build]
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.meta.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: SHA256SUMS + release
+        run: |
+          cd release
+          ls -la
+          sha256sum *.zip > SHA256SUMS
+          cat SHA256SUMS
+          NOTES="cockpit-server ${VERSION} for Linux (x86_64, arm64). Install: \`curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash\` or unzip and run \`cockpit-server/install.sh\`. Must match the Cockpit app version."
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" *.zip SHA256SUMS --clobber
+          else
+            gh release create "$RELEASE_TAG" *.zip SHA256SUMS \
+              --title "cockpit-server ${VERSION}" --notes "$NOTES"
+          fi

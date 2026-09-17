@@ -218,7 +218,8 @@ class DocumentScreen extends StatefulWidget {
   State<DocumentScreen> createState() => _DocumentScreenState();
 }
 
-class _DocumentScreenState extends State<DocumentScreen> {
+class _DocumentScreenState extends State<DocumentScreen>
+    with WidgetsBindingObserver {
   static const _reader = FileReaderImpl();
 
   late final StandaloneDocumentHost _host = StandaloneDocumentHost(
@@ -230,6 +231,17 @@ class _DocumentScreenState extends State<DocumentScreen> {
   StreamSubscription<FileSystemEvent>? _watch;
   Timer? _debounce;
 
+  /// mtime do arquivo na última leitura. É o que permite conferir, ao voltar
+  /// à vista, se perdemos alguma mudança enquanto a janela estava oculta.
+  DateTime? _loadedAt;
+
+  /// Enquanto a janela está numa outra mesa do macOS (ou totalmente coberta)
+  /// o engine dela recebe `hidden` e o Flutter DESLIGA os frames: o watcher
+  /// até dispara e o `setState` até roda, mas nada pinta até a janela voltar.
+  /// Este poll confere o mtime a cada 2 s enquanto oculta e força a releitura
+  /// ao voltar, pra janela nunca reaparecer com conteúdo velho.
+  Timer? _hiddenPoll;
+
   bool get _isNotebook =>
       widget.path.toLowerCase().endsWith('.notebook') &&
       FileSystemEntity.isDirectorySync(widget.path);
@@ -237,6 +249,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (_isNotebook) {
       _notebook = NotebookSession(id: 'doc', projectId: '', path: widget.path);
     } else {
@@ -251,6 +264,7 @@ class _DocumentScreenState extends State<DocumentScreen> {
       return;
     }
     final view = await _reader.read(widget.path);
+    _loadedAt = _mtime();
     if (!mounted) return;
     setState(() {
       _missing = false;
@@ -283,6 +297,40 @@ class _DocumentScreenState extends State<DocumentScreen> {
     }
   }
 
+  DateTime? _mtime() {
+    try {
+      return File(widget.path).lastModifiedSync();
+    } on FileSystemException {
+      return null;
+    }
+  }
+
+  /// Relê se o arquivo mudou desde a última leitura (mtime diferente).
+  void _reloadIfChanged() {
+    if (_isNotebook) return;
+    final now = _mtime();
+    if (now == null || now == _loadedAt) return;
+    unawaited(_load());
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        _hiddenPoll ??= Timer.periodic(
+          const Duration(seconds: 2),
+          (_) => _reloadIfChanged(),
+        );
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        _hiddenPoll?.cancel();
+        _hiddenPoll = null;
+        _reloadIfChanged();
+    }
+  }
+
   Future<bool> _save(String content) async {
     final ok = await _host.writeTextAt(widget.path, content);
     if (ok) await _load();
@@ -291,6 +339,8 @@ class _DocumentScreenState extends State<DocumentScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _hiddenPoll?.cancel();
     _debounce?.cancel();
     unawaited(_watch?.cancel());
     _session?.dispose();

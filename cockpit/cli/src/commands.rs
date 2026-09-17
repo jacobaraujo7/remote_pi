@@ -601,14 +601,19 @@ pub fn browse_url(args: &[String]) -> ! {
 
 // ---- orchestrate ------------------------------------------------------------
 
-const ORCHESTRATE_HELP: &str = "cockpit orchestrate <file.ckp> [--json]
+const ORCHESTRATE_HELP: &str = "cockpit orchestrate <file.ckp> [--append] [--json]
   Applies a .ckp pane layout to the current workspace.
-  Panes whose name already exists as a tab label are skipped.";
+  By default the workspace becomes the layout: every open tab is closed
+  first (no confirmation), then the panes are created. The tab you run
+  this from is kept. An invalid file closes nothing.
+  --append   keep the open tabs and merge the layout on top; panes whose
+             name already exists as a tab label are skipped.";
 
 pub fn orchestrate(args: &[String]) -> ! {
     let mut file: Option<String> = None;
     let mut tab_id: Option<String> = None;
     let mut as_json = false;
+    let mut append = false;
 
     let mut i = 0usize;
     while i < args.len() {
@@ -619,6 +624,8 @@ pub fn orchestrate(args: &[String]) -> ! {
         }
         if a == "--json" {
             as_json = true;
+        } else if a == "--append" {
+            append = true;
         } else if a == "--tab-id" {
             i += 1;
             tab_id = args.get(i).cloned();
@@ -634,7 +641,10 @@ pub fn orchestrate(args: &[String]) -> ! {
         Some(f) if !f.is_empty() => f,
         _ => die("cockpit orchestrate: missing <file.ckp>", 2),
     };
-    let mut req = json!({"cmd": "orchestrate", "args": {"path": resolve_path(&file)}});
+    let mut req = json!({
+        "cmd": "orchestrate",
+        "args": {"path": resolve_path(&file), "append": append}
+    });
     with_tab_id(&mut req, tab_id.or_else(self_tab_id));
     let resp = transport::request(req, DEFAULT_TIMEOUT);
     if !is_ok(&resp) {
@@ -646,6 +656,10 @@ pub fn orchestrate(args: &[String]) -> ! {
     } else {
         let created = join_list(&data, "created");
         let skipped = join_list(&data, "skipped");
+        let closed = data.get("closed").and_then(|v| v.as_u64()).unwrap_or(0);
+        if closed > 0 {
+            println!("closed: {closed}");
+        }
         println!(
             "created: {}",
             if created.is_empty() {

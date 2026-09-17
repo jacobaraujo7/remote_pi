@@ -24,6 +24,15 @@ abstract class NeovimGateway {
   /// `true` quando o servidor no endereço ainda responde.
   Future<bool> isAlive(String executable, String address);
 
+  /// Aplica a grade medida também no editor antes de redesenhar. Repetir um
+  /// resize idêntico na PTY não garante um novo SIGWINCH no startup.
+  Future<Result<void, NeovimError>> redraw(
+    String executable,
+    String address, {
+    int? columns,
+    int? rows,
+  });
+
   /// Consulta se há algum buffer modificado. Falha significa que o processo já
   /// não é consultável e, portanto, não há trabalho vivo a proteger na aba.
   Future<Result<bool, NeovimError>> hasModifiedBuffers(

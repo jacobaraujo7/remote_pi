@@ -6,39 +6,16 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 ## Backlog
 
-- [ ] Windows/Linux: "Open with Cockpit" (file association + single instance) <!-- id: k17 labels: feature -->
-      <!-- comment: 2026-09-13T16:40 -->
-      Part 3 done (plugins + present channel in windows/runner/flutter_window.cpp and linux/runner/my_application.cc), so "Open in new window" from inside the app now gets plugins, title and size on Windows/Linux too. Written without a local toolchain: the first CI build for those targets validates it. Still open: single instance (forward the path to the running app via the CLI socket) and file association (Inno Setup / .desktop MimeType).
-
-      macOS is done (k10). On Windows/Linux the OS starts a NEW process with the file path as argument: detect a running Cockpit (the CLI socket already exists), forward the path to it and exit; otherwise open a document window directly. Association: Inno Setup registry keys (Windows) and MimeType in the .desktop (Linux). Also register the desktop_multi_window plugin callback on those platforms (windows/runner + linux/my_application.cc) so document windows get plugins.
-
-- [ ] Files pane: right-click on the empty area below the tree does nothing, so you cannot paste into the root <!-- id: k20 labels: bug -->
-      The context menu only opens on a file or folder row. Clicking the empty space at the bottom of the pane (or inside an empty folder) shows nothing, so there is no way to paste, create a file or folder at the workspace root without picking a folder first. The empty area should open the folder menu targeting the root (or the folder being viewed when it is empty).
-
-- [ ] Opening a .ckp layout should replace the current layout (close the existing tabs first) <!-- id: k21 labels: feature -->
-      Today applying a .ckp file adds its terminals and splits on top of whatever is already open, so the workspace ends up with the old tabs plus the new ones. Opening a layout should mean "become this layout": close the current tabs of the workspace, then build the panes described in the file. Applies to opening from the Files pane and to `cockpit orchestrate`. Consider a confirmation when a tab has a running process.
-
-- [ ] Code/text editor: Tab inserts indentation instead of moving focus <!-- id: k22 labels: feature -->
-      The file editor (`code_editor.dart`) is a plain TextField, so Tab follows Flutter's default and moves keyboard focus out of the editor. Make it behave like VS Code: Tab inserts spaces up to the next tab stop (or a real tab when the file already uses tabs), Shift+Tab outdents. With a multi-line selection, Tab/Shift+Tab indent/outdent every selected line. Implementation: wrap the editor in `Actions` overriding `NextFocusIntent`/`PreviousFocusIntent` (or a `Focus.onKeyEvent` that handles Tab and returns handled) and edit the controller text/selection directly, keeping undo. Indent unit: detect from the file content (tabs vs spaces, width from the first indented lines); fallback 2 for Dart/YAML/JSON, 4 elsewhere. Escape then Tab could restore focus traversal for accessibility, as VS Code does.
-
-- [ ] Running a task blanks the terminal in the other pane when a task tab already exists <!-- id: k23 labels: bug -->
-      Repro: two panes side by side; the task (debug) tab lives in the right pane and you are working in a terminal on the left pane. Run the task again. The task tab is reused correctly, but the left pane goes blank (the terminal text disappears). Clicking the left tab again brings it back. Looks like focusing/re-selecting the existing task tab in the right pane re-renders or detaches the terminal view of the pane that was active, so it may be a general pane bug: any cross-pane tab activation (task run, `cockpit` CLI focus, click on a notification) could blank the previously active pane. Check the pane/tab selection path and the terminal view keep-alive when the active pane changes without user input.
-      <!-- comment: 2026-09-14T09:30 -->
-      Root cause found: `openTaskOutput` (cockpit_viewmodel.dart ~1036-1047) writes `active = <task tab id>` into the FOCUSED pane instead of the pane that owns the task tab. The focused pane then has an orphan `active`, `pane_view.dart` marks every tab of it inactive, and `terminal_pane.dart:535` returns an empty box for inactive terminals (the buffer is intact, which is why clicking restores it). Only this path has the defect: browser/DB reuse and goBackInPane already look up the owning leaf. CLI `run-task` does not call `openTaskOutput`, so the trigger is the Tasks panel. Fix: find the leaf containing the session and call `selectTab(leaf.id, tabId)`. Hardening: in pane_view compare against `tabs[activeIndex]` instead of `pane.active` so a transient invalid `active` never blanks a whole pane.
-
-- [ ] Agent profiles: run Claude Code / Codex with different accounts (sandboxed or per-profile config) <!-- id: k24 labels: decision -->
-      Need a way to launch a harness (Claude Code, Codex CLI, Pi) under a different account or isolated config per workspace or per tab, e.g. a personal and a work account side by side. Open question: build it in Cockpit (per-profile HOME / CLAUDE_CONFIG_DIR / CODEX_HOME injected into the terminal env, like .env.cockpit does) or delegate to an existing tool (containers, devcontainers, `sandbox-exec`, direnv, a profile manager). Investigate what each harness supports natively (Claude Code honours CLAUDE_CONFIG_DIR; Codex uses CODEX_HOME) before deciding. Park until the 2.0 core items are done.
+- [ ] Remote workspace redesign (plan 58) <!-- id: k13 labels: feature -->
+      Remote workspace = a host folder with worktrees, git and file tree like local; pick the folder when connecting; the "+" becomes a Local/Remote menu instead of a fixed button.
+      <!-- comment: 2026-09-12T16:59 -->
+      Precisamos entender melhor sobre isso
 
 - [ ] Windows code signing via SignPath OSS <!-- id: k3 labels: cd -->
       Application submitted on signpath.org (MIT license added 2026-07-30). Once approved, integrate signing into the windows job of cockpit-release.yml. Unsigned builds keep triggering SmartScreen.
 
 
 
-
-- [ ] Remote workspace redesign (plan 58) <!-- id: k13 labels: feature -->
-      Remote workspace = a host folder with worktrees, git and file tree like local; pick the folder when connecting; the "+" becomes a Local/Remote menu instead of a fixed button.
-      <!-- comment: 2026-09-12T16:59 -->
-      Precisamos entender melhor sobre isso
 
 
 
@@ -62,20 +39,6 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
       `../site`: .env.cockpit, Restart tab, Neovim, workspace CLI, remote hosts, Gallery documents, Database panel and everything else that shipped since the page was last updated.
 
 ## Doing
-- [ ] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
-      <!-- comment: 2026-09-12T19:20 -->
-      Job `android` added to cockpit-release.yml: restores the keystore from COCKPIT_ANDROID_* secrets (uploaded), builds the arm64 APK (split, ~45 MB) and the AAB, verifies the APK cert against the keystore (fails on debug fallback) and jarsigner-verifies the AAB, uploads both; publish now expects 8 artifacts and lists android apk/aab in latest.json. First real run happens on the next cockpit-v* tag.
-
-      GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
-- [ ] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
-      <!-- comment: 2026-09-12T18:40 -->
-      Blocker cleared: anaki_* hooks published to pub.dev (sqlite 0.1.5, postgres 0.1.7, mysql 0.1.8, mssql 0.1.6, redis 0.1.5, mongodb 0.1.8), constraints bumped in cockpit (666617b6). `flutter build apk` and `flutter run` on Android now work with no override. Pixel Tablet emulator (API 36, arm64) boots the app fine.
-
-      <!-- comment: 2026-09-12T18:10 -->
-      Android bring-up done: applicationId work.jacobmoura.cockpit (same as iOS), label "Cockpit Remote", adaptive icon copied from ../app/android, release keystore generated (android/keystore/cockpit-release.jks, gitignored; back it up to iCloud like the mobile app one; passwords in android/key.properties), Gradle signing wired, permissions INTERNET + ACCESS_NETWORK_STATE + POST_NOTIFICATIONS + cleartext for http dev servers. Toolchain pinned to AGP 8.11.1/Gradle 8.14 (AGP 9 rejects flutter_inappwebview's proguard file). First signed APK built: ~/Desktop/CockpitRemote-1.28.31-android.apk. Blocker for reproducible builds: anaki_* hooks throw on Android/iOS; fixed in anakiORM (tag cockpit-pin-mobile-hooks) but must be PUBLISHED to pub.dev (git checkout has no desktop binaries).
-- [ ] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
-      <!-- comment: 2026-09-12T20:05 -->
-      iOS tests passed on device. Store prep: bundle id switched to work.jacobmoura.cockpit.remote (the plain id was taken by the BDZ7AJ7ZN2 team via Xcode automatic signing); .remote and .remote.debug registered in team U843T2P7A2 through the App Store Connect API; ITSAppUsesNonExemptEncryption=false and PrivacyInfo.xcprivacy added to the Runner target. `flutter build ios --release --no-codesign` OK with the new id. Next: create the app record in App Store Connect with the .remote id, decide iPad-only vs iPhone, screenshots, privacy policy URL, demo SSH host for the reviewer.
 - [ ] Publish on the App Store <!-- id: k12 labels: cd, mobile blockedBy: k9, k16 -->
 - [ ] Publish on Google Play <!-- id: k11 labels: cd, mobile blockedBy: k8, k16 -->
 
@@ -88,6 +51,82 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 ## Review
 
 ## Done
+
+- [x] cockpit-server on a VPS: curl installer (Linux x86_64 + arm64), release tarballs, docs, validation <!-- id: k25 labels: feature, docs -->
+      Why: the desktop client already installs the server over SSH from its embedded bundle, but the mobile client (iPad/Android) carries no bundle and can only connect to a host a desktop prepared first. A VPS needs a way to get the server without a desktop.
+      Decisions (2026-09-15): install dir stays `~/.cockpit/server/{bin,lib}` + `bundle.manifest` (what the client looks for; no sudo, no systemd, the client starts the server on demand over SSH with --exit-on-idle); client and server must be the same release (mobile already reports version_mismatch); Linux only, x86_64 and arm64.
+      Steps:
+      1. CI: the linux jobs already build the native server bundle for amd64/arm64. Pack `cockpit-server-<version>-linux-x86_64.tar.gz` and `-linux-arm64.tar.gz` (bin/ + lib/ + bundle.manifest), attach to the GitHub Release, list in SHA256SUMS and latest.json.
+      2. Script `cockpit/install-server.sh` (site URL redirects to the GitHub raw) (same style as install.sh): `curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash`. Detect `uname -m` (x86_64 | aarch64), resolve version (latest via latest.json, or `COCKPIT_VERSION=x.y.z`), download tarball + SHA256SUMS, verify, stage, atomic swap into `~/.cockpit/server` (same no-nest rename the client uses), smoke run `cockpit-server --socket <tmp> --exit-on-idle 1`, print next step (connect from Cockpit). Idempotent: same version installed = no-op. Re-run = update.
+      3. Docs on the site: "Remote host on a VPS" page: requirements (SSH key, Linux x86_64/arm64, glibc note), the curl one-liner, how updates work (desktop auto-updates over SSH, mobile needs the curl again), troubleshooting (version_mismatch, missing libcockpit_pty.so, socket permissions).
+      5. Service (decided 2026-09-15): subcommand `cockpit-server service install|uninstall|status` writes `~/.config/systemd/user/cockpit-server.service` (ExecStart without --exit-on-idle, Restart=on-failure, COCKPIT_PTY_DYLIB env), `systemctl --user enable --now`, tries `loginctl enable-linger` and prints the sudo command if denied. install.sh and the desktop SSH update restart the unit after swapping the bundle. `cockpit-server.sh --service` opts in; default stays on-demand. Linux only (launchd later if needed).
+      Packaging (decided): one zip per arch, `cockpit-server-<version>-linux-{x86_64,arm64}.zip` containing `cockpit-server/{bin,lib,bundle.manifest,VERSION,install.sh}`; separate tag `cockpit-server-v<version>` and workflow (app release keeps apk/aab). install.sh is arch-agnostic (checks uname -m against VERSION, sha256sum -c, atomic swap, smoke run, restore backup on failure); the site script only resolves version/arch, downloads, verifies and calls install.sh.
+      <!-- comment: 2026-09-15T18:00 -->
+      Steps 1, 2, 3 and 5 implemented: `tool/build-server-zip.sh` + `packages/cockpit_server/install.sh` (manifest, VERSION, smoke, atomic swap, --service), `cockpit-server service install|uninstall|status` and `--version` in the binary (tests in service_manager_test.dart, Linux-only cases run in CI), workflow `.github/workflows/cockpit-server-release.yml` on tag `cockpit-server-v<version>` (tests, build, installer smoke on the runner, release with SHA256SUMS), `cockpit/install-server.sh` (site URL redirects to the GitHub raw), docs section "Remote hosts & VPS" on the site. Open: first tag to validate the workflow, then step 4 on real VPS.
+      4. Validate on two real VPS (one x86_64, one arm64), including an older distro (Ubuntu 22.04 / Debian 12) to catch the glibc floor of the ubuntu-24.04 build; if it fails, build the x86_64 slice with the Zig cross-link targeting glibc 2.31 like the arm64 slice. Test from the desktop and from the iPad. Feed findings into k13 and the docs.
+      <!-- comment: 2026-09-16T00:30 -->
+      Done. Release cockpit-server-v1.28.32 published (x86_64 + arm64 zips, re-generated after three fixes: arm64 Flutter via git, stdout flush and first-line VERSION in --version, PTY lib resolved from bin/../lib, PATH link on every run, unzip fallback). Validated on an OrbStack Ubuntu arm64: curl installer, `cockpit-server --version`, remote workspace opened from the desktop (host alias `ubuntu@orb`, client reused the curl install without reinstalling), commands round-trip. Service kept as optional (`--service`): value today is start at boot, never idle-exit and systemd restart; the client still bootstraps its own server if it finds none, so a killed server "comes back" either way. Follow-ups (not blocking): client should respect an existing systemd unit instead of bootstrapping; session restore after host reboot; old-glibc VPS check still pending.
+
+- [x] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
+      <!-- comment: 2026-09-12T20:05 -->
+      iOS tests passed on device. Store prep: bundle id switched to work.jacobmoura.cockpit.remote (the plain id was taken by the BDZ7AJ7ZN2 team via Xcode automatic signing); .remote and .remote.debug registered in team U843T2P7A2 through the App Store Connect API; ITSAppUsesNonExemptEncryption=false and PrivacyInfo.xcprivacy added to the Runner target. `flutter build ios --release --no-codesign` OK with the new id. Next: create the app record in App Store Connect with the .remote id, decide iPad-only vs iPhone, screenshots, privacy policy URL, demo SSH host for the reviewer.
+
+- [x] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
+      <!-- comment: 2026-09-12T19:20 -->
+      Job `android` added to cockpit-release.yml: restores the keystore from COCKPIT_ANDROID_* secrets (uploaded), builds the arm64 APK (split, ~45 MB) and the AAB, verifies the APK cert against the keystore (fails on debug fallback) and jarsigner-verifies the AAB, uploads both; publish now expects 8 artifacts and lists android apk/aab in latest.json. First real run happens on the next cockpit-v* tag.
+
+      GitHub Actions job that builds and signs the Android app on tag, like the macOS/Windows/Linux jobs in cockpit-release.yml.
+
+- [x] Agent profiles: run Claude Code / Codex with different accounts (sandboxed or per-profile config) <!-- id: k24 labels: decision -->
+      Need a way to launch a harness (Claude Code, Codex CLI, Pi) under a different account or isolated config per workspace or per tab, e.g. a personal and a work account side by side. Open question: build it in Cockpit (per-profile HOME / CLAUDE_CONFIG_DIR / CODEX_HOME injected into the terminal env, like .env.cockpit does) or delegate to an existing tool (containers, devcontainers, `sandbox-exec`, direnv, a profile manager). Investigate what each harness supports natively (Claude Code honours CLAUDE_CONFIG_DIR; Codex uses CODEX_HOME) before deciding. Park until the 2.0 core items are done.
+      <!-- comment: 2026-09-15T16:00 -->
+      Decision: no new feature. Claude Code has no built-in profile flag; the only native mechanisms are `CLAUDE_CONFIG_DIR` (whole account: credentials, settings, history) and `CLAUDE_CODE_OAUTH_TOKEN` (credential only); Codex uses `CODEX_HOME`. `.env.cockpit` already injects these per workspace (they are not in the blocklist), so the flow is: add `CLAUDE_CONFIG_DIR=/abs/path/.claude-work` to the workspace `.env.cockpit`, restart the tabs, run `claude` and `/login` once. Orca does the same thing internally and still has an open issue for multiple subscriptions. Follow-ups: document the recipe on the site (k2) and, if wanted later, a per-account usage/rate-limit indicator like Orca's status bar.
+
+- [x] Test on a physical Android device <!-- id: k8 labels: mobile blockedBy: k7, k14 -->
+      <!-- comment: 2026-09-12T18:40 -->
+      Blocker cleared: anaki_* hooks published to pub.dev (sqlite 0.1.5, postgres 0.1.7, mysql 0.1.8, mssql 0.1.6, redis 0.1.5, mongodb 0.1.8), constraints bumped in cockpit (666617b6). `flutter build apk` and `flutter run` on Android now work with no override. Pixel Tablet emulator (API 36, arm64) boots the app fine.
+
+      <!-- comment: 2026-09-12T18:10 -->
+      Android bring-up done: applicationId work.jacobmoura.cockpit (same as iOS), label "Cockpit Remote", adaptive icon copied from ../app/android, release keystore generated (android/keystore/cockpit-release.jks, gitignored; back it up to iCloud like the mobile app one; passwords in android/key.properties), Gradle signing wired, permissions INTERNET + ACCESS_NETWORK_STATE + POST_NOTIFICATIONS + cleartext for http dev servers. Toolchain pinned to AGP 8.11.1/Gradle 8.14 (AGP 9 rejects flutter_inappwebview's proguard file). First signed APK built: ~/Desktop/CockpitRemote-1.28.31-android.apk. Blocker for reproducible builds: anaki_* hooks throw on Android/iOS; fixed in anakiORM (tag cockpit-pin-mobile-hooks) but must be PUBLISHED to pub.dev (git checkout has no desktop binaries).
+
+- [x] Files pane: right-click on the empty area below the tree does nothing, so you cannot paste into the root <!-- id: k20 labels: bug -->
+      The context menu only opens on a file or folder row. Clicking the empty space at the bottom of the pane (or inside an empty folder) shows nothing, so there is no way to paste, create a file or folder at the workspace root without picking a folder first. The empty area should open the folder menu targeting the root (or the folder being viewed when it is empty).
+      <!-- comment: 2026-09-15T14:00 -->
+      Root cause: the folder context menu lived only in _RowState._showMenu, so nothing below the last row (or inside an empty expanded folder) was hit-testable. Fix: extracted the menu into _showNodeMenu(context, pos, spec) reused as-is; the tree background (ContextMenuGesture translucent around the scroll view) opens it targeting the workspace root, and an empty expanded folder renders an invisible 26px slot that opens it targeting that folder. Root spec hides rename/delete/copy/cut (no callback). Right-click on desktop, long-press on touch.
+
+- [x] Task debug tab opens empty (no output) <!-- id: k26 labels: bug -->
+      Running a task from the Tasks panel opens the task output tab but it stays blank: no command echo, no stdout/stderr, no exit status. Check whether the runner actually spawned (PtyTaskRunner, `launchctl asuser` prefix on macOS, login shell `-ilc`), whether the TaskOutputSession is attached to the right tab (see k23: `openTaskOutput` writes `active` into the focused pane), and whether output is gated by the visible/active flags of the pane. May share the root cause with k23.
+      <!-- comment: 2026-09-15T11:00 -->
+      k23 fixed (task tab now activates in its own pane; pane_view compares with the shown index). Re-test this one on the next build: if the blank tab was the focused pane losing its active tab, it is the same bug. If the task tab itself still shows nothing, it is the runner/output path.
+      <!-- comment: 2026-09-15T14:00 -->
+      Root cause in TaskTerminalStore._onRun: the guard `_lastPid[id] == run.pid` read an absent key as null, so a running run without pid never subscribed, and `_lastPid` was never cleared at exit, so a re-run that got the same pid back from the OS kept the subscription on the closed stream of the previous process (blank tab). Fix: containsKey guard + `_lastPid.remove` when the run ends. Runner ordering (PtyTaskRunner/RemoteTaskRunner set `_running` before `_emit(running)`, sync broadcast) was verified correct and is now pinned by test/session/task_terminal_store_run_ordering_test.dart. The UI-side blank (pane active index) was k23.
+
+- [x] Opening a .ckp layout should replace the current layout (close the existing tabs first) <!-- id: k21 labels: feature -->
+      <!-- comment: 2026-09-15T14:00 -->
+      Done. Opening a layout now means "become this layout": `applyLayoutFile` defaults to `LayoutApplyMode.replace`, which validates the .ckp first (a parse error closes nothing), then closes every tab of the workspace (labelled/pinned tabs included, PTYs and agents disposed through the same path as the tab "x") and only then builds the panes, so the split geometry is deterministic. The Files pane "Open layout" asks "Replace the current layout? N tabs will be closed" only when a tab has running work (agent mid-turn, harness running in a terminal, task with a live process); idle tabs close without a prompt. `cockpit orchestrate` replaces without asking and keeps the tab it is run from (closing it would kill the CLI mid-call); the new `--append` flag restores the old idempotent merge, and the output/JSON gained `closed: N`. The worktree autorun keeps appending (fresh workspace, no UI). Ordering lives in `domain/services/layout_apply_runner.dart` with tests in `test/layout/layout_apply_runner_test.dart` (replace closes, append keeps, invalid file leaves tabs untouched).
+
+      Today applying a .ckp file adds its terminals and splits on top of whatever is already open, so the workspace ends up with the old tabs plus the new ones. Opening a layout should mean "become this layout": close the current tabs of the workspace, then build the panes described in the file. Applies to opening from the Files pane and to `cockpit orchestrate`. Consider a confirmation when a tab has a running process.
+
+- [x] Code/text editor: Tab inserts indentation instead of moving focus <!-- id: k22 labels: feature -->
+      <!-- comment: 2026-09-15T14:00 -->
+      Done in `code_editor.dart`: the TextField is wrapped in `Actions` overriding `NextFocusIntent`/`PreviousFocusIntent`, so Tab and Shift+Tab never leave the editor. Tab with a caret inserts spaces up to the next tab stop (a real tab when the file already uses tabs); Shift+Tab removes up to one indent unit from the line start; with a multi-line selection both act on every selected line and the selection keeps covering the same lines. Indent unit is detected from the content (tabs, else the smallest indentation delta among the first 200 indented lines) with a fallback by extension (2 for dart/yaml/json/js/ts/html/css/md, 4 otherwise). Pure logic lives in `editor_indent.dart` and is applied through `controller.value`, so undo keeps working. Tests: `test/ui/editor_indent_test.dart` and `test/ui/code_editor_tab_indent_test.dart`. Escape-then-Tab focus escape was skipped.
+
+      The file editor (`code_editor.dart`) is a plain TextField, so Tab follows Flutter's default and moves keyboard focus out of the editor. Make it behave like VS Code: Tab inserts spaces up to the next tab stop (or a real tab when the file already uses tabs), Shift+Tab outdents. With a multi-line selection, Tab/Shift+Tab indent/outdent every selected line. Implementation: wrap the editor in `Actions` overriding `NextFocusIntent`/`PreviousFocusIntent` (or a `Focus.onKeyEvent` that handles Tab and returns handled) and edit the controller text/selection directly, keeping undo. Indent unit: detect from the file content (tabs vs spaces, width from the first indented lines); fallback 2 for Dart/YAML/JSON, 4 elsewhere. Escape then Tab could restore focus traversal for accessibility, as VS Code does.
+
+- [x] Windows/Linux: "Open with Cockpit" (file association + single instance) <!-- id: k17 labels: feature -->
+      <!-- comment: 2026-09-13T16:40 -->
+      Part 3 done (plugins + present channel in windows/runner/flutter_window.cpp and linux/runner/my_application.cc), so "Open in new window" from inside the app now gets plugins, title and size on Windows/Linux too. Written without a local toolchain: the first CI build for those targets validates it. Still open: single instance (forward the path to the running app via the CLI socket) and file association (Inno Setup / .desktop MimeType).
+      <!-- comment: 2026-09-15T10:00 -->
+      1.28.32 validated by hand on Windows and Linux: "Open in new window" works (plugins, title, size). Only single instance and file association remain.
+
+      macOS is done (k10). On Windows/Linux the OS starts a NEW process with the file path as argument: detect a running Cockpit (the CLI socket already exists), forward the path to it and exit; otherwise open a document window directly. Association: Inno Setup registry keys (Windows) and MimeType in the .desktop (Linux). Also register the desktop_multi_window plugin callback on those platforms (windows/runner + linux/my_application.cc) so document windows get plugins.
+      <!-- comment: 2026-09-15T12:30 -->
+      Single instance + association done (blind, CI compiles): second process forwards `open-document` over the CLI socket (POSIX UDS; Windows reads `~/.cockpit/status.json` with port+token that the app now writes) and exits, else boots and opens the files after bind. Inno Setup registers Cockpit.Kanban/Layout/Query/Http ProgIds (default for .kanban/.ckp/.dbq/.http, "Open with" only for .md). Linux: `Exec=cockpit %F`, MimeType list, shared-mime XML installed to share/mime/packages. To verify on a real machine: double-click a .kanban with Cockpit closed and open; `cockpit` CLI outside a pane on Windows.
+
+- [x] Running a task blanks the terminal in the other pane when a task tab already exists <!-- id: k23 labels: bug -->
+      Repro: two panes side by side; the task (debug) tab lives in the right pane and you are working in a terminal on the left pane. Run the task again. The task tab is reused correctly, but the left pane goes blank (the terminal text disappears). Clicking the left tab again brings it back. Looks like focusing/re-selecting the existing task tab in the right pane re-renders or detaches the terminal view of the pane that was active, so it may be a general pane bug: any cross-pane tab activation (task run, `cockpit` CLI focus, click on a notification) could blank the previously active pane. Check the pane/tab selection path and the terminal view keep-alive when the active pane changes without user input.
+      <!-- comment: 2026-09-14T09:30 -->
+      Root cause found: `openTaskOutput` (cockpit_viewmodel.dart ~1036-1047) writes `active = <task tab id>` into the FOCUSED pane instead of the pane that owns the task tab. The focused pane then has an orphan `active`, `pane_view.dart` marks every tab of it inactive, and `terminal_pane.dart:535` returns an empty box for inactive terminals (the buffer is intact, which is why clicking restores it). Only this path has the defect: browser/DB reuse and goBackInPane already look up the owning leaf. CLI `run-task` does not call `openTaskOutput`, so the trigger is the Tasks panel. Fix: find the leaf containing the session and call `selectTab(leaf.id, tabId)`. Hardening: in pane_view compare against `tabs[activeIndex]` instead of `pane.active` so a transient invalid `active` never blanks a whole pane.
 
 - [x] Kanban: long-press (or click-and-hold) on the advance arrow sends the card straight to the last column <!-- id: k19 labels: feature -->
       Today the arrow moves the card one column forward. A long press or touch-and-hold on the same button should skip the intermediate columns and drop the card in the last column (Done). A short click keeps the current one-step behavior. Blocked cards still have no button.

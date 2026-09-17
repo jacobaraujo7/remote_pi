@@ -28,6 +28,20 @@ Future<void> main(List<String> args) async {
 }
 
 Future<void> _run(List<String> args) async {
+  // Subcomandos que não sobem servidor nenhum: `service …` (systemd, k25) e
+  // `--version` (lê o VERSION do bundle, gravado pelo empacotador).
+  // `exit()` não espera o buffer do stdout: sem o flush, `--version` saía
+  // vazio no CI (o zip falhou na checagem da versão) mesmo com o writeln.
+  if (args.isNotEmpty && args.first == 'service') {
+    final code = await runServiceCommand(args.sublist(1));
+    await stdout.flush();
+    exit(code);
+  }
+  if (args.contains('--version')) {
+    stdout.writeln(bundleVersion() ?? 'unknown');
+    await stdout.flush();
+    exit(0);
+  }
   final socketPath =
       _argValue(args, '--socket') ??
       '${Directory.systemTemp.path}/cockpit-server-$pid.sock';
@@ -123,6 +137,20 @@ Future<void> _run(List<String> args) async {
       cancelOnError: true,
     );
   }
+}
+
+/// Versão do bundle: primeira linha do `VERSION` na raiz do bundle
+/// (`bin/../VERSION`, linha 1 versão, linha 2 arquitetura), escrito pelo
+/// empacotador do zip. Ausente no build de dev.
+String? bundleVersion() {
+  final bin = File(Platform.resolvedExecutable).parent;
+  final file = File('${bin.parent.path}/VERSION');
+  if (!file.existsSync()) return null;
+  final first = file.readAsLinesSync().map((l) => l.trim()).firstWhere(
+    (l) => l.isNotEmpty,
+    orElse: () => '',
+  );
+  return first.isEmpty ? null : first;
 }
 
 String? _argValue(List<String> args, String name) {

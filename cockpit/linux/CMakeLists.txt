@@ -213,6 +213,12 @@ install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/cockpit.desktop"
   RENAME "${APPLICATION_ID}.desktop"
   COMPONENT Runtime)
 
+# Tipos de arquivo do Cockpit (.kanban/.ckp/.dbq/.http) pro "Abrir com" do
+# gerenciador de arquivos — o .desktop acima declara os MimeType.
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/${APPLICATION_ID}.xml"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}/share/mime/packages"
+  COMPONENT Runtime)
+
 foreach(icon_size 64 128 256 512 1024)
   install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/runner/resources/app_icon_${icon_size}.png"
     DESTINATION "${CMAKE_INSTALL_PREFIX}/share/icons/hicolor/${icon_size}x${icon_size}/apps"

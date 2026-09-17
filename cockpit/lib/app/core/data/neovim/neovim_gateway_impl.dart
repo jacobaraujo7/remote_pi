@@ -90,6 +90,28 @@ class NeovimGatewayImpl implements NeovimGateway {
   }
 
   @override
+  Future<Result<void, NeovimError>> redraw(
+    String executable,
+    String address, {
+    int? columns,
+    int? rows,
+  }) async {
+    final resize = columns != null && rows != null && columns > 0 && rows > 0
+        ? 'set columns=$columns lines=$rows | '
+        : '';
+    final result = await _run(executable, [
+      '--server',
+      address,
+      '--remote-expr',
+      "execute('${resize}redraw!')",
+    ]);
+    return switch (result) {
+      Success() => const Success(null),
+      Failure(:final error) => Failure(error),
+    };
+  }
+
+  @override
   Future<Result<bool, NeovimError>> hasModifiedBuffers(
     String executable,
     String address,

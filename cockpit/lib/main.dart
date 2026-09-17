@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:cockpit/app/bootstrapper.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_window_app.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
+import 'package:cockpit/app/cockpit/ui/document/open_files_channel.dart';
+import 'package:cockpit/app/cockpit/ui/document/running_instance.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/diagnostics/error_handlers.dart';
 import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
@@ -28,6 +30,16 @@ Future<void> main(List<String> args) async {
   if (DocumentWindows.pathFromArguments(args) != null) {
     await runDocumentWindow(args);
     return;
+  }
+  // Windows/Linux: "abrir com" sobe um processo novo por arquivo. Se já há um
+  // Cockpit vivo, entrega os caminhos a ele e sai; senão este processo vira o
+  // app e abre os arquivos após o boot (ver RunningInstance/OpenFilesChannel).
+  if (Platform.isWindows || Platform.isLinux) {
+    final files = RunningInstance.filePathsFromArguments(args);
+    if (files.isNotEmpty) {
+      if (await RunningInstance.forwardOpen(files)) exit(0);
+      OpenFilesChannel.pendingFromArguments = files;
+    }
   }
   await runGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();

@@ -96,8 +96,43 @@ fn candidate_sockets() -> Vec<String> {
     out
 }
 
+/// Windows: `{port, tok}` que o app grava em `~/.cockpit/status[-debug].json`
+/// ao subir — o equivalente do caminho bem conhecido do socket Unix, pra CLI
+/// rodada de FORA de uma aba (sem env herdada). Mesma ordem de flavor do POSIX.
+#[cfg(windows)]
+fn endpoint_from_file() -> Option<(u16, Option<String>)> {
+    let home = crate::util::home_dir()?;
+    let mut names = vec!["status.json", "status-debug.json"];
+    if FLAVOR == Some("debug") {
+        names.reverse();
+    }
+    for name in names {
+        let path = format!("{home}\\.cockpit\\{name}");
+        let Ok(raw) = std::fs::read_to_string(&path) else {
+            continue;
+        };
+        let Ok(v) = serde_json::from_str::<Value>(&raw) else {
+            continue;
+        };
+        let Some(port) = v.get("port").and_then(Value::as_u64) else {
+            continue;
+        };
+        let tok = v.get("tok").and_then(Value::as_str).map(str::to_string);
+        return Some((port as u16, tok));
+    }
+    None
+}
+
+#[cfg(not(windows))]
+fn endpoint_from_file() -> Option<(u16, Option<String>)> {
+    None
+}
+
 fn connect() -> Result<Option<Conn>, String> {
-    let port = env_non_empty("COCKPIT_STATUS_PORT").and_then(|p| p.parse::<u16>().ok());
+    let mut port = env_non_empty("COCKPIT_STATUS_PORT").and_then(|p| p.parse::<u16>().ok());
+    if port.is_none() {
+        port = endpoint_from_file().map(|(p, _)| p);
+    }
 
     #[cfg(unix)]
     {
@@ -144,7 +179,7 @@ pub fn transport_configured() -> bool {
             .any(|p| std::path::Path::new(p).exists())
     }
     #[cfg(not(unix))]
-    false
+    endpoint_from_file().is_some()
 }
 
 /// Envia uma requisição e devolve a resposta decodificada.
@@ -162,6 +197,8 @@ no socket found in ~/.cockpit). Is the app running?",
     }
     req["type"] = json!("cmd");
     if let Ok(tok) = std::env::var("COCKPIT_STATUS_TOKEN") {
+        req["tok"] = json!(tok);
+    } else if let Some((_, Some(tok))) = endpoint_from_file() {
         req["tok"] = json!(tok);
     }
 

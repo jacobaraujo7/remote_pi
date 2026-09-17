@@ -24,6 +24,47 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [1.28.33] - 2026-09-16
+
+**Still a beta for the upcoming 2.0.0.** Windows and Linux now open files
+with Cockpit and keep a single instance, the `cockpit-server` ships as a
+standalone installer for Linux hosts (VPS), `.ckp` layouts replace the
+current layout, and the code editor indents with Tab.
+
+### Added
+- Windows/Linux: "Open with Cockpit" for `.kanban`, `.ckp`, `.dbq`, `.http`
+  and Markdown; a second launch forwards the file to the running app.
+- `cockpit-server` standalone for Linux x86_64 and arm64: `curl -fsSL
+  https://remote-pi.jacobmoura.work/cockpit-server.sh | bash` installs it on a
+  host without a desktop; `cockpit-server service install|uninstall|status`
+  registers a `systemd --user` unit; `cockpit-server --version`.
+- Code editor: Tab and Shift+Tab indent and outdent (tabs or spaces detected
+  from the file, multi-line selection supported).
+- Kanban: comments render Markdown; holding the advance arrow sends a card
+  straight to the last column.
+- "Open in new window" from a tab closes the tab (the Files pane entry keeps
+  the file in place).
+- `cockpit orchestrate --append` keeps the old additive behavior.
+
+### Changed
+- Opening a `.ckp` layout replaces the current layout: the file is validated,
+  the workspace tabs are closed (with a confirmation when work is running),
+  then the panes are built. The CLI replaces without asking and spares the
+  calling tab.
+- On Windows the app writes `~/.cockpit/status.json` so the `cockpit` CLI
+  works outside a Cockpit tab.
+
+### Fixed
+- Running a task again no longer blanks the terminal in the other pane.
+- Task output tab stayed empty when a re-run got the same pid or a run
+  started without a pid.
+- Files pane: right-click on the empty area (or an empty folder) opens the
+  folder menu for the root, so you can paste or create at the top level.
+- Document window re-reads the file when it comes back from another macOS
+  Space.
+- `cockpit-server` finds `libcockpit_pty` next to its bundle without the
+  `COCKPIT_PTY_DYLIB` environment variable.
+
 ## [1.28.32] - 2026-09-13
 
 **Still a beta for the upcoming 2.0.0.** Files open in their own window,

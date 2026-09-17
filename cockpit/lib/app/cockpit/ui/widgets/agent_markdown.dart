@@ -20,9 +20,19 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// Renderiza o Markdown (GFM + code) da resposta do agente, com a identidade
 /// visual do Cockpit. Tolerante a markdown parcial (serve pro streaming).
 class AgentMarkdown extends StatelessWidget {
-  const AgentMarkdown(this.data, {super.key, this.imageBaseDir});
+  const AgentMarkdown(
+    this.data, {
+    super.key,
+    this.imageBaseDir,
+    this.style,
+  });
 
   final String data;
+
+  /// Estilo base dos parágrafos. `null` = `typo.body` na cor de texto do
+  /// tema. Usado por hospedeiros compactos (comentário de kanban) que querem
+  /// o markdown no tamanho/cor do texto ao redor.
+  final TextStyle? style;
 
   /// Pasta base para `![](caminho relativo)` — imagens locais do documento
   /// (caderno: `_assets/x.png`). `null` = só URLs http(s) funcionam.
@@ -93,7 +103,7 @@ class AgentMarkdown extends StatelessWidget {
               ),
             GptMarkdown(
               body,
-              style: typo.body.copyWith(color: colors.text),
+              style: style ?? typo.body.copyWith(color: colors.text),
               // `code` inline — fundo sutil, mono. Devolve um span (não um
               // widget) pra ficar na baseline do texto, quebrar linha e ser
               // selecionável junto com o parágrafo.

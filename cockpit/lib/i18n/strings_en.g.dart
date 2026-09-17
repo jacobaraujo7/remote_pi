@@ -1007,6 +1007,18 @@ class Translations$cockpit$cockpitPage$en {
 	/// en: 'Open layout'
 	String get openLayoutTitle => 'Open layout';
 
+	/// en: 'Replace the current layout?'
+	String get replaceLayoutTitle => 'Replace the current layout?';
+
+	/// en: '(one) {1 tab will be closed, including one with a running process.} (other) {${n} tabs will be closed, including ones with running processes.}'
+	String replaceLayoutMessage({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n,
+		one: '1 tab will be closed, including one with a running process.',
+		other: '${n} tabs will be closed, including ones with running processes.',
+	);
+
+	/// en: 'Replace'
+	String get replaceLayoutConfirm => 'Replace';
+
 	/// en: 'Restart server'
 	String get restartServerTooltip => 'Restart server';
 
@@ -4493,6 +4505,9 @@ extension on Translations {
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\nWarning: the branch "${name}" has not been merged yet — removing it (git branch -D) discards the unmerged work.',
 			'cockpit.cockpitPage.failedToRemoveWorktreeTitle' => 'Failed to remove worktree',
 			'cockpit.cockpitPage.openLayoutTitle' => 'Open layout',
+			'cockpit.cockpitPage.replaceLayoutTitle' => 'Replace the current layout?',
+			'cockpit.cockpitPage.replaceLayoutMessage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 tab will be closed, including one with a running process.', other: '${n} tabs will be closed, including ones with running processes.', ), 
+			'cockpit.cockpitPage.replaceLayoutConfirm' => 'Replace',
 			'cockpit.cockpitPage.restartServerTooltip' => 'Restart server',
 			'cockpit.cockpitPage.noLspAvailable' => 'No LSP available',
 			'cockpit.cockpitPage.lspRunning' => 'running',
@@ -4785,6 +4800,8 @@ extension on Translations {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Refresh',
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
@@ -5299,6 +5316,8 @@ extension on Translations {
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',

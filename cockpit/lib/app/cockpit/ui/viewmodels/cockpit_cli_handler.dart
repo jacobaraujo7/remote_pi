@@ -2,6 +2,7 @@ import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
 
+import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
@@ -24,6 +25,7 @@ import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
+import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
@@ -228,6 +230,25 @@ class CockpitCliHandler {
         await _vm.openFile(path, inPane: targetLeaf, isPreview: false);
         return const CockpitCommandResult.ok();
 
+      // `open-document` — abre cada caminho numa janela de documento. Não é um
+      // verbo da CLI: é o que o SEGUNDO processo do Cockpit (duplo clique no
+      // Explorer/xdg) manda pro app vivo antes de sair (instância única no
+      // Windows/Linux, ver `RunningInstance`). Não depende de workspace ativo.
+      case 'open-document':
+        final raw = c.args['paths'];
+        final paths = raw is List
+            ? raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList()
+            : const <String>[];
+        if (paths.isEmpty) {
+          return const CockpitCommandResult.fail('missing paths');
+        }
+        for (final path in paths) {
+          if (await File(path).exists() || await Directory(path).exists()) {
+            unawaited(DocumentWindows.open(path));
+          }
+        }
+        return const CockpitCommandResult.ok();
+
       // `cockpit new-tab` — cria uma aba de terminal. A CLI já resolveu o cwd
       // pro absoluto. Ancora no workspace/pane da tab emissora (trazendo o
       // workspace pra frente, mesma regra do `open`); `split` = right|down
@@ -336,9 +357,11 @@ class CockpitCliHandler {
           'tabId': s.id,
         }, () => _vm.closeTab(closingLeaf, closingId));
 
-      // `cockpit orchestrate <file.ckp>` — aplica um layout de panes no
-      // workspace ativo. A CLI já resolveu o path pro absoluto. Merge
-      // idempotente (tab de mesmo nome = pulada); devolve {created, skipped}.
+      // `cockpit orchestrate <file.ckp> [--append]` — aplica um layout de
+      // panes no workspace ativo. A CLI já resolveu o path pro absoluto.
+      // Default = REPLACE (fecha as abas do workspace antes, sem diálogo: a
+      // CLI não pergunta); `--append` = merge idempotente antigo (tab de mesmo
+      // nome = pulada). Devolve {created, skipped, closed}.
       // `cockpit note add <dir.notebook> --title T [--tag a]... [--body ...]`
       // Cria a nota com frontmatter certo (tag `agent` sempre entra — é a
       // marca de nota escrita por agente) e recarrega a aba do caderno se
@@ -426,11 +449,19 @@ class CockpitCliHandler {
         if (sender != null && sender.projectId != _vm.selectedProjectId) {
           _vm.selectProject(sender.projectId);
         }
-        final applied = await _vm.applyLayoutFile(path);
+        final append = c.args['append'] == true;
+        // A aba emissora sobrevive ao replace: fechá-la mataria o `cockpit`
+        // que ainda espera esta resposta.
+        final applied = await _vm.applyLayoutFile(
+          path,
+          mode: append ? LayoutApplyMode.append : LayoutApplyMode.replace,
+          keepTabId: sender?.id,
+        );
         return switch (applied) {
           Success(:final value) => CockpitCommandResult.ok({
             'created': value.created,
             'skipped': value.skipped,
+            'closed': value.closed,
           }),
           Failure(:final error) => CockpitCommandResult.fail(error),
         };

@@ -8,12 +8,19 @@ import 'package:flutter/services.dart';
 /// O lado nativo (macOS `AppDelegate.openFiles`) manda `open` com os
 /// caminhos; os que chegaram antes de o Dart estar pronto ficam em buffer lá
 /// e são puxados com `pull` ao ligar. Cada caminho vira uma janela de
-/// documento. Windows/Linux: sem handler nativo ainda → no-op silencioso.
+/// documento. Windows/Linux: não há canal nativo; os caminhos chegam pela
+/// linha de comando (`pendingFromArguments`) ou pelo `open-document` que o
+/// segundo processo manda ao app vivo (ver `RunningInstance`).
 class OpenFilesChannel {
   OpenFilesChannel._();
 
   static const _channel = MethodChannel('cockpit/open_files');
   static bool _bound = false;
+
+  /// Windows/Linux: caminhos que vieram na linha de comando deste processo
+  /// (duplo clique com o app fechado). O `main` deposita aqui quando não havia
+  /// instância viva pra encaminhar; abrem junto com o `bind`.
+  static List<String> pendingFromArguments = const [];
 
   static Future<void> bind() async {
     if (_bound) return;
@@ -26,6 +33,10 @@ class OpenFilesChannel {
       }
       return null;
     });
+    for (final p in pendingFromArguments) {
+      unawaited(DocumentWindows.open(p));
+    }
+    pendingFromArguments = const [];
     // Gancho de diagnóstico (debug): COCKPIT_OPEN_DOCUMENT=<path> abre uma
     // janela de documento no boot sem depender do Finder/LaunchServices.
     {

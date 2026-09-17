@@ -3,6 +3,9 @@ import 'dart:io';
 
 /// Resolve a dylib do cockpit_pty compilada FORA do Flutter (gate FFI da
 /// Wave 0). Ordem: env `COCKPIT_PTY_DYLIB` → ao lado do executável →
+/// `../lib/` do executável (layout do bundle `bin/` + `lib/`, que é como o
+/// zip do servidor e o cliente por SSH instalam; sem isto rodar
+/// `cockpit-server` à mão num host morria com "dylib not found") →
 /// `build/wave0/` relativo ao cwd (fluxo `dart run` no repo).
 DynamicLibrary openPtyDylib() {
   final name = Platform.isMacOS
@@ -11,9 +14,11 @@ DynamicLibrary openPtyDylib() {
       ? 'libcockpit_pty.so'
       : 'cockpit_pty.dll';
 
+  final binDir = File(Platform.resolvedExecutable).parent;
   final candidates = <String>[
     ?Platform.environment['COCKPIT_PTY_DYLIB'],
-    '${File(Platform.resolvedExecutable).parent.path}/$name',
+    '${binDir.path}/$name',
+    '${binDir.parent.path}/lib/$name',
     'build/wave0/$name',
   ];
 

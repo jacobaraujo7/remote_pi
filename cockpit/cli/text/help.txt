@@ -40,8 +40,10 @@ USAGE:
                                                file (see `cockpit http --help`)
   cockpit browse <url> [--json]                open the built-in browser tab at
                                                <url> (system browser on Linux)
-  cockpit orchestrate <file.ckp> [--json]      apply a .ckp pane layout (open
-                                               terminals/splits + run commands)
+  cockpit orchestrate <file.ckp> [--append]    apply a .ckp pane layout: close
+                      [--json]                 the workspace tabs, then open the
+                                               terminals/splits + run commands
+                                               (--append keeps the open tabs)
   cockpit note <add|list> <dir.notebook> ...   write/list notes in a notebook
                                                folder (see `cockpit note --help`)
   cockpit install-skill   [--force]            install the Claude Code skill

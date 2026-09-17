@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tipos de arquivo próprios do Cockpit (shared-mime-info). Instalado em
+     share/mime/packages pelo CMake; o pacote deb/rpm roda update-mime-database
+     no pós-instalação quando o diretório é o do sistema. É o que faz o
+     "Abrir com Cockpit" aparecer no gerenciador de arquivos pra .kanban/.ckp. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="application/x-cockpit-kanban">
+    <comment>Cockpit Kanban Board</comment>
+    <sub-class-of type="text/markdown"/>
+    <glob pattern="*.kanban"/>
+  </mime-type>
+  <mime-type type="application/x-cockpit-layout">
+    <comment>Cockpit Pane Layout</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.ckp"/>
+  </mime-type>
+  <mime-type type="application/x-cockpit-dbq">
+    <comment>Cockpit Database Query</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.dbq"/>
+  </mime-type>
+  <mime-type type="application/x-cockpit-http">
+    <comment>Cockpit HTTP Request</comment>
+    <sub-class-of type="text/plain"/>
+    <glob pattern="*.http"/>
+  </mime-type>
+</mime-info>

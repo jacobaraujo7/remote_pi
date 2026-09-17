@@ -1213,6 +1213,21 @@ class _TreePanel extends StatelessWidget {
           onOpenInWindow: isMobilePlatform ? null : DocumentWindows.open,
           onOpenAsSource: vm.openFileAsSource,
           onOpenLayout: (path) async {
+            // Abrir um layout = "vire este layout": as abas atuais fecham
+            // (card k21). Só pergunta se há trabalho rodando — abas ociosas
+            // fecham direto (mesma regra do "x").
+            final tr = context.t.cockpit.cockpitPage;
+            final impact = vm.layoutReplaceImpact();
+            if (impact.running) {
+              final ok = await showConfirmDialog(
+                context,
+                title: tr.replaceLayoutTitle,
+                message: tr.replaceLayoutMessage(n: impact.tabs),
+                confirmLabel: tr.replaceLayoutConfirm,
+                danger: true,
+              );
+              if (!ok || !context.mounted) return;
+            }
             final res = await vm.applyLayoutFile(path);
             if (!context.mounted) return;
             if (res case Failure(:final error)) {

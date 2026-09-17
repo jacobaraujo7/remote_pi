@@ -2,6 +2,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/kanban_document.dart';
 import 'package:cockpit/app/cockpit/domain/services/kanban_editor.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/agent_markdown.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -2152,7 +2153,10 @@ class _CommentTileState extends State<_CommentTile> {
               ],
             ),
             const SizedBox(height: 3),
-            Text(
+            // Comentário é markdown (listas, links, `code`, negrito): agentes
+            // e humanos escrevem assim de qualquer jeito, e texto cru só
+            // deixava os asteriscos à mostra.
+            AgentMarkdown(
               widget.comment.text,
               style: typo.body.copyWith(
                 fontSize: 12,

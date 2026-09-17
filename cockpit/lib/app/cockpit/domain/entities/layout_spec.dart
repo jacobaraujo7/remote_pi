@@ -56,9 +56,26 @@ class LayoutSpec {
   final List<LayoutPane> panes;
 }
 
-/// Resultado de aplicar um layout: tabs criadas e panes pulados (merge).
+/// Como um layout entra no workspace.
+///
+/// [replace] é o default de "abrir um layout": o workspace **vira** o layout,
+/// então as abas atuais são fechadas antes de criar os panes (inclusive as
+/// fixadas/rotuladas: abrir um layout significa "seja este layout", não há
+/// exceção por aba). [append] é o comportamento antigo: merge idempotente
+/// por cima do que já está aberto (pane com nome já usado é pulado).
+enum LayoutApplyMode { replace, append }
+
+/// Resultado de aplicar um layout: tabs criadas, panes pulados (merge) e
+/// quantas abas foram fechadas antes (só em [LayoutApplyMode.replace]).
 class LayoutApplyReport {
-  const LayoutApplyReport({this.created = const [], this.skipped = const []});
+  const LayoutApplyReport({
+    this.created = const [],
+    this.skipped = const [],
+    this.closed = 0,
+  });
+
+  /// Abas fechadas antes de aplicar (0 em `append`).
+  final int closed;
 
   /// Nomes dos panes efetivamente criados.
   final List<String> created;

@@ -34,5 +34,11 @@ std::string configure_linux_gpu_environment() {
   unsetenv("GBM_BACKEND");
   unsetenv("LIBVA_DRIVER_NAME");
   setenv("DRI_PRIME", "0", 1);
-  return "integrated-default";
+
+  // Selecting the integrated GPU is not enough to keep NVIDIA's EGL vendor
+  // out of a Wayland client on hybrid systems. Default Cockpit to XWayland,
+  // which avoids the crashing NVIDIA/EGL path, while still honoring an
+  // explicit GDK_BACKEND supplied by the user for diagnostics or rollback.
+  set_default("GDK_BACKEND", "x11");
+  return "integrated-x11-default";
 }

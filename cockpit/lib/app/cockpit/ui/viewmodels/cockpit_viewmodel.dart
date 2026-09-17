@@ -11,6 +11,7 @@ import 'dart:io'
 import 'dart:math' show max;
 
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
@@ -65,6 +66,7 @@ import 'package:cockpit/app/cockpit/domain/entities/git_history_commit.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_history_file_change.dart';
 import 'package:cockpit/app/cockpit/domain/git_history_parsers.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
+import 'package:cockpit/app/cockpit/domain/services/layout_apply_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/launchable_app.dart';
@@ -1036,19 +1038,21 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final paneId = projectId == null ? null : _focused[projectId];
     if (projectId == null || tree == null || paneId == null) return;
 
-    // Já aberta nesta pane? só foca.
+    // Já aberta? só foca, na pane que DE FATO contém a aba. Gravar o id na
+    // pane focada deixava esta com `active` órfão (aba de outra pane): todas
+    // as suas abas viravam inativas e o terminal sumia até o próximo clique.
     for (final entry in _sessions.entries) {
       final s = entry.value;
       if (s is TaskOutputSession &&
           s.taskId == taskId &&
           s.projectId == projectId) {
-        _trees[projectId] = updateLeaf(
-          tree,
-          paneId,
-          (p) => p.copyWith(active: entry.key),
-        );
-        notifyListeners();
-        return;
+        for (final leaf in leaves(tree)) {
+          if (leaf.tabs.contains(entry.key)) {
+            selectTab(leaf.id, entry.key);
+            return;
+          }
+        }
+        break;
       }
     }
 
@@ -1356,9 +1360,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
 
     if (existing != null && await _waitForNeovim(existing)) {
+      // A aba pode ter ficado desmontada enquanto o pane/janela mudava de
+      // tamanho. Ativá-la primeiro permite que a view publique a grade atual;
+      // só então pedimos ao Neovim que desenhe o novo buffer.
+      _focusNeovim(existing);
+      await SchedulerBinding.instance.endOfFrame;
+      await existing.synchronizeDisplay();
       final result = await existing.open(path, line: line);
       if (result.isSuccess) {
-        _focusNeovim(existing);
         return true;
       }
     }
@@ -1391,6 +1400,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       lastLine: line,
       engine: _defaultTerminalEngine,
     );
+    _watchNeovimSession(session);
     _sessions[session.id] = session;
 
     final oldId = existing?.id;
@@ -1414,6 +1424,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     });
     if (replaceEmpty) _disposeSession(leaf.active);
     _focused[projectId] = leaf.id;
+    _requestPaneKeyboard();
     notifyListeners();
     if (!await _waitForNeovim(session)) {
       onNeovimError?.call(const NeovimError(NeovimErrorKind.connectionFailed));
@@ -1422,7 +1433,31 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       }
       return false;
     }
+    await SchedulerBinding.instance.endOfFrame;
+    await session.synchronizeDisplay();
     return true;
+  }
+
+  void _watchNeovimSession(NeovimSession session) {
+    session.onActivePathChanged = (path) {
+      unawaited(_revealNeovimPath(session, path));
+    };
+  }
+
+  Future<void> _revealNeovimPath(NeovimSession session, String path) async {
+    if (_sessions[session.id] != session ||
+        session.projectId != _selectedProjectId ||
+        !isInsideProject(session.projectId, path) ||
+        !await File(path).exists()) {
+      return;
+    }
+    // A consulta ao filesystem é assíncrona; não deixa uma resposta antiga
+    // vencer uma troca de buffer mais recente.
+    if (_sessions[session.id] != session || session.lastPath != path) return;
+    _selectedFileInTree = path;
+    _treeRevealPath = path;
+    _treeRevealGen++;
+    notifyListeners();
   }
 
   Future<bool> _waitForNeovim(NeovimSession session) async {
@@ -1444,6 +1479,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       (leaf) => leaf.copyWith(active: session.id),
     );
     _focused[session.projectId] = leafId;
+    _requestPaneKeyboard();
     notifyListeners();
   }
 
@@ -4800,22 +4836,93 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   /// Aplica um layout `.ckp` no workspace selecionado (orquestração de panes).
   ///
-  /// Merge **idempotente**: pane cujo `name` já existe como rótulo de tab no
-  /// workspace é pulado — rodar duas vezes é no-op. O split é relativo ao
-  /// pane **anterior criado nesta execução**; se o anterior foi pulado, o
-  /// próximo nasce como aba normal (geometria perfeita só em workspace vazio,
-  /// o caso do worktree/autorun). Nunca fecha nada — reset é ação separada
-  /// do chamador.
+  /// Default [LayoutApplyMode.replace] (card k21): abrir um layout significa
+  /// "seja este layout" — **todas** as abas do workspace são fechadas antes
+  /// (inclusive as com rótulo manual: não há aba fixada imune, o layout é o
+  /// estado inteiro), e só então os panes nascem — geometria determinística.
+  /// O arquivo é validado ANTES de fechar qualquer coisa: `.ckp` inválido
+  /// deixa o workspace intocado. A confirmação com o usuário (abas com
+  /// processo rodando) é da UI — ver [layoutReplaceImpact].
+  ///
+  /// [LayoutApplyMode.append] é o merge **idempotente** antigo: pane cujo
+  /// `name` já existe como rótulo de tab no workspace é pulado — rodar duas
+  /// vezes é no-op. O split é relativo ao pane **anterior criado nesta
+  /// execução**; se o anterior foi pulado, o próximo nasce como aba normal.
+  ///
+  /// [keepTabId]: aba poupada do fechamento em `replace` — a CLI passa a aba
+  /// emissora, senão `cockpit orchestrate` mataria o próprio processo que
+  /// ainda espera a resposta.
   Future<Result<LayoutApplyReport, String>> applyLayoutFile(
-    String ckpPath,
-  ) async {
-    final spec = await _layoutLoader.load(ckpPath);
-    switch (spec) {
-      case Failure(:final error):
-        return Failure(error);
-      case Success(:final value):
-        return _applyLayout(value, _dirname(ckpPath));
+    String ckpPath, {
+    LayoutApplyMode mode = LayoutApplyMode.replace,
+    String? keepTabId,
+  }) {
+    return const LayoutApplyRunner().run(
+      mode: mode,
+      load: () => _layoutLoader.load(ckpPath),
+      closeAll: () => _closeAllTabsInSelectedWorkspace(keepTabId: keepTabId),
+      apply: (spec) => _applyLayout(spec, _dirname(ckpPath)),
+    );
+  }
+
+  /// Impacto de substituir o layout do workspace selecionado: quantas abas
+  /// seriam fechadas e se alguma tem trabalho em andamento (harness/agente
+  /// no meio de um turno, task com processo vivo). A UI usa pra decidir se
+  /// pede confirmação antes do [applyLayoutFile] em modo `replace`.
+  ({int tabs, bool running}) layoutReplaceImpact() {
+    final projectId = _selectedProjectId;
+    if (projectId == null) return (tabs: 0, running: false);
+    final tabs = allSessions
+        .where((s) => s.projectId == projectId && !_isEmptyPlaceholder(s))
+        .toList();
+    final running = tabs.any(
+      (s) =>
+          s.isWorking ||
+          (s is AgentSession && s.isBusy) ||
+          (s is TerminalSession && s.activeHarness != null) ||
+          (s is TaskOutputSession && _taskRunner.runOf(s.taskId).isActive),
+    );
+    return (tabs: tabs.length, running: running);
+  }
+
+  /// Placeholder "New" (agente vazio) — não conta como aba do usuário.
+  bool _isEmptyPlaceholder(PaneItem? s) =>
+      s is AgentSession && s.status == AgentStatus.empty;
+
+  /// Fecha todas as abas do workspace selecionado, deixando uma única folha
+  /// com o placeholder vazio (mesmo estado de um workspace recém-aberto).
+  /// Devolve quantas abas de usuário foram fechadas.
+  ///
+  /// Mesma ordem do [removeProject]: troca a árvore, notifica, **espera o
+  /// frame** desmontar as views e só então descarta as sessões (o
+  /// `libghostty` segfaulta se o terminal nativo some com a `TerminalView`
+  /// ainda montada). O descarte em si é o do "x" da aba ([_disposeSession]:
+  /// mata PTY/agente e apaga o scrollback persistido).
+  Future<int> _closeAllTabsInSelectedWorkspace({String? keepTabId}) async {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) return 0;
+    final all = <String>[for (final leaf in leaves(tree)) ...leaf.tabs];
+    final keep = keepTabId != null && all.contains(keepTabId)
+        ? keepTabId
+        : null;
+    final old = all.where((id) => id != keep).toList();
+    if (old.isEmpty) return 0;
+    final closed = old
+        .where((id) => !_isEmptyPlaceholder(_sessions[id]))
+        .length;
+    // Folha única: a aba poupada (se houver) ou o placeholder vazio.
+    final survivor = keep ?? _makeEmpty(projectId).id;
+    final leaf = LeafPane(id: _nid('pane'), tabs: [survivor], active: survivor);
+    _setActiveTree(leaf);
+    _focused[projectId] = leaf.id;
+    _ensureFocusValid();
+    notifyListeners();
+    await _endOfFrame();
+    for (final id in old) {
+      _disposeSession(id);
     }
+    return closed;
   }
 
   Future<Result<LayoutApplyReport, String>> _applyLayout(
@@ -4913,6 +5020,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     // Folga pra ativação do fork terminar de montar a árvore de panes.
     await Future<void>.delayed(const Duration(milliseconds: 400));
     final (path, spec) = specs.single;
+    // Worktree recém-criada: merge (append) — nada a substituir, e o caminho
+    // é automático (sem UI pra confirmar), então nunca fecha aba nenhuma.
     await _applyLayout(spec, _dirname(path));
   }
 
@@ -5986,7 +6095,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         if (executable == null) return restoreCockpitViewer(path);
         final address = _neovim.serverAddress(project.id);
         await _neovim.prepareServer(address);
-        _sessions[id] = NeovimSession(
+        final neovimSession = NeovimSession(
           id: id,
           projectId: project.id,
           workingDirectory: project.path,
@@ -6002,6 +6111,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
             _defaultTerminalEngine,
           ),
         );
+        _watchNeovimSession(neovimSession);
+        _sessions[id] = neovimSession;
         return true;
       case 'terminal':
         // Carrega o scrollback salvo e o reproduz no terminal restaurado. O

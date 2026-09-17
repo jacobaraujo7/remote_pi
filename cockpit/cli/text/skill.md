@@ -253,11 +253,17 @@ Cockpit tabs (it is not on the global PATH).
 - `cockpit rename-workspace [<id|path>] <new-name> [--json]` — update the
   display title of a workspace in the rail. Target may be an id, path, or
   unique name (default: current workspace).
-- `cockpit orchestrate <file.ckp> [--json]` — apply a **pane layout** to the
-  current workspace: opens the terminals/splits declared in the file and types
-  each pane's `command`. Idempotent merge: a pane whose `name` already exists
-  as a tab label is skipped (running it twice is a no-op). Prints
-  `created:`/`skipped:` (or `{"created":[],"skipped":[]}` with `--json`).
+- `cockpit orchestrate <file.ckp> [--append] [--json]` — apply a **pane
+  layout** to the current workspace: opens the terminals/splits declared in
+  the file and types each pane's `command`. By default the workspace
+  **becomes** the layout: every open tab is closed first, with no
+  confirmation, then the panes are created. The tab you run the command from
+  is the only one kept (closing it would kill the CLI mid-call).
+  An invalid file closes nothing. With `--append` the open tabs are kept and
+  the layout is merged on top (idempotent: a pane whose `name` already exists
+  as a tab label is skipped, so running it twice is a no-op). Prints
+  `closed:`/`created:`/`skipped:` (or `{"created":[],"skipped":[],"closed":0}`
+  with `--json`).
 
 ## Layout files (`*.ckp`)
 
@@ -287,7 +293,8 @@ Rules:
   one was skipped (merge), the next opens as a plain tab.
 - `platforms` accepts a string or list of `macos`/`windows`/`linux`.
 - In the app, right-click a `.ckp` file → **Open layout** does the same as
-  `cockpit orchestrate`.
+  `cockpit orchestrate` (replace); the app asks for confirmation only when a
+  tab to be closed has a running process.
 
 ## Board files (`*.kanban`)
 

@@ -552,6 +552,12 @@ class _Translations$cockpit$cockpitPage$pt_BR extends Translations$cockpit$cockp
 	@override String removeWorktreeWarning({required Object name}) => '\n\nAviso: o branch "${name}" ainda não foi mesclado — removê-lo (git branch -D) descarta o trabalho não mesclado.';
 	@override String get failedToRemoveWorktreeTitle => 'Falha ao remover a worktree';
 	@override String get openLayoutTitle => 'Abrir layout';
+	@override String get replaceLayoutTitle => 'Substituir o layout atual?';
+	@override String replaceLayoutMessage({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
+		one: '1 aba será fechada, e ela tem um processo em execução.',
+		other: '${n} abas serão fechadas, inclusive as com processos em execução.',
+	);
+	@override String get replaceLayoutConfirm => 'Substituir';
 	@override String get restartServerTooltip => 'Reiniciar servidor';
 	@override String get noLspAvailable => 'Nenhum LSP disponível';
 	@override String get lspRunning => 'em execução';
@@ -2288,6 +2294,9 @@ extension on TranslationsPtBr {
 			'cockpit.cockpitPage.removeWorktreeWarning' => ({required Object name}) => '\n\nAviso: o branch "${name}" ainda não foi mesclado — removê-lo (git branch -D) descarta o trabalho não mesclado.',
 			'cockpit.cockpitPage.failedToRemoveWorktreeTitle' => 'Falha ao remover a worktree',
 			'cockpit.cockpitPage.openLayoutTitle' => 'Abrir layout',
+			'cockpit.cockpitPage.replaceLayoutTitle' => 'Substituir o layout atual?',
+			'cockpit.cockpitPage.replaceLayoutMessage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 aba será fechada, e ela tem um processo em execução.', other: '${n} abas serão fechadas, inclusive as com processos em execução.', ), 
+			'cockpit.cockpitPage.replaceLayoutConfirm' => 'Substituir',
 			'cockpit.cockpitPage.restartServerTooltip' => 'Reiniciar servidor',
 			'cockpit.cockpitPage.noLspAvailable' => 'Nenhum LSP disponível',
 			'cockpit.cockpitPage.lspRunning' => 'em execução',
@@ -2580,6 +2589,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Excluir o documento com _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ex.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
@@ -3094,6 +3105,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',

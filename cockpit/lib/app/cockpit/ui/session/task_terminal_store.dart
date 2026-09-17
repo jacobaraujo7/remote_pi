@@ -128,12 +128,23 @@ class TaskTerminalStore {
 
   void _onRun(TaskRunnerGateway runner, TaskRun run) {
     if (!run.isActive) {
-      if (!run.isTransitioning) _drainHighlighter(run.taskId);
+      if (!run.isTransitioning) {
+        // Run terminou: o próximo `running` é SEMPRE um processo novo, mesmo
+        // que o SO reutilize o pid (ou o runner não informe pid); sem isto o
+        // guard abaixo pulava a re-subscrição e a aba ficava presa no stream
+        // fechado do run anterior (em branco).
+        _lastPid.remove(run.taskId);
+        _drainHighlighter(run.taskId);
+      }
       return;
     }
-    // Só (re)liga quando é um run NOVO (pid mudou) — building↔running do mesmo
-    // processo não re-subscreve.
-    if (_lastPid[run.taskId] == run.pid) return;
+    // Só (re)liga quando é um run NOVO; building↔running do mesmo processo
+    // não re-subscreve. `containsKey` distingue "nunca viu run" de "run com
+    // pid null": um mapa vazio devolve null, que casaria com `pid == null` e
+    // deixaria a task sem subscription nenhuma.
+    if (_lastPid.containsKey(run.taskId) && _lastPid[run.taskId] == run.pid) {
+      return;
+    }
     _lastPid[run.taskId] = run.pid;
     _runnerOf[run.taskId] = runner;
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
@@ -56,6 +57,7 @@ class CodeEditor extends StatefulWidget {
     this.revealMatchStart,
     this.revealMatchTick = 0,
     this.onGoToDefinition,
+    this.filePath,
   });
 
   final CodeEditingController controller;
@@ -63,6 +65,10 @@ class CodeEditor extends StatefulWidget {
 
   /// Callback quando Cmd/Ctrl+clique (go-to-definition). Passa {line, character}.
   final void Function(({int line, int character}))? onGoToDefinition;
+
+  /// Caminho do arquivo (só a extensão é usada: fallback da largura de
+  /// indentação quando o conteúdo não dá pista). `null` = 4 espaços.
+  final String? filePath;
 
   /// Linha (base 1) a revelar (rolar + selecionar) — vem de um resultado de
   /// busca. `null` = nenhum pedido.
@@ -486,6 +492,44 @@ class _CodeEditorState extends State<CodeEditor> {
     _lineStarts = starts;
   }
 
+  /// Tab/Shift+Tab indentam em vez de mover o foco (comportamento VS Code).
+  /// Sobrescreve os intents de travessia de foco só dentro do campo; aplicar
+  /// via `controller.value` mantém o undo do TextField funcionando.
+  late final Map<Type, Action<Intent>> _indentActions = {
+    NextFocusIntent: CallbackAction<NextFocusIntent>(
+      onInvoke: (_) => _applyIndent(outdent: false),
+    ),
+    PreviousFocusIntent: CallbackAction<PreviousFocusIntent>(
+      onInvoke: (_) => _applyIndent(outdent: true),
+    ),
+  };
+
+  /// Unidade detectada, invalidada quando o texto muda (arquivo trocado ou
+  /// editado): recomputa sob demanda no próximo Tab.
+  IndentUnit? _indentUnit;
+  String? _indentUnitText;
+
+  IndentUnit _resolveIndentUnit() {
+    final text = widget.controller.text;
+    if (_indentUnit != null && identical(_indentUnitText, text)) {
+      return _indentUnit!;
+    }
+    final unit = detectIndentUnit(text, path: widget.filePath);
+    _indentUnit = unit;
+    _indentUnitText = text;
+    return unit;
+  }
+
+  Object? _applyIndent({required bool outdent}) {
+    final ctrl = widget.controller;
+    final unit = _resolveIndentUnit();
+    final next = outdent
+        ? applyOutdent(ctrl.value, unit)
+        : applyIndent(ctrl.value, unit);
+    if (next != ctrl.value) ctrl.value = next;
+    return null;
+  }
+
   void _onChanged() {
     _rebuildLineStarts();
     final n = '\n'.allMatches(widget.controller.text).length + 1;
@@ -808,27 +852,32 @@ class _CodeEditorState extends State<CodeEditor> {
                                           >(
                                             onNotification:
                                                 _updateOverviewMetrics,
-                                            child: TextField(
-                                              controller: widget.controller,
-                                              focusNode: widget.focusNode,
-                                              scrollController: _vertical,
-                                              style: codeStyle,
-                                              cursorColor: syntax.base,
-                                              maxLines: null,
-                                              minLines: null,
-                                              expands: true,
-                                              keyboardType:
-                                                  TextInputType.multiline,
-                                              onTap: _definitionModeActive
-                                                  ? _onDefinitionTap
-                                                  : null,
-                                              mouseCursor: _defCursor,
-                                              decoration: const InputDecoration(
-                                                isCollapsed: true,
-                                                border: InputBorder.none,
-                                                contentPadding: EdgeInsets.only(
-                                                  bottom: _padBottom,
-                                                ),
+                                            child: Actions(
+                                              actions: _indentActions,
+                                              child: TextField(
+                                                controller: widget.controller,
+                                                focusNode: widget.focusNode,
+                                                scrollController: _vertical,
+                                                style: codeStyle,
+                                                cursorColor: syntax.base,
+                                                maxLines: null,
+                                                minLines: null,
+                                                expands: true,
+                                                keyboardType:
+                                                    TextInputType.multiline,
+                                                onTap: _definitionModeActive
+                                                    ? _onDefinitionTap
+                                                    : null,
+                                                mouseCursor: _defCursor,
+                                                decoration:
+                                                    const InputDecoration(
+                                                      isCollapsed: true,
+                                                      border: InputBorder.none,
+                                                      contentPadding:
+                                                          EdgeInsets.only(
+                                                            bottom: _padBottom,
+                                                          ),
+                                                    ),
                                               ),
                                             ),
                                           ),

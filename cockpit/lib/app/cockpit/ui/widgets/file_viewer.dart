@@ -948,6 +948,7 @@ class _FileViewerState extends State<FileViewer> {
           child: CodeEditor(
             controller: ctrl,
             focusNode: _focus,
+            filePath: widget.session.path,
             revealLine: widget.session.revealLine,
             revealSelect: widget.session.revealSelect,
             revealTick: widget.session.revealTick,

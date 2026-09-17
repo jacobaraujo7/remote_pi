@@ -74,6 +74,15 @@ const DOCS_TOC: TocItem[] = [
       { id: "turn-status-resume", label: "Resuming a session" },
     ],
   },
+  {
+    id: "remote",
+    label: "Remote hosts & VPS",
+    sub: [
+      { id: "remote-install", label: "Install the server" },
+      { id: "remote-service", label: "Start at boot" },
+      { id: "remote-troubleshooting", label: "Troubleshooting" },
+    ],
+  },
   { id: "sounds", label: "Sounds & notifications" },
   { id: "language", label: "Language" },
   { id: "links", label: "Links" },
@@ -572,20 +581,24 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"`}
                   />
                 </DocsSubsection>
 
-                <DocsSubsection id="layouts-merge" title="Merge semantics">
+                <DocsSubsection id="layouts-merge" title="Replace semantics">
                   <ul>
                     <li>
-                      A pane whose <InlineCode>name</InlineCode> already exists
-                      as a tab label or title in the workspace is{" "}
-                      <strong>skipped</strong> — applying a layout twice is a
-                      no-op. Nothing is ever closed.
+                      Opening a layout means <strong>become this layout</strong>:
+                      the file is validated first, then every tab of the
+                      workspace is closed (pinned ones included), then the panes
+                      are built with exact geometry. If any tab has work running
+                      (an agent mid-turn, a process in a terminal, a live task)
+                      the GUI asks before closing; idle tabs close silently.
                     </li>
                     <li>
-                      <InlineCode>split</InlineCode> anchors on the pane created
-                      previously <em>in this run</em>; if that one was skipped
-                      by the merge, the next opens as a plain tab. Perfect
-                      geometry is guaranteed only in an empty workspace — which
-                      is exactly the worktree autorun case.
+                      <InlineCode>cockpit orchestrate dev.ckp</InlineCode>{" "}
+                      replaces without asking and keeps only the tab that ran
+                      the command. Pass <InlineCode>--append</InlineCode> to
+                      keep the old additive behavior: panes whose{" "}
+                      <InlineCode>name</InlineCode> already exists are skipped
+                      and nothing is closed. The worktree autorun always appends
+                      (the worktree is born empty, so it makes no difference).
                     </li>
                     <li>
                       A missing <InlineCode>cwd</InlineCode> or invalid YAML
@@ -1279,6 +1292,200 @@ cockpit mongo browse --db atlas --database shop`}
                       recomputes the indices from the final file.
                     </p>
                   </Callout>
+                </DocsSubsection>
+              </DocsSection>
+
+              {/* ── REMOTE HOSTS ────────────────────────────────────────── */}
+
+              <DocsSection id="remote" title="Remote hosts & VPS">
+                <p>
+                  A remote workspace is a folder on another machine, reached
+                  over SSH. Cockpit runs a small headless{" "}
+                  <InlineCode>cockpit-server</InlineCode> on the host, talks to
+                  it through an SSH tunnel to a Unix socket, and nothing is ever
+                  exposed on the network: SSH is the only door. Terminals and
+                  agents keep running on the host when you disconnect, and the
+                  next connection picks them up where they were.
+                </p>
+                <p>
+                  From the <strong>desktop</strong> app you usually need nothing
+                  on the host: Cockpit uploads the server over SSH on first
+                  connect and keeps it updated (it compares a manifest of the
+                  installed files with the bundle it ships and reinstalls when
+                  they differ). The <strong>mobile</strong> apps (iPad, Android)
+                  carry no server, so a host you want to reach from them must
+                  be prepared once, either by a desktop or with the installer
+                  below.
+                </p>
+                <p>
+                  The desktop can only install the targets it ships, so the
+                  installer is also the way in for the other combinations:
+                </p>
+                <div className="overflow-x-auto">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Client</th>
+                        <th>Linux arm64 host</th>
+                        <th>Linux x86_64 host</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>macOS</td>
+                        <td>installs and updates over SSH</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>Linux arm64</td>
+                        <td>installs and updates over SSH</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>Linux x86_64</td>
+                        <td>installer</td>
+                        <td>installs and updates over SSH</td>
+                      </tr>
+                      <tr>
+                        <td>Windows</td>
+                        <td>installer</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>iPad / Android</td>
+                        <td>installer</td>
+                        <td>installer</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p>
+                  Both paths land in the same place and recognize each other: a
+                  host prepared with the installer is reused as is by a desktop
+                  that ships the same version, and a host prepared by a desktop
+                  can be updated later with the installer. Whoever gets there
+                  first installs; the other one just connects.
+                </p>
+
+                <DocsSubsection id="remote-install" title="Install the server">
+                  <p>
+                    Linux x86_64 and arm64. User space, no sudo, idempotent;
+                    re-run it to update.
+                  </p>
+                  <CodeBlock
+                    label="on the host"
+                    language="bash"
+                    code={`curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash
+# or straight from GitHub (the URL above redirects here):
+curl -fsSL https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/install-server.sh | bash`}
+                  />
+                  <p>
+                    The script detects the architecture, downloads{" "}
+                    <InlineCode>cockpit-server-&lt;version&gt;-linux-&lt;arch&gt;.zip</InlineCode>{" "}
+                    from the GitHub release, verifies its SHA-256 and runs the{" "}
+                    <InlineCode>install.sh</InlineCode> shipped inside the zip.
+                    That installs to <InlineCode>~/.cockpit/server</InlineCode>{" "}
+                    (the same layout the desktop app uses), links the binary
+                    into <InlineCode>~/.local/bin</InlineCode>, checks every file
+                    against <InlineCode>bundle.manifest</InlineCode> and does a
+                    smoke start before swapping the new version in. A host
+                    without internet access can take the zip by{" "}
+                    <InlineCode>scp</InlineCode> and run{" "}
+                    <InlineCode>./cockpit-server/install.sh</InlineCode>{" "}
+                    directly.
+                  </p>
+                  <Callout>
+                    <p>
+                      <strong>Versions must match.</strong> Client and server are
+                      released together and the app refuses a different server
+                      version. Pin one with{" "}
+                      <InlineCode>COCKPIT_VERSION=1.28.33</InlineCode> in front
+                      of the command; without it the latest release is used.
+                      Desktop clients fix a mismatch by themselves over SSH;
+                      from mobile, re-run the installer.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
+
+                <DocsSubsection id="remote-service" title="Start at boot">
+                  <p>
+                    By default the app starts the server on demand and it
+                    exits when idle with no live session; terminals and agents
+                    keep the server alive while they run, so most hosts need
+                    no service. Note that if you kill the server while a
+                    Cockpit workspace is open on it, the client treats that as
+                    a dropped connection and starts it again. For a dedicated
+                    VPS you can register a{" "}
+                    <InlineCode>systemd --user</InlineCode> unit: the server is
+                    up right after a reboot, never exits on idle, and systemd
+                    restarts it on failure. It does not change how the app
+                    connects, and a reboot still ends the sessions that were
+                    running.
+                  </p>
+                  <CodeBlock
+                    label="on the host"
+                    language="bash"
+                    code={`# at install time
+curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash -s -- --service
+
+# or later (the installer links cockpit-server into ~/.local/bin)
+cockpit-server service install
+cockpit-server service status
+cockpit-server service uninstall`}
+                  />
+                  <p>
+                    The unit lives in{" "}
+                    <InlineCode>~/.config/systemd/user/cockpit-server.service</InlineCode>.
+                    Starting at boot without an open SSH session requires{" "}
+                    <em>linger</em>; the command tries to enable it and, when
+                    that needs root, prints the one-line{" "}
+                    <InlineCode>sudo loginctl enable-linger</InlineCode> for you
+                    to run once. Updates restart the unit automatically. To
+                    stop it for real use{" "}
+                    <InlineCode>systemctl --user stop cockpit-server</InlineCode>{" "}
+                    (a plain kill is undone by systemd in two seconds).
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection
+                  id="remote-troubleshooting"
+                  title="Troubleshooting"
+                >
+                  <ul>
+                    <li>
+                      <strong>version_mismatch</strong>: the host runs another
+                      release than the app. Re-run the installer (mobile) or
+                      reconnect from a desktop, which reinstalls.
+                    </li>
+                    <li>
+                      <strong>cockpit-server did not start</strong> during
+                      install: the log printed above the error is the reason.
+                      A glibc older than the build expects is the usual cause on
+                      old distributions; check{" "}
+                      <InlineCode>ldd --version</InlineCode>.
+                    </li>
+                    <li>
+                      <strong>Socket permission</strong>: the server listens on{" "}
+                      <InlineCode>~/.cockpit/cockpit-server.sock</InlineCode>{" "}
+                      as the SSH user; connect with the same user that ran the
+                      installer.
+                    </li>
+                    <li>
+                      <strong>Updating means restarting</strong>: a new server
+                      version replaces the running process, which ends the
+                      terminals and agents on that host. The desktop does it
+                      silently when its bundle differs from the host; the
+                      installer does it when you run it with a newer release.
+                      Finish long jobs first.
+                    </li>
+                    <li>
+                      <strong>Nothing after reboot</strong>: without the
+                      service the first connection starts the server (a second
+                      or two); with it, check{" "}
+                      <InlineCode>cockpit-server service status</InlineCode> and
+                      linger.
+                    </li>
+                  </ul>
                 </DocsSubsection>
               </DocsSection>
 
