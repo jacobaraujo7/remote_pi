@@ -516,6 +516,13 @@ class _Translations$cockpit$tasksPanel$es extends Translations$cockpit$tasksPane
 	@override String get sectionTasks => 'TAREAS';
 	@override String get noTasks => 'No se detectaron tareas en este proyecto.';
 	@override String get createTasksJson => 'Crear tasks.json';
+	@override String get importWorkspaceTasks => 'Importar del workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'El workspace de origen no tiene un archivo de tasks.';
+	@override String get importFailed => 'No se pudieron importar las tasks. Inténtalo de nuevo.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar todo';
+	@override String get clearConsole => 'Limpiar consola';
 }
 
 // Path: cockpit.cockpitPage
@@ -2260,6 +2267,13 @@ extension on TranslationsEs {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREAS',
 			'cockpit.tasksPanel.noTasks' => 'No se detectaron tareas en este proyecto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Crear tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar del workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'El workspace de origen no tiene un archivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'No se pudieron importar las tasks. Inténtalo de nuevo.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar todo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpiar consola',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Elige la carpeta del proyecto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Elige la carpeta del workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renombrado',
@@ -2569,6 +2583,8 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexión',
 			'cockpit.dbPanel.noConnections' => 'Aún no hay conexiones.',
 			'cockpit.dbPanel.passwordRequired' => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Eliminar documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
@@ -3083,6 +3099,8 @@ extension on TranslationsEs {
 			'settings.page.automations.modelCliOnly' => 'Este harness usa el modelo predeterminado de su CLI.',
 			'settings.page.automations.modelCliDefault' => 'Predeterminado de la CLI',
 			'settings.page.automations.modelAuto' => 'Auto',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',

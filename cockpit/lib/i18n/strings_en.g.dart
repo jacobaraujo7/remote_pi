@@ -916,6 +916,27 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
+
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
+
+	/// en: 'Copy'
+	String get copy => 'Copy';
+
+	/// en: 'Copy All'
+	String get copyAll => 'Copy All';
+
+	/// en: 'Clear Console'
+	String get clearConsole => 'Clear Console';
 }
 
 // Path: cockpit.cockpitPage
@@ -4457,6 +4478,13 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
+			'cockpit.tasksPanel.copy' => 'Copy',
+			'cockpit.tasksPanel.copyAll' => 'Copy All',
+			'cockpit.tasksPanel.clearConsole' => 'Clear Console',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -4766,6 +4794,8 @@ extension on Translations {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
 			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
@@ -5280,6 +5310,8 @@ extension on Translations {
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
 			'settings.page.automations.modelAuto' => 'Auto',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',

@@ -235,7 +235,14 @@
       "moreKeysTooltip": "Mais teclas",
       "sectionTasks": "TAREFAS",
       "noTasks": "Nenhuma tarefa detectada neste projeto.",
-      "createTasksJson": "Criar tasks.json"
+      "createTasksJson": "Criar tasks.json",
+      "importWorkspaceTasks": "Importar do workspace",
+      "importingTasks": "Importando tasks…",
+      "importSourceMissing": "O workspace de origem não possui um arquivo de tasks.",
+      "importFailed": "Não foi possível importar as tasks. Tente novamente.",
+      "copy": "Copiar",
+      "copyAll": "Copiar tudo",
+      "clearConsole": "Limpar console"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Escolha a pasta do projeto",

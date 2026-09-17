@@ -55,7 +55,10 @@ import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
+
+enum _TaskConsoleAction { copy, copyAll, clear }
 
 /// Folha do multiplexador: tab strip + corpo (agente: transcript+composer / empty;
 /// terminal: TerminalView). O foco aparece **só na aba ativa**.
@@ -1414,6 +1417,58 @@ class _PaneBodyState extends State<_PaneBody> {
   bool _checkingAgent = false;
   bool _showAgentSetup = false;
 
+  Future<void> _showTaskConsoleMenu(
+    BuildContext context,
+    TaskOutputSession session,
+    TerminalContextMenuRequest request,
+  ) async {
+    final selected = request.selectedText;
+    final line = request.line?.text ?? '';
+    final all = session.terminal.plainText();
+    final taskTerminals = context.read<CockpitViewModel>().taskTerminals;
+    final picked = await showAppMenu<_TaskConsoleAction>(
+      context,
+      globalPosition: request.globalPosition,
+      minWidth: 180,
+      items: [
+        AppMenuItem(
+          value: _TaskConsoleAction.copy,
+          label: context.t.cockpit.tasksPanel.copy,
+          icon: Icons.copy_outlined,
+          enabled: selected.isNotEmpty || line.isNotEmpty,
+        ),
+        AppMenuItem(
+          value: _TaskConsoleAction.copyAll,
+          label: context.t.cockpit.tasksPanel.copyAll,
+          icon: Icons.content_copy,
+          enabled: all.isNotEmpty,
+        ),
+        const AppMenuItem.divider(),
+        AppMenuItem(
+          value: _TaskConsoleAction.clear,
+          label: context.t.cockpit.tasksPanel.clearConsole,
+          icon: Icons.delete_sweep_outlined,
+          enabled: all.isNotEmpty,
+        ),
+      ],
+    );
+    switch (picked) {
+      case _TaskConsoleAction.copy:
+        await Clipboard.setData(
+          ClipboardData(text: selected.isNotEmpty ? selected : line),
+        );
+        break;
+      case _TaskConsoleAction.copyAll:
+        await Clipboard.setData(ClipboardData(text: all));
+        break;
+      case _TaskConsoleAction.clear:
+        await taskTerminals.clear(session.taskId);
+        break;
+      case null:
+        break;
+    }
+  }
+
   /// Id da aba vazia já auto-convertida em terminal (quando `enableAgent` está
   /// desligado) — evita reentrar no `onFillEmpty` a cada build.
   String? _autoTerminalFor;
@@ -1730,6 +1785,9 @@ class _PaneBodyState extends State<_PaneBody> {
               focusNode: _terminalFocus,
               onKeyEvent: (_) => KeyEventResult.ignored,
               readOnly: true,
+              enableLineHover: true,
+              onContextMenu: (request) =>
+                  _showTaskConsoleMenu(context, item, request),
               // Read-only não quer dizer sem link: a saída de uma task é
               // justamente onde `dart analyze` e `flutter test` imprimem
               // `lib/x.dart:12:3`. Sem isto, clicar num erro aqui não fazia
