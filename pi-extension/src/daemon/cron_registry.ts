@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
 import { randomBytes } from "node:crypto";
 import { dirname, join } from "node:path";
 import { Cron } from "croner";
+import { remotePiHome } from "../paths.js";
 
 /**
  * Cron registry: scheduled prompts for daemons, persisted at
@@ -51,8 +51,7 @@ export interface CronRegistry {
 }
 
 function cronPath(): string {
-  const root = process.env["REMOTE_PI_HOME"] || homedir();
-  return join(root, ".pi", "remote", "cron.json");
+  return join(remotePiHome(), "cron.json");
 }
 
 /** Test/diag-only: the on-disk path. */
