@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { loadConfig } from "../config.js";
 
 const LOCAL_DIR = ".pi/remote-pi";
 const LOCAL_FILE = "config.json";
@@ -108,25 +109,49 @@ function directConfig(): LocalConfig | null {
 }
 
 /**
- * True when a local config is available for this cwd — either inline via
- * `REMOTE_PI_DIRECT_CONFIG` or as `<cwd>/.pi/remote-pi/config.json` on disk.
+ * Machine-wide fallback for local-config fields, from the `defaults` block of
+ * the global `~/.pi/remote/config.json` (see `RemotePiConfig.defaults`). Lets
+ * you pin a default once instead of dropping a `config.json` into every repo.
+ * Returns an empty object when no `defaults` block is present, so the whole
+ * feature is inert (and every path below identical to before) unless opted in.
+ */
+function globalLocalDefaults(): LocalConfig {
+  const d = loadConfig().defaults;
+  const cfg: LocalConfig = {};
+  if (d && typeof d.auto_start_relay === "boolean") cfg.auto_start_relay = d.auto_start_relay;
+  return cfg;
+}
+
+/**
+ * True when a local config is available for this cwd — inline via
+ * `REMOTE_PI_DIRECT_CONFIG`, as `<cwd>/.pi/remote-pi/config.json` on disk, or a
+ * machine-wide `defaults` block in the global config. A global default counts
+ * as "configured" so setting it suppresses the first-run wizard and lets
+ * session_start auto-init everywhere (the intent of "I've set the default").
  */
 export function localConfigExists(cwd: string): boolean {
-  return directConfig() !== null || existsSync(pathFor(cwd));
+  return (
+    directConfig() !== null ||
+    existsSync(pathFor(cwd)) ||
+    Object.keys(globalLocalDefaults()).length > 0
+  );
 }
 
 export function loadLocalConfig(cwd: string): LocalConfig {
-  // Precedence: inline `REMOTE_PI_DIRECT_CONFIG` env wins over the file. An
-  // unset/empty/malformed env falls through to the on-disk config.json.
+  // Layering (later wins): global `defaults` < per-cwd file / inline env. The
+  // inline `REMOTE_PI_DIRECT_CONFIG` still takes precedence over the on-disk
+  // file; an unset/empty/malformed env falls through to it. Any field left
+  // unset by the winning source inherits the global default.
+  const defaults = globalLocalDefaults();
   const direct = directConfig();
-  if (direct) return direct;
+  if (direct) return { ...defaults, ...direct };
 
   const p = pathFor(cwd);
-  if (!existsSync(p)) return {};
+  if (!existsSync(p)) return { ...defaults };
   try {
-    return parseLocalConfig(readFileSync(p, "utf8")) ?? {};
+    return { ...defaults, ...(parseLocalConfig(readFileSync(p, "utf8")) ?? {}) };
   } catch {
-    return {};
+    return { ...defaults };
   }
 }
 
