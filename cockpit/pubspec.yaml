@@ -76,8 +76,13 @@ dependencies:
   # `DefaultMaterialLocalizations` (en-US) por padrão, então os widgets de
   # terceiros que embutem Material (xterm, media_kit_video, gpt_markdown)
   # funcionam sem `flutter_localizations`; e `shadcn_flutter.dart` já re-exporta
-  # `Icons`, então mantemos os Material Icons sem import extra.
+  # `Icons` (Material clássico + Lucide). O conjunto maior é Material Symbols
+  # (`Symbols.*` em `package:material_symbols_icons/symbols.dart`).
   shadcn_flutter: 0.0.52
+
+  # Ícones Material Symbols (outlined/rounded/sharp) — milhares a mais que o
+  # `Icons` clássico. Tree-shakeável quando o uso é `const`/`Symbols.nome`.
+  material_symbols_icons: ^4.2960.0
 
   # DI + roteamento + estado page-scoped num pacote só: cada feature é um módulo
   # (`createModule`) que declara suas rotas + binds. Substitui provider +

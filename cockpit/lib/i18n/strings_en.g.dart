@@ -829,6 +829,21 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Close'
 	String get close => 'Close';
 
+	/// en: 'Close others'
+	String get closeOtherTabs => 'Close others';
+
+	/// en: 'Close to the right'
+	String get closeTabsToTheRight => 'Close to the right';
+
+	/// en: 'Close all'
+	String get closeAllTabs => 'Close all';
+
+	/// en: 'Close tabs?'
+	String get closeTabsTitle => 'Close tabs?';
+
+	/// en: 'This closes ${count} tab(s) and ends the agents/terminals in them.'
+	String closeTabsMessage({required Object count}) => 'This closes ${count} tab(s) and ends the agents/terminals in them.';
+
 	/// en: 'All tabs'
 	String get allTabs => 'All tabs';
 
@@ -3748,6 +3763,11 @@ extension on Translations {
 			'cockpit.paneView.closePaneTitle' => 'Close pane?',
 			'cockpit.paneView.closePaneMessage' => ({required Object count}) => 'This closes all ${count} tab(s) in this pane and ends the agents/terminals in it.',
 			'cockpit.paneView.close' => 'Close',
+			'cockpit.paneView.closeOtherTabs' => 'Close others',
+			'cockpit.paneView.closeTabsToTheRight' => 'Close to the right',
+			'cockpit.paneView.closeAllTabs' => 'Close all',
+			'cockpit.paneView.closeTabsTitle' => 'Close tabs?',
+			'cockpit.paneView.closeTabsMessage' => ({required Object count}) => 'This closes ${count} tab(s) and ends the agents/terminals in them.',
 			'cockpit.paneView.allTabs' => 'All tabs',
 			'cockpit.paneView.pinTab' => 'Pin tab',
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
@@ -4077,13 +4097,13 @@ extension on Translations {
 			'cockpit.projectsRail.moveToRealm' => 'Move to realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copy workspace id',
 			'cockpit.projectsRail.rename' => 'Rename',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.projectsRail.close' => 'Close',
 			'cockpit.projectsRail.newRealm' => 'New realm…',
 			'cockpit.projectsRail.manageRealms' => 'Manage realms…',
 			'cockpit.projectsRail.noWorkspaces' => 'No workspaces yet.',
 			'cockpit.projectsRail.sync' => 'Sync',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
 			'cockpit.projectsRail.createWorktree' => 'Create worktree',

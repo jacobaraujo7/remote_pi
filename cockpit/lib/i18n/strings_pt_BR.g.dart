@@ -470,6 +470,11 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get closePaneTitle => 'Fechar painel?';
 	@override String closePaneMessage({required Object count}) => 'Isso fecha todas as ${count} aba(s) deste painel e encerra os agentes/terminais nele.';
 	@override String get close => 'Fechar';
+	@override String get closeOtherTabs => 'Fechar as outras';
+	@override String get closeTabsToTheRight => 'Fechar à direita';
+	@override String get closeAllTabs => 'Fechar todas';
+	@override String get closeTabsTitle => 'Fechar abas?';
+	@override String closeTabsMessage({required Object count}) => 'Isso fecha ${count} aba(s) e encerra os agentes/terminais nelas.';
 	@override String get allTabs => 'Todas as abas';
 	@override String get pinTab => 'Fixar aba';
 	@override String get openInNewWindow => 'Abrir em nova janela';
@@ -1923,6 +1928,11 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.closePaneTitle' => 'Fechar painel?',
 			'cockpit.paneView.closePaneMessage' => ({required Object count}) => 'Isso fecha todas as ${count} aba(s) deste painel e encerra os agentes/terminais nele.',
 			'cockpit.paneView.close' => 'Fechar',
+			'cockpit.paneView.closeOtherTabs' => 'Fechar as outras',
+			'cockpit.paneView.closeTabsToTheRight' => 'Fechar à direita',
+			'cockpit.paneView.closeAllTabs' => 'Fechar todas',
+			'cockpit.paneView.closeTabsTitle' => 'Fechar abas?',
+			'cockpit.paneView.closeTabsMessage' => ({required Object count}) => 'Isso fecha ${count} aba(s) e encerra os agentes/terminais nelas.',
 			'cockpit.paneView.allTabs' => 'Todas as abas',
 			'cockpit.paneView.pinTab' => 'Fixar aba',
 			'cockpit.paneView.openInNewWindow' => 'Abrir em nova janela',
@@ -2252,13 +2262,13 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.moveToRealm' => 'Mover para realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copiar id do workspace',
 			'cockpit.projectsRail.rename' => 'Renomear',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.projectsRail.close' => 'Fechar',
 			'cockpit.projectsRail.newRealm' => 'Novo realm…',
 			'cockpit.projectsRail.manageRealms' => 'Gerenciar realms…',
 			'cockpit.projectsRail.noWorkspaces' => 'Nenhum workspace ainda.',
 			'cockpit.projectsRail.sync' => 'Sincronizar',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
 			'cockpit.projectsRail.createWorktree' => 'Criar worktree',

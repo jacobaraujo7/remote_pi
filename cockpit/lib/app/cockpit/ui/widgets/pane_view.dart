@@ -3,54 +3,55 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
+import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
-import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
+import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
-import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
-import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
-import 'package:cockpit/app/core/utils/platform_kind.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/browser_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_query_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/browser_pane.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
-import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
-import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_query_view.dart';
-import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
-import 'package:cockpit/app/core/ui/themes/themes.dart';
-import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
+import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/core/utils/path_utils.dart';
+import 'package:cockpit/app/core/utils/platform_kind.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart'
     show HitTestResult, PointerScrollEvent, PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
-import 'package:cockpit/i18n/strings.g.dart';
-import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
-import 'package:cockpit/app/core/utils/path_utils.dart';
 
 /// Folha do multiplexador: tab strip + corpo (agente: transcript+composer / empty;
 /// terminal: TerminalView). O foco aparece **só na aba ativa**.
@@ -281,6 +282,34 @@ class _TabStripState extends State<_TabStrip> {
     if (ok) widget.vm.closePane(widget.pane.id);
   }
 
+  /// Fecha um conjunto de abas desta pane, em sequência — é o que o menu de
+  /// contexto usa em "fechar as outras" e "fechar todas".
+  ///
+  /// Confirma uma vez antes (como o fechamento de pane: matar vários terminais
+  /// de uma vez não pode sair de um clique torto) e depois passa cada aba pelo
+  /// [requestCloseTab], então um arquivo com edição não salva ainda pergunta o
+  /// que fazer. Cancelar nesse diálogo interrompe as abas restantes.
+  Future<void> _closeTabs(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final tr = context.t.cockpit.paneView;
+    final ok = await showConfirmDialog(
+      context,
+      title: tr.closeTabsTitle,
+      message: tr.closeTabsMessage(count: ids.length),
+      confirmLabel: tr.close,
+      danger: true,
+    );
+    if (!mounted || !ok) return;
+    for (final id in ids) {
+      final closed = await requestCloseTab(
+        context,
+        widget.vm.session(id),
+        () => widget.vm.closeTab(widget.pane.id, id),
+      );
+      if (!mounted || !closed) return;
+    }
+  }
+
   /// Dropdown com todas as abas (pular direto pra uma) — aparece no overflow.
   Future<void> _showTabList(BuildContext anchor) async {
     final pane = widget.pane;
@@ -410,6 +439,24 @@ class _TabStripState extends State<_TabStrip> {
                                       pane.id,
                                       pane.tabs[i],
                                     ),
+                                    // Null na única aba: ali "fechar as outras"
+                                    // não faria nada e "fechar todas" seria o
+                                    // próprio "fechar", com um diálogo a mais.
+                                    onCloseOthers: pane.tabs.length > 1
+                                        ? () => _closeTabs([
+                                            for (final t in pane.tabs)
+                                              if (t != pane.tabs[i]) t,
+                                          ])
+                                        : null,
+                                    onCloseAll: pane.tabs.length > 1
+                                        ? () => _closeTabs(pane.tabs.toList())
+                                        : null,
+                                    // Só se existir aba à direita desta.
+                                    onCloseToTheRight: i < pane.tabs.length - 1
+                                        ? () => _closeTabs(
+                                            pane.tabs.sublist(i + 1),
+                                          )
+                                        : null,
                                     onRestart: () => widget.vm.restartTerminal(
                                       pane.id,
                                       pane.tabs[i],
@@ -507,6 +554,9 @@ class _Tab extends StatefulWidget {
     required this.focused,
     required this.onSelect,
     required this.onClose,
+    required this.onCloseOthers,
+    required this.onCloseAll,
+    required this.onCloseToTheRight,
     required this.onRestart,
     required this.onSetLabel,
     required this.onResetLabel,
@@ -519,6 +569,21 @@ class _Tab extends StatefulWidget {
   final bool focused;
   final VoidCallback onSelect;
   final VoidCallback onClose;
+
+  /// Fecha as outras abas desta pane, mantendo esta. `null` quando esta é a
+  /// única aba — aí o item nem aparece no menu.
+  ///
+  /// Diferente de [onClose], a confirmação de edição não salva acontece do
+  /// outro lado (a strip é quem conhece as abas irmãs).
+  final Future<void> Function()? onCloseOthers;
+
+  /// Fecha todas as abas desta pane, esta inclusive. `null` na única aba, onde
+  /// "fechar" já é o mesmo efeito. Mesma observação de [onCloseOthers] sobre
+  /// quem confirma.
+  final Future<void> Function()? onCloseAll;
+
+  /// Fecha as abas à direita desta na strip. `null` quando esta já é a última.
+  final Future<void> Function()? onCloseToTheRight;
 
   /// Reinicia uma aba de **terminal** no lugar (processo novo, mesma aba).
   final VoidCallback onRestart;
@@ -732,6 +797,24 @@ class _TabState extends State<_Tab> {
           ),
         ],
         AppMenuItem(value: 'close', label: tr.close, icon: Icons.close),
+        if (widget.onCloseOthers != null)
+          AppMenuItem(
+            value: 'close-others',
+            label: tr.closeOtherTabs,
+            icon: Symbols.tab_close_inactive,
+          ),
+        if (widget.onCloseToTheRight != null)
+          AppMenuItem(
+            value: 'close-to-the-right',
+            label: tr.closeTabsToTheRight,
+            icon: Symbols.tab_close_right,
+          ),
+        if (widget.onCloseAll != null)
+          AppMenuItem(
+            value: 'close-all',
+            label: tr.closeAllTabs,
+            icon: Symbols.tab_close,
+          ),
       ],
     );
     if (!mounted) return;
@@ -757,6 +840,12 @@ class _TabState extends State<_Tab> {
         widget.onRestart();
       case 'close':
         _requestClose();
+      case 'close-others':
+        await widget.onCloseOthers?.call();
+      case 'close-to-the-right':
+        await widget.onCloseToTheRight?.call();
+      case 'close-all':
+        await widget.onCloseAll?.call();
     }
   }
 
