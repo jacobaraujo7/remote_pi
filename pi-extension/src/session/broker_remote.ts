@@ -725,9 +725,15 @@ export class BrokerRemote implements RemoteRouter, BrokerRemoteLifecycle {
   }
 }
 
+// Same Windows-drive-letter-collision guard as session/peer_inventory.ts:
+// "C:\Users\..." is a local path, not a "<pcLabel>:<peerName>" remote
+// address, even though it contains a colon early in the string.
+const WINDOWS_DRIVE_LETTER_RE = /^[A-Za-z]:[\\/]/;
+
 export function parseAddress(
   to: string,
 ): { pcLabel: string; peerName: string } | null {
+  if (WINDOWS_DRIVE_LETTER_RE.test(to)) return null;
   const separator = to.indexOf(":");
   if (separator <= 0 || separator === to.length - 1) return null;
   return {
@@ -753,6 +759,7 @@ function stripKnownPcPrefix(
 }
 
 function stripRequiredPcPrefix(value: string): string | null {
+  if (WINDOWS_DRIVE_LETTER_RE.test(value)) return null;
   const separator = value.indexOf(":");
   if (separator <= 0 || separator === value.length - 1) return null;
   return value.slice(separator + 1);
