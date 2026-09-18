@@ -177,9 +177,10 @@ Requirements: Node 20+, Pi (the host coding agent).
 pi install npm:remote-pi
 ```
 
-The extension self-registers the `/remote-pi` slash command and deploys an
+The extension self-registers the `/remote-pi` slash command and bundles an
 agent skill that teaches the LLM how to use `list_peers`, `agent_send`, and the
-event-driven inbox/reply flow.
+event-driven inbox/reply flow. The skill is declared as a Pi package resource,
+so it can be disabled independently with `pi config` or `pi --no-skills`.
 
 To verify:
 
@@ -598,7 +599,6 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 | `~/.pi/remote/config.json` | Per-user | `relay` URL |
 | `~/.pi/remote/peers.json` | Per-machine | Paired mobile devices |
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
-| `~/.pi/remote/skills/agent-network/SKILL.md` | Per-user | Agent skill the LLM reads |
 
 Override the relay for a single run without persisting:
 
