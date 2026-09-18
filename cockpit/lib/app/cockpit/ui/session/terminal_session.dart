@@ -117,6 +117,10 @@ class TerminalSession extends PaneItem {
           onDone: () {
             final tail = _redactor.flush();
             if (tail.isNotEmpty) _coalescer.add(tail);
+            // Fim do stream = processo encerrado (o PTY local fecha a porta no
+            // exit; o sidecar fecha no `PtyExitEvent`). No `dispose` fomos nós
+            // que matamos — aí não é notícia pra ninguém.
+            if (!_disposed) onProcessExit?.call();
           },
         );
     terminal.onOutput = (data) {
@@ -175,6 +179,13 @@ class TerminalSession extends PaneItem {
   /// pra persistir o cwd vivo no layout — assim o restore sobe o shell onde o
   /// usuário parou, não no cwd inicial da aba.
   VoidCallback? onCwdChanged;
+
+  /// Disparado quando o processo do PTY termina por conta própria (não pelo
+  /// [dispose]). Uma aba de shell fica na tela mostrando o terminal morto; a do
+  /// Neovim é assinada pela VM e fecha junto com o `:q`.
+  VoidCallback? onProcessExit;
+
+  bool _disposed = false;
 
   int? _viewportColumns;
   int? _viewportRows;
@@ -560,6 +571,7 @@ class TerminalSession extends PaneItem {
 
   @override
   Future<void> dispose() async {
+    _disposed = true;
     _monitor?.unregisterSession(id);
     _notifyDebounce?.cancel();
     _saveDebounce.dispose();

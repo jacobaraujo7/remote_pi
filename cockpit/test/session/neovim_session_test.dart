@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
@@ -14,6 +15,13 @@ import 'package:flutter_test/flutter_test.dart';
 class _TerminalGateway implements TerminalGateway {
   TerminalProfile? profile;
   final sizes = <(int, int)>[];
+  final _output = StreamController<List<int>>();
+
+  /// Encerra o processo como o PTY faz quando o `nvim` sai: fecha a saída.
+  Future<void> exit() async {
+    await _output.close();
+    await Future<void>.delayed(Duration.zero);
+  }
 
   @override
   int? get rootProcessId => null;
@@ -22,7 +30,7 @@ class _TerminalGateway implements TerminalGateway {
   SpawnDirectory? get spawnDirectory => null;
 
   @override
-  Stream<List<int>> get output => const Stream.empty();
+  Stream<List<int>> get output => _output.stream;
 
   @override
   void start({
@@ -45,7 +53,9 @@ class _TerminalGateway implements TerminalGateway {
   void acknowledgeOutput() {}
 
   @override
-  Future<void> kill() async {}
+  Future<void> kill() async {
+    if (!_output.isClosed) await _output.close();
+  }
 }
 
 class _NeovimGateway implements NeovimGateway {
@@ -94,8 +104,10 @@ class _NeovimGateway implements NeovimGateway {
 void main() {
   late _TerminalGateway terminalGateway;
   late NeovimSession session;
+  var disposed = false;
 
   setUp(() {
+    disposed = false;
     terminalGateway = _TerminalGateway();
     session = NeovimSession(
       id: 'n1',
@@ -110,7 +122,7 @@ void main() {
     );
   });
 
-  tearDown(() => session.dispose());
+  tearDown(() => disposed ? null : session.dispose());
 
   test('installs the active-buffer autocmd in Neovim', () {
     expect(
@@ -154,6 +166,26 @@ void main() {
     expect(terminalGateway.sizes.last, (48, 132));
     expect(neovim.redraws, 1);
     expect(neovim.size, (columns: 132, rows: 48));
+  });
+
+  test('reports the process exit when Neovim quits', () async {
+    var exits = 0;
+    session.onProcessExit = () => exits++;
+
+    await terminalGateway.exit();
+
+    expect(exits, 1);
+  });
+
+  test('stays quiet when the session itself kills Neovim', () async {
+    var exits = 0;
+    session.onProcessExit = () => exits++;
+
+    await session.dispose();
+    disposed = true;
+    await Future<void>.delayed(Duration.zero);
+
+    expect(exits, 0);
   });
 
   test('waits for layout before synchronizing Neovim', () async {

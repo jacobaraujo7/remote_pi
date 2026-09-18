@@ -1421,6 +1421,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     session.onActivePathChanged = (path) {
       unawaited(_revealNeovimPath(session, path));
     };
+    // A aba é o editor: saiu do Neovim (`:q`, `:wq`, ou o processo morreu),
+    // a aba vai junto em vez de virar um terminal morto que ninguém usa.
+    session.onProcessExit = () {
+      if (_sessions[session.id] != session) return;
+      final paneId = leafOfTab(session.projectId, session.id);
+      if (paneId == null) return;
+      _closeTabIn(session.projectId, paneId, session.id);
+    };
   }
 
   Future<void> _revealNeovimPath(NeovimSession session, String path) async {
@@ -5202,37 +5210,49 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   void closeTab(String paneId, String agentId) {
     final projectId = _selectedProjectId;
-    final tree = _activeTree;
-    if (projectId == null || tree == null) return;
+    if (projectId == null) return;
+    _closeTabIn(projectId, paneId, agentId);
+  }
+
+  /// [closeTab] em um workspace qualquer, não só no selecionado: um processo
+  /// pode terminar (e levar a aba junto) enquanto o usuário está em outro
+  /// workspace, e a aba precisa sumir lá também.
+  void _closeTabIn(String projectId, String paneId, String tabId) {
+    final tree = _trees[projectId];
+    if (tree == null) return;
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
-    final tabs = leaf.tabs.where((t) => t != agentId).toList();
+    final tabs = leaf.tabs.where((t) => t != tabId).toList();
     if (tabs.isEmpty) {
       if (leaves(tree).length == 1) {
         final empty = _makeEmpty(projectId);
-        _setActiveTree(
-          updateLeaf(
-            tree,
-            paneId,
-            (p) => p.copyWith(tabs: [empty.id], active: empty.id),
-          ),
+        _trees[projectId] = updateLeaf(
+          tree,
+          paneId,
+          (p) => p.copyWith(tabs: [empty.id], active: empty.id),
         );
       } else {
-        _setActiveTree(removeLeaf(tree, paneId));
+        _trees[projectId] = removeLeaf(tree, paneId);
       }
     } else {
       var active = leaf.active;
-      if (active == agentId) {
-        final idx = leaf.tabs.indexOf(agentId);
+      if (active == tabId) {
+        final idx = leaf.tabs.indexOf(tabId);
         active = tabs[(idx - 1).clamp(0, tabs.length - 1)];
       }
-      _setActiveTree(
-        updateLeaf(tree, paneId, (p) => p.copyWith(tabs: tabs, active: active)),
+      _trees[projectId] = updateLeaf(
+        tree,
+        paneId,
+        (p) => p.copyWith(tabs: tabs, active: active),
       );
     }
-    _disposeSession(agentId);
-    _ensureFocusValid();
+    _disposeSession(tabId);
+    _ensureFocusValid(projectId);
     notifyListeners();
+    // `notifyListeners` só agenda a gravação do workspace selecionado.
+    if (!_restoring && projectId != _selectedProjectId) {
+      _scheduleSave(projectId);
+    }
   }
 
   /// Reinicia a aba de terminal [tabId] do pane [paneId]: mata o processo e
@@ -6529,8 +6549,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (switched || !listEquals(oldSig, newSig)) notifyListeners();
   }
 
-  void _ensureFocusValid() {
-    final id = _selectedProjectId;
+  void _ensureFocusValid([String? projectId]) {
+    final id = projectId ?? _selectedProjectId;
     if (id == null) return;
     final tree = _trees[id];
     if (tree == null) return;
