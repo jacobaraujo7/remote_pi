@@ -13,6 +13,7 @@ import 'package:app/ui/core/themes/app_font_scale.dart';
 class Preferences extends ChangeNotifier {
   final FlutterSecureStorage _store;
   bool _hideToolCalls = false;
+  bool _volumeKeysResizeText = true;
   String? _selectedPeerEpk;
   String? _relayUrl;
   bool _onboardingCompleted = false;
@@ -28,6 +29,7 @@ class Preferences extends ChangeNotifier {
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
   static const _kThemeModeKey = 'prefs.theme_mode';
   static const _kFontScaleKey = 'prefs.font_scale';
+  static const _kVolumeKeysResizeTextKey = 'prefs.volume_keys_resize_text';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -84,6 +86,11 @@ class Preferences extends ChangeNotifier {
   /// `copyWith(fontSize: …)` overrides that a typography-only change would miss.
   AppFontScale get fontScale => _fontScale;
 
+  /// True → the hardware volume keys step the text size instead of changing
+  /// media volume. Default on; the keys are consumed natively while it is set,
+  /// so this is the escape hatch back to normal volume behaviour.
+  bool get volumeKeysResizeText => _volumeKeysResizeText;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -126,6 +133,15 @@ class Preferences extends ChangeNotifier {
     final scale = AppFontScale.fromName(await _store.read(key: _kFontScaleKey));
     if (scale != _fontScale) {
       _fontScale = scale;
+      changed = true;
+    }
+
+    // Absent key → keep the default (true), so the shortcut is on for existing
+    // installs too; only an explicit `false` disables it.
+    final volumeKeys = await _store.read(key: _kVolumeKeysResizeTextKey);
+    final volumeKeysBool = volumeKeys != 'false';
+    if (volumeKeysBool != _volumeKeysResizeText) {
+      _volumeKeysResizeText = volumeKeysBool;
       changed = true;
     }
 
@@ -207,6 +223,14 @@ class Preferences extends ChangeNotifier {
     if (_fontScale == value) return;
     _fontScale = value;
     await _store.write(key: _kFontScaleKey, value: value.name);
+    notifyListeners();
+  }
+
+  /// Persist the volume-key shortcut toggle.
+  Future<void> setVolumeKeysResizeText(bool value) async {
+    if (_volumeKeysResizeText == value) return;
+    _volumeKeysResizeText = value;
+    await _store.write(key: _kVolumeKeysResizeTextKey, value: value.toString());
     notifyListeners();
   }
 
