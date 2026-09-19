@@ -253,6 +253,23 @@ and 27 (see [`plan/`](plan/) directory for design history).
   relay sees plaintext envelopes at rest and in forwarding. Self-hosting is
   the recommended path for sensitive deployments. E2E payload encryption is
   on the public roadmap (see `PROTOCOL.md` "Roadmap").
+- **Audit advisories cleared via targeted dependency overrides.**
+  `pi install npm:remote-pi` reported 5 advisories (2 high, 3 moderate),
+  inherited from the bundled `@earendil-works/pi-coding-agent` SDK pinned at
+  `^0.79.10`: undici < 8.9.0 (response desynchronization via retry
+  interceptor, cache-directive info disclosure, CRLF injection via blob-like
+  body `type`, cookie attribute injection), brace-expansion < 5.0.9 (DoS via
+  unbounded `{}` expansion), protobufjs < 7.6.5 (DoS in `.proto` option
+  parsing). With the SDK floor intentionally kept at `^0.79.10`, the
+  `pnpm-workspace.yaml` security overrides were extended instead: undici
+  8.5.0 → 8.10.0, brace-expansion 5.0.6 → 5.0.9, protobufjs 7.6.4 → 7.6.6,
+  hono 4.12.27 → 4.13.5, @hono/node-server 1.19.14 → 1.19.17, fast-uri
+  3.1.2 → 3.1.6, ip-address 10.2.0 → 10.5.0, nanoid 3.3.15 → 3.3.18, postcss
+  8.5.15 → 8.5.26 (all others pinned floors raised: esbuild, vite, ws
+  unchanged). `pnpm audit` (prod + dev): no known vulnerabilities. Note:
+  overrides do not propagate to consumer installs — the undici advisory
+  there persists until the SDK floor is raised (0.79.x pins undici 8.5.0
+  exact; the fixed 8.9.0+ ships in pi-coding-agent 0.84.3+).
 
 ### Removed
 
