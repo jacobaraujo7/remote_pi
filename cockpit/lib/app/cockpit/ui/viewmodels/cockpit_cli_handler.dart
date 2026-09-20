@@ -26,7 +26,7 @@ import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
-import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -518,10 +518,7 @@ class CockpitCliHandler {
           final sessions = _vm.allSessions
               .where((s) => s.projectId == workspaceId)
               .toList();
-          if (sessions.isEmpty ||
-              sessions.every(
-                (s) => s is AgentSession && s.status == AgentStatus.empty,
-              )) {
+          if (sessions.isEmpty || sessions.every((s) => s is EmptyTab)) {
             _vm.newTerminalTab(cwd: cleanPath);
           }
           final project = _vm.projectById(workspaceId);
@@ -553,10 +550,7 @@ class CockpitCliHandler {
         final sessions = _vm.allSessions
             .where((s) => s.projectId == project.id)
             .toList();
-        if (sessions.isEmpty ||
-            sessions.every(
-              (s) => s is AgentSession && s.status == AgentStatus.empty,
-            )) {
+        if (sessions.isEmpty || sessions.every((s) => s is EmptyTab)) {
           _vm.newTerminalTab(cwd: project.effectiveRoot);
         }
 
@@ -1508,7 +1502,6 @@ class CockpitCliHandler {
 
   String _paneKind(PaneItem s) {
     if (s is TerminalSession) return 'terminal';
-    if (s is AgentSession) return 'agent';
     if (s is FileViewerSession) return 'file';
     if (s is TaskOutputSession) return 'task';
     if (s is RedisBrowserSession) return 'redis';

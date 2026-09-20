@@ -81,12 +81,6 @@ class LocalNotifier implements Notifier {
     required String workspace,
   }) => _show(t.cockpit.notifications.agentNeedsAction, agentName, workspace);
 
-  @override
-  Future<void> agentCrashed({
-    required String agentName,
-    required String workspace,
-  }) => _show(t.cockpit.notifications.agentCrashed, agentName, workspace);
-
   Future<void> _show(String title, String agentName, String workspace) async {
     final subtitle = workspace.isEmpty ? agentName : '$agentName · $workspace';
     await _plugin.show(

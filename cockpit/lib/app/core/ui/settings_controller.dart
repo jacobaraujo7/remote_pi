@@ -265,9 +265,6 @@ class SettingsController extends ChangeNotifier {
   void setTasksPanelHeight(double value) =>
       _apply(_settings.copyWith(tasksPanelHeight: value));
 
-  void setEnableAgent(bool value) =>
-      _apply(_settings.copyWith(enableAgent: value));
-
   void setShowCockpit(bool value) =>
       _apply(_settings.copyWith(showCockpit: value));
 

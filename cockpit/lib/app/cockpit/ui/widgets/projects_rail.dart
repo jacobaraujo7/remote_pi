@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
@@ -9,6 +11,9 @@ import 'package:cockpit/app/core/ui/widgets/context_menu_gesture.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/core/ui/keep_awake_controller.dart';
+import 'package:cockpit_keepawake/cockpit_keepawake.dart' show PowerSource;
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -498,10 +503,95 @@ class _ProjectsRailState extends State<ProjectsRail> {
                   tooltip: context.t.cockpit.projectsRail.settings,
                   onTap: widget.onOpenSettings,
                 ),
+                const _KeepAwakeButton(),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botão "Keep awake" do rodapé: segura o sleep por inatividade DESTA máquina
+/// (não do workspace ativo, nem de host remoto — por isso mora no rodapé, a
+/// faixa que já significa "esta máquina": realm e Settings).
+///
+/// Estados: desligado = raio outline, cor de ícone em repouso; ligado = raio
+/// preenchido em accent; ligado na bateria = âmbar (é o caso em que o usuário
+/// precisa notar). Ao ligar, treme por ~400 ms como feedback e depois fica
+/// estático: nada de animação perpétua num app que já pinta N terminais.
+/// Some em plataforma sem suporte (iPad/Android nunca são host).
+class _KeepAwakeButton extends StatefulWidget {
+  const _KeepAwakeButton();
+
+  @override
+  State<_KeepAwakeButton> createState() => _KeepAwakeButtonState();
+}
+
+class _KeepAwakeButtonState extends State<_KeepAwakeButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+
+  @override
+  void dispose() {
+    _shake.dispose();
+    super.dispose();
+  }
+
+  Future<void> _toggle(KeepAwakeController ctl) async {
+    final wasActive = ctl.isActive;
+    await ctl.toggle();
+    if (!mounted) return;
+    if (!wasActive && ctl.isActive) _shake.forward(from: 0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ctl = context.watch<KeepAwakeController>();
+    if (!ctl.isSupported) return const SizedBox.shrink();
+    final colors = context.colors;
+    final tr = context.t.cockpit.projectsRail;
+    final active = ctl.isActive;
+    final onBattery = active && ctl.power == PowerSource.battery;
+    final color = !active
+        ? colors.text3
+        : onBattery
+        ? colors.warn
+        : colors.accent;
+    final tooltip = [
+      active ? tr.keepAwakeOn : tr.keepAwakeOff,
+      if (onBattery) tr.keepAwakeBattery,
+      tr.keepAwakeLid,
+    ].join('\n');
+    return AppTooltip(
+      message: tooltip,
+      child: HoverTap(
+        borderRadius: BorderRadius.circular(5),
+        onTap: () => _toggle(ctl),
+        child: SizedBox(
+          width: 26,
+          height: 26,
+          child: AnimatedBuilder(
+            animation: _shake,
+            builder: (context, child) {
+              // Senoide amortecida: 3 oscilações que somem até o fim.
+              final t = _shake.value;
+              final dx = t == 0 || t == 1
+                  ? 0.0
+                  : math.sin(t * math.pi * 6) * (1 - t) * 2.5;
+              return Transform.translate(offset: Offset(dx, 0), child: child);
+            },
+            child: Icon(
+              active ? Icons.bolt : Icons.bolt_outlined,
+              size: 16,
+              color: color,
+            ),
+          ),
+        ),
       ),
     );
   }

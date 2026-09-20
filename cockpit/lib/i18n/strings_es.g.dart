@@ -105,17 +105,11 @@ class _Translations$cockpit$es extends Translations$cockpit$en {
 	// Translations
 	@override late final _Translations$cockpit$confirmDialog$es confirmDialog = _Translations$cockpit$confirmDialog$es._(_root);
 	@override late final _Translations$cockpit$neovim$es neovim = _Translations$cockpit$neovim$es._(_root);
-	@override late final _Translations$cockpit$historyDialog$es historyDialog = _Translations$cockpit$historyDialog$es._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$es worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$es._(_root);
-	@override late final _Translations$cockpit$subfolderDialog$es subfolderDialog = _Translations$cockpit$subfolderDialog$es._(_root);
 	@override late final _Translations$cockpit$commitMessageDialog$es commitMessageDialog = _Translations$cockpit$commitMessageDialog$es._(_root);
-	@override late final _Translations$cockpit$agentEditDialog$es agentEditDialog = _Translations$cockpit$agentEditDialog$es._(_root);
-	@override late final _Translations$cockpit$agentSetupChecklist$es agentSetupChecklist = _Translations$cockpit$agentSetupChecklist$es._(_root);
-	@override late final _Translations$cockpit$agentComposer$es agentComposer = _Translations$cockpit$agentComposer$es._(_root);
 	@override late final _Translations$cockpit$tasksPanel$es tasksPanel = _Translations$cockpit$tasksPanel$es._(_root);
 	@override late final _Translations$cockpit$cockpitPage$es cockpitPage = _Translations$cockpit$cockpitPage$es._(_root);
 	@override late final _Translations$cockpit$welcomeView$es welcomeView = _Translations$cockpit$welcomeView$es._(_root);
-	@override late final _Translations$cockpit$modelPicker$es modelPicker = _Translations$cockpit$modelPicker$es._(_root);
 	@override late final _Translations$cockpit$paneView$es paneView = _Translations$cockpit$paneView$es._(_root);
 	@override late final _Translations$cockpit$fileTreePanel$es fileTreePanel = _Translations$cockpit$fileTreePanel$es._(_root);
 	@override late final _Translations$cockpit$fileViewer$es fileViewer = _Translations$cockpit$fileViewer$es._(_root);
@@ -132,9 +126,7 @@ class _Translations$cockpit$es extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$projectsRail$es projectsRail = _Translations$cockpit$projectsRail$es._(_root);
 	@override late final _Translations$cockpit$findBar$es findBar = _Translations$cockpit$findBar$es._(_root);
 	@override late final _Translations$cockpit$contentSearch$es contentSearch = _Translations$cockpit$contentSearch$es._(_root);
-	@override late final _Translations$cockpit$emptyPane$es emptyPane = _Translations$cockpit$emptyPane$es._(_root);
 	@override late final _Translations$cockpit$topbar$es topbar = _Translations$cockpit$topbar$es._(_root);
-	@override late final _Translations$cockpit$transcript$es transcript = _Translations$cockpit$transcript$es._(_root);
 	@override late final _Translations$cockpit$tasks$es tasks = _Translations$cockpit$tasks$es._(_root);
 	@override late final _Translations$cockpit$notifications$es notifications = _Translations$cockpit$notifications$es._(_root);
 	@override late final _Translations$cockpit$terminal$es terminal = _Translations$cockpit$terminal$es._(_root);
@@ -153,8 +145,6 @@ class _Translations$settings$es extends Translations$settings$en {
 
 	// Translations
 	@override late final _Translations$settings$language$es language = _Translations$settings$language$es._(_root);
-	@override late final _Translations$settings$revokeDialog$es revokeDialog = _Translations$settings$revokeDialog$es._(_root);
-	@override late final _Translations$settings$pairingDialog$es pairingDialog = _Translations$settings$pairingDialog$es._(_root);
 	@override late final _Translations$settings$page$es page = _Translations$settings$page$es._(_root);
 	@override late final _Translations$settings$remoteHosts$es remoteHosts = _Translations$settings$remoteHosts$es._(_root);
 }
@@ -279,7 +269,6 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get settings => 'Configuración…';
 	@override String get checkForUpdates => 'Buscar Actualizaciones…';
 	@override String get file => 'Archivo';
-	@override String get newAgent => 'Nuevo Agente';
 	@override String get newTerminal => 'Nueva Terminal';
 	@override String get openWorkspace => 'Abrir Workspace';
 	@override String get save => 'Guardar';
@@ -336,23 +325,6 @@ class _Translations$cockpit$neovim$es extends Translations$cockpit$neovim$en {
 	@override String get closeAnyway => 'Cerrar de todos modos';
 }
 
-// Path: cockpit.historyDialog
-class _Translations$cockpit$historyDialog$es extends Translations$cockpit$historyDialog$en {
-	_Translations$cockpit$historyDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => 'Historial de sesiones';
-	@override String get subtitle => 'Abrir una reemplaza la transcripción actual de este agente';
-	@override String get empty => 'No hay sesiones guardadas en esta carpeta.';
-	@override String get untitledSession => 'Sesión sin título';
-	@override String get justNow => 'ahora';
-	@override String minutesAgo({required Object n}) => 'hace ${n} min';
-	@override String hoursAgo({required Object n}) => 'hace ${n} h';
-	@override String daysAgo({required Object n}) => 'hace ${n} d';
-}
-
 // Path: cockpit.worktreeCreateDialog
 class _Translations$cockpit$worktreeCreateDialog$es extends Translations$cockpit$worktreeCreateDialog$en {
 	_Translations$cockpit$worktreeCreateDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -389,20 +361,6 @@ class _Translations$cockpit$worktreeCreateDialog$es extends Translations$cockpit
 	@override String get back => 'Atrás';
 }
 
-// Path: cockpit.subfolderDialog
-class _Translations$cockpit$subfolderDialog$es extends Translations$cockpit$subfolderDialog$en {
-	_Translations$cockpit$subfolderDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => '¿Dónde trabajar?';
-	@override String get empty => 'No hay subcarpetas aquí.';
-	@override String useRoot({required Object project}) => 'Usar la raíz de ${project}';
-	@override String usePath({required Object project, required Object rel}) => 'Usar ${project}/${rel}';
-	@override String get useThisFolder => 'Usar esta carpeta';
-}
-
 // Path: cockpit.commitMessageDialog
 class _Translations$cockpit$commitMessageDialog$es extends Translations$cockpit$commitMessageDialog$en {
 	_Translations$cockpit$commitMessageDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -424,77 +382,6 @@ class _Translations$cockpit$commitMessageDialog$es extends Translations$cockpit$
 	@override String generateWith({required Object harness}) => 'Generar con ${harness}';
 	@override String get generating => 'Generando…';
 	@override String get cancelGeneration => 'Cancelar generación';
-}
-
-// Path: cockpit.agentEditDialog
-class _Translations$cockpit$agentEditDialog$es extends Translations$cockpit$agentEditDialog$en {
-	_Translations$cockpit$agentEditDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => 'Editar agente';
-	@override String get agentName => 'Nombre del agente';
-	@override String get relaySection => 'Relay (remote-pi)';
-	@override String get autoConnect => 'Conectar automáticamente al iniciar';
-	@override String get informationSection => 'Información';
-	@override String get folder => 'Carpeta';
-	@override String get model => 'Modelo';
-	@override String get state => 'Estado';
-	@override String get context => 'Contexto';
-	@override String get statusEmpty => 'vacío';
-	@override String get statusStarting => 'iniciando';
-	@override String get statusReady => 'listo';
-	@override String get statusStreaming => 'transmitiendo';
-	@override String get statusEnded => 'finalizado';
-}
-
-// Path: cockpit.agentSetupChecklist
-class _Translations$cockpit$agentSetupChecklist$es extends Translations$cockpit$agentSetupChecklist$en {
-	_Translations$cockpit$agentSetupChecklist$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => 'Configurar el entorno del agente';
-	@override String get intro => 'Ejecutar un agente requiere tener Pi instalado. Completa los pasos siguientes — las terminales y los archivos funcionan sin nada de esto.';
-	@override String get step1Title => 'Pi Code instalado';
-	@override String get step1Description => 'El binario `pi` debe estar accesible.';
-	@override String get step2Title => 'Extensión remote-pi en Pi';
-	@override String get step2Description => 'Registrada en ~/.pi/agent/settings.json.';
-	@override String get step3Title => 'Supervisor instalado';
-	@override String get step3Description => 'Servicio pi-supervisord (remote-pi install).';
-	@override String get install => 'Instalar';
-	@override String get installExtensionTitle => 'Instalar extensión remote-pi';
-	@override String get installSupervisorTitle => 'Instalar supervisor';
-	@override String get createAgent => 'Crear agente';
-	@override String get back => 'Atrás';
-	@override String get checkAgain => 'Comprobar de nuevo';
-	@override String get notRequired => 'No obligatorio en esta configuración';
-	@override String get installing => 'Instalando…';
-	@override String get installedSuccessfully => 'Instalado correctamente.';
-}
-
-// Path: cockpit.agentComposer
-class _Translations$cockpit$agentComposer$es extends Translations$cockpit$agentComposer$en {
-	_Translations$cockpit$agentComposer$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get cmdNewDescription => 'Nueva sesión — borra la conversación';
-	@override String get cmdCompactDescription => 'Compacta el contexto del agente';
-	@override String get attachFile => 'Adjuntar archivo';
-	@override String maxImages({required Object max}) => 'Máximo de ${max} imágenes.';
-	@override String get placeholder => 'Mensaje para el agente, usa @files o /commands';
-	@override String get stop => 'Detener';
-	@override String get send => 'Enviar';
-	@override String get relayOnline => 'Relay en línea';
-	@override String get relayReconnecting => 'Relay reconectando...';
-	@override String get relayOffline => 'Relay sin conexión';
-	@override String contextTooltip({required Object pct}) => 'Contexto: ${pct}% de la ventana';
-	@override String get visionWarning => 'El modelo actual no puede ver imágenes — cambia a uno con soporte de visión.';
-	@override String get modelFallback => 'modelo';
 }
 
 // Path: cockpit.tasksPanel
@@ -580,16 +467,6 @@ class _Translations$cockpit$welcomeView$es extends Translations$cockpit$welcomeV
 	@override String get addWorkspace => 'Añadir workspace';
 }
 
-// Path: cockpit.modelPicker
-class _Translations$cockpit$modelPicker$es extends Translations$cockpit$modelPicker$en {
-	_Translations$cockpit$modelPicker$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String search({required Object count}) => 'Buscar modelo (${count})';
-}
-
 // Path: cockpit.paneView
 class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en {
 	_Translations$cockpit$paneView$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -600,6 +477,11 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get closePaneTitle => '¿Cerrar panel?';
 	@override String closePaneMessage({required Object count}) => 'Esto cierra todas las ${count} pestaña(s) de este panel y finaliza los agentes/terminales en él.';
 	@override String get close => 'Cerrar';
+	@override String get closeOtherTabs => 'Cerrar las otras';
+	@override String get closeTabsToTheRight => 'Cerrar a la derecha';
+	@override String get closeAllTabs => 'Cerrar todas';
+	@override String get closeTabsTitle => '¿Cerrar pestañas?';
+	@override String closeTabsMessage({required Object count}) => 'Esto cierra ${count} pestaña(s) y finaliza los agentes/terminales en ellas.';
 	@override String get allTabs => 'Todas las pestañas';
 	@override String get pinTab => 'Fijar pestaña';
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
@@ -609,8 +491,6 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
 	@override String get restartTab => 'Reiniciar';
-	@override String get autoRelay => 'Auto-relay';
-	@override String get history => 'Historial';
 	@override String get newTab => 'Nueva pestaña';
 	@override String get newTerminal => 'Nueva terminal…';
 	@override String get splitRight => 'Dividir a la derecha';
@@ -683,7 +563,6 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String get openLayout => 'Abrir layout';
 	@override String get openAsMarkdown => 'Abrir como markdown';
 	@override String get showGitDiff => 'Mostrar diff de git';
-	@override String get createAgent => 'Crear agente';
 	@override String get createTerminal => 'Crear terminal';
 	@override String get rename => 'Renombrar';
 	@override String get copy => 'Copiar';
@@ -1043,6 +922,10 @@ class _Translations$cockpit$projectsRail$es extends Translations$cockpit$project
 
 	// Translations
 	@override String get workspaces => 'Workspaces';
+	@override String get keepAwakeOn => 'Manteniendo este equipo despierto para acceso remoto. Haz clic para dejarlo dormir de nuevo.';
+	@override String get keepAwakeOff => 'Mantener este equipo despierto para acceso remoto. Se apaga solo cuando Cockpit se reinicia.';
+	@override String get keepAwakeBattery => 'Despierto con batería. Esto consume la batería.';
+	@override String get keepAwakeLid => 'Cerrar la tapa del portátil sigue poniéndolo a dormir.';
 	@override String get newWorkspace => 'Nuevo workspace';
 	@override String get settings => 'Configuración';
 	@override String get mergeToParent => 'Fusionar en el padre';
@@ -1105,19 +988,6 @@ class _Translations$cockpit$contentSearch$es extends Translations$cockpit$conten
 	@override String get noResults => 'Sin resultados.';
 }
 
-// Path: cockpit.emptyPane
-class _Translations$cockpit$emptyPane$es extends Translations$cockpit$emptyPane$en {
-	_Translations$cockpit$emptyPane$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get newAgent => 'Nuevo agente';
-	@override String get newAgentDescription => 'Ejecuta un pi en la carpeta que elijas';
-	@override String get newTerminal => 'Nueva terminal';
-	@override String get newTerminalDescription => 'Abre un shell en la carpeta que elijas';
-}
-
 // Path: cockpit.topbar
 class _Translations$cockpit$topbar$es extends Translations$cockpit$topbar$en {
 	_Translations$cockpit$topbar$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -1129,20 +999,6 @@ class _Translations$cockpit$topbar$es extends Translations$cockpit$topbar$en {
 	@override String get toggleFiles => 'Mostrar/ocultar archivos';
 	@override String get filesUnavailable => 'Archivos no disponibles en Cockpit';
 	@override String get hideKeyboard => 'Ocultar teclado';
-}
-
-// Path: cockpit.transcript
-class _Translations$cockpit$transcript$es extends Translations$cockpit$transcript$en {
-	_Translations$cockpit$transcript$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get cancel => 'Cancelar';
-	@override String get send => 'Enviar';
-	@override String get typeYourAnswer => 'Escribe tu respuesta';
-	@override String get startHint => 'Envía un prompt para que el agente empiece.';
-	@override String workedFor({required Object duration}) => 'Trabajó ${duration}';
 }
 
 // Path: cockpit.tasks
@@ -1169,7 +1025,6 @@ class _Translations$cockpit$notifications$es extends Translations$cockpit$notifi
 	@override String get agentFinished => 'El agente terminó';
 	@override String get open => 'Abrir';
 	@override String get agentNeedsAction => 'El agente necesita tu acción';
-	@override String get agentCrashed => 'El agente se detuvo inesperadamente';
 }
 
 // Path: cockpit.terminal
@@ -1330,41 +1185,6 @@ class _Translations$settings$language$es extends Translations$settings$language$
 	@override String get spanish => 'Español';
 }
 
-// Path: settings.revokeDialog
-class _Translations$settings$revokeDialog$es extends Translations$settings$revokeDialog$en {
-	_Translations$settings$revokeDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get deviceRemoved => 'Dispositivo eliminado.';
-	@override String get failedToRevoke => 'No se pudo revocar el dispositivo.';
-	@override String get revoking => 'Revocando…';
-	@override String revokingDevice({required Object name}) => 'Revocando ${name}…';
-	@override String get connectingMessage => 'Conectando al relay y quitando el acceso.';
-	@override String get ok => 'Ok';
-}
-
-// Path: settings.pairingDialog
-class _Translations$settings$pairingDialog$es extends Translations$settings$pairingDialog$en {
-	_Translations$settings$pairingDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => 'Vincular dispositivo';
-	@override String get connectingToRelay => 'Conectando al relay…';
-	@override String get step1 => 'Abre la app Remote Pi en tu teléfono.';
-	@override String get step2 => 'Toca en añadir / vincular dispositivo.';
-	@override String get step3 => 'Apunta la cámara al QR de abajo.';
-	@override String get qrGenerationFailed => 'No se pudo generar el QR.';
-	@override String get autoRefreshHint => 'El código se actualiza automáticamente. Mantén esta ventana abierta.';
-	@override String get pairingFailed => 'Fallo en la vinculación.';
-	@override String get tryAgain => 'Intentar de nuevo';
-	@override String get copied => '¡Copiado!';
-	@override String get copyData => 'Copiar datos';
-}
-
 // Path: settings.page
 class _Translations$settings$page$es extends Translations$settings$page$en {
 	_Translations$settings$page$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -1382,9 +1202,6 @@ class _Translations$settings$page$es extends Translations$settings$page$en {
 	@override late final _Translations$settings$page$notifications$es notifications = _Translations$settings$page$notifications$es._(_root);
 	@override late final _Translations$settings$page$shortcuts$es shortcuts = _Translations$settings$page$shortcuts$es._(_root);
 	@override late final _Translations$settings$page$languages$es languages = _Translations$settings$page$languages$es._(_root);
-	@override late final _Translations$settings$page$connectivity$es connectivity = _Translations$settings$page$connectivity$es._(_root);
-	@override late final _Translations$settings$page$schedules$es schedules = _Translations$settings$page$schedules$es._(_root);
-	@override late final _Translations$settings$page$daemons$es daemons = _Translations$settings$page$daemons$es._(_root);
 	@override late final _Translations$settings$page$automations$es automations = _Translations$settings$page$automations$es._(_root);
 }
 
@@ -1673,9 +1490,6 @@ class _Translations$settings$page$nav$es extends Translations$settings$page$nav$
 	@override String get language => 'Lenguaje';
 	@override String get shortcuts => 'Atajos';
 	@override String get notifications => 'Notificaciones';
-	@override String get connectivity => 'Conectividad';
-	@override String get daemonAgents => 'Agentes Daemon';
-	@override String get schedules => 'Programaciones';
 	@override String get automations => 'Automatizaciones';
 	@override String get remoteHosts => 'Hosts remotos';
 }
@@ -1687,7 +1501,6 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
-	@override String get sectionAgent => 'Agente';
 	@override String get sectionEditor => 'Editor';
 	@override String get editorEngineTitle => 'Motor';
 	@override String get editorEngineCockpit => 'Cockpit (predeterminado)';
@@ -1695,8 +1508,6 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	@override String get neovimChecking => 'Buscando Neovim…';
 	@override String get neovimNotFound => 'Neovim no se encontró en la PATH de tu shell.';
 	@override String get neovimRefresh => 'Comprobar de nuevo';
-	@override String get enableAgentsTitle => 'Activar agentes';
-	@override String get enableAgentsDesc => 'Muestra la opción de abrir pestañas de agente (pi). Cuando está desactivado, Cockpit funciona solo como workspace de terminal.';
 	@override String get showCockpitTitle => 'Mostrar terminal de Cockpit';
 	@override String get showCockpitDesc => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.';
 	@override String get launchAtStartupTitle => 'Iniciar al arrancar';
@@ -1704,7 +1515,6 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	@override String get sectionUpdates => 'Actualizaciones';
 	@override String get checkUpdatesTitle => 'Buscar actualizaciones';
 	@override String get checkUpdatesDesc => 'Con qué frecuencia Cockpit debe buscar nuevas versiones.';
-	@override String get agentsInUseError => 'No se pueden desactivar los agentes mientras haya una pestaña de agente abierta. Cierra todas las pestañas de agente primero y luego desactívalo.';
 	@override late final _Translations$settings$page$general$updateFrequency$es updateFrequency = _Translations$settings$page$general$updateFrequency$es._(_root);
 }
 
@@ -1857,8 +1667,6 @@ class _Translations$settings$page$notifications$es extends Translations$settings
 	@override String get soundTurnDoneDesc => 'Un agente terminó su turno.';
 	@override String get soundActionRequired => 'Acción requerida';
 	@override String get soundActionRequiredDesc => 'Un agente está esperando tu aprobación o respuesta.';
-	@override String get soundAgentError => 'Error del agente';
-	@override String get soundAgentErrorDesc => 'El proceso de un agente se detuvo inesperadamente.';
 	@override String get soundDefault => 'Predeterminado';
 	@override String soundCustom({required Object name}) => 'Personalizado: ${name}';
 	@override String get soundChooseFile => 'Elegir archivo';
@@ -1896,125 +1704,6 @@ class _Translations$settings$page$languages$es extends Translations$settings$pag
 	@override String get saveAndRestart => 'Guardar y reiniciar';
 	@override String get statusResponds => 'El servidor responde';
 	@override String get statusNotFound => 'Servidor no encontrado o comando inválido';
-}
-
-// Path: settings.page.connectivity
-class _Translations$settings$page$connectivity$es extends Translations$settings$page$connectivity$en {
-	_Translations$settings$page$connectivity$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get sectionRelay => 'Relay';
-	@override String get sectionPairedDevices => 'Dispositivos vinculados';
-	@override String get reloadTooltip => 'Recargar';
-	@override String get failedToListDevices => 'No se pudieron listar los dispositivos.';
-	@override String get noPairedDevices => 'No hay dispositivos vinculados.';
-	@override String get relayAddressTitle => 'Dirección del relay';
-	@override String get relayAddressDesc => 'Servidor que conecta tus agentes con el teléfono. Se aplica a todo agente con el relay activado.';
-	@override String get saving => 'Guardando…';
-	@override String get check => 'Comprobar';
-	@override String get healthOnline => 'En línea';
-	@override String get healthNoResponse => 'Sin respuesta';
-	@override String get healthNotChecked => 'No comprobado';
-	@override String get deviceDefaultLabel => 'Dispositivo';
-	@override String get revoke => 'Revocar';
-	@override String get pairNewDevice => 'Vincular nuevo dispositivo';
-	@override String get revokeDialogTitle => '¿Revocar dispositivo?';
-	@override String revokeDialogContent({required Object name}) => '"${name}" perderá el acceso a tus agentes y deberá vincularse de nuevo.\n\nDebes estar conectado al relay — la app se conectará automáticamente para revocar.';
-}
-
-// Path: settings.page.schedules
-class _Translations$settings$page$schedules$es extends Translations$settings$page$schedules$en {
-	_Translations$settings$page$schedules$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get sectionScheduledPrompts => 'Prompts programados';
-	@override String get createSchedule => 'Crear programación';
-	@override String get createDaemonFirst => 'Crea primero un Agente Daemon.';
-	@override String get supervisorOffline => 'Supervisor sin conexión. Las programaciones necesitan que pi-supervisord esté en ejecución (`remote-pi install`).';
-	@override String get failedToListSchedules => 'No se pudieron listar las programaciones.';
-	@override String get noSchedules => 'Sin programaciones. Crea un prompt recurrente para un daemon.';
-	@override String get runNow => 'Ejecutar ahora';
-	@override String get viewLog => 'Ver registro';
-	@override String get disabled => 'desactivado';
-	@override String nextRun({required Object when}) => 'próximo ${when}';
-	@override String lastRun({required Object label}) => 'último: ${label}';
-	@override String get removeScheduleDialogTitle => '¿Quitar programación?';
-	@override String removeScheduleDialogContent({required Object schedule, required Object daemon}) => 'El job "${schedule}" de ${daemon} se elimina. Sus ejecuciones se detienen.';
-	@override String get newScheduleTitle => 'Nueva programación';
-	@override String get daemonLabel => 'Daemon';
-	@override String get whenLabel => 'Cuándo (expresión cron)';
-	@override String get previewPlaceholder => 'La próxima ejecución aparece aquí';
-	@override String get previewComputed => 'Próximo: calculado al guardar';
-	@override String previewNext({required Object when}) => 'Próximo: ${when}';
-	@override String get exampleEveryDay9am => 'todos los días a las 9h';
-	@override String get exampleHourly => 'cada hora';
-	@override String get exampleEvery15Min => 'cada 15 min';
-	@override String get exampleWeekdays6pm => 'días laborables a las 18h';
-	@override String get promptLabel => 'Prompt';
-	@override String get timezoneLabel => 'Zona horaria (opcional)';
-	@override String get skipIfBusy => 'Omitir si el agente está ocupado';
-	@override String get wakeIfStopped => 'Despertar el daemon si está detenido';
-	@override String get catchup => 'Recuperar 1 ejecución perdida (catchup)';
-	@override String get fillRequiredError => 'Completa la expresión y el prompt.';
-	@override String get creating => 'Creando…';
-	@override String get failedToCreateSchedule => 'No se pudo crear la programación.';
-	@override String historyTitle({required Object schedule}) => 'Historial — ${schedule}';
-	@override String get failedToReadLog => 'No se pudo leer el registro.';
-	@override String get noRecordsYet => 'Aún no hay registros.';
-	@override String get cronDelivered => 'entregado';
-	@override String get cronWokeDelivered => 'despertó + entregado';
-	@override String get cronFailed => 'falló';
-	@override String get cronSkippedBusy => 'omitido (ocupado)';
-	@override String get cronSkippedStopped => 'omitido (detenido)';
-	@override String get cronSkippedDisabled => 'omitido (desactivado)';
-}
-
-// Path: settings.page.daemons
-class _Translations$settings$page$daemons$es extends Translations$settings$page$daemons$en {
-	_Translations$settings$page$daemons$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get sectionAlwaysOnAgents => 'Agentes siempre activos';
-	@override String get createDaemon => 'Crear daemon';
-	@override String get startAll => 'Iniciar todos';
-	@override String get stopAll => 'Detener todos';
-	@override String get restartAll => 'Reiniciar todos';
-	@override String get restartSupervisor => 'Reiniciar supervisor';
-	@override String get restartSupervisorDialogTitle => '¿Reiniciar el supervisor?';
-	@override String get restartSupervisorDialogContent => 'Reinicia el proceso del supervisor (recarga el código). Todos los daemons se reinician con él y quedan sin conexión unos segundos.';
-	@override String get removeDaemonDialogTitle => '¿Quitar daemon?';
-	@override String removeDaemonDialogContent({required Object name}) => '"${name}" deja de ejecutarse y sale del registro. La carpeta y su configuración local se conservan — puedes recrearlo después.';
-	@override String get supervisorOfflineTitle => 'Supervisor sin conexión';
-	@override String get supervisorOfflineDesc => 'pi-supervisord no se está ejecutando. Instálalo con `remote-pi install` para gestionar agentes 24/7.';
-	@override String get failedToListDaemons => 'No se pudieron listar los daemons.';
-	@override String get noRegisteredAgents => 'Sin agentes registrados. Crea uno a partir de una carpeta.';
-	@override String get start => 'Iniciar';
-	@override String get stop => 'Detener';
-	@override String get edit => 'Editar';
-	@override String get stateRunning => 'en ejecución';
-	@override String get stateStarting => 'iniciando';
-	@override String get stateStopped => 'detenido';
-	@override String get stateFailed => 'falló';
-	@override String get newDaemonTitle => 'Nuevo daemon';
-	@override String get editDaemonTitle => 'Editar daemon';
-	@override String get nameLabel => 'Nombre';
-	@override String get namePlaceholder => 'ej.: PC, Servidor, Casa';
-	@override String get nameRequiredError => 'Escribe un nombre.';
-	@override String get nameDuplicateError => 'Ya existe un agente con ese nombre.';
-	@override String get folderLabel => 'Carpeta';
-	@override String get noFolderChosen => 'Ninguna carpeta elegida';
-	@override String get choose => 'Elegir';
-	@override String get changeFolder => 'Cambiar';
-	@override String get folderCannotBeChanged => 'La carpeta no se puede cambiar.';
-	@override String get folderRequiredError => 'Elige una carpeta.';
-	@override String get folderDuplicateError => 'Ya existe un agente en esta carpeta.';
-	@override String get pickFolderDialogTitle => 'Elige la carpeta del Agente Daemon';
 }
 
 // Path: settings.page.automations
@@ -2097,7 +1786,6 @@ extension on TranslationsEs {
 			'core.menu.settings' => 'Configuración…',
 			'core.menu.checkForUpdates' => 'Buscar Actualizaciones…',
 			'core.menu.file' => 'Archivo',
-			'core.menu.newAgent' => 'Nuevo Agente',
 			'core.menu.newTerminal' => 'Nueva Terminal',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
 			'core.menu.save' => 'Guardar',
@@ -2157,14 +1845,6 @@ extension on TranslationsEs {
 			'cockpit.neovim.unsavedTitle' => 'Búferes de Neovim sin guardar',
 			'cockpit.neovim.unsavedMessage' => 'Neovim tiene búferes modificados. ¿Cerrar la pestaña y descartar esos cambios?',
 			'cockpit.neovim.closeAnyway' => 'Cerrar de todos modos',
-			'cockpit.historyDialog.title' => 'Historial de sesiones',
-			'cockpit.historyDialog.subtitle' => 'Abrir una reemplaza la transcripción actual de este agente',
-			'cockpit.historyDialog.empty' => 'No hay sesiones guardadas en esta carpeta.',
-			'cockpit.historyDialog.untitledSession' => 'Sesión sin título',
-			'cockpit.historyDialog.justNow' => 'ahora',
-			'cockpit.historyDialog.minutesAgo' => ({required Object n}) => 'hace ${n} min',
-			'cockpit.historyDialog.hoursAgo' => ({required Object n}) => 'hace ${n} h',
-			'cockpit.historyDialog.daysAgo' => ({required Object n}) => 'hace ${n} d',
 			'cockpit.worktreeCreateDialog.forkTitle' => 'Fork del worktree',
 			'cockpit.worktreeCreateDialog.createTitle' => 'Crear worktree',
 			'cockpit.worktreeCreateDialog.forkSubtitle' => ({required Object root}) => 'Nueva worktree ramificada desde ${root}.',
@@ -2192,11 +1872,6 @@ extension on TranslationsEs {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Ejecuta git fetch para garantizar que la branch base esté confirmada antes de crear el worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Atrás',
-			'cockpit.subfolderDialog.title' => '¿Dónde trabajar?',
-			'cockpit.subfolderDialog.empty' => 'No hay subcarpetas aquí.',
-			'cockpit.subfolderDialog.useRoot' => ({required Object project}) => 'Usar la raíz de ${project}',
-			'cockpit.subfolderDialog.usePath' => ({required Object project, required Object rel}) => 'Usar ${project}/${rel}',
-			'cockpit.subfolderDialog.useThisFolder' => 'Usar esta carpeta',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage y Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit solo de "${fileName}".',
@@ -2211,50 +1886,6 @@ extension on TranslationsEs {
 			'cockpit.commitMessageDialog.generateWith' => ({required Object harness}) => 'Generar con ${harness}',
 			'cockpit.commitMessageDialog.generating' => 'Generando…',
 			'cockpit.commitMessageDialog.cancelGeneration' => 'Cancelar generación',
-			'cockpit.agentEditDialog.title' => 'Editar agente',
-			'cockpit.agentEditDialog.agentName' => 'Nombre del agente',
-			'cockpit.agentEditDialog.relaySection' => 'Relay (remote-pi)',
-			'cockpit.agentEditDialog.autoConnect' => 'Conectar automáticamente al iniciar',
-			'cockpit.agentEditDialog.informationSection' => 'Información',
-			'cockpit.agentEditDialog.folder' => 'Carpeta',
-			'cockpit.agentEditDialog.model' => 'Modelo',
-			'cockpit.agentEditDialog.state' => 'Estado',
-			'cockpit.agentEditDialog.context' => 'Contexto',
-			'cockpit.agentEditDialog.statusEmpty' => 'vacío',
-			'cockpit.agentEditDialog.statusStarting' => 'iniciando',
-			'cockpit.agentEditDialog.statusReady' => 'listo',
-			'cockpit.agentEditDialog.statusStreaming' => 'transmitiendo',
-			'cockpit.agentEditDialog.statusEnded' => 'finalizado',
-			'cockpit.agentSetupChecklist.title' => 'Configurar el entorno del agente',
-			'cockpit.agentSetupChecklist.intro' => 'Ejecutar un agente requiere tener Pi instalado. Completa los pasos siguientes — las terminales y los archivos funcionan sin nada de esto.',
-			'cockpit.agentSetupChecklist.step1Title' => 'Pi Code instalado',
-			'cockpit.agentSetupChecklist.step1Description' => 'El binario `pi` debe estar accesible.',
-			'cockpit.agentSetupChecklist.step2Title' => 'Extensión remote-pi en Pi',
-			'cockpit.agentSetupChecklist.step2Description' => 'Registrada en ~/.pi/agent/settings.json.',
-			'cockpit.agentSetupChecklist.step3Title' => 'Supervisor instalado',
-			'cockpit.agentSetupChecklist.step3Description' => 'Servicio pi-supervisord (remote-pi install).',
-			'cockpit.agentSetupChecklist.install' => 'Instalar',
-			'cockpit.agentSetupChecklist.installExtensionTitle' => 'Instalar extensión remote-pi',
-			'cockpit.agentSetupChecklist.installSupervisorTitle' => 'Instalar supervisor',
-			'cockpit.agentSetupChecklist.createAgent' => 'Crear agente',
-			'cockpit.agentSetupChecklist.back' => 'Atrás',
-			'cockpit.agentSetupChecklist.checkAgain' => 'Comprobar de nuevo',
-			'cockpit.agentSetupChecklist.notRequired' => 'No obligatorio en esta configuración',
-			'cockpit.agentSetupChecklist.installing' => 'Instalando…',
-			'cockpit.agentSetupChecklist.installedSuccessfully' => 'Instalado correctamente.',
-			'cockpit.agentComposer.cmdNewDescription' => 'Nueva sesión — borra la conversación',
-			'cockpit.agentComposer.cmdCompactDescription' => 'Compacta el contexto del agente',
-			'cockpit.agentComposer.attachFile' => 'Adjuntar archivo',
-			'cockpit.agentComposer.maxImages' => ({required Object max}) => 'Máximo de ${max} imágenes.',
-			'cockpit.agentComposer.placeholder' => 'Mensaje para el agente, usa @files o /commands',
-			'cockpit.agentComposer.stop' => 'Detener',
-			'cockpit.agentComposer.send' => 'Enviar',
-			'cockpit.agentComposer.relayOnline' => 'Relay en línea',
-			'cockpit.agentComposer.relayReconnecting' => 'Relay reconectando...',
-			'cockpit.agentComposer.relayOffline' => 'Relay sin conexión',
-			'cockpit.agentComposer.contextTooltip' => ({required Object pct}) => 'Contexto: ${pct}% de la ventana',
-			'cockpit.agentComposer.visionWarning' => 'El modelo actual no puede ver imágenes — cambia a uno con soporte de visión.',
-			'cockpit.agentComposer.modelFallback' => 'modelo',
 			'cockpit.tasksPanel.reloadTasksTooltip' => 'Recargar tasks',
 			'cockpit.tasksPanel.restartTooltip' => 'Reiniciar',
 			'cockpit.tasksPanel.stopTooltip' => 'Detener',
@@ -2308,10 +1939,14 @@ extension on TranslationsEs {
 			'cockpit.welcomeView.connectHost' => 'Conectar a un host',
 			'cockpit.welcomeView.configureHost' => 'Configurar host',
 			'cockpit.welcomeView.addWorkspace' => 'Añadir workspace',
-			'cockpit.modelPicker.search' => ({required Object count}) => 'Buscar modelo (${count})',
 			'cockpit.paneView.closePaneTitle' => '¿Cerrar panel?',
 			'cockpit.paneView.closePaneMessage' => ({required Object count}) => 'Esto cierra todas las ${count} pestaña(s) de este panel y finaliza los agentes/terminales en él.',
 			'cockpit.paneView.close' => 'Cerrar',
+			'cockpit.paneView.closeOtherTabs' => 'Cerrar las otras',
+			'cockpit.paneView.closeTabsToTheRight' => 'Cerrar a la derecha',
+			'cockpit.paneView.closeAllTabs' => 'Cerrar todas',
+			'cockpit.paneView.closeTabsTitle' => '¿Cerrar pestañas?',
+			'cockpit.paneView.closeTabsMessage' => ({required Object count}) => 'Esto cierra ${count} pestaña(s) y finaliza los agentes/terminales en ellas.',
 			'cockpit.paneView.allTabs' => 'Todas las pestañas',
 			'cockpit.paneView.pinTab' => 'Fijar pestaña',
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
@@ -2321,8 +1956,6 @@ extension on TranslationsEs {
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
 			'cockpit.paneView.restartTab' => 'Reiniciar',
-			'cockpit.paneView.autoRelay' => 'Auto-relay',
-			'cockpit.paneView.history' => 'Historial',
 			'cockpit.paneView.newTab' => 'Nueva pestaña',
 			'cockpit.paneView.newTerminal' => 'Nueva terminal…',
 			'cockpit.paneView.splitRight' => 'Dividir a la derecha',
@@ -2386,7 +2019,6 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.openLayout' => 'Abrir layout',
 			'cockpit.fileTreePanel.openAsMarkdown' => 'Abrir como markdown',
 			'cockpit.fileTreePanel.showGitDiff' => 'Mostrar diff de git',
-			'cockpit.fileTreePanel.createAgent' => 'Crear agente',
 			'cockpit.fileTreePanel.createTerminal' => 'Crear terminal',
 			'cockpit.fileTreePanel.rename' => 'Renombrar',
 			'cockpit.fileTreePanel.copy' => 'Copiar',
@@ -2589,8 +2221,6 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 doc', other: '${n} docs', ), 
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Actualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
 			'cockpit.dbMongoView.noDocuments' => 'No hay documentos en esta colección.',
@@ -2634,6 +2264,10 @@ extension on TranslationsEs {
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Se mantiene en memoria hasta que Cockpit se cierre. Para que los agentes usen esta conexión, activa "Guardar frase de contraseña" en la conexión.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
+			'cockpit.projectsRail.keepAwakeOn' => 'Manteniendo este equipo despierto para acceso remoto. Haz clic para dejarlo dormir de nuevo.',
+			'cockpit.projectsRail.keepAwakeOff' => 'Mantener este equipo despierto para acceso remoto. Se apaga solo cuando Cockpit se reinicia.',
+			'cockpit.projectsRail.keepAwakeBattery' => 'Despierto con batería. Esto consume la batería.',
+			'cockpit.projectsRail.keepAwakeLid' => 'Cerrar la tapa del portátil sigue poniéndolo a dormir.',
 			'cockpit.projectsRail.newWorkspace' => 'Nuevo workspace',
 			'cockpit.projectsRail.settings' => 'Configuración',
 			'cockpit.projectsRail.mergeToParent' => 'Fusionar en el padre',
@@ -2644,6 +2278,8 @@ extension on TranslationsEs {
 			'cockpit.projectsRail.moveToRealm' => 'Mover a realm',
 			'cockpit.projectsRail.copyWorkspaceId' => 'Copiar id del workspace',
 			'cockpit.projectsRail.rename' => 'Renombrar',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.projectsRail.close' => 'Cerrar',
 			'cockpit.projectsRail.newRealm' => 'Nuevo realm…',
 			'cockpit.projectsRail.manageRealms' => 'Gestionar realms…',
@@ -2673,19 +2309,10 @@ extension on TranslationsEs {
 			'cockpit.contentSearch.typeToSearch' => 'Escribe para buscar en todos los archivos.',
 			'cockpit.contentSearch.searching' => 'Buscando…',
 			'cockpit.contentSearch.noResults' => 'Sin resultados.',
-			'cockpit.emptyPane.newAgent' => 'Nuevo agente',
-			'cockpit.emptyPane.newAgentDescription' => 'Ejecuta un pi en la carpeta que elijas',
-			'cockpit.emptyPane.newTerminal' => 'Nueva terminal',
-			'cockpit.emptyPane.newTerminalDescription' => 'Abre un shell en la carpeta que elijas',
 			'cockpit.topbar.collapseSidebar' => 'Contraer barra lateral',
 			'cockpit.topbar.toggleFiles' => 'Mostrar/ocultar archivos',
 			'cockpit.topbar.filesUnavailable' => 'Archivos no disponibles en Cockpit',
 			'cockpit.topbar.hideKeyboard' => 'Ocultar teclado',
-			'cockpit.transcript.cancel' => 'Cancelar',
-			'cockpit.transcript.send' => 'Enviar',
-			'cockpit.transcript.typeYourAnswer' => 'Escribe tu respuesta',
-			'cockpit.transcript.startHint' => 'Envía un prompt para que el agente empiece.',
-			'cockpit.transcript.workedFor' => ({required Object duration}) => 'Trabajó ${duration}',
 			'cockpit.tasks.hotReload' => 'Hot reload',
 			'cockpit.tasks.hotRestart' => 'Hot restart',
 			'cockpit.tasks.toggleDebugPaint' => 'Alternar debug paint',
@@ -2694,7 +2321,6 @@ extension on TranslationsEs {
 			'cockpit.notifications.agentFinished' => 'El agente terminó',
 			'cockpit.notifications.open' => 'Abrir',
 			'cockpit.notifications.agentNeedsAction' => 'El agente necesita tu acción',
-			'cockpit.notifications.agentCrashed' => 'El agente se detuvo inesperadamente',
 			'cockpit.terminal.cwdFallbackWarning' => ({required Object requested, required Object path}) => 'Aviso: la carpeta "${requested}" no existe. Esta terminal se abrió en "${path}".',
 			'cockpit.terminal.workspaceEnvTracked' => ({required Object keys}) => 'Aviso: el .env.cockpit está rastreado por git (vino con el repositorio). Inyectado: ${keys}',
 			'cockpit.remoteHost.addHost' => 'Añadir host remoto',
@@ -2815,23 +2441,6 @@ extension on TranslationsEs {
 			'settings.language.english' => 'Inglés',
 			'settings.language.portugueseBr' => 'Portugués (BR)',
 			'settings.language.spanish' => 'Español',
-			'settings.revokeDialog.deviceRemoved' => 'Dispositivo eliminado.',
-			'settings.revokeDialog.failedToRevoke' => 'No se pudo revocar el dispositivo.',
-			'settings.revokeDialog.revoking' => 'Revocando…',
-			'settings.revokeDialog.revokingDevice' => ({required Object name}) => 'Revocando ${name}…',
-			'settings.revokeDialog.connectingMessage' => 'Conectando al relay y quitando el acceso.',
-			'settings.revokeDialog.ok' => 'Ok',
-			'settings.pairingDialog.title' => 'Vincular dispositivo',
-			'settings.pairingDialog.connectingToRelay' => 'Conectando al relay…',
-			'settings.pairingDialog.step1' => 'Abre la app Remote Pi en tu teléfono.',
-			'settings.pairingDialog.step2' => 'Toca en añadir / vincular dispositivo.',
-			'settings.pairingDialog.step3' => 'Apunta la cámara al QR de abajo.',
-			'settings.pairingDialog.qrGenerationFailed' => 'No se pudo generar el QR.',
-			'settings.pairingDialog.autoRefreshHint' => 'El código se actualiza automáticamente. Mantén esta ventana abierta.',
-			'settings.pairingDialog.pairingFailed' => 'Fallo en la vinculación.',
-			'settings.pairingDialog.tryAgain' => 'Intentar de nuevo',
-			'settings.pairingDialog.copied' => '¡Copiado!',
-			'settings.pairingDialog.copyData' => 'Copiar datos',
 			'settings.page.header.back' => 'Atrás',
 			'settings.page.header.title' => 'Configuración',
 			'settings.page.nav.general' => 'General',
@@ -2840,12 +2449,8 @@ extension on TranslationsEs {
 			'settings.page.nav.language' => 'Lenguaje',
 			'settings.page.nav.shortcuts' => 'Atajos',
 			'settings.page.nav.notifications' => 'Notificaciones',
-			'settings.page.nav.connectivity' => 'Conectividad',
-			'settings.page.nav.daemonAgents' => 'Agentes Daemon',
-			'settings.page.nav.schedules' => 'Programaciones',
 			'settings.page.nav.automations' => 'Automatizaciones',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
-			'settings.page.general.sectionAgent' => 'Agente',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Motor',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (predeterminado)',
@@ -2853,8 +2458,6 @@ extension on TranslationsEs {
 			'settings.page.general.neovimChecking' => 'Buscando Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim no se encontró en la PATH de tu shell.',
 			'settings.page.general.neovimRefresh' => 'Comprobar de nuevo',
-			'settings.page.general.enableAgentsTitle' => 'Activar agentes',
-			'settings.page.general.enableAgentsDesc' => 'Muestra la opción de abrir pestañas de agente (pi). Cuando está desactivado, Cockpit funciona solo como workspace de terminal.',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal de Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar al arrancar',
@@ -2862,7 +2465,6 @@ extension on TranslationsEs {
 			'settings.page.general.sectionUpdates' => 'Actualizaciones',
 			'settings.page.general.checkUpdatesTitle' => 'Buscar actualizaciones',
 			'settings.page.general.checkUpdatesDesc' => 'Con qué frecuencia Cockpit debe buscar nuevas versiones.',
-			'settings.page.general.agentsInUseError' => 'No se pueden desactivar los agentes mientras haya una pestaña de agente abierta. Cierra todas las pestañas de agente primero y luego desactívalo.',
 			'settings.page.general.updateFrequency.daily' => 'Diariamente',
 			'settings.page.general.updateFrequency.weekly' => 'Semanalmente',
 			'settings.page.general.updateFrequency.monthly' => 'Mensualmente',
@@ -2973,8 +2575,6 @@ extension on TranslationsEs {
 			'settings.page.notifications.soundTurnDoneDesc' => 'Un agente terminó su turno.',
 			'settings.page.notifications.soundActionRequired' => 'Acción requerida',
 			'settings.page.notifications.soundActionRequiredDesc' => 'Un agente está esperando tu aprobación o respuesta.',
-			'settings.page.notifications.soundAgentError' => 'Error del agente',
-			'settings.page.notifications.soundAgentErrorDesc' => 'El proceso de un agente se detuvo inesperadamente.',
 			'settings.page.notifications.soundDefault' => 'Predeterminado',
 			'settings.page.notifications.soundCustom' => ({required Object name}) => 'Personalizado: ${name}',
 			'settings.page.notifications.soundChooseFile' => 'Elegir archivo',
@@ -2994,98 +2594,6 @@ extension on TranslationsEs {
 			'settings.page.languages.saveAndRestart' => 'Guardar y reiniciar',
 			'settings.page.languages.statusResponds' => 'El servidor responde',
 			'settings.page.languages.statusNotFound' => 'Servidor no encontrado o comando inválido',
-			'settings.page.connectivity.sectionRelay' => 'Relay',
-			'settings.page.connectivity.sectionPairedDevices' => 'Dispositivos vinculados',
-			'settings.page.connectivity.reloadTooltip' => 'Recargar',
-			'settings.page.connectivity.failedToListDevices' => 'No se pudieron listar los dispositivos.',
-			'settings.page.connectivity.noPairedDevices' => 'No hay dispositivos vinculados.',
-			'settings.page.connectivity.relayAddressTitle' => 'Dirección del relay',
-			'settings.page.connectivity.relayAddressDesc' => 'Servidor que conecta tus agentes con el teléfono. Se aplica a todo agente con el relay activado.',
-			'settings.page.connectivity.saving' => 'Guardando…',
-			'settings.page.connectivity.check' => 'Comprobar',
-			'settings.page.connectivity.healthOnline' => 'En línea',
-			'settings.page.connectivity.healthNoResponse' => 'Sin respuesta',
-			'settings.page.connectivity.healthNotChecked' => 'No comprobado',
-			'settings.page.connectivity.deviceDefaultLabel' => 'Dispositivo',
-			'settings.page.connectivity.revoke' => 'Revocar',
-			'settings.page.connectivity.pairNewDevice' => 'Vincular nuevo dispositivo',
-			'settings.page.connectivity.revokeDialogTitle' => '¿Revocar dispositivo?',
-			'settings.page.connectivity.revokeDialogContent' => ({required Object name}) => '"${name}" perderá el acceso a tus agentes y deberá vincularse de nuevo.\n\nDebes estar conectado al relay — la app se conectará automáticamente para revocar.',
-			'settings.page.schedules.sectionScheduledPrompts' => 'Prompts programados',
-			'settings.page.schedules.createSchedule' => 'Crear programación',
-			'settings.page.schedules.createDaemonFirst' => 'Crea primero un Agente Daemon.',
-			'settings.page.schedules.supervisorOffline' => 'Supervisor sin conexión. Las programaciones necesitan que pi-supervisord esté en ejecución (`remote-pi install`).',
-			'settings.page.schedules.failedToListSchedules' => 'No se pudieron listar las programaciones.',
-			'settings.page.schedules.noSchedules' => 'Sin programaciones. Crea un prompt recurrente para un daemon.',
-			'settings.page.schedules.runNow' => 'Ejecutar ahora',
-			'settings.page.schedules.viewLog' => 'Ver registro',
-			'settings.page.schedules.disabled' => 'desactivado',
-			'settings.page.schedules.nextRun' => ({required Object when}) => 'próximo ${when}',
-			'settings.page.schedules.lastRun' => ({required Object label}) => 'último: ${label}',
-			'settings.page.schedules.removeScheduleDialogTitle' => '¿Quitar programación?',
-			'settings.page.schedules.removeScheduleDialogContent' => ({required Object schedule, required Object daemon}) => 'El job "${schedule}" de ${daemon} se elimina. Sus ejecuciones se detienen.',
-			'settings.page.schedules.newScheduleTitle' => 'Nueva programación',
-			'settings.page.schedules.daemonLabel' => 'Daemon',
-			'settings.page.schedules.whenLabel' => 'Cuándo (expresión cron)',
-			'settings.page.schedules.previewPlaceholder' => 'La próxima ejecución aparece aquí',
-			'settings.page.schedules.previewComputed' => 'Próximo: calculado al guardar',
-			'settings.page.schedules.previewNext' => ({required Object when}) => 'Próximo: ${when}',
-			'settings.page.schedules.exampleEveryDay9am' => 'todos los días a las 9h',
-			'settings.page.schedules.exampleHourly' => 'cada hora',
-			'settings.page.schedules.exampleEvery15Min' => 'cada 15 min',
-			'settings.page.schedules.exampleWeekdays6pm' => 'días laborables a las 18h',
-			'settings.page.schedules.promptLabel' => 'Prompt',
-			'settings.page.schedules.timezoneLabel' => 'Zona horaria (opcional)',
-			'settings.page.schedules.skipIfBusy' => 'Omitir si el agente está ocupado',
-			'settings.page.schedules.wakeIfStopped' => 'Despertar el daemon si está detenido',
-			'settings.page.schedules.catchup' => 'Recuperar 1 ejecución perdida (catchup)',
-			'settings.page.schedules.fillRequiredError' => 'Completa la expresión y el prompt.',
-			'settings.page.schedules.creating' => 'Creando…',
-			'settings.page.schedules.failedToCreateSchedule' => 'No se pudo crear la programación.',
-			'settings.page.schedules.historyTitle' => ({required Object schedule}) => 'Historial — ${schedule}',
-			'settings.page.schedules.failedToReadLog' => 'No se pudo leer el registro.',
-			'settings.page.schedules.noRecordsYet' => 'Aún no hay registros.',
-			'settings.page.schedules.cronDelivered' => 'entregado',
-			'settings.page.schedules.cronWokeDelivered' => 'despertó + entregado',
-			'settings.page.schedules.cronFailed' => 'falló',
-			'settings.page.schedules.cronSkippedBusy' => 'omitido (ocupado)',
-			'settings.page.schedules.cronSkippedStopped' => 'omitido (detenido)',
-			'settings.page.schedules.cronSkippedDisabled' => 'omitido (desactivado)',
-			'settings.page.daemons.sectionAlwaysOnAgents' => 'Agentes siempre activos',
-			'settings.page.daemons.createDaemon' => 'Crear daemon',
-			'settings.page.daemons.startAll' => 'Iniciar todos',
-			'settings.page.daemons.stopAll' => 'Detener todos',
-			'settings.page.daemons.restartAll' => 'Reiniciar todos',
-			'settings.page.daemons.restartSupervisor' => 'Reiniciar supervisor',
-			'settings.page.daemons.restartSupervisorDialogTitle' => '¿Reiniciar el supervisor?',
-			'settings.page.daemons.restartSupervisorDialogContent' => 'Reinicia el proceso del supervisor (recarga el código). Todos los daemons se reinician con él y quedan sin conexión unos segundos.',
-			'settings.page.daemons.removeDaemonDialogTitle' => '¿Quitar daemon?',
-			'settings.page.daemons.removeDaemonDialogContent' => ({required Object name}) => '"${name}" deja de ejecutarse y sale del registro. La carpeta y su configuración local se conservan — puedes recrearlo después.',
-			'settings.page.daemons.supervisorOfflineTitle' => 'Supervisor sin conexión',
-			'settings.page.daemons.supervisorOfflineDesc' => 'pi-supervisord no se está ejecutando. Instálalo con `remote-pi install` para gestionar agentes 24/7.',
-			'settings.page.daemons.failedToListDaemons' => 'No se pudieron listar los daemons.',
-			'settings.page.daemons.noRegisteredAgents' => 'Sin agentes registrados. Crea uno a partir de una carpeta.',
-			'settings.page.daemons.start' => 'Iniciar',
-			'settings.page.daemons.stop' => 'Detener',
-			'settings.page.daemons.edit' => 'Editar',
-			'settings.page.daemons.stateRunning' => 'en ejecución',
-			'settings.page.daemons.stateStarting' => 'iniciando',
-			'settings.page.daemons.stateStopped' => 'detenido',
-			'settings.page.daemons.stateFailed' => 'falló',
-			'settings.page.daemons.newDaemonTitle' => 'Nuevo daemon',
-			'settings.page.daemons.editDaemonTitle' => 'Editar daemon',
-			'settings.page.daemons.nameLabel' => 'Nombre',
-			'settings.page.daemons.namePlaceholder' => 'ej.: PC, Servidor, Casa',
-			'settings.page.daemons.nameRequiredError' => 'Escribe un nombre.',
-			'settings.page.daemons.nameDuplicateError' => 'Ya existe un agente con ese nombre.',
-			'settings.page.daemons.folderLabel' => 'Carpeta',
-			'settings.page.daemons.noFolderChosen' => 'Ninguna carpeta elegida',
-			'settings.page.daemons.choose' => 'Elegir',
-			'settings.page.daemons.changeFolder' => 'Cambiar',
-			'settings.page.daemons.folderCannotBeChanged' => 'La carpeta no se puede cambiar.',
-			'settings.page.daemons.folderRequiredError' => 'Elige una carpeta.',
-			'settings.page.daemons.folderDuplicateError' => 'Ya existe un agente en esta carpeta.',
-			'settings.page.daemons.pickFolderDialogTitle' => 'Elige la carpeta del Agente Daemon',
 			'settings.page.automations.sectionCommitMessages' => 'Mensajes de commit',
 			'settings.page.automations.harness' => 'Harness',
 			'settings.page.automations.harnessDiscovering' => 'Buscando harnesses de línea de comandos instalados…',
@@ -3105,8 +2613,6 @@ extension on TranslationsEs {
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',
 			'settings.page.automations.generateFromSourceControl' => 'Generar desde Control de versiones',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit envía solo el diff seleccionado y los asuntos de los commits recientes. Los patrones habituales de credenciales y los archivos sensibles se redactan antes de ejecutar el harness.',
 			'settings.page.automations.discoveryFailed' => 'No se pudieron descubrir los harnesses de automatización instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'El modelo "${model}" ya no está disponible para ${harness}. Se usará el predeterminado de la CLI; elige otro modelo en Configuración si lo necesitas.',

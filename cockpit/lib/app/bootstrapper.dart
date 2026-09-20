@@ -6,7 +6,6 @@ import 'package:cockpit/app/app_module.dart';
 import 'package:cockpit/app/app_widget.dart';
 import 'package:cockpit/app/cockpit/data/hooks/claude_hook_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/hooks/codex_hook_installer_impl.dart';
-import 'package:cockpit/app/cockpit/data/rpc/pi_process_registry.dart';
 import 'package:cockpit/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/hook_installer.dart';
@@ -22,7 +21,7 @@ import 'package:cockpit/app/core/data/setup/storage_location.dart';
 import 'package:cockpit/app/core/data/theme_store.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/services/window_placement.dart';
-import 'package:cockpit/app/core/env.dart';
+import 'package:cockpit/app/core/ui/keep_awake_controller.dart';
 import 'package:cockpit/app/core/ui/automation_controller.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
@@ -185,9 +184,8 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         unawaited(LocalNetworkPermission.prime());
 
         // Mata filhos órfãos desta instância ou de instâncias já encerradas,
-        // preservando agents/LSP/tasks de outros Cockpits ainda vivos.
+        // preservando LSP/tasks de outros Cockpits ainda vivos.
         await Future.wait([
-          PiProcessRegistry.cleanOrphans(),
           LspProcessRegistry.cleanOrphans(),
           TaskProcessRegistry.cleanOrphans(),
         ]);
@@ -210,11 +208,7 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
           }
         }
 
-        final config = await PiSpawnConfig.resolve();
-        _appModule = await buildAppModule(
-          config: config,
-          windowActivity: _windowActivity,
-        );
+        _appModule = await buildAppModule(windowActivity: _windowActivity);
       })();
 
       await Future.wait([initTask, Future.delayed(_splashFloor)]);
@@ -460,6 +454,8 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
           ..addChangeNotifier<AutomationController>(
             () => inject<AutomationController>(),
           )
+          // Botão "Keep awake" do rail: assertion da máquina, efêmera, app-scoped.
+          ..addChangeNotifier<KeepAwakeController>(KeepAwakeController.new)
           ..addChangeNotifier<EditorMenuBridge>(EditorMenuBridge.new)
           ..addChangeNotifier<WorkspaceMenuBridge>(WorkspaceMenuBridge.new),
         child: const AppRoot(),

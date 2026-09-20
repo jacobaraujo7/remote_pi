@@ -1,25 +1,26 @@
 # Remote Pi — Cockpit (Flutter Desktop)
 
-Cliente **desktop** (macOS first) do Remote Pi. GUI multi-pane sobre o motor do
-Pi: projetos à esquerda, agentes no centro, árvore de arquivos à direita. Cada
-agente é um `pi --mode rpc` que o app spawna e dirige **localmente** — sem relay,
-sem pareamento, sem crypto. É a contraparte local do `app/` (que é o gateway
-remoto). Plano de referência: [`../plan/37-desktop-cockpit.md`](../plan/37-desktop-cockpit.md).
+Cliente **desktop** (macOS first) do Remote Pi. GUI multi-pane **terminal-first**:
+workspaces à esquerda, panes de terminal/arquivos/bancos no centro, árvore de
+arquivos à direita. Os agentes (Claude Code, Codex, Pi) rodam **como processos
+dentro de terminais**, com status de turno via hooks. Plano de origem:
+[`../plan/37-desktop-cockpit.md`](../plan/37-desktop-cockpit.md); remoto:
+[`../plan/58-cockpit-remote.md`](../plan/58-cockpit-remote.md).
 
-## Escopo atual (MVP — provar o conceito)
+## Escopo atual
 
-Fase de validação: provar que o Flutter desktop aguenta o `--mode rpc` — spawn de
-child process, streaming de stdout, `send` por stdin, kill limpo. **Layout básico
-primeiro; panes (multiplexação) ainda NÃO** — decisão adiada (ver plano 37). Nada
-de relay/mesh/crypto nesta fase.
+O **agente nativo (`pi --mode rpc`) saiu do binário na 2.0** (k16 do roadmap):
+aba de agente, harness RPC, composer/transcript, setting `enableAgent`, e as
+abas de Settings que dependiam do `remote-pi` (Connectivity, Daemon Agents,
+Schedules). Não reintroduza nada disso: o caminho de agente é o terminal.
+Layouts antigos com abas `agent` são descartados na restauração, e a pane vazia
+é um `EmptyTab` que vira terminal direto.
 
-Decisões fechadas (plano 37, 2026-06-05):
+Decisões fechadas que continuam valendo (plano 37, 2026-06-05):
 
 | # | Decisão |
 |---|---|
-| **A** | Código mora aqui em `cockpit/` (não dentro de `app/`). Reuso futuro com `app/` via `packages/pi_core` — **ainda não extraído** |
-| **B** | Spawna `pi --mode rpc` **puro**, sem a extensão remote-pi. Local-only, sem relay |
-| **C** | Spawn **próprio** — não reusa o supervisor do plano 26 (que é fire-and-forget sem streaming) |
+| **A** | Código mora aqui em `cockpit/` (não dentro de `app/`). Motor compartilhado com o `cockpit-server` via `packages/cockpit_*` |
 
 ## Stack
 
@@ -35,7 +36,8 @@ Decisões fechadas (plano 37, 2026-06-05):
 - Resultado tipado: `Result<T, E>`
 - i18n: **`slang`** (codegen tipado) — en/pt-BR/es em `lib/i18n/*.i18n.json`,
   consumo via `context.t`. Regra completa na seção "i18n" abaixo
-- Subprocesso: `dart:io` `Process.start` (spawn do `pi --mode rpc`)
+- Subprocesso: `dart:io` `Process.start` (git, LSP, harnesses de automação) e
+  PTY nativo via `plugins/cockpit_pty`
 - Menu de app: abstração em `core/ui/menu/` — modelo declarativo único
   (`menu_model.dart`), renderizado nativo no macOS (`PlatformMenuBar`) e
   desenhado na barra de título no Windows/Linux (`Menubar` do shadcn, via
@@ -60,7 +62,8 @@ nossa) e quem é pacote externo:
 | **Markdown** (GFM + code do agente/viewer) | pacote `gpt_markdown` ^1.1.8 (pub.dev) | Externo (upstream ativo). O **frontmatter** YAML é nosso: `core/ui/widgets/markdown_frontmatter.dart` (pré-processamento no `AgentMarkdown`) |
 | **Syntax highlight** (léxico, ~190 linguagens) | pacote `highlight` ^0.7.0 + `core/ui/widgets/code_highlight.dart` (tema/integração) | Externo; decisão do plano LSP: highlight léxico mantido (LSP não colore) |
 | **LSP** (diagnostics/formatação — a camada "IDE") | `lib/app/core/data/lsp/` (cliente JSON-RPC genérico + pool por (lang, raiz)) | **Nosso** — fala com servidores externos achados no PATH |
-| **Agente** (`pi --mode rpc`) | `lib/app/cockpit/data/rpc/` (spawn/stream/kill) | Motor é o binário `pi`; nosso é o harness RPC. Protocolo em `docs/rpc-protocol.md` |
+| **Status de turno dos agentes** | `lib/app/cockpit/data/hooks/` (hooks do harness + `cockpit-hook` + socket) | **Nosso** — agentes rodam em terminais; ver `docs/turn-status-hooks.md` |
+| **Keep awake** | `packages/cockpit_keepawake/` (caffeinate / SetThreadExecutionState / systemd-inhibit) | **Nosso** — Dart puro, desktop-only |
 | **DB drivers** (SQLite/Postgres/MySQL/MSSQL/Mongo/Redis) | pacotes `anaki_*` (Rust/FFI, do Jacob) + `lib/app/cockpit/data/db/` (Isolate workers + serviços) | Externo-mas-nosso (mantido pelo Jacob fora do repo) |
 | **Git** | `lib/app/cockpit/data/filesystem/git_*` (roda o binário `git`) | Motor é o git do sistema; nosso é o parser/orquestração |
 | **Mídia** (áudio/vídeo no viewer) | pacote `media_kit` (libmpv) | Externo |
@@ -110,15 +113,15 @@ lib/
     ├── app_module.dart       # raiz: compõe core + features (só composição)
     ├── app_widget.dart       # AppRoot: ShadcnApp.router + watch<SettingsController>
     ├── core/                 # kernel transversal (módulo SEM path → binds root-owned)
-    │   ├── core_module.dart  # binds compartilhados (PiSpawnConfig)
-    │   ├── routes.dart  env.dart  app_intents.dart
+    │   ├── core_module.dart  # binds compartilhados (LSP pool, automação, perfis de terminal)
+    │   ├── routes.dart  app_intents.dart
     │   ├── domain/  data/    # markers (Service/Disposable), Result, contratos/impls compartilhados
     │   └── ui/               # themes/  widgets/  file_icons/  settings_controller.dart (app-scoped)
-    ├── cockpit/              # FEATURE: o shell (projetos | panes/agentes/terminal | arquivos)
-    │   ├── cockpit_module.dart   # path '/', binds + route('/', provide: Cockpit/Setup/Update VMs)
+    ├── cockpit/              # FEATURE: o shell (projetos | panes/terminal/viewers | arquivos)
+    │   ├── cockpit_module.dart   # path '/', binds + route('/', provide: Cockpit/Tasks/Update VMs)
     │   └── domain/  data/  ui/   # ui/ = cockpit_page + viewmodels/ session/ states/ widgets/
-    └── settings/             # FEATURE: conectividade + daemon agents + agendamentos (cron)
-        ├── settings_module.dart  # path '/settings', binds + route('/', provide: Connectivity/Daemons/Cron VMs)
+    └── settings/             # FEATURE: preferências (geral, aparência, terminal, LSP, automações, hosts remotos)
+        ├── settings_module.dart  # path '/settings', route('/', provide: Notifications/Neovim VMs)
         └── domain/  data/  ui/
 ```
 
@@ -135,8 +138,8 @@ ui ──► domain ◄── data
 - `ui/` consome `domain/` via ViewModels page-scoped — nunca chama `data/` direto.
 - `<feature>_module.dart` é o único lugar que conhece as 3 camadas da feature.
 - Uma feature **pode importar de `core/`, nunca de outra feature**; o `core/` não
-  importa de feature nenhuma. (Ex.: o `SupervisorClientImpl`, que serve daemons **e**
-  cron, e o `SettingsController` global moram onde são compartilhados, não numa aba.)
+  importa de feature nenhuma. (Ex.: o `SettingsController` global mora no core
+  porque o shell lê e o settings edita.)
 
 ## Convenções
 
@@ -145,8 +148,8 @@ ui ──► domain ◄── data
   quando cruzando features ou camadas
 - **Barrel files**: cada feature/módulo pode expor um `<nome>.dart` agregando os
   símbolos públicos; consumidores externos importam só o barrel
-- **Async**: prefira `Future`/`Stream` tipados, evite `dynamic` (o stream de
-  eventos RPC é tipado em `domain/`, nunca `Map<String, dynamic>` cru na `ui/`)
+- **Async**: prefira `Future`/`Stream` tipados, evite `dynamic` (eventos de
+  protocolo são tipados em `domain/`, nunca `Map<String, dynamic>` cru na `ui/`)
 - **Erros**: `Result<T, E>` ou exceptions tipadas; nunca `catch (e)` genérico em produção
 - **Scroll = CLAMP**: todo scroll do app usa `ClampingScrollPhysics` (nada de
   bounce/overscroll estranho). Isso já é global via `ClampingScrollBehavior`
@@ -300,12 +303,11 @@ await viewModel.spawnAgent().onSuccess((_) {
 ## NÃO fazer
 
 - Editar arquivos fora de `cockpit/`
-- Adicionar **relay, mesh, crypto ou pareamento** nesta fase — Cockpit é
-  local-only (decisão B). Reachability remota é evolução futura (plano 37)
-- Criar **panes/multiplexação** antes de revalidar o conceito com layout básico
-  (plano 37 — panes deliberadamente adiados)
-- Reusar o supervisor do plano 26 (decisão C — spawn próprio)
-- Implementar crypto manual (não há crypto nesta fase)
+- Reintroduzir o agente nativo (`pi --mode rpc`), o composer/transcript ou as
+  abas de Settings do `remote-pi`: saíram na 2.0, agente é processo em terminal
+- Usar o relay do Remote Pi no Cockpit: o remoto é SSH + `cockpit-server`
+  (plano 58)
+- Implementar crypto manual (SSH cuida de auth e cifragem)
 - Comitar `build/`, `.dart_tool/`, `macos/Pods/`
 - Adicionar dependência sem registrar no plano 37
 - Misturar responsabilidades entre camadas/features — quando bater dúvida, leia

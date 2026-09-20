@@ -19,12 +19,6 @@ abstract class Notifier {
     required String workspace,
   });
 
-  /// Notifica que o processo de um agente morreu inesperadamente.
-  Future<void> agentCrashed({
-    required String agentName,
-    required String workspace,
-  });
-
   /// Toca o som in-app de [event]. Usado quando a janela está focada — chama
   /// atenção sem banner do SO (distinto do som da notificação do SO, que toca
   /// só desfocada). [customPath] = áudio escolhido pelo usuário; se ausente ou

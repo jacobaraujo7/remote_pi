@@ -18,14 +18,12 @@ import 'package:cockpit/app/cockpit/data/filesystem/file_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_searcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_mutator_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_reader_impl.dart';
-import 'package:cockpit/app/cockpit/data/filesystem/folder_lister_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_binary.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_command_runner_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_diff_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_head_baseline_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_history_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/git_status_reader_impl.dart';
-import 'package:cockpit/app/cockpit/data/filesystem/session_history_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/worktree_manager_impl.dart';
 import 'package:cockpit/app/cockpit/data/layout/ckp_layout_loader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/layout_loader.dart';
@@ -35,8 +33,6 @@ import 'package:cockpit/app/cockpit/data/repositories/json_project_repository.da
 import 'package:cockpit/app/cockpit/data/repositories/json_realm_repository.dart';
 import 'package:cockpit/app/cockpit/data/repositories/json_workspace_layout_store.dart';
 import 'package:cockpit/app/cockpit/data/repositories/project_schema_migrator.dart';
-import 'package:cockpit/app/cockpit/data/rpc/pi_rpc_process_factory.dart';
-import 'package:cockpit/app/cockpit/data/setup/environment_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
@@ -57,12 +53,10 @@ import 'package:cockpit/app/cockpit/data/update/url_opener_impl.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dismissed_update_store.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/environment_installer.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_head_baseline_reader.dart';
@@ -73,9 +67,7 @@ import 'package:cockpit/app/cockpit/domain/services/scm_line_decoration_calculat
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/realm_repository.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/self_updater.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
@@ -97,7 +89,6 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/remote_workspace_controller.da
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/database_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_terminal_store.dart';
-import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
 import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
@@ -118,9 +109,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 /// o `main` não threada esses valores: chame UMA vez e componha o módulo
 /// retornado (dedup é por identidade).
 ///
-/// **Resolução cross-module (flutter_modular >= 7.1.0):** os binds que dependem
-/// do `PiSpawnConfig` usam `.new` e resolvem o config **upward** do core
-/// (root-owned) — por isso o builder não recebe mais `config`. Os stores JSON,
+/// **Resolução cross-module (flutter_modular >= 7.1.0):** binds que dependem de
+/// algo do core usam `.new` e resolvem **upward** (root-owned). Os stores JSON,
 /// porém, continuam exigindo o bootstrap async acima (não há async bind).
 ///
 /// Como o shell fica em `/` e o Settings é **empilhado** por cima (não substitui),
@@ -180,10 +170,6 @@ Future<Module> buildCockpitModule({
         ..addInstance<DismissedUpdateStore>(
           JsonDismissedUpdateStore(settingsStore),
         )
-        // Dependem do PiSpawnConfig → `.new` resolve upward do core (>= 7.1.0).
-        ..addLazySingleton<RpcGatewayFactory>(PiRpcProcessFactory.new)
-        ..addLazySingleton<EnvironmentInstaller>(EnvironmentInstallerImpl.new)
-        ..addInstance<FolderLister>(const FolderListerImpl())
         ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
         ..addInstance<FileSystemMutator>(const FileSystemMutatorImpl())
         ..addInstance<FileReader>(const FileReaderImpl())
@@ -216,7 +202,6 @@ Future<Module> buildCockpitModule({
           const ScmLineDecorationCalculator(),
         )
         ..addLazySingleton<GitHistoryReader>(GitHistoryReaderImpl.new)
-        ..addInstance<SessionHistory>(const SessionHistoryImpl())
         // Terminais servidos pelo cockpit-server sidecar via loopback (plano
         // 58, Wave 1); sem sidecar disponível, o gateway cai pro PTY
         // in-process sozinho — comportamento idêntico ao anterior.
@@ -303,7 +288,6 @@ Future<Module> buildCockpitModule({
               (_) {},
             )
             ..addChangeNotifier<CockpitViewModel>(CockpitViewModel.new)
-            ..addChangeNotifier<SetupViewModel>(SetupViewModel.new)
             ..addChangeNotifier<TasksViewModel>(TasksViewModel.new)
             ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new)
             ..addChangeNotifier<DatabaseViewModel>(DatabaseViewModel.new)

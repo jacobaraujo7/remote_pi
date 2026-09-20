@@ -851,6 +851,7 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
                 children: [
                   for (final (c, card) in _visibleCards(column))
                     _cardSlot(context, card, index, c, isLast),
+                  if (column.cards.isNotEmpty) _tailSlot(index, height: 40),
                   // Coluna vazia: só um ícone apagado. A frase "sem cards"
                   // ocupava a largura toda pra dizer o que a ausência de cards
                   // já diz. O texto continua existindo como tooltip, que é o
@@ -901,6 +902,25 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
           if (candidate.isNotEmpty) const _DropIndicator(),
           _cardTile(context, card, column, isLastColumn),
         ],
+      ),
+    );
+  }
+
+  /// Zona de soltar depois do último card: sem ela, os únicos alvos por
+  /// posição ficam ACIMA de cada card, e dentro da mesma coluna não havia como
+  /// levar um card pro fim (o alvo da coluna inteira recusa a própria coluna).
+  Widget _tailSlot(int column, {required double height}) {
+    final cards = _doc.columns[column].cards;
+    return DragTarget<_CardDrag>(
+      onWillAcceptWithDetails: (d) =>
+          d.data.card.startLine != cards.last.startLine,
+      onAcceptWithDetails: (d) => _moveCard(d.data.card, column),
+      builder: (context, candidate, _) => SizedBox(
+        height: height,
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: candidate.isNotEmpty ? const _DropIndicator() : null,
+        ),
       ),
     );
   }
@@ -1007,6 +1027,7 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
           ),
           for (final (index, card) in _visibleCards(_doc.columns[i]))
             _listSlot(context, card, i, index),
+          if (_doc.columns[i].cards.isNotEmpty) _tailSlot(i, height: 14),
         ],
       ],
     );

@@ -1,6 +1,5 @@
 import 'package:cockpit/app/core/core_module.dart';
 import 'package:cockpit/app/core/data/terminal/terminal_profile_resolver_impl.dart';
-import 'package:cockpit/app/core/env.dart';
 import 'package:cockpit/app/core/ui/automation_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -19,7 +18,6 @@ void main() {
     tester,
   ) async {
     final core = buildCoreModule(
-      config: const PiSpawnConfig(executable: 'pi'),
       terminalProfiles: TerminalProfileResolverImpl(),
     );
     final feature = createModule(

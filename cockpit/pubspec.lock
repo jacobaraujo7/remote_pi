@@ -224,6 +224,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  cockpit_keepawake:
+    dependency: "direct main"
+    description:
+      path: "packages/cockpit_keepawake"
+      relative: true
+    source: path
+    version: "0.1.0"
   cockpit_protocol:
     dependency: transitive
     description:
@@ -624,14 +631,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.2"
-  flutter_sticky_header:
-    dependency: "direct main"
-    description:
-      name: flutter_sticky_header
-      sha256: fb4fda6164ef3e5fc7ab73aba34aad253c17b7c6ecf738fa26f1a905b7d2d1e2
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.8.0"
   flutter_svg:
     dependency: "direct main"
     description:
@@ -867,6 +866,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  material_symbols_icons:
+    dependency: "direct main"
+    description:
+      name: material_symbols_icons
+      sha256: bd513edc2bc9b034108d5518c48cf5cebbb67d0653728cc452368cb27ca80bb0
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.2960.0"
   media_kit:
     dependency: "direct main"
     description:
@@ -1132,22 +1139,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.1"
-  qr:
-    dependency: transitive
-    description:
-      name: qr
-      sha256: "5a1d2586170e172b8a8c8470bbbffd5eb0cd38a66c0d77155ea138d3af3a4445"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.0.2"
-  qr_flutter:
-    dependency: "direct main"
-    description:
-      name: qr_flutter
-      sha256: "5095f0fc6e3f71d08adef8feccc8cea4f12eec18a2e31c2e8d82cb6019f4b097"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.1.0"
   quiver:
     dependency: "direct main"
     description:
@@ -1457,14 +1448,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.6.0"
-  value_layout_builder:
-    dependency: transitive
-    description:
-      name: value_layout_builder
-      sha256: ab4b7d98bac8cefeb9713154d43ee0477490183f5aa23bb4ffa5103d9bbf6275
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.5.0"
   vector_graphics:
     dependency: transitive
     description:
@@ -1546,7 +1529,7 @@ packages:
     source: hosted
     version: "1.1.1"
   win32:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: win32
       sha256: d7cb55e04cd34096cd3a79b3330245f54cb96a370a1c27adb3c84b917de8b08e

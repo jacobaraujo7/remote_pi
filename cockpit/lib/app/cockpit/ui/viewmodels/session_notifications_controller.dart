@@ -1,5 +1,4 @@
 import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
-import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/core/domain/entities/sound_event.dart';
@@ -91,22 +90,6 @@ class SessionNotificationsController extends ChangeNotifier {
     // "tocar mesmo na aba ativa" pro evento.
     if (isActiveTab && !(_onActiveTab[event] ?? false)) return;
     await _play(event);
-  }
-
-  /// Processo do agente morreu sem ser pedido: badge fora da aba ativa,
-  /// notificação do SO desfocado, som de erro focado. Mesma matriz de foco do
-  /// [turnFinished]; separado porque o gatilho não é fim de turno.
-  Future<void> agentCrashed(AgentSession s) async {
-    _markUnseenIfHidden(s);
-    if (await _windowFocused) {
-      await _play(SoundEvent.agentError);
-      return;
-    }
-    if (!_enabled) return;
-    await _notifier.agentCrashed(
-      agentName: s.title,
-      workspace: workspaceName?.call(s.projectId) ?? '',
-    );
   }
 
   /// Marca a sessão como "não vista" se ela não é a aba ativa. Devolve `true`

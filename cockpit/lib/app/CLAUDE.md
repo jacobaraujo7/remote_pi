@@ -60,11 +60,11 @@ Module buildFooModule(/* deps async resolvidas no main */) => createModule(
   o `toString` do construtor, então use sempre **tipos nomeados**:
   - dependência **factory** ("um X novo por uso"): interface
     `XFactory { X create(); }` (impl no `data/`), **nunca** `X Function()` — o `=>`
-    quebra o parser e dois params factory seguidos fundem. Ver `PairingGatewayFactory`
-    + `ConnectivityViewModel`.
+    quebra o parser e dois params factory seguidos fundem. Ver
+    `TerminalGatewayFactory` + `CockpitViewModel`.
   - **vários primitivos** ambíguos (`String`...): um **value object injetável**
     (ex.: `UpdateTarget`).
-- **Valores async** (stores JSON, `PiSpawnConfig`, versão) são resolvidos no `main`
+- **Valores async** (stores JSON, perfis de terminal, versão) são resolvidos no `main`
   e passados às factories `buildXModule(...)` — `register` é síncrono.
 - Registre a feature no `app_module.dart` com `c.module(fooModule)`.
 
@@ -89,9 +89,9 @@ Paths em [`core/routes.dart`](core/routes.dart) (`RoutePaths`).
 ## Dialogs com estado próprio
 
 `flutter_modular` não tem provider de árvore ad-hoc. Para um controller de dialog
-(ex. pareamento), crie-o no call-site, passe por **construtor** e consuma com
+crie-o no call-site, passe por **construtor** e consuma com
 `ListenableBuilder` — e **descarte no fim** (`ctrl.dispose()` após `showDialog`),
-senão vaza o `pi --mode rpc` efêmero. Ver `settings/ui/pairing_dialog.dart`.
+senão vaza o que ele segurar (processo, stream, timer).
 
 ## Regra crítica: `BuildContext` em código assíncrono
 

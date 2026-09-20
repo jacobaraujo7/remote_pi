@@ -1,11 +1,6 @@
 // Testes do núcleo do multiplexador: a árvore de splits (puro, sem Flutter).
 
-import 'package:cockpit/app/cockpit/domain/contracts/environment_installer.dart';
-import 'package:cockpit/app/cockpit/domain/entities/install_result.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
-import 'package:cockpit/app/core/domain/contracts/environment_probe.dart';
-import 'package:cockpit/app/core/domain/entities/setup_check.dart';
-import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icon.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icon_map.g.dart';
 import 'package:flutter/services.dart';
@@ -241,56 +236,4 @@ void main() {
       }
     });
   });
-
-  group('agent setup gate', () {
-    test('trio satisfeito → agentReady', () async {
-      final vm = SetupViewModel(_FakeEnv(), _FakeInstaller());
-      await vm.recheckAll();
-      expect(vm.pi, CheckStatus.ok);
-      expect(vm.extension, CheckStatus.ok);
-      expect(vm.supervisor, CheckStatus.ok);
-      expect(vm.agentReady, isTrue);
-    });
-
-    test('um passo faltando bloqueia', () async {
-      final vm = SetupViewModel(_FakeEnv(ext: false), _FakeInstaller());
-      await vm.recheckAll();
-      expect(vm.extension, CheckStatus.missing);
-      expect(vm.agentReady, isFalse);
-    });
-
-    test('pi ou supervisor faltando também bloqueia', () async {
-      final a = SetupViewModel(_FakeEnv(pi: false), _FakeInstaller());
-      await a.recheckAll();
-      expect(a.pi, CheckStatus.missing);
-      expect(a.agentReady, isFalse);
-
-      final b = SetupViewModel(_FakeEnv(sup: false), _FakeInstaller());
-      await b.recheckAll();
-      expect(b.supervisor, CheckStatus.missing);
-      expect(b.agentReady, isFalse);
-    });
-  });
-}
-
-class _FakeEnv implements EnvironmentProbe {
-  _FakeEnv({this.pi = true, this.ext = true, this.sup = true});
-  final bool pi;
-  final bool ext;
-  final bool sup;
-  @override
-  Future<bool> piInstalled() async => pi;
-  @override
-  Future<bool> extensionInstalled() async => ext;
-  @override
-  Future<bool> supervisorInstalled() async => sup;
-}
-
-class _FakeInstaller implements EnvironmentInstaller {
-  @override
-  Future<InstallResult> installExtension() async =>
-      const InstallResult.success();
-  @override
-  Future<InstallResult> installSupervisor() async =>
-      const InstallResult.success();
 }

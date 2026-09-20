@@ -1,7 +1,6 @@
 import 'package:cockpit/app/core/core_module.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_server_pool.dart';
 import 'package:cockpit/app/core/data/terminal/terminal_profile_resolver_impl.dart';
-import 'package:cockpit/app/core/env.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +12,6 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   testWidgets('LspServerPool resolve via core upward', (tester) async {
     final core = buildCoreModule(
-      config: const PiSpawnConfig(executable: 'pi'),
       // Irrelevante para este teste; só satisfaz o grafo (cache frio, sem uso).
       terminalProfiles: TerminalProfileResolverImpl(),
     );

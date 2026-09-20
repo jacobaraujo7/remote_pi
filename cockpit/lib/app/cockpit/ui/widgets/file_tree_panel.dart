@@ -20,7 +20,6 @@ import 'package:cockpit/app/core/ui/automation_error_message.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
-import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/context_menu_gesture.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
@@ -28,7 +27,6 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -279,8 +277,8 @@ class FileTreePanel extends StatefulWidget {
   /// Abre um `.kanban` como markdown cru (menu de contexto do arquivo).
   final ValueChanged<String>? onOpenAsSource;
 
-  /// Menu de contexto de uma **pasta**: cria uma aba (agente/terminal) nela.
-  final void Function(String relativeSub, bool terminal) onCreateInFolder;
+  /// Menu de contexto de uma **pasta**: cria uma aba de terminal nela.
+  final ValueChanged<String> onCreateInFolder;
 
   /// Cria arquivo (ou pasta) chamado [name] dentro de [parentDir]. Falha → msg.
   final Future<Result<void, FileOperationError>> Function(
@@ -1668,7 +1666,7 @@ class _TreeEdit {
   final ValueChanged<String>? onOpenInWindow;
   final ValueChanged<String>? onOpenLayout;
   final ValueChanged<String>? onOpenAsSource;
-  final void Function(String relativeSub, bool terminal) onCreateInFolder;
+  final ValueChanged<String> onCreateInFolder;
 
   final void Function(String parentPath, bool isFolder) onStartCreate;
   final VoidCallback onCancelCreate;
@@ -2077,10 +2075,6 @@ String _fileExplorerLabel(BuildContext context) {
 void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
   final isFolder = widget.isFolder;
   final isFile = !isFolder;
-  // "Create agent" só quando agentes estão ligados (Settings → General →
-  // "Enable agents"). "Create terminal" segue sempre. Lido na hora do menu
-  // pra refletir o toggle atual.
-  final agentsEnabled = context.read<SettingsController>().settings.enableAgent;
   final tr = context.t.cockpit.fileTreePanel;
   showAppMenu<String>(
     context,
@@ -2142,12 +2136,6 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
           label: tr.newFolder,
           icon: Icons.create_new_folder_outlined,
         ),
-        if (agentsEnabled)
-          AppMenuItem(
-            value: 'agent',
-            label: tr.createAgent,
-            icon: Icons.auto_awesome,
-          ),
         AppMenuItem(
           value: 'terminal',
           label: tr.createTerminal,
@@ -2218,10 +2206,8 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
         widget.onNewFile?.call();
       case 'newfolder':
         widget.onNewFolder?.call();
-      case 'agent':
-        widget.onCreateInFolder?.call(_relativeOf(widget), false);
       case 'terminal':
-        widget.onCreateInFolder?.call(_relativeOf(widget), true);
+        widget.onCreateInFolder?.call(_relativeOf(widget));
       case 'rename':
         widget.onStartRename?.call();
       case 'delete':
@@ -2293,8 +2279,8 @@ class _Row extends StatefulWidget {
   final VoidCallback? onOpenLayout;
   final VoidCallback? onOpenAsSource;
 
-  /// Só pastas: criar agente/terminal nela (relativo, terminal?).
-  final void Function(String relativeSub, bool terminal)? onCreateInFolder;
+  /// Só pastas: criar terminal nela (caminho relativo).
+  final ValueChanged<String>? onCreateInFolder;
 
   /// Só pastas: iniciar criação inline de arquivo/pasta dentro dela.
   final VoidCallback? onNewFile;

@@ -20,12 +20,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// Renderiza o Markdown (GFM + code) da resposta do agente, com a identidade
 /// visual do Cockpit. Tolerante a markdown parcial (serve pro streaming).
 class AgentMarkdown extends StatelessWidget {
-  const AgentMarkdown(
-    this.data, {
-    super.key,
-    this.imageBaseDir,
-    this.style,
-  });
+  const AgentMarkdown(this.data, {super.key, this.imageBaseDir, this.style});
 
   final String data;
 

@@ -205,22 +205,3 @@ List<RealmTarget> moveTargets(CockpitViewModel vm, String projectId) {
         ),
   ];
 }
-
-/// Pede a subpasta onde o agente vai atuar e dispara [action] com o caminho
-/// relativo escolhido (`''` = raiz do projeto).
-Future<void> pickSubfolderThen(
-  BuildContext context,
-  void Function(String sub) action,
-) async {
-  final vm = _vm(context);
-  if (!await ensureProject(context) || !context.mounted) return;
-  final project = vm.selectedProject;
-  if (project == null) return;
-  final chosen = await showSubfolderDialog(
-    context,
-    projectName: project.name,
-    loadSubfolders: vm.subfolders,
-  );
-  if (chosen == null) return;
-  action(chosen);
-}

@@ -52,7 +52,6 @@ class AppSettings {
     this.soundVolume = 50,
     this.searchPanelHeight = 260,
     this.tasksPanelHeight = 200,
-    this.enableAgent = false,
     this.swapSidePanels = false,
     this.railVisible = false,
     this.treeVisible = false,
@@ -142,8 +141,7 @@ class AppSettings {
 
   /// Tocar o som do evento **mesmo com a aba dele ativa** (janela focada).
   /// Ausente = `false`: aba ativa fica muda — o usuário já está olhando a
-  /// resposta/prompt. Só faz sentido pra `turnDone`/`actionRequired`
-  /// (`agentError` sempre toca).
+  /// resposta/prompt.
   final Map<SoundEvent, bool> soundOnActiveTab;
 
   /// Volume dos sons in-app, em % (0–100). Aplica a todos os eventos (default
@@ -159,12 +157,6 @@ class AppSettings {
 
   /// Altura (px) da área de lista do subpane de Tasks (redimensionável).
   final double tasksPanelHeight;
-
-  /// Habilita o suporte a **agentes** (abas de `pi`). Desligado por padrão em
-  /// instalações novas (experiência terminal-first); ligado por migração para
-  /// quem já usava agentes numa versão anterior (ver `HiveSettingsStore.load`).
-  /// Com ela desligada, o app não oferece criar aba de agente (só terminal).
-  final bool enableAgent;
 
   /// Troca os painéis laterais de lado: workspaces à direita, arquivos/busca/
   /// git/database à esquerda. Só a POSIÇÃO muda — largura, visibilidade e
@@ -267,7 +259,6 @@ class AppSettings {
     double? soundVolume,
     double? searchPanelHeight,
     double? tasksPanelHeight,
-    bool? enableAgent,
     bool? swapSidePanels,
     bool? railVisible,
     bool? treeVisible,
@@ -316,7 +307,6 @@ class AppSettings {
       soundVolume: soundVolume ?? this.soundVolume,
       searchPanelHeight: searchPanelHeight ?? this.searchPanelHeight,
       tasksPanelHeight: tasksPanelHeight ?? this.tasksPanelHeight,
-      enableAgent: enableAgent ?? this.enableAgent,
       swapSidePanels: swapSidePanels ?? this.swapSidePanels,
       railVisible: railVisible ?? this.railVisible,
       treeVisible: treeVisible ?? this.treeVisible,
@@ -376,7 +366,6 @@ class AppSettings {
     'tasksPanelHeight': tasksPanelHeight,
     // Sempre gravado (mesmo quando false) para a migração distinguir "install
     // novo" (chave presente = false) de "upgrade sem a flag" (chave ausente).
-    'enableAgent': enableAgent,
     'swapSidePanels': swapSidePanels,
     if (railVisible) 'railVisible': true,
     if (treeVisible) 'treeVisible': true,
@@ -457,7 +446,6 @@ class AppSettings {
       ),
       searchPanelHeight: (json['searchPanelHeight'] as num?)?.toDouble() ?? 260,
       tasksPanelHeight: (json['tasksPanelHeight'] as num?)?.toDouble() ?? 200,
-      enableAgent: json['enableAgent'] as bool? ?? false,
       swapSidePanels: json['swapSidePanels'] as bool? ?? false,
       railVisible: json['railVisible'] as bool? ?? false,
       treeVisible: json['treeVisible'] as bool? ?? false,

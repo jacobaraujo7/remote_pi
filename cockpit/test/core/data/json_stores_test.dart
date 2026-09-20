@@ -30,9 +30,9 @@ void main() {
   group('JsonSettingsStore', () {
     test('roundtrip save/load', () async {
       final s = JsonSettingsStore(store);
-      await s.save(const AppSettings(enableAgent: true));
+      await s.save(const AppSettings(showCockpit: false));
       final loaded = await s.load();
-      expect(loaded.enableAgent, isTrue);
+      expect(loaded.showCockpit, isFalse);
     });
 
     test('sem registro → defaults', () async {
@@ -40,11 +40,12 @@ void main() {
       expect(loaded, const AppSettings());
     });
 
-    test('registro sem enableAgent → migra ligando a flag', () async {
-      final json = const AppSettings().toJson()..remove('enableAgent');
+    test('chave enableAgent de versões < 2.0 é ignorada', () async {
+      final json = const AppSettings().toJson()..['enableAgent'] = true;
       await store.put('app', json);
       final loaded = await JsonSettingsStore(store).load();
-      expect(loaded.enableAgent, isTrue);
+      expect(loaded.toJson(), const AppSettings().toJson());
+      expect(loaded.toJson().containsKey('enableAgent'), isFalse);
     });
   });
 

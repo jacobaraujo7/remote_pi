@@ -155,6 +155,22 @@ um parágrafo solto
       expect(moved.notes, notes);
     });
 
+    test('mover pro fim da mesma coluna (sem atIndex) leva o card pro fim', () {
+      var doc = KanbanDocument.parse(
+        _board.replaceFirst(
+          '<!-- id: k1 labels: bug -->\n',
+          '<!-- id: k1 labels: bug -->\n\n- [ ] Segundo <!-- id: k4 -->\n',
+        ),
+      );
+      expect(doc.columns[0].cards.map((c) => c.id), ['k1', 'k4']);
+
+      doc = KanbanDocument.parse(
+        KanbanEditor.moveCard(doc, doc.columns[0].cards.first, 0),
+      );
+      expect(doc.columns[0].cards.map((c) => c.id), ['k4', 'k1']);
+      expect(doc.columns[1].cards.single.id, 'k3');
+    });
+
     test('mover não toca no resto do arquivo', () {
       final doc = KanbanDocument.parse(_board);
       final card = doc.columns[1].cards.single;

@@ -37,12 +37,14 @@ void main() {
       const s = AppSettings(soundEvents: {SoundEvent.actionRequired: false});
       expect(s.soundEnabledFor(SoundEvent.actionRequired), isFalse);
       expect(s.soundEnabledFor(SoundEvent.turnDone), isTrue);
-      expect(s.soundEnabledFor(SoundEvent.agentError), isTrue);
     });
 
     test('round-trip json preserva toggles, overrides e volume', () {
       const s = AppSettings(
-        soundEvents: {SoundEvent.turnDone: false, SoundEvent.agentError: true},
+        soundEvents: {
+          SoundEvent.turnDone: false,
+          SoundEvent.actionRequired: true,
+        },
         soundOverrides: {SoundEvent.actionRequired: '/tmp/ding.mp3'},
         soundVolume: 80,
       );
@@ -82,10 +84,12 @@ void main() {
     test('evento desconhecido no json é ignorado (arquivo de versão nova)', () {
       final restored = AppSettings.fromJson({
         'sound.events': {'turnDone': false, 'futureEvent': true},
-        'sound.overrides': {'futureEvent': '/x.wav', 'agentError': '/y.wav'},
+        // `agentError` existiu até a 2.0 (agente nativo): arquivos antigos
+        // ainda o trazem e ele cai no mesmo descarte de evento desconhecido.
+        'sound.overrides': {'agentError': '/x.wav', 'turnDone': '/y.wav'},
       });
       expect(restored.soundEvents, {SoundEvent.turnDone: false});
-      expect(restored.soundOverrides, {SoundEvent.agentError: '/y.wav'});
+      expect(restored.soundOverrides, {SoundEvent.turnDone: '/y.wav'});
     });
 
     test('defaultAsset cobre todos os eventos', () {

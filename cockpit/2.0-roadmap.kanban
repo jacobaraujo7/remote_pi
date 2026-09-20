@@ -6,11 +6,6 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 ## Backlog
 
-- [ ] Remote workspace redesign (plan 58) <!-- id: k13 labels: feature -->
-      Remote workspace = a host folder with worktrees, git and file tree like local; pick the folder when connecting; the "+" becomes a Local/Remote menu instead of a fixed button.
-      <!-- comment: 2026-09-12T16:59 -->
-      Precisamos entender melhor sobre isso
-
 - [ ] Windows code signing via SignPath OSS <!-- id: k3 labels: cd -->
       Application submitted on signpath.org (MIT license added 2026-07-30). Once approved, integrate signing into the windows job of cockpit-release.yml. Unsigned builds keep triggering SmartScreen.
 
@@ -19,24 +14,18 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 
 
 
-- [ ] Mobile client usable (plan 59, waves 1+) <!-- id: k14 labels: mobile -->
-      Wave 0 done (iOS/Android projects, landscape). The Android/iOS test and store cards depend on the remote client being usable on a tablet.
-      <!-- comment: 2026-09-12T16:59 -->
-      Entender melhor
 
-
-
-- [ ] Multi-window: detach a terminal tab <!-- id: k15 labels: feature blockedBy: k10 -->
-      Needs the PTY hosted outside the window process. The sidecar terminal gateway (remote mode) already does that: make it the default local path, then detaching becomes attaching the same session id in another window. Bonus: terminals survive a UI crash. Decide whether this lands in 2.0 or after.
-
-- [ ] Remove the native Pi agent (pi --mode rpc) from the binary <!-- id: k16 labels: feature -->
-      Decided 2026-09-12: the native agent tab is deprecated and leaves in 2.0. Few people use it, the terminal path (claude, codex, pi in a terminal tab with hooks) is the product, and the agent tab never got .env.cockpit, Restart or extension UI requests. Delete the agent tab, the RPC harness (cockpit/data/rpc), the composer, the enableAgent setting and its migration, the pi daemon/cron integration that depends on it, and the i18n keys. Do it LAST, right before the store publications, so nothing else on this board depends on the removal and the binary ships without it. Closes the "Pi extension UI requests are dropped" bug as won't fix.
 
 - [ ] Consolidated 2.0.0 release notes <!-- id: k1 labels: docs blockedBy: k16, k2 -->
       Every 1.x since 1.28.0 is a 2.0 beta. Write the single 2.0.0 section from the 1.x changelog entries; it is what Sparkle and the download page will show.
 
 - [ ] Document the new features on the Cockpit page of the site <!-- id: k2 labels: docs -->
       `../site`: .env.cockpit, Restart tab, Neovim, workspace CLI, remote hosts, Gallery documents, Database panel and everything else that shipped since the page was last updated.
+
+- [ ] Multi-window: detach a terminal tab <!-- id: k15 labels: feature -->
+      Needs the PTY hosted outside the window process. The sidecar terminal gateway (remote mode) already does that: make it the default local path, then detaching becomes attaching the same session id in another window. Bonus: terminals survive a UI crash. Decide whether this lands in 2.0 or after.
+      <!-- comment: 2026-09-17T12:00 -->
+      Decided: not in 2.0. Blocker k10 is done; the real cost is elsewhere. "Open in new window" today is a document window that only receives the file path and boots no Cockpit module, so it works for markdown/.kanban/.notebook (state lives in the file) but not for tabs whose state lives in the main app: .dbq (connections, Keychain secrets, DB isolate, SSH tunnels, access guardrails), Mongo/Redis browsers, HTTP, task output, and terminals (PTY is a child of the window). Detaching needs the main app or a sidecar to own the state and windows to become thin clients (the CLI socket already runs DB queries). Open when resumed: scope (any tab vs terminal only, .dbq as its own card), state owner (main app vs sidecar), move the live session vs reopen.
 
 ## Doing
 - [ ] Publish on the App Store <!-- id: k12 labels: cd, mobile blockedBy: k9, k16 -->
@@ -51,6 +40,18 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 ## Review
 
 ## Done
+
+- [x] Remove the native Pi agent (pi --mode rpc) from the binary <!-- id: k16 labels: feature -->
+      Decided 2026-09-12: the native agent tab is deprecated and leaves in 2.0. Few people use it, the terminal path (claude, codex, pi in a terminal tab with hooks) is the product, and the agent tab never got .env.cockpit, Restart or extension UI requests. Delete the agent tab, the RPC harness (cockpit/data/rpc), the composer, the enableAgent setting and its migration, the pi daemon/cron integration that depends on it, and the i18n keys. Do it LAST, right before the store publications, so nothing else on this board depends on the removal and the binary ships without it. Closes the "Pi extension UI requests are dropped" bug as won't fix.
+      <!-- comment: 2026-09-17T14:00 -->
+      Done ahead of the planned order (asked on 2026-09-17). Removed: agent tab (AgentSession/entries, composer, transcript, edit dialog, setup checklist, model picker, session history, subfolder picker), the RPC harness and its entities, PiSpawnConfig/env, EnvironmentProbe/Installer, the `enableAgent` setting and its migration, the Settings tabs Connectivity / Daemon Agents / Schedules with the supervisor client, relay gateway, pairing and revoke dialogs, the `agentError` sound and crash notification, Cmd/Ctrl+L composer shortcut (Ctrl+L reaches the terminal again), the matching i18n groups in en/pt-BR/es, and the deps qr_flutter, flutter_sticky_header and win32. The empty pane is now an `EmptyTab` that turns into a terminal; saved layouts with `agent` tabs drop them on restore. `flutter analyze` clean, 1469 tests passing.
+
+- [x] Remote workspace redesign (plan 58) <!-- id: k13 labels: feature -->
+      Remote workspace = a host folder with worktrees, git and file tree like local; pick the folder when connecting; the "+" becomes a Local/Remote menu instead of a fixed button.
+      <!-- comment: 2026-09-12T16:59 -->
+      Precisamos entender melhor sobre isso
+      <!-- comment: 2026-09-16T10:00 -->
+      Already shipped in August, the card was never closed. "+" opens a Local/Remote menu (remote_workspace_actions.dart: pick or add host, connect, remote folder picker, folder becomes the workspace); file tree, viewer, save, git (status/diff/stage/commit/history/discard/amend) and databases run on the host; remote worktrees (92159ee4) and multirepo + CLI in remote workspaces (aa793bea) landed 2026-08-26. k25 validated it end to end against a VPS.
 
 - [x] cockpit-server on a VPS: curl installer (Linux x86_64 + arm64), release tarballs, docs, validation <!-- id: k25 labels: feature, docs -->
       Why: the desktop client already installs the server over SSH from its embedded bundle, but the mobile client (iPad/Android) carries no bundle and can only connect to a host a desktop prepared first. A VPS needs a way to get the server without a desktop.
@@ -70,6 +71,11 @@ labels: {bug: red, cd: orange, mobile: blue, docs: green, feature: purple, secur
 - [x] Test on iOS (iPad) <!-- id: k9 labels: mobile blockedBy: k14 -->
       <!-- comment: 2026-09-12T20:05 -->
       iOS tests passed on device. Store prep: bundle id switched to work.jacobmoura.cockpit.remote (the plain id was taken by the BDZ7AJ7ZN2 team via Xcode automatic signing); .remote and .remote.debug registered in team U843T2P7A2 through the App Store Connect API; ITSAppUsesNonExemptEncryption=false and PrivacyInfo.xcprivacy added to the Runner target. `flutter build ios --release --no-codesign` OK with the new id. Next: create the app record in App Store Connect with the .remote id, decide iPad-only vs iPhone, screenshots, privacy policy URL, demo SSH host for the reviewer.
+
+- [x] Mobile client usable (plan 59, waves 1+) <!-- id: k14 labels: mobile -->
+      Wave 0 done (iOS/Android projects, landscape). The Android/iOS test and store cards depend on the remote client being usable on a tablet.
+      <!-- comment: 2026-09-12T16:59 -->
+      Entender melhor
 
 - [x] Android CD pipeline <!-- id: k7 labels: cd, mobile -->
       <!-- comment: 2026-09-12T19:20 -->

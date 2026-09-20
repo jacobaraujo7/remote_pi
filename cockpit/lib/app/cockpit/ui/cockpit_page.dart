@@ -3,7 +3,6 @@ import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:async' show StreamSubscription, unawaited;
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/ui/actions/agent_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/remote_workspace_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/workspace_actions.dart';
@@ -17,7 +16,6 @@ import 'package:cockpit/app/core/domain/entities/automation.dart';
 import 'package:cockpit/app/core/domain/exceptions/neovim_error.dart';
 import 'package:cockpit/app/core/routes.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
-import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/data/remote/remote_db_executor.dart';
 import 'package:cockpit/app/cockpit/data/remote/remote_task_gateway.dart';
@@ -128,9 +126,6 @@ class _CockpitPageState extends State<CockpitPage> {
     super.initState();
     // Discovery de harnesses é lazy (Settings ou primeira geração) — evita
     // spawnar 6 CLIs a cada montagem de workspace.
-    // Registra a ponte do ⌘L global (handler em main.dart) → foca o input do
-    // agente focado, mesmo quando o foco caiu num espaço vazio do shell.
-    requestFocusActiveComposer = _focusActiveComposer;
     // Pontes do menu nativo (PlatformMenuBar vive acima da rota, sem acesso aos
     // ViewModels page-scoped): abrir projeto e verificar atualizações.
     requestOpenProject = () => unawaited(addProject(context));
@@ -365,15 +360,7 @@ class _CockpitPageState extends State<CockpitPage> {
     if (vm == null) return;
     _workspaceMenu?.setWorkspace(
       hasWorkspace: vm.selectedProject != null,
-      agentTabsInUse: vm.hasAgentTabsInUse,
-      // Cockpit é terminal-only → sem "New Agent" no menu File.
-      agentsAllowed: !vm.isPathless(vm.selectedProjectId),
-      // Agente pergunta a subpasta onde vai atuar (igual ao fluxo direto de
-      // criar agente); terminal abre direto na raiz do workspace.
-      onNewAgent: () => unawaited(
-        pickSubfolderThen(context, (sub) => vm.newTabIn(sub, terminal: false)),
-      ),
-      onNewTerminal: () => vm.newTabIn('', terminal: true),
+      onNewTerminal: () => vm.newTabIn(''),
       onSplitRight: () => _splitFocused(SplitDir.vertical),
       onSplitDown: () => _splitFocused(SplitDir.horizontal),
       onToggleRail: vm.toggleRail,
@@ -389,21 +376,16 @@ class _CockpitPageState extends State<CockpitPage> {
     );
   }
 
-  /// Divide a pane **focada** na direção [dir]. Terminal abre direto na raiz;
-  /// agente pergunta a subpasta — mesma regra do menu de split da pane.
+  /// Divide a pane **focada** na direção [dir], abrindo na raiz do workspace —
+  /// mesma regra do menu de split da pane.
   void _splitFocused(SplitDir dir) {
     final vm = _vm;
     final projectId = vm.selectedProject?.id;
     if (projectId == null) return;
     final paneId = vm.focusedPaneId(projectId);
     if (paneId == null) return;
-    // Só agente pergunta a subpasta; terminal/browser/viewer/db abrem na raiz.
     if (vm.paneActiveIsEmpty(paneId)) {
       vm.splitPaneEmpty(paneId, dir);
-    } else if (vm.paneActiveIsAgent(paneId)) {
-      unawaited(
-        pickSubfolderThen(context, (sub) => vm.splitPane(paneId, dir, sub)),
-      );
     } else {
       vm.splitPane(paneId, dir, '');
     }
@@ -537,9 +519,6 @@ class _CockpitPageState extends State<CockpitPage> {
       ?..passphrasePrompt = null
       ..hostKeyPrompt = null
       ..closeSshTunnels();
-    if (requestFocusActiveComposer == _focusActiveComposer) {
-      requestFocusActiveComposer = null;
-    }
     requestOpenProject = null;
     requestCheckForUpdates = null;
     requestOpenSettings = null;
@@ -568,21 +547,9 @@ class _CockpitPageState extends State<CockpitPage> {
     _searchFocusSignal.value++;
   }
 
-  /// Foca o input do agente focado (no-op se a aba ativa não for um agente).
-  void _focusActiveComposer() {
-    final agent = _vm.focusedAgent;
-    if (agent is AgentSession) agent.requestComposerFocus?.call();
-  }
-
-  /// ⌘L (macOS) / Ctrl+L (Win/Linux): foca o input do agente focado quando o
-  /// foco está dentro do shell. (Fora dele — clique no vazio — quem dispara é a
-  /// ponte global de `main.dart`; ver [requestFocusActiveComposer].)
+  /// Atalhos do shell que valem quando o foco está dentro dele.
   Map<ShortcutActivator, VoidCallback>
-  _focusComposerBindings() => <ShortcutActivator, VoidCallback>{
-    const SingleActivator(LogicalKeyboardKey.keyL, meta: true):
-        _focusActiveComposer,
-    const SingleActivator(LogicalKeyboardKey.keyL, control: true):
-        _focusActiveComposer,
+  _shellBindings() => <ShortcutActivator, VoidCallback>{
     const SingleActivator(LogicalKeyboardKey.keyP, meta: true): _openFileFinder,
     const SingleActivator(LogicalKeyboardKey.keyP, control: true):
         _openFileFinder,
@@ -676,10 +643,10 @@ class _CockpitPageState extends State<CockpitPage> {
     return Listener(
       onPointerDown: _onPointerDown,
       child: CallbackShortcuts(
-        bindings: _focusComposerBindings(),
+        bindings: _shellBindings(),
         // Focus(autofocus) garante que a página esteja na cadeia de foco mesmo
-        // antes de clicar em algo — senão o atalho ⌘L não dispara num agente
-        // recém-aberto (nada focado ainda).
+        // antes de clicar em algo — senão os atalhos não disparam num
+        // workspace recém-aberto (nada focado ainda).
         child: Focus(
           autofocus: true,
           child: Scaffold(
@@ -972,33 +939,16 @@ class _CenterPanel extends StatelessWidget {
           focused: active && node.id == vm.focusedPaneId(projectId),
           active: active,
           onCreateTab: () => vm.newEmptyTab(node.id),
-          // Aba placeholder "Novo" (nem agente nem terminal): o novo pane vira
-          // outro placeholder com o seletor Agent/Terminal (ou terminal direto
-          // se `enableAgent` está off). Terminal abre na raiz; agente pergunta
-          // a subpasta.
+          // Aba placeholder "Novo": o novo pane vira outro placeholder (que
+          // cai direto em terminal). As demais abrem na raiz do workspace.
           onSplit: (dir) {
             if (vm.paneActiveIsEmpty(node.id)) {
               vm.splitPaneEmpty(node.id, dir);
-            } else if (vm.paneActiveIsAgent(node.id)) {
-              // Só agente pergunta a subpasta; terminal/browser/viewer/db abrem
-              // direto na raiz do workspace (sem modal).
-              pickSubfolderThen(
-                context,
-                (sub) => vm.splitPane(node.id, dir, sub),
-              );
             } else {
               vm.splitPane(node.id, dir, '');
             }
           },
-          onFillEmpty: (emptyId, terminal) => terminal
-              ? vm.fillEmpty(node.id, emptyId, '', terminal: true)
-              : pickSubfolderThen(
-                  context,
-                  (sub) => vm.fillEmpty(node.id, emptyId, sub, terminal: false),
-                ),
-          onHistoryAgent: (agentId) => openAgentHistory(context, agentId),
-          onRenameAgent: (agentId, name) => renameAgent(context, agentId, name),
-          onToggleRelayAgent: (agentId) => toggleRelayAgent(context, agentId),
+          onFillEmpty: (emptyId) => vm.fillEmpty(node.id, emptyId, ''),
         ),
       );
     }
@@ -1238,8 +1188,7 @@ class _TreePanel extends StatelessWidget {
               );
             }
           },
-          onCreateInFolder: (sub, terminal) =>
-              vm.newTabIn(sub, terminal: terminal),
+          onCreateInFolder: (sub) => vm.newTabIn(sub),
           onCreate: (parentDir, name, isFolder) => isFolder
               ? vm.createDirIn(parentDir, name)
               : vm.createFileIn(parentDir, name),

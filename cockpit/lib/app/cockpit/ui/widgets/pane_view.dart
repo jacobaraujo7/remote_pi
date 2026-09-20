@@ -3,60 +3,56 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
+import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
-import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
-import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
-import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
-import 'package:cockpit/app/core/utils/platform_kind.dart';
-import 'package:cockpit/app/cockpit/ui/viewmodels/setup_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/browser_pane.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_query_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/agent_composer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/agent_setup_checklist.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/agent_transcript.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/browser_pane.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/active_listenable_builder.dart';
-import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
-import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/empty_pane.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_query_view.dart';
-import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_engine_icon.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_mongo_view.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/adaptive_terminal_pane.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
-import 'package:cockpit/app/core/ui/themes/themes.dart';
-import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
+import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/core/utils/path_utils.dart';
+import 'package:cockpit/app/core/utils/platform_kind.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart'
     show HitTestResult, PointerScrollEvent, PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
-import 'package:cockpit/i18n/strings.g.dart';
-import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
+import 'package:material_symbols_icons/symbols.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
-import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
-import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
-import 'package:cockpit/app/core/utils/path_utils.dart';
 
 enum _TaskConsoleAction { copy, copyAll, clear }
 
@@ -72,9 +68,6 @@ class PaneView extends StatelessWidget {
     required this.onCreateTab,
     required this.onSplit,
     required this.onFillEmpty,
-    required this.onHistoryAgent,
-    required this.onRenameAgent,
-    required this.onToggleRelayAgent,
   });
 
   final LeafPane pane;
@@ -86,17 +79,8 @@ class PaneView extends StatelessWidget {
   final VoidCallback onCreateTab;
   final ValueChanged<SplitDir> onSplit;
 
-  /// Preenche a pane vazia — `(emptyId, terminal)`.
-  final void Function(String emptyId, bool terminal) onFillEmpty;
-
-  /// Abre o histórico de sessões de um agente (por id da aba).
-  final ValueChanged<String> onHistoryAgent;
-
-  /// Renomeia o agente (id da aba, novo nome já sanitizado).
-  final void Function(String agentId, String name) onRenameAgent;
-
-  /// Alterna o auto-relay do agente (por id da aba).
-  final ValueChanged<String> onToggleRelayAgent;
+  /// Preenche a pane vazia (placeholder → terminal), por id da aba vazia.
+  final ValueChanged<String> onFillEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -134,9 +118,6 @@ class PaneView extends StatelessWidget {
               visible: active,
               onCreateTab: onCreateTab,
               onSplit: onSplit,
-              onHistoryAgent: onHistoryAgent,
-              onRenameAgent: onRenameAgent,
-              onToggleRelayAgent: onToggleRelayAgent,
             ),
             Expanded(
               child: tabs.isEmpty
@@ -178,7 +159,7 @@ class PaneView extends StatelessWidget {
       focused: active && focused && tabId == shown,
       active: active && tabId == shown,
       focusGen: vm.tabFocusGen,
-      onFillEmpty: (terminal) => onFillEmpty(tabId, terminal),
+      onFillEmpty: () => onFillEmpty(tabId),
     );
   }
 }
@@ -196,9 +177,7 @@ IconData _tabIcon(PaneItem? item) {
   if (item is RedisBrowserSession) return Icons.grid_on_outlined;
   if (item is MongoBrowserSession) return Icons.data_object_outlined;
   if (item is NotebookSession) return Icons.menu_book_outlined;
-  if (item is AgentSession && item.status == AgentStatus.empty) {
-    return Icons.edit_outlined;
-  }
+  if (item is EmptyTab) return Icons.edit_outlined;
   return Icons.auto_awesome;
 }
 
@@ -210,9 +189,6 @@ class _TabStrip extends StatefulWidget {
     required this.visible,
     required this.onCreateTab,
     required this.onSplit,
-    required this.onHistoryAgent,
-    required this.onRenameAgent,
-    required this.onToggleRelayAgent,
   });
 
   final LeafPane pane;
@@ -221,9 +197,6 @@ class _TabStrip extends StatefulWidget {
   final bool visible;
   final VoidCallback onCreateTab;
   final ValueChanged<SplitDir> onSplit;
-  final ValueChanged<String> onHistoryAgent;
-  final void Function(String agentId, String name) onRenameAgent;
-  final ValueChanged<String> onToggleRelayAgent;
 
   @override
   State<_TabStrip> createState() => _TabStripState();
@@ -310,6 +283,34 @@ class _TabStripState extends State<_TabStrip> {
       danger: true,
     );
     if (ok) widget.vm.closePane(widget.pane.id);
+  }
+
+  /// Fecha um conjunto de abas desta pane, em sequência — é o que o menu de
+  /// contexto usa em "fechar as outras" e "fechar todas".
+  ///
+  /// Confirma uma vez antes (como o fechamento de pane: matar vários terminais
+  /// de uma vez não pode sair de um clique torto) e depois passa cada aba pelo
+  /// [requestCloseTab], então um arquivo com edição não salva ainda pergunta o
+  /// que fazer. Cancelar nesse diálogo interrompe as abas restantes.
+  Future<void> _closeTabs(List<String> ids) async {
+    if (ids.isEmpty) return;
+    final tr = context.t.cockpit.paneView;
+    final ok = await showConfirmDialog(
+      context,
+      title: tr.closeTabsTitle,
+      message: tr.closeTabsMessage(count: ids.length),
+      confirmLabel: tr.close,
+      danger: true,
+    );
+    if (!mounted || !ok) return;
+    for (final id in ids) {
+      final closed = await requestCloseTab(
+        context,
+        widget.vm.session(id),
+        () => widget.vm.closeTab(widget.pane.id, id),
+      );
+      if (!mounted || !closed) return;
+    }
   }
 
   /// Dropdown com todas as abas (pular direto pra uma) — aparece no overflow.
@@ -441,22 +442,32 @@ class _TabStripState extends State<_TabStrip> {
                                       pane.id,
                                       pane.tabs[i],
                                     ),
+                                    // Null na única aba: ali "fechar as outras"
+                                    // não faria nada e "fechar todas" seria o
+                                    // próprio "fechar", com um diálogo a mais.
+                                    onCloseOthers: pane.tabs.length > 1
+                                        ? () => _closeTabs([
+                                            for (final t in pane.tabs)
+                                              if (t != pane.tabs[i]) t,
+                                          ])
+                                        : null,
+                                    onCloseAll: pane.tabs.length > 1
+                                        ? () => _closeTabs(pane.tabs.toList())
+                                        : null,
+                                    // Só se existir aba à direita desta.
+                                    onCloseToTheRight: i < pane.tabs.length - 1
+                                        ? () => _closeTabs(
+                                            pane.tabs.sublist(i + 1),
+                                          )
+                                        : null,
                                     onRestart: () => widget.vm.restartTerminal(
                                       pane.id,
                                       pane.tabs[i],
-                                    ),
-                                    onRename: (name) => widget.onRenameAgent(
-                                      pane.tabs[i],
-                                      name,
                                     ),
                                     onSetLabel: (label) => widget.vm
                                         .setPaneLabel(pane.tabs[i], label),
                                     onResetLabel: () =>
                                         widget.vm.resetPaneLabel(pane.tabs[i]),
-                                    onToggleRelay: () =>
-                                        widget.onToggleRelayAgent(pane.tabs[i]),
-                                    onHistory: () =>
-                                        widget.onHistoryAgent(pane.tabs[i]),
                                   ),
                                 ),
                               // Windows: "+" e a seta formam um grupo — a divisória
@@ -546,12 +557,12 @@ class _Tab extends StatefulWidget {
     required this.focused,
     required this.onSelect,
     required this.onClose,
+    required this.onCloseOthers,
+    required this.onCloseAll,
+    required this.onCloseToTheRight,
     required this.onRestart,
-    required this.onRename,
     required this.onSetLabel,
     required this.onResetLabel,
-    required this.onToggleRelay,
-    required this.onHistory,
   });
 
   final PaneItem? item;
@@ -562,11 +573,23 @@ class _Tab extends StatefulWidget {
   final VoidCallback onSelect;
   final VoidCallback onClose;
 
+  /// Fecha as outras abas desta pane, mantendo esta. `null` quando esta é a
+  /// única aba — aí o item nem aparece no menu.
+  ///
+  /// Diferente de [onClose], a confirmação de edição não salva acontece do
+  /// outro lado (a strip é quem conhece as abas irmãs).
+  final Future<void> Function()? onCloseOthers;
+
+  /// Fecha todas as abas desta pane, esta inclusive. `null` na única aba, onde
+  /// "fechar" já é o mesmo efeito. Mesma observação de [onCloseOthers] sobre
+  /// quem confirma.
+  final Future<void> Function()? onCloseAll;
+
+  /// Fecha as abas à direita desta na strip. `null` quando esta já é a última.
+  final Future<void> Function()? onCloseToTheRight;
+
   /// Reinicia uma aba de **terminal** no lugar (processo novo, mesma aba).
   final VoidCallback onRestart;
-
-  /// Renomeia um **agente** (muda a identidade enviada ao harness).
-  final ValueChanged<String> onRename;
 
   /// Define o **rótulo manual** de uma aba de terminal (nome estável, travado
   /// contra o título automático).
@@ -574,8 +597,6 @@ class _Tab extends StatefulWidget {
 
   /// Restaura o título automático de uma aba de terminal (limpa o rótulo).
   final VoidCallback onResetLabel;
-  final VoidCallback onToggleRelay;
-  final VoidCallback onHistory;
 
   @override
   State<_Tab> createState() => _TabState();
@@ -623,14 +644,11 @@ class _TabState extends State<_Tab> {
   /// segurar o primeiro clique.
   void _handleTap(BuildContext menuCtx) {
     final s = widget.item;
-    final agent = s is AgentSession ? s : null;
     final viewer = s is FileViewerSession ? s : null;
     final terminal = s is TerminalSession ? s : null;
-    // Renomear entra em edição inline: agentes (não-vazios) mudam a identidade;
-    // terminais definem o rótulo manual (nome estável).
-    final canRename =
-        (agent != null && agent.status != AgentStatus.empty) ||
-        terminal != null;
+    // Renomear entra em edição inline: terminais definem o rótulo manual
+    // (nome estável).
+    final canRename = terminal != null;
     final canPin = viewer != null && viewer.isPreview;
     final now = DateTime.now();
     final last = _lastTapAt;
@@ -661,13 +679,10 @@ class _TabState extends State<_Tab> {
 
   void _startEditing() {
     final s = widget.item;
-    // Agentes, terminais e abas de ARQUIVO podem editar o nome inline. O
-    // rótulo manual é do [PaneItem], não do terminal — o menu já oferecia
-    // "Renomear" na aba de arquivo e este guard silenciava o clique.
-    if (s == null ||
-        (s is! AgentSession &&
-            s is! TerminalSession &&
-            s is! FileViewerSession)) {
+    // Terminais e abas de ARQUIVO podem editar o nome inline. O rótulo manual
+    // é do [PaneItem], não do terminal — o menu já oferecia "Renomear" na aba
+    // de arquivo e este guard silenciava o clique.
+    if (s == null || (s is! TerminalSession && s is! FileViewerSession)) {
       return;
     }
     // Semeia com o nome exibido (rótulo manual, se houver; senão o dinâmico).
@@ -682,17 +697,11 @@ class _TabState extends State<_Tab> {
 
   void _commitEdit() {
     if (!_editing) return;
-    final s = widget.item;
     final name = _ctrl.text.trim().replaceAll(' ', '-');
     setState(() => _editing = false);
     if (name.isEmpty) return;
-    // Agente → renomeia a IDENTIDADE dele; terminal e arquivo → rótulo manual
-    // travado na aba (o arquivo no disco não muda de nome por isto).
-    if (s is AgentSession) {
-      widget.onRename(name);
-    } else {
-      widget.onSetLabel(name);
-    }
+    // Rótulo manual travado na aba (o arquivo no disco não muda de nome).
+    widget.onSetLabel(name);
   }
 
   void _cancelEdit() {
@@ -713,8 +722,6 @@ class _TabState extends State<_Tab> {
   Future<void> _showTabMenu(BuildContext menuCtx) async {
     final s = widget.item;
     if (s == null) return;
-    final agent = s is AgentSession ? s : null;
-    final isEmpty = agent?.status == AgentStatus.empty;
     final viewer = s is FileViewerSession ? s : null;
     final isPreview = viewer?.isPreview ?? false;
     final terminal = s is TerminalSession ? s : null;
@@ -792,21 +799,25 @@ class _TabState extends State<_Tab> {
             icon: Icons.refresh,
           ),
         ],
-        if (agent != null && !isEmpty) ...[
-          AppMenuItem(
-            value: 'rename',
-            label: tr.rename,
-            icon: Icons.edit_outlined,
-          ),
-          AppMenuItem(
-            value: 'relay',
-            label: tr.autoRelay,
-            icon: Icons.cell_tower_outlined,
-            selected: agent.autoStartRelay,
-          ),
-          AppMenuItem(value: 'history', label: tr.history, icon: Icons.history),
-        ],
         AppMenuItem(value: 'close', label: tr.close, icon: Icons.close),
+        if (widget.onCloseOthers != null)
+          AppMenuItem(
+            value: 'close-others',
+            label: tr.closeOtherTabs,
+            icon: Symbols.tab_close_inactive,
+          ),
+        if (widget.onCloseToTheRight != null)
+          AppMenuItem(
+            value: 'close-to-the-right',
+            label: tr.closeTabsToTheRight,
+            icon: Symbols.tab_close_right,
+          ),
+        if (widget.onCloseAll != null)
+          AppMenuItem(
+            value: 'close-all',
+            label: tr.closeAllTabs,
+            icon: Symbols.tab_close,
+          ),
       ],
     );
     if (!mounted) return;
@@ -830,12 +841,14 @@ class _TabState extends State<_Tab> {
         widget.onResetLabel();
       case 'restart':
         widget.onRestart();
-      case 'relay':
-        widget.onToggleRelay();
-      case 'history':
-        widget.onHistory();
       case 'close':
         _requestClose();
+      case 'close-others':
+        await widget.onCloseOthers?.call();
+      case 'close-to-the-right':
+        await widget.onCloseToTheRight?.call();
+      case 'close-all':
+        await widget.onCloseAll?.call();
     }
   }
 
@@ -849,8 +862,7 @@ class _TabState extends State<_Tab> {
       builder: (_, _) {
         final colors = context.colors;
         final isFocusedActive = widget.active && widget.focused;
-        final agent = s is AgentSession ? s : null;
-        final isEmpty = agent?.status == AgentStatus.empty;
+        final isEmpty = s is EmptyTab;
         final streaming = s.isWorking;
         final dirty = s is FileViewerSession && s.dirty;
 
@@ -1204,7 +1216,7 @@ class _TabProfilePicker extends StatelessWidget {
     if (profile == null) {
       return; // re-descoberta mudou a lista no meio do caminho
     }
-    vm.newTabIn('', terminal: true, profile: profile);
+    vm.newTabIn('', profile: profile);
   }
 
   @override
@@ -1396,26 +1408,14 @@ class _PaneBody extends StatefulWidget {
   final int focusGen;
 
   /// `(terminal)` — qual tipo criar ao preencher a pane vazia.
-  final ValueChanged<bool> onFillEmpty;
+  final VoidCallback onFillEmpty;
 
   @override
   State<_PaneBody> createState() => _PaneBodyState();
 }
 
 class _PaneBodyState extends State<_PaneBody> {
-  final ScrollController _scroll = ScrollController();
   final FocusNode _terminalFocus = FocusNode();
-
-  /// Bounds do composer do agente — pro drop "abrir aba" ignorar drops que caem
-  /// sobre o input (lá o arquivo vira `@menção`, não uma aba nova).
-  final GlobalKey _composerKey = GlobalKey();
-
-  static const double _stickThreshold = 80;
-
-  /// Aba de agente vazia: gate do ambiente. `_checkingAgent` = rodando o probe
-  /// após "New agent"; `_showAgentSetup` = trio incompleto → mostra o checklist.
-  bool _checkingAgent = false;
-  bool _showAgentSetup = false;
 
   Future<void> _showTaskConsoleMenu(
     BuildContext context,
@@ -1469,25 +1469,9 @@ class _PaneBodyState extends State<_PaneBody> {
     }
   }
 
-  /// Id da aba vazia já auto-convertida em terminal (quando `enableAgent` está
-  /// desligado) — evita reentrar no `onFillEmpty` a cada build.
+  /// Id da aba vazia já convertida em terminal — evita reentrar no
+  /// `onFillEmpty` a cada build.
   String? _autoTerminalFor;
-
-  /// "New agent" numa aba vazia: confere o ambiente. Pronto → spawna direto;
-  /// incompleto → revela o [AgentSetupChecklist] inline. Terminal nunca passa
-  /// por aqui.
-  Future<void> _onNewAgent() async {
-    final setup = context.read<SetupViewModel>();
-    setState(() => _checkingAgent = true);
-    await setup.recheckAll();
-    if (!mounted) return;
-    setState(() => _checkingAgent = false);
-    if (setup.agentReady) {
-      widget.onFillEmpty(false);
-    } else {
-      setState(() => _showAgentSetup = true);
-    }
-  }
 
   /// Tabs que usam um `TerminalPane` e portanto querem foco de teclado quando
   /// ativas. Inclui a aba de logs de task ([TaskOutputSession]) — mesmo sendo
@@ -1594,7 +1578,6 @@ class _PaneBodyState extends State<_PaneBody> {
     if (widget.item case final TerminalSession session) {
       session.setVisible(false);
     }
-    _scroll.dispose();
     _terminalFocus.dispose();
     super.dispose();
   }
@@ -1619,22 +1602,6 @@ class _PaneBodyState extends State<_PaneBody> {
     if (!isPaste) return KeyEventResult.ignored;
     session.pasteFromClipboard();
     return KeyEventResult.handled;
-  }
-
-  void _maybeStickToBottom() {
-    final bool stick;
-    if (!_scroll.hasClients) {
-      stick = true;
-    } else {
-      final pos = _scroll.position;
-      stick = pos.pixels >= pos.maxScrollExtent - _stickThreshold;
-    }
-    if (!stick) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.jumpTo(_scroll.position.maxScrollExtent);
-      }
-    });
   }
 
   @override
@@ -1865,118 +1832,33 @@ class _PaneBodyState extends State<_PaneBody> {
       );
     }
 
-    final agent = item as AgentSession;
-    return ActiveListenableBuilder(
-      listenable: agent,
-      active: widget.active,
-      builder: (context, _) {
-        if (agent.status == AgentStatus.empty) {
-          // No workspace de sistema "Cockpit" agentes são desligados **sempre**
-          // (terminal-only por construção), independente da flag global.
-          final enableAgent =
-              context.watch<SettingsController>().settings.enableAgent &&
-              !context.read<CockpitViewModel>().isSystemTerminal(
-                agent.projectId,
-              );
-          // Suporte a agentes desligado → a aba vazia vira **terminal direto**,
-          // sem oferecer a escolha agente/terminal. Guard por id (não reentra no
-          // build; cobre uma nova aba vazia criada depois na mesma pane).
-          if (!enableAgent) {
-            if (_autoTerminalFor != agent.id) {
-              _autoTerminalFor = agent.id;
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) widget.onFillEmpty(true);
-              });
-            }
-            return ColoredBox(color: context.colors.panel);
-          }
-          if (_showAgentSetup) {
-            return AgentSetupChecklist(
-              onReady: () => widget.onFillEmpty(false),
-              onCancel: () => setState(() => _showAgentSetup = false),
-            );
-          }
-          return Stack(
-            children: [
-              EmptyPane(
-                onNewAgent: _onNewAgent,
-                onNewTerminal: () => widget.onFillEmpty(true),
-              ),
-              if (_checkingAgent)
-                Positioned.fill(
-                  child: ColoredBox(
-                    color: context.colors.panel.withValues(alpha: 0.6),
-                    child: const Center(
-                      child: CircularProgressIndicator(size: 18),
-                    ),
-                  ),
-                ),
-            ],
-          );
-        }
-        _maybeStickToBottom();
-        // Drop do SO no corpo do agente → abre aba; sobre o composer, deixa o
-        // próprio composer tratar (vira `@menção`).
-        return _OpenTabDropTarget(
-          vm: context.read<CockpitViewModel>(),
-          paneId: widget.paneId,
-          excludeKey: _composerKey,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: AgentTranscript(
-                  entries: agent.entries,
-                  controller: _scroll,
-                  onUiResponse: agent.respondUi,
-                  bottomPadding: 150,
-                ),
-              ),
-              Positioned(
-                left: 16,
-                right: 16,
-                bottom: 16,
-                // Centraliza e limita a largura — em panes largas o input não
-                // estica de ponta a ponta; em panes estreitas, preenche.
-                child: Align(
-                  alignment: Alignment.bottomCenter,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 760),
-                    child: KeyedSubtree(
-                      key: _composerKey,
-                      child: AgentComposer(
-                        key: ValueKey('composer-${agent.id}'),
-                        session: agent,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    // Aba vazia ([EmptyTab]): vira **terminal direto**. O placeholder existe
+    // só pelo frame entre criar a pane e o shell subir. Guard por id (não
+    // reentra no build; cobre uma nova aba vazia criada depois na mesma pane).
+    if (_autoTerminalFor != item.id) {
+      _autoTerminalFor = item.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) widget.onFillEmpty();
+      });
+    }
+    return ColoredBox(color: context.colors.panel);
   }
 }
 
 /// Aceita **drop nativo do SO** (Finder/Explorer) e abre cada arquivo como uma
 /// **aba** na pane [paneId] (arquivos fora do workspace inclusive — o viewer lê
 /// por caminho absoluto e o LSP fica desligado pra externos). Pastas são
-/// ignoradas. Quando [excludeKey] aponta pra uma área com handler próprio (ex.:
-/// o composer do agente, que vira `@menção`), drops sobre ela são ignorados aqui
-/// pra não duplicar a ação.
+/// ignoradas.
 class _OpenTabDropTarget extends StatefulWidget {
   const _OpenTabDropTarget({
     required this.vm,
     required this.paneId,
     required this.child,
-    this.excludeKey,
   });
 
   final CockpitViewModel vm;
   final String paneId;
   final Widget child;
-  final GlobalKey? excludeKey;
 
   @override
   State<_OpenTabDropTarget> createState() => _OpenTabDropTargetState();
@@ -1985,15 +1867,6 @@ class _OpenTabDropTarget extends StatefulWidget {
 class _OpenTabDropTargetState extends State<_OpenTabDropTarget> {
   bool _over = false;
 
-  /// `true` se [global] (coords globais lógicas do Flutter) cai dentro da área
-  /// excluída (ex.: o composer) — aí o drop é dela, não nosso.
-  bool _overExcluded(Offset global) {
-    final ctx = widget.excludeKey?.currentContext;
-    final box = ctx?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return false;
-    return (box.localToGlobal(Offset.zero) & box.size).contains(global);
-  }
-
   void _setOver(bool value) {
     if (_over != value) setState(() => _over = value);
   }
@@ -2001,12 +1874,11 @@ class _OpenTabDropTargetState extends State<_OpenTabDropTarget> {
   @override
   Widget build(BuildContext context) {
     return DropTarget(
-      onDragEntered: (d) => _setOver(!_overExcluded(d.globalPosition)),
-      onDragUpdated: (d) => _setOver(!_overExcluded(d.globalPosition)),
+      onDragEntered: (_) => _setOver(true),
+      onDragUpdated: (_) => _setOver(true),
       onDragExited: (_) => _setOver(false),
       onDragDone: (d) {
         _setOver(false);
-        if (_overExcluded(d.globalPosition)) return;
         for (final f in d.files) {
           if (Directory(f.path).existsSync()) continue; // ignora pastas
           // Fronteira: `desktop_drop` entrega o caminho nativo do SO (`\` no

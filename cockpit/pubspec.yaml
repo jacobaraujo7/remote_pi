@@ -54,6 +54,10 @@ dependencies:
     path: packages/cockpit_core
   cockpit_remote:
     path: packages/cockpit_remote
+  # Segura o sleep por inatividade da máquina (botão "Keep awake" no rodapé
+  # do rail). Dart puro, desktop-only, no-op em iPad/Android.
+  cockpit_keepawake:
+    path: packages/cockpit_keepawake
 
   # Parse dos layouts `.ckp` (orquestração de panes) — YAML puro-Dart.
   yaml: ^3.1.2
@@ -72,8 +76,13 @@ dependencies:
   # `DefaultMaterialLocalizations` (en-US) por padrão, então os widgets de
   # terceiros que embutem Material (xterm, media_kit_video, gpt_markdown)
   # funcionam sem `flutter_localizations`; e `shadcn_flutter.dart` já re-exporta
-  # `Icons`, então mantemos os Material Icons sem import extra.
+  # `Icons` (Material clássico + Lucide). O conjunto maior é Material Symbols
+  # (`Symbols.*` em `package:material_symbols_icons/symbols.dart`).
   shadcn_flutter: 0.0.52
+
+  # Ícones Material Symbols (outlined/rounded/sharp) — milhares a mais que o
+  # `Icons` clássico. Tree-shakeável quando o uso é `const`/`Symbols.nome`.
+  material_symbols_icons: ^4.2960.0
 
   # DI + roteamento + estado page-scoped num pacote só: cada feature é um módulo
   # (`createModule`) que declara suas rotas + binds. Substitui provider +
@@ -165,19 +174,10 @@ dependencies:
   # macOS/Linux/Windows. NOTA: registrar esta dep no plano 37.
   desktop_drop: ^0.5.0
 
-  # Wave 2 — header fixo (sticky) por turno no chat: a pergunta do usuário fica
-  # pinada no topo enquanto a resposta rola. NOTA: registrar no plano 37.
-  flutter_sticky_header: ^0.8.0
-
-  # Conectividade (Fatia 3 — pareamento) — renderiza a URI de pareamento do
-  # `remote-pi` como QR Code no dialog. NOTA: registrar esta dep no plano 37.
-  qr_flutter: ^4.1.0
-
-  # Windows-only — cliente de named pipe (Win32 FFI) pra falar com o supervisor,
-  # que no Windows escuta em `\\.\pipe\…` em vez de UDS. Ver
-  # lib/data/daemon/win_named_pipe.dart.
+  # FFI direto no app: Job Object do Windows que amarra filhos à vida do
+  # processo (core/utils/child_process_lifetime.dart). O `win32` saiu junto com
+  # o named pipe do supervisor; quem ainda precisa dele é o cockpit_keepawake.
   ffi: ^2.1.0
-  win32: ^5.5.0
 
   # Aviso de atualização in-app (plano 43, passo 7): versão atual do app
   # (package_info_plus) + abrir a URL do artefato no navegador (url_launcher).

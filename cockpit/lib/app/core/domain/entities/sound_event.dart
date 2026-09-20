@@ -8,9 +8,6 @@ enum SoundEvent {
   /// Agente parou esperando o usuário (status `waiting`: aprovação de
   /// permissão, `AskUserQuestion`, `ExitPlanMode`).
   actionRequired,
-
-  /// O processo do agente morreu sem ser pedido (crash/exit inesperado).
-  agentError,
 }
 
 /// Nome do arquivo de som embarcado de cada evento (em `assets/sounds/`).
@@ -18,6 +15,5 @@ extension SoundEventAsset on SoundEvent {
   String get defaultAsset => switch (this) {
     SoundEvent.turnDone => 'turn_done.wav',
     SoundEvent.actionRequired => 'action_required.wav',
-    SoundEvent.agentError => 'agent_error.wav',
   };
 }

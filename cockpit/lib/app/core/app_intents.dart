@@ -7,9 +7,6 @@ import 'package:flutter/foundation.dart';
 /// de disparar. O `CockpitPage` registra os handlers no `initState` e limpa no
 /// `dispose`.
 
-/// ⌘L/Ctrl+L → foca o input do agente focado.
-VoidCallback? requestFocusActiveComposer;
-
 /// Menu **Cockpit → Configurações…** (⌘,) → empilha a rota `/settings`. Vive
 /// numa ponte porque o `flutter_modular` v7 navega só via `context.pushNamed`, e
 /// o menu nativo roda fora da árvore de rotas (sem `BuildContext`).

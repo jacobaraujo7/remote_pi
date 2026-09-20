@@ -1,0 +1,15 @@
+name: cockpit_keepawake
+description: Segura o sleep por inatividade da máquina enquanto o Cockpit precisa (host remoto). Dart puro, sem Flutter; macOS/Windows/Linux, no-op no resto.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+
+dependencies:
+  # Windows: SetThreadExecutionState / GetSystemPowerStatus (kernel32 via FFI).
+  ffi: ^2.1.0
+  win32: ^5.5.0
+
+dev_dependencies:
+  test: ^1.25.0

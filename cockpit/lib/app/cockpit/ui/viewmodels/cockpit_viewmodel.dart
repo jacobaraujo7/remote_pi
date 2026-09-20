@@ -21,7 +21,6 @@ import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_reader.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/folder_lister.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/git_history_reader.dart';
@@ -32,8 +31,6 @@ import 'package:cockpit/app/cockpit/domain/services/scm_line_decoration_calculat
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/layout_loader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/project_repository.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/rpc_gateway_factory.dart';
-import 'package:cockpit/app/cockpit/domain/contracts/session_history.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/core/domain/contracts/neovim_gateway.dart';
@@ -73,8 +70,6 @@ import 'package:cockpit/app/cockpit/domain/entities/launchable_app.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
 import 'package:cockpit/app/cockpit/domain/value_objects/uid.dart';
-import 'package:cockpit/app/cockpit/domain/entities/session_info.dart';
-import 'package:cockpit/app/cockpit/domain/entities/thinking_level.dart';
 import 'package:cockpit/app/cockpit/domain/entities/worktree.dart';
 import 'package:cockpit/app/cockpit/domain/services/worktree_reconciler.dart';
 import 'package:cockpit/app/cockpit/domain/services/file_editor_facade.dart';
@@ -88,7 +83,7 @@ import 'package:cockpit/app/core/ui/automation_controller.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/app/core/utils/user_home.dart';
-import 'package:cockpit/app/cockpit/ui/session/agent_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/diff_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
@@ -137,9 +132,6 @@ import 'package:flutter/scheduler.dart';
 class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   CockpitViewModel(
     this._projects,
-    this._factory,
-    this._folders,
-    this._history,
     this._fileSystem,
     this._terminalFactory,
     this._sidecar,
@@ -283,9 +275,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   final RemoteHostsController _remoteHosts;
   final TerminalHarnessMonitor _harnessMonitor;
   final NeovimGateway _neovim;
-  final RpcGatewayFactory _factory;
-  final FolderLister _folders;
-  final SessionHistory _history;
   final FileSystemReader _fileSystem;
   final TerminalGatewayFactory _terminalFactory;
 
@@ -724,13 +713,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _taskTerminals,
   );
 
-  /// `true` se existe ao menos uma aba de agente **real** (não o placeholder
-  /// vazio `AgentStatus.empty`). Usado pra impedir desligar `enableAgent` com
-  /// agentes em uso.
-  bool get hasAgentTabsInUse => _sessions.values.whereType<AgentSession>().any(
-    (a) => a.status != AgentStatus.empty,
-  );
-
   /// Roots git do projeto. Sempre não-vazio: single-root = `[path]`
   /// (comportamento histórico, N=1); multi-root = as filhas-repo derivadas.
   /// Vale igual para workspace **local e remoto** — no remoto as roots são
@@ -1068,9 +1050,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
     final lf = findLeaf(tree, paneId);
     final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
-    if (lf != null &&
-        only is AgentSession &&
-        only.status == AgentStatus.empty) {
+    if (lf != null && only is EmptyTab) {
       // Pane só com placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -1405,8 +1385,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
     final oldId = existing?.id;
     final active = _sessions[leaf.active];
-    final replaceEmpty =
-        active is AgentSession && active.status == AgentStatus.empty;
+    final replaceEmpty = active is EmptyTab;
     _trees[projectId] = updateLeaf(currentTree, leaf.id, (p) {
       if (oldId != null && p.tabs.contains(oldId)) {
         return p.copyWith(
@@ -1441,6 +1420,19 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   void _watchNeovimSession(NeovimSession session) {
     session.onActivePathChanged = (path) {
       unawaited(_revealNeovimPath(session, path));
+    };
+    // A aba é o editor: saiu do Neovim (`:q`, `:wq`, ou o processo morreu),
+    // a aba vai junto em vez de virar um terminal morto que ninguém usa.
+    session.onProcessExit = () {
+      if (_sessions[session.id] != session) return;
+      final paneId = leafOfTab(session.projectId, session.id);
+      if (paneId == null) return;
+      _closeTabIn(
+        session.projectId,
+        paneId,
+        session.id,
+        disposeAfterFrame: true,
+      );
     };
   }
 
@@ -1520,9 +1512,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         ),
       );
       _disposeSession(oldId!);
-    } else if (lf != null &&
-        only is AgentSession &&
-        only.status == AgentStatus.empty) {
+    } else if (lf != null && only is EmptyTab) {
       // Placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -2058,9 +2048,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (current == null) return;
     final lf = findLeaf(current, paneId);
     final only = lf?.tabs.length == 1 ? _sessions[lf!.tabs.first] : null;
-    if (lf != null &&
-        only is AgentSession &&
-        only.status == AgentStatus.empty) {
+    if (lf != null && only is EmptyTab) {
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
         current,
@@ -2259,9 +2247,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         ),
       );
       _disposeSession(oldId!);
-    } else if (lf != null &&
-        only is AgentSession &&
-        only.status == AgentStatus.empty) {
+    } else if (lf != null && only is EmptyTab) {
       // Placeholder vazio → substitui.
       final emptyId = lf.tabs.first;
       _trees[projectId] = updateLeaf(
@@ -2831,7 +2817,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (paneId == null || tabId == null) return null;
     final item = _sessions[tabId];
     if (item == null) return null;
-    if (item is AgentSession && item.status == AgentStatus.empty) return null;
+    if (item is EmptyTab) return null;
     return (paneId, tabId, item);
   }
 
@@ -4542,47 +4528,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// pull-to-refresh do painel). No-op se o ativo é local.
   Future<void> refreshRemoteGit() => _refreshRemoteGit();
 
-  /// Subpastas do projeto selecionado em [relativePath] (vazio = raiz), para o
-  /// seletor navegável de "onde o agente atua". [relativePath] usa `/` e fica
-  /// sempre **dentro** do root do projeto (o dialog não sobe acima dele).
-  Future<List<String>> subfolders([String relativePath = '']) async {
-    final project = selectedProject;
-    if (project == null) return const <String>[];
-    final base = relativePath.isEmpty
-        ? project.path
-        : '${project.path}/$relativePath';
-    return _folders.subfolders(base);
-  }
-
-  /// Sessões salvas do pi para uma pasta (histórico), mais recentes primeiro.
-  Future<List<SessionInfo>> historyFor(String cwd) =>
-      _history.sessionsFor(cwd, withTitle: true);
-
-  /// Aplica nome e relay ao agente. Se houver mudança real e o processo estiver
-  /// rodando, reinicia com a nova config (preservando `sessionPath`).
-  Future<void> saveAgentConfig(
-    String sessionId, {
-    required String agentName,
-    required bool autoStartRelay,
-  }) async {
-    final s = _sessions[sessionId];
-    if (s is! AgentSession) return;
-
-    final nameChanged = agentName.trim() != s.title;
-    final relayChanged = autoStartRelay != s.autoStartRelay;
-    if (!nameChanged && !relayChanged) return;
-
-    s.rename(agentName.trim());
-    s.autoStartRelay = autoStartRelay;
-    if (nameChanged && s.isAlive) {
-      unawaited(s.sendRelayControl('rename:${agentName.trim()}'));
-    }
-    notifyListeners();
-  }
-
   /// Define o rótulo manual (nome estável) de uma aba e persiste o layout.
-  /// Diferente de [saveAgentConfig]: não mexe na identidade do agente/harness —
-  /// só no nome exibido/CLI, travando-o contra o título automático (OSC etc).
+  /// Só o nome exibido/CLI, travando-o contra o título automático (OSC etc).
   void setPaneLabel(String sessionId, String label) {
     final s = _sessions[sessionId];
     if (s == null) return;
@@ -4737,15 +4684,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     notifyListeners();
   }
 
-  /// Cria uma aba (agente ou terminal) direto na subpasta [subRelative] do
-  /// projeto ativo, na pane focada — **sem dialog**. Usada pelo menu de contexto
-  /// da árvore de arquivos. Se a pane focada está num placeholder "Novo" vazio,
+  /// Cria uma aba de terminal direto na subpasta [subRelative] do projeto
+  /// ativo, na pane focada — **sem dialog**. Usada pelo menu de contexto da
+  /// árvore de arquivos. Se a pane focada está num placeholder "Novo" vazio,
   /// substitui-o; senão, anexa uma aba nova e a ativa.
   void newTabIn(
     String subRelative, {
-    required bool terminal,
     // Plano 50: perfil específico (seletor ao lado do `+`). `null` = padrão
-    // efetivo. Ignorado quando `terminal` é `false`.
+    // efetivo.
     TerminalProfile? profile,
   }) {
     final projectId = _selectedProjectId;
@@ -4753,11 +4699,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (projectId == null || tree == null) return;
     final paneId = _focused[projectId] ?? leaves(tree).first.id;
     final leaf = findLeaf(tree, paneId) ?? leaves(tree).first;
-    final s = _spawn(subRelative, terminal: terminal, profile: profile);
+    final s = _spawn(subRelative, profile: profile);
 
     final active = _sessions[leaf.active];
-    final replaceEmpty =
-        active is AgentSession && active.status == AgentStatus.empty;
+    final replaceEmpty = active is EmptyTab;
 
     _setActiveTree(
       updateLeaf(tree, leaf.id, (p) {
@@ -4808,8 +4753,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       // Mesma pane: anexa como aba nova (substituindo o placeholder "Novo",
       // se for a aba ativa — mesma regra do `newTabIn`).
       final active = _sessions[leaf.active];
-      final replaceEmpty =
-          active is AgentSession && active.status == AgentStatus.empty;
+      final replaceEmpty = active is EmptyTab;
       _setActiveTree(
         updateLeaf(tree, leaf.id, (p) {
           if (replaceEmpty) {
@@ -4878,16 +4822,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final running = tabs.any(
       (s) =>
           s.isWorking ||
-          (s is AgentSession && s.isBusy) ||
           (s is TerminalSession && s.activeHarness != null) ||
           (s is TaskOutputSession && _taskRunner.runOf(s.taskId).isActive),
     );
     return (tabs: tabs.length, running: running);
   }
 
-  /// Placeholder "New" (agente vazio) — não conta como aba do usuário.
-  bool _isEmptyPlaceholder(PaneItem? s) =>
-      s is AgentSession && s.status == AgentStatus.empty;
+  /// Placeholder "New" (aba vazia) — não conta como aba do usuário.
+  bool _isEmptyPlaceholder(PaneItem? s) => s is EmptyTab;
 
   /// Fecha todas as abas do workspace selecionado, deixando uma única folha
   /// com o placeholder vazio (mesmo estado de um workspace recém-aberto).
@@ -5054,17 +4996,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return active is TerminalSession;
   }
 
-  /// `true` se a aba ativa da pane é um AGENTE de verdade (não placeholder). Só
-  /// nesse caso o split pergunta a subpasta — as demais abas (terminal, browser,
-  /// viewer, db) abrem direto na raiz do workspace, sem modal.
-  bool paneActiveIsAgent(String paneId) {
-    final tree = _activeTree;
-    if (tree == null) return false;
-    final leaf = findLeaf(tree, paneId);
-    final active = leaf == null ? null : _sessions[leaf.active];
-    return active is AgentSession && active.status != AgentStatus.empty;
-  }
-
   /// `true` se a aba ativa da pane [paneId] é um placeholder "Novo" (ainda não
   /// virou agente nem terminal). O split usa isso pra criar outro placeholder
   /// — que mostra o seletor Agent/Terminal — em vez de espelhar um tipo que
@@ -5074,7 +5005,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (tree == null) return false;
     final leaf = findLeaf(tree, paneId);
     final active = leaf == null ? null : _sessions[leaf.active];
-    return active is AgentSession && active.status == AgentStatus.empty;
+    return active is EmptyTab;
   }
 
   /// Divide a pane criando uma aba "Novo" (placeholder vazio) ao lado/abaixo.
@@ -5097,15 +5028,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     notifyListeners();
   }
 
-  /// Divide a pane criando um agente novo ao lado/abaixo.
+  /// Divide a pane criando um terminal novo ao lado/abaixo.
   void splitPane(String paneId, SplitDir dir, String subRelative) {
     final tree = _activeTree;
     if (tree == null) return;
-    // O novo pane espelha o tipo da aba ativa: terminal → terminal, agente → agente.
-    final leaf = findLeaf(tree, paneId);
-    final active = leaf == null ? null : _sessions[leaf.active];
-    final terminal = active is TerminalSession;
-    final s = _spawn(subRelative, terminal: terminal);
+    final s = _spawn(subRelative);
     final newLeaf = LeafPane(id: _nid('pane'), tabs: [s.id], active: s.id);
     _setActiveTree(splitLeaf(tree, paneId, dir, newLeaf, splitId: _nid('sp')));
     _focused[_selectedProjectId!] = newLeaf.id;
@@ -5270,16 +5197,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return remaining[(idx - 1).clamp(0, remaining.length - 1)];
   }
 
-  /// Preenche uma pane vazia: troca o placeholder por um agente ou terminal.
-  void fillEmpty(
-    String paneId,
-    String emptyId,
-    String subRelative, {
-    bool terminal = false,
-  }) {
+  /// Preenche uma pane vazia: troca o placeholder por um terminal.
+  void fillEmpty(String paneId, String emptyId, String subRelative) {
     final tree = _activeTree;
     if (tree == null) return;
-    final s = _spawn(subRelative, terminal: terminal);
+    final s = _spawn(subRelative);
     _setActiveTree(
       updateLeaf(tree, paneId, (p) {
         final tabs = p.tabs.map((t) => t == emptyId ? s.id : t).toList();
@@ -5293,37 +5215,64 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   void closeTab(String paneId, String agentId) {
     final projectId = _selectedProjectId;
-    final tree = _activeTree;
-    if (projectId == null || tree == null) return;
+    if (projectId == null) return;
+    _closeTabIn(projectId, paneId, agentId);
+  }
+
+  /// [closeTab] em um workspace qualquer, não só no selecionado: um processo
+  /// pode terminar (e levar a aba junto) enquanto o usuário está em outro
+  /// workspace, e a aba precisa sumir lá também.
+  ///
+  /// Com [disposeAfterFrame], a sessão só é destruída depois do frame que tira
+  /// a aba da tela. É o que um fechamento disparado pelo **próprio processo**
+  /// (o `:q` do Neovim) precisa: a view ainda está montada neste turno e o
+  /// resto da digitação em trânsito cairia num controller de terminal já
+  /// descartado (`Bad state: TerminalController is disposed`).
+  void _closeTabIn(
+    String projectId,
+    String paneId,
+    String tabId, {
+    bool disposeAfterFrame = false,
+  }) {
+    final tree = _trees[projectId];
+    if (tree == null) return;
     final leaf = findLeaf(tree, paneId);
     if (leaf == null) return;
-    final tabs = leaf.tabs.where((t) => t != agentId).toList();
+    final tabs = leaf.tabs.where((t) => t != tabId).toList();
     if (tabs.isEmpty) {
       if (leaves(tree).length == 1) {
         final empty = _makeEmpty(projectId);
-        _setActiveTree(
-          updateLeaf(
-            tree,
-            paneId,
-            (p) => p.copyWith(tabs: [empty.id], active: empty.id),
-          ),
+        _trees[projectId] = updateLeaf(
+          tree,
+          paneId,
+          (p) => p.copyWith(tabs: [empty.id], active: empty.id),
         );
       } else {
-        _setActiveTree(removeLeaf(tree, paneId));
+        _trees[projectId] = removeLeaf(tree, paneId);
       }
     } else {
       var active = leaf.active;
-      if (active == agentId) {
-        final idx = leaf.tabs.indexOf(agentId);
+      if (active == tabId) {
+        final idx = leaf.tabs.indexOf(tabId);
         active = tabs[(idx - 1).clamp(0, tabs.length - 1)];
       }
-      _setActiveTree(
-        updateLeaf(tree, paneId, (p) => p.copyWith(tabs: tabs, active: active)),
+      _trees[projectId] = updateLeaf(
+        tree,
+        paneId,
+        (p) => p.copyWith(tabs: tabs, active: active),
       );
     }
-    _disposeSession(agentId);
-    _ensureFocusValid();
+    if (disposeAfterFrame) {
+      unawaited(_disposeSessionAfterFrame(tabId));
+    } else {
+      _disposeSession(tabId);
+    }
+    _ensureFocusValid(projectId);
     notifyListeners();
+    // `notifyListeners` só agenda a gravação do workspace selecionado.
+    if (!_restoring && projectId != _selectedProjectId) {
+      _scheduleSave(projectId);
+    }
   }
 
   /// Reinicia a aba de terminal [tabId] do pane [paneId]: mata o processo e
@@ -5501,11 +5450,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return _terminalFactory.create();
   }
 
-  PaneItem _spawn(
-    String subRelative, {
-    required bool terminal,
-    TerminalProfile? profile,
-  }) {
+  PaneItem _spawn(String subRelative, {TerminalProfile? profile}) {
     final project = selectedProject!;
     // Workspace remoto (via SSH): PTY no cockpit-server do host, na PASTA do
     // pin (vazio = HOME remota). Gateway roteado pro connector daquele host.
@@ -5519,7 +5464,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       );
     }
     // Cockpit (terminal-only, sem pasta): shell sempre no HOME do usuário,
-    // ignorando `subRelative`. Nunca spawna agente aqui (a UI força terminal).
+    // ignorando `subRelative`.
     if (project.isSystemTerminal) {
       return _buildTerminal(
         _nid('t'),
@@ -5535,15 +5480,13 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final title = _sanitizeName(
       subRelative.isEmpty ? project.name : _basename(subRelative),
     );
-    return terminal
-        ? _buildTerminal(
-            _nid('t'),
-            project.id,
-            cwd,
-            title: title,
-            profile: profile,
-          )
-        : _buildAgent(_nid('a'), project, cwd, title: title);
+    return _buildTerminal(
+      _nid('t'),
+      project.id,
+      cwd,
+      title: title,
+      profile: profile,
+    );
   }
 
   TerminalSession _buildTerminal(
@@ -5714,68 +5657,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return loadWorkspaceEnvSync(<String>{path, ...rootsOf(projectId)});
   }
 
-  /// Cria e boota um agente. [restoreSessionPath] (restauração) faz reanexar a
-  /// conversa salva via `switch_session`; senão, a VM captura o arquivo de
-  /// sessão que o pi criar (no 1º fim de turno) pra poder restaurar depois.
-  /// O nome final é atribuído pelo broker via evento `remote-pi:name-assigned`
-  /// quando houver colisão de mesh — [AgentSession] trata o evento e persiste.
-  AgentSession _buildAgent(
-    String id,
-    Project project,
-    String cwd, {
-    String? title,
-    bool autoStartRelay = false,
-    String? restoreSessionPath,
-    String? preferredModelId,
-    ThinkingLevel preferredThinking = ThinkingLevel.off,
-  }) {
-    final s =
-        AgentSession(
-            id: id,
-            projectId: project.id,
-            workingDirectory: cwd,
-            factory: _factory,
-            title: title,
-            autoStartRelay: autoStartRelay,
-          )
-          ..preferredModelId = preferredModelId
-          ..preferredThinking = preferredThinking;
-    s.onTurnEnd = () => _onAgentTurnEnd(s);
-    s.onCrashed = () => unawaited(notifications.agentCrashed(s));
-    s.onPreferenceChanged = () => _scheduleSave(project.id);
-    _sessions[s.id] = s;
-    unawaited(_bootAgent(s, cwd, project, restoreSessionPath));
-    return s;
-  }
-
-  Future<void> _bootAgent(
-    AgentSession s,
-    String cwd,
-    Project project,
-    String? restoreSessionPath,
-  ) async {
-    s.sessionBaseline = (await _history.sessionsFor(
-      cwd,
-    )).map((e) => e.path).toSet();
-    await s.boot(
-      environment: _buildDirectConfig(s, project),
-      restoreSessionPath: restoreSessionPath,
-    );
-  }
-
-  /// Serializa `agent_name`, `auto_start_relay` e `workspace` em
-  /// `REMOTE_PI_DIRECT_CONFIG` para o processo filho.
-  Map<String, String> _buildDirectConfig(AgentSession s, Project project) {
-    return {
-      'REMOTE_PI_DIRECT_CONFIG': jsonEncode(<String, dynamic>{
-        'agent_name': s.title,
-        'workspace': project.name,
-        'auto_start_relay': s.autoStartRelay,
-      }),
-      'REMOTE_PI_DAEMON': '1',
-    };
-  }
-
   // ---- notificações ---------------------------------------------------------
 
   /// Id do agente que o usuário está olhando (aba ativa da pane focada do
@@ -5850,13 +5731,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     };
   }
 
-  void _onAgentTurnEnd(AgentSession s) {
-    if (s.sessionPath == null) unawaited(_captureSessionPath(s));
-    unawaited(git.refresh(s.projectId));
-    unawaited(_refreshWorktrees(_rootOf(s.projectId)));
-    unawaited(notifications.turnFinished(s));
-  }
-
   /// Limpa a notificação do agente que acabou de virar o focado.
   void _clearFocusedNotification() {
     final id = _focusedAgentId;
@@ -5864,17 +5738,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (s != null && s.unseenFinish) s.clearUnseen();
   }
 
-  AgentSession _makeEmpty(String projectId) =>
+  EmptyTab _makeEmpty(String projectId) =>
       _makeEmptyWithId(_nid('a'), projectId);
 
-  AgentSession _makeEmptyWithId(String id, String projectId) {
-    final s = AgentSession(
-      id: id,
-      projectId: projectId,
-      workingDirectory: '',
-      factory: _factory,
-      title: 'New',
-    );
+  EmptyTab _makeEmptyWithId(String id, String projectId) {
+    final s = EmptyTab(id: id, projectId: projectId, workingDirectory: '');
     _sessions[s.id] = s;
     return s;
   }
@@ -5902,7 +5770,22 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return ids;
   }
 
-  void _disposeSession(String id) {
+  /// [_disposeSession] com a destruição adiada pro fim do frame, para quem
+  /// fecha a aba com a view dela ainda montada (ver [_closeTabIn]). A sessão
+  /// sai do registro na hora: quem for procurá-la no meio do caminho — o
+  /// `_openInNeovim` atrás de uma instância viva, por exemplo — não pode achar
+  /// uma sessão que está de saída e tentar destruí-la de novo.
+  Future<void> _disposeSessionAfterFrame(String id) async {
+    final session = _detachSession(id);
+    await _endOfFrame();
+    session?.dispose();
+  }
+
+  void _disposeSession(String id) => _detachSession(id)?.dispose();
+
+  /// Tira a sessão [id] do registro (com o que está pendurado nela) e a
+  /// devolve, sem destruir.
+  PaneItem? _detachSession(String id) {
     _fileWatchers.remove(id)?.cancel();
     _fileWatchDebounce.remove(id)?.cancel();
     final s = _sessions.remove(id);
@@ -5912,7 +5795,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (s is TerminalSession) {
       unawaited(_scrollback.delete(projectId: s.projectId, sessionId: id));
     }
-    s?.dispose();
+    return s;
   }
 
   /// Observa o arquivo de uma aba de viewer e relê o conteúdo ao vivo quando ele
@@ -6258,23 +6141,12 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
           workingDirectory: project.path,
         );
         return true;
+      // Abas do agente nativo (`pi --mode rpc`), removido na 2.0: layouts
+      // antigos ainda as citam. Descartadas aqui; o `_sanitizeTree` repõe o
+      // placeholder se a folha ficar vazia. Tipo desconhecido cai no mesmo.
       case 'agent':
       default:
-        _buildAgent(
-          id,
-          project,
-          cwdOf(),
-          title: desc['title'] as String?,
-          autoStartRelay: desc['auto_start_relay'] == true,
-          restoreSessionPath: desc['sessionPath'] as String?,
-          preferredModelId: desc['preferred_model'] as String?,
-          preferredThinking: _enumByName(
-            ThinkingLevel.values,
-            desc['preferred_thinking'],
-            ThinkingLevel.off,
-          ),
-        );
-        return true;
+        return false;
     }
   }
 
@@ -6334,19 +6206,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
     walk(tree);
     _seq = maxN;
-  }
-
-  /// Descobre, por diferença com a [AgentSession.sessionBaseline], qual arquivo
-  /// de sessão o pi criou pra este agente, e o guarda pra restaurar depois.
-  Future<void> _captureSessionPath(AgentSession s) async {
-    final baseline = s.sessionBaseline;
-    if (baseline == null || s.sessionPath != null) return;
-    final now = await _history.sessionsFor(s.workingDirectory);
-    final fresh = now.where((e) => !baseline.contains(e.path)).toList();
-    if (fresh.isEmpty) return;
-    fresh.sort((a, b) => b.modifiedAt.compareTo(a.modifiedAt));
-    s.sessionPath = fresh.first.path;
-    notifyListeners(); // persiste o path
   }
 
   Map<String, dynamic> _serializeLayout(String projectId) {
@@ -6550,20 +6409,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         'engine': s.terminal.engine.name,
       };
     }
-    final a = s as AgentSession;
-    if (a.status == AgentStatus.empty) {
-      return <String, dynamic>{'type': 'empty', 'title': a.title};
-    }
-    return <String, dynamic>{
-      'type': 'agent',
-      'sub': relativeUnder(a.workingDirectory, project.path),
-      'title': a.title,
-      if (a.sessionPath != null) 'sessionPath': a.sessionPath,
-      if (a.autoStartRelay) 'auto_start_relay': true,
-      if (a.preferredModelId != null) 'preferred_model': a.preferredModelId,
-      if (a.preferredThinking != ThinkingLevel.off)
-        'preferred_thinking': a.preferredThinking.name,
-    };
+    // Sobrou só o placeholder ([EmptyTab]).
+    return <String, dynamic>{'type': 'empty', 'title': s.title};
   }
 
   /// Caminho de [cwd] relativo à raiz [root] do projeto ('' = raiz). Devolve
@@ -6737,8 +6584,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (switched || !listEquals(oldSig, newSig)) notifyListeners();
   }
 
-  void _ensureFocusValid() {
-    final id = _selectedProjectId;
+  void _ensureFocusValid([String? projectId]) {
+    final id = projectId ?? _selectedProjectId;
     if (id == null) return;
     final tree = _trees[id];
     if (tree == null) return;

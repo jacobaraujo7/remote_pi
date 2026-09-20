@@ -1,3 +1,5 @@
+import 'package:cockpit/app/core/ui/keep_awake_controller.dart';
+import 'package:cockpit_keepawake/cockpit_keepawake.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dismissed_update_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/self_updater.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/update_checker.dart';
@@ -164,7 +166,11 @@ Widget _rail({
   return TranslationProvider(
     child: ModularApp(
       module: createModule(register: (c) => c.module(feature)),
-      provide: (s) => s.addChangeNotifier<UpdateViewModel>(_fakeUpdateVm),
+      provide: (s) => s
+        ..addChangeNotifier<UpdateViewModel>(_fakeUpdateVm)
+        ..addChangeNotifier<KeepAwakeController>(
+          () => KeepAwakeController(keepAwake: const UnsupportedKeepAwake()),
+        ),
       child: const _Root(),
     ),
   );

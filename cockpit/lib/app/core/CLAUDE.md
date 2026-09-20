@@ -12,19 +12,17 @@ O que é **compartilhado por 2+ features** ou é app-global. Não é uma feature
 
 ```
 core/
-├── core_module.dart   # binds root-owned: PiSpawnConfig + Pairing/RevokeGatewayFactory
+├── core_module.dart   # binds root-owned: LSP pool, automação, perfis de terminal, permissões
 ├── routes.dart        # RoutePaths (consts de path; evita string mágica)
-├── env.dart           # PiSpawnConfig (resolve o binário pi + args)
-├── app_intents.dart   # ponte global de atalhos (foco do composer)
+├── app_intents.dart   # pontes globais do menu nativo (settings, abrir projeto, updates)
 ├── domain/
 │   ├── contracts/     # markers: Service/Disposable/UseCase; settings_store;
-│   │                  #   pairing_gateway, revoke_gateway (+ factories)
-│   ├── entities/      # app_settings (preferências); pair_event
-│   ├── exceptions/    # relay_error
+│   │                  #   lsp_client, neovim_gateway, system_permissions
+│   ├── entities/      # app_settings (preferências), sound_event, terminal_profile
+│   ├── exceptions/    # automation_error, file_operation_error, lsp_error
 │   └── result.dart    # Result<T, E>
-├── data/              # utils compartilhados: jsonl_line_splitter, remote_pi_resolver,
-│   │                  #   hive_settings_store
-│   └── relay/         # ephemeral_pi_rpc + pairing/revoke gateway impls
+├── data/              # lsp/, automation/, neovim/, terminal/, repositories/ (stores
+│                      #   JSON), setup/ (storage_location, permissões, sons)
 └── ui/
     ├── settings_controller.dart  # APP-SCOPED (tema/fonte) — construído no main,
     │                             #   provido em ModularApp.provide (não em rota)
@@ -38,17 +36,8 @@ core/
 
 - Usado por **só uma** feature → vai para a feature (`app/<feature>/...`).
 - Usado por **duas ou mais** (ou é app-global) → core.
-- **Exceção (DI)**: um bind de nível de feature (módulo com `path`) **não enxerga
-  o core** na resolução do `auto_injector` — só o `provide` page-scoped e o próprio
-  core enxergam. Logo um bind que resolve uma dep do core **pelo construtor** mora
-  aqui (root-owned) mesmo que só uma feature o use. É o caso das
-  `Pairing/RevokeGatewayFactory`: recebem `PiSpawnConfig` no construtor, então
-  ficam no core junto do config, e o `ConnectivityViewModel` (settings, page-scoped)
-  as injeta.
-- Ex.: `SupervisorClientImpl` serve daemons **e** cron (mesma instância sob dois
-  contratos) → fica em `settings/data` porque ambos são da feature *settings*; já
-  o `SettingsController` (tema lido pelo shell **e** editado em settings) e o
-  `PiSpawnConfig` (RPC do cockpit **e** pi efêmero do settings) são core.
+- Ex.: o `SettingsController` (tema lido pelo shell **e** editado em settings) e
+  o `LspServerPool` (global, compartilhado por todos os workspaces) são core.
 
 ## Tema
 

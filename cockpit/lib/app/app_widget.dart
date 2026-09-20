@@ -1,7 +1,6 @@
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
-import 'package:cockpit/app/core/app_intents.dart';
 import 'package:cockpit/app/core/ui/menu/app_menu_bar.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/menu/menu_model.dart';
@@ -14,7 +13,6 @@ import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -112,7 +110,6 @@ class AppRoot extends StatelessWidget {
           // sozinha; no macOS a barra nativa já dispara, então não duplicamos.
           bindings: {
             ...zoomBindings(controller),
-            ..._focusBindings(),
             if (!Platform.isMacOS) ...menuShortcuts(menus),
           },
           // macOS: barra de menu **nativa** do SO — o [AppMenuBar] envolve com um
@@ -135,17 +132,6 @@ class AppRoot extends StatelessWidget {
     AppThemeMode.light => ThemeMode.light,
     AppThemeMode.dark => ThemeMode.dark,
   };
-
-  /// ⌘L / Ctrl+L → foca o input do agente focado (via ponte global, resolvida
-  /// pelo `CockpitPage`). Fica aqui (não no shell) pra disparar mesmo quando o
-  /// foco caiu num espaço vazio.
-  Map<ShortcutActivator, VoidCallback> _focusBindings() {
-    void focus() => requestFocusActiveComposer?.call();
-    return <ShortcutActivator, VoidCallback>{
-      const SingleActivator(LogicalKeyboardKey.keyL, meta: true): focus,
-      const SingleActivator(LogicalKeyboardKey.keyL, control: true): focus,
-    };
-  }
 
   /// Atalhos de zoom (tamanho da interface). `meta` = ⌘ (macOS); `control` = Ctrl
   /// (Windows/Linux). `=`/numpad+ aumenta, `-`/numpad- diminui, `0` reseta. Step

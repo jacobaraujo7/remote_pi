@@ -74,15 +74,8 @@ List<MenuBarMenu> buildAppMenus(
       const MenuRole(MenuBarRole.quit),
     ]),
     MenuBarMenu(tr.file, <MenuNode>[
-      // New Agent/Terminal abrem uma aba no workspace ativo (via CockpitPage →
-      // newTabIn). Só habilitam quando há workspace selecionado. "New Agent" só
-      // aparece quando o suporte a agentes está ligado (Settings → General) e o
-      // workspace ativo permite agentes (o Cockpit terminal-only não permite).
-      if (controller.settings.enableAgent && workspace.agentsAllowed)
-        MenuAction(
-          tr.newAgent,
-          onSelected: workspace.hasWorkspace ? workspace.newAgent : null,
-        ),
+      // New Terminal abre uma aba no workspace ativo (via CockpitPage →
+      // newTabIn). Só habilita quando há workspace selecionado.
       // No mobile o "+" da aba cria terminal e o "+" do rail abre workspace —
       // esses itens de menu são redundantes (plano 60, Wave F).
       if (!isMobilePlatform)
