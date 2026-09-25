@@ -68,9 +68,12 @@
     ]
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.79.10",
+    "@earendil-works/pi-tui": "^0.79.10",
     "@types/node": "^25.8.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.22.0",
+    "typebox": "^1.1.38",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.6"
