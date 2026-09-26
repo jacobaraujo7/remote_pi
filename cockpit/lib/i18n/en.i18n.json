@@ -167,7 +167,14 @@
       "moreKeysTooltip": "More keys",
       "sectionTasks": "TASKS",
       "noTasks": "No tasks detected in this project.",
-      "createTasksJson": "Create tasks.json"
+      "createTasksJson": "Create tasks.json",
+      "importWorkspaceTasks": "Import from workspace",
+      "importingTasks": "Importing tasks…",
+      "importSourceMissing": "The source workspace has no tasks file.",
+      "importFailed": "Could not import tasks. Try again.",
+      "copy": "Copy",
+      "copyAll": "Copy All",
+      "clearConsole": "Clear Console"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Choose the project folder",
