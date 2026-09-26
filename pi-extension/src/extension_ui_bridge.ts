@@ -35,11 +35,6 @@ const PI_ASK_COMPLETED = "@eko24ive/pi-ask:completed";
 const PI_ASK_SUBMIT = "@eko24ive/pi-ask:submit";
 const PI_ASK_SUBMIT_RESULT = "@eko24ive/pi-ask:submit-result";
 
-/** Drop a flow from `activeFlows` if pi-ask never resolves it (e.g. a flow
- *  disposed on session_shutdown — pi-ask does not emit `completed` for those).
- *  Bounds memory; generous vs. a human answer time. */
-const FLOW_TTL_MS = 10 * 60 * 1000;
-
 /** Minimal view of `pi.events` this bridge needs. */
 type EventBus = ExtensionAPI["events"];
 
@@ -57,6 +52,8 @@ export interface ExtensionUiBridge {
   respond(msg: ExtensionUiResponseWire): void;
   /**
    * Requests for flows still awaiting an answer, for `session_sync` to replay.
+   * Retained until pi-ask completes them or the owning session disposes the
+   * bridge; elapsed time does not imply the user has answered or cancelled.
    *
    * The `started` broadcast fires exactly once. A peer that connects *after*
    * a flow opened never saw it: history replayed, but the interactive frame
@@ -95,41 +92,8 @@ export function createExtensionUiBridge(
   // option value, and so completed/submit-result can be tolerated if they arrive
   // after the app already answered.
   const activeFlows = new Map<string, ActiveFlow>();
-  // Per-flow TTL timers (FLOW_TTL_MS). pi-ask disposes flows on session_shutdown
-  // WITHOUT emitting `completed`, so without this the `activeFlows` map would
-  // leak one entry per abandoned flow. Bounded, defensive.
-  const flowTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  function clearFlowTtl(flowId: string): void {
-    const t = flowTimers.get(flowId);
-    if (t !== undefined) {
-      clearTimeout(t);
-      flowTimers.delete(flowId);
-    }
-  }
-  function armFlowTtl(flowId: string): void {
-    clearFlowTtl(flowId);
-    flowTimers.set(
-      flowId,
-      setTimeout(() => {
-        if (!activeFlows.delete(flowId)) return; // already resolved
-        flowTimers.delete(flowId);
-        // Tell the app the bridge forgot this flow instead of stranding its
-        // modal silently: a matching WARNING notify keeps the modal open with
-        // a retry hint. Rich clients can still retry (the response carries
-        // flow_id and pi-ask's flow may still be pending on the desktop);
-        // degraded clients at least get closure.
-        broadcast({
-          type: "extension_ui_request",
-          id: flowId,
-          method: "notify",
-          message:
-            "Clarification expired on the bridge — retry or answer on desktop.",
-          notify_type: "warning",
-        });
-      }, FLOW_TTL_MS),
-    );
-  }
+  // pi-ask can wait indefinitely for a human. Only completion or session
+  // teardown ends replay ownership; the host calls dispose on session_shutdown.
 
   const unsubStarted = events.on(PI_ASK_STARTED, (raw: unknown) => {
     const event = parseStartedEvent(raw);
@@ -142,7 +106,6 @@ export function createExtensionUiBridge(
       questions: event.questions,
     };
     activeFlows.set(flow.flowId, flow);
-    armFlowTtl(flow.flowId);
     broadcast(requestForFlow(flow));
   });
 
@@ -150,7 +113,6 @@ export function createExtensionUiBridge(
     const e = raw as { version?: number; flowId?: unknown } | null;
     if (!e || e.version !== 1 || typeof e.flowId !== "string") return;
     const flowId = e.flowId;
-    clearFlowTtl(flowId);
     activeFlows.delete(flowId);
     // Same id as the originating request (the flowId). The app treats a `notify`
     // whose id matches an open interactive request as "that flow resolved —
@@ -278,7 +240,7 @@ export function createExtensionUiBridge(
       });
     } catch {
       // pi-ask not installed or bus gone — nothing useful to do; the flow will
-      // either resolve locally (desktop TUI) or time out on its own.
+      // either resolve locally (desktop TUI) or be cleared on session teardown.
     }
   }
 
@@ -292,8 +254,6 @@ export function createExtensionUiBridge(
       unsubStarted();
       unsubCompleted();
       unsubResult();
-      for (const t of flowTimers.values()) clearTimeout(t);
-      flowTimers.clear();
       activeFlows.clear();
     },
   };
