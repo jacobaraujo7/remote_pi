@@ -79,6 +79,11 @@ class ChatViewModel extends ViewModel<ChatState> {
 
   PeerRecord? get activePeer => _activePeer;
 
+  /// Pi-side room id this chat is bound to ('main' before discovery).
+  /// Exposed so per-room preferences (e.g. the tool-calls toggle) can
+  /// key on the exact (peer, room) pair.
+  String get activeRoomId => _activeRoomId;
+
   RoomInfo? get activeRoom {
     final epk = _activePeer?.remoteEpk;
     if (epk == null) return null;

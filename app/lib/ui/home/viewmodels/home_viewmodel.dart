@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:app/data/actions/actions_repository.dart';
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/data/transport/epk_encoding.dart';
@@ -23,13 +24,18 @@ class HomeViewModel extends ViewModel<HomeState> {
   final PairingStorage _storage;
   final Preferences _prefs;
   final ConnectionManager _conn;
+  /// Optional — needed only for the room-management actions (create /
+  /// delete). Optional so the test harnesses that construct HomeViewModel
+  /// without an ActionsRepository keep working; the Home UI gates the
+  /// create/delete entry points on it being present.
+  final IActionsRepository? _actions;
   StreamSubscription<Map<String, PresenceState>>? _presenceSub;
   StreamSubscription<Map<String, List<RoomInfo>>>? _roomsSub;
   StreamSubscription<ConnectionStatus>? _statusSub;
   bool _relayConnected = false;
   bool _disposed = false;
 
-  HomeViewModel(this._storage, this._prefs, this._conn)
+  HomeViewModel(this._storage, this._prefs, this._conn, [this._actions])
     : super(const HomeLoading()) {
     _relayConnected = _conn.status is StatusOnline;
     _load();
@@ -207,6 +213,16 @@ class HomeViewModel extends ViewModel<HomeState> {
   /// per-peer anymore).
   bool isRoomLive(String epk, String roomId) => _conn.isRoomLive(epk, roomId);
 
+  /// Room management — the first LIVE room of [epk] (the room the
+  /// create/delete frame is sent through), or `null` when the peer has
+  /// none live.
+  String? firstLiveRoom(String epk) {
+    for (final r in _conn.roomsFor(epk)) {
+      if (_conn.isRoomLive(epk, r.roomId)) return r.roomId;
+    }
+    return null;
+  }
+
   /// Long-press menu — rename a single room locally (Pi never sees it).
   Future<void> renameRoom(String epk, String roomId, String? name) =>
       _conn.setRoomLocalName(epk, roomId, name);
@@ -215,6 +231,15 @@ class HomeViewModel extends ViewModel<HomeState> {
   /// gate on `!isRoomLive` (only offline rooms can be removed).
   Future<void> deleteRoom(String epk, String roomId) =>
       _conn.deleteCachedRoom(epk, roomId);
+
+  /// The actions channel used by the room-management flows (new-room
+  /// button / Pi-side room delete). `null` in test harnesses — the UI
+  /// hides the entry points when it is.
+  IActionsRepository? get actions => _actions;
+
+  /// Read-only access to the shared manager for the room-management
+  /// flows (live-room discovery, room switching, cached-room removal).
+  ConnectionManager get conn => _conn;
 
   @override
   void dispose() {

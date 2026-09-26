@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:app/data/actions/actions_repository.dart';
+import 'package:app/data/preferences/preferences.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/chat/quick_actions/states/quick_actions_state.dart';
 import 'package:app/ui/core/viewmodel/viewmodel.dart';
@@ -21,11 +22,16 @@ import 'package:app/ui/core/viewmodel/viewmodel.dart';
 /// failure — the next tap retries.
 class QuickActionsViewModel extends ViewModel<QuickActionsState> {
   final IActionsRepository _repo;
+  /// Optional so test harnesses can construct the VM without the app's
+  /// Preferences instance. `null` → the sheet omits the per-room
+  /// "Hide tool calls" row instead of crashing on a missing provider.
+  final Preferences? _prefs;
   final _errorController = StreamController<String>.broadcast();
   StreamSubscription<ActiveRoomMeta>? _metaSub;
   bool _disposed = false;
 
-  QuickActionsViewModel(this._repo) : super(const QuickActionsIdle()) {
+  QuickActionsViewModel(this._repo, [this._prefs])
+    : super(const QuickActionsIdle()) {
     // Plan/28 Wave D — seed from the repo's current snapshot before
     // anything is shown so the first build already has the right
     // highlight (instead of a flash of "null" while the stream
@@ -42,6 +48,33 @@ class QuickActionsViewModel extends ViewModel<QuickActionsState> {
   ThinkingLevel? get currentThinking => state.currentThinking;
   WireModel? get currentModel => state.currentModel;
   String? get currentModelName => state.currentModelName;
+
+  // ---------------------------------------------------------------------------
+  // Per-room tool-calls toggle
+  // ---------------------------------------------------------------------------
+
+  /// The [Preferences] this VM was built with (may be `null` in tests).
+  /// The sheet listens to it directly for reactive rebuilds.
+  Preferences? get preferences => _prefs;
+
+  /// Whether the ACTIVE room's (peer, room) pair hides tool rows.
+  /// No record → `false` (default). `false` when the VM has no
+  /// [Preferences] or the active room is unknown.
+  bool get hideToolCalls {
+    final meta = _repo.activeRoomMeta;
+    final epk = meta.peerEpk;
+    if (_prefs == null || epk == null) return false;
+    return _prefs.hideToolCallsFor(epk, meta.roomId);
+  }
+
+  /// Persist the toggle for the ACTIVE room. No-op without a
+  /// [Preferences] or a resolvable (peer, room) pair.
+  Future<void> setHideToolCalls(bool value) async {
+    final meta = _repo.activeRoomMeta;
+    final epk = meta.peerEpk;
+    if (_prefs == null || epk == null) return;
+    await _prefs.setHideToolCallsFor(epk, meta.roomId, value);
+  }
 
   // ---------------------------------------------------------------------------
   // Actions

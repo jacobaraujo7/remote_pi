@@ -61,6 +61,11 @@ class _FakeActionsRepository implements IActionsRepository {
     lastThinking = level;
     if (setThinkingError != null) throw setThinkingError!;
   }
+  @override
+  Future<void> createRoom(String path, {bool createIfMissing = false}) async {}
+
+  @override
+  Future<void> deleteRoom(String path) async {}
 
   @override
   Future<ModelsCatalogue> listModels({bool forceRefresh = false}) async {

@@ -96,6 +96,16 @@ abstract class IActionsRepository extends Repository {
   Future<void> setModel(String provider, String modelId);
   Future<void> setThinking(ThinkingLevel level);
 
+  /// Register (and start) a supervisor daemon for the directory [path].
+  /// Throws [ActionFailure] with the exact error string
+  /// `'directory_missing'` when the path is absent and [createIfMissing]
+  /// is false — the caller offers a create-anyway confirm on that.
+  Future<void> createRoom(String path, {bool createIfMissing = false});
+
+  /// Unregister the daemon behind the directory [path] (stops the agent
+  /// process + removes the room from the supervisor registry).
+  Future<void> deleteRoom(String path);
+
   /// Fetches the model catalogue. When [forceRefresh] is `false`
   /// (default) returns the cached catalogue for the current
   /// (peer, room) session if one exists; otherwise hits the Pi.
@@ -290,6 +300,20 @@ class ActionsRepository extends Repository implements IActionsRepository {
   @override
   Future<void> setThinking(ThinkingLevel level) async {
     await _dispatch<void>((id) => ThinkingSet(id: id, level: level));
+  }
+
+  @override
+  Future<void> createRoom(String path, {bool createIfMissing = false}) async {
+    await _dispatch<void>((id) => RoomCreate(
+          id: id,
+          path: path,
+          createIfMissing: createIfMissing,
+        ));
+  }
+
+  @override
+  Future<void> deleteRoom(String path) async {
+    await _dispatch<void>((id) => RoomDelete(id: id, path: path));
   }
 
   @override

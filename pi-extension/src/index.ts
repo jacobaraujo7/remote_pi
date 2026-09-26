@@ -95,6 +95,7 @@ import {
 } from "./session/global_config.js";
 import { acquireCwdLock, type AcquiredLock } from "./session/cwd_lock.js";
 import { addDaemon, listDaemons, removeDaemon } from "./daemon/registry.js";
+import { daemonIdForCwd } from "./daemon/id.js";
 import { callSupervisor, supervisorOnline, SupervisorOfflineError } from "./daemon/client.js";
 import type { ControlRequest, DaemonInfo } from "./daemon/control_protocol.js";
 import { EXIT_DAEMON_FRESH_SESSION } from "./daemon/rpc_child.js";
@@ -108,12 +109,12 @@ import {
 } from "./session/local_config.js";
 import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
-import { join, dirname, resolve } from "node:path";
+import { join, isAbsolute, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chmodSync, mkdtempSync, mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { spawnSync } from "node:child_process";
-import { hostname, tmpdir } from "node:os";
+import { hostname, homedir, tmpdir } from "node:os";
 import {
   kDefaultRelayUrl,
   resolveRelayUrl,
@@ -325,12 +326,14 @@ function _publishWorking(working: boolean): void {
 
 function _imageCacheRootDir(): string {
   if (_imageCacheDir) {
-    try { mkdirSync(_imageCacheDir, { recursive: true, mode: 0o700 }); } catch {}
-    try { chmodSync(_imageCacheDir, 0o700); } catch {}
+    // Best-effort hardening: the mode was already requested at create time,
+    // so a rejected chmod (non-POSIX filesystem) must not fail the call.
+    try { mkdirSync(_imageCacheDir, { recursive: true, mode: 0o700 }); } catch { /* best-effort */ }
+    try { chmodSync(_imageCacheDir, 0o700); } catch { /* best-effort */ }
     return _imageCacheDir;
   }
   const dir = mkdtempSync(join(tmpdir(), IMAGE_CACHE_PREFIX));
-  try { chmodSync(dir, 0o700); } catch {}
+  try { chmodSync(dir, 0o700); } catch { /* best-effort */ }
   _imageCacheDir = dir;
   return dir;
 }
@@ -384,7 +387,7 @@ async function _renderablePngPathFromImage(
 
     try {
       writeFileSync(previewPath, previewBytes, { mode: 0o600 });
-      try { chmodSync(previewPath, 0o600); } catch {}
+      try { chmodSync(previewPath, 0o600); } catch { /* best-effort: already 0o600 */ }
       return previewPath;
     } catch {
       _cleanupPreviewFile(previewPath);
@@ -507,7 +510,7 @@ async function _collectReceivedImagePreviews(msg: ClientUserMessage): Promise<Re
 
     try {
       writeFileSync(path, decoded.decoded, { mode: 0o600 });
-      try { chmodSync(path, 0o600); } catch {}
+      try { chmodSync(path, 0o600); } catch { /* best-effort: already 0o600 */ }
 
       const previewPath =
         image.mime === IMAGE_PREVIEW_MIME
@@ -4414,6 +4417,20 @@ export function _routeClientMessageFrom(
     _extensionUiBridge?.respond(msg);
     return;
   }
+  // Room management — handled BEFORE the pi-binding guard below. The
+  // handlers drive the supervisor over the UDS and need no `_pi`/ctx, so a
+  // room with no live Pi session must still be able to create/delete
+  // rooms. Behind the guard they were silently dropped, which the app saw
+  // as a 15s action timeout (the desired end state — a NEW room, or the
+  // removal of one — often has no session to bind to).
+  if (msg.type === "room_create") {
+    void _handleRoomCreate(sender, msg);
+    return;
+  }
+  if (msg.type === "room_delete") {
+    void _handleRoomDelete(sender, msg);
+    return;
+  }
   if (!_pi) return;
   switch (msg.type) {
     case "queued_message_set": {
@@ -4607,6 +4624,98 @@ export function _routeClientMessageFrom(
         msg,
       );
       break;
+  }
+}
+
+// ── Room management handlers ────────────────────────────────────────────────
+
+/**
+ * Normalizes a user-typed directory for room_create / room_delete.
+ * Same rules as `normalizeCwd` (daemon/registry.ts) — trim, expand
+ * `~`/`~/...`, resolve relative against `process.cwd()` — but WITHOUT
+ * the `realpathSync` step: room_create may target a path that doesn't
+ * exist yet (room_create checks existence itself and only mkdirs when
+ * `create_if_missing` is set), and realpath throws on missing paths.
+ * Symlink canonicalization is left to `daemonIdForCwd` (which realpaths
+ * on its own, falling back to the raw path when the dir is absent).
+ */
+function _normalizeRoomPath(input: string): string {
+  if (!input || !input.trim()) throw new Error("path is required");
+  let p = input.trim();
+  if (p === "~") p = homedir();
+  else if (p.startsWith("~/")) p = join(homedir(), p.slice(2));
+  if (!isAbsolute(p)) p = resolve(process.cwd(), p);
+  return p;
+}
+
+/**
+ * room_create: normalize the path, verify it exists (or create it when
+ * `create_if_missing`), then register + start the supervisor daemon for
+ * that cwd. The new daemon announces its room to the relay on boot, so
+ * the app's room list picks it up automatically.
+ *
+ * The app relies on the EXACT error string `directory_missing` to offer
+ * a "create it anyway?" confirm dialog — don't add text to it.
+ */
+async function _handleRoomCreate(
+  sender: PlainPeerChannel,
+  msg: Extract<ClientMessage, { type: "room_create" }>,
+): Promise<void> {
+  try {
+    const normalized = _normalizeRoomPath(msg.path);
+    if (!existsSync(normalized)) {
+      if (msg.create_if_missing !== true) {
+        sender.send({
+          type: "action_error",
+          in_reply_to: msg.id,
+          action: "room_create",
+          error: "directory_missing",
+        });
+        return;
+      }
+      mkdirSync(normalized, { recursive: true });
+    }
+    const id = daemonIdForCwd(normalized);
+    await callSupervisor({ op: "register", cwd: normalized });
+    await callSupervisor({ op: "start", id });
+    sender.send({ type: "action_ok", in_reply_to: msg.id, action: "room_create" });
+  } catch (err) {
+    const emsg = err instanceof Error ? err.message : String(err);
+    sender.send({
+      type: "action_error",
+      in_reply_to: msg.id,
+      action: "room_create",
+      error: emsg,
+    });
+  }
+}
+
+/**
+ * room_delete: unregister the daemon for the given cwd. The supervisor's
+ * `_opUnregister` stops the child process first (killing the Pi daemon)
+ * and removes the registry entry — so the room disappears from the
+ * monitoring list and the agent process ends.
+ *
+ * Idempotent: `removed: false` (id was never registered) still counts as
+ * `action_ok` — the end state (no room) matches the intent.
+ */
+async function _handleRoomDelete(
+  sender: PlainPeerChannel,
+  msg: Extract<ClientMessage, { type: "room_delete" }>,
+): Promise<void> {
+  try {
+    const normalized = _normalizeRoomPath(msg.path);
+    const id = daemonIdForCwd(normalized);
+    await callSupervisor({ op: "unregister", id });
+    sender.send({ type: "action_ok", in_reply_to: msg.id, action: "room_delete" });
+  } catch (err) {
+    const emsg = err instanceof Error ? err.message : String(err);
+    sender.send({
+      type: "action_error",
+      in_reply_to: msg.id,
+      action: "room_delete",
+      error: emsg,
+    });
   }
 }
 
