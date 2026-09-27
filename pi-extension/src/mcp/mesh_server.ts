@@ -191,9 +191,9 @@ function isoNow(): string {
   return new Date().toISOString();
 }
 
-// Background lock+join state. The cwd lock enforces the per-folder singleton
-// (at most one remote-pi agent — Pi OR Claude — per folder; a second peer with
-// the same cwd-derived name would be a ghost).
+// Background lock+join state. The cwd lock enforces the per-(folder,name)
+// singleton: different named agents may share a folder, but a second peer with
+// the same canonical cwd and name would be a ghost.
 //
 // We retry only briefly — just enough to ride out a restart RACE (the previous
 // MCP for this folder is still tearing down when Claude respawns us). After a
@@ -272,7 +272,7 @@ async function main(): Promise<void> {
 async function tryJoinMesh(): Promise<void> {
   if (_joined || _shuttingDown) return;
 
-  const res = await acquireCwdLock(_cwd);
+  const res = await acquireCwdLock(_canonCwd, AGENT_NAME);
   if (!res.ok) {
     _lockAttempt++;
     if (_lockAttempt >= MAX_JOIN_ATTEMPTS) {
