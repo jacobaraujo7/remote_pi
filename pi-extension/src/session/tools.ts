@@ -93,6 +93,25 @@ export function registerAgentTools(
       "agent_send({to, body, re?}): unicast → returns {status: received|denied|timeout} (delivery is reliable; no retry-on-busy). Broadcast/multicast → fire-and-forget ({status:'sent'}).",
     parameters: SendParams,
     execute: async (_toolCallId, params) => {
+      const rawParams = params as unknown as Record<string, unknown>;
+      const foreignKeys = Object.keys(rawParams)
+        .filter((key) => key !== "to" && key !== "body" && key !== "re")
+        .sort();
+      const bodyMissing = !Object.prototype.hasOwnProperty.call(rawParams, "body") ||
+        rawParams["body"] === undefined;
+      if (bodyMissing || foreignKeys.length > 0) {
+        const foreign = foreignKeys.length > 0 ? foreignKeys.join(", ") : "(none)";
+        const msg =
+          `Rejected: invalid agent_send arguments. Required fields: "to" and "body" (re optional). ` +
+          `Foreign fields detected: ${foreign}. body ${bodyMissing ? "MISSING" : "present"}. ` +
+          `Fix: agent_send({ to: "<full-address>", body: "<message>" })`;
+        const details: SendDetails = { status: "refused", ok: false, error: msg };
+        return {
+          content: [{ type: "text", text: msg }],
+          details,
+        };
+      }
+
       const peer = getSessionPeer();
       if (!peer) {
         const details: SendDetails = { status: "refused", ok: false, error: NOT_IN_SESSION };

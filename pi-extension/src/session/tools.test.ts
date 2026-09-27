@@ -58,6 +58,50 @@ describe("agent_send tool (ACK protocol)", () => {
     expect(result.details).toMatchObject({ status: "received", ok: true, target: "backend" });
   });
 
+  test("rejects a typo field with missing body before consulting the mesh", async () => {
+    const { pi, tools } = makeMockPi();
+    const peer = makeMockPeer();
+    const getPeer = vi.fn(() => peer);
+    registerAgentTools(pi, getPeer);
+    const tool = tools.get("agent_send")!;
+
+    const result = await tool.execute(
+      TOOL_CALL_ID,
+      { to: "backend", message: "ping" } as never,
+      undefined, undefined, {} as never,
+    );
+
+    expect(getPeer).not.toHaveBeenCalled();
+    expect(peer.sendWithAck).not.toHaveBeenCalled();
+    expect(result.details).toMatchObject({
+      status: "refused",
+      ok: false,
+      error: expect.stringMatching(/body MISSING/i),
+    });
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+    expect(text).toContain("Foreign fields detected: message");
+    expect(text).toContain('agent_send({ to: "<full-address>", body: "<message>" })');
+  });
+
+  test("rejects foreign fields even when body is present", async () => {
+    const { pi, tools } = makeMockPi();
+    const peer = makeMockPeer();
+    registerAgentTools(pi, () => peer);
+    const tool = tools.get("agent_send")!;
+
+    const result = await tool.execute(
+      TOOL_CALL_ID,
+      { to: "backend", body: "ping", payload: "unexpected" } as never,
+      undefined, undefined, {} as never,
+    );
+
+    expect(peer.sendWithAck).not.toHaveBeenCalled();
+    expect(result.details).toMatchObject({ status: "refused", ok: false });
+    const text = (result.content[0] as { type: "text"; text: string }).text;
+    expect(text).toContain("Foreign fields detected: payload");
+    expect(text).toContain("body present");
+  });
+
   test("plan/34: defensive legacy busy reports the dropped delivery and recovery", async () => {
     // The current broker no longer emits `busy`. A stale leader that still
     // returns it dropped the message, so report non-delivery and the required
