@@ -713,10 +713,12 @@ jobs:
         # Medido: 37s. A folga cobre o pull da imagem num dia ruim de rede.
         timeout-minutes: 10
         run: |
-          # rpm -qpl consulta o ARQUIVO (o nome interno do pacote não é
-          # remote-pi-cockpit — o maker do Fastforge usa o nome do pubspec).
+          # O nome do arquivo é normalizado acima e não prova o NAME interno.
+          # Valide o metadata antes de instalar para impedir regressão ao nome
+          # genérico `cockpit`, que colide com o pacote padrão do Fedora.
           docker run --rm -v "$PWD/out:/out:ro" fedora:40 bash -c \
-            "dnf install -y /out/remote-pi-cockpit-${VERSION}.${{ matrix.rpm_arch }}.rpm \
+            "rpm -qp --qf '%{NAME}\n' /out/remote-pi-cockpit-${VERSION}.${{ matrix.rpm_arch }}.rpm | grep -qx 'remote-pi-cockpit' \
+             && dnf install -y /out/remote-pi-cockpit-${VERSION}.${{ matrix.rpm_arch }}.rpm \
              && rpm -qpl /out/remote-pi-cockpit-${VERSION}.${{ matrix.rpm_arch }}.rpm | grep -m1 '\.desktop$'"
 
       - uses: actions/upload-artifact@v4

@@ -4,6 +4,7 @@
 #
 # Artefato resultante: remote-pi-cockpit-<versão>.<arch>.rpm
 display_name: Remote Pi Cockpit
+package_name: remote-pi-cockpit
 summary: Cliente desktop multi-pane do Remote Pi
 license: LicenseRef-proprietary
 url: https://jacobmoura.work
