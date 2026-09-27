@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://remote-pi.dev/cockpit/tasks.schema.json",
   "title": "Cockpit Task Run config",
-  "description": "Schema do .cockpit/tasks.json — ver cockpit/docs/tasks-json.md",
+  "description": "Schema do .cockpit/tasks.json — ver cockpit/docs/tasks-json.md. Tasks de Docker/Podman Compose usam o mesmo formato público e podem ser geradas a partir de um YAML aberto.",
   "type": "object",
   "required": ["tasks"],
   "additionalProperties": false,

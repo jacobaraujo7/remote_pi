@@ -108,7 +108,10 @@ class TaskTerminalStore {
   }
 
   void _onRun(TaskRunnerGateway runner, TaskRun run) {
-    if (!run.isActive) {
+    // Compose may fail before it ever reaches `running`. Subscribe during
+    // spawn too so stderr is visible instead of Play appearing to do nothing.
+    final hasOutput = run.isActive || run.status == TaskRunStatus.starting;
+    if (!hasOutput) {
       if (!run.isTransitioning) {
         // Run terminou: o próximo `running` é SEMPRE um processo novo, mesmo
         // que o SO reutilize o pid (ou o runner não informe pid); sem isto o

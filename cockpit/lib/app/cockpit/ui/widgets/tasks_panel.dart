@@ -1,4 +1,5 @@
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
+import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
@@ -22,6 +23,7 @@ class TasksPanel extends StatefulWidget {
     required this.listHeight,
     required this.onResizeDelta,
     required this.onResizeEnd,
+    this.activeFile = '',
   });
 
   /// Pasta do projeto selecionado. Trocar dispara nova descoberta.
@@ -31,6 +33,7 @@ class TasksPanel extends StatefulWidget {
   final double listHeight;
   final ValueChanged<double> onResizeDelta;
   final VoidCallback onResizeEnd;
+  final String activeFile;
 
   @override
   State<TasksPanel> createState() => _TasksPanelState();
@@ -41,7 +44,10 @@ class _TasksPanelState extends State<TasksPanel> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) context.read<TasksViewModel>().loadFor(widget.cwd);
+      if (mounted) {
+        context.read<TasksViewModel>().loadFor(widget.cwd);
+        context.read<TasksViewModel>().setActiveFile(widget.activeFile);
+      }
     });
   }
 
@@ -50,6 +56,9 @@ class _TasksPanelState extends State<TasksPanel> {
     super.didUpdateWidget(old);
     if (old.cwd != widget.cwd) {
       context.read<TasksViewModel>().loadFor(widget.cwd);
+    }
+    if (old.activeFile != widget.activeFile) {
+      context.read<TasksViewModel>().setActiveFile(widget.activeFile);
     }
   }
 
@@ -87,9 +96,13 @@ class _TasksPanelState extends State<TasksPanel> {
                           canCycleProfile: def.profiles.length >= 2,
                           commandPreview: vm.commandPreview(def),
                           // Clicar abre a aba read-only de output no pane central.
-                          onTap: () => context
-                              .read<CockpitViewModel>()
-                              .openTaskOutput(def.id, def.label),
+                          onTap: () {
+                            vm.attachOutput(def.id);
+                            context.read<CockpitViewModel>().openTaskOutput(
+                              def.id,
+                              def.label,
+                            );
+                          },
                           // Play também já abre a aba dos logs.
                           onStart: () {
                             vm.start(def);
@@ -178,6 +191,14 @@ class _TasksPanelState extends State<TasksPanel> {
             ),
           ),
           const Spacer(),
+          if (!vm.isRemote &&
+              (widget.activeFile.endsWith('.yaml') ||
+                  widget.activeFile.endsWith('.yml')))
+            _IconAction(
+              tooltip: context.t.cockpit.tasksPanel.generateComposeTasks,
+              icon: Icons.developer_board,
+              onTap: () => _generateCompose(context, vm),
+            ),
           if (vm.loading)
             const SizedBox(
               width: 12,
@@ -193,6 +214,98 @@ class _TasksPanelState extends State<TasksPanel> {
         ],
       ),
     );
+  }
+
+  Future<void> _generateCompose(BuildContext context, TasksViewModel vm) async {
+    final file = await vm.composeFile();
+    if (!context.mounted) return;
+    if (file == null) {
+      showToast(
+        context: context,
+        builder: (_, _) => Text(context.t.cockpit.tasksPanel.invalidComposeFile),
+      );
+      return;
+    }
+    final engines = await vm.composeEngines();
+    if (!context.mounted) return;
+    if (engines.isEmpty) {
+      showToast(
+        context: context,
+        builder: (_, _) => Text(context.t.cockpit.tasksPanel.noComposeEngine),
+      );
+      return;
+    }
+    // Integrated commands precede legacy variants. When both providers exist,
+    // use the provider already running this file; otherwise Docker is the
+    // deterministic default (the command remains editable in tasks.json).
+    var chosen = engines.first;
+    final runningProviders = <ComposeEngine>[];
+    for (final e in engines) {
+      if ((await const ComposeEngineResolver().runningServices(
+        e,
+        file.path,
+      )).isNotEmpty) {
+        runningProviders.add(e);
+      }
+    }
+    if (runningProviders.length == 1) chosen = runningProviders.single;
+    final docker = engines.where((e) => e.isDocker).firstOrNull;
+    final podman = engines.where((e) => !e.isDocker).firstOrNull;
+    final runningDocker = runningProviders.where((e) => e.isDocker).firstOrNull;
+    final runningPodman = runningProviders
+        .where((e) => !e.isDocker)
+        .firstOrNull;
+    final ambiguous = runningProviders.isEmpty
+        ? docker != null && podman != null
+        : runningDocker != null && runningPodman != null;
+    if (ambiguous) {
+      if (!context.mounted) return;
+      final selected = await showDialog<ComposeEngine>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text(context.t.cockpit.tasksPanel.selectComposeEngine),
+          actions: [
+            GhostButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(context.t.common.cancel),
+            ),
+            SecondaryButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(runningDocker ?? docker),
+              child: const Text('Docker Compose'),
+            ),
+            SecondaryButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(runningPodman ?? podman),
+              child: const Text('Podman Compose'),
+            ),
+          ],
+        ),
+      );
+      if (selected == null) return;
+      chosen = selected;
+    }
+    List<String> conflicts;
+    try {
+      conflicts = await vm.generateComposeTasks(chosen);
+    } on FormatException {
+      if (!context.mounted) return;
+      showToast(
+        context: context,
+        builder: (_, _) => Text(context.t.cockpit.tasksPanel.invalidTasksJson),
+      );
+      return;
+    }
+    if (context.mounted && conflicts.isNotEmpty) {
+      showToast(
+        context: context,
+        builder: (_, _) => Text(
+          context.t.cockpit.tasksPanel.composeConflicts(
+            labels: conflicts.join(', '),
+          ),
+        ),
+      );
+    }
   }
 }
 

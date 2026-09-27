@@ -406,6 +406,12 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get sectionTasks => 'TAREFAS';
 	@override String get noTasks => 'Nenhuma tarefa detectada neste projeto.';
 	@override String get createTasksJson => 'Criar tasks.json';
+	@override String get generateComposeTasks => 'Gerar tasks do Compose';
+	@override String get selectComposeEngine => 'Escolha uma engine Compose';
+	@override String get noComposeEngine => 'Docker Compose ou Podman Compose não foi encontrado.';
+	@override String get invalidComposeFile => 'O arquivo ativo não é um Compose válido com services.';
+	@override String get invalidTasksJson => 'tasks.json é inválido. Nenhuma alteração foi gravada.';
+	@override String composeConflicts({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}';
 }
 
 // Path: cockpit.cockpitPage
@@ -2020,6 +2026,12 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREFAS',
 			'cockpit.tasksPanel.noTasks' => 'Nenhuma tarefa detectada neste projeto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Criar tasks.json',
+			'cockpit.tasksPanel.generateComposeTasks' => 'Gerar tasks do Compose',
+			'cockpit.tasksPanel.selectComposeEngine' => 'Escolha uma engine Compose',
+			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose ou Podman Compose não foi encontrado.',
+			'cockpit.tasksPanel.invalidComposeFile' => 'O arquivo ativo não é um Compose válido com services.',
+			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json é inválido. Nenhuma alteração foi gravada.',
+			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Escolha a pasta do projeto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Escolha a pasta do workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renomeado',
@@ -2385,14 +2397,14 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
 			'cockpit.projectsRail.keepAwakeOn' => 'Mantendo este computador acordado para acesso remoto. Clique para deixá-lo dormir de novo.',
 			'cockpit.projectsRail.keepAwakeOff' => 'Manter este computador acordado para acesso remoto. Desliga sozinho quando o Cockpit reinicia.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.projectsRail.keepAwakeBattery' => 'Acordado na bateria. Isso consome a bateria.',
 			'cockpit.projectsRail.keepAwakeLid' => 'Fechar a tampa do notebook continua colocando-o para dormir.',
 			'cockpit.projectsRail.newWorkspace' => 'Novo workspace',
 			'cockpit.projectsRail.settings' => 'Configurações',
 			'cockpit.projectsRail.mergeToParent' => 'Mesclar no pai',
 			'cockpit.projectsRail.updateFromParent' => 'Atualizar a partir do pai',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.projectsRail.forkWorktree' => 'Criar worktree derivada',
 			'cockpit.projectsRail.copyBranch' => 'Copiar branch',
 			'cockpit.projectsRail.remove' => 'Remover',

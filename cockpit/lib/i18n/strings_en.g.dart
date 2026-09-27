@@ -690,6 +690,24 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
+
+	/// en: 'Generate Compose tasks'
+	String get generateComposeTasks => 'Generate Compose tasks';
+
+	/// en: 'Choose a Compose engine'
+	String get selectComposeEngine => 'Choose a Compose engine';
+
+	/// en: 'Docker Compose or Podman Compose was not found.'
+	String get noComposeEngine => 'Docker Compose or Podman Compose was not found.';
+
+	/// en: 'The active file is not a valid Compose file with services.'
+	String get invalidComposeFile => 'The active file is not a valid Compose file with services.';
+
+	/// en: 'tasks.json is invalid. No changes were written.'
+	String get invalidTasksJson => 'tasks.json is invalid. No changes were written.';
+
+	/// en: 'Kept non-Compose tasks with conflicting labels: ${labels}'
+	String composeConflicts({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}';
 }
 
 // Path: cockpit.cockpitPage
@@ -4033,6 +4051,12 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.generateComposeTasks' => 'Generate Compose tasks',
+			'cockpit.tasksPanel.selectComposeEngine' => 'Choose a Compose engine',
+			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose or Podman Compose was not found.',
+			'cockpit.tasksPanel.invalidComposeFile' => 'The active file is not a valid Compose file with services.',
+			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json is invalid. No changes were written.',
+			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -4398,14 +4422,14 @@ extension on Translations {
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
 			'cockpit.projectsRail.keepAwakeOn' => 'Keeping this computer awake for remote access. Click to let it sleep again.',
 			'cockpit.projectsRail.keepAwakeOff' => 'Keep this computer awake for remote access. Off again when Cockpit restarts.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.projectsRail.keepAwakeBattery' => 'Keeping awake on battery power. This drains the battery.',
 			'cockpit.projectsRail.keepAwakeLid' => 'Closing a laptop lid still puts it to sleep.',
 			'cockpit.projectsRail.newWorkspace' => 'New workspace',
 			'cockpit.projectsRail.settings' => 'Settings',
 			'cockpit.projectsRail.mergeToParent' => 'Merge to Parent',
 			'cockpit.projectsRail.updateFromParent' => 'Update from Parent',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.projectsRail.forkWorktree' => 'Fork Worktree',
 			'cockpit.projectsRail.copyBranch' => 'Copy branch',
 			'cockpit.projectsRail.remove' => 'Remove',

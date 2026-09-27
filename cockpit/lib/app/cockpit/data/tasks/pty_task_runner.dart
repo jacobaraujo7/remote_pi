@@ -4,8 +4,10 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/terminal/pty_output_scheduler.dart';
+import 'package:cockpit/app/core/terminal/terminal_line_ending_normalizer.dart';
 import 'package:cockpit/app/core/utils/login_shell.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
@@ -18,7 +20,7 @@ import 'package:cockpit_pty/cockpit_pty.dart';
 /// pra herdar o PATH do perfil do usuário — sem
 /// isso o app GUI não acharia `flutter`/`npm`/`go` (PATH mínimo do Finder).
 /// Mesma razão e mesmas vars (`TERM`/`COLORTERM`) do terminal embutido.
-class PtyTaskRunner implements TaskRunnerGateway {
+class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   PtyTaskRunner(this._telemetry);
 
   /// Telemetria (plano 66): toda task alimenta a Caixa Preta por padrão. A
@@ -36,6 +38,13 @@ class PtyTaskRunner implements TaskRunnerGateway {
   final _lastState = <String, TaskRun>{};
   final _watchers = <String, StreamSubscription<FileSystemEvent>>{};
   final _watchDebounce = <String, Timer>{};
+  final _composeDefinitions =
+      <String, ({TaskDefinition def, ComposeTask task})>{};
+  final _composeOutput = <String, StreamController<String>>{};
+  final _composeFollowers = <String, Process>{};
+  final _composeActive = <String>{};
+  Timer? _composePoll;
+  bool _composePolling = false;
 
   @override
   Stream<TaskRun> runs() => _runs.stream;
@@ -49,14 +58,277 @@ class PtyTaskRunner implements TaskRunnerGateway {
 
   @override
   Stream<String> output(String taskId) =>
-      _running[taskId]?.out.stream ?? const Stream<String>.empty();
+      _running[taskId]?.out.stream ??
+      _composeOutput[taskId]?.stream ??
+      const Stream<String>.empty();
 
   @override
   Future<void> start(
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
-  }) => _launch(def, profileName: profileName, adHocArgs: adHocArgs);
+  }) {
+    final compose =
+        _composeDefinitions[def.id]?.task ??
+        const ComposeTaskRecognizer().recognize(def);
+    if (compose != null) {
+      return _startCompose(def, compose, profileName);
+    }
+    return _launch(def, profileName: profileName, adHocArgs: adHocArgs);
+  }
+
+  @override
+  Future<void> reconcileDefinitions(List<TaskDefinition> definitions) async {
+    _composeDefinitions.clear();
+    for (final def in definitions) {
+      var compose = const ComposeTaskRecognizer().recognize(def);
+      if (compose != null) {
+        final workspace = _workspaceFor(def.cwd);
+        if (workspace != null) {
+          final parsed = await const ComposeFileParser().parse(
+            compose.file,
+            workspace,
+          );
+          if (parsed != null) {
+            compose = ComposeTask(
+              engine: compose.engine,
+              file: parsed.path,
+              service: compose.service,
+            );
+          }
+        }
+        _composeDefinitions[def.id] = (def: def, task: compose);
+        _composeOutput.putIfAbsent(
+          def.id,
+          () => StreamController<String>.broadcast(),
+        );
+      }
+    }
+    await _pollCompose();
+    _composePoll?.cancel();
+    if (_composeDefinitions.isNotEmpty) {
+      _composePoll = Timer.periodic(
+        const Duration(seconds: 3),
+        (_) => unawaited(_pollCompose()),
+      );
+    }
+  }
+
+  String? _workspaceFor(String cwd) {
+    var dir = Directory(cwd).absolute;
+    while (true) {
+      if (File(
+        '${dir.path}${Platform.pathSeparator}.cockpit${Platform.pathSeparator}tasks.json',
+      ).existsSync()) {
+        return dir.path;
+      }
+      final parent = dir.parent;
+      if (parent.path == dir.path) return null;
+      dir = parent;
+    }
+  }
+
+  Future<void> _pollCompose() async {
+    if (_composePolling) return;
+    _composePolling = true;
+    try {
+      final grouped = <String, ({ComposeTask task, List<String> ids})>{};
+      for (final e in _composeDefinitions.entries) {
+        final key = '${e.value.task.engine.name}:${e.value.task.file}';
+        grouped
+            .putIfAbsent(key, () => (task: e.value.task, ids: <String>[]))
+            .ids
+            .add(e.key);
+      }
+      for (final group in grouped.values) {
+        final running = await const ComposeEngineResolver().runningServices(
+          group.task.engine,
+          group.task.file,
+        );
+        for (final id in group.ids) {
+          final service = _composeDefinitions[id]!.task.service;
+          final active = running.contains(service);
+          if (active && _composeActive.add(id)) {
+            _emit(
+              _lastState[id] = TaskRun(
+                taskId: id,
+                status: TaskRunStatus.running,
+              ),
+            );
+          } else if (!active && _composeActive.remove(id)) {
+            await _stopComposeFollower(id);
+            _emit(
+              _lastState[id] = TaskRun(
+                taskId: id,
+                status: TaskRunStatus.stopped,
+              ),
+            );
+          }
+        }
+      }
+    } finally {
+      _composePolling = false;
+    }
+  }
+
+  Future<void> _startCompose(
+    TaskDefinition def,
+    ComposeTask task,
+    String? profileName,
+  ) async {
+    if (_composeActive.contains(def.id) || _starting.contains(def.id)) return;
+    final profile = def.profiles
+        .where((p) => p.name == profileName)
+        .firstOrNull;
+    if (profile == null) return;
+    _starting.add(def.id);
+    final out = _composeOutput.putIfAbsent(
+      def.id,
+      () => StreamController<String>.broadcast(),
+    );
+    _emit(
+      _lastState[def.id] = TaskRun(
+        taskId: def.id,
+        status: TaskRunStatus.starting,
+        profileName: profileName,
+      ),
+    );
+    TelemetryIngestSession? telemetry;
+    try {
+      final argv = [...task.engine.prefix, '-f', task.file, ...profile.args];
+      telemetry = await _telemetry.openTaskRun(
+        def,
+        command: _join([def.command, ...argv]),
+      );
+      final result = await Process.run(
+        def.command,
+        argv,
+        workingDirectory: File(task.file).parent.path,
+        environment: {
+          ...await envWithNodeOnPath(),
+          ...profile.env,
+          ...?telemetry?.childEnvironment,
+        },
+      );
+      if ('${result.stdout}'.isNotEmpty) {
+        out.add(_normalizeComposeOutput('${result.stdout}'));
+        telemetry?.add('${result.stdout}');
+      }
+      if ('${result.stderr}'.isNotEmpty) {
+        out.add(_normalizeComposeOutput('${result.stderr}'));
+        telemetry?.add('${result.stderr}');
+      }
+      if (result.exitCode != 0) {
+        _emit(
+          _lastState[def.id] = TaskRun(
+            taskId: def.id,
+            status: TaskRunStatus.failed,
+            profileName: profileName,
+            exitCode: result.exitCode,
+          ),
+        );
+      } else if (profile.name == 'build') {
+        _emit(
+          _lastState[def.id] = TaskRun(
+            taskId: def.id,
+            status: TaskRunStatus.success,
+            profileName: profileName,
+            exitCode: 0,
+          ),
+        );
+      } else {
+        _composeActive.add(def.id);
+        _emit(
+          _lastState[def.id] = TaskRun(
+            taskId: def.id,
+            status: TaskRunStatus.running,
+            profileName: profileName,
+          ),
+        );
+        await attachOutput(def.id);
+      }
+      await telemetry?.close(exitCode: result.exitCode);
+      telemetry = null;
+    } catch (e) {
+      out.add('$e\r\n');
+      telemetry?.add('$e\n');
+      await telemetry?.close(exitCode: -1);
+      telemetry = null;
+      _emit(
+        _lastState[def.id] = TaskRun(
+          taskId: def.id,
+          status: TaskRunStatus.failed,
+          profileName: profileName,
+        ),
+      );
+    } finally {
+      _starting.remove(def.id);
+    }
+  }
+
+  @override
+  Future<void> attachOutput(String taskId) async {
+    if (_composeFollowers.containsKey(taskId)) return;
+    final entry = _composeDefinitions[taskId];
+    if (entry == null || !_composeActive.contains(taskId)) return;
+    final task = entry.task;
+    final Process process;
+    try {
+      process = await Process.start(task.engine.command, [
+        ...task.engine.prefix,
+        '-f',
+        task.file,
+        'logs',
+        '--tail',
+        '200',
+        '--follow',
+        task.service,
+      ], workingDirectory: File(task.file).parent.path);
+    } catch (e) {
+      _composeOutput
+          .putIfAbsent(taskId, () => StreamController<String>.broadcast())
+          .add('Unable to attach Compose logs: $e\r\n');
+      return;
+    }
+    _composeFollowers[taskId] = process;
+    final out = _composeOutput.putIfAbsent(
+      taskId,
+      () => StreamController<String>.broadcast(),
+    );
+    _pipeComposeLogs(process.stdout, out);
+    _pipeComposeLogs(process.stderr, out);
+    unawaited(
+      process.exitCode.whenComplete(() => _composeFollowers.remove(taskId)),
+    );
+  }
+
+  void _pipeComposeLogs(
+    Stream<List<int>> source,
+    StreamController<String> destination,
+  ) {
+    final endings = TerminalLineEndingNormalizer();
+    source
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(
+          (chunk) {
+            final normalized = endings.add(chunk);
+            if (normalized.isNotEmpty && !destination.isClosed) {
+              destination.add(normalized);
+            }
+          },
+          onDone: () {
+            final tail = endings.close();
+            if (tail.isNotEmpty && !destination.isClosed) {
+              destination.add(tail);
+            }
+          },
+        );
+  }
+
+  String _normalizeComposeOutput(String value) {
+    final endings = TerminalLineEndingNormalizer();
+    return endings.add(value) + endings.close();
+  }
 
   /// O spawn de verdade. [restarting] distingue o start inicial do re-spawn do
   /// [restart] — é isso que faz `previewOpen: "start"` não reabrir o navegador
@@ -173,6 +445,35 @@ class PtyTaskRunner implements TaskRunnerGateway {
 
   @override
   Future<void> stop(String taskId) async {
+    final compose = _composeDefinitions[taskId];
+    if (compose != null && _composeActive.contains(taskId)) {
+      _emit(
+        _lastState[taskId] = TaskRun(
+          taskId: taskId,
+          status: TaskRunStatus.stopping,
+        ),
+      );
+      final task = compose.task;
+      final result = await Process.run(task.engine.command, [
+        ...task.engine.prefix,
+        '-f',
+        task.file,
+        'stop',
+        task.service,
+      ], workingDirectory: File(task.file).parent.path);
+      await _stopComposeFollower(taskId);
+      _composeActive.remove(taskId);
+      _emit(
+        _lastState[taskId] = TaskRun(
+          taskId: taskId,
+          status: result.exitCode == 0
+              ? TaskRunStatus.stopped
+              : TaskRunStatus.failed,
+          exitCode: result.exitCode,
+        ),
+      );
+      return;
+    }
     final task = _running[taskId];
     if (task == null) return;
     if (task.stopping) return; // já em curso — não empilha kills
@@ -197,6 +498,43 @@ class PtyTaskRunner implements TaskRunnerGateway {
 
   @override
   Future<void> restart(String taskId) async {
+    final compose = _composeDefinitions[taskId];
+    if (compose != null && _composeActive.contains(taskId)) {
+      final task = compose.task;
+      _emit(
+        _lastState[taskId] = TaskRun(
+          taskId: taskId,
+          status: TaskRunStatus.starting,
+        ),
+      );
+      final result = await Process.run(task.engine.command, [
+        ...task.engine.prefix,
+        '-f',
+        task.file,
+        'restart',
+        task.service,
+      ], workingDirectory: File(task.file).parent.path);
+      await _stopComposeFollower(taskId);
+      if (result.exitCode == 0) {
+        _emit(
+          _lastState[taskId] = TaskRun(
+            taskId: taskId,
+            status: TaskRunStatus.running,
+          ),
+        );
+        await attachOutput(taskId);
+      } else {
+        _composeActive.remove(taskId);
+        _emit(
+          _lastState[taskId] = TaskRun(
+            taskId: taskId,
+            status: TaskRunStatus.failed,
+            exitCode: result.exitCode,
+          ),
+        );
+      }
+      return;
+    }
     final task = _running[taskId];
     if (task == null) return;
     final def = task.def;
@@ -284,6 +622,13 @@ class PtyTaskRunner implements TaskRunnerGateway {
 
   @override
   Future<void> disposeAll() async {
+    _composePoll?.cancel();
+    for (final id in _composeFollowers.keys.toList()) {
+      await _stopComposeFollower(id);
+    }
+    for (final out in _composeOutput.values) {
+      await out.close();
+    }
     for (final id in _watchers.keys.toList()) {
       stopWatch(id);
     }
@@ -300,6 +645,12 @@ class PtyTaskRunner implements TaskRunnerGateway {
     _running.clear();
     await _runs.close();
     await _previews.close();
+  }
+
+  Future<void> _stopComposeFollower(String taskId) async {
+    final process = _composeFollowers.remove(taskId);
+    if (process == null) return;
+    process.kill(ProcessSignal.sigterm);
   }
 
   // --- internals ---------------------------------------------------------

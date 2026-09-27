@@ -167,7 +167,13 @@
       "moreKeysTooltip": "Más teclas",
       "sectionTasks": "TAREAS",
       "noTasks": "No se detectaron tareas en este proyecto.",
-      "createTasksJson": "Crear tasks.json"
+      "createTasksJson": "Crear tasks.json",
+      "generateComposeTasks": "Generar tareas de Compose",
+      "selectComposeEngine": "Elige un motor de Compose",
+      "noComposeEngine": "No se encontró Docker Compose ni Podman Compose.",
+      "invalidComposeFile": "El archivo activo no es un Compose válido con servicios.",
+      "invalidTasksJson": "tasks.json no es válido. No se guardaron cambios.",
+      "composeConflicts": "Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Elige la carpeta del proyecto",

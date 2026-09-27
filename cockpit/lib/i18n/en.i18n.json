@@ -167,7 +167,13 @@
       "moreKeysTooltip": "More keys",
       "sectionTasks": "TASKS",
       "noTasks": "No tasks detected in this project.",
-      "createTasksJson": "Create tasks.json"
+      "createTasksJson": "Create tasks.json",
+      "generateComposeTasks": "Generate Compose tasks",
+      "selectComposeEngine": "Choose a Compose engine",
+      "noComposeEngine": "Docker Compose or Podman Compose was not found.",
+      "invalidComposeFile": "The active file is not a valid Compose file with services.",
+      "invalidTasksJson": "tasks.json is invalid. No changes were written.",
+      "composeConflicts": "Kept non-Compose tasks with conflicting labels: ${labels}"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Choose the project folder",

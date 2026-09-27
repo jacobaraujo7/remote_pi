@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/gallery_template.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
+import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:flutter/foundation.dart';
 
 /// ViewModel page-scoped do subpane de Tasks. Descobre as tasks do projeto
@@ -41,6 +42,7 @@ class TasksViewModel extends ChangeNotifier {
   Timer? _reloadDebounce;
 
   String _cwd = '';
+  String _activeFile = '';
   List<TaskDefinition> _tasks = const [];
   bool _loading = false;
   bool _hasConfig = false;
@@ -57,6 +59,31 @@ class TasksViewModel extends ChangeNotifier {
 
   /// Há um projeto selecionado (cwd não-vazio) — habilita criar o exemplo.
   bool get hasProject => _cwd.isNotEmpty;
+
+  Future<ComposeFile?> composeFile([String? path]) =>
+      const ComposeFileParser().parse(path ?? _activeFile, _cwd);
+
+  void setActiveFile(String path) {
+    if (_activeFile == path) return;
+    _activeFile = path;
+  }
+
+  Future<List<ComposeEngine>> composeEngines() =>
+      const ComposeEngineResolver().available();
+
+  Future<List<String>> generateComposeTasks(ComposeEngine engine) async {
+    if (_remote != null) return const [];
+    final compose = await composeFile();
+    if (compose == null) throw const FormatException('Invalid Compose file');
+    final generator = const ComposeTaskGenerator();
+    final maps = compose.services
+        .map((s) => generator.taskMap(engine, compose.path, s, _cwd))
+        .toList();
+    final result = await const ComposeTasksWriter().write(_cwd, maps);
+    _watchConfig(_cwd);
+    await reload();
+    return result.conflicts;
+  }
 
   String _configPath(String cwd) {
     final sep = Platform.pathSeparator;
@@ -93,6 +120,12 @@ class TasksViewModel extends ChangeNotifier {
         : await _discovery.discover(cwd);
     if (cwd != _cwd) return; // corrida com outra troca de projeto
     _tasks = found;
+    final reconciled = _runner;
+    if (reconciled is ReconciledTaskRunnerGateway) {
+      await (reconciled as ReconciledTaskRunnerGateway).reconcileDefinitions(
+        found,
+      );
+    }
     // Remoto: o tasks.json vive no host — não dá pra `File.existsSync` aqui;
     // a presença é inferida por ter descoberto tasks.
     _hasConfig = _remote != null
@@ -169,6 +202,13 @@ class TasksViewModel extends ChangeNotifier {
 
   Future<void> start(TaskDefinition def) =>
       _runner.start(def, profileName: selectedProfile(def));
+
+  Future<void> attachOutput(String taskId) async {
+    final reconciled = _runner;
+    if (reconciled is ReconciledTaskRunnerGateway) {
+      await (reconciled as ReconciledTaskRunnerGateway).attachOutput(taskId);
+    }
+  }
 
   Future<void> stop(String taskId) => _runner.stop(taskId);
 
