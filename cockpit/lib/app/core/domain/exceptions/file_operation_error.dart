@@ -11,6 +11,9 @@ enum FileOperationErrorKind {
   cannotMoveIntoItself,
   clipboardEmpty,
   notScratchTab,
+
+  /// Drop de arquivos do SO num workspace remoto (upload por SSH não existe).
+  remoteDropUnsupported,
   writeFailed,
   // Formatador externo (LSP "Language" → comando de formatação)
   formatterEmptyCommand,

@@ -96,6 +96,24 @@ void main() {
     expect(r.affectedRows, 4);
   });
 
+  // Regressão (2026-09-23, produção da Masterclass): o rewriter de `@param`
+  // do anaki trocava `@gmail` dentro do literal por um parâmetro posicional e
+  // gravava `thalya?.com`. O Cockpit não passa parâmetros: `@` é sempre texto.
+  test('@ dentro de literal SQL é gravado e buscado intacto', () async {
+    if (!libAvailable) return markTestSkipped('libanaki_sqlite.dylib ausente');
+    await driver.execute(
+      conn(),
+      "INSERT INTO orders (customer, total) VALUES ('thalya@gmail.com', 1)",
+    );
+    final r = await driver.query(
+      conn(),
+      "SELECT customer FROM orders WHERE customer LIKE '%@gmail.com' "
+      '-- @comentario',
+      limit: 10,
+    );
+    expect(r.rows.single.single, 'thalya@gmail.com');
+  });
+
   test('schema lista tabelas e colunas', () async {
     if (!libAvailable) return markTestSkipped('libanaki_sqlite.dylib ausente');
     final tables = await driver.schema(conn());

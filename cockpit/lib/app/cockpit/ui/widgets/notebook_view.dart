@@ -337,14 +337,25 @@ class _NotebookViewState extends State<NotebookView> {
       return db.compareTo(da);
     });
     if (!mounted) return;
+    // O corpo em que o editor se baseou, ANTES de adotar a leitura nova. É a
+    // comparação com ele (e não a flag `_dirty`) que diz se há edição
+    // pendente: o `_save` chama este `_load` com a flag ainda ligada, e ela
+    // ficava presa, então a nota aberta nunca mais adotava o disco.
+    final base = _selected?.body;
     setState(() {
       _notes = notes;
       _loading = false;
       if (_selected == null && notes.isNotEmpty) {
         _selectedPath = notes.first.path;
       }
-      // Edição em curso não é sobrescrita por um reload do disco.
-      if (!_dirty) _syncEditor();
+      if (base == null || _editor.text == base) {
+        _syncEditor(); // nada pendente: adota o disco
+      } else {
+        // Edição em curso não é sobrescrita por um reload do disco; só
+        // realinha a flag (o save que acabou de gravar a deixa limpa).
+        final sel = _selected;
+        _dirty = sel != null && _editor.text != sel.body;
+      }
     });
   }
 

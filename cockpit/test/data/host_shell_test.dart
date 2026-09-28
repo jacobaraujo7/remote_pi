@@ -163,6 +163,26 @@ void main() {
       final exec = _FakeExec((_) => [(127, '', 'no shell')]);
       expect(await probeHost(exec.call), isNull);
     });
+
+    test('exit 255 do ssh e host inalcancavel, nao OS desconhecido', () async {
+      // Sem isto o timeout do ssh caia no probe de PowerShell e o host fora
+      // do ar virava hostUnknownOs (caso e_b3c3 da Telemetria do app).
+      final exec = _FakeExec(
+        (_) => [
+          (255, '', 'ssh: connect to host x port 22: Operation timed out'),
+        ],
+      );
+      await expectLater(
+        probeHost(exec.call),
+        throwsA(
+          isA<HostUnreachableException>().having(
+            (e) => e.detail,
+            'detail',
+            contains('Operation timed out'),
+          ),
+        ),
+      );
+    });
   });
 
   group('windowsPowerShellCommand (D1)', () {

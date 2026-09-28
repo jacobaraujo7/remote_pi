@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -17,12 +18,15 @@ import 'package:cockpit/app/core/utils/path_utils.dart';
 /// por servidor e source control ficam no workspace do app. Manter isso
 /// pequeno é o que deixa a janela abrir em menos de um segundo.
 class StandaloneDocumentHost implements DocumentHost {
-  StandaloneDocumentHost({required this.workspaceRoot});
+  StandaloneDocumentHost({required this.workspaceRoot, required this.changes});
 
   /// Raiz "de fato" do arquivo: a pasta mais próxima acima dele com `.git`,
   /// ou a própria pasta do arquivo quando não há repositório. Só serve para
   /// o caminho de exibição (breadcrumb) e o limite de leitura do preview.
   final String workspaceRoot;
+
+  /// Live-reload do caderno (mesmo serviço da aba e do arquivo solto).
+  final FileChangeWatcher changes;
 
   /// Sobe a partir de [path] até achar uma pasta com `.git`. Sem repositório,
   /// devolve a pasta que contém [path].
@@ -123,13 +127,7 @@ class StandaloneDocumentHost implements DocumentHost {
   }
 
   @override
-  Stream<void> watchFolder(String path) {
-    try {
-      return Directory(path).watch().map((_) {});
-    } on FileSystemException {
-      return const Stream<void>.empty();
-    }
-  }
+  Stream<void> watchFolder(String path) => changes.watchFolder(path);
 
   @override
   Future<bool> writeTextAt(String path, String content) async {

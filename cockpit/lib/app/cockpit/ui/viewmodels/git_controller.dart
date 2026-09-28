@@ -14,7 +14,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/git_status_reader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/core/ui/window_activity_controller.dart';
-import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
+import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 import 'package:flutter/foundation.dart';
 
 typedef DirectoryWatch = Stream<FileSystemEvent> Function(String path);
@@ -197,7 +197,7 @@ class GitController extends ChangeNotifier {
     if (info == null) return null;
     GitFileStatus? out;
     for (final s in info.files.values) {
-      out = GitFileStatus.strongest(out, s);
+      out = GitFileStatus.strongestForFolder(out, s);
     }
     return out ??
         (info.untrackedDirs.isNotEmpty ? GitFileStatus.untracked : null);
@@ -538,11 +538,12 @@ class GitController extends ChangeNotifier {
     for (final entry in files.entries) {
       final path = entry.key; // relativo, separador '/'
       tree[path] = GitFileStatus.strongest(tree[path], entry.value)!;
-      // Propaga pros ancestrais: 'a/b/c.dart' → 'a/b', 'a'.
+      // Propaga pros ancestrais: 'a/b/c.dart' → 'a/b', 'a'. Deleção sobe
+      // como mudança comum (ver [GitFileStatus.strongestForFolder]).
       var slash = path.lastIndexOf('/');
       while (slash > 0) {
         final dir = path.substring(0, slash);
-        tree[dir] = GitFileStatus.strongest(tree[dir], entry.value)!;
+        tree[dir] = GitFileStatus.strongestForFolder(tree[dir], entry.value)!;
         slash = dir.lastIndexOf('/');
       }
     }
@@ -658,11 +659,11 @@ final class GitRefreshScheduler {
   }
 
   void _recordMetric(Stopwatch stopwatch, {required bool failed}) {
-    LinuxPerformanceDiagnostics.instance.record(LinuxPerfMetric.gitRefresh, {
-      LinuxPerfField.durationUs: stopwatch.elapsedMicroseconds,
-      LinuxPerfField.active: _active,
-      LinuxPerfField.queued: _jobs.length,
-      LinuxPerfField.failed: failed ? 1 : 0,
+    PerformanceDiagnostics.instance.record(PerfMetric.gitRefresh, {
+      PerfField.durationUs: stopwatch.elapsedMicroseconds,
+      PerfField.active: _active,
+      PerfField.queued: _jobs.length,
+      PerfField.failed: failed ? 1 : 0,
     });
   }
 }

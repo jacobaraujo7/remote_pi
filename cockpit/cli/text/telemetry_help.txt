@@ -1,0 +1,56 @@
+cockpit telemetry — the workspace's structured error/log store (agent-friendly JSON)
+
+Every task the app runs feeds it by default. Anything else you run (a dev
+server in a plain terminal, `flutter test` from an agent's shell) enters it
+when you prefix the command with `cockpit telemetry`. Query it instead of
+reading terminal output.
+
+RUN A COMMAND (the wrapper):
+  cockpit telemetry flutter run                    observe this process (PTY when interactive)
+  cockpit telemetry --name api npm run dev         stable name for the run
+  cockpit telemetry -q -- ./script.sh              `--` forces "everything after is the command"
+  Prints, at exit:  telemetry: run r_42 · 3 errors · 12 warnings · cockpit telemetry errors --run r_42
+  The child's exit code is returned unchanged.
+
+QUERY:
+  cockpit telemetry errors   [filters]             open cases, grouped by fingerprint (default: --level error)
+  cockpit telemetry logs     [filters]             non-error events (--level debug|info|warn)
+  cockpit telemetry events   [filters]             everything, raw
+  cockpit telemetry runs     [--project P] [--key K] [--live]
+  cockpit telemetry show <id> [--context N]        e_xxxx (case) | ev_xxxx (event) | r_xx (run)
+  cockpit telemetry wait --fingerprint e_xxxx [--absent 30s] [--timeout 60s]
+  cockpit telemetry wait --any-new [--timeout 60s]
+  cockpit telemetry mark start|end <name>
+  cockpit telemetry resolve|ignore|reopen <e_xxxx> [--reason "..."]
+  cockpit telemetry clear --case e_xxxx | --run r_xx | --project P
+  cockpit telemetry probes                         added lines in the working tree that carry "probe"
+  cockpit telemetry perf [--run r_xx] [--metric m] performance metrics of the app run (P50/P95/max)
+
+THE APP ITSELF (--app):
+  cockpit telemetry errors --app                   Cockpit's own errors (framework, async, isolates)
+  cockpit telemetry logs --app --level warn        its warnings (fallbacks the app took silently)
+  cockpit telemetry runs --app                     one run per app boot
+  Add --app to any query verb to read the app's store instead of the
+  workspace's. It only fills while Settings → General → Developer mode is on
+  (off by default); metrics are recorded then too (or with COCKPIT_PERF=1).
+
+FILTERS (errors/logs/events):
+  --project <name>    --task <task-id>   --run <r_xx>   --key <run key>   --tab <tab-id>
+  --level <sev>       trace|debug|info|warn|error|fatal (minimum)
+  --since <10m|2h|ISO>   --since-edit (since your last editor save)   --since-run (latest run)
+  --before <id> [--window 5s]   the window right before an event/case
+  --mark <name>       --text <words>   --probe <name|*>   --new
+  --include-ignored   --include-resolved   --limit <n>
+
+OUTPUT:
+  JSON, one line. Summaries first, ids stable: e_xxxx = case, ev_xxxx = event, r_xx = run.
+  Replies are capped; "truncated": true + "hint" tells you how to narrow.
+  Human triage (resolved/ignored) is respected by default.
+
+LOOP (how an agent should use it):
+  run → read the summary line → `errors --run r_42` → fix → run again, or
+  `wait --fingerprint e_xxxx --absent 30s` on a dev server with hot reload.
+
+FLAGS:
+  --tab-id <id>       act as another tab (workspace resolution)
+  --workspace <id>    explicit workspace (see `cockpit list-workspaces`)

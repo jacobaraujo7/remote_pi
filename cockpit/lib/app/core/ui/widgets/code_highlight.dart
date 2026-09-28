@@ -35,6 +35,9 @@ const Map<String, String> _extToLanguage = {
   'rest': 'httpfile',
   'html': 'xml',
   'htm': 'xml',
+  // `.panel` (plano 67) é HTML com front-matter: a gramática xml pinta o
+  // corpo; o cabeçalho `---` fica como texto.
+  'panel': 'xml',
   'xhtml': 'xml',
 };
 

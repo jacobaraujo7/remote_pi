@@ -14,6 +14,7 @@ import 'package:cockpit/app/cockpit/data/db/json_ssh_host_key_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/mongo_database_store.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/app_launcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/content_searcher_impl.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/disk_file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_reader_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_searcher_impl.dart';
 import 'package:cockpit/app/cockpit/data/filesystem/file_system_mutator_impl.dart';
@@ -35,6 +36,9 @@ import 'package:cockpit/app/cockpit/data/repositories/json_workspace_layout_stor
 import 'package:cockpit/app/cockpit/data/repositories/project_schema_migrator.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/data/telemetry/line_parser/telemetry_line_parser_impl.dart';
+import 'package:cockpit/app/cockpit/data/telemetry/telemetry_ingest_impl.dart';
+import 'package:cockpit/app/cockpit/data/telemetry/telemetry_store_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
 import 'package:cockpit/app/cockpit/data/http/http_request_runner_impl.dart';
 import 'package:cockpit/app/cockpit/data/process/process_tree_provider_factory.dart';
@@ -53,6 +57,7 @@ import 'package:cockpit/app/cockpit/data/update/url_opener_impl.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/app_launcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/content_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dismissed_update_store.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_searcher.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_system_mutator.dart';
@@ -70,6 +75,9 @@ import 'package:cockpit/app/cockpit/domain/contracts/realm_repository.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/self_updater.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/telemetry_line_parser.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/telemetry_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway_factory.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
@@ -88,6 +96,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/session_notifications_controll
 import 'package:cockpit/app/cockpit/ui/viewmodels/remote_workspace_controller.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/database_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/telemetry_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_terminal_store.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/update_viewmodel.dart';
@@ -173,6 +182,7 @@ Future<Module> buildCockpitModule({
         ..addInstance<FileSystemReader>(const FileSystemReaderImpl())
         ..addInstance<FileSystemMutator>(const FileSystemMutatorImpl())
         ..addInstance<FileReader>(const FileReaderImpl())
+        ..addInstance<FileChangeWatcher>(const DiskFileChangeWatcher())
         // DB tab (plano 51): conexões por workspace + drivers + motor
         // compartilhado tab/CLI.
         ..addInstance<DbConnectionStore>(const DbConnectionStoreImpl())
@@ -242,6 +252,13 @@ Future<Module> buildCockpitModule({
               CockpitTerminalHarnessMonitor(provider, windowActivity),
         )
         ..addLazySingleton<TerminalStatusServer>(TerminalStatusServerImpl.new)
+        // Telemetria (plano 66): um store por workspace no cache local, parser
+        // único compartilhado por task/wrapper, ingest resolve pelo cwd.
+        ..addInstance<TelemetryStoreProvider>(TelemetryStoreRegistry())
+        ..addInstance<TelemetryLineParserFactory>(
+          const TelemetryLineParserFactoryImpl(),
+        )
+        ..addLazySingleton<TelemetryIngest>(TelemetryIngestImpl.new)
         ..addLazySingleton<TaskRunnerGateway>(PtyTaskRunner.new)
         ..addLazySingleton(TaskTerminalStore.new)
         ..addInstance<TaskDiscovery>(TaskDiscoveryImpl(const []))
@@ -291,6 +308,7 @@ Future<Module> buildCockpitModule({
             ..addChangeNotifier<TasksViewModel>(TasksViewModel.new)
             ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new)
             ..addChangeNotifier<DatabaseViewModel>(DatabaseViewModel.new)
+            ..addChangeNotifier<TelemetryViewModel>(TelemetryViewModel.new)
             ..addChangeNotifier<HttpViewModel>(HttpViewModel.new),
           child: (context, state) => const CockpitPage(),
         );

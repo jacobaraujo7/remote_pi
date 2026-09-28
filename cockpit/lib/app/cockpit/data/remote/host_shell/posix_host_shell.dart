@@ -183,17 +183,17 @@ $command
       await runLocked('''
 $_noNestRename
 if { [ ! -e "$_serverDir" ] && [ ! -L "$_serverDir" ]; }; then
-  set -- "\$HOME/.cockpit"/server.previous-*
-  if [ -e "\$1" ] || [ -L "\$1" ]; then
-    no_nest_rename "\$1" "$_serverDir" || {
+  # find, e nao glob: o comando roda no login shell do host, e o zsh aborta
+  # com "no matches found" num glob sem match (o bash devolve o padrao).
+  prev=\$(find "\$HOME/.cockpit" -maxdepth 1 -name 'server.previous-*' 2>/dev/null | head -n 1)
+  if [ -n "\$prev" ] && { [ -e "\$prev" ] || [ -L "\$prev" ]; }; then
+    no_nest_rename "\$prev" "$_serverDir" || {
       echo "cockpit-server could not safely recover prior backup" >&2
       exit 76
     }
   fi
 fi
-for stale in "\$HOME/.cockpit"/server.staging-*; do
-  if [ -d "\$stale" ]; then rm -rf "\$stale"; fi
-done
+find "\$HOME/.cockpit" -maxdepth 1 -name 'server.staging-*' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 if [ -e "$backup" ] || [ -L "$backup" ]; then
   echo "cockpit-server transaction backup path is occupied: $backup" >&2
   exit 76

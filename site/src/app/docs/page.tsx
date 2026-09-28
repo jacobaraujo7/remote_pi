@@ -7,101 +7,210 @@ import {
   DocsTable,
 } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
+import { Callout } from "@/components/callout";
 import { DocsToc, type TocItem } from "@/components/docs-toc";
 import { RevealController } from "@/components/landing/reveal-controller";
 
 export const metadata: Metadata = {
-  title: "Docs",
+  title: "Cockpit reference",
   description:
-    "Reference for Remote Pi: the relay, protocol & security, the full command reference, configuration files, and troubleshooting.",
+    "Reference for Remote Pi Cockpit: the internal CLI, .ckp pane layouts, Task Run, databases, notebooks and .http tabs, .env.cockpit, themes, turn status hooks and remote hosts over SSH.",
 };
 
 const GITHUB_URL = "https://github.com/jacobaraujo7/remote_pi";
-const PI_URL = "https://github.com/earendil-works/pi";
-const RELAY_README_URL =
-  "https://github.com/jacobaraujo7/remote_pi/blob/main/relay/README.md";
-const ISSUES_URL = "https://github.com/jacobaraujo7/remote_pi/issues";
+const COCKPIT_DOCS =
+  "https://github.com/jacobaraujo7/remote_pi/tree/main/cockpit/docs";
+const THEME_SCHEMA =
+  "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/docs/theme.schema.json";
+const TASKS_SCHEMA =
+  "https://github.com/jacobaraujo7/remote_pi/blob/main/cockpit/docs/tasks.schema.json";
+const THEME_EXAMPLE =
+  "https://github.com/jacobaraujo7/remote_pi/blob/main/cockpit/docs/theme.example.json";
 
 const DOCS_TOC: TocItem[] = [
-  { id: "quick-start", label: "Quick start" },
-  { id: "what-it-does", label: "What it does" },
   { id: "install", label: "Install" },
-  { id: "using-remote-pi", label: <>Using <InlineCode>/remote-pi</InlineCode></> },
-  { id: "pairing", label: "Pairing a mobile device" },
-  { id: "quick-actions", label: "Quick actions from the phone" },
-  { id: "agent-network", label: "Agent network" },
-  { id: "daemon-mode", label: "Daemon mode" },
   {
-    id: "relay",
-    label: "The relay",
+    id: "cli",
+    label: <>The <InlineCode>cockpit</InlineCode> CLI</>,
     sub: [
-      { id: "community-relay", label: "Community relay" },
-      { id: "self-host", label: "Self-host" },
-      { id: "point-pi", label: "Point Pi at your relay" },
+      { id: "cli-targets", label: "Targets & ids" },
+      { id: "cli-commands", label: "Command reference" },
+      { id: "cli-read", label: "Reading output" },
     ],
   },
-  { id: "protocol", label: "Protocol & Security" },
   {
-    id: "commands",
-    label: "Command reference",
+    id: "layouts",
+    label: <><InlineCode>.ckp</InlineCode> pane layouts</>,
     sub: [
-      { id: "commands-local", label: "Local session" },
-      { id: "commands-daemon", label: "Daemon fleet" },
-      { id: "commands-cron", label: "Daemon cron" },
+      { id: "layouts-fields", label: "Fields" },
+      { id: "layouts-merge", label: "Merge semantics" },
     ],
   },
-  { id: "config", label: "Configuration files" },
   {
-    id: "troubleshooting",
-    label: "Troubleshooting",
+    id: "tasks",
+    label: "Task Run",
     sub: [
-      { id: "footer-stuck", label: "Stuck on pairing" },
-      { id: "timeout-mobile", label: "Mobile times out" },
-      { id: "timeout-request", label: "Reply never arrives" },
-      { id: "one-pi-per-cwd", label: "One Pi per cwd" },
+      { id: "tasks-file", label: "tasks.json" },
+      { id: "tasks-fields", label: "Fields" },
     ],
   },
+  {
+    id: "databases",
+    label: "Databases",
+  },
+  {
+    id: "documents",
+    label: "Documents as tabs",
+    sub: [
+      { id: "documents-notebook", label: "Notebook" },
+      { id: "documents-http", label: <><InlineCode>.http</InlineCode> requests</> },
+      { id: "documents-more", label: "Boards, diagrams, windows" },
+    ],
+  },
+  {
+    id: "env",
+    label: <><InlineCode>.env.cockpit</InlineCode></>,
+    sub: [
+      { id: "env-redaction", label: "Redaction" },
+      { id: "env-blocked", label: "Blocked keys" },
+      { id: "env-accounts", label: "Separate accounts" },
+    ],
+  },
+  {
+    id: "themes",
+    label: "Themes",
+    sub: [
+      { id: "themes-file", label: "Theme file" },
+      { id: "themes-tokens", label: "Tokens" },
+    ],
+  },
+  {
+    id: "turn-status",
+    label: "Agent turn status",
+    sub: [
+      { id: "turn-status-events", label: "Event mapping" },
+      { id: "turn-status-resume", label: "Resuming a session" },
+    ],
+  },
+  {
+    id: "remote",
+    label: "Remote hosts & VPS",
+    sub: [
+      { id: "remote-install", label: "Install the server" },
+      { id: "remote-service", label: "Start at boot" },
+      { id: "remote-troubleshooting", label: "Troubleshooting" },
+    ],
+  },
+  { id: "sounds", label: "Sounds & notifications" },
+  { id: "language", label: "Language" },
   { id: "links", label: "Links" },
 ];
 
-export default function DocsPage() {
+const CKP_EXAMPLE = `# dev.ckp — anywhere in the project; cwd is relative to this file
+autorun: worktree        # optional
+panes:
+  - name: Frontend       # required, unique — becomes the tab's stable label
+    cwd: frontend        # relative to this file, always with "/"
+    command: claude      # optional: typed into the shell after the tab opens
+  - name: Backend
+    cwd: backend
+    split: right         # tab (default) | right (side by side) | down (stacked)
+    command: npm run dev
+  - name: Sign
+    cwd: .
+    command: ./sign.sh
+    platforms: [macos]   # optional: macos | windows | linux (string or list)`;
+
+const TASKS_EXAMPLE = `{
+  "tasks": [
+    {
+      "label": "run",
+      "cwd": "app",                 // relative to the tasks.json folder
+      "command": "flutter",
+      "args": ["run"],
+      "kind": "watch",
+      "interactiveKeys": [
+        { "key": "r", "label": "Hot reload", "icon": "refresh", "primary": true },
+        { "key": "R", "label": "Hot restart", "icon": "restart", "primary": true },
+        { "key": "q", "label": "Quit", "icon": "stop" }
+      ],
+      "watch": {
+        "paths": ["lib", "assets"],
+        "ignore": ["build", ".dart_tool"],
+        "onChange": "Hot reload",   // an interactiveKey label, or "__restart__"
+        "debounceMs": 300
+      },
+      "progressPatterns": [
+        { "begin": "Performing hot reload", "end": "Reloaded .* in .*ms" }
+      ],
+      "profiles": [
+        { "name": "default" },
+        { "name": "web", "args": ["-d", "chrome"] }
+      ]
+    },
+    {
+      "label": "api",
+      "cwd": "backend",             // monorepo: another subfolder
+      "command": "dart",
+      "args": ["run", "bin/server.dart"],
+      "kind": "watch"
+    }
+  ]
+}`;
+
+const THEME_SHAPE = `{
+  "$schema": "${THEME_SCHEMA}",
+  "id": "acme.aurora",
+  "name": "Aurora",
+  "author": "Acme",
+  "version": "1.0.0",
+  "extends": "cockpit",
+  "variants": {
+    "dark":  { "ui": {}, "syntax": {}, "terminal": {} },
+    "light": { "ui": {}, "syntax": {}, "terminal": {} }
+  }
+}`;
+
+const THEME_MINIMAL = `{
+  "$schema": "${THEME_SCHEMA}",
+  "id": "acme.violet",
+  "name": "Violet",
+  "variants": {
+    "dark":  { "ui": { "accent": "#8B5CF6", "accentSoft": "#8B5CF633", "accentText": "#C4B5FD" } },
+    "light": { "ui": { "accent": "#7C3AED", "accentSoft": "#7C3AED22", "accentText": "#5B21B6" } }
+  }
+}`;
+
+export default function CockpitDocsPage() {
   return (
     <div className="page">
       <div className="page-body">
         <div className="wrap">
           <header className="page-head reveal">
-            <span className="eyebrow">Documentation</span>
-            <h1>Remote Pi docs</h1>
+            <span className="eyebrow">Documentation · Cockpit</span>
+            <h1>Cockpit reference</h1>
             <div className="meta-line">
-              <span>Last updated: 2026-05-31</span>
+              <span>Last updated: 2026-09-21</span>
               <span>License: MIT</span>
             </div>
             <p className="lede">
-              This is the <strong className="text-fg">reference</strong>. Remote
-              Pi is a mesh for coding agents: agents on the same machine talk
-              through a local UDS broker, agents on different machines reach each
-              other through an open-source relay, and your phone authenticates
-              new peers and drives sessions. The first supported harness is the{" "}
-              <a
-                className="text-accent underline"
-                href={PI_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                Pi coding agent
-              </a>
-              ; <InlineCode>/remote-pi</InlineCode> wires everything up. To{" "}
-              <strong className="text-fg">learn by doing</strong>, start with
-              the{" "}
-              <Link href="/tutorials" className="text-accent underline">
-                tutorials
+              Everything the desktop app reads from your repository or writes to
+              your machine: the internal <InlineCode>cockpit</InlineCode> CLI
+              that agents use to drive tabs, the{" "}
+              <InlineCode>.ckp</InlineCode> pane layouts, the{" "}
+              <InlineCode>.cockpit/tasks.json</InlineCode> Task Run file, the
+              theme format, the documents that open as tabs, the{" "}
+              <InlineCode>.env.cockpit</InlineCode> that feeds your terminals,
+              and the harness hooks behind the turn status. For
+              the product tour, see the{" "}
+              <Link href="/" className="text-accent underline">
+                Cockpit page
               </Link>
-              ; for <strong className="text-fg">why</strong> it works this way,
-              see{" "}
-              <Link href="/why" className="text-accent underline">
-                Why Pi
+              ; for the mesh, daemons, and the relay, see the{" "}
+              <Link href="/remote-pi/docs" className="text-accent underline">
+                Remote Pi docs
               </Link>
-              . The pages below are for looking things up.
+              .
             </p>
           </header>
 
@@ -109,871 +218,1668 @@ export default function DocsPage() {
             <DocsToc items={DOCS_TOC} />
 
             <article className="prose docs-article">
-              {/* ── Pointers into the tutorials ─────────────────────────── */}
+              {/* ── INSTALL ─────────────────────────────────────────────── */}
 
-              <DocsSection id="quick-start" title="Quick start">
-        <p>
-          Install the plugin, run the setup wizard, and pair your phone in a few
-          commands — then send your first prompt from the app. The full
-          walkthrough, including the mobile side, is a tutorial.
-        </p>
-        <p>
-          →{" "}
-          <Link href="/tutorials/getting-started" className="text-accent underline">
-            See the Getting started tutorial
-          </Link>
-          .
-        </p>
-      </DocsSection>
+              <DocsSection id="install" title="Install">
+                <p>
+                  Cockpit ships for macOS, Windows, and Linux. macOS builds are
+                  signed and notarized, and every platform that supports it gets
+                  in-app updates. Grab a build from the{" "}
+                  <Link href="/download" className="text-accent underline">
+                    download page
+                  </Link>{" "}
+                  — <InlineCode>.dmg</InlineCode>,{" "}
+                  <InlineCode>.exe</InlineCode>,{" "}
+                  <InlineCode>.deb</InlineCode> and{" "}
+                  <InlineCode>.rpm</InlineCode> (x64 and arm64), each with a
+                  published SHA-256.
+                </p>
+                <p>
+                  Cockpit is a terminal first: it needs no account, no cloud and
+                  nothing else installed to be useful. Agents run as ordinary
+                  processes in its tabs, so the harness you already use (Claude
+                  Code, Codex CLI, Pi, OpenCode) is the one that runs here.
+                </p>
+                <p>
+                  Working on another machine is SSH plus{" "}
+                  <InlineCode>cockpit-server</InlineCode>, described in{" "}
+                  <a href="#remote" className="text-accent underline">
+                    Remote hosts &amp; VPS
+                  </a>
+                  . That is unrelated to the Remote Pi relay: the mesh, the
+                  phone app and the 24/7 daemons belong to the{" "}
+                  <Link href="/remote-pi" className="text-accent underline">
+                    Remote Pi project
+                  </Link>{" "}
+                  and are not part of Cockpit.
+                </p>
+              </DocsSection>
 
-      <DocsSection id="what-it-does" title="What it does">
-        <p>
-          Remote Pi adds two independent layers on top of Pi. The{" "}
-          <strong className="text-fg">agent network</strong> lets agents
-          discover and message each other — over a local socket on one machine,
-          or through the relay across PCs. The{" "}
-          <strong className="text-fg">mobile control plane</strong> is your
-          phone: it authenticates new peers into the mesh and drives sessions.
-          Each is covered hands-on:
-        </p>
-        <ul className="ml-6 list-disc space-y-2">
-          <li>
-            <Link href="/tutorials/mesh-local" className="text-accent underline">
-              Local mesh
-            </Link>{" "}
-            — agents discovering and messaging on the same machine.
-          </li>
-          <li>
-            <Link href="/tutorials/mesh-remote" className="text-accent underline">
-              Remote mesh
-            </Link>{" "}
-            — routing between agents on different PCs.
-          </li>
-          <li>
-            <Link href="/tutorials/getting-started" className="text-accent underline">
-              Getting started
-            </Link>{" "}
-            — pairing your phone and driving an agent from it.
-          </li>
-        </ul>
-      </DocsSection>
+              {/* ── CLI ─────────────────────────────────────────────────── */}
 
-      <DocsSection id="install" title="Install">
-        <p>
-          Requirements: Node 20+ and Pi (the host coding agent). Remote Pi
-          installs as a Pi plugin with{" "}
-          <InlineCode>pi install npm:remote-pi</InlineCode>, which self-registers
-          the <InlineCode>/remote-pi</InlineCode> slash command and deploys the
-          agent-network skill. The complete setup — wizard, pairing, first
-          command — is in the tutorial.
-        </p>
-        <p>
-          →{" "}
-          <Link href="/tutorials/getting-started" className="text-accent underline">
-            See the Getting started tutorial
-          </Link>
-          . Daemon mode has its own one-time install — see{" "}
-          <a href="#daemon-mode" className="text-accent underline">
-            Daemon mode
-          </a>{" "}
-          below.
-        </p>
-      </DocsSection>
+              <DocsSection id="cli" title="The cockpit CLI">
+                <p>
+                  Cockpit materializes a small binary at{" "}
+                  <InlineCode>~/.cockpit/bin/cockpit</InlineCode> and puts that
+                  folder on the <InlineCode>PATH</InlineCode> of the terminals
+                  it spawns — and only those. So the CLI exists for anything
+                  running inside Cockpit (you, a script, an agent) and does not
+                  leak into the rest of your shell environment. It talks to the
+                  app over a local socket: a Unix socket on macOS and Linux, a
+                  loopback TCP port plus a token on Windows.
+                </p>
+                <p>
+                  This is what makes Cockpit an <em>agentic</em> multiplexer:
+                  an agent in one tab can open another tab, type into it, read
+                  what it printed, run a project task, or query a database —
+                  the same verbs a human uses, with no screen scraping.
+                </p>
 
-      <DocsSection id="using-remote-pi" title="Using /remote-pi">
-        <p>
-          <InlineCode>/remote-pi</InlineCode> is the everyday entry point. The
-          first run opens a short wizard (agent name, whether to use the relay)
-          that creates the per-folder config; later runs join the local mesh and
-          start the relay automatically. Re-run the wizard with{" "}
-          <InlineCode>/remote-pi setup</InlineCode>. Every subcommand is in the{" "}
-          <a href="#commands" className="text-accent underline">
-            command reference
-          </a>
-          .
-        </p>
-        <p>
-          →{" "}
-          <Link href="/tutorials/getting-started" className="text-accent underline">
-            See the Getting started tutorial
-          </Link>{" "}
-          for the guided flow.
-        </p>
-      </DocsSection>
+                <DocsSubsection id="cli-targets" title="Targets & ids">
+                  <p>
+                    The unit the CLI addresses is a <strong>tab</strong> (one
+                    terminal or agent session). A <strong>pane</strong> is the
+                    split leaf that groups tabs and is not addressable —{" "}
+                    <InlineCode>list-panes</InlineCode> and{" "}
+                    <InlineCode>read-pane</InlineCode> survive as legacy
+                    aliases.
+                  </p>
+                  <DocsTable
+                    headers={["Flag", "What it does"]}
+                    rows={[
+                      [
+                        <InlineCode key="t">--tab-id &lt;id&gt;</InlineCode>,
+                        <>
+                          Target another tab. Defaults to{" "}
+                          <InlineCode>$COCKPIT_TAB_ID</InlineCode> (the current
+                          tab; legacy fallback{" "}
+                          <InlineCode>$COCKPIT_PANE_ID</InlineCode>).
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="f">--focused</InlineCode>,
+                        <>
+                          Target whatever tab you are looking at, resolved by
+                          the app. Works from outside a Cockpit terminal too
+                          (dictation tools, scripts): with no env inherited the
+                          CLI finds the app through{" "}
+                          <InlineCode>~/.cockpit/status.sock</InlineCode>. Wins
+                          over <InlineCode>--tab-id</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="e">--enter</InlineCode>,
+                        <>
+                          (<InlineCode>send</InlineCode> only) press Enter right
+                          after the text, as a separate keystroke — a{" "}
+                          <InlineCode>send</InlineCode> plus a{" "}
+                          <InlineCode>send-key Enter</InlineCode> in one call.
+                        </>,
+                      ],
+                    ]}
+                  />
+                  <Callout variant="warning" title="Tab ids reset on boot">
+                    <p>
+                      Ids (<InlineCode>t0</InlineCode>,{" "}
+                      <InlineCode>t1</InlineCode>…) are assigned per app boot,
+                      so never hardcode one. Discover them with{" "}
+                      <InlineCode>cockpit list-tabs</InlineCode>, or give a tab
+                      a <strong>stable label</strong> (double-click the tab, or{" "}
+                      <InlineCode>new-tab --title</InlineCode>) and address it
+                      by name. Labels persist across boots; workspace ids are
+                      opaque UUIDs, so use <InlineCode>workspacePath</InlineCode>{" "}
+                      / <InlineCode>path</InlineCode> when you need the folder
+                      on disk.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
 
-      <DocsSection id="pairing" title="Pairing a mobile device">
-        <p>
-          <InlineCode>/remote-pi pair</InlineCode> prints a QR (and a copy-paste
-          URI); scan it with the Remote Pi app. Pairing is{" "}
-          <strong className="text-fg">per machine</strong> — once a device is
-          paired, every Pi process on that machine accepts it. Manage devices
-          with <InlineCode>/remote-pi devices</InlineCode> and{" "}
-          <InlineCode>/remote-pi revoke &lt;shortid&gt;</InlineCode> (see the{" "}
-          <a href="#commands" className="text-accent underline">
-            command reference
-          </a>
-          ).
-        </p>
-        <p>
-          →{" "}
-          <Link href="/tutorials/getting-started" className="text-accent underline">
-            See the Getting started tutorial
-          </Link>
-          .
-        </p>
-      </DocsSection>
+                <DocsSubsection id="cli-commands" title="Command reference">
+                  <DocsTable
+                    headers={["Command", "What it does"]}
+                    rows={[
+                      [
+                        <InlineCode key="c">
+                          send [--tab-id id] [--enter] &lt;text&gt;
+                        </InlineCode>,
+                        "Type text into a tab.",
+                      ],
+                      [
+                        <InlineCode key="c">
+                          send-key [--tab-id id] &lt;Key&gt;…
+                        </InlineCode>,
+                        <>
+                          Press named keys:{" "}
+                          <InlineCode>Enter Tab Escape Space BSpace Up Down
+                          Left Right Home End PageUp PageDown Delete</InlineCode>{" "}
+                          and <InlineCode>C-&lt;letter&gt;</InlineCode> (e.g.{" "}
+                          <InlineCode>C-c</InlineCode>).
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">open &lt;file&gt;</InlineCode>,
+                        <>
+                          Open a file in the app&apos;s viewer. Bare{" "}
+                          <InlineCode>cockpit &lt;file&gt;</InlineCode> is a
+                          shortcut for it, relative to the tab&apos;s cwd.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">
+                          new-tab [--cwd dir] [--title name] [--split h|v]
+                        </InlineCode>,
+                        <>
+                          Open a terminal tab and print its id.{" "}
+                          <InlineCode>h</InlineCode>/<InlineCode>right</InlineCode>{" "}
+                          splits side by side,{" "}
+                          <InlineCode>v</InlineCode>/<InlineCode>down</InlineCode>{" "}
+                          stacks; omit to open as a tab in the same pane.
+                          Anchored at the emitting tab&apos;s pane.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">
+                          read-tab [label|tab-id]
+                        </InlineCode>,
+                        <>
+                          Read a tab&apos;s rendered output. No target = the
+                          current tab. Alias:{" "}
+                          <InlineCode>read-pane</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">read-task &lt;task-id&gt;</InlineCode>,
+                        "Read a task's output, even with no tab open for it.",
+                      ],
+                      [
+                        <InlineCode key="c">list-tabs [--json]</InlineCode>,
+                        <>
+                          List active tabs (alias:{" "}
+                          <InlineCode>list-panes</InlineCode>). The JSON carries{" "}
+                          <InlineCode>label</InlineCode>,{" "}
+                          <InlineCode>workspacePath</InlineCode>,{" "}
+                          <InlineCode>working</InlineCode> and, for task output
+                          tabs, <InlineCode>taskId</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">list-workspaces [--json]</InlineCode>,
+                        "List workspaces (projects) and their paths.",
+                      ],
+                      [
+                        <InlineCode key="c">list-tasks [--json]</InlineCode>,
+                        <>
+                          List this workspace&apos;s tasks.{" "}
+                          <InlineCode>[output]</InlineCode> marks tasks whose
+                          output <InlineCode>read-task</InlineCode> can read
+                          (ran this boot); ● marks tasks running right now.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">
+                          db &lt;list|schema|query|run|execute&gt;
+                        </InlineCode>,
+                        <>
+                          SQL databases registered in the workspace — see{" "}
+                          <a href="#databases" className="text-accent underline">
+                            Databases
+                          </a>
+                          .
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">redis [browse] --db conn</InlineCode>,
+                        "Run a Redis command, or open the key table for a human.",
+                      ],
+                      [
+                        <InlineCode key="c">
+                          mongo [browse] --db conn [--database name]
+                        </InlineCode>,
+                        "Run a MongoDB command, or open the collection browser.",
+                      ],
+                      [
+                        <InlineCode key="c">
+                          orchestrate &lt;file.ckp&gt; [--json]
+                        </InlineCode>,
+                        <>
+                          Apply a pane layout — see{" "}
+                          <a href="#layouts" className="text-accent underline">
+                            <InlineCode>.ckp</InlineCode> layouts
+                          </a>
+                          .
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">install-skill [--force]</InlineCode>,
+                        "Install the Claude Code skill that teaches this CLI.",
+                      ],
+                    ]}
+                  />
+                  <CodeBlock
+                    label="Cockpit terminal"
+                    prompt
+                    code={`# open a worker tab beside you, then drive it
+id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
+cockpit send --tab-id "$id" --enter "npm test"
 
-      <DocsSection id="quick-actions" title="Quick actions from the phone">
-        <p>
-          Beyond chatting, the app drives a session with a small set of typed
-          actions — <strong className="text-fg">compact context</strong>,{" "}
-          <strong className="text-fg">new session</strong>,{" "}
-          <strong className="text-fg">set model</strong>, and{" "}
-          <strong className="text-fg">set thinking</strong> level. The model
-          picker reads live from the host, so it always reflects what that
-          machine can run. The full vocabulary, wire format, and fallback
-          semantics live in{" "}
-          <a
-            className="text-accent underline"
-            href={`${GITHUB_URL}/blob/main/PROTOCOL.md`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            PROTOCOL.md
-          </a>{" "}
-          (the <em>App actions</em> section).
-        </p>
-        <p>
-          →{" "}
-          <Link href="/tutorials/getting-started" className="text-accent underline">
-            See the Getting started tutorial
-          </Link>
-          .
-        </p>
-      </DocsSection>
+# read what it printed
+cockpit read-tab Worker --lines 50
 
-      <DocsSection id="agent-network" title="Agent network">
-        <p>
-          Each agent is a peer in a mesh. The LLM gets three tools —{" "}
-          <InlineCode>list_peers</InlineCode> (who is online),{" "}
-          <InlineCode>agent_send</InlineCode> (send with an ACK), and{" "}
-          <InlineCode>get_messages</InlineCode> (drain the inbox). On one
-          machine, peers talk over a Unix-domain-socket broker; across machines,
-          the same <InlineCode>agent_send</InlineCode> routes through the relay,
-          addressing remote peers as <InlineCode>pc_label:peer</InlineCode>. Both
-          paths are covered hands-on:
-        </p>
-        <ul className="ml-6 list-disc space-y-2">
-          <li>
-            <Link href="/tutorials/mesh-local" className="text-accent underline">
-              Local mesh
-            </Link>{" "}
-            — the broker, the three tools, a concrete exchange.
-          </li>
-          <li>
-            <Link href="/tutorials/mesh-remote" className="text-accent underline">
-              Remote mesh
-            </Link>{" "}
-            — cross-PC addressing and what an ACK does (and doesn&apos;t)
-            guarantee.
-          </li>
-        </ul>
-      </DocsSection>
+# run and follow a project task
+cockpit list-tasks
+cockpit read-task npm:dev --lines 80
 
-      <DocsSection id="daemon-mode" title="Daemon mode">
-        <p>
-          Promote a folder to a 24/7 background agent: run{" "}
-          <InlineCode>/remote-pi install</InlineCode> once per machine to install
-          the supervisor (launchd on macOS,{" "}
-          <InlineCode>systemd --user</InlineCode> on Linux) and link the CLI,
-          then <InlineCode>remote-pi create &lt;folder&gt; --name &quot;…&quot;</InlineCode>{" "}
-          to register and start a daemon. One supervisor per machine, N daemons
-          under it. Every command is in the{" "}
-          <a href="#commands" className="text-accent underline">
-            command reference
-          </a>{" "}
-          below.
-        </p>
-        <p>
-          → <Link href="/tutorials/daemon" className="text-accent underline">
-            See the Daemon mode tutorial
-          </Link>{" "}
-          for the full how-to; the <em>why</em> (and how it compares to
-          all-in-one platforms) is{" "}
-          <Link href="/why" className="text-accent underline">
-            Why Pi
-          </Link>
-          .
-        </p>
-      </DocsSection>
+# open a file in the viewer, query a database
+cockpit open ~/.gitconfig
+cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"`}
+                  />
+                </DocsSubsection>
 
-      {/* ── Reference ───────────────────────────────────────────────────── */}
+                <DocsSubsection id="cli-read" title="Reading output">
+                  <p>
+                    <InlineCode>read-tab</InlineCode> and{" "}
+                    <InlineCode>read-task</InlineCode> share a windowing model.
+                    Output is always chronological (top to bottom); the flags
+                    only pick which window you get.
+                  </p>
+                  <DocsTable
+                    headers={["Flag", "Default", "What it does"]}
+                    rows={[
+                      [
+                        <InlineCode key="l">--lines N</InlineCode>,
+                        "100",
+                        "How many lines to return (server cap: 2000).",
+                      ],
+                      [
+                        <InlineCode key="o">--offset N</InlineCode>,
+                        "0",
+                        "Skip N lines from the anchor — this is your pagination.",
+                      ],
+                      [
+                        <InlineCode key="s">--from-start</InlineCode>,
+                        "off",
+                        "Anchor at the start of the buffer instead of the tail.",
+                      ],
+                    ]}
+                  />
+                  <p>
+                    Task ids are stable per workspace:{" "}
+                    <InlineCode>npm:&lt;script&gt;</InlineCode> from{" "}
+                    <InlineCode>package.json</InlineCode>,{" "}
+                    <InlineCode>flutter:run</InlineCode> /{" "}
+                    <InlineCode>flutter:test</InlineCode>, and{" "}
+                    <InlineCode>json:&lt;label&gt;</InlineCode> from{" "}
+                    <InlineCode>.cockpit/tasks.json</InlineCode>.
+                  </p>
+                </DocsSubsection>
+              </DocsSection>
 
-      <DocsSection id="relay" title="The relay">
-        <p>
-          The relay is the only network-touching piece of Remote Pi. In the
-          current MVP it sees both message payloads (forwarded but never logged
-          or inspected by the community operator) and connection metadata: which
-          keypair is online, which room/cwd identifiers exist, message timing,
-          sizes. Traffic is encrypted in transit (TLS) and peers authenticate
-          with Ed25519 pairing, but payloads are not encrypted at the
-          application layer — see{" "}
-          <a href="#protocol" className="text-accent underline">
-            Protocol &amp; Security
-          </a>{" "}
-          and the Privacy Policy, section 9, for the full picture.
-        </p>
-        <p>
-          The relay also <strong className="text-fg">persists a small SQLite
-          table</strong> called <InlineCode>mesh_versions</InlineCode> — blobs
-          signed by your Owner key listing the Pi devices that belong to your
-          mesh (a few KB per Owner). The relay verifies the Ed25519
-          signature on every <InlineCode>POST /mesh/&lt;owner_pk_hash&gt;</InlineCode>{" "}
-          and stores what you signed; it never decides membership itself.
-          New devices restoring your Owner key recover their peer list from
-          this blob. A relay compromise means DoS, not impersonation. See the{" "}
-          <a
-            className="text-accent underline"
-            href={`${GITHUB_URL}/blob/main/PROTOCOL.md`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            PROTOCOL.md
-          </a>{" "}
-          mesh-membership section for the wire format.
-        </p>
-        <p>You have two options.</p>
+              {/* ── .ckp LAYOUTS ────────────────────────────────────────── */}
 
-        <DocsSubsection id="community-relay" title="Option A — Use the community relay">
-          <p>
-            <InlineCode>https://relay-rp1.jacobmoura.work</InlineCode> (default).
-            Zero setup. Good for trying things out or for casual use.
-            (Internally the extension uses the WebSocket form{" "}
-            <InlineCode>wss://…</InlineCode> — both schemes point at the same
-            endpoint.)
-          </p>
-          <p>Caveats:</p>
-          <ul className="ml-6 list-disc space-y-2">
-            <li>Shared infrastructure — availability is best-effort.</li>
-            <li>
-              <strong className="text-fg">TLS in transit is the only network protection</strong>
-              {" "}— the relay operator sees plaintext envelopes (payloads,
-              routing metadata, peer pubkeys, timing). Self-host for
-              confidentiality from the operator.
-            </li>
-            <li>
-              <strong className="text-fg">No IP allow-listing or VPN gating</strong>{" "}
-              built in. Anyone with a paired keypair can connect; layer a
-              VPN on top via Option B if you want network-level isolation.
-            </li>
-          </ul>
-        </DocsSubsection>
+              <DocsSection id="layouts" title=".ckp pane layouts">
+                <p>
+                  A <InlineCode>.ckp</InlineCode> file is a versionable YAML
+                  that describes the terminals to open in a workspace — the
+                  equivalent of a tmuxinator layout. One file is one layout, and
+                  the file name is the layout name (
+                  <InlineCode>dev.ckp</InlineCode> → layout &ldquo;dev&rdquo;).
+                  Commit it, and a teammate gets your working geometry on
+                  clone.
+                </p>
+                <p>There are three ways to apply one:</p>
+                <ul>
+                  <li>
+                    <strong>GUI</strong> — right-click the{" "}
+                    <InlineCode>.ckp</InlineCode> file in the tree →{" "}
+                    <strong>Open layout</strong>.
+                  </li>
+                  <li>
+                    <strong>CLI</strong> —{" "}
+                    <InlineCode>cockpit orchestrate dev.ckp</InlineCode> from
+                    inside a tab.
+                  </li>
+                  <li>
+                    <strong>Worktree autorun</strong> —{" "}
+                    <InlineCode>autorun: worktree</InlineCode> in the file: the
+                    layout is applied by itself whenever you create a worktree
+                    of the workspace. The worktree is born empty, so the
+                    geometry comes out exact.
+                  </li>
+                </ul>
+                <CodeBlock label="dev.ckp" language="yaml" code={CKP_EXAMPLE} />
 
-        <DocsSubsection id="self-host" title="Option B — Self-host (recommended for privacy)">
-          <p>
-            Run the relay yourself in Docker and put it behind a VPN like{" "}
-            <a className="text-accent underline" href="https://tailscale.com" target="_blank" rel="noopener noreferrer">Tailscale</a>,{" "}
-            <a className="text-accent underline" href="https://www.wireguard.com" target="_blank" rel="noopener noreferrer">WireGuard</a>,
-            or your own VPC. Because the relay&apos;s network-level protection
-            is just TLS + keypair authentication, layering a VPN on top means{" "}
-            <strong className="text-fg">only your devices</strong> can even
-            reach the WebSocket port — defense in depth.
-          </p>
-          <p>
-            Quick Docker outline (see the{" "}
-            <a className="text-accent underline" href={`${RELAY_README_URL}#self-hosted-relay-recommended-for-privacy`} target="_blank" rel="noopener noreferrer">
-              relay README
-            </a>{" "}
-            for the full setup, environment variables, and reverse-proxy
-            guidance):
-          </p>
-          <CodeBlock
-            code={`docker run -d \\
-  --name remote-pi-relay \\
-  -p 3000:3000 \\
-  -v remote-pi-data:/data \\
-  --restart unless-stopped \\
-  jacobmoura7/remote-pi-relay`}
-            label="On your relay host"
-            language="bash"
-          />
-          <p>
-            The <InlineCode>-v remote-pi-data:/data</InlineCode> mount is
-            required — that&apos;s where the relay keeps{" "}
-            <InlineCode>mesh.db</InlineCode> (the Owner-signed mesh blobs).
-            Skip the volume and the table is wiped on every container restart,
-            forcing every client to re-publish.
-          </p>
-          <p>
-            The relay serves the WebSocket upgrade,{" "}
-            <InlineCode>/health</InlineCode>, and{" "}
-            <InlineCode>/mesh/&lt;owner_pk_hash&gt;</InlineCode> on the same
-            port (default 3000) — point your reverse proxy at one upstream
-            and you&apos;re done. Use <InlineCode>/health</InlineCode> for
-            liveness probes (Coolify, Kubernetes, Fly health checks).
-          </p>
-          <p>
-            Bind the container to your VPN interface, terminate TLS in a reverse
-            proxy, and point both your Pi and your phone at the resulting{" "}
-            <InlineCode>https://…</InlineCode> URL.
-          </p>
-        </DocsSubsection>
+                <DocsSubsection id="layouts-fields" title="Fields">
+                  <p>
+                    <strong>Root:</strong> <InlineCode>panes</InlineCode>{" "}
+                    (required) is the list of panes in creation order.{" "}
+                    <InlineCode>autorun</InlineCode> (optional) accepts only{" "}
+                    <InlineCode>worktree</InlineCode>; with two or more autorun
+                    files at the root, none of them runs — ambiguity is never
+                    guessed.
+                  </p>
+                  <DocsTable
+                    headers={["Field", "Required", "Default", "Description"]}
+                    rows={[
+                      [
+                        <InlineCode key="n">name</InlineCode>,
+                        "yes",
+                        "—",
+                        "Unique (case-insensitive). Becomes the tab's manual label and the merge key.",
+                      ],
+                      [
+                        <InlineCode key="c">cwd</InlineCode>,
+                        "no",
+                        <InlineCode key="d">.</InlineCode>,
+                        <>
+                          Relative to the file&apos;s folder, forward slashes
+                          only. Absolute paths and{" "}
+                          <InlineCode>\</InlineCode> are rejected for
+                          portability.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="s">split</InlineCode>,
+                        "no",
+                        <InlineCode key="d">tab</InlineCode>,
+                        <>
+                          Where it is born, relative to the{" "}
+                          <em>previously created</em> pane:{" "}
+                          <InlineCode>tab</InlineCode>,{" "}
+                          <InlineCode>right</InlineCode>,{" "}
+                          <InlineCode>down</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="cm">command</InlineCode>,
+                        "no",
+                        "—",
+                        "Typed into the terminal and run by the tab's shell (resolved through the machine's PATH).",
+                      ],
+                      [
+                        <InlineCode key="p">platforms</InlineCode>,
+                        "no",
+                        "all",
+                        <>
+                          <InlineCode>macos</InlineCode> /{" "}
+                          <InlineCode>windows</InlineCode> /{" "}
+                          <InlineCode>linux</InlineCode>, string or list — same
+                          semantics as in <InlineCode>tasks.json</InlineCode>.
+                        </>,
+                      ],
+                    ]}
+                  />
+                </DocsSubsection>
 
-        <DocsSubsection id="point-pi" title="Pointing Pi at your own relay">
-          <p>Once your relay is reachable, tell the extension:</p>
-          <CodeBlock
-            code="/remote-pi set-relay https://relay.yourdomain.tld"
-            label="In Pi"
-            language="text"
-          />
-          <p>
-            The URL must be <InlineCode>http://</InlineCode> or{" "}
-            <InlineCode>https://</InlineCode> —{" "}
-            <InlineCode>wss://</InlineCode> / <InlineCode>ws://</InlineCode>{" "}
-            are rejected at validation. The extension converts to the
-            WebSocket form internally when it opens the connection, so you
-            can paste whatever URL your reverse proxy or PaaS dashboard
-            exposes.
-          </p>
-          <p>
-            This writes <InlineCode>~/.pi/remote/config.json</InlineCode> with{" "}
-            <InlineCode>{`{ "relay": "..." }`}</InlineCode>. Resolution order
-            (highest precedence first):
-          </p>
-          <ol className="ml-6 list-decimal space-y-2">
-            <li>
-              <InlineCode>REMOTE_PI_RELAY</InlineCode> environment variable
-              (CI / one-off overrides)
-            </li>
-            <li><InlineCode>~/.pi/remote/config.json</InlineCode></li>
-            <li>
-              The built-in default (
-              <InlineCode>https://relay-rp1.jacobmoura.work</InlineCode>)
-            </li>
-          </ol>
-          <p>Verify the active URL and its source with:</p>
-          <CodeBlock code="/remote-pi config" label="In Pi" language="text" />
-          <p>
-            To switch URLs while connected: <InlineCode>/remote-pi stop</InlineCode>{" "}
-            then <InlineCode>/remote-pi</InlineCode> again. The mobile app has
-            its own relay-URL setting in its preferences pane — keep both
-            pointing at the same relay.
-          </p>
-        </DocsSubsection>
-      </DocsSection>
+                <DocsSubsection id="layouts-merge" title="Replace semantics">
+                  <ul>
+                    <li>
+                      Opening a layout means <strong>become this layout</strong>:
+                      the file is validated first, then every tab of the
+                      workspace is closed (pinned ones included), then the panes
+                      are built with exact geometry. If any tab has work running
+                      (an agent mid-turn, a process in a terminal, a live task)
+                      the GUI asks before closing; idle tabs close silently.
+                    </li>
+                    <li>
+                      <InlineCode>cockpit orchestrate dev.ckp</InlineCode>{" "}
+                      replaces without asking and keeps only the tab that ran
+                      the command. Pass <InlineCode>--append</InlineCode> to
+                      keep the old additive behavior: panes whose{" "}
+                      <InlineCode>name</InlineCode> already exists are skipped
+                      and nothing is closed. The worktree autorun always appends
+                      (the worktree is born empty, so it makes no difference).
+                    </li>
+                    <li>
+                      A missing <InlineCode>cwd</InlineCode> or invalid YAML
+                      gives a readable error (dialog in the GUI, stderr in the
+                      CLI); nothing is applied halfway from the failing pane on.
+                    </li>
+                    <li>
+                      <InlineCode>command</InlineCode> is typed ~700 ms after
+                      the tab opens, so the shell has time to finish booting,
+                      with Enter at the end.
+                    </li>
+                  </ul>
+                  <p>
+                    Cockpit treats <InlineCode>.ckp</InlineCode> as YAML for
+                    highlighting and shows the Cockpit logo as the file icon in
+                    the tree.
+                  </p>
+                </DocsSubsection>
+              </DocsSection>
 
-      <DocsSection id="protocol" title="Protocol & Security">
-        <p>
-          The canonical spec for everything wire-level — envelope format,
-          identity model (Owner key + per-device subkeys), ACK protocol,
-          cross-PC routing, mesh membership, trust model, and failure modes
-          — lives in{" "}
-          <a
-            className="text-accent underline"
-            href={`${GITHUB_URL}/blob/main/PROTOCOL.md`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            PROTOCOL.md
-          </a>{" "}
-          on GitHub. It is the source of truth that the Pi extension, the
-          mobile apps, and the relay all implement against. Read it when you
-          need exact behavior or when writing a new harness adapter.
-        </p>
-        <p>
-          <strong className="text-fg">Security posture, in short.</strong>{" "}
-          Connections to the relay are{" "}
-          <strong className="text-fg">encrypted in transit (TLS)</strong>, and
-          devices authenticate each other with{" "}
-          <strong className="text-fg">Ed25519 pairing</strong>, so paired peers
-          verify identity cryptographically. Message payloads are{" "}
-          <strong className="text-fg">not</strong> encrypted at the application
-          layer — the relay operator could in principle read plaintext in memory
-          while forwarding. If you need confidentiality from the relay operator,{" "}
-          <a href="#self-host" className="text-accent underline">
-            self-host the relay
-          </a>{" "}
-          behind a VPN. The Privacy Policy, section 9, restates this in plain
-          language, and PROTOCOL.md is the deep dive that matches the code.
-        </p>
-      </DocsSection>
+              {/* ── TASK RUN ────────────────────────────────────────────── */}
 
-      <DocsSection id="commands" title="Command reference">
-        <p>
-          Every command works as a Pi slash command (interactive) and as a
-          shell-level <InlineCode>remote-pi &lt;subcommand&gt;</InlineCode>{" "}
-          when the package is installed globally (
-          <InlineCode>npm install -g remote-pi</InlineCode>).
-        </p>
+              <DocsSection id="tasks" title="Task Run">
+                <p>
+                  Task Run executes your project&apos;s build and dev commands (
+                  <InlineCode>npm run dev</InlineCode>,{" "}
+                  <InlineCode>flutter run</InlineCode>,{" "}
+                  <InlineCode>go run</InlineCode>,{" "}
+                  <InlineCode>make</InlineCode>…) with streamed output, a visual
+                  lifecycle (play / stop / restart), interactive keys, and
+                  reload-on-save. Two sources coexist:
+                </p>
+                <ul>
+                  <li>
+                    <strong>Auto-detected</strong> — on opening a project,
+                    Cockpit reads the manifests (
+                    <InlineCode>package.json</InlineCode> scripts,{" "}
+                    <InlineCode>pubspec.yaml</InlineCode>) and shows tasks with
+                    no config at all.
+                  </li>
+                  <li>
+                    <strong>Declared</strong> —{" "}
+                    <InlineCode>.cockpit/tasks.json</InlineCode>, for
+                    customizing, adding tasks, or describing a monorepo. JSON
+                    tasks take precedence over a detected task with the same
+                    id.
+                  </li>
+                </ul>
+                <Callout variant="note" title="The runner is generic">
+                  <p>
+                    It knows only <InlineCode>command</InlineCode>,{" "}
+                    <InlineCode>args</InlineCode>, and{" "}
+                    <InlineCode>env</InlineCode>. There are no stack-specific
+                    keys (flavor, dart-define, <InlineCode>NODE_ENV</InlineCode>
+                    ) — all of that is expressed as{" "}
+                    <InlineCode>args</InlineCode> and{" "}
+                    <InlineCode>env</InlineCode>.
+                  </p>
+                </Callout>
 
-        <DocsSubsection
-          id="commands-local"
-          title="Local session — one Pi, one terminal"
-        >
-          <DocsTable
-            headers={["Command", "Description"]}
-            rows={[
-              [
-                <InlineCode key="c">/remote-pi</InlineCode>,
-                "Connect (join local mesh + start relay), or run setup on first use",
-              ],
-              [
-                <InlineCode key="c">/remote-pi setup</InlineCode>,
-                "Run the setup wizard and update local config",
-              ],
-              [
-                <InlineCode key="c">/remote-pi status</InlineCode>,
-                "Show local mesh + relay status",
-              ],
-              [
-                <InlineCode key="c">/remote-pi peers</InlineCode>,
-                "List local and cross-PC mesh peers, grouped by PC label",
-              ],
-              [
-                <InlineCode key="c">/remote-pi stop</InlineCode>,
-                <>Stop everything for <em>this</em> terminal (mesh + relay)</>,
-              ],
-              [
-                <InlineCode key="c">/remote-pi pair [--ttl &lt;seconds&gt;]</InlineCode>,
-                "Show QR + copy-paste pairing URI for a new mobile device (QR valid 60s by default; --ttl clamps to 10–600s)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi devices</InlineCode>,
-                "List paired mobile devices (online/offline per device)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi revoke &lt;shortid&gt;</InlineCode>,
-                "Revoke a paired device by its shortid (brings the relay up first, like pair, to notify the device)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi set-relay &lt;url&gt;</InlineCode>,
-                "Persist a new relay URL (http:// or https://)",
-              ],
-            ]}
-          />
-        </DocsSubsection>
+                <DocsSubsection id="tasks-file" title="Where the file lives">
+                  <p>
+                    At the <strong>root of the workspace you open</strong>.
+                    Discovery is literal — Cockpit does not walk up the tree.
+                    For a single package, open the package folder. For a{" "}
+                    <strong>monorepo</strong>, open the root and let one{" "}
+                    <InlineCode>.cockpit/tasks.json</InlineCode> drive the
+                    subpackages through a per-task{" "}
+                    <InlineCode>cwd</InlineCode>.
+                  </p>
+                  <p>
+                    The file is <strong>JSONC</strong>: comments (
+                    <InlineCode>{"//"}</InlineCode> and{" "}
+                    <InlineCode>{"/* */"}</InlineCode>) and trailing commas are
+                    allowed, just like VSCode&apos;s{" "}
+                    <InlineCode>tasks.json</InlineCode>. Point{" "}
+                    <InlineCode>$schema</InlineCode> at{" "}
+                    <a
+                      className="text-accent underline"
+                      href={TASKS_SCHEMA}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <InlineCode>docs/tasks.schema.json</InlineCode>
+                    </a>{" "}
+                    for editor autocomplete; Cockpit ignores the field when
+                    running.
+                  </p>
+                  <CodeBlock
+                    label=".cockpit/tasks.json"
+                    language="jsonc"
+                    code={TASKS_EXAMPLE}
+                  />
+                </DocsSubsection>
 
-        <DocsSubsection
-          id="commands-daemon"
-          title="Daemon fleet — one supervisor, N background Pis"
-        >
-          <p className="text-sm">
-            See <a href="#daemon-mode" className="text-accent underline">Daemon mode</a> for the overview and the{" "}
-            <Link href="/tutorials/daemon" className="text-accent underline">Daemon mode tutorial</Link> for the full how-to.
-          </p>
-          <DocsTable
-            headers={["Command", "Description"]}
-            rows={[
-              [
-                <InlineCode key="c">/remote-pi create &lt;cwd&gt; [--name X]</InlineCode>,
-                "Register a folder as a daemon (starts it when the supervisor is running)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi remove &lt;id&gt;</InlineCode>,
-                "Unregister a daemon (local config preserved)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemons</InlineCode>,
-                "List registered daemons + state",
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemon start [&lt;id&gt;]</InlineCode>,
-                "Start one daemon by id, or every registered daemon with no id",
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemon stop [&lt;id&gt;]</InlineCode>,
-                <>
-                  Stop one daemon by id, or every running daemon with no id (
-                  <InlineCode>/remote-pi stop</InlineCode> stops only the local
-                  terminal)
-                </>,
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemon restart [&lt;id&gt;]</InlineCode>,
-                "Restart one daemon by id, or every daemon with no id",
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemon status</InlineCode>,
-                "Detailed runtime status (pid, uptime, restart count)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi daemon send &lt;id&gt; &quot;&lt;text&gt;&quot;</InlineCode>,
-                "Send a prompt to a specific daemon",
-              ],
-              [
-                <InlineCode key="c">/remote-pi install</InlineCode>,
-                <>
-                  Install <InlineCode>pi-supervisord</InlineCode> as a system
-                  service <strong className="text-fg">and</strong> symlink the{" "}
-                  <InlineCode>remote-pi</InlineCode> CLI into{" "}
-                  <InlineCode>~/.local/bin/</InlineCode>
-                </>,
-              ],
-              [
-                <InlineCode key="c">/remote-pi uninstall</InlineCode>,
-                <>
-                  Remove the system service <strong className="text-fg">and</strong>{" "}
-                  the <InlineCode>~/.local/bin</InlineCode> symlinks (daemon
-                  registry preserved)
-                </>,
-              ],
-            ]}
-          />
-        </DocsSubsection>
+                <DocsSubsection id="tasks-fields" title="Fields">
+                  <p>
+                    Root: <InlineCode>tasks</InlineCode> (required) and{" "}
+                    <InlineCode>cwd</InlineCode> (optional) — a default{" "}
+                    <InlineCode>cwd</InlineCode> for every task, which each task
+                    may override.
+                  </p>
+                  <DocsTable
+                    headers={["Field", "Required", "Default", "Description"]}
+                    rows={[
+                      [
+                        <InlineCode key="l">label</InlineCode>,
+                        "yes",
+                        "—",
+                        <>
+                          Short display name. The task id is derived from it:{" "}
+                          <InlineCode>json:&lt;label&gt;</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">command</InlineCode>,
+                        "yes",
+                        "—",
+                        "Base executable (npm, flutter, dart…).",
+                      ],
+                      [
+                        <InlineCode key="a">args</InlineCode>,
+                        "no",
+                        <InlineCode key="d">[]</InlineCode>,
+                        "Base args, placed before the profile's args.",
+                      ],
+                      [
+                        <InlineCode key="w">cwd</InlineCode>,
+                        "no",
+                        "root",
+                        <>
+                          Run folder, relative to the{" "}
+                          <InlineCode>tasks.json</InlineCode> folder (absolute
+                          also accepted). Falls back to the top-level{" "}
+                          <InlineCode>cwd</InlineCode>, then the root.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="p">platforms</InlineCode>,
+                        "no",
+                        "all",
+                        <>
+                          OSes where the task is visible:{" "}
+                          <InlineCode>macos</InlineCode>,{" "}
+                          <InlineCode>windows</InlineCode>,{" "}
+                          <InlineCode>linux</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="k">kind</InlineCode>,
+                        "no",
+                        <InlineCode key="d">oneShot</InlineCode>,
+                        <>
+                          <InlineCode>watch</InlineCode> (long-lived process,
+                          e.g. a dev server) or{" "}
+                          <InlineCode>oneShot</InlineCode> (runs and exits).
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="i">interactiveKeys</InlineCode>,
+                        "no",
+                        <InlineCode key="d">[]</InlineCode>,
+                        <>
+                          Buttons that write to the process&apos; stdin:{" "}
+                          <InlineCode>key</InlineCode>,{" "}
+                          <InlineCode>label</InlineCode>, optional{" "}
+                          <InlineCode>icon</InlineCode> (
+                          <InlineCode>refresh</InlineCode>,{" "}
+                          <InlineCode>restart</InlineCode>,{" "}
+                          <InlineCode>stop</InlineCode>,{" "}
+                          <InlineCode>bolt</InlineCode>) and{" "}
+                          <InlineCode>primary</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="wa">watch</InlineCode>,
+                        "no",
+                        <InlineCode key="d">null</InlineCode>,
+                        <>
+                          Reload on save:{" "}
+                          <InlineCode>paths</InlineCode>,{" "}
+                          <InlineCode>ignore</InlineCode>,{" "}
+                          <InlineCode>onChange</InlineCode> (required — an{" "}
+                          <InlineCode>interactiveKeys</InlineCode> label or{" "}
+                          <InlineCode>&quot;__restart__&quot;</InlineCode>) and{" "}
+                          <InlineCode>debounceMs</InlineCode> (300). Leave it
+                          out for tools that already watch (Vite, Next).
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="pp">progressPatterns</InlineCode>,
+                        "no",
+                        <InlineCode key="d">[]</InlineCode>,
+                        <>
+                          <InlineCode>begin</InlineCode> /{" "}
+                          <InlineCode>end</InlineCode> regexes that swing the
+                          badge between <em>building</em> and <em>running</em>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="pr">profiles</InlineCode>,
+                        "no",
+                        <InlineCode key="d">[]</InlineCode>,
+                        <>
+                          Named run variants (launch configs):{" "}
+                          <InlineCode>name</InlineCode>, extra{" "}
+                          <InlineCode>args</InlineCode> appended after the
+                          task&apos;s, and <InlineCode>env</InlineCode> merged
+                          into the process environment. A chip cycles them
+                          before you hit play.
+                        </>,
+                      ],
+                    ]}
+                  />
+                  <Callout variant="warning" title="Two known limits">
+                    <p>
+                      For an argument value containing spaces, use{" "}
+                      <strong>separate items</strong> in{" "}
+                      <InlineCode>args</InlineCode> (
+                      <InlineCode>
+                        [&quot;--dart-define&quot;, &quot;MSG=hello
+                        world&quot;]
+                      </InlineCode>
+                      ). And the output tab does not survive an app restart —
+                      the task dies with it.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
+              </DocsSection>
 
-        <DocsSubsection
-          id="commands-cron"
-          title="Daemon cron — scheduled prompts"
-        >
-          <p className="text-sm">
-            Schedule recurring prompts to a daemon. The scheduler runs{" "}
-            <strong className="text-fg">inside the supervisor</strong>, so it
-            only fires when the supervisor is installed as a service (
-            <a href="#daemon-mode" className="text-accent underline">
-              Daemon mode
-            </a>{" "}
-            / <InlineCode>/remote-pi install</InlineCode>) — otherwise{" "}
-            <InlineCode>cron add</InlineCode> warns instead of scheduling. See
-            the{" "}
-            <Link href="/tutorials/daemon#cron" className="text-accent underline">
-              Daemon mode tutorial
-            </Link>{" "}
-            for the walkthrough.
-          </p>
-          <DocsTable
-            headers={["Command", "Description"]}
-            rows={[
-              [
-                <InlineCode key="c">
-                  /remote-pi cron add &lt;id&gt; &quot;&lt;expr&gt;&quot;
-                  &quot;&lt;prompt&gt;&quot; [--tz Area/City] [--wake]
-                  [--no-skip-busy] [--catchup]
-                </InlineCode>,
-                "Schedule a recurring prompt to a daemon (5-field cron expression; runs must be ≥60s apart)",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron list</InlineCode>,
-                "List jobs: schedule, enabled, last run / status, next run",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron run &lt;jobId&gt;</InlineCode>,
-                "Fire a job now, ignoring its schedule",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron enable &lt;jobId&gt;</InlineCode>,
-                "Resume a paused job",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron disable &lt;jobId&gt;</InlineCode>,
-                "Pause a job without deleting it",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron remove &lt;jobId&gt;</InlineCode>,
-                "Delete a job",
-              ],
-              [
-                <InlineCode key="c">/remote-pi cron log [&lt;jobId&gt;] [--tail N]</InlineCode>,
-                <>
-                  Tail the fire / skip audit log (default N = 20), optionally for
-                  one job
-                </>,
-              ],
-            ]}
-          />
-          <ul className="ml-6 list-disc space-y-2">
-            <li>
-              <strong className="text-fg">Minimum interval 60s.</strong> A more
-              frequent expression is rejected (each fire spends tokens). Croner
-              syntax — five fields (
-              <InlineCode>min hour day-of-month month day-of-week</InlineCode>),
-              plus an optional seconds field, still bounded by the 60s floor.
-            </li>
-            <li>
-              <strong className="text-fg">Timezone per job.</strong>{" "}
-              <InlineCode>--tz Area/City</InlineCode> resolves DST; without it a
-              job runs in the machine&apos;s local time.
-            </li>
-            <li>
-              <strong className="text-fg">Overlap &amp; downtime.</strong> A fire
-              is skipped while the daemon is mid-turn (
-              <InlineCode>--no-skip-busy</InlineCode> overrides), skipped if the
-              daemon is down (<InlineCode>--wake</InlineCode> starts it first),
-              and at most one missed run is replayed on startup (
-              <InlineCode>--catchup</InlineCode>, off by default).
-            </li>
-            <li>
-              <strong className="text-fg">Audit.</strong> Every fire{" "}
-              <em>and</em> every skip appends one line to{" "}
-              <InlineCode>~/.pi/remote/cron.jsonl</InlineCode> with a{" "}
-              <InlineCode>result</InlineCode> of{" "}
-              <InlineCode>delivered</InlineCode>,{" "}
-              <InlineCode>deliver_failed</InlineCode>,{" "}
-              <InlineCode>woke_and_delivered</InlineCode>,{" "}
-              <InlineCode>skipped_busy</InlineCode>,{" "}
-              <InlineCode>skipped_down</InlineCode>, or{" "}
-              <InlineCode>skipped_disabled</InlineCode>. The agent&apos;s reply
-              itself is fire-and-forget into the mesh — cron records the trigger,
-              not the response.
-            </li>
-          </ul>
-        </DocsSubsection>
-        <p>The footer in the Pi TUI reflects state live:</p>
-        <ul className="ml-6 list-disc space-y-2">
-          <li>
-            <InlineCode>📡 local (N)</InlineCode> — local mesh session and
-            peer count
-          </li>
-          <li>
-            <InlineCode>🟢 relay</InlineCode> — relay connected, at least one
-            device paired on this machine
-          </li>
-          <li>
-            <InlineCode>🟡 relay waiting for pairing</InlineCode> — relay
-            connected, no device paired yet
-          </li>
-          <li>
-            <InlineCode>📱 &lt;shortid&gt;</InlineCode> — a mobile device is
-            actively connected right now
-          </li>
-        </ul>
-        <p>
-          The window title is two parts —{" "}
-          <InlineCode>&lt;agent-name&gt; · On</InlineCode> when the relay is
-          up or <InlineCode>&lt;agent-name&gt; · Off</InlineCode> otherwise —
-          so you can tell your terminal tabs apart at a glance.
-        </p>
-      </DocsSection>
+              {/* ── DATABASES ───────────────────────────────────────────── */}
 
-      <DocsSection id="config" title="Configuration files">
-        <DocsTable
-          headers={["Path", "Scope", "What's in it"]}
-          rows={[
-            [
-              <InlineCode key="p">&lt;cwd&gt;/.pi/remote-pi/config.json</InlineCode>,
-              "Per-directory",
-              <>
-                <InlineCode>agent_name</InlineCode>,{" "}
-                <InlineCode>auto_start_relay</InlineCode>
-              </>,
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/config.json</InlineCode>,
-              "Per-user",
-              <><InlineCode>relay</InlineCode> URL</>,
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/peers.json</InlineCode>,
-              "Per-machine",
-              "Paired mobile devices",
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/daemons.json</InlineCode>,
-              "Per-machine",
-              <>Daemon registry (list of <InlineCode>{`{ cwd, name }`}</InlineCode> entries)</>,
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/identity.json</InlineCode>,
-              "Per-machine",
-              <>
-                Pi-secret fallback when the OS keyring is unavailable
-                (headless Linux). Stored with{" "}
-                <InlineCode>chmod 0600</InlineCode>. See{" "}
-                <a
-                  className="text-accent underline"
-                  href={`${GITHUB_URL}/blob/main/PROTOCOL.md`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+              <DocsSection id="databases" title="Databases">
+                <p>
+                  Connections live per workspace in{" "}
+                  <InlineCode>.cockpit/databases.json</InlineCode>, plus any
+                  SQLite files Cockpit auto-detects in the project. SQLite,
+                  Postgres, MySQL, SQL Server, Redis, and MongoDB open as tabs:
+                  a table view for SQL and Redis, a collection browser for
+                  MongoDB. A <InlineCode>.dbq</InlineCode> file is a saved query
+                  you can commit and re-run.
+                </p>
+                <p>
+                  The same connections are reachable from the CLI, and the
+                  output is <strong>one JSON line</strong> — built to be parsed
+                  by an agent, not read by a human.
+                </p>
+                <CodeBlock
+                  label="Cockpit terminal"
+                  prompt
+                  code={`cockpit db list
+cockpit db schema --db dev-local orders
+cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"
+cockpit db run reports/daily.dbq
+
+# non-SQL engines have their own verbs
+cockpit redis --db cache --command "SCAN 0 COUNT 20"
+cockpit mongo --db atlas --database shop --command '{"find":"orders","limit":5}'
+
+# open the same thing visually for a human
+cockpit redis browse --db cache
+cockpit mongo browse --db atlas --database shop`}
+                />
+                <Callout variant="note" title="Per-connection guardrails">
+                  <p>
+                    Each connection carries an{" "}
+                    <InlineCode>access</InlineCode> level (
+                    <InlineCode>read</InlineCode> — the default, including for
+                    connections created before the field existed — or{" "}
+                    <InlineCode>readwrite</InlineCode>) and an{" "}
+                    <InlineCode>agents</InlineCode> flag. A connection with{" "}
+                    <InlineCode>agents: false</InlineCode> is invisible to the
+                    CLI. The gates are enforced on the CLI surface: what you do
+                    by hand in the GUI is never blocked, but what an agent can
+                    reach is yours to decide. Run{" "}
+                    <InlineCode>cockpit db --help</InlineCode> for the full
+                    surface.
+                  </p>
+                </Callout>
+              </DocsSection>
+
+              {/* ── DOCUMENTS ───────────────────────────────────────────── */}
+
+              <DocsSection id="documents" title="Documents as tabs">
+                <p>
+                  Besides terminals, a Cockpit tab can be a document. Each one
+                  is a plain file in your repository, so git sees it, your agent
+                  can write it from the CLI, and nothing is locked inside the
+                  app. The <strong>Gallery</strong> panel, next to Database, has
+                  one card per document type: click it and the file is created
+                  at the workspace root and opened, on local and remote
+                  workspaces alike.
+                </p>
+
+                <DocsSubsection id="documents-notebook" title="Notebook (.notebook)">
+                  <p>
+                    A folder whose name ends in{" "}
+                    <InlineCode>.notebook</InlineCode> is a notebook: one{" "}
+                    <InlineCode>.md</InlineCode> per note, each with a shallow
+                    YAML frontmatter. Cockpit shows the folder as a single item
+                    in the tree and opens it as a notes tab. Outside the app it
+                    is an ordinary folder, so git, Obsidian and an agent in the
+                    terminal read the same files.
+                  </p>
+                  <CodeBlock
+                    label="notes.notebook/2026-09-07-ssh-tunnel.md"
+                    language="markdown"
+                    code={`---
+title: SSH tunnel on the host
+tags: [relay, agent]
+created: 2026-09-07T10:12
+updated: 2026-09-07T11:40
+---
+
+Free markdown body.`}
+                  />
+                  <DocsTable
+                    headers={["Field", "Required", "Notes"]}
+                    rows={[
+                      [
+                        <InlineCode key="t">title</InlineCode>,
+                        "no",
+                        "Without it, the title is the file name minus .md",
+                      ],
+                      [
+                        <InlineCode key="g">tags</InlineCode>,
+                        "no",
+                        <>
+                          A list <InlineCode>[a, b]</InlineCode>. With none, the
+                          note lands in the &ldquo;no tag&rdquo; group
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="c">created</InlineCode>,
+                        "no",
+                        <InlineCode key="f">YYYY-MM-DDTHH:MM</InlineCode>,
+                      ],
+                      [
+                        <InlineCode key="u">updated</InlineCode>,
+                        "no",
+                        "Rewritten by the app on save",
+                      ],
+                    ]}
+                  />
+                  <p>
+                    The parser never throws: a file with no frontmatter, or with
+                    an unterminated <InlineCode>---</InlineCode>, becomes a note
+                    whose body is the whole content. The app only rewrites the{" "}
+                    <InlineCode>title</InlineCode>,{" "}
+                    <InlineCode>tags</InlineCode> and{" "}
+                    <InlineCode>updated</InlineCode> lines, leaving the body and
+                    any other key untouched.
+                  </p>
+                  <p>
+                    Notes are always editable, in a single mode: the markdown is
+                    painted live as you type while the markers stay visible, so
+                    the file remains plain markdown. It saves on its own about a
+                    second and a half after you stop typing (and on tab change
+                    or close), and ⌘S forces it. Pasting or dropping an image
+                    writes it to <InlineCode>_assets/</InlineCode> inside the
+                    notebook.{" "}
+                    <InlineCode>[[Note title]]</InlineCode> in the body becomes a
+                    clickable chip, creating the note if it does not exist, and
+                    each note lists its backlinks at the bottom.
+                  </p>
+                  <CodeBlock
+                    label="Cockpit terminal"
+                    prompt
+                    code={`cockpit note add notes.notebook --title "SSH tunnel on the host" --tag relay \
+  --body "The host opens the tunnel, not the client."
+
+# read the body from stdin, and list what is there
+cockpit note add notes.notebook --title "Session summary" --body - <<'NOTE'
+Everything that changed today.
+NOTE
+cockpit note list notes.notebook`}
+                  />
+                  <Callout variant="note" title="The agent tag">
+                    <p>
+                      The CLI always adds the reserved tag{" "}
+                      <InlineCode>agent</InlineCode> to a note it writes, and the
+                      UI marks those with a spark, so a note left by an agent is
+                      never confused with one you wrote.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
+
+                <DocsSubsection id="documents-http" title="HTTP requests (.http)">
+                  <p>
+                    A <InlineCode>.http</InlineCode> file is a request tab:
+                    editor on one side, response on the other. The syntax is the
+                    one the REST Client and JetBrains HTTP Client use, so files
+                    you already have work here:{" "}
+                    <InlineCode>###</InlineCode> separates requests,{" "}
+                    <InlineCode>@name = value</InlineCode> declares a variable
+                    and <InlineCode>{"{{name}}"}</InlineCode> interpolates it.
+                    Run the request under the cursor with ⌘↵ and read the
+                    response as JSON, as headers or as raw text.
+                  </p>
+                  <CodeBlock
+                    label="api/users.http"
+                    code={`@base = https://api.example.com
+@token = a-token-for-this-file
+
+### list users
+GET {{base}}/users
+Authorization: Bearer {{token}}
+
+### create one
+POST {{base}}/users
+Content-Type: application/json
+
+{ "name": "Ada" }`}
+                  />
+                  <p>
+                    The agent runs the same file through the CLI, and gets one
+                    JSON line back. A 4xx or 5xx is a normal response, so it
+                    should check <InlineCode>status</InlineCode> rather than the
+                    exit code.
+                  </p>
+                  <CodeBlock
+                    label="Cockpit terminal"
+                    prompt
+                    code={`cockpit http list api/users.http
+cockpit http run api/users.http --request "list users"`}
+                  />
+                </DocsSubsection>
+
+                <DocsSubsection id="documents-more" title="Boards, diagrams and windows">
+                  <ul>
+                    <li>
+                      <strong>Kanban</strong>: a{" "}
+                      <InlineCode>.kanban</InlineCode> markdown file renders as a
+                      board, with dependencies between cards (
+                      <InlineCode>blockedBy</InlineCode>, plus blocked and ready
+                      filters), a title and label filter, drag and drop in list
+                      mode, markdown in comments, and a hold on the advance
+                      arrow to send a card straight to the last column.
+                    </li>
+                    <li>
+                      <strong>Mermaid</strong>: a{" "}
+                      <InlineCode>```mermaid</InlineCode> fence renders as a
+                      diagram in the markdown preview, offline, in your theme.
+                      Prefer it over ASCII art when an agent explains a flow.
+                    </li>
+                    <li>
+                      <strong>Document window</strong>: open any file in its own
+                      light window from the app, or straight from the operating
+                      system. Double-click a <InlineCode>.kanban</InlineCode>,{" "}
+                      <InlineCode>.notebook</InlineCode>,{" "}
+                      <InlineCode>.ckp</InlineCode>,{" "}
+                      <InlineCode>.dbq</InlineCode>,{" "}
+                      <InlineCode>.http</InlineCode> or a markdown file in
+                      Finder, in Explorer or in your Linux file manager, and
+                      Cockpit opens it, forwarding the path to the instance you
+                      already have running.
+                    </li>
+                  </ul>
+                </DocsSubsection>
+              </DocsSection>
+
+              {/* ── .env.cockpit ────────────────────────────────────────── */}
+
+              <DocsSection id="env" title="Workspace environment (.env.cockpit)">
+                <p>
+                  A plain <InlineCode>KEY=VALUE</InlineCode> file named{" "}
+                  <InlineCode>.env.cockpit</InlineCode> at the workspace root is
+                  injected into every terminal Cockpit opens there: every root
+                  of a multi-root workspace, and remote workspaces too, where
+                  the host reads its own copy right before spawning the shell.
+                  Put the tokens your agents need there instead of pasting them
+                  into a prompt. New tabs pick up changes, and{" "}
+                  <strong>Restart</strong> reloads an existing tab in place.
+                </p>
+                <CodeBlock
+                  label=".env.cockpit"
+                  code={`OPENAI_API_KEY=sk-...
+GITHUB_TOKEN=ghp_...
+DATABASE_URL=postgres://user:pass@localhost/app`}
+                />
+
+                <DocsSubsection id="env-redaction" title="Redaction">
+                  <p>
+                    Values injected from the file are replaced by{" "}
+                    <InlineCode>***</InlineCode> before the output reaches the
+                    emulator, which covers the screen, the saved scrollback and{" "}
+                    <InlineCode>cockpit read-tab</InlineCode> at once. An agent
+                    reading another tab does not read your secrets back.
+                  </p>
+                  <p>
+                    Out of scope, on purpose: a value that the program re-encodes
+                    (base64, for instance) or splits with ANSI escapes, and the
+                    file itself, which is an ordinary file that anything with
+                    your permissions can read.
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection id="env-blocked" title="Keys that are never injected">
+                  <p>
+                    Keys that change <em>who runs what</em> are ignored, so a
+                    file that arrives with a repository cannot redirect the
+                    programs your shell starts:
+                  </p>
+                  <CodeBlock
+                    label="blocked"
+                    code={`PATH  SHELL  HOME  ZDOTDIR  BASH_ENV  ENV  PROMPT_COMMAND  IFS  LD_*  DYLD_*`}
+                  />
+                  <p>
+                    On top of that, when the <InlineCode>.env.cockpit</InlineCode>{" "}
+                    is tracked by git (so it came with the repository, it is not
+                    yours), new terminals print a notice listing the key{" "}
+                    <em>names</em> it injected, never the values. The Gallery
+                    card that creates the file also keeps it out of git.
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection
+                  id="env-accounts"
+                  title="A personal and a work account, side by side"
                 >
-                  PROTOCOL.md
-                </a>{" "}
-                for the keyring details.
-              </>,
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/sessions/local/</InlineCode>,
-              "Per-machine",
-              <>Broker socket + <InlineCode>audit.jsonl</InlineCode></>,
-            ],
-            [
-              <InlineCode key="p">~/.pi/remote/skills/agent-network/SKILL.md</InlineCode>,
-              "Per-user",
-              "Agent skill the LLM reads",
-            ],
-          ]}
-        />
-        <p>Override the relay for a single run without persisting:</p>
-        <CodeBlock
-          code="REMOTE_PI_RELAY=https://staging.example.tld pi"
-          label="Shell"
-          language="bash"
-        />
-        <p className="text-sm">
-          Only <InlineCode>http://</InlineCode> /{" "}
-          <InlineCode>https://</InlineCode> are accepted —{" "}
-          <InlineCode>wss://</InlineCode> / <InlineCode>ws://</InlineCode> are
-          rejected at validation, the extension converts to the WebSocket
-          form internally when it opens the connection.
-        </p>
-        <p className="text-sm">
-          Daemons don&apos;t read the per-directory file at all — the supervisor
-          injects their whole config inline via the{" "}
-          <InlineCode>REMOTE_PI_DIRECT_CONFIG</InlineCode> environment variable
-          at spawn (a fixed <InlineCode>assistent</InlineCode> workspace with
-          the relay on), so a daemon folder needs no{" "}
-          <InlineCode>.pi/remote-pi/</InlineCode> of its own. You can set the
-          same variable yourself to override{" "}
-          <InlineCode>&lt;cwd&gt;/.pi/remote-pi/config.json</InlineCode> for a
-          single run — an escape hatch for CI, ops, and the Cockpit desktop
-          client:
-        </p>
-        <CodeBlock
-          code={`REMOTE_PI_DIRECT_CONFIG='{"agent_name":"ci","auto_start_relay":true}' pi`}
-          label="Shell"
-          language="bash"
-        />
-      </DocsSection>
+                  <p>
+                    Claude Code and Codex read their whole account (credentials,
+                    settings and history) from a directory you can point
+                    somewhere else, and Cockpit injects those variables per
+                    workspace like any other. That is the recipe for separate
+                    accounts: no extra feature, one line per workspace.
+                  </p>
+                  <CodeBlock
+                    label="work-project/.env.cockpit"
+                    code={`CLAUDE_CONFIG_DIR=/Users/me/.claude-work
+# Codex uses its own variable
+CODEX_HOME=/Users/me/.codex-work`}
+                  />
+                  <p>
+                    Restart the tabs (or open new ones), run{" "}
+                    <InlineCode>claude</InlineCode> and log in once with{" "}
+                    <InlineCode>/login</InlineCode>. From then on that workspace
+                    uses that account, and your other workspaces keep the
+                    default one. Use absolute paths: the variables name a
+                    directory, not a profile.
+                  </p>
+                </DocsSubsection>
+              </DocsSection>
 
-      <DocsSection id="troubleshooting" title="Troubleshooting">
-        <DocsSubsection id="footer-stuck" title="Footer says 🟡 relay waiting for pairing even though I paired a device">
-          <p>
-            The icon reflects whether <em>any</em> device has been paired on
-            this machine, not whether one is connected right now. If you really
-            have a paired device in <InlineCode>/remote-pi devices</InlineCode>,
-            restart Pi — the cache may be stale (fixed in current release;
-            report a bug if it recurs).
-          </p>
-        </DocsSubsection>
-        <DocsSubsection id="timeout-mobile" title="Mobile app times out connecting">
-          <p>
-            Verify the same relay URL is configured on both sides. If you
-            self-host behind a VPN, your phone must also be on the VPN
-            (Tailscale on iOS/Android works fine).
-          </p>
-        </DocsSubsection>
-        <DocsSubsection id="timeout-request" title="Reply never arrives">
-          <p>
-            <InlineCode>agent_send</InlineCode> returned{" "}
-            <InlineCode>{`{ status: "received" }`}</InlineCode> but no reply
-            ever lands in your inbox. Possible causes:
-          </p>
-          <ul className="ml-6 list-disc space-y-2">
-            <li>
-              <strong className="text-fg">Receiver crashed or never processed.</strong>{" "}
-              Run <InlineCode>/remote-pi peers</InlineCode> to see whether the
-              peer is still online.
-            </li>
-            <li>
-              <strong className="text-fg">The receiver chose not to reply.</strong>{" "}
-              <InlineCode>agent_send</InlineCode> is not RPC — there&apos;s no
-              obligation to respond. If the conversation needs a reply, the
-              prompt to the receiver must say so explicitly.
-            </li>
-            <li>
-              <strong className="text-fg">Cross-PC: peer went offline.</strong>{" "}
-              Look in your inbox for a <InlineCode>transport_error</InlineCode>{" "}
-              envelope with <InlineCode>re=&lt;your-send-id&gt;</InlineCode>{" "}
-              — the relay returns one when a forwarded message can&apos;t be
-              delivered. A <InlineCode>Delivered</InlineCode> ACK only means the
-              remote broker accepted the envelope, not that the peer is alive —
-              validate by roundtrip.
-            </li>
-          </ul>
-          <p className="text-sm">
-            <strong className="text-fg">Note:</strong>{" "}
-            <InlineCode>agent_request</InlineCode> is deprecated (still
-            available as a wrapper for backward compat, emits a warning).
-            New agents call <InlineCode>agent_send</InlineCode> and observe
-            the inbox in a future turn.
-          </p>
-        </DocsSubsection>
-        <DocsSubsection
-          id="one-pi-per-cwd"
-          title="Two Pi processes can't share a directory"
-        >
-          <p>
-            A cwd lock allows{" "}
-            <strong className="text-fg">one Pi process per directory</strong>.
-            If you try to run <InlineCode>/remote-pi</InlineCode> in a second
-            terminal that&apos;s already in the same folder, the second start
-            is rejected (and the relay, separately, refuses a duplicate room
-            with <InlineCode>RoomAlreadyOpenError</InlineCode>).
-          </p>
-          <p>
-            <strong className="text-fg">To run two agents side by side:</strong>{" "}
-            put them in two different directories — each gets its own workspace
-            and both meet in the same <InlineCode>local</InlineCode> session.
-            See the{" "}
-            <Link href="/tutorials/mesh-local" className="text-accent underline">
-              Local mesh tutorial
-            </Link>
-            .
-          </p>
-          <p>
-            If you actually wanted a second terminal at the same workspace
-            (e.g. just to read state), stop the running Pi first or open a
-            shell that does <em>not</em> launch Pi.
-          </p>
-        </DocsSubsection>
-      </DocsSection>
+              {/* ── THEMES ──────────────────────────────────────────────── */}
 
-      <DocsSection id="links" title="Links">
-        <ul className="ml-6 list-disc space-y-2">
-          <li>
-            Homepage:{" "}
-            <Link href="/" className="text-accent underline">
-              remote-pi.jacobmoura.work
-            </Link>
-          </li>
-          <li>
-            Tutorials:{" "}
-            <Link href="/tutorials" className="text-accent underline">
-              hands-on guides
-            </Link>
-          </li>
-          <li>
-            Cockpit reference:{" "}
-            <Link href="/cockpit/docs" className="text-accent underline">
-              CLI, layouts, tasks, themes
-            </Link>
-          </li>
-          <li>
-            Source:{" "}
-            <a className="text-accent underline" href={GITHUB_URL} target="_blank" rel="noopener noreferrer">
-              github.com/jacobaraujo7/remote_pi
-            </a>
-          </li>
-          <li>
-            Protocol spec:{" "}
-            <a
-              className="text-accent underline"
-              href={`${GITHUB_URL}/blob/main/PROTOCOL.md`}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              PROTOCOL.md
-            </a>
-          </li>
-          <li>
-            Pi coding agent:{" "}
-            <a className="text-accent underline" href={PI_URL} target="_blank" rel="noopener noreferrer">
-              github.com/earendil-works/pi
-            </a>
-          </li>
-          <li>
-            Relay (self-hosting guide):{" "}
-            <a className="text-accent underline" href={RELAY_README_URL} target="_blank" rel="noopener noreferrer">
-              relay/README.md
-            </a>
-          </li>
-          <li>
-            Issues / bugs:{" "}
-            <a className="text-accent underline" href={ISSUES_URL} target="_blank" rel="noopener noreferrer">
-              github.com/jacobaraujo7/remote_pi/issues
-            </a>
-          </li>
-        </ul>
-        <p className="text-sm">License: MIT.</p>
-      </DocsSection>
+              <DocsSection id="themes" title="Themes">
+                <p>
+                  Cockpit ships nine built-in themes —{" "}
+                  <InlineCode>cockpit</InlineCode>,{" "}
+                  <InlineCode>cockpit.2</InlineCode>,{" "}
+                  <InlineCode>violet</InlineCode>,{" "}
+                  <InlineCode>violet.2</InlineCode>,{" "}
+                  <InlineCode>midnight</InlineCode>,{" "}
+                  <InlineCode>rose</InlineCode>, <InlineCode>sun</InlineCode>,{" "}
+                  <InlineCode>flexoki</InlineCode> and{" "}
+                  <InlineCode>pantera</InlineCode> — each with a light and a
+                  dark variant. Beyond those, a theme is{" "}
+                  <strong>a single JSON file</strong> that paints all three
+                  layers at once: the app UI, the code viewer&apos;s syntax
+                  highlighting, and the terminal palette.
+                </p>
+
+                <DocsSubsection id="themes-file" title="The theme file">
+                  <ul>
+                    <li>
+                      Import with <strong>Settings → Appearance → Theme →
+                      Import…</strong>
+                    </li>
+                    <li>
+                      Themes live in{" "}
+                      <InlineCode>&lt;data folder&gt;/themes/</InlineCode> (the
+                      same root as the &ldquo;Storage&rdquo; setting), one file
+                      per theme, named after its <InlineCode>id</InlineCode>.
+                      Copying a <InlineCode>.json</InlineCode> in there installs
+                      it too.
+                    </li>
+                    <li>
+                      Export produces a <strong>complete</strong> file (every
+                      token, no <InlineCode>extends</InlineCode>) — a good
+                      starting point for hand editing.
+                    </li>
+                  </ul>
+                  <CodeBlock
+                    label="theme.json — shape"
+                    language="json"
+                    code={THEME_SHAPE}
+                  />
+                  <DocsTable
+                    headers={["Field", "Required", "What it is"]}
+                    rows={[
+                      [
+                        <InlineCode key="i">id</InlineCode>,
+                        "yes",
+                        <>
+                          Stable, namespaced identity (
+                          <InlineCode>publisher.name</InlineCode>). It is what
+                          gets stored in preferences, so renaming{" "}
+                          <InlineCode>name</InlineCode> never loses the
+                          user&apos;s choice. Cannot collide with a built-in id.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="n">name</InlineCode>,
+                        "yes",
+                        "What shows up in the picker.",
+                      ],
+                      [
+                        <InlineCode key="a">author</InlineCode>,
+                        "no",
+                        "Metadata.",
+                      ],
+                      [
+                        <InlineCode key="v">version</InlineCode>,
+                        "no",
+                        "Metadata.",
+                      ],
+                      [
+                        <InlineCode key="e">extends</InlineCode>,
+                        "no",
+                        <>
+                          Id of a built-in theme to inherit from. Absent =
+                          inherits from <InlineCode>cockpit</InlineCode>.
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="va">variants</InlineCode>,
+                        "yes",
+                        <>
+                          At least one of <InlineCode>dark</InlineCode> /{" "}
+                          <InlineCode>light</InlineCode>. A dark-only theme is
+                          applied in light mode too — better than mixing half a
+                          light theme with half a dark one.
+                        </>,
+                      ],
+                    ]}
+                  />
+                  <p>
+                    <strong>Inheritance is the point.</strong> Every token you
+                    do not declare comes from the base, so a useful theme can be
+                    five lines long:
+                  </p>
+                  <CodeBlock
+                    label="acme.violet.json"
+                    language="json"
+                    code={THEME_MINIMAL}
+                  />
+                  <p>
+                    Colors are CSS-style hex —{" "}
+                    <InlineCode>#RGB</InlineCode>,{" "}
+                    <InlineCode>#RRGGBB</InlineCode> or{" "}
+                    <InlineCode>#RRGGBBAA</InlineCode>,{" "}
+                    <strong>alpha last</strong>. It is not Dart&apos;s{" "}
+                    <InlineCode>0xAARRGGBB</InlineCode>. On a bad import the
+                    parser points at the <strong>field path</strong> that broke
+                    (<InlineCode>variants.dark.ui.accent</InlineCode>), and
+                    validation runs before the copy, so an invalid file never
+                    reaches the themes folder.
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection id="themes-tokens" title="Tokens">
+                  <DocsTable
+                    headers={["Group", "Tokens"]}
+                    rows={[
+                      [
+                        <>
+                          <InlineCode>ui</InlineCode> (25)
+                        </>,
+                        <>
+                          Surfaces <InlineCode>bg</InlineCode>{" "}
+                          <InlineCode>panel</InlineCode>{" "}
+                          <InlineCode>panel2</InlineCode>{" "}
+                          <InlineCode>panel3</InlineCode> · strokes{" "}
+                          <InlineCode>border</InlineCode>{" "}
+                          <InlineCode>border2</InlineCode> · text{" "}
+                          <InlineCode>text</InlineCode>{" "}
+                          <InlineCode>text2</InlineCode>{" "}
+                          <InlineCode>text3</InlineCode>{" "}
+                          <InlineCode>text4</InlineCode> · brand{" "}
+                          <InlineCode>accent</InlineCode>{" "}
+                          <InlineCode>accentSoft</InlineCode>{" "}
+                          <InlineCode>accentText</InlineCode> · state{" "}
+                          <InlineCode>online</InlineCode>{" "}
+                          <InlineCode>ok</InlineCode>{" "}
+                          <InlineCode>error</InlineCode>{" "}
+                          <InlineCode>warn</InlineCode> · editing{" "}
+                          <InlineCode>edited</InlineCode>{" "}
+                          <InlineCode>editedBg</InlineCode> · git{" "}
+                          <InlineCode>gitStaged</InlineCode>{" "}
+                          <InlineCode>gitUntracked</InlineCode>{" "}
+                          <InlineCode>gitDeleted</InlineCode>{" "}
+                          <InlineCode>gitConflict</InlineCode> · overlay{" "}
+                          <InlineCode>scrim</InlineCode>{" "}
+                          <InlineCode>shadow</InlineCode>
+                        </>,
+                      ],
+                      [
+                        <>
+                          <InlineCode>syntax</InlineCode> (12)
+                        </>,
+                        <>
+                          <InlineCode>background</InlineCode>{" "}
+                          <InlineCode>base</InlineCode>{" "}
+                          <InlineCode>comment</InlineCode>{" "}
+                          <InlineCode>keyword</InlineCode>{" "}
+                          <InlineCode>string</InlineCode>{" "}
+                          <InlineCode>number</InlineCode>{" "}
+                          <InlineCode>class</InlineCode>{" "}
+                          <InlineCode>builtin</InlineCode>{" "}
+                          <InlineCode>function</InlineCode>{" "}
+                          <InlineCode>variable</InlineCode>{" "}
+                          <InlineCode>meta</InlineCode>{" "}
+                          <InlineCode>deletion</InlineCode>
+                        </>,
+                      ],
+                      [
+                        <>
+                          <InlineCode>terminal</InlineCode> (23)
+                        </>,
+                        <>
+                          <InlineCode>cursor</InlineCode>{" "}
+                          <InlineCode>selection</InlineCode>{" "}
+                          <InlineCode>foreground</InlineCode>{" "}
+                          <InlineCode>background</InlineCode>, the 8 normal ANSI
+                          colors, their 8 <InlineCode>bright*</InlineCode>{" "}
+                          counterparts, and{" "}
+                          <InlineCode>searchHitBackground</InlineCode>{" "}
+                          <InlineCode>searchHitBackgroundCurrent</InlineCode>{" "}
+                          <InlineCode>searchHitForeground</InlineCode>
+                        </>,
+                      ],
+                    ]}
+                  />
+                  <p>
+                    Text drawn <em>on top of</em>{" "}
+                    <InlineCode>accent</InlineCode> and{" "}
+                    <InlineCode>error</InlineCode> is not a token: it is derived
+                    from the color&apos;s luminance, so a light accent
+                    automatically gets dark text.
+                  </p>
+                  <p>
+                    <InlineCode>syntax.background</InlineCode> has a special
+                    default. The code viewer, the editor, and the terminal are
+                    all content inside a tab, so they share the field: when a
+                    theme declares neither{" "}
+                    <InlineCode>syntax.background</InlineCode> nor{" "}
+                    <InlineCode>terminal.background</InlineCode>, the three
+                    follow <InlineCode>ui.panel</InlineCode> of{" "}
+                    <em>this</em> theme, not of the base. Declare the field if
+                    your code palette needs a surface of its own.
+                  </p>
+                  <p>
+                    The <InlineCode>$schema</InlineCode> URL lives in the
+                    repository, versioned next to the code that implements it,
+                    so the app and the schema can never drift apart. Cockpit
+                    ignores the field when reading a theme — it only serves your
+                    editor. See{" "}
+                    <a
+                      className="text-accent underline"
+                      href={THEME_EXAMPLE}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <InlineCode>theme.example.json</InlineCode>
+                    </a>{" "}
+                    for a commented file with every group filled in.
+                  </p>
+                </DocsSubsection>
+              </DocsSection>
+
+              {/* ── TURN STATUS ─────────────────────────────────────────── */}
+
+              <DocsSection id="turn-status" title="Agent turn status">
+                <p>
+                  When an agent runs in a tab, Cockpit shows whether it is{" "}
+                  <strong>working</strong>, <strong>waiting</strong> for you, or{" "}
+                  <strong>idle</strong> — as a spinner, a badge, a chime, and an
+                  OS notification when the window is unfocused. Supported
+                  harnesses today: <strong>Claude Code</strong> and{" "}
+                  <strong>Codex CLI</strong> (0.147+).
+                </p>
+                <p>How it works:</p>
+                <ol>
+                  <li>
+                    At boot, Cockpit materializes the internal CLI at{" "}
+                    <InlineCode>~/.cockpit/bin/cockpit</InlineCode> and
+                    registers <InlineCode>cockpit hook</InlineCode> on the
+                    harness&apos; lifecycle events.
+                  </li>
+                  <li>
+                    On each event the harness runs the hook, passing a JSON
+                    payload on stdin.
+                  </li>
+                  <li>
+                    The hook translates it into a status and sends it to the app
+                    over the local socket. (A socket rather than an escape
+                    sequence on the PTY: harnesses run hooks with no controlling
+                    terminal, and writing to <InlineCode>/dev/tty</InlineCode>{" "}
+                    fails with <InlineCode>ENXIO</InlineCode>.)
+                  </li>
+                  <li>
+                    Routing is by the <InlineCode>COCKPIT_PANE_ID</InlineCode>{" "}
+                    env var, which the app injects into the tab&apos;s PTY. An
+                    agent session started <em>outside</em> Cockpit does not have
+                    it, so the hook is a no-op there. Nothing to configure,
+                    nothing to disable.
+                  </li>
+                </ol>
+                <DocsTable
+                  headers={["Harness", "File", "Format"]}
+                  rows={[
+                    [
+                      "Claude Code",
+                      <InlineCode key="c">~/.claude/settings.json</InlineCode>,
+                      <>
+                        <InlineCode>hooks.&lt;Event&gt;[]</InlineCode>, each
+                        item{" "}
+                        <InlineCode>
+                          {"{matcher, hooks:[{type, command}]}"}
+                        </InlineCode>
+                      </>,
+                    ],
+                    [
+                      "Codex CLI",
+                      <InlineCode key="x">~/.codex/hooks.json</InlineCode>,
+                      <>
+                        Same shape, <strong>plus</strong> a trust block in{" "}
+                        <InlineCode>~/.codex/config.toml</InlineCode> (Codex
+                        silently ignores an untrusted hook, so Cockpit computes
+                        and writes the trust hash for you, between{" "}
+                        <InlineCode>{"# >>> cockpit hooks"}</InlineCode>{" "}
+                        delimiters).
+                      </>,
+                    ],
+                  ]}
+                />
+                <p>
+                  Both installers do an <strong>idempotent append</strong> of a
+                  marked entry (<InlineCode>_cockpit: v1</InlineCode>):
+                  re-running removes our old entry and re-adds it, never
+                  rewriting the list — your own hooks, and those of plugins or
+                  iTerm2, survive untouched.
+                </p>
+
+                <DocsSubsection id="turn-status-events" title="Event mapping">
+                  <DocsTable
+                    headers={["Event", "Claude", "Codex", "Status"]}
+                    rows={[
+                      [
+                        <InlineCode key="e">UserPromptSubmit</InlineCode>,
+                        "✓",
+                        "✓",
+                        <>
+                          <InlineCode>working</InlineCode> (turn starts)
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="e">PreToolUse</InlineCode>,
+                        "✓",
+                        "✓",
+                        <>
+                          <InlineCode>working</InlineCode> — except for
+                          Claude&apos;s blocking tools (below)
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="e">PostToolUse</InlineCode>,
+                        "✓",
+                        "✓",
+                        <InlineCode key="s">working</InlineCode>,
+                      ],
+                      [
+                        <InlineCode key="e">Notification</InlineCode>,
+                        "✓",
+                        "—",
+                        <>
+                          <InlineCode>waiting</InlineCode> /{" "}
+                          <InlineCode>idle</InlineCode> (heuristic on the text)
+                        </>,
+                      ],
+                      [
+                        <InlineCode key="e">PermissionRequest</InlineCode>,
+                        "—",
+                        "✓",
+                        <InlineCode key="s">waiting</InlineCode>,
+                      ],
+                      [
+                        <InlineCode key="e">Stop</InlineCode>,
+                        "✓",
+                        "✓",
+                        <InlineCode key="s">idle</InlineCode>,
+                      ],
+                      [
+                        <>
+                          <InlineCode>SessionStart</InlineCode> /{" "}
+                          <InlineCode>SessionEnd</InlineCode>
+                        </>,
+                        "✓",
+                        "✓",
+                        <InlineCode key="s">idle</InlineCode>,
+                      ],
+                      [
+                        <>
+                          <InlineCode>SubagentStart/Stop</InlineCode>,{" "}
+                          <InlineCode>PreCompact/PostCompact</InlineCode>
+                        </>,
+                        "—",
+                        "✓",
+                        <strong key="s">ignored</strong>,
+                      ],
+                    ]}
+                  />
+                  <p>
+                    Two asymmetries matter. On <strong>Claude</strong>, tools
+                    that block waiting for the user (
+                    <InlineCode>AskUserQuestion</InlineCode>,{" "}
+                    <InlineCode>ExitPlanMode</InlineCode>) emit no{" "}
+                    <InlineCode>Notification</InlineCode>; the last hook before
+                    the block is <InlineCode>PreToolUse</InlineCode>, so that
+                    one maps to <InlineCode>waiting</InlineCode> for those two —
+                    otherwise the tab would spin forever with no chime. On{" "}
+                    <strong>Codex</strong>, approval has its own event, so there
+                    is no text heuristic and no detour.
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection
+                  id="turn-status-resume"
+                  title="Resuming a session"
+                >
+                  <p>
+                    Cockpit persists the{" "}
+                    <InlineCode>session_id</InlineCode> that arrived through the
+                    hook, and on restoring the tab it types the command that
+                    reattaches the conversation. A session id alone does not say
+                    which harness it belongs to, and the commands differ —{" "}
+                    <InlineCode>claude --resume &lt;id&gt;</InlineCode> versus{" "}
+                    <InlineCode>codex resume &lt;id&gt;</InlineCode> — so the
+                    installer registers the hook as{" "}
+                    <InlineCode>cockpit hook --harness &lt;name&gt;</InlineCode>{" "}
+                    and the layout stores the harness next to the id. Entries
+                    written by older versions pass no flag and are assumed to be
+                    Claude, which is what they all were.
+                  </p>
+                  <Callout variant="warning" title="Codex trust is index-keyed">
+                    <p>
+                      The Codex trust key includes the hook&apos;s group index.
+                      If you add a hook of your own <em>before</em> ours on the
+                      same event — or edit{" "}
+                      <InlineCode>hooks.json</InlineCode> by hand — the hash
+                      stops matching and the hook silently stops running. The
+                      installer repairs it on the next boot, because it
+                      recomputes the indices from the final file.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
+              </DocsSection>
+
+              {/* ── REMOTE HOSTS ────────────────────────────────────────── */}
+
+              <DocsSection id="remote" title="Remote hosts & VPS">
+                <p>
+                  A remote workspace is a folder on another machine, reached
+                  over SSH. Cockpit runs a small headless{" "}
+                  <InlineCode>cockpit-server</InlineCode> on the host, talks to
+                  it through an SSH tunnel to a Unix socket, and nothing is ever
+                  exposed on the network: SSH is the only door. Terminals and
+                  agents keep running on the host when you disconnect, and the
+                  next connection picks them up where they were.
+                </p>
+                <p>
+                  From the <strong>desktop</strong> app you usually need nothing
+                  on the host: Cockpit uploads the server over SSH on first
+                  connect and keeps it updated (it compares a manifest of the
+                  installed files with the bundle it ships and reinstalls when
+                  they differ). The <strong>mobile</strong> apps (iPad, Android)
+                  carry no server, so a host you want to reach from them must
+                  be prepared once, either by a desktop or with the installer
+                  below.
+                </p>
+                <p>
+                  The desktop can only install the targets it ships, so the
+                  installer is also the way in for the other combinations:
+                </p>
+                <div className="overflow-x-auto">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Client</th>
+                        <th>Linux arm64 host</th>
+                        <th>Linux x86_64 host</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td>macOS</td>
+                        <td>installs and updates over SSH</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>Linux arm64</td>
+                        <td>installs and updates over SSH</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>Linux x86_64</td>
+                        <td>installer</td>
+                        <td>installs and updates over SSH</td>
+                      </tr>
+                      <tr>
+                        <td>Windows</td>
+                        <td>installer</td>
+                        <td>installer</td>
+                      </tr>
+                      <tr>
+                        <td>iPad / Android</td>
+                        <td>installer</td>
+                        <td>installer</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p>
+                  Both paths land in the same place and recognize each other: a
+                  host prepared with the installer is reused as is by a desktop
+                  that ships the same version, and a host prepared by a desktop
+                  can be updated later with the installer. Whoever gets there
+                  first installs; the other one just connects.
+                </p>
+
+                <DocsSubsection id="remote-install" title="Install the server">
+                  <p>
+                    Linux x86_64 and arm64. User space, no sudo, idempotent;
+                    re-run it to update.
+                  </p>
+                  <CodeBlock
+                    label="on the host"
+                    language="bash"
+                    code={`curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash
+# or straight from GitHub (the URL above redirects here):
+curl -fsSL https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/install-server.sh | bash`}
+                  />
+                  <p>
+                    The script detects the architecture, downloads{" "}
+                    <InlineCode>cockpit-server-&lt;version&gt;-linux-&lt;arch&gt;.zip</InlineCode>{" "}
+                    from the GitHub release, verifies its SHA-256 and runs the{" "}
+                    <InlineCode>install.sh</InlineCode> shipped inside the zip.
+                    That installs to <InlineCode>~/.cockpit/server</InlineCode>{" "}
+                    (the same layout the desktop app uses), links the binary
+                    into <InlineCode>~/.local/bin</InlineCode>, checks every file
+                    against <InlineCode>bundle.manifest</InlineCode> and does a
+                    smoke start before swapping the new version in. A host
+                    without internet access can take the zip by{" "}
+                    <InlineCode>scp</InlineCode> and run{" "}
+                    <InlineCode>./cockpit-server/install.sh</InlineCode>{" "}
+                    directly.
+                  </p>
+                  <Callout>
+                    <p>
+                      <strong>Versions must match.</strong> Client and server are
+                      released together and the app refuses a different server
+                      version. Pin one with{" "}
+                      <InlineCode>COCKPIT_VERSION=1.28.33</InlineCode> in front
+                      of the command; without it the latest release is used.
+                      Desktop clients fix a mismatch by themselves over SSH;
+                      from mobile, re-run the installer.
+                    </p>
+                  </Callout>
+                </DocsSubsection>
+
+                <DocsSubsection id="remote-service" title="Start at boot">
+                  <p>
+                    By default the app starts the server on demand and it
+                    exits when idle with no live session; terminals and agents
+                    keep the server alive while they run, so most hosts need
+                    no service. Note that if you kill the server while a
+                    Cockpit workspace is open on it, the client treats that as
+                    a dropped connection and starts it again. For a dedicated
+                    VPS you can register a{" "}
+                    <InlineCode>systemd --user</InlineCode> unit: the server is
+                    up right after a reboot, never exits on idle, and systemd
+                    restarts it on failure. It does not change how the app
+                    connects, and a reboot still ends the sessions that were
+                    running.
+                  </p>
+                  <CodeBlock
+                    label="on the host"
+                    language="bash"
+                    code={`# at install time
+curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash -s -- --service
+
+# or later (the installer links cockpit-server into ~/.local/bin)
+cockpit-server service install
+cockpit-server service status
+cockpit-server service uninstall`}
+                  />
+                  <p>
+                    The unit lives in{" "}
+                    <InlineCode>~/.config/systemd/user/cockpit-server.service</InlineCode>.
+                    Starting at boot without an open SSH session requires{" "}
+                    <em>linger</em>; the command tries to enable it and, when
+                    that needs root, prints the one-line{" "}
+                    <InlineCode>sudo loginctl enable-linger</InlineCode> for you
+                    to run once. Updates restart the unit automatically. To
+                    stop it for real use{" "}
+                    <InlineCode>systemctl --user stop cockpit-server</InlineCode>{" "}
+                    (a plain kill is undone by systemd in two seconds).
+                  </p>
+                </DocsSubsection>
+
+                <DocsSubsection
+                  id="remote-troubleshooting"
+                  title="Troubleshooting"
+                >
+                  <ul>
+                    <li>
+                      <strong>version_mismatch</strong>: the host runs another
+                      release than the app. Re-run the installer (mobile) or
+                      reconnect from a desktop, which reinstalls.
+                    </li>
+                    <li>
+                      <strong>cockpit-server did not start</strong> during
+                      install: the log printed above the error is the reason.
+                      A glibc older than the build expects is the usual cause on
+                      old distributions; check{" "}
+                      <InlineCode>ldd --version</InlineCode>.
+                    </li>
+                    <li>
+                      <strong>Socket permission</strong>: the server listens on{" "}
+                      <InlineCode>~/.cockpit/cockpit-server.sock</InlineCode>{" "}
+                      as the SSH user; connect with the same user that ran the
+                      installer.
+                    </li>
+                    <li>
+                      <strong>Updating means restarting</strong>: a new server
+                      version replaces the running process, which ends the
+                      terminals and agents on that host. The desktop does it
+                      silently when its bundle differs from the host; the
+                      installer does it when you run it with a newer release.
+                      Finish long jobs first.
+                    </li>
+                    <li>
+                      <strong>Nothing after reboot</strong>: without the
+                      service the first connection starts the server (a second
+                      or two); with it, check{" "}
+                      <InlineCode>cockpit-server service status</InlineCode> and
+                      linger.
+                    </li>
+                  </ul>
+                </DocsSubsection>
+              </DocsSection>
+
+              {/* ── SOUNDS ──────────────────────────────────────────────── */}
+
+              <DocsSection id="sounds" title="Sounds & notifications">
+                <p>
+                  Turn status drives audio too. Under{" "}
+                  <strong>Settings → Notifications</strong> you can bind a sound
+                  per event — <strong>turn done</strong>,{" "}
+                  <strong>action needed</strong>, <strong>error</strong> — pick
+                  a custom audio file for each, and set the volume. With the
+                  window focused you get the chime; unfocused, an OS
+                  notification. Since an agent started outside Cockpit never
+                  reports status, nothing fires for sessions the app is not
+                  hosting.
+                </p>
+              </DocsSection>
+
+              {/* ── LANGUAGE ────────────────────────────────────────────── */}
+
+              <DocsSection id="language" title="Language">
+                <p>
+                  Cockpit&apos;s interface is fully localized in{" "}
+                  <strong>English</strong>, <strong>Portuguese (Brazil)</strong>{" "}
+                  and <strong>Spanish</strong>, down to the native application
+                  menu. Switch it in{" "}
+                  <strong>Settings → General → Language</strong>; the choice is
+                  independent of the OS locale.
+                </p>
+              </DocsSection>
+
+              {/* ── LINKS ───────────────────────────────────────────────── */}
+
+              <DocsSection id="links" title="Links">
+                <ul>
+                  <li>
+                    <Link href="/" className="text-accent underline">
+                      Cockpit product page
+                    </Link>{" "}
+                    — the tour.
+                  </li>
+                  <li>
+                    <Link
+                      href="/tutorials/cockpit-layouts"
+                      className="text-accent underline"
+                    >
+                      Tutorial: layouts and tasks
+                    </Link>{" "}
+                    — build a <InlineCode>.ckp</InlineCode> and a{" "}
+                    <InlineCode>tasks.json</InlineCode> from scratch.
+                  </li>
+                  <li>
+                    <Link
+                      href="/tutorials/cockpit-telemetry"
+                      className="text-accent underline"
+                    >
+                      Tutorial: telemetry for agents
+                    </Link>{" "}
+                    — the error store, the{" "}
+                    <InlineCode>cockpit telemetry</InlineCode> CLI and how to
+                    make a project speak JSON logs.
+                  </li>
+                  <li>
+                    <Link
+                      href="/tutorials/cockpit-team"
+                      className="text-accent underline"
+                    >
+                      Tutorial: an agent team in Cockpit
+                    </Link>
+                    .
+                  </li>
+                  <li>
+                    <Link href="/remote-pi/docs" className="text-accent underline">
+                      Remote Pi docs
+                    </Link>{" "}
+                    — mesh, relay, daemons, pairing.
+                  </li>
+                  <li>
+                    <a
+                      className="text-accent underline"
+                      href={COCKPIT_DOCS}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Source docs &amp; JSON schemas
+                    </a>{" "}
+                    in the repository.
+                  </li>
+                  <li>
+                    <a
+                      className="text-accent underline"
+                      href={GITHUB_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      GitHub
+                    </a>{" "}
+                    — issues and source.
+                  </li>
+                </ul>
+              </DocsSection>
             </article>
           </div>
         </div>

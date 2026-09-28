@@ -100,7 +100,9 @@ class OwnedProcessRegistry {
       for (final child in children) {
         try {
           await _killProcess(child);
-        } catch (_) {}
+        } on Object catch (_) {
+          // filho já morreu entre a leitura do registro e o kill.
+        }
       }
     } catch (_) {
       // Arquivo concorrente/corrompido não pode derrubar o bootstrap.
@@ -116,7 +118,9 @@ class OwnedProcessRegistry {
       } else {
         await file.writeAsString('${kept.join('\n')}\n');
       }
-    } catch (_) {}
+    } on Object catch (_) {
+      // registro ilegível/sem permissão: o próximo boot refaz.
+    }
   }
 
   Future<List<int>> _readPids(File file) async => (await file.readAsLines())

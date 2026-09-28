@@ -133,19 +133,6 @@ class FileReaderImpl implements FileReader {
     }
   }
 
-  @override
-  Stream<void> watch(String path) {
-    try {
-      // FSEvents no macOS. Erros do stream (arquivo trocado por rename, etc.)
-      // viram fim silencioso — o consumidor (VM) trata via onError.
-      return File(path)
-          .watch(events: FileSystemEvent.modify | FileSystemEvent.delete)
-          .map((_) {});
-    } catch (_) {
-      return const Stream<void>.empty();
-    }
-  }
-
   static const _sqliteMagic = 'SQLite format 3';
 
   static bool _isSqlite(List<int> bytes) =>

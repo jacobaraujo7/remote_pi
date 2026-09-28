@@ -14,7 +14,7 @@ rp-s3 automatically. Tag = publication, there is no manual gate.
 Rules that always apply:
 - Work on `main`. Never create a branch for a release.
 - Never kill Cockpit or any user process while releasing.
-- Every 1.x release is a beta of 2.0.0 (changelog sections say so).
+- Do not add the old "beta of 2.0.0" sentence to changelog sections: 2.0 shipped, the line was removed on 2026-09-27 and the updater shows the first section verbatim.
 - No em-dashes in commit messages or changelog text.
 - Report the per-job result to the user; if a job fails, say which and why.
 

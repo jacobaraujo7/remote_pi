@@ -9,51 +9,61 @@ import { RevealController } from "@/components/landing/reveal-controller";
 export const metadata: Metadata = {
   title: "An agent team in Cockpit",
   description:
-    "Use Cockpit's multiplexer to run an orchestrator, a backend, and a frontend agent side by side — each in its own folder with its own AGENTS.md, coordinating over the remote-pi mesh.",
+    "Run an orchestrator and two worker agents as terminal tabs in one Cockpit window, each in its own folder, coordinated with the internal cockpit CLI.",
 };
 
-/* ---- example AGENTS.md files (one per folder) ---- */
+/* ---- example briefs (one per folder) ---- */
 const ORCHESTRATOR_MD = `# Orchestrator
 
-You coordinate two teammates over the Remote Pi mesh: \`backend\` and
-\`frontend\`. You don't write app code yourself — you split the work,
-delegate it, and integrate the results.
+You coordinate two workers that run in other Cockpit tabs: \`Backend\` and
+\`Frontend\`. You do not write app code yourself. You split the work, dispatch
+it, and integrate the results.
 
 ## How you work
-- At the start of every turn, drain your inbox and read any replies.
-- Break a request into one backend task and one frontend task.
-- Delegate with agent_send to "backend" and "frontend".
-- Collect their replies, reconcile mismatches (e.g. the API shape vs.
-  what the UI needs), and report back to the user.
+- Dispatch with the internal CLI, one instruction per worker:
+  \`cockpit send --tab-id <tab> --enter "<instruction>"\`
+- Read a worker back with \`cockpit read-tab <label> --lines 80\` instead of
+  asking the human what it printed.
+- A worker is busy while \`working\` is true in \`cockpit list-tabs --json\`.
+  Wait for it to flip to false before reading the final answer.
+- Reconcile mismatches (the API shape against what the UI needs) and report
+  back to the human.
 
-Keep each message small and explicit: say what you want and what
-"done" looks like.`;
+Keep each instruction small and explicit: say what you want and what "done"
+looks like.`;
 
 const BACKEND_MD = `# Backend
 
-You own the server and API in this folder. On the Remote Pi mesh you are
-the peer named \`backend\`.
+You own the server and API in this folder. You work only here.
 
 ## How you work
-- Check your inbox each turn — the \`orchestrator\` sends you tasks.
-- Do the work here, in this folder, then reply to the sender (use the
-  message id as \`re\`).
-- If a task is ambiguous, reply asking for the missing detail instead of
-  guessing.
-- Keep the API contract (routes, payloads) explicit so \`frontend\` can
-  build against it.`;
+- The orchestrator types instructions straight into your terminal. Treat them
+  as prompts from the human.
+- Keep the API contract (routes, payloads) explicit, and print it when you are
+  done, because the orchestrator reads your output to pass it on.
+- If an instruction is ambiguous, say what is missing instead of guessing.`;
 
 const FRONTEND_MD = `# Frontend
 
-You own the UI in this folder. On the Remote Pi mesh you are the peer
-named \`frontend\`.
+You own the UI in this folder. You work only here.
 
 ## How you work
-- Check your inbox each turn — the \`orchestrator\` sends you tasks.
-- Build against the contract \`backend\` exposes. If you need a route or
-  field that doesn't exist yet, ask the orchestrator to coordinate it.
-- When done, reply to the sender with what changed (use the message id
-  as \`re\`).`;
+- Build against the contract the backend printed. If you need a route or a
+  field that does not exist, say so and stop: the orchestrator coordinates it.
+- When you are done, print what changed, in one short list.`;
+
+const TEAM_CKP = `panes:
+  - name: Orchestrator
+    cwd: orchestrator
+    command: claude
+  - name: Backend
+    cwd: backend
+    split: right
+    command: claude
+  - name: Frontend
+    cwd: frontend
+    split: down
+    command: claude`;
 
 export default function CockpitTeamTutorial() {
   return (
@@ -73,77 +83,77 @@ export default function CockpitTeamTutorial() {
               <h1>An agent team in Cockpit</h1>
               <p className="lede">
                 Cockpit&apos;s real power is the multiplexer: many agents in one
-                window, each in its own folder. Here you&apos;ll wire up three —
+                window, each in its own folder. Here you wire up three,
                 an <strong className="text-fg">orchestrator</strong>, a{" "}
-                <strong className="text-fg">backend</strong>, and a{" "}
-                <strong className="text-fg">frontend</strong> — each with its own{" "}
-                <InlineCode>AGENTS.md</InlineCode>, all talking to each other over
-                the <InlineCode>remote-pi</InlineCode> mesh.
+                <strong className="text-fg">backend</strong> and a{" "}
+                <strong className="text-fg">frontend</strong>, and let the
+                orchestrator drive the other two with the internal{" "}
+                <InlineCode>cockpit</InlineCode> CLI.
               </p>
             </header>
 
             <article className="prose">
               <DocsSection id="what" title="What you'll build">
                 <p>
-                  Three Pi agents, side by side as panes in a single Cockpit
-                  workspace. Each lives in its own subfolder and reads that
-                  folder&apos;s <InlineCode>AGENTS.md</InlineCode> as its standing
-                  brief, so each one boots into a role. They coordinate by sending
-                  each other messages on the local mesh — the orchestrator splits
-                  a request, hands tasks to the backend and frontend, and stitches
-                  their replies back together.
+                  Three agent tabs, side by side in a single Cockpit workspace.
+                  Each one is an ordinary terminal running your harness of
+                  choice (this tutorial uses{" "}
+                  <InlineCode>claude</InlineCode>; <InlineCode>codex</InlineCode>{" "}
+                  or <InlineCode>pi</InlineCode> work the same way), started in
+                  its own subfolder so it picks up that folder&apos;s brief and
+                  boots into a role.
                 </p>
                 <p>
-                  Nothing here leaves your machine: the mesh runs over a local
-                  socket, and all three agents work on your real files.
+                  They coordinate through Cockpit itself. The orchestrator opens
+                  the worker tabs, types instructions into them and reads their
+                  output back, using the <InlineCode>cockpit</InlineCode> CLI
+                  that exists inside every Cockpit terminal. No network, no
+                  account, no extra service: it is the app you already have
+                  open, driven by the same verbs a human uses.
                 </p>
-                <Callout variant="note" title="Two pieces you already know">
-                  This builds on{" "}
+                <Callout variant="note" title="Worth reading first">
+                  The CLI reference lives in the{" "}
                   <Link
-                    href="/tutorials/getting-started"
+                    href="/docs#cli"
                     className="text-accent underline"
                   >
-                    Getting started
-                  </Link>{" "}
-                  (install Pi + the <InlineCode>remote-pi</InlineCode> extension)
-                  and{" "}
+                    Cockpit docs
+                  </Link>
+                  , and{" "}
                   <Link
-                    href="/tutorials/mesh-local"
+                    href="/tutorials/cockpit-layouts"
                     className="text-accent underline"
                   >
-                    Local mesh
+                    Layouts and tasks
                   </Link>{" "}
-                  (how two agents trade messages). Skim those first if the mesh
-                  tools are new to you.
+                  shows how a <InlineCode>.ckp</InlineCode> file recreates a
+                  window like this one on any machine.
                 </Callout>
               </DocsSection>
 
               <DocsSection id="prereqs" title="Before you start">
                 <ul className="ml-6 list-disc space-y-2">
                   <li>
-                    <strong className="text-fg">Cockpit installed</strong> — grab
-                    it from the{" "}
-                    <Link href="/cockpit" className="text-accent underline">
-                      Cockpit page
+                    <strong className="text-fg">Cockpit installed</strong>, from
+                    the{" "}
+                    <Link href="/download" className="text-accent underline">
+                      download page
                     </Link>
-                    . On first launch its onboarding checks for{" "}
-                    <InlineCode>pi</InlineCode>, the{" "}
-                    <InlineCode>remote-pi</InlineCode> extension, and the
-                    supervisor, and helps you install anything missing.
+                    . Nothing else is required: Cockpit needs no account and no
+                    cloud.
                   </li>
                   <li>
-                    The <InlineCode>remote-pi</InlineCode> extension is what hands
-                    every agent the mesh tools, so make sure onboarding is green
-                    before you build the team.
+                    <strong className="text-fg">A harness on your PATH</strong>,
+                    the one you already use. Cockpit runs it as a normal
+                    process, so whatever works in your terminal works in a tab.
                   </li>
                 </ul>
               </DocsSection>
 
               <DocsSection id="folders" title="1. Lay out the folders">
                 <p>
-                  An agent&apos;s identity comes from its folder, so give each
-                  teammate one. In your project, create three subfolders, each
-                  with its own <InlineCode>AGENTS.md</InlineCode>:
+                  An agent&apos;s identity comes from where it starts, so give
+                  each teammate a folder with its own brief:
                 </p>
                 <CodeBlock
                   code={`my-app/
@@ -157,9 +167,10 @@ export default function CockpitTeamTutorial() {
                   language="text"
                 />
                 <p>
-                  <InlineCode>AGENTS.md</InlineCode> is the brief Pi reads when it
-                  starts in a folder — the agent&apos;s role and house rules. Give
-                  each one a clear job and tell it how to behave on the mesh.
+                  <InlineCode>AGENTS.md</InlineCode> is the standing brief an
+                  agent reads when it starts in a folder (Claude Code also reads{" "}
+                  <InlineCode>CLAUDE.md</InlineCode>). Give each one a clear job,
+                  and tell the orchestrator how to reach the others.
                 </p>
                 <CodeBlock
                   code={ORCHESTRATOR_MD}
@@ -176,183 +187,205 @@ export default function CockpitTeamTutorial() {
                   label="frontend/AGENTS.md"
                   language="markdown"
                 />
-                <Callout variant="note" title="One agent per folder">
-                  Pi allows exactly one agent per directory — which is precisely
-                  why each teammate gets its own subfolder. Three folders, three
-                  agents, three distinct peers on the mesh.
+                <Callout variant="note" title="One folder, one teammate">
+                  Keeping each agent in its own subfolder is what keeps the
+                  briefs, the histories and the edits apart. Three folders,
+                  three tabs, three roles.
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="panes" title="2. Open the three panes">
+              <DocsSection id="tabs" title="2. Open the three tabs">
                 <p>
-                  In Cockpit, open <InlineCode>my-app/</InlineCode> as a workspace.
-                  The file tree on the right shows your three subfolders. For each
-                  one, <strong className="text-fg">right-click the folder</strong>{" "}
-                  and create an agent there — Cockpit roots that agent in the
-                  subfolder, so it picks up the right{" "}
-                  <InlineCode>AGENTS.md</InlineCode>.
+                  Open <InlineCode>my-app/</InlineCode> as a workspace. Then open
+                  a terminal in each subfolder and start your harness there. The
+                  fastest way is from the Files panel: right-click a folder and
+                  open a terminal in it, then run <InlineCode>claude</InlineCode>
+                  .
                 </p>
                 <p>
-                  Split the canvas so all three are visible at once — orchestrator
-                  on one side, backend and frontend on the other — and drag the
-                  dividers to taste. One agent streaming a long answer never
-                  freezes the others, and the whole layout comes back exactly like
-                  this the next time you open the app.
+                  Split the canvas so all three are visible at once, the
+                  orchestrator on one side and the workers on the other, and
+                  rename each tab by double-clicking it:{" "}
+                  <InlineCode>Orchestrator</InlineCode>,{" "}
+                  <InlineCode>Backend</InlineCode>,{" "}
+                  <InlineCode>Frontend</InlineCode>. Those labels are how the
+                  CLI addresses a tab, and unlike ids they survive a restart of
+                  the app.
                 </p>
-                <Callout variant="tip" title="Name them to match">
-                  When an agent asks for a name (or in its{" "}
-                  <InlineCode>/remote-pi</InlineCode> wizard), use{" "}
-                  <InlineCode>orchestrator</InlineCode>,{" "}
-                  <InlineCode>backend</InlineCode>, and{" "}
-                  <InlineCode>frontend</InlineCode>. Those are the names teammates
-                  address in <InlineCode>agent_send</InlineCode>, so matching them
-                  to the folders keeps the prompts readable.
+                <p>
+                  Do it once by hand, or commit the whole geometry as a{" "}
+                  <InlineCode>team.ckp</InlineCode> and let Cockpit build the
+                  window for you:
+                </p>
+                <CodeBlock code={TEAM_CKP} label="team.ckp" language="yaml" />
+                <CodeBlock
+                  label="any Cockpit terminal"
+                  prompt
+                  code="cockpit orchestrate team.ckp"
+                />
+                <Callout variant="tip" title="Labels, not ids">
+                  Tab ids (<InlineCode>t0</InlineCode>,{" "}
+                  <InlineCode>t1</InlineCode>…) are handed out per app boot, so
+                  never hardcode one in a brief or a script. Address a tab by
+                  its label, or discover the id of the moment with{" "}
+                  <InlineCode>cockpit list-tabs</InlineCode>.
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="mesh" title="3. Put them on the mesh">
+              <DocsSection id="wiring" title="3. Teach the orchestrator the CLI">
                 <p>
-                  Agents meet in a shared session named{" "}
-                  <InlineCode>local</InlineCode>, over a Unix socket — no network.
-                  Join each agent the same way as in the terminal: in each
-                  pane&apos;s composer, run the slash command once.
+                  Every terminal Cockpit opens has{" "}
+                  <InlineCode>cockpit</InlineCode> on its{" "}
+                  <InlineCode>PATH</InlineCode>, and only those terminals do. So
+                  the orchestrator can already drive its teammates; it just
+                  needs to know the verbs. Ask it to look around:
                 </p>
                 <CodeBlock
-                  code="/remote-pi"
-                  label="each pane · composer"
-                  language="text"
-                />
-                <p>
-                  The first run is a quick wizard (name + relay); accept the folder
-                  name so the peer is called{" "}
-                  <InlineCode>orchestrator</InlineCode>,{" "}
-                  <InlineCode>backend</InlineCode>, or{" "}
-                  <InlineCode>frontend</InlineCode>. Then confirm everyone is home —
-                  ask the orchestrator:
-                </p>
-                <CodeBlock
-                  code="List the other agents on the mesh."
-                  label="orchestrator · prompt"
+                  code="Run `cockpit list-tabs --json` and tell me which tabs you can reach."
+                  label="Orchestrator · prompt"
                   language="text"
                 />
                 <CodeBlock
-                  code={`list_peers()
-→ backend
-  frontend`}
-                  label="orchestrator · tool call"
+                  code={`$ cockpit list-tabs --json
+[
+  { "id": "t0", "label": "Orchestrator", "workspacePath": "/Users/me/my-app", "working": true  },
+  { "id": "t1", "label": "Backend",      "workspacePath": "/Users/me/my-app", "working": false },
+  { "id": "t2", "label": "Frontend",     "workspacePath": "/Users/me/my-app", "working": false }
+]`}
+                  label="Orchestrator · tool call"
                   language="text"
                 />
                 <p>
-                  If a teammate is missing from the roster, run{" "}
-                  <InlineCode>/remote-pi</InlineCode> in its pane and check again.
+                  Four verbs are enough to run a team. If you use Claude Code,{" "}
+                  <InlineCode>cockpit install-skill</InlineCode> installs a skill
+                  that teaches all of them, so the brief can stay short.
                 </p>
+                <CodeBlock
+                  label="the four verbs"
+                  prompt
+                  code={`# dispatch an instruction and press Enter for it
+cockpit send --tab-id Backend --enter "Expose GET /todos and POST /todos"
+
+# see who is still thinking (working: true) and who is done
+cockpit list-tabs --json
+
+# read a worker's answer without touching its window
+cockpit read-tab Backend --lines 80
+
+# open a worker beside you, mid-flight, if the work needs one more pair of hands
+cockpit new-tab --cwd ./docs --title Docs --split v`}
+                />
+                <Callout variant="warning" title="Enter is a keystroke">
+                  A bare <InlineCode>cockpit send</InlineCode> types the text and
+                  leaves it in the composer. Use{" "}
+                  <InlineCode>--enter</InlineCode> (or a separate{" "}
+                  <InlineCode>cockpit send-key Enter</InlineCode>) to submit it,
+                  because a newline inside the text is a line break for the
+                  harness, not a send.
+                </Callout>
               </DocsSection>
 
               <DocsSection id="run" title="4. Run the orchestration">
                 <p>
-                  Now give the orchestrator something real and let it delegate.
-                  You only talk to the orchestrator — it talks to the others.
+                  Now give the orchestrator something real. You talk only to it;
+                  it talks to the others.
                 </p>
                 <CodeBlock
                   code={`Add a "todos" feature: an API to list and create todos, and a page
-that shows them with a form to add one. Coordinate backend and frontend.`}
-                  label="orchestrator · prompt"
+that shows them with a form to add one. Coordinate Backend and Frontend.`}
+                  label="Orchestrator · prompt"
                   language="text"
                 />
                 <p>
-                  It breaks the work in two and sends a task to each peer. A send
-                  returns an ACK, not an answer — it&apos;s fire-and-ACK, not a
-                  blocking call.
+                  It breaks the work in two and types one instruction into each
+                  worker. The send returns as soon as the text is delivered, so
+                  it is a dispatch, not a blocking call:
                 </p>
                 <CodeBlock
-                  code={`agent_send({
-  to: "backend",
-  body: { task: "Expose GET /todos and POST /todos (title:string). Return the JSON shape." }
-})
-→ Delivered to backend
+                  code={`$ cockpit send --tab-id Backend --enter \\
+    "Expose GET /todos and POST /todos (title:string). Print the JSON shape when done."
+sent
 
-agent_send({
-  to: "frontend",
-  body: { task: "Build a Todos page: list todos and a form to add one, against backend's API." }
-})
-→ Delivered to frontend`}
-                  label="orchestrator · tool calls"
+$ cockpit send --tab-id Frontend --enter \\
+    "Build a Todos page: list todos and a form to add one. Wait for the API shape first."
+sent`}
+                  label="Orchestrator · tool calls"
                   language="text"
                 />
                 <p>
-                  On its next turn, <InlineCode>backend</InlineCode> sees the task,
-                  does the work <em>in its own folder</em>, and replies — quoting
-                  the message id in <InlineCode>re</InlineCode> so the orchestrator
-                  knows which task it answers:
+                  Each worker sees the instruction in its own tab, does the work{" "}
+                  <em>in its own folder</em>, and prints the result. The
+                  orchestrator polls for the turn to end, then reads the answer:
                 </p>
                 <CodeBlock
-                  code={`get_messages()
-→ [..] from=orchestrator id=7f3a91 { "task": "Expose GET /todos and POST /todos ..." }
+                  code={`$ cockpit list-tabs --json | grep -A1 Backend
+  { "id": "t1", "label": "Backend", "working": false }
 
-# ...writes the routes here, in backend/ ...
-
-agent_send({
-  to: "orchestrator",
-  body: { done: "Added GET/POST /todos", api: { todo: { id: "string", title: "string", done: "bool" } } },
-  re: "7f3a91"
-})
-→ Delivered to orchestrator`}
-                  label="backend · tool calls"
+$ cockpit read-tab Backend --lines 40
+  Added GET /todos and POST /todos.
+  Todo: { id: string, title: string, done: bool }`}
+                  label="Orchestrator · tool calls"
                   language="text"
                 />
                 <p>
-                  <InlineCode>frontend</InlineCode> does the same in its folder.
-                  Back in the orchestrator, both replies arrive on its next turns;
-                  it reconciles them — for instance, forwarding the exact API shape
-                  to the frontend if it asked — and reports the finished feature
-                  back to you. Three agents, three folders, one coordinated change.
+                  With the contract in hand it unblocks the frontend, forwarding
+                  the exact shape, and reports the finished feature back to you.
+                  Three agents, three folders, one coordinated change, and you
+                  watched all of it happen.
                 </p>
-                <Callout variant="note" title="If a reply never comes">
-                  An <InlineCode>agent_send</InlineCode> to a peer that&apos;s
-                  mid-turn can come back <InlineCode>busy</InlineCode> — the
-                  message was dropped, so retry shortly. The full set of ACKs
-                  (<InlineCode>Delivered</InlineCode>, <InlineCode>busy</InlineCode>
-                  , <InlineCode>denied</InlineCode>, timeout) is covered in{" "}
-                  <Link
-                    href="/tutorials/mesh-local"
-                    className="text-accent underline"
-                  >
-                    Local mesh
-                  </Link>
-                  .
+                <Callout variant="note" title="Who is working right now">
+                  You do not have to poll to know: each tab shows its own turn
+                  status (working, waiting on you, done), with a chime when the
+                  window is focused and a system notification when it is not.
+                  The same signal the orchestrator reads from{" "}
+                  <InlineCode>working</InlineCode> in{" "}
+                  <InlineCode>list-tabs --json</InlineCode>.
                 </Callout>
               </DocsSection>
 
               <DocsSection id="why" title="Why do this in Cockpit">
                 <p>
-                  You could run three terminals — but in Cockpit the whole team
-                  lives in one window. Every agent streams its own work in its own
-                  pane, you watch the orchestrator hand off and the others pick up
-                  in real time, and the layout (and each session&apos;s history)
-                  comes back when you reopen the app. Add a real terminal pane to
-                  run the servers, and the build, the agents, and their
-                  conversation are all in front of you at once.
+                  You could run three terminals, but then nothing connects them.
+                  Here the whole team lives in one window: every agent streams
+                  its own work in its own tab, the orchestrator dispatches and
+                  reads without you copying text around, and the layout comes
+                  back when you reopen the app. Add a terminal tab for the dev
+                  server, and the build, the agents and their traffic are all in
+                  front of you at once.
                 </p>
                 <p>
-                  From here: promote the orchestrator to a{" "}
-                  <Link href="/tutorials/daemon" className="text-accent underline">
-                    24/7 daemon
-                  </Link>{" "}
-                  so the team keeps coordinating in the background, or read{" "}
+                  From here: commit the{" "}
+                  <InlineCode>.ckp</InlineCode> and a{" "}
+                  <InlineCode>.cockpit/tasks.json</InlineCode> so a teammate gets
+                  the same window on clone (
                   <Link
-                    href="/tutorials/mesh-remote"
+                    href="/tutorials/cockpit-layouts"
                     className="text-accent underline"
                   >
-                    Remote mesh
-                  </Link>{" "}
-                  to add a teammate running on a different machine.
+                    Layouts and tasks
+                  </Link>
+                  ), or move the team onto a bigger machine and keep driving it
+                  over SSH (
+                  <Link
+                    href="/docs#remote"
+                    className="text-accent underline"
+                  >
+                    Remote hosts
+                  </Link>
+                  ).
                 </p>
               </DocsSection>
             </article>
 
             <Pager
-              prev={{ href: "/tutorials/mesh-local", label: "Local mesh" }}
-              next={{ href: "/cockpit", label: "Meet Cockpit" }}
+              prev={{
+                href: "/tutorials/cockpit-layouts",
+                label: "Layouts and tasks",
+              }}
+              next={{
+                href: "/tutorials/cockpit-telemetry",
+                label: "Telemetry for agents",
+              }}
             />
           </div>
         </div>

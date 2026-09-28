@@ -174,7 +174,13 @@
       "importFailed": "Could not import tasks. Try again.",
       "copy": "Copy",
       "copyAll": "Copy All",
-      "clearConsole": "Clear Console"
+      "clearConsole": "Clear Console",
+      "generateComposeTasks": "Generate Compose tasks",
+      "selectComposeEngine": "Choose a Compose engine",
+      "noComposeEngine": "Docker Compose or Podman Compose was not found.",
+      "invalidComposeFile": "The active file is not a valid Compose file with services.",
+      "invalidTasksJson": "tasks.json is invalid. No changes were written.",
+      "composeConflicts": "Kept non-Compose tasks with conflicting labels: ${labels}"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Choose the project folder",
@@ -243,7 +249,11 @@
       "dropHereToMove": "Drop here to move the tab",
       "dockAsTab": "Dock as tab",
       "openBrowser": "Open browser",
-      "openTerminal": "Open terminal"
+      "openTerminal": "Open terminal",
+      "openAsLayout": "Open as layout",
+      "openAsYaml": "Open as YAML",
+      "openAsPanel": "Open as panel",
+      "openAsHtml": "Open as HTML"
     },
     "fileTreePanel": {
       "viewDiff": "View Diff",
@@ -300,7 +310,7 @@
       "openLayout": "Open layout",
       "openAsMarkdown": "Open as markdown",
       "showGitDiff": "Show git diff",
-      "createTerminal": "Create terminal",
+      "createTerminal": "Open terminal",
       "rename": "Rename",
       "copy": "Copy",
       "cut": "Cut",
@@ -345,13 +355,20 @@
       "diffNoChanges": "No changes.",
       "diffError": "Could not read the diff: ${detail}",
       "galleryTooltip": "Gallery",
-      "sectionGallery": "GALLERY"
+      "sectionGallery": "GALLERY",
+      "openAsHtml": "Open as HTML",
+      "importQuestionTitle": "Copy here?",
+      "importMessage": "Copy ${count} items into “${dest}”?",
+      "importAction": "Copy",
+      "couldNotImportTitle": "Could not copy",
+      "openInAgent": "Open in ${harness}"
     },
     "fileViewer": {
       "cantOpen": "Can't open this file.",
       "couldNotLoadImage": "Could not load the image.",
       "preview": "Preview",
-      "source": "Source"
+      "source": "Source",
+      "reload": "Reload"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Choose workspace photo",
@@ -764,6 +781,10 @@
       "diagram": {
         "title": "Diagram",
         "description": "A markdown file with a Mermaid diagram: flowcharts, sequences, class models and Gantt charts, rendered in the preview."
+      },
+      "panel": {
+        "title": "Panel",
+        "description": "An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards."
       }
     },
     "notebook": {
@@ -807,6 +828,93 @@
       "deleteTagConfirm": "Remove “${name}” from ${count} notes? The notes stay.",
       "showList": "Show notes list",
       "hideList": "Hide notes list"
+    },
+    "layoutPreview": {
+      "applyFailedTitle": "Could not apply the layout",
+      "applyInCockpit": "Apply in Cockpit",
+      "applyNewWorkspace": "Open as new workspace",
+      "applyTo": "Apply to ${workspace}",
+      "autorunWorktree": "autorun: worktree. This layout is also applied on its own when you create a worktree of the workspace that holds it.",
+      "command": "Command",
+      "folder": "Folder",
+      "noCommand": "no command, opens a shell",
+      "replaceConfirm": "Replace layout",
+      "replaceMessage": "${n} open tabs of this workspace will be closed, including any running work.",
+      "replaceTitle": "Replace the layout of ${workspace}?",
+      "skippedTitle": "Not created on this system",
+      "splitDown": "split down",
+      "splitRight": "split right",
+      "splitTab": "tab",
+      "subtitle": "This layout opens ${n} terminals. Read the commands before applying."
+    },
+    "telemetry": {
+      "tooltip": "Telemetry",
+      "title": "Telemetry",
+      "liveRuns": "${n} live",
+      "noWorkspace": "Open a workspace to see its telemetry.",
+      "empty": "Nothing here yet.",
+      "emptyFiltered": "Nothing here yet.",
+      "searchHint": "Filter cases",
+      "chipOpen": "Open",
+      "chipNew": "New",
+      "chipResolved": "Resolved",
+      "chipIgnored": "Ignored",
+      "chipWarnings": "Warnings",
+      "tagNew": "new",
+      "tagRegression": "regression",
+      "tagResolved": "resolved",
+      "tagIgnored": "ignored",
+      "srcTask": "task",
+      "srcWrapper": "cockpit telemetry",
+      "run": "run ${id}",
+      "resolve": "Mark resolved",
+      "ignore": "Ignore (hide from agents too)",
+      "reopen": "Reopen",
+      "clear": "Clear occurrences",
+      "clearRun": "Clear this run",
+      "clearProject": "Clear project",
+      "openFile": "Open ${location}",
+      "showInTerminal": "Show in terminal",
+      "copyCommand": "Copy CLI command",
+      "copied": "Copied",
+      "statusOpen": "Open",
+      "statusResolved": "Resolved",
+      "statusIgnored": "Ignored",
+      "occurrences": "Occurrences",
+      "inRuns": "in ${n} runs",
+      "first": "First",
+      "last": "Last",
+      "origin": "Origin",
+      "sectionStack": "Stack",
+      "stackHint": "project frames highlighted · click opens the file",
+      "sectionCorrelated": "Correlated log",
+      "correlatedHint": "the closest JSON log before the error, same run",
+      "none": "none",
+      "sectionRuns": "Occurrences by run",
+      "runsHint": "same key (cwd, command): this is how new and regression are computed",
+      "sectionContext": "Raw context",
+      "contextHint": "terminal lines around the last occurrence",
+      "current": "current",
+      "fingerprintHint": "fingerprint = type + normalized message + ${location}",
+      "blameUncommitted": "changed in working tree",
+      "blameCommit": "changed ${ago} (${sha})",
+      "justNow": "just now",
+      "minutesAgo": "${n}m ago",
+      "hoursAgo": "${n}h ago",
+      "daysAgo": "${n}d ago",
+      "resolvedToast": "Resolved. If it comes back in a later run it reappears as a regression.",
+      "ignoredToast": "Ignored. Agents no longer see it (unless --include-ignored).",
+      "clearedToast": "Occurrences deleted. Triage rules are kept.",
+      "byHuman": "by you",
+      "byAgent": "by agent",
+      "caseTabTitle": "${type} · ${file}",
+      "srcApp": "App",
+      "chipApp": "Cockpit"
+    },
+    "panelView": {
+      "unavailable": "Panels need the embedded web view, which is not available on Linux yet.",
+      "openInBrowser": "Open in browser",
+      "openAsHtml": "Open as HTML"
     }
   },
   "settings": {
@@ -852,7 +960,9 @@
           "weekly": "Weekly",
           "monthly": "Monthly",
           "never": "Never"
-        }
+        },
+        "developerModeTitle": "Developer mode",
+        "developerModeDesc": "Records Cockpit’s own errors and warnings in a separate Telemetry store (the “Cockpit” chip) and turns on performance metrics. Only useful to whoever maintains the app."
       },
       "diagnostics": {
         "sectionTitle": "Diagnostics",
@@ -1082,7 +1192,8 @@
       "formatterFailed": "The formatter could not run.",
       "osFailure": "${detail}",
       "nameHasSlash": "Name cannot contain “/”.",
-      "invalidName": "Invalid name."
+      "invalidName": "Invalid name.",
+      "remoteDropUnsupported": "Dropping files into a remote workspace is not supported yet."
     }
   },
   "theme": {

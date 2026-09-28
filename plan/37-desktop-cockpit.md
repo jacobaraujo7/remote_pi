@@ -75,6 +75,8 @@ aparece inteira. Pegadinha conhecida do Flutter desktop — multi-window — é
 desviada porque o layout é **single-window com panes internos**. Subprocesso
 (`Process.start` do `dart:io`) e menu nativo (`PlatformMenuBar`) cobrem o resto.
 
+**Dependências registradas depois (plano 66, telemetria, 2026-09-23):** `sqlite3` + `sqlite3_flutter_libs` (base de telemetria por workspace; conexão própria e longa num Isolate dedicado, porque o `anaki_sqlite` tem slot global por dylib e serializa com a aba de DB). Previstas no mesmo plano: `libc`/`windows-sys` no crate `cli/` (PTY aninhado do wrapper) e `vm_service`.
+
 **Refutados:** Swift nativo (sem reuso, +1 stack, macOS-only); Tauri (tentador
 pelo Rust do `relay/`, mas a UI seria construída do zero num stack de *app web*
 que não existe — o `site/` é Next de marketing); Electron (oposto de consolidar).

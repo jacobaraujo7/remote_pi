@@ -434,6 +434,14 @@ class _GeneralPanel extends StatelessWidget {
                         ),
                       ),
                       _Row(
+                        title: tr.developerModeTitle,
+                        description: tr.developerModeDesc,
+                        trailing: Switch(
+                          value: s.developerMode,
+                          onChanged: controller.setDeveloperMode,
+                        ),
+                      ),
+                      _Row(
                         title: tr.launchAtStartupTitle,
                         description: tr.launchAtStartupDesc,
                         trailing: Switch(

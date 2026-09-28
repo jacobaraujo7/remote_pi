@@ -11,8 +11,9 @@ export function SiteFooter() {
           source under the MIT license.
         </div>
         <nav className="footer-links">
-          <Link href="/cockpit">Cockpit</Link>
+          <Link href="/docs">Docs</Link>
           <Link href="/download">Download</Link>
+          <Link href="/remote-pi">Remote Pi</Link>
           <Link href="/terms">Terms of Service</Link>
           <Link href="/privacy">Privacy Policy</Link>
           <a

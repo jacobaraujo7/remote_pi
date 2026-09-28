@@ -21,18 +21,18 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_mssql
-      sha256: "23a6a16f69f4da718254ac8a4c262b56698b23680e44ef5aa914ade3f969eedd"
+      sha256: b0ba134072359a5fef2760eba6719dc4fac2e99d978cd2cb3e5f290e79dcda4b
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.6"
+    version: "0.1.7"
   anaki_mysql:
     dependency: "direct main"
     description:
       name: anaki_mysql
-      sha256: "4441db23899855e4b5cffb8a8c85f38cc9586e4da6e8b35b0afc81aef086dbce"
+      sha256: "9be22d2201180f9d5ef09b889fe7499664e5b5a6dbd5b6dd9f5112f268c29159"
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.8"
+    version: "0.1.10"
   anaki_orm:
     dependency: "direct main"
     description:
@@ -45,10 +45,10 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_postgres
-      sha256: "1bba18d3a3ba092b40ee21a91878976216105259f90f86b4d3678deb9e9d42c1"
+      sha256: b9cbf7308d794be0347aa0e980686e6c0525815c5edba57977a444737906fce6
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.7"
+    version: "0.1.9"
   anaki_redis:
     dependency: "direct main"
     description:
@@ -61,10 +61,10 @@ packages:
     dependency: "direct main"
     description:
       name: anaki_sqlite
-      sha256: d67b2d6c7f8aa87a5a1bfa24cb713d79216df55ab6e0f23f3aad6ec7860454b2
+      sha256: c9c1e2b15e085102935f071275c379c14556a40a7b85ad5c87672a5f0396fbe5
       url: "https://pub.dev"
     source: hosted
-    version: "0.1.5"
+    version: "0.1.6"
   analyzer:
     dependency: transitive
     description:
@@ -424,8 +424,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/flterm"
-      ref: cockpit-pin-flterm-super-keys
-      resolved-ref: "013679291a619f028efb9b66d3a2f8f172814db7"
+      ref: cockpit-pin-flterm-link-click
+      resolved-ref: "891b2af4199fed478e76137feedeefae7cd38026"
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
     version: "0.0.5"
@@ -829,8 +829,8 @@ packages:
     dependency: "direct main"
     description:
       path: "packages/libghostty"
-      ref: cockpit-pin-flterm-super-keys
-      resolved-ref: "013679291a619f028efb9b66d3a2f8f172814db7"
+      ref: cockpit-pin-flterm-link-click
+      resolved-ref: "891b2af4199fed478e76137feedeefae7cd38026"
       url: "https://github.com/jacobaraujo7/libghostty.git"
     source: git
     version: "0.0.12"
@@ -955,6 +955,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.8.1"
+  native_toolchain_c:
+    dependency: transitive
+    description:
+      name: native_toolchain_c
+      sha256: a1c26117c48cebe5677b0cf0e33a980a79a7c5577effc86f52e5a0d309cdcb60
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.19.3"
   nested:
     dependency: transitive
     description:
@@ -1288,6 +1296,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.2"
+  sqlite3:
+    dependency: "direct main"
+    description:
+      name: sqlite3
+      sha256: fa3fd961e83b2dca8890a7b1014ab1226831d2b5908067c0ab7f385ffb655caf
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.6.0"
+  sqlite3_flutter_libs:
+    dependency: "direct main"
+    description:
+      name: sqlite3_flutter_libs
+      sha256: "3ed7553eee7bb368f8950f58ba29f634e06e813c029aff6a0d60862b96de8454"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.0+eol"
   stack_trace:
     dependency: transitive
     description:
@@ -1481,7 +1505,7 @@ packages:
     source: hosted
     version: "2.4.2"
   vm_service:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: vm_service
       sha256: "5f37239c4851efcef929cea7824e76df7f2f0970aef85d66bbc430afa40e72f0"

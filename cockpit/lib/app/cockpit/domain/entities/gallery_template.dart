@@ -68,6 +68,45 @@ enum GalleryTemplate {
         '</body>\n'
         '</html>\n',
   ),
+  panel(
+    baseName: 'panel',
+    extension: 'panel',
+    iconAsset: 'assets/file_icons/cockpit-panel.svg',
+    content:
+        '---\n'
+        'title: Panel\n'
+        'reload: true\n'
+        '---\n'
+        '<!doctype html>\n'
+        '<html lang="en">\n'
+        '<head>\n'
+        '  <meta charset="utf-8">\n'
+        '  <title>Panel</title>\n'
+        '  <style>\n'
+        '    body { font-family: system-ui, sans-serif; margin: 2rem;\n'
+        '           background: var(--ckp-bg); color: var(--ckp-text); }\n'
+        '    button { padding: 6px 12px; }\n'
+        '    pre { background: var(--ckp-code-bg); padding: 12px; border-radius: 6px; }\n'
+        '  </style>\n'
+        '</head>\n'
+        '<body>\n'
+        '  <h1>Panel</h1>\n'
+        '  <p>Buttons here run Cockpit CLI commands on this machine:\n'
+        '     <code>await cockpit("exec git status")</code>,\n'
+        '     <code>await cockpit("db query main \'select 1\'")</code>,\n'
+        '     <code>await cockpit("list-tabs --json")</code>.</p>\n'
+        '  <button onclick="run()">git status</button>\n'
+        '  <pre id="out"></pre>\n'
+        '  <script>\n'
+        '    async function run() {\n'
+        '      const r = await cockpit("exec git status --short");\n'
+        '      document.getElementById("out").textContent =\n'
+        '        r.ok ? (r.stdout || "(clean)") : r.error;\n'
+        '    }\n'
+        '  </script>\n'
+        '</body>\n'
+        '</html>\n',
+  ),
   httpRequest(
     baseName: 'requests',
     extension: 'http',

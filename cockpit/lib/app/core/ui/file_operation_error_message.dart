@@ -27,6 +27,7 @@ String fileOperationErrorMessage(
     FileOperationErrorKind.cannotMoveIntoItself => tr.cannotMoveIntoItself,
     FileOperationErrorKind.clipboardEmpty => tr.clipboardEmpty,
     FileOperationErrorKind.notScratchTab => tr.notScratchTab,
+    FileOperationErrorKind.remoteDropUnsupported => tr.remoteDropUnsupported,
     FileOperationErrorKind.writeFailed => tr.writeFailed,
     FileOperationErrorKind.formatterEmptyCommand => tr.formatterEmptyCommand,
     FileOperationErrorKind.formatterMissingPlaceholder =>

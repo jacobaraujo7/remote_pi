@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -49,7 +50,7 @@ void main() {
   });
 
   test('runner expõe startWatch/stopWatch sem lançar p/ task sem watch', () {
-    final runner = PtyTaskRunner();
+    final runner = PtyTaskRunner(_NoTelemetry());
     const def = TaskDefinition(
       id: 'x',
       label: 'x',
@@ -60,4 +61,44 @@ void main() {
     expect(() => runner.startWatch(def), returnsNormally);
     expect(() => runner.stopWatch('x'), returnsNormally);
   });
+}
+
+/// Telemetria desligada: o teste só exercita o watch.
+class _NoTelemetry implements TelemetryIngest {
+  @override
+  Stream<TelemetryErrorNotice> get notices => const Stream.empty();
+
+  @override
+  void registerWorkspace(TelemetryWorkspace workspace) {}
+
+  @override
+  TelemetryIngestSession? session(String runId) => null;
+
+  @override
+  Future<TelemetryIngestSession?> openAppRun({required String version}) async =>
+      null;
+
+  @override
+  Future<int?> replay({
+    required String workspaceId,
+    required DateTime since,
+    DateTime? until,
+  }) async => null;
+
+  @override
+  Future<TelemetryIngestSession?> openWrapperRun({
+    required String cwd,
+    required String command,
+    String? name,
+    String? paneId,
+    int? pid,
+  }) async => null;
+
+  @override
+  Future<TelemetryIngestSession?> openTaskRun(
+    TaskDefinition def, {
+    required String command,
+    int? pid,
+    String? paneId,
+  }) async => null;
 }

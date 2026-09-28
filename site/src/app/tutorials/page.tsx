@@ -6,7 +6,7 @@ import { RevealController } from "@/components/landing/reveal-controller";
 export const metadata: Metadata = {
   title: "Tutorials",
   description:
-    "Hands-on guides for Remote Pi: get started with the app, run a local mesh, route across PCs, and keep an agent alive 24/7.",
+    "Hands-on guides for Cockpit: commit the layout and tasks your project opens with, and run a team of agents in one window.",
 };
 
 type Step = {
@@ -21,55 +21,24 @@ type Step = {
 const STEPS: Step[] = [
   {
     n: "1",
-    tag: "01 / 04",
-    title: "Getting started",
-    href: "/tutorials/getting-started",
-    desc: "Install Remote Pi, pair your phone, and drive your first agent from the app.",
+    tag: "01 / 03",
+    title: "Layouts and tasks",
+    href: "/tutorials/cockpit-layouts",
+    desc: "Commit a .ckp layout that opens your terminals and a tasks.json that runs your dev servers, with profiles and reload on save.",
   },
   {
     n: "2",
-    tag: "02 / 04",
-    title: "Local mesh",
-    href: "/tutorials/mesh-local",
-    desc: "Let two agents on the same machine discover each other and trade messages.",
+    tag: "02 / 03",
+    title: "An agent team",
+    href: "/tutorials/cockpit-team",
+    desc: "Run an orchestrator, a backend and a frontend as three agent tabs, each in its own folder, coordinated with the internal cockpit CLI.",
   },
   {
     n: "3",
-    tag: "03 / 04",
-    title: "Remote mesh",
-    href: "/tutorials/mesh-remote",
-    desc: "Route messages between agents on different PCs through the relay.",
-  },
-  {
-    n: "4",
-    tag: "04 / 04",
-    title: "Daemon mode",
-    href: "/tutorials/daemon",
-    desc: "Keep an agent alive 24/7 with the supervisor, then manage the fleet.",
-  },
-];
-
-const EXTRAS: Step[] = [
-  {
-    star: true,
-    tag: "extra",
-    title: "Layouts and tasks in Cockpit",
-    href: "/tutorials/cockpit-layouts",
-    desc: "Commit a .ckp layout that opens your terminals and a tasks.json that runs your dev servers — with profiles and reload on save.",
-  },
-  {
-    star: true,
-    tag: "extra",
-    title: "An agent team in Cockpit",
-    href: "/tutorials/cockpit-team",
-    desc: "Run an orchestrator, backend, and frontend as three panes in Cockpit — each its own folder and AGENTS.md, talking over the remote-pi mesh.",
-  },
-  {
-    star: true,
-    tag: "extra",
-    title: "Claude in the mesh",
-    href: "/tutorials/claude-mesh",
-    desc: "Put Claude Code on the agent mesh next to Pi — advanced, terminal-only (not in the app yet).",
+    tag: "03 / 03",
+    title: "Telemetry for agents",
+    href: "/tutorials/cockpit-telemetry",
+    desc: "A per-workspace error store agents query instead of reading terminals: grouped cases, triage, one CLI.",
   },
 ];
 
@@ -96,25 +65,18 @@ export default function TutorialsIndexPage() {
         <div className="wrap">
           <header className="page-head reveal">
             <span className="eyebrow">Tutorials</span>
-            <h1>Learn Remote Pi by doing.</h1>
+            <h1>Learn Cockpit by doing.</h1>
             <p className="lede">
-              Four hands-on guides, in order. Start with the app, then add
-              agents, cross-PC routing, and a 24/7 supervisor as you need them.
-              For the <em>why</em> behind it,{" "}
-              <Link href="/why">read Why Pi</Link>; for exact flags and config,
-              the <Link href="/docs">reference docs</Link>.
+              Two hands-on guides that take the app past a plain terminal. For
+              every command, file format and flag, the{" "}
+              <Link href="/docs">reference</Link> has the whole picture. Looking
+              for the Remote Pi guides (pairing, mesh, daemons)? They live at{" "}
+              <Link href="/remote-pi/tutorials">/remote-pi/tutorials</Link>.
             </p>
           </header>
 
           <div className="card-list">
             {STEPS.map((s) => (
-              <StepCard key={s.href} s={s} />
-            ))}
-          </div>
-
-          <div className="group-label reveal">Extras</div>
-          <div className="card-list">
-            {EXTRAS.map((s) => (
               <StepCard key={s.href} s={s} />
             ))}
           </div>

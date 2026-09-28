@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
@@ -196,33 +197,40 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
     }
     // Fora do zoom do app (platform view recebe mouse direto do sistema): sem
     // isso a seleção de texto cai deslocada. Ver [UnzoomedNativeView].
-    return UnzoomedNativeView(
-      builder: (context, contentZoom) => InAppWebView(
-        initialData: InAppWebViewInitialData(data: html),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          resourceCustomSchemes: ['ckp-res'],
-          isInspectable: false,
-          transparentBackground: true,
-          pageZoom: contentZoom,
+    return WebViewCover(
+      loaded: _loaded,
+      child: UnzoomedNativeView(
+        builder: (context, contentZoom) => InAppWebView(
+          initialData: InAppWebViewInitialData(data: html),
+          initialUserScripts: kWebViewUserScripts,
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: true,
+            resourceCustomSchemes: ['ckp-res'],
+            isInspectable: false,
+            underPageBackgroundColor: webViewBackground(context),
+            pageZoom: contentZoom,
+          ),
+          onWebViewCreated: (web) {
+            _web = web;
+            WebViewPointerRelay.register(web, context, contentZoom);
+          },
+          onLoadStop: (web, _) {
+            if (mounted) setState(() => _loaded = true);
+            _push();
+          },
+          onLoadResourceWithCustomScheme: _serveLocal,
+          // Link clicado abre no browser do SO — o preview não navega pra fora.
+          shouldOverrideUrlLoading: (web, action) async {
+            final url = action.request.url;
+            if (url == null || url.scheme == 'about' || url.scheme == 'data') {
+              return NavigationActionPolicy.ALLOW;
+            }
+            if (url.scheme == 'http' || url.scheme == 'https') {
+              await launcher.launchUrl(url);
+            }
+            return NavigationActionPolicy.CANCEL;
+          },
         ),
-        onWebViewCreated: (web) => _web = web,
-        onLoadStop: (web, _) {
-          _loaded = true;
-          _push();
-        },
-        onLoadResourceWithCustomScheme: _serveLocal,
-        // Link clicado abre no browser do SO — o preview não navega pra fora.
-        shouldOverrideUrlLoading: (web, action) async {
-          final url = action.request.url;
-          if (url == null || url.scheme == 'about' || url.scheme == 'data') {
-            return NavigationActionPolicy.ALLOW;
-          }
-          if (url.scheme == 'http' || url.scheme == 'https') {
-            await launcher.launchUrl(url);
-          }
-          return NavigationActionPolicy.CANCEL;
-        },
       ),
     );
   }
@@ -230,33 +238,94 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
 
 /// Preview de arquivo `.html`/`.htm` (plano 58): carrega o arquivo direto no
 /// webview, com leitura restrita à raiz do workspace (recursos relativos
-/// funcionam; nada fora da raiz é legível). JS desligado — é um preview de
-/// documento, não um runtime.
-class WebHtmlPreview extends StatelessWidget {
+/// funcionam; nada fora da raiz é legível). JS ligado, sem ponte com o app
+/// (isso é o `.panel`).
+///
+/// Stateful por causa do **reload** (card k39): o webview carrega o arquivo uma
+/// única vez, pelo `initialUrlRequest`, e o path não muda quando o conteúdo
+/// muda no disco. Sem guardar o controller, o preview ficava eternamente na
+/// primeira versão da página. [revision] é o gatilho: o dono muda o valor (o
+/// watcher releu o arquivo, ou o usuário clicou em recarregar) e o webview
+/// recarrega.
+class WebHtmlPreview extends StatefulWidget {
   const WebHtmlPreview({
     super.key,
     required this.path,
     required this.workspaceRoot,
+    this.revision = 0,
   });
 
   final String path;
   final String workspaceRoot;
 
+  /// Muda a cada conteúdo novo em disco (ou clique em recarregar).
+  final int revision;
+
+  @override
+  State<WebHtmlPreview> createState() => _WebHtmlPreviewState();
+}
+
+class _WebHtmlPreviewState extends State<WebHtmlPreview> {
+  InAppWebViewController? _controller;
+  bool _loaded = false;
+
+  /// Recarga pedida antes de o webview existir (troca rápida de aba, arquivo
+  /// que muda durante o load): fica pendente e roda no `onLoadStop`.
+  bool _pending = false;
+
+  @override
+  void didUpdateWidget(WebHtmlPreview old) {
+    super.didUpdateWidget(old);
+    // Path novo = arquivo diferente: a key muda lá em cima e o webview é
+    // recriado, não há o que recarregar.
+    if (widget.path != old.path || widget.revision == old.revision) return;
+    _reload();
+  }
+
+  void _reload() {
+    final c = _controller;
+    if (c == null) {
+      _pending = true;
+      return;
+    }
+    unawaited(c.reload());
+  }
+
   @override
   Widget build(BuildContext context) {
     // Mesmo motivo do preview de markdown: platform view fora do zoom do app.
-    return UnzoomedNativeView(
-      builder: (context, contentZoom) => InAppWebView(
-        key: ValueKey('html:$path'),
-        initialUrlRequest: URLRequest(url: WebUri.uri(Uri.file(path))),
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: false,
-          isInspectable: false,
-          pageZoom: contentZoom,
-          // Leitura restrita à raiz do workspace (loadFileURL:allowingReadAccessTo:).
-          allowingReadAccessTo: workspaceRoot.isEmpty
-              ? null
-              : WebUri.uri(Uri.directory(workspaceRoot)),
+    return WebViewCover(
+      loaded: _loaded,
+      child: UnzoomedNativeView(
+        builder: (context, contentZoom) => InAppWebView(
+          key: ValueKey('html:${widget.path}'),
+          initialUrlRequest: URLRequest(url: WebUri.uri(Uri.file(widget.path))),
+          // User script roda mesmo com JS da página desligado (é do host).
+          initialUserScripts: kWebViewUserScripts,
+          onWebViewCreated: (c) {
+            _controller = c;
+            WebViewPointerRelay.register(c, context, contentZoom);
+            if (_pending) {
+              _pending = false;
+              unawaited(c.reload());
+            }
+          },
+          onLoadStop: (_, _) {
+            if (mounted) setState(() => _loaded = true);
+          },
+          initialSettings: InAppWebViewSettings(
+            // JS ligado: o `javaScriptEnabled: false` do WebKit desliga TAMBÉM
+            // os user scripts do host (sem rubber-band, repasse de hover), e
+            // a página que o agente escreve costuma precisar de JS mesmo.
+            javaScriptEnabled: true,
+            isInspectable: false,
+            underPageBackgroundColor: webViewBackground(context),
+            pageZoom: contentZoom,
+            // Leitura restrita à raiz do workspace (loadFileURL:allowingReadAccessTo:).
+            allowingReadAccessTo: widget.workspaceRoot.isEmpty
+                ? null
+                : WebUri.uri(Uri.directory(widget.workspaceRoot)),
+          ),
         ),
       ),
     );

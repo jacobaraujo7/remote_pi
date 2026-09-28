@@ -25,34 +25,36 @@ const mono = JetBrains_Mono({
   display: "swap",
 });
 
-const siteTagline = "Remote Pi — Your coding agents, in your pocket";
+const siteTagline =
+  "Cockpit: a terminal that grew an IDE around your agents";
 const siteDescription =
-  "Pair your phone once, then drive any Pi coding agent from it — keep a fleet running 24/7 and link every machine into one mesh. Open source, self-hostable.";
+  "Run Claude Code, Codex, Pi or anything else in real terminals, local or on any machine over SSH, with the viewer, diagnostics, git, worktrees and databases they need to work.";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://remote-pi.jacobmoura.work"),
   title: {
     default: siteTagline,
-    template: "%s · Remote Pi",
+    template: "%s · Cockpit",
   },
   description: siteDescription,
-  applicationName: "Remote Pi",
+  applicationName: "Remote Pi Cockpit",
   authors: [{ name: "Flutterando", url: "https://flutterando.com.br" }],
   keywords: [
-    "Remote Pi",
+    "Cockpit",
+    "Remote Pi Cockpit",
     "coding agents",
-    "Pi coding agent",
-    "mobile agent control",
-    "24/7 agent daemon",
-    "agent mesh",
-    "self-hostable relay",
+    "multiplexed terminal",
+    "Claude Code",
+    "Codex CLI",
+    "remote development over SSH",
+    "agent IDE",
   ],
   openGraph: {
     type: "website",
     url: "https://remote-pi.jacobmoura.work",
     title: siteTagline,
     description: siteDescription,
-    siteName: "Remote Pi",
+    siteName: "Remote Pi Cockpit",
   },
   twitter: {
     card: "summary_large_image",

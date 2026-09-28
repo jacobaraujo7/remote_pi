@@ -16,10 +16,4 @@ abstract class FileReader {
   /// arquivo no disco (evita diffs artificiais em arquivos não-UTF-8).
   /// Arquivos novos (scratch) usam [utf8] como padrão.
   Future<bool> write(String path, String content, {Encoding encoding = utf8});
-
-  /// Emite (`void`) sempre que [path] muda no disco (modify/delete), pra o viewer
-  /// reler o conteúdo ao vivo. Stream de longa duração — o consumidor cancela ao
-  /// fechar a aba. Se o watch falhar, devolve um stream vazio (sem live-reload,
-  /// sem crash).
-  Stream<void> watch(String path);
 }

@@ -1,5 +1,27 @@
 # `.cockpit/tasks.json` — Task Run
 
+## Docker Compose e Podman Compose
+
+Ao abrir um YAML local que contenha um mapa `services`, use **Gerar tasks do
+Compose** no cabeçalho do painel. O Cockpit cria ou sincroniza uma task por
+service, com os profiles `up`, `build`, `recreate` e `recreate-deps`. São aceitos
+`docker compose`, `docker-compose`, `podman compose` e `podman-compose`.
+
+As tasks geradas continuam sendo tasks comuns: não há campos proprietários no
+arquivo. Comentários, campos de topo e tasks não relacionadas são preservados.
+Uma task manual com o mesmo label não é sobrescrita. Containers iniciados com
+`up` ou recriação ficam destacados; Stop encerra o service, Restart usa o
+comando Compose e clicar em um service ativo acompanha as últimas 200 linhas de
+logs. Esta integração é local; workspaces remotos continuam lendo o arquivo
+normalmente, sem sincronização automática.
+
+Quando o YAML aberto é referenciado por `include` em um Compose pai, o Cockpit
+usa esse arquivo pai para executar e consultar o projeto. Assim são preservados
+`project_directory`, o `.env` da raiz e os mesmos labels usados nos containers.
+O estado também é reconciliado pelos labels Compose do runtime, permitindo
+reconhecer services iniciados fora do Cockpit mesmo quando `compose ps` não
+consegue interpolar localmente todas as variáveis do arquivo.
+
 O **Task Run** do cockpit roda os comandos de build/dev do seu projeto
 (`npm run dev`, `flutter run`, `go run`, `make`…) com streaming de output, ciclo
 de vida visual (play/stop/restart), teclas interativas e "reload ao salvar".

@@ -44,6 +44,25 @@ class RunningInstance {
     return p.join(dir, 'status$_suffix.sock');
   }
 
+  /// Env pra spawnar a CLI interna `cockpit` a partir da janela solta: PATH com
+  /// o binário app-managed na frente e, no POSIX, o socket deste flavor (a CLI
+  /// já cai no caminho bem conhecido, mas o env evita falar com o app errado
+  /// quando release e debug estão abertos). No Windows a CLI lê
+  /// [statusEndpointFile] sozinha. Sem `COCKPIT_PANE_ID`: a janela não é uma
+  /// aba, e a CLI resolve o workspace pelo que o humano tem selecionado.
+  static Map<String, String> get cliEnvironment {
+    final env = <String, String>{};
+    final bin = cockpitCliDir();
+    if (bin != null) {
+      final existing = Platform.environment['PATH'] ?? '';
+      final sep = Platform.isWindows ? ';' : ':';
+      env['PATH'] = existing.isEmpty ? bin : '$bin$sep$existing';
+    }
+    final sock = _socketPath;
+    if (!Platform.isWindows && sock != null) env['COCKPIT_STATUS_SOCK'] = sock;
+    return env;
+  }
+
   /// Caminhos de arquivo entre os argumentos de linha de comando (o que o
   /// Explorer/xdg-open passam ao "abrir com"). Só existentes e absolutizados
   /// contra o cwd; flags e o protocolo `multi_window` ficam de fora.
@@ -66,6 +85,19 @@ class RunningInstance {
   /// app vivo é antigo e não conhece o comando): siga o boot normal.
   static Future<bool> forwardOpen(List<String> paths) async {
     if (paths.isEmpty) return false;
+    return _send('open-document', {'paths': paths});
+  }
+
+  /// Pede ao app vivo que **aplique** um layout `.ckp`. Quem chama é o botão
+  /// Apply da janela de documento (card do viewer de layout): a janela solta
+  /// mostra o layout, mas quem tem workspaces, abas e panes é a janela
+  /// principal. O app resolve o destino, pede a confirmação e se traz para a
+  /// frente. `false` = ninguém atendeu (app fechado).
+  static Future<bool> forwardApplyLayout(String path) =>
+      _send('apply-layout', {'path': path});
+
+  /// Uma linha JSON no socket da CLI interna, a mesma que o `cockpit` fala.
+  static Future<bool> _send(String cmd, Map<String, Object?> args) async {
     Socket socket;
     String? token;
     try {
@@ -99,9 +131,9 @@ class RunningInstance {
     try {
       final req = <String, Object?>{
         'type': 'cmd',
-        'cmd': 'open-document',
+        'cmd': cmd,
         'tok': ?token,
-        'args': {'paths': paths},
+        'args': args,
       };
       socket.add(utf8.encode('${jsonEncode(req)}\n'));
       await socket.flush();

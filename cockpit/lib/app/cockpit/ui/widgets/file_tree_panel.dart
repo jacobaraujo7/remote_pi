@@ -21,12 +21,17 @@ import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/core/ui/widgets/context_menu_gesture.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:desktop_drop/desktop_drop.dart';
+import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/rendering.dart' show RenderMetaData;
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:path/path.dart' as p;
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -63,6 +68,22 @@ class WorkspaceRoot {
 /// Workspace **multi-root** ([roots] com 2+ itens): a árvore de Files segue
 /// única (raiz do workspace, com os arquivos da própria raiz visíveis); o
 /// Source Control agrega as mudanças de todas as roots, seccionadas por root.
+/// Um agente de CLI instalado, oferecido no menu de pasta como "Open in X":
+/// abre um terminal na pasta já rodando [command].
+class TreeAgentLauncher {
+  const TreeAgentLauncher({
+    required this.label,
+    required this.command,
+    required this.assetPath,
+    required this.monochrome,
+  });
+
+  final String label;
+  final String command;
+  final String assetPath;
+  final bool monochrome;
+}
+
 class FileTreePanel extends StatefulWidget {
   const FileTreePanel({
     super.key,
@@ -87,10 +108,12 @@ class FileTreePanel extends StatefulWidget {
     this.onOpenLayout,
     this.onOpenAsSource,
     required this.onCreateInFolder,
+    this.agentLaunchers = const [],
     required this.onCreate,
     required this.onRename,
     required this.onDelete,
     required this.onMove,
+    this.onImport,
     required this.onCopy,
     required this.onCut,
     required this.onPaste,
@@ -100,6 +123,7 @@ class FileTreePanel extends StatefulWidget {
     this.searchPanel,
     this.databasePanel,
     this.galleryPanel,
+    this.telemetryPanel,
     this.searchFocusSignal,
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
@@ -216,6 +240,10 @@ class FileTreePanel extends StatefulWidget {
   /// Aba Gallery (vitrine de documentos especiais). `null` = sem aba.
   final Widget? galleryPanel;
 
+  /// Modo Telemetry (plano 66): casos agrupados do workspace. `null` = sem
+  /// workspace selecionado (ícone some).
+  final Widget? telemetryPanel;
+
   /// Painel de busca por conteúdo, fixado entre a árvore e o [footer]
   /// (Cmd+Shift+F). `null` quando não há projeto.
   final Widget? searchPanel;
@@ -277,8 +305,13 @@ class FileTreePanel extends StatefulWidget {
   /// Abre um `.kanban` como markdown cru (menu de contexto do arquivo).
   final ValueChanged<String>? onOpenAsSource;
 
-  /// Menu de contexto de uma **pasta**: cria uma aba de terminal nela.
-  final ValueChanged<String> onCreateInFolder;
+  /// Menu de contexto de uma **pasta**: abre uma aba de terminal nela
+  /// ([absolutePath]); [command] é digitado no shell ao subir (agente).
+  final void Function(String absolutePath, {String? command}) onCreateInFolder;
+
+  /// Agentes instalados, um item "Open in X" por entrada (vazio = só o
+  /// terminal).
+  final List<TreeAgentLauncher> agentLaunchers;
 
   /// Cria arquivo (ou pasta) chamado [name] dentro de [parentDir]. Falha → msg.
   final Future<Result<void, FileOperationError>> Function(
@@ -305,6 +338,14 @@ class FileTreePanel extends StatefulWidget {
   )
   onMove;
 
+  /// Drop NATIVO do SO (Finder/Explorer) em [targetDir]: copia (ou move, se a
+  /// origem já é do workspace) cada caminho pra dentro. `null` desliga o alvo.
+  final Future<Result<void, FileOperationError>> Function(
+    List<String> sources,
+    String targetDir,
+  )?
+  onImport;
+
   /// Marca [path] pra copiar (Cmd+C / menu). O paste duplica.
   final ValueChanged<String> onCopy;
 
@@ -328,7 +369,14 @@ class FileTreePanel extends StatefulWidget {
 /// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo,
 /// source control ou conexões de banco (plano 51). Ordem visual no header:
 /// Files · Search · Source Control · Database.
-enum _RightPaneTab { files, search, sourceControl, database, gallery }
+enum _RightPaneTab {
+  files,
+  search,
+  sourceControl,
+  database,
+  gallery,
+  telemetry,
+}
 
 enum _SourceControlView { changes, history }
 
@@ -347,6 +395,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// cada pasta, então o colapso viaja por contador, não por lista de paths.
   int _collapseGen = 0;
   String? _selectedPath;
+
+  /// Pasta realçada durante um drop NATIVO (`null` = nenhuma / raiz).
+  String? _nativeDropFolder;
+  bool _nativeDropOver = false;
 
   /// `true` quando o item selecionado é uma **pasta** (senão é arquivo). Guia o
   /// alvo do New file/New folder do header: pasta selecionada → cria dentro dela;
@@ -838,6 +890,74 @@ class _FileTreePanelState extends State<FileTreePanel> {
   /// sempre antes de tocar o disco. A validação (mesma pasta = no-op, pasta
   /// dentro de si mesma) fica na VM; falha vira dialog. A seleção segue o
   /// novo caminho.
+  // ---- drop nativo (desktop_drop) ------------------------------------------
+
+  /// Pasta da árvore sob [globalPosition], via hit-test dos `MetaData` que
+  /// cada linha de pasta carrega. `null` = espaço vazio / arquivo (→ raiz).
+  String? _nativeDropFolderAt(Offset globalPosition) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      globalPosition,
+      View.of(context).viewId,
+    );
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (target is RenderMetaData && target.metaData is _FolderDropMeta) {
+        return (target.metaData as _FolderDropMeta).path;
+      }
+    }
+    return null;
+  }
+
+  void _setNativeDrop(Offset? globalPosition) {
+    final folder = globalPosition == null
+        ? null
+        : _nativeDropFolderAt(globalPosition);
+    final over = globalPosition != null;
+    if (folder == _nativeDropFolder && over == _nativeDropOver) return;
+    setState(() {
+      _nativeDropFolder = folder;
+      _nativeDropOver = over;
+    });
+  }
+
+  Future<void> _onNativeDrop(DropDoneDetails d) async {
+    final targetDir = _nativeDropFolderAt(d.globalPosition) ?? widget.rootPath;
+    _setNativeDrop(null);
+    final import = widget.onImport;
+    if (import == null || targetDir.isEmpty) return;
+    // `desktop_drop` entrega o caminho nativo (`\` no Windows): canoniza.
+    final sources = d.files
+        .map((f) => normalizePath(f.path))
+        .where((p) => p.isNotEmpty)
+        .toList();
+    if (sources.isEmpty) return;
+    final tr = context.t.cockpit.fileTreePanel;
+    // Um item entra direto; vários pedem confirmação (é fácil soltar sem
+    // querer uma seleção inteira do Finder).
+    if (sources.length > 1) {
+      final destName = targetDir.split('/').where((p) => p.isNotEmpty).last;
+      final ok = await showConfirmDialog(
+        context,
+        title: tr.importQuestionTitle,
+        message: tr.importMessage(count: sources.length, dest: destName),
+        confirmLabel: tr.importAction,
+      );
+      if (!ok || !mounted) return;
+    }
+    final r = await import(sources, targetDir);
+    if (!mounted) return;
+    r.fold(
+      (_) {},
+      (e) => showInfoDialog(
+        context,
+        title: tr.couldNotImportTitle,
+        message: fileOperationErrorMessage(context, e),
+      ),
+    );
+  }
+
   Future<void> _requestMove(String path, String targetDir) async {
     final name = path.split('/').where((p) => p.isNotEmpty).last;
     final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
@@ -1003,6 +1123,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
       onOpenLayout: widget.onOpenLayout,
       onOpenAsSource: widget.onOpenAsSource,
       onCreateInFolder: widget.onCreateInFolder,
+      agentLaunchers: widget.agentLaunchers,
       onStartCreate: _startCreate,
       onCancelCreate: _cancelCreate,
       onCommitCreate: _commitCreate,
@@ -1011,6 +1132,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
       onCommitRename: _commitRename,
       onRequestDelete: _requestDelete,
       onRequestMove: _requestMove,
+      nativeDropFolder: _nativeDropFolder,
       onCopy: widget.onCopy,
       onCut: widget.onCut,
       onRequestPaste: _requestPaste,
@@ -1038,10 +1160,15 @@ class _FileTreePanelState extends State<FileTreePanel> {
     if (tab == _RightPaneTab.gallery && !hasGallery) {
       tab = _RightPaneTab.files;
     }
+    final hasTelemetry = widget.telemetryPanel != null;
+    if (tab == _RightPaneTab.telemetry && !hasTelemetry) {
+      tab = _RightPaneTab.files;
+    }
     final scMode = tab == _RightPaneTab.sourceControl;
     final searchMode = tab == _RightPaneTab.search;
     final dbMode = tab == _RightPaneTab.database;
     final galleryMode = tab == _RightPaneTab.gallery;
+    final telemetryMode = tab == _RightPaneTab.telemetry;
 
     return Container(
       width: widget.width,
@@ -1089,6 +1216,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     tooltip: context.t.cockpit.fileTreePanel.databaseTooltip,
                     selected: dbMode,
                     onTap: () => setState(() => _tab = _RightPaneTab.database),
+                  ),
+                if (hasTelemetry)
+                  _HeaderIcon(
+                    key: const ValueKey('telemetry-tab'),
+                    icon: Icons.monitor_heart_outlined,
+                    tooltip: context.t.cockpit.telemetry.tooltip,
+                    selected: telemetryMode,
+                    onTap: () => setState(() => _tab = _RightPaneTab.telemetry),
                   ),
                 if (hasGallery)
                   _HeaderIcon(
@@ -1174,6 +1309,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 ? (widget.databasePanel ?? const SizedBox.shrink())
                 : galleryMode
                 ? (widget.galleryPanel ?? const SizedBox.shrink())
+                : telemetryMode
+                ? (widget.telemetryPanel ?? const SizedBox.shrink())
                 : scMode
                 ? _sourceControlView == _SourceControlView.history
                       ? GitHistoryPanel(
@@ -1238,52 +1375,62 @@ class _FileTreePanelState extends State<FileTreePanel> {
                             }
                           },
                         )
-                : Focus(
-                    focusNode: _treeFocus,
-                    onKeyEvent: _onTreeKey,
-                    // Soltar no espaço vazio da árvore move pra RAIZ do
-                    // workspace (as pastas, mais internas, capturam antes).
-                    child: DragTarget<String>(
-                      onWillAcceptWithDetails: (d) => d.data != widget.rootPath,
-                      onAcceptWithDetails: (d) =>
-                          _requestMove(d.data, widget.rootPath),
-                      // Tap na área vazia da árvore → deseleciona (o New file/
-                      // folder volta a mirar a raiz). As linhas têm onTap próprio
-                      // (descendentes), então o tap nelas não chega aqui.
-                      builder: (context, candidates, _) => GestureDetector(
-                        behavior: HitTestBehavior.translucent,
-                        onTap: _deselect,
-                        // Botão direito / toque longo no espaço vazio abaixo
-                        // da árvore → menu de PASTA mirando a raiz (novo
-                        // arquivo/pasta, colar, terminal…). As linhas têm o
-                        // gesto próprio (mais interno, vence na arena), então
-                        // só o vazio chega aqui.
-                        child: ContextMenuGesture(
+                : DropTarget(
+                    // Drop NATIVO do SO (Finder/Explorer/GTK): a pasta sob o
+                    // cursor recebe; o espaço vazio manda pra raiz.
+                    enable: widget.onImport != null,
+                    onDragEntered: (d) => _setNativeDrop(d.globalPosition),
+                    onDragUpdated: (d) => _setNativeDrop(d.globalPosition),
+                    onDragExited: (_) => _setNativeDrop(null),
+                    onDragDone: (d) => _onNativeDrop(d),
+                    child: Focus(
+                      focusNode: _treeFocus,
+                      onKeyEvent: _onTreeKey,
+                      // Soltar no espaço vazio da árvore move pra RAIZ do
+                      // workspace (as pastas, mais internas, capturam antes).
+                      child: DragTarget<String>(
+                        onWillAcceptWithDetails: (d) =>
+                            d.data != widget.rootPath,
+                        onAcceptWithDetails: (d) =>
+                            _requestMove(d.data, widget.rootPath),
+                        // Tap na área vazia da árvore → deseleciona (o New file/
+                        // folder volta a mirar a raiz). As linhas têm onTap próprio
+                        // (descendentes), então o tap nelas não chega aqui.
+                        builder: (context, candidates, _) => GestureDetector(
                           behavior: HitTestBehavior.translucent,
-                          onMenu: (pos) => _showNodeMenu(
-                            context,
-                            pos,
-                            _folderMenuSpec(
-                              edit,
-                              path: widget.rootPath,
-                              name: p.basename(widget.rootPath),
+                          onTap: _deselect,
+                          // Botão direito / toque longo no espaço vazio abaixo
+                          // da árvore → menu de PASTA mirando a raiz (novo
+                          // arquivo/pasta, colar, terminal…). As linhas têm o
+                          // gesto próprio (mais interno, vence na arena), então
+                          // só o vazio chega aqui.
+                          child: ContextMenuGesture(
+                            behavior: HitTestBehavior.translucent,
+                            onMenu: (pos) => _showNodeMenu(
+                              context,
+                              pos,
+                              _folderMenuSpec(
+                                edit,
+                                path: widget.rootPath,
+                                name: p.basename(widget.rootPath),
+                              ),
                             ),
-                          ),
-                          child: SingleChildScrollView(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 8,
-                              horizontal: 6,
-                            ),
-                            // Árvore única da raiz do workspace, mesmo em
-                            // multi-root; a coloração git resolve a root dona
-                            // por caminho absoluto, e a divisão por repo vive
-                            // no Source Control (lá é onde importa).
-                            child: _DirView(
-                              path: widget.rootPath,
-                              rootPath: widget.rootPath,
-                              depth: 0,
-                              refreshToken: _refreshToken,
-                              edit: edit,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8,
+                                horizontal: 6,
+                              ),
+                              // Árvore única da raiz do workspace, mesmo em
+                              // multi-root; a coloração git resolve a root dona
+                              // por caminho absoluto, e a divisão por repo vive
+                              // no Source Control (lá é onde importa).
+                              child: _DirView(
+                                path: widget.rootPath,
+                                rootPath: widget.rootPath,
+                                depth: 0,
+                                refreshToken: _refreshToken,
+                                edit: edit,
+                              ),
                             ),
                           ),
                         ),
@@ -1625,6 +1772,7 @@ class _TreeEdit {
     this.onOpenLayout,
     this.onOpenAsSource,
     required this.onCreateInFolder,
+    required this.agentLaunchers,
     required this.onStartCreate,
     required this.onCancelCreate,
     required this.onCommitCreate,
@@ -1633,6 +1781,7 @@ class _TreeEdit {
     required this.onCommitRename,
     required this.onRequestDelete,
     required this.onRequestMove,
+    required this.nativeDropFolder,
     required this.onCopy,
     required this.onCut,
     required this.onRequestPaste,
@@ -1666,7 +1815,8 @@ class _TreeEdit {
   final ValueChanged<String>? onOpenInWindow;
   final ValueChanged<String>? onOpenLayout;
   final ValueChanged<String>? onOpenAsSource;
-  final ValueChanged<String> onCreateInFolder;
+  final void Function(String absolutePath, {String? command}) onCreateInFolder;
+  final List<TreeAgentLauncher> agentLaunchers;
 
   final void Function(String parentPath, bool isFolder) onStartCreate;
   final VoidCallback onCancelCreate;
@@ -1681,6 +1831,10 @@ class _TreeEdit {
 
   /// Drop de um caminho arrastado numa pasta-alvo → move pra dentro dela.
   final void Function(String path, String targetDir) onRequestMove;
+
+  /// Pasta sob o cursor durante um drop NATIVO (Finder/Explorer); `null` fora
+  /// de pasta. Só realce: quem executa é o `DropTarget` do painel.
+  final String? nativeDropFolder;
 
   /// Copiar / recortar o caminho pro clipboard interno da árvore.
   final ValueChanged<String> onCopy;
@@ -1826,7 +1980,8 @@ class _DirViewState extends State<_DirView> {
                       : () => edit.onOpenLayout!(node.path),
                   onOpenAsSource:
                       edit.onOpenAsSource == null ||
-                          !node.name.toLowerCase().endsWith('.kanban')
+                          !(node.name.toLowerCase().endsWith('.kanban') ||
+                              node.name.toLowerCase().endsWith('.panel'))
                       ? null
                       : () => edit.onOpenAsSource!(node.path),
                   onStartRename: () => edit.onStartRename(node.path),
@@ -1967,7 +2122,8 @@ class _FolderState extends State<_Folder> {
           !widget.node.path.startsWith('${d.data}/'),
       onAcceptWithDetails: (d) => edit.onRequestMove(d.data, widget.node.path),
       builder: (context, candidates, _) => Container(
-        decoration: candidates.isNotEmpty
+        decoration:
+            candidates.isNotEmpty || edit.nativeDropFolder == widget.node.path
             ? BoxDecoration(
                 color: context.colors.panel2,
                 borderRadius: BorderRadius.circular(5),
@@ -1984,6 +2140,7 @@ class _FolderState extends State<_Folder> {
           renaming: edit.renaming == widget.node.path,
           gitStatus: edit.gitStatusOf(widget.node.path),
           onCreateInFolder: edit.onCreateInFolder,
+          agentLaunchers: edit.agentLaunchers,
           onNewFile: () => edit.onStartCreate(widget.node.path, false),
           onNewFolder: () => edit.onStartCreate(widget.node.path, true),
           onOpenWith: () => edit.onOpenWith(widget.node.path),
@@ -2010,7 +2167,12 @@ class _FolderState extends State<_Folder> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        row,
+        // Marca a linha pro hit-test do drop NATIVO (ver `_nativeDropFolderAt`).
+        MetaData(
+          metaData: _FolderDropMeta(widget.node.path),
+          behavior: HitTestBehavior.translucent,
+          child: row,
+        ),
         if (expanded)
           _DirView(
             path: widget.node.path,
@@ -2050,6 +2212,7 @@ _Row _folderMenuSpec(
   path: path,
   rootPath: path,
   onCreateInFolder: edit.onCreateInFolder,
+  agentLaunchers: edit.agentLaunchers,
   onNewFile: () => edit.onStartCreate(path, false),
   onNewFolder: () => edit.onStartCreate(path, true),
   onOpenWith: () => edit.onOpenWith(path),
@@ -2095,11 +2258,14 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
             label: tr.openInNewWindow,
             icon: Icons.open_in_browser,
           ),
-        // Só arquivos `.kanban`: escapa do quadro e edita o markdown cru.
+        // Só `.kanban` (markdown cru) e `.panel` (HTML cru): escapa do
+        // renderizador próprio e edita a fonte.
         if (widget.onOpenAsSource != null)
           AppMenuItem(
             value: 'as-source',
-            label: tr.openAsMarkdown,
+            label: widget.name.toLowerCase().endsWith('.panel')
+                ? tr.openAsHtml
+                : tr.openAsMarkdown,
             icon: Icons.notes_outlined,
           ),
         // Só arquivos `.ckp`: aplica o layout de orquestração de panes.
@@ -2141,6 +2307,21 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
           label: tr.createTerminal,
           icon: Icons.terminal_outlined,
         ),
+        // Um "Open in X" por agente instalado: terminal na pasta já rodando
+        // o CLI do agente.
+        for (final a in widget.agentLaunchers)
+          AppMenuItem(
+            value: 'agent:${a.command}',
+            label: tr.openInAgent(harness: a.label),
+            leading: SvgPicture.asset(
+              a.assetPath,
+              width: 15,
+              height: 15,
+              colorFilter: a.monochrome
+                  ? ColorFilter.mode(context.colors.text, BlendMode.srcIn)
+                  : null,
+            ),
+          ),
       ],
       if (isFolder)
         AppMenuItem(
@@ -2207,7 +2388,12 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       case 'newfolder':
         widget.onNewFolder?.call();
       case 'terminal':
-        widget.onCreateInFolder?.call(_relativeOf(widget));
+        widget.onCreateInFolder?.call(widget.path);
+      case final String v when v.startsWith('agent:'):
+        widget.onCreateInFolder?.call(
+          widget.path,
+          command: v.substring('agent:'.length),
+        );
       case 'rename':
         widget.onStartRename?.call();
       case 'delete':
@@ -2244,6 +2430,7 @@ class _Row extends StatefulWidget {
     this.onOpenLayout,
     this.onOpenAsSource,
     this.onCreateInFolder,
+    this.agentLaunchers = const [],
     this.onNewFile,
     this.onNewFolder,
     this.onStartRename,
@@ -2279,8 +2466,11 @@ class _Row extends StatefulWidget {
   final VoidCallback? onOpenLayout;
   final VoidCallback? onOpenAsSource;
 
-  /// Só pastas: criar terminal nela (caminho relativo).
-  final ValueChanged<String>? onCreateInFolder;
+  /// Só pastas: abrir terminal nela (caminho ABSOLUTO); [command] = agente.
+  final void Function(String absolutePath, {String? command})? onCreateInFolder;
+
+  /// Só pastas: agentes instalados ("Open in X").
+  final List<TreeAgentLauncher> agentLaunchers;
 
   /// Só pastas: iniciar criação inline de arquivo/pasta dentro dela.
   final VoidCallback? onNewFile;
@@ -3543,4 +3733,12 @@ class _FileChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Marcador de hit-test das linhas de PASTA pro drop nativo: o `DropTarget`
+/// do painel só sabe a posição do cursor, então descobre a pasta-alvo
+/// procurando este `MetaData` no caminho do hit-test.
+class _FolderDropMeta {
+  const _FolderDropMeta(this.path);
+  final String path;
 }

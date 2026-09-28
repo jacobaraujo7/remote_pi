@@ -20,6 +20,28 @@ import 'package:flutter/foundation.dart';
 /// processo pode morrer no instante seguinte — `writeAsStringSync` garante que o
 /// registro chegou ao disco antes disso. Escrita assíncrona se perderia
 /// exatamente no caso que mais interessa.
+enum DiagnosticsLevel { info, warn, error }
+
+/// Um registro do [DiagnosticsLog] já classificado, entregue ao
+/// [DiagnosticsLog.telemetrySink].
+class DiagnosticsRecord {
+  DiagnosticsRecord(
+    this.level,
+    this.tag,
+    this.message, {
+    this.error,
+    this.stack,
+    DateTime? at,
+  }) : at = at ?? DateTime.now();
+
+  final DiagnosticsLevel level;
+  final String tag;
+  final String message;
+  final Object? error;
+  final StackTrace? stack;
+  final DateTime at;
+}
+
 class DiagnosticsLog {
   DiagnosticsLog._();
 
@@ -94,8 +116,39 @@ class DiagnosticsLog {
     }
   }
 
+  /// Versão do app informada no [init] (`null` antes dele).
+  String? get appVersion => _appVersion;
+
+  /// Espelho opcional na Telemetria (plano 68): quem registra recebe cada
+  /// `log`/`warn`/`logError` já classificado. O arquivo continua sendo
+  /// escrito antes (o sink pode não existir ou falhar).
+  void Function(DiagnosticsRecord record)? telemetrySink;
+
   /// Registra uma linha de contexto (não-erro).
-  void log(String tag, String message) => _append('[$tag] $message');
+  void log(String tag, String message) {
+    _append('[$tag] $message');
+    _mirror(DiagnosticsRecord(DiagnosticsLevel.info, tag, message));
+  }
+
+  /// Registra um AVISO: algo que o código contornou (fallback, retry,
+  /// descarte) mas que vale saber que aconteceu. É o substituto do
+  /// `catch (_) {}` mudo: [error]/[stack] são opcionais, mas quando há uma
+  /// exceção na mão, passe (vira fingerprint e location na Telemetria).
+  void warn(String tag, String message, {Object? error, StackTrace? stack}) {
+    final buffer = StringBuffer('[$tag] warn: $message');
+    if (error != null) buffer.write(' ($error)');
+    if (stack != null) buffer.write('\n$stack');
+    _append(buffer.toString());
+    _mirror(
+      DiagnosticsRecord(
+        DiagnosticsLevel.warn,
+        tag,
+        message,
+        error: error,
+        stack: stack,
+      ),
+    );
+  }
 
   /// Registra um erro com stack trace. [tag] identifica a origem (`flutter`,
   /// `zone`, `isolate`, `platform`) para dar pra separar depois.
@@ -103,6 +156,26 @@ class DiagnosticsLog {
     final buffer = StringBuffer('[$tag] $error');
     if (stack != null) buffer.write('\n$stack');
     _append(buffer.toString());
+    _mirror(
+      DiagnosticsRecord(
+        DiagnosticsLevel.error,
+        tag,
+        error.toString(),
+        error: error,
+        stack: stack,
+      ),
+    );
+  }
+
+  void _mirror(DiagnosticsRecord record) {
+    final sink = telemetrySink;
+    if (sink == null) return;
+    try {
+      sink(record);
+    } on Object catch (_) {
+      // O espelho nunca pode derrubar quem loga (inclusive o próprio handler
+      // de erro global).
+    }
   }
 
   /// Marca esta sessão como encerrada normalmente. Precisa ser chamado em

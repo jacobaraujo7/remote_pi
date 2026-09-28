@@ -16,6 +16,8 @@ import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/telemetry_case_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/telemetry_case_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -31,6 +33,8 @@ import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
@@ -172,6 +176,7 @@ IconData _tabIcon(PaneItem? item) {
   if (item is NeovimSession) return Icons.edit_note_outlined;
   if (item is TerminalSession) return Icons.terminal_outlined;
   if (item is TaskOutputSession) return Icons.play_circle_outline;
+  if (item is TelemetryCaseSession) return Icons.monitor_heart_outlined;
   if (item is FileViewerSession) return Icons.description_outlined;
   if (item is DiffViewerSession) return Icons.difference_outlined;
   if (item is RedisBrowserSession) return Icons.grid_on_outlined;
@@ -723,8 +728,13 @@ class _TabState extends State<_Tab> {
     final s = widget.item;
     if (s == null) return;
     final viewer = s is FileViewerSession ? s : null;
+    final notebook = s is NotebookSession ? s : null;
     final isPreview = viewer?.isPreview ?? false;
     final terminal = s is TerminalSession ? s : null;
+    // Janela de documento: desktop e workspace local (ver `canOpenInWindow`).
+    final canOpenWindow =
+        !isMobilePlatform &&
+        context.read<CockpitViewModel>().canOpenInWindow(s.projectId);
 
     final tr = context.t.cockpit.paneView;
     final value = await showAppMenu<String>(
@@ -743,7 +753,7 @@ class _TabState extends State<_Tab> {
         if (viewer != null) ...[
           // Move o arquivo pra uma janela de documento: a aba daqui fecha
           // (com a mesma confirmação de edição não salva do ⌘W).
-          if (!isMobilePlatform && !viewer.scratch)
+          if (canOpenWindow && !viewer.scratch)
             AppMenuItem(
               value: 'open-window',
               label: tr.openInNewWindow,
@@ -769,6 +779,25 @@ class _TabState extends State<_Tab> {
               icon: viewer.rawSource
                   ? Icons.view_column_outlined
                   : Icons.notes_outlined,
+            ),
+          // Mesma saída de emergência no `.ckp`: ler/editar o YAML do layout
+          // em vez do preview.
+          if (viewer.path.toLowerCase().endsWith('.ckp'))
+            AppMenuItem(
+              value: 'raw-source',
+              label: viewer.rawSource ? tr.openAsLayout : tr.openAsYaml,
+              icon: viewer.rawSource
+                  ? Icons.dashboard_outlined
+                  : Icons.notes_outlined,
+            ),
+          // E no `.panel`: ver/editar o HTML em vez da página viva.
+          if (viewer.path.toLowerCase().endsWith('.panel'))
+            AppMenuItem(
+              value: 'raw-source',
+              label: viewer.rawSource ? tr.openAsPanel : tr.openAsHtml,
+              icon: viewer.rawSource
+                  ? Icons.web_asset_outlined
+                  : Icons.code_outlined,
             ),
         ],
         // Só em abas de terminal: o id (pane id) copiável pra usar na CLI
@@ -799,6 +828,13 @@ class _TabState extends State<_Tab> {
             icon: Icons.refresh,
           ),
         ],
+        // Caderno também sai pra uma janela própria (a pasta inteira).
+        if (notebook != null && canOpenWindow)
+          AppMenuItem(
+            value: 'open-window',
+            label: tr.openInNewWindow,
+            icon: Icons.open_in_browser,
+          ),
         AppMenuItem(value: 'close', label: tr.close, icon: Icons.close),
         if (widget.onCloseOthers != null)
           AppMenuItem(
@@ -825,8 +861,9 @@ class _TabState extends State<_Tab> {
       case 'pin':
         if (viewer != null) viewer.pin();
       case 'open-window':
-        if (viewer != null) {
-          unawaited(DocumentWindows.open(viewer.path));
+        final path = viewer?.path ?? notebook?.path;
+        if (path != null) {
+          unawaited(DocumentWindows.open(path));
           await _requestClose();
         }
       case 'copy-id':
@@ -926,8 +963,14 @@ class _TabState extends State<_Tab> {
           padding: const EdgeInsets.only(left: 11, right: 7),
           child: Row(
             children: [
+              // Ícone pelo NOME DO ARQUIVO, não pelo título: `.panel`/`.ckp`
+              // trocam o título da aba pelo `title:` do front-matter, e sem a
+              // extensão o ícone caía no genérico.
               if (s is FileViewerSession)
-                FileTypeIcon.file(s.title, size: 15)
+                FileTypeIcon.file(
+                  s.scratch ? s.title : s.path.split('/').last,
+                  size: 15,
+                )
               // Browsers de banco usam o logo de marca do engine (plano 52/53).
               else if (s is RedisBrowserSession)
                 const DbEngineIcon(DbEngine.redis, size: 14)
@@ -1704,6 +1747,48 @@ class _PaneBodyState extends State<_PaneBody> {
       );
     }
 
+    // Tab de layout `.ckp`: preview do que o layout vai fazer + botão Apply
+    // com o destino escrito nele. Nunca aplica sozinho — um `.ckp` tem um
+    // `command` por pane, então abrir o arquivo é inspecionar, não executar.
+    // `rawSource` (menu da aba) cai no editor de texto, igual ao `.kanban`.
+    if (item is FileViewerSession && item.path.toLowerCase().endsWith('.ckp')) {
+      final vm = context.read<CockpitViewModel>();
+      return ListenableBuilder(
+        listenable: item,
+        builder: (context, _) => item.rawSource
+            ? FileViewer(
+                session: item,
+                active: widget.active,
+                focused: widget.focused,
+                onSave: (content) => vm.saveFile(item.id, content),
+              )
+            : LayoutPreviewTab(session: item),
+      );
+    }
+
+    // Tab de painel `.panel` (plano 67): HTML vivo numa webview com a ponte
+    // `window.cockpit(line)` → `cockpit <line>` na máquina. `rawSource` (menu
+    // da aba) cai no editor de texto, igual ao `.kanban`/`.ckp`.
+    if (item is FileViewerSession &&
+        item.path.toLowerCase().endsWith('.panel')) {
+      final vm = context.read<CockpitViewModel>();
+      return ListenableBuilder(
+        listenable: item,
+        builder: (context, _) => item.rawSource
+            ? FileViewer(
+                session: item,
+                active: widget.active,
+                focused: widget.focused,
+                onSave: (content) => vm.saveFile(item.id, content),
+              )
+            : PanelView(
+                session: item,
+                onCall: (line, cwd) =>
+                    vm.runPanelCommand(line, sessionId: item.id, cwd: cwd),
+              ),
+      );
+    }
+
     // Tab de query `.dbq` (plano 51): editor SQL + grid de resultado. Reusa a
     // FileViewerSession (preview/dirty/watch/persistência de graça); só o
     // render diverge.
@@ -1731,6 +1816,10 @@ class _PaneBodyState extends State<_PaneBody> {
     }
 
     // Terminal: só o TerminalView (ele se atualiza sozinho pelo Terminal model).
+    if (item is TelemetryCaseSession) {
+      return TelemetryCaseView(session: item);
+    }
+
     if (item is TaskOutputSession) {
       // Aba read-only: renderiza o terminal compartilhado (dono = store), sem
       // ligar teclado/onOutput. Fechar a aba não toca no buffer nem na task.

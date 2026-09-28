@@ -44,6 +44,7 @@ class LayoutSpec {
     required this.name,
     required this.panes,
     this.autorunWorktree = false,
+    this.skippedByPlatform = const [],
   });
 
   /// Nome do layout — basename do arquivo sem a extensão.
@@ -53,7 +54,13 @@ class LayoutSpec {
   /// worktree do workspace que contém o arquivo.
   final bool autorunWorktree;
 
+  /// Panes **aplicáveis** neste SO (o filtro de `platforms` já rodou).
   final List<LayoutPane> panes;
+
+  /// Panes declarados no arquivo que este SO não cria (`platforms` não bate).
+  /// Fora de [panes] de propósito — quem aplica ignora; quem **mostra** o
+  /// layout (o preview) lista como "não roda aqui".
+  final List<LayoutPane> skippedByPlatform;
 }
 
 /// Como um layout entra no workspace.

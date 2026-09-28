@@ -32,7 +32,7 @@ concurrency:
 
 env:
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-  FLUTTER_VERSION: "3.47.3"
+  FLUTTER_VERSION: "3.47.5"
 
 jobs:
   meta:

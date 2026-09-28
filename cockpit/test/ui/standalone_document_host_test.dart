@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/filesystem/disk_file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/document/standalone_document_host.dart';
 import 'package:cockpit/app/core/domain/result.dart';
@@ -23,14 +24,20 @@ void main() {
       final loose = File('${tmp.path}/loose.md')..writeAsStringSync('');
       expect(StandaloneDocumentHost.findWorkspaceRoot(loose.path), tmp.path);
 
-      final host = StandaloneDocumentHost(workspaceRoot: repo.path);
+      final host = StandaloneDocumentHost(
+        workspaceRoot: repo.path,
+        changes: const DiskFileChangeWatcher(),
+      );
       expect(host.displayPath('', file.path), 'docs/notes/x.md');
       expect(host.displayPath('', loose.path), loose.path);
     },
   );
 
   test('filesystem: lista (pastas primeiro), lê, grava e apaga', () async {
-    final host = StandaloneDocumentHost(workspaceRoot: tmp.path);
+    final host = StandaloneDocumentHost(
+      workspaceRoot: tmp.path,
+      changes: const DiskFileChangeWatcher(),
+    );
     await Directory('${tmp.path}/b-dir').create();
     await File('${tmp.path}/a.txt').writeAsString('a');
     final kids = await host.listChildren(tmp.path);
@@ -50,7 +57,10 @@ void main() {
   });
 
   test('LSP e SCM são no-ops seguros', () async {
-    final host = StandaloneDocumentHost(workspaceRoot: '');
+    final host = StandaloneDocumentHost(
+      workspaceRoot: '',
+      changes: const DiskFileChangeWatcher(),
+    );
     await host.lspOpenDocument('/x', '', '');
     expect(await host.lspFormat('/x', 'a'), isEmpty);
     expect((await host.lspSemanticTokensFull('/x')).tokens, isEmpty);

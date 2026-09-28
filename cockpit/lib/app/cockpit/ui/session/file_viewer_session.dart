@@ -48,10 +48,21 @@ class FileViewerSession extends PaneItem {
   String path;
 
   // Título e cwd derivam do path → seguem o rename automaticamente.
+  /// Título vindo do próprio documento (front-matter `title:` de um `.panel`).
+  /// `null` = nome do arquivo. Quem parseia o arquivo o define via
+  /// [setDocumentTitle]; muda com o conteúdo, então segue o watcher.
+  String? documentTitle;
+
+  void setDocumentTitle(String? value) {
+    if (value == documentTitle) return;
+    documentTitle = value;
+    notifyListeners();
+  }
+
   @override
   String get title => scratch
       ? (scratchTitle ?? 'Untitled')
-      : path.split('/').where((p) => p.isNotEmpty).last;
+      : (documentTitle ?? path.split('/').where((p) => p.isNotEmpty).last);
   @override
   String get workingDirectory =>
       path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : path;
@@ -68,6 +79,15 @@ class FileViewerSession extends PaneItem {
   /// Conteúdo atual. **Mutável**: a VM reatribui ao detectar mudança no disco
   /// (file watcher — plan/42 follow-up), e o `notifyListeners` reconstrói a aba.
   FileView view;
+
+  /// Adota [fresh], relido do disco, e avisa quem escuta a sessão. É o único
+  /// caminho para uma mudança EXTERNA: o quadro do `.kanban` só reprocessa o
+  /// conteúdo no listener da sessão, então trocar [view] sem notificar deixava
+  /// o quadro congelado (foi o bug da janela de documento).
+  void adoptDisk(FileView fresh) {
+    view = fresh;
+    notifyListeners();
+  }
 
   /// `true` quando o editor tem alterações não gravadas. Dirige o indicador da
   /// aba (bolinha no lugar do X) e o dialog de "fechar sem salvar". O `FileViewer`

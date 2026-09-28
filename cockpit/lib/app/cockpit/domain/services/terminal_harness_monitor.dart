@@ -4,7 +4,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart'
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/services/process_tree_resolver.dart';
-import 'package:cockpit/app/core/data/diagnostics/linux_performance_diagnostics.dart';
+import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 
 class SessionAnchor {
   final String sessionId;
@@ -192,9 +192,9 @@ class TerminalHarnessMonitor {
     } catch (_) {
       // Fallback silently on error
     } finally {
-      LinuxPerformanceDiagnostics.instance.record(LinuxPerfMetric.processScan, {
-        LinuxPerfField.durationUs: stopwatch.elapsedMicroseconds,
-        LinuxPerfField.sessions: _anchors.length,
+      PerformanceDiagnostics.instance.record(PerfMetric.processScan, {
+        PerfField.durationUs: stopwatch.elapsedMicroseconds,
+        PerfField.sessions: _anchors.length,
       });
       _inFlight = false;
       if (_pendingPoll && _anchors.isNotEmpty) {

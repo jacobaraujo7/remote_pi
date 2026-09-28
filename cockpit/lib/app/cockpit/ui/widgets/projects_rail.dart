@@ -498,12 +498,12 @@ class _ProjectsRailState extends State<ProjectsRail> {
                     onManage: widget.onManageRealms,
                   ),
                 ),
+                const _KeepAwakeButton(),
                 _SmallIcon(
                   icon: Icons.settings_outlined,
                   tooltip: context.t.cockpit.projectsRail.settings,
                   onTap: widget.onOpenSettings,
                 ),
-                const _KeepAwakeButton(),
               ],
             ),
           ),

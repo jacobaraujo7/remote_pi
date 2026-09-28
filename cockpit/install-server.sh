@@ -5,7 +5,7 @@
 #
 #   curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash
 #   curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash -s -- --service
-#   COCKPIT_VERSION=1.28.33 curl -fsSL ... | bash
+#   COCKPIT_VERSION=2.0.0 curl -fsSL ... | bash
 #
 # Canonical file: cockpit/install-server.sh in the repo; the site URL above
 # redirects to the GitHub raw of this file:

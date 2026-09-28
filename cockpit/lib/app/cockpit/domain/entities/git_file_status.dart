@@ -30,4 +30,17 @@ enum GitFileStatus {
     if (b == null) return a;
     return a.index >= b.index ? a : b;
   }
+
+  /// Como o estado de um DESCENDENTE contribui para a cor de uma pasta.
+  /// Deleção não sobe como deleção: o arquivo removido nem aparece na árvore,
+  /// e pintar a pasta de vermelho por causa dele escondia os arquivos novos
+  /// ao lado (pasta com um `rm` e três arquivos criados ficava "excluída").
+  /// Para a pasta, uma remoção é uma mudança comum. Conflito segue subindo.
+  static GitFileStatus? strongestForFolder(
+    GitFileStatus? folder,
+    GitFileStatus child,
+  ) => strongest(
+    folder,
+    child == GitFileStatus.deleted ? GitFileStatus.modified : child,
+  );
 }

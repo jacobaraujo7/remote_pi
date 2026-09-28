@@ -367,7 +367,13 @@ class RemoteHostConnector {
       identityFile: host.effectiveIdentityFile,
     );
 
-    final probe = await probeHost(exec);
+    final HostProbe? probe;
+    try {
+      probe = await probeHost(exec);
+    } on HostUnreachableException catch (e) {
+      _setPhase(RemoteHostPhase.failed);
+      throw RemoteHostException(RemoteHostErrorKind.sshUnreachable, e.detail);
+    }
     if (probe == null) {
       _setPhase(RemoteHostPhase.failed);
       throw const RemoteHostException(RemoteHostErrorKind.hostUnknownOs);
@@ -466,7 +472,12 @@ class RemoteHostConnector {
         List<int>? stdinBytes,
       }) => conn.runDetailed(command);
 
-      final probe = await probeHost(exec);
+      final HostProbe? probe;
+      try {
+        probe = await probeHost(exec);
+      } on HostUnreachableException catch (e) {
+        throw RemoteHostException(RemoteHostErrorKind.sshUnreachable, e.detail);
+      }
       if (probe == null) {
         throw const RemoteHostException(RemoteHostErrorKind.hostUnknownOs);
       }

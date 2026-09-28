@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Cockpit .panel: tile preto; janela com barra de título e um botão
+       "play" dentro (a página que executa coisas). -->
+  <rect x="1" y="1" width="30" height="30" rx="7" fill="#0B0B0C"/>
+  <rect x="6" y="7" width="20" height="18" rx="2.5" fill="#FFFFFF"/>
+  <rect x="6" y="7" width="20" height="4.5" rx="2.5" fill="#0B0B0C" opacity="0.25"/>
+  <circle cx="8.6" cy="9.25" r="0.9" fill="#0B0B0C" opacity="0.7"/>
+  <circle cx="11.2" cy="9.25" r="0.9" fill="#0B0B0C" opacity="0.7"/>
+  <path d="M13.8 14.2v8l6.4-4z" fill="#0B0B0C"/>
+</svg>

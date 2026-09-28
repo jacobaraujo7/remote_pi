@@ -269,7 +269,7 @@ cockpit send --tab-id "$id" --enter "npm run build"`}
                   declared, <InlineCode>npm:&lt;script&gt;</InlineCode> and{" "}
                   <InlineCode>flutter:run</InlineCode> for detected ones. The
                   full command surface is in the{" "}
-                  <Link href="/cockpit/docs#cli" className="text-accent underline">
+                  <Link href="/docs#cli" className="text-accent underline">
                     Cockpit reference
                   </Link>
                   .
@@ -299,7 +299,7 @@ cockpit send --tab-id "$id" --enter "npm run build"`}
                     put a team of agents
                   </Link>{" "}
                   into those panes, or read the{" "}
-                  <Link href="/cockpit/docs" className="text-accent underline">
+                  <Link href="/docs" className="text-accent underline">
                     Cockpit reference
                   </Link>{" "}
                   for every field, flag, and the theme format.
@@ -308,7 +308,7 @@ cockpit send --tab-id "$id" --enter "npm run build"`}
             </article>
 
             <Pager
-              prev={{ href: "/cockpit", label: "Meet Cockpit" }}
+              prev={{ href: "/", label: "Meet Cockpit" }}
               next={{
                 href: "/tutorials/cockpit-team",
                 label: "An agent team in Cockpit",

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
@@ -25,6 +26,7 @@ import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
+import 'package:cockpit/app/core/utils/shell_command.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
@@ -40,6 +42,7 @@ import 'package:cockpit/app/cockpit/ui/session/terminal_read_window.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart' show SplitDir;
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/telemetry_cli_handler.dart';
 
 /// Atende os comandos da CLI interna `cockpit` (mesmo socket do
 /// `TerminalStatusServer`), extraído do `CockpitViewModel` (refactor
@@ -54,9 +57,11 @@ class CockpitCliHandler {
     this._tasks,
     this._taskRuns,
     this._taskTerms,
+    this._telemetry,
   );
 
   final CockpitViewModel _vm;
+  final TelemetryCliHandler _telemetry;
   final DbQueryService _db;
   final HttpRequestRunner _http;
   final TaskDiscovery _tasks;
@@ -130,6 +135,16 @@ class CockpitCliHandler {
     if (c == null) {
       return const CockpitCommandResult.fail(
         'no focused tab (is a workspace open?)',
+      );
+    }
+    // Telemetria (plano 66): verbos `telemetry-*` têm handler próprio; o
+    // workspace é o da aba emissora (ou `--workspace`), como no `db`.
+    if (TelemetryCliHandler.handles(c.cmd)) {
+      // `--app` (plano 68): store do próprio Cockpit, sem workspace.
+      if (c.args['app'] == true) return _telemetry.handle(c, null, '');
+      return _projectCommand(
+        c,
+        (project, root) => _telemetry.handle(c, project, root),
       );
     }
     switch (c.cmd) {
@@ -247,6 +262,22 @@ class CockpitCliHandler {
             unawaited(DocumentWindows.open(path));
           }
         }
+        return const CockpitCommandResult.ok();
+
+      // `apply-layout` — o botão Apply do viewer de `.ckp` aberto na JANELA DE
+      // DOCUMENTO. Também não é verbo da CLI (quem aplica layout por script é
+      // o `orchestrate`, que tem uma aba emissora para se ancorar): a janela
+      // solta não tem workspace, então empurra o caminho para o app, que
+      // resolve o destino e pede a confirmação com a janela na frente.
+      case 'apply-layout':
+        final path = (c.args['path'] ?? '').toString();
+        if (path.isEmpty) {
+          return const CockpitCommandResult.fail('missing path');
+        }
+        if (!await File(path).exists()) {
+          return CockpitCommandResult.fail('file not found: "$path"');
+        }
+        _vm.requestLayoutApply(path);
         return const CockpitCommandResult.ok();
 
       // `cockpit new-tab` — cria uma aba de terminal. A CLI já resolveu o cwd
@@ -689,6 +720,30 @@ class CockpitCliHandler {
           );
         }
         return CockpitCommandResult.ok(readTerminalWindow(term, c.args));
+
+      // `cockpit exec <command...>` (plano 67) — roda uma linha de shell na
+      // máquina do app (shell de login, `-lc`) e devolve stdout/stderr/exit
+      // code. É o que os botões de um `.panel` usam por baixo; o env leva o
+      // roteamento da CLI (`COCKPIT_TAB_ID`, socket, PATH do `cockpit`), então
+      // o comando pode chamar `cockpit` de volta.
+      case 'exec':
+        final command = (c.args['command'] ?? '').toString();
+        if (command.trim().isEmpty) {
+          return const CockpitCommandResult.fail('missing command');
+        }
+        final cwd = (c.args['cwd'] ?? '').toString();
+        final timeoutRaw = c.args['timeout'];
+        final timeout = timeoutRaw is num ? timeoutRaw.toInt() : 60;
+        if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
+          return CockpitCommandResult.fail('cwd not found: "$cwd"');
+        }
+        final result = await runShellCommand(
+          command,
+          cwd: cwd.isEmpty ? null : cwd,
+          environment: _vm.cliEnvironment(tabId: c.tabId),
+          timeout: Duration(seconds: timeout <= 0 ? 60 : timeout),
+        );
+        return CockpitCommandResult.ok(result.toJson());
 
       // `cockpit list-tasks` — tasks do workspace do pane emissor (tabId,
       // default da CLI = a própria tab; fallback: workspace selecionado).
@@ -1407,8 +1462,9 @@ class CockpitCliHandler {
               : remoteHome;
           p = p == '~' ? normalizedHome : '$normalizedHome/${p.substring(2)}';
         }
-      } catch (_) {
+      } on Object catch (e) {
         // Fallback: tenta via fileService se capture falhar
+        DiagnosticsLog.instance.warn('remote-home', 'capture failed', error: e);
         try {
           final service = await _vm.remoteHosts.fileServiceFor(host);
           final remoteHome = await service.home();
@@ -1418,7 +1474,13 @@ class CockpitCliHandler {
                 : remoteHome;
             p = p == '~' ? normalizedHome : '$normalizedHome/${p.substring(2)}';
           }
-        } catch (_) {}
+        } on Object catch (e) {
+          DiagnosticsLog.instance.warn(
+            'remote-home',
+            'fileService fallback failed; keeping ~ unexpanded',
+            error: e,
+          );
+        }
       }
     }
     while (p.length > 1 && (p.endsWith('/') || p.endsWith(r'\'))) {

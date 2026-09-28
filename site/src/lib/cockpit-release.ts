@@ -5,17 +5,24 @@
    between that CI and this site (plan/43, step 4) — do not drift it on
    one side without the other.
 
-   The VPS endpoint does not exist yet, so the manifest URL is
-   configurable (NEXT_PUBLIC_COCKPIT_MANIFEST_URL) and the loader falls
-   back to MOCK_MANIFEST — same shape — whenever the fetch fails. The page
-   still renders, just flagged "not yet published".
+   The endpoint is live, but the URL stays configurable
+   (NEXT_PUBLIC_COCKPIT_MANIFEST_URL) and the loader falls back to
+   MOCK_MANIFEST, same shape, whenever the fetch fails. The page still
+   renders, just flagged "not yet published".
    =========================================================== */
 
-export type CockpitPlatform = "macos" | "windows" | "linux";
+export type CockpitPlatform = "macos" | "windows" | "linux" | "android";
 export type CockpitArch = "universal" | "x64" | "arm64";
-export type CockpitFormat = "dmg" | "exe" | "deb" | "rpm";
+export type CockpitFormat = "dmg" | "exe" | "deb" | "rpm" | "apk" | "aab";
 
-/** One downloadable build. Every field is produced by cockpit-release.yml. */
+/**
+ * One downloadable build. Every field is produced by cockpit-release.yml.
+ *
+ * The mobile client ships two Android artifacts: an `apk` (arm64, the direct
+ * download this page offers) and an `aab` (universal, a store upload that is
+ * useless to an end user). Both are valid in the contract; the page filters
+ * the bundle out of the UI.
+ */
 export type CockpitArtifact = {
   platform: CockpitPlatform;
   arch: CockpitArch;
@@ -33,9 +40,8 @@ export type CockpitManifest = {
 };
 
 /**
- * Where the live manifest lives. Set NEXT_PUBLIC_COCKPIT_MANIFEST_URL once
- * the release pipeline publishes to the VPS; until then this default 404s
- * and the page falls back to MOCK_MANIFEST.
+ * Where the live manifest lives. Override with
+ * NEXT_PUBLIC_COCKPIT_MANIFEST_URL to point the page at another host.
  */
 export const MANIFEST_URL =
   process.env.NEXT_PUBLIC_COCKPIT_MANIFEST_URL ??

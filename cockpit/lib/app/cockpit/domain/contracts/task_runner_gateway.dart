@@ -60,3 +60,11 @@ abstract class TaskRunnerGateway {
   /// Mata tudo e libera recursos (chamado no dispose do app).
   Future<void> disposeAll();
 }
+
+/// Optional capability implemented by local runners that can reconcile
+/// processes not parented by Cockpit. Keeping it separate preserves source
+/// compatibility for third-party and remote [TaskRunnerGateway] implementors.
+abstract interface class ReconciledTaskRunnerGateway {
+  Future<void> reconcileDefinitions(List<TaskDefinition> definitions);
+  Future<void> attachOutput(String taskId);
+}

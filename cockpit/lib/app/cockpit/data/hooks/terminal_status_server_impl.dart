@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:flutter/foundation.dart';
 
@@ -208,8 +209,16 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
         ),
       );
       return (null, null);
-    } catch (_) {
+    } on Object catch (e) {
       // linha malformada: sem resposta (a CLI reporta timeout/erro de leitura).
+      // Leva um trecho da linha: sem ele o aviso era indiagnosticavel
+      // (caso ev_6vw da Telemetria do app).
+      final sample = line.length > 200 ? '${line.substring(0, 200)}…' : line;
+      DiagnosticsLog.instance.warn(
+        'cli-socket',
+        'malformed line: $sample',
+        error: e,
+      );
       return (null, null);
     }
   }
@@ -248,6 +257,8 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
     try {
       final file = File(Platform.isWindows ? _endpointFilePath : _socketPath);
       if (await file.exists()) await file.delete();
-    } catch (_) {}
+    } on Object catch (_) {
+      // best-effort: socket/endpoint órfão é apagado no próximo start.
+    }
   }
 }

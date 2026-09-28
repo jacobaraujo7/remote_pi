@@ -1,0 +1,123 @@
+/* Cockpit `.panel` base stylesheet (plano 67).
+ * Servido em /__cockpit__/cockpit.css. Tudo lê as CSS variables --ckp-* que o
+ * app injeta no :root, então a página segue o tema (claro/escuro) sozinha.
+ * Classless por padrão (elementos nus já ficam bons) + poucas utilities.
+ */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  padding: 16px;
+  background: var(--ckp-bg);
+  color: var(--ckp-text);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Ubuntu, sans-serif;
+}
+[v-cloak] { display: none; }
+
+h1, h2, h3, h4 { margin: 0 0 8px; line-height: 1.25; font-weight: 600; }
+h1 { font-size: 20px; } h2 { font-size: 16px; } h3 { font-size: 14px; } h4 { font-size: 13px; }
+p { margin: 0 0 8px; }
+a { color: var(--ckp-link); text-decoration: none; }
+a:hover { text-decoration: underline; }
+hr { border: 0; border-top: 1px solid var(--ckp-border); margin: 12px 0; }
+small, .muted { color: var(--ckp-text-muted); }
+.secondary { color: var(--ckp-text-secondary); }
+
+code, pre, kbd, .mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+}
+code, kbd { background: var(--ckp-code-bg); padding: 1px 5px; border-radius: 4px; }
+pre {
+  background: var(--ckp-code-bg);
+  border: 1px solid var(--ckp-border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  overflow: auto;
+  margin: 0 0 8px;
+}
+pre code { background: none; padding: 0; }
+
+table { width: 100%; border-collapse: collapse; margin: 0 0 8px; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--ckp-border); vertical-align: top; }
+th { color: var(--ckp-text-secondary); font-weight: 600; font-size: 12px; }
+tbody tr:hover { background: var(--ckp-bg-raised); }
+
+button, .btn, input, select, textarea {
+  font: inherit;
+  color: var(--ckp-text);
+  background: var(--ckp-bg-raised);
+  border: 1px solid var(--ckp-border-strong);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+input, select, textarea { width: 100%; }
+input:focus, select:focus, textarea:focus, button:focus-visible {
+  outline: 2px solid var(--ckp-accent-soft);
+  outline-offset: 0;
+  border-color: var(--ckp-accent);
+}
+button, .btn { cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+button:hover, .btn:hover { border-color: var(--ckp-accent); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary, .btn.primary { background: var(--ckp-accent); border-color: var(--ckp-accent); color: var(--ckp-accent-text); }
+button.danger, .btn.danger { color: var(--ckp-error); border-color: var(--ckp-error); }
+label { display: block; color: var(--ckp-text-secondary); font-size: 12px; margin-bottom: 4px; }
+
+.card {
+  background: var(--ckp-bg-raised);
+  border: 1px solid var(--ckp-border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.card > :last-child { margin-bottom: 0; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat .value { font-size: 22px; font-weight: 600; line-height: 1.1; }
+.stat .label { color: var(--ckp-text-muted); font-size: 12px; }
+
+.badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--ckp-code-bg);
+  color: var(--ckp-text-secondary);
+}
+.badge.ok, .ok { color: var(--ckp-ok); }
+.badge.warn, .warn { color: var(--ckp-warn); }
+.badge.error, .error { color: var(--ckp-error); }
+.badge.accent { background: var(--ckp-accent-soft); color: var(--ckp-accent); }
+
+/* layout utilities */
+.row { display: flex; align-items: center; gap: 8px; }
+.col { display: flex; flex-direction: column; gap: 8px; }
+.wrap { flex-wrap: wrap; }
+.between { justify-content: space-between; }
+.grow { flex: 1 1 auto; min-width: 0; }
+.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.grid-2 { display: grid; gap: 12px; grid-template-columns: repeat(2, 1fr); }
+.grid-3 { display: grid; gap: 12px; grid-template-columns: repeat(3, 1fr); }
+.gap-4 { gap: 4px; } .gap-16 { gap: 16px; }
+.mt-8 { margin-top: 8px; } .mt-16 { margin-top: 16px; }
+.mb-8 { margin-bottom: 8px; } .mb-16 { margin-bottom: 16px; }
+.right { text-align: right; } .center { text-align: center; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.scroll { overflow: auto; }
+.hidden { display: none !important; }
+
+/* tabs (pair with cockpit.route or a v-model) */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--ckp-border); margin-bottom: 12px; }
+.tabs > * {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: none;
+  color: var(--ckp-text-secondary);
+}
+.tabs > .active, .tabs > [aria-selected="true"] { color: var(--ckp-text); border-bottom-color: var(--ckp-accent); }
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--ckp-border-strong); border-radius: 5px; }
+::-webkit-scrollbar-track { background: transparent; }

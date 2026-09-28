@@ -21,6 +21,8 @@ const Map<String, String> _extensionOverrides = {
   'rest': 'http',
   // Caderno: SVG nosso (tile preto, bloco de notas branco), não do tema.
   'notebook': 'cockpit-notebook',
+  // Painel HTML vivo (plano 67): SVG nosso, janela com play.
+  'panel': 'cockpit-panel',
 };
 
 String fileIconName(String fileName) {

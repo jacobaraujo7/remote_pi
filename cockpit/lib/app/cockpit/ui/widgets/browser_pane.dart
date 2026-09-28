@@ -4,6 +4,7 @@ import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -214,7 +215,9 @@ class _BrowserPaneState extends State<BrowserPane> {
             child: UnzoomedNativeView(
               builder: (context, contentZoom) => InAppWebView(
                 initialUrlRequest: URLRequest(url: WebUri(initial)),
+                initialUserScripts: kWebViewUserScripts,
                 initialSettings: InAppWebViewSettings(
+                  underPageBackgroundColor: webViewBackground(context),
                   // Navegador de verdade: JS ligado. O preview de markdown (CSP
                   // restritiva) usa outro widget com settings próprios.
                   javaScriptEnabled: true,
@@ -226,6 +229,7 @@ class _BrowserPaneState extends State<BrowserPane> {
                 ),
                 onWebViewCreated: (web) {
                   _web = web;
+                  WebViewPointerRelay.register(web, context, contentZoom);
                   final pending = _pendingUrl;
                   _pendingUrl = null;
                   if (pending != null && pending != initial) {

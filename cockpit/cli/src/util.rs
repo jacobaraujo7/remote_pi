@@ -103,7 +103,9 @@ mod tests {
 
     #[test]
     fn resolve_path_mantem_absoluto_intacto() {
-        assert_eq!(resolve_path("/tmp/x"), "/tmp/x");
+        // No Windows "/tmp/x" não é absoluto (falta o drive) e vira "D:/tmp/x".
+        let abs = if cfg!(windows) { "C:/tmp/x" } else { "/tmp/x" };
+        assert_eq!(resolve_path(abs), abs);
     }
 
     #[test]

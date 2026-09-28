@@ -1,6 +1,7 @@
 # Instalador Windows (Inno Setup) do Cockpit. NÃO buildável neste Mac — gerado
-# no job `windows` do CI (windows-latest + Inno Setup). Sem assinatura nesta
-# fase (aviso do SmartScreen documentado no site).
+# no job `windows` do CI (windows-latest + Inno Setup). Code signing via
+# SignPath OSS acontece no workflow, em duas etapas (exes internos antes de
+# empacotar, instalador depois): ver cockpit-release.yml.
 app_id: work.jacobmoura.cockpit
 display_name: Remote Pi Cockpit
 publisher_name: Jacob Moura

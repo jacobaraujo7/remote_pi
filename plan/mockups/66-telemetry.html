@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cockpit Telemetry</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&family=Hanken+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  /* Tokens = AppColors.dark do cockpit (app_colors.dart) */
+  :root{
+    color-scheme:dark;
+    --bg:#0D0D0F; --panel:#18181B; --panel2:#1F1F23; --panel3:#27272C;
+    --border:#26262A; --border2:#323238;
+    --text:#ECECEF; --text2:#9B9BA4; --text3:#6A6A73; --text4:#46464D;
+    --accent:#2F6FF0; --accent-soft:rgba(47,111,240,.2); --accent-text:#7FAAFF;
+    --ok:#3FB868; --error:#E5484D; --warn:#E0A33A; --edited:#C98A2B; --edited-bg:#2A210F;
+    --ui:"Hanken Grotesk",system-ui,-apple-system,sans-serif;
+    --display:"Space Grotesk",var(--ui);
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{background:var(--bg);color:var(--text);font:14px/1.45 var(--ui);overflow:hidden}
+  button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+  button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  svg{display:block}
+
+  /* ---- janela ---- */
+  .win{height:100%;display:grid;grid-template-rows:38px 1fr;min-width:1040px}
+  .titlebar{display:flex;align-items:center;gap:8px;padding:0 14px;background:var(--bg);border-bottom:1px solid var(--border);font-family:var(--display);font-size:12.5px;color:var(--text3)}
+  .lights{display:flex;gap:7px;margin-right:10px}
+  .lights i{width:12px;height:12px;border-radius:50%;background:#3a3a40;display:block}
+  .lights i:nth-child(1){background:#ff5f57}.lights i:nth-child(2){background:#febc2e}.lights i:nth-child(3){background:#28c840}
+  .titlebar b{color:var(--text2);font-weight:500}
+  .frame{display:grid;grid-template-columns:52px 1fr 360px;min-height:0}
+
+  /* ---- rail ---- */
+  .rail{background:var(--bg);border-right:1px solid var(--border);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:8px}
+  .ws{width:34px;height:34px;border-radius:9px;background:var(--panel2);display:grid;place-items:center;font-family:var(--display);font-weight:600;font-size:12px;color:var(--text2);position:relative}
+  .ws.active{background:var(--accent-soft);color:var(--accent-text);box-shadow:inset 0 0 0 1px rgba(127,170,255,.35)}
+  .ws .dot{position:absolute;right:-3px;top:-3px;width:9px;height:9px;border-radius:50%;background:var(--error);border:2px solid var(--bg)}
+  .rail .spacer{flex:1}
+  .rail .gear{color:var(--text3)}
+
+  /* ---- centro ---- */
+  .center{display:grid;grid-template-rows:36px 1fr;min-width:0;background:var(--panel)}
+  .tabs{display:flex;align-items:stretch;background:var(--bg);border-bottom:1px solid var(--border);overflow:hidden}
+  .tab{display:flex;align-items:center;gap:8px;padding:0 14px;font-family:var(--display);font-size:12.5px;font-weight:500;color:var(--text3);border-right:1px solid var(--border);white-space:nowrap;position:relative}
+  .tab.active{color:var(--text);background:var(--panel)}
+  .tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:var(--panel)}
+  .tab .ico{color:var(--text3)}
+  .tab.active .ico{color:var(--accent-text)}
+  .tab .badge{font:500 10.5px var(--mono);background:var(--error);color:#fff;border-radius:9px;padding:1px 6px;line-height:14px}
+  .tab .spin{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--text4);border-top-color:var(--accent-text);animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){.tab .spin{animation:none}}
+  .body{min-height:0;overflow:auto}
+
+  /* terminal cru */
+  .term{padding:14px 18px;font:12.5px/1.55 var(--mono);color:var(--text2);white-space:pre;min-height:100%}
+  .term .dim{color:var(--text3)}
+  .term .err{color:var(--error)}
+  .term .hl{background:var(--edited-bg);box-shadow:0 0 0 1px var(--edited) inset;color:var(--text);display:inline-block;width:100%}
+  .term .json{color:var(--accent-text)}
+
+  /* detalhe do caso */
+  .case{padding:22px 26px 40px;max-width:980px}
+  .case-head{display:flex;flex-direction:column;gap:10px;padding-bottom:16px;border-bottom:1px solid var(--border)}
+  .crumbs{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text3)}
+  .crumbs b{color:var(--text2);font-weight:500}
+  .crumbs .sep{color:var(--text4)}
+  .kind{display:inline-flex;align-items:center;gap:6px;font:500 11px var(--display);letter-spacing:.04em;text-transform:uppercase;padding:2px 8px;border-radius:5px}
+  .kind.error{background:rgba(229,72,77,.15);color:#ff7b7f}
+  .kind.warn{background:rgba(224,163,58,.15);color:#f0be63}
+  .kind.test{background:rgba(229,72,77,.15);color:#ff7b7f}
+  h1.msg{margin:0;font:500 17px/1.35 var(--mono);color:var(--text);text-wrap:balance}
+  .idline{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;font-size:12px;color:var(--text3)}
+  .idline code{font:12px var(--mono);color:var(--text2);background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:1px 7px}
+  .status{display:inline-flex;align-items:center;gap:6px;font-weight:500;color:var(--text2)}
+  .status i{width:7px;height:7px;border-radius:50%;background:var(--error);display:inline-block}
+  .status.resolved i{background:var(--ok)}.status.ignored i{background:var(--text4)}
+  .blame{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--edited);background:var(--edited-bg);border:1px solid rgba(201,138,43,.35);border-radius:6px;padding:3px 9px}
+  .actions{display:flex;flex-wrap:wrap;gap:8px;padding:14px 0 6px}
+  .btn{display:inline-flex;align-items:center;gap:7px;font:500 12.5px var(--ui);color:var(--text2);background:var(--panel2);border:1px solid var(--border2);border-radius:7px;padding:6px 11px;transition:background .12s}
+  .btn:hover{background:var(--panel3);color:var(--text)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .btn.primary:hover{background:#3d7bf5}
+  .btn.ghost{background:transparent}
+  .btn .k{font:11px var(--mono);color:var(--text3);background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:0 5px}
+  .btn.copy code{font:11.5px var(--mono);color:var(--accent-text)}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:9px;overflow:hidden;margin-top:10px}
+  .stat{background:var(--panel2);padding:10px 14px}
+  .stat .l{font:500 10.5px var(--display);letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+  .stat .v{font:500 15px var(--display);margin-top:3px;font-variant-numeric:tabular-nums}
+  .stat .v small{font:12px var(--ui);color:var(--text3);margin-left:4px}
+  .sections{margin-top:22px;display:flex;flex-direction:column;gap:22px}
+  .sec h2{margin:0 0 8px;font:600 11px var(--display);letter-spacing:.08em;text-transform:uppercase;color:var(--text3);display:flex;align-items:center;gap:10px}
+  .sec h2 span{font-weight:500;letter-spacing:0;text-transform:none;color:var(--text4);font-size:11.5px}
+  .card{background:var(--bg);border:1px solid var(--border);border-radius:9px;overflow:hidden}
+  .stack{font:12px/1.65 var(--mono);padding:10px 14px;white-space:pre;overflow-x:auto}
+  .stack .f{color:var(--text3)}
+  .stack .f.proj{color:var(--text)}
+  .stack .f.proj .p{color:var(--accent-text);text-decoration:underline;text-decoration-color:rgba(127,170,255,.35);text-underline-offset:3px;cursor:pointer}
+  .stack .f.top{background:rgba(229,72,77,.08);display:inline-block;width:100%;box-shadow:inset 2px 0 0 var(--error)}
+  .corr{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;padding:10px 14px;font:12px/1.6 var(--mono)}
+  .corr .k{color:var(--text3)}
+  .corr .v{color:var(--text)}
+  .corr .v .s{color:#8fd3a2}.corr .v .n{color:#f0be63}
+  .corr-note{padding:8px 14px;border-top:1px solid var(--border);font-size:12px;color:var(--text3)}
+  .runs{display:flex;flex-direction:column}
+  .run{display:grid;grid-template-columns:92px 1fr auto;align-items:center;gap:14px;padding:9px 14px;border-top:1px solid var(--border);font-size:12.5px}
+  .run:first-child{border-top:0}
+  .run .id{font:500 12px var(--mono);color:var(--text2)}
+  .run .bar{height:6px;border-radius:3px;background:var(--panel3);position:relative;overflow:hidden}
+  .run .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--error);border-radius:3px}
+  .run .n{font:12px var(--mono);color:var(--text2);font-variant-numeric:tabular-nums}
+  .run .when{color:var(--text3);font-size:11.5px;margin-left:8px}
+  .run.cur .id::after{content:"atual";font:500 10px var(--display);color:var(--accent-text);background:var(--accent-soft);border-radius:4px;padding:1px 5px;margin-left:8px;vertical-align:1px}
+  .ctx{font:12px/1.6 var(--mono);padding:10px 14px;white-space:pre;overflow-x:auto;color:var(--text3)}
+  .ctx .hit{color:var(--text);background:rgba(229,72,77,.08);display:inline-block;width:100%;box-shadow:inset 2px 0 0 var(--error)}
+  .ctx .ln{display:inline-block;width:34px;color:var(--text4);user-select:none}
+  .ctx .pre{color:var(--text4)}
+  .ctx .json{color:var(--accent-text)}
+  .empty-case{padding:60px 26px;color:var(--text3);text-align:center;font-size:13px}
+
+  /* ---- painel direito ---- */
+  .side{background:var(--bg);border-left:1px solid var(--border);display:grid;grid-template-rows:38px auto 1fr 26px;min-height:0}
+  .modes{display:flex;align-items:center;gap:2px;padding:0 8px;border-bottom:1px solid var(--border)}
+  .mode{width:30px;height:30px;border-radius:7px;display:grid;place-items:center;color:var(--text3);position:relative}
+  .mode:hover{background:var(--panel2);color:var(--text2)}
+  .mode.active{background:var(--panel2);color:var(--text)}
+  .mode .n{position:absolute;right:2px;top:2px;min-width:14px;height:14px;border-radius:7px;background:var(--error);color:#fff;font:500 9.5px/14px var(--mono);text-align:center;padding:0 3px}
+  .modes .grow{flex:1}
+  .modes .act{color:var(--text3)}
+  .side-head{padding:10px 12px 8px;border-bottom:1px solid var(--border);display:flex;flex-direction:column;gap:9px}
+  .side-title{display:flex;align-items:center;gap:8px;font:600 12.5px var(--display);color:var(--text)}
+  .side-title .live{display:inline-flex;align-items:center;gap:5px;font:500 11px var(--mono);color:var(--error)}
+  .side-title .live i{width:6px;height:6px;border-radius:50%;background:var(--error);box-shadow:0 0 0 3px rgba(229,72,77,.18)}
+  .side-title .grow{flex:1}
+  .search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:7px;padding:5px 9px;color:var(--text3)}
+  .search input{flex:1;background:none;border:0;color:var(--text);font:12.5px var(--ui);min-width:0}
+  .search input::placeholder{color:var(--text4)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font:500 11.5px var(--ui);color:var(--text3);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:3px 9px;display:inline-flex;gap:6px;align-items:center}
+  .chip b{font:500 11px var(--mono);color:var(--text3)}
+  .chip.on{color:var(--text);border-color:var(--border2);background:var(--panel2)}
+  .chip.on b{color:var(--text2)}
+  .tree{overflow:auto;padding:6px 0 12px;font-size:12.5px}
+  .grp{margin-top:6px}
+  .grp-h{display:flex;align-items:center;gap:6px;padding:5px 10px;color:var(--text2);font:600 11.5px var(--display);letter-spacing:.02em;cursor:pointer;user-select:none}
+  .grp-h .chev{color:var(--text4);transition:transform .12s}
+  .grp.closed .grp-h .chev{transform:rotate(-90deg)}
+  .grp.closed .grp-b{display:none}
+  .grp-h .cnt{margin-left:auto;font:500 11px var(--mono);color:var(--text3)}
+  .grp-h .cnt.hot{color:var(--error)}
+  .run-h{display:flex;align-items:center;gap:7px;padding:4px 10px 4px 22px;color:var(--text3);font-size:12px;cursor:pointer;user-select:none}
+  .run-h .chev{color:var(--text4)}
+  .run-h .src{font:500 10px var(--display);letter-spacing:.04em;text-transform:uppercase;color:var(--text4);border:1px solid var(--border);border-radius:4px;padding:0 5px}
+  .run-h .src.task{color:var(--accent-text);border-color:rgba(127,170,255,.3)}
+  .run-h .cnt{margin-left:auto;font:500 11px var(--mono)}
+  .run-h .cnt.hot{color:var(--error)}
+  .run-h .spin{width:9px;height:9px;border-radius:50%;border:1.5px solid var(--text4);border-top-color:var(--accent-text);animation:spin 1s linear infinite}
+  .rg.closed .run-b{display:none}
+  .rg.closed .run-h .chev{transform:rotate(-90deg)}
+  .it{display:grid;grid-template-columns:14px 1fr auto;column-gap:8px;padding:6px 10px 6px 36px;cursor:pointer;border-left:2px solid transparent;position:relative}
+  .it:hover{background:var(--panel)}
+  .it.sel{background:var(--panel2);border-left-color:var(--accent)}
+  .it .sev{width:8px;height:8px;border-radius:50%;margin-top:5px;background:var(--error)}
+  .it.warn .sev{background:var(--warn)}
+  .it.resolved .sev{background:var(--ok)}
+  .it.ignored .sev{background:var(--text4)}
+  .it .t{font:12.5px var(--mono);color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .it.resolved .t,.it.ignored .t{color:var(--text3)}
+  .it .m{grid-column:2/4;display:flex;flex-wrap:wrap;gap:4px 8px;align-items:center;font-size:11px;color:var(--text3);margin-top:2px}
+  .it .m .loc{font-family:var(--mono);color:var(--text3)}
+  .it .m .bl{color:var(--edited)}
+  .it .x{font:500 11px var(--mono);color:var(--text2);font-variant-numeric:tabular-nums}
+  .tag{font:500 9.5px var(--display);letter-spacing:.05em;text-transform:uppercase;border-radius:4px;padding:1px 5px;line-height:14px}
+  .tag.new{background:var(--accent-soft);color:var(--accent-text)}
+  .tag.reg{background:rgba(229,72,77,.15);color:#ff7b7f;border:1px solid rgba(229,72,77,.35)}
+  .tag.res{color:var(--ok);border:1px solid rgba(63,184,104,.35)}
+  .tag.ign{color:var(--text3);border:1px solid var(--border2)}
+  .it .quick{position:absolute;right:8px;top:5px;display:none;gap:2px}
+  .it:hover .quick{display:flex}
+  .it:hover .x{visibility:hidden}
+  .qb{width:22px;height:22px;border-radius:5px;display:grid;place-items:center;color:var(--text3);background:var(--panel2);border:1px solid var(--border2)}
+  .qb:hover{color:var(--text);background:var(--panel3)}
+  .tree-empty{padding:30px 14px;color:var(--text4);text-align:center;font-size:12px}
+  .foot{border-top:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:0 12px;font:11.5px var(--ui);color:var(--text3)}
+  .foot .ok{color:var(--ok)}
+  .foot .grow{flex:1}
+  .foot code{font:11px var(--mono);color:var(--text4)}
+
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(10px);background:var(--panel2);border:1px solid var(--border2);color:var(--text);font-size:12.5px;padding:8px 14px;border-radius:8px;opacity:0;transition:.18s;pointer-events:none;box-shadow:0 8px 24px rgba(0,0,0,.4)}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .toast code{font:11.5px var(--mono);color:var(--accent-text)}
+</style>
+</head>
+<body>
+<div class="win">
+  <div class="titlebar">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <span>remote_pi</span><span style="color:var(--text4)">·</span><b>main</b>
+    <span style="margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--text4)">mock · plano 66</span>
+  </div>
+
+  <div class="frame">
+    <!-- rail de workspaces -->
+    <aside class="rail" aria-label="Workspaces">
+      <div class="ws">C</div>
+      <div class="ws active">RP<span class="dot"></span></div>
+      <div class="ws">NB</div>
+      <div class="ws">FL</div>
+      <div class="spacer"></div>
+      <div class="gear">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </div>
+    </aside>
+
+    <!-- centro -->
+    <main class="center">
+      <div class="tabs" id="tabs">
+        <button class="tab" data-tab="term-app">
+          <svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          app <span class="spin" title="rodando"></span><span class="badge" id="badge-app">2</span>
+        </button>
+        <button class="tab" data-tab="term-api">
+          <svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          api <span class="spin" title="rodando"></span><span class="badge" id="badge-api">1</span>
+        </button>
+        <button class="tab" data-tab="term-claude">
+          <svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          ✳ claude · fix cart
+        </button>
+        <button class="tab active" data-tab="case" id="case-tab">
+          <svg class="ico" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          <span id="case-tab-title">RangeError · cart_service.dart:87</span>
+        </button>
+      </div>
+
+      <div class="body">
+        <!-- terminal cru da task app -->
+        <div class="term" id="term-app" hidden><span class="dim">Launching lib/main.dart on iPhone 16 Pro in debug mode...
+Running Xcode build...
+ └─Compiling, linking and signing...                        9,8s
+Xcode build done.                                           31,2s
+A Dart VM Service on iPhone 16 Pro is available at: http://127.0.0.1:52914/xK3pQ=/
+The Flutter DevTools debugger and profiler on iPhone 16 Pro is available at: http://127.0.0.1:9101?uri=...
+</span>flutter: <span class="json">{"level":"info","msg":"app started","env":"dev","build":"1.30.0+41"}</span>
+<span class="dim">Reloaded 1 of 812 libraries in 341ms (compile: 38 ms, reload: 121 ms, reassemble: 158 ms).</span>
+flutter: <span class="json">{"level":"debug","msg":"cart add","itemId":"sku-88","items":2}</span>
+<span class="hl">flutter: ══╡ EXCEPTION CAUGHT BY GESTURE ╞═══════════════════════════════════════════════</span>
+<span class="err">flutter: The following RangeError was thrown while handling a gesture:
+flutter: RangeError (index): Index out of range: index 3, length 2</span>
+<span class="dim">flutter:
+flutter: When the exception was thrown, this was the stack:</span>
+flutter: #0      List.[] (dart:core-patch/growable_array.dart:264:36)
+flutter: #1      CartService.add (package:app/cart/cart_service.dart:87:22)
+flutter: #2      CartBadge._onTap (package:app/cart/cart_badge.dart:41:9)
+flutter: #3      _InkResponseState.handleTap (package:flutter/src/material/ink_well.dart:1176:21)
+<span class="dim">flutter: ════════════════════════════════════════════════════════════════════════════════</span>
+flutter: <span class="json">{"level":"debug","msg":"cart add","itemId":"sku-88","items":2}</span>
+<span class="err">flutter: RangeError (index): Index out of range: index 3, length 2</span>
+<span class="dim">flutter: (repetido 12×, Flutter suprime o bloco)</span>
+</div>
+
+        <div class="term" id="term-api" hidden><span class="dim">[api] > nodemon src/index.ts</span>
+<span class="json">{"level":30,"time":1758632474102,"name":"api","msg":"listening on :3000"}</span>
+<span class="json">{"level":50,"time":1758632475810,"name":"api","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:5432","code":"ECONNREFUSED","stack":"Error: connect ECONNREFUSED 127.0.0.1:5432\n    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)\n    at pool.connect (/Users/jacob/Projects/shop/backend/src/db.ts:12:9)"},"msg":"db connect failed"}</span>
+<span class="dim">... (retry 5×)</span>
+</div>
+
+        <div class="term" id="term-claude" hidden><span class="dim">╭──────────────────────────────────────────────────────────────╮
+│ ✳ Claude Code · shop/app                                     │
+╰──────────────────────────────────────────────────────────────╯</span>
+<span style="color:var(--text)">› o carrinho quebra ao adicionar o 3º item, dá uma olhada</span>
+
+<span class="dim">⏺ Bash</span>(cockpit telemetry errors --project app --new)
+  <span class="json">{"cases":[{"id":"e_3f2a","kind":"RangeError","msg":"Index out of range: index 3, length 2","count":14,"loc":"lib/cart/cart_service.dart:87","new":true,"blame":"uncommitted 4m"}]}</span>
+
+<span class="dim">⏺ Bash</span>(cockpit telemetry show e_3f2a)
+  <span class="dim">… stack + log correlacionado {"itemId":"sku-88","items":2}</span>
+
+<span style="color:var(--text)">⏺ O erro está em cart_service.dart:87: `_slots[index]` com index = items.length + 1.
+  A linha foi alterada há 4 min (não commitada). Vou corrigir e confirmar com wait.</span>
+
+<span class="dim">⏺ Bash</span>(cockpit telemetry wait --fingerprint e_3f2a --absent 30s)
+  <span style="color:var(--ok)">ok: e_3f2a não reapareceu em 30s (2 runs de "cart add" observados)</span>
+</div>
+
+        <!-- detalhe do caso -->
+        <div id="case"></div>
+      </div>
+    </main>
+
+    <!-- painel direito -->
+    <aside class="side">
+      <div class="modes" role="tablist" aria-label="Modos do painel">
+        <button class="mode" title="Files"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
+        <button class="mode" title="Search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+        <button class="mode" title="Source control"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="6" cy="6" r="2.5"/><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="8" r="2.5"/><path d="M6 8.5v7M18 10.5c0 3-3 4-6 4.5-2 .4-3.5 1-3.5 3"/></svg></button>
+        <button class="mode" title="Database"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg></button>
+        <button class="mode" title="Gallery"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg></button>
+        <button class="mode" title="Tasks"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polygon points="6 4 20 12 6 20 6 4"/></svg></button>
+        <button class="mode active" title="Telemetry"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="n" id="mode-n">2</span></button>
+        <span class="grow"></span>
+        <button class="mode act" title="Limpar runs encerrados"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+        <button class="mode act" title="Recolher tudo"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m7 15 5-5 5 5"/></svg></button>
+      </div>
+
+      <div class="side-head">
+        <div class="side-title">
+          Telemetry
+          <span class="live"><i></i>2 runs ativos</span>
+          <span class="grow"></span>
+          <span style="font:11px var(--mono);color:var(--text4)" id="db-size">shop.sqlite · 3,1 MB</span>
+        </div>
+        <label class="search">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input id="q" type="search" placeholder="Filtrar casos (mensagem, arquivo, atributo)…" autocomplete="off">
+          <span style="font:10.5px var(--mono);color:var(--text4)">FTS</span>
+        </label>
+        <div class="chips" id="chips">
+          <button class="chip on" data-f="open">Abertos <b id="c-open">5</b></button>
+          <button class="chip" data-f="new">Novos <b id="c-new">2</b></button>
+          <button class="chip" data-f="resolved">Resolvidos <b id="c-res">1</b></button>
+          <button class="chip" data-f="ignored">Ignorados <b id="c-ign">1</b></button>
+          <button class="chip" data-f="warn" title="incluir warnings">⚠ <b id="c-warn">2</b></button>
+        </div>
+      </div>
+
+      <div class="tree" id="tree"></div>
+
+      <div class="foot">
+        <span class="ok">●</span> Dart · TypeScript
+        <span class="grow"></span>
+        <code>cockpit telemetry errors</code>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- dados de exemplo ---------------- */
+const RUNS = {
+  'app/flutter run': {project:'app', label:'flutter run', name:'app', kind:'task', live:true,  runNo:7},
+  'app/flutter test': {project:'app', label:'flutter test', name:null, kind:'solto', live:false, runNo:3},
+  'backend/api':      {project:'backend', label:'npm run dev', name:'api', kind:'task', live:true, runNo:12},
+};
+
+const CASES = [
+  { id:'e_3f2a', run:'app/flutter run', sev:'error', kind:'RangeError', status:'open', isNew:true,
+    msg:'RangeError (index): Index out of range: index 3, length 2',
+    loc:'lib/cart/cart_service.dart:87', blame:'mudou há 4 min · não commitado',
+    count:14, first:'12:01:14', last:'12:04:52',
+    runs:[{no:7,n:11,when:'12:01 → agora',cur:true},{no:6,n:3,when:'11:48 → 11:59'}],
+    stack:[
+      {f:'#0  List.[] (dart:core-patch/growable_array.dart:264:36)', proj:false},
+      {f:'#1  CartService.add (package:app/', p:'lib/cart/cart_service.dart:87', tail:':22)', proj:true, top:true},
+      {f:'#2  CartBadge._onTap (package:app/', p:'lib/cart/cart_badge.dart:41', tail:':9)', proj:true},
+      {f:'#3  _InkResponseState.handleTap (package:flutter/src/material/ink_well.dart:1176:21)', proj:false},
+      {f:'#4  GestureRecognizer.invokeCallback (package:flutter/src/gestures/recognizer.dart:351:24)', proj:false},
+    ],
+    corr:{ 'level':'"debug"','msg':'"cart add"','itemId':'"sku-88"','items':'2' },
+    corrNote:'Log JSON emitido 41 ms antes, mesmo run. Aparece nas 14 ocorrências com items = 2.',
+    ctx:[
+      {pre:'flutter: ',t:'{"level":"debug","msg":"cart add","itemId":"sku-88","items":2}',json:true},
+      {pre:'flutter: ',t:'══╡ EXCEPTION CAUGHT BY GESTURE ╞══════════════════════════════'},
+      {pre:'flutter: ',t:'The following RangeError was thrown while handling a gesture:'},
+      {pre:'flutter: ',t:'RangeError (index): Index out of range: index 3, length 2',hit:true},
+      {pre:'flutter: ',t:'#0      List.[] (dart:core-patch/growable_array.dart:264:36)'},
+      {pre:'flutter: ',t:'#1      CartService.add (package:app/cart/cart_service.dart:87:22)'},
+    ]},
+  { id:'e_91c0', run:'app/flutter run', sev:'error', kind:'Null check', status:'open', isNew:false,
+    msg:'Null check operator used on a null value',
+    loc:'lib/checkout/checkout_page.dart:120', blame:null,
+    count:2, first:'ontem 18:22', last:'11:52:03',
+    runs:[{no:7,n:1,when:'12:01 → agora',cur:true},{no:4,n:1,when:'ontem'}],
+    stack:[
+      {f:'#0  _CheckoutPageState.build (package:app/', p:'lib/checkout/checkout_page.dart:120', tail:':41)', proj:true, top:true},
+      {f:'#1  StatefulElement.build (package:flutter/src/widgets/framework.dart:5592:27)', proj:false},
+    ],
+    corr:null, corrNote:'Nenhum log JSON nos 500 ms anteriores.',
+    ctx:[{pre:'flutter: ',t:'Null check operator used on a null value',hit:true},{pre:'flutter: ',t:'#0      _CheckoutPageState.build (package:app/checkout/checkout_page.dart:120:41)'}]},
+  { id:'w_2be1', run:'app/flutter run', sev:'warn', kind:'Warning', status:'open', isNew:false,
+    msg:'setState() called after dispose(): _CartBadgeState',
+    loc:'lib/cart/cart_badge.dart:58', blame:null,
+    count:6, first:'11:49:10', last:'12:03:30',
+    runs:[{no:7,n:4,when:'12:01 → agora',cur:true},{no:6,n:2,when:'11:48 → 11:59'}],
+    stack:[{f:'#0  State.setState.<anonymous closure> (package:flutter/src/widgets/framework.dart:1167:9)', proj:false},{f:'#1  _CartBadgeState._refresh (package:app/', p:'lib/cart/cart_badge.dart:58', tail:':5)', proj:true, top:true}],
+    corr:null, corrNote:'', ctx:[{pre:'flutter: ',t:'setState() called after dispose(): _CartBadgeState#a1f2c(lifecycle state: defunct)',hit:true}]},
+  { id:'t_7d10', run:'app/flutter test', sev:'error', kind:'Test failed', status:'open', isNew:true,
+    msg:'CartServiceTest › adds item beyond capacity',
+    loc:'test/cart/cart_service_test.dart:33', blame:null,
+    count:1, first:'12:03:41', last:'12:03:41',
+    runs:[{no:3,n:1,when:'12:03 · 8,2 s · exit 1',cur:true}],
+    stack:[
+      {f:'Expected: <3>', proj:false},{f:'  Actual: throws RangeError', proj:false},
+      {f:'package:test_api  expect', proj:false},
+      {f:'', p:'test/cart/cart_service_test.dart:33', tail:'  main.<fn>.<fn>', proj:true, top:true},
+    ],
+    corr:null, corrNote:'Run iniciado pelo agente: cockpit telemetry flutter test (pane "✳ claude · fix cart").',
+    ctx:[{pre:'',t:'00:08 +11 -1: CartServiceTest adds item beyond capacity [E]',hit:true},{pre:'',t:'  RangeError (index): Index out of range: index 3, length 2'},{pre:'',t:'  package:app/cart/cart_service.dart 87:22  CartService.add'}]},
+  { id:'e_5a77', run:'backend/api', sev:'error', kind:'Error', status:'open', isNew:false,
+    msg:'connect ECONNREFUSED 127.0.0.1:5432',
+    loc:'src/db.ts:12', blame:null,
+    count:6, first:'12:01:15', last:'12:01:41',
+    runs:[{no:12,n:6,when:'12:01 → agora',cur:true}],
+    stack:[{f:'Error: connect ECONNREFUSED 127.0.0.1:5432', proj:false},{f:'    at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)', proj:false},{f:'    at pool.connect (', p:'src/db.ts:12', tail:':9)', proj:true, top:true}],
+    corr:{ 'level':'50','name':'"api"','msg':'"db connect failed"','code':'"ECONNREFUSED"' },
+    corrNote:'Evento veio como JSON (pino). Campos viram atributos filtráveis.',
+    ctx:[{pre:'',t:'{"level":50,"time":1758632475810,"name":"api","err":{"type":"Error","message":"connect ECONNREFUSED 127.0.0.1:5432"},"msg":"db connect failed"}',json:true,hit:true}]},
+  { id:'e_0c44', run:'backend/api', sev:'error', kind:'ZodError', status:'open', isNew:false, regression:true,
+    msg:'ZodError: invalid order payload (items[0].qty expected number)',
+    loc:'src/routes/orders.ts:41', blame:'resolvido ontem por claude · voltou no run #12',
+    count:1, first:'ontem 16:10', last:'12:02:07',
+    runs:[{no:12,n:1,when:'12:02',cur:true},{no:9,n:4,when:'ontem (resolvido)'}],
+    stack:[{f:'ZodError: [{"path":["items",0,"qty"],"message":"Expected number, received string"}]', proj:false},{f:'    at createOrder (', p:'src/routes/orders.ts:41', tail:':18)', proj:true, top:true}],
+    corr:{ 'reqId':'"01J8…KQ"','route':'"POST /orders"','status':'400' },
+    corrNote:'Correlacionado pelo COCKPIT_RUN_ID + reqId do proxy HTTP.',
+    ctx:[{pre:'',t:'{"level":40,"reqId":"01J8…KQ","route":"POST /orders","status":400,"err":{"type":"ZodError"...}}',json:true,hit:true}]},
+  { id:'e_b812', run:'backend/api', sev:'error', kind:'TypeError', status:'resolved', isNew:false,
+    msg:"Cannot read properties of undefined (reading 'id')",
+    loc:'src/routes/orders.ts:27', blame:'resolvido há 2 h por você',
+    count:9, first:'09:40', last:'10:12',
+    runs:[{no:10,n:9,when:'09:40 → 10:12'}],
+    stack:[{f:'    at createOrder (', p:'src/routes/orders.ts:27', tail:':31)', proj:true, top:true}],
+    corr:null, corrNote:'', ctx:[{pre:'',t:"TypeError: Cannot read properties of undefined (reading 'id')",hit:true}]},
+  { id:'w_e3a9', run:'backend/api', sev:'warn', kind:'Deprecation', status:'ignored', isNew:false,
+    msg:'DeprecationWarning: The `punycode` module is deprecated',
+    loc:'node:internal', blame:'ignorado: ruído de dependência (node 22)',
+    count:1, first:'12:01:15', last:'12:01:15',
+    runs:[{no:12,n:1,when:'12:01',cur:true}],
+    stack:[{f:'(node:48123) [DEP0040] DeprecationWarning: The `punycode` module is deprecated.', proj:false}],
+    corr:null, corrNote:'', ctx:[{pre:'',t:'(node:48123) [DEP0040] DeprecationWarning: The `punycode` module is deprecated.',hit:true}]},
+];
+
+/* ---------------- estado ---------------- */
+let filter = 'open';
+let selected = 'e_3f2a';
+let query = '';
+const closed = new Set();
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function visible(c){
+  if(query){
+    const hay = (c.msg+' '+c.loc+' '+c.kind+' '+JSON.stringify(c.corr||{})).toLowerCase();
+    if(!hay.includes(query)) return false;
+  }
+  switch(filter){
+    case 'open': return c.status==='open';
+    case 'new': return c.status==='open' && (c.isNew || c.regression);
+    case 'resolved': return c.status==='resolved';
+    case 'ignored': return c.status==='ignored';
+    case 'warn': return c.status==='open' && c.sev==='warn';
+  }
+  return true;
+}
+
+/* ---------------- árvore ---------------- */
+function renderTree(){
+  const tree = $('#tree');
+  const list = CASES.filter(visible);
+  if(!list.length){ tree.innerHTML = '<div class="tree-empty">Nada aqui. Runs futuros aparecem sozinhos.</div>'; return; }
+
+  const byProject = {};
+  list.forEach(c => { const r = RUNS[c.run]; (byProject[r.project] ||= {}); (byProject[r.project][c.run] ||= []).push(c); });
+
+  let html = '';
+  for(const [proj, runs] of Object.entries(byProject)){
+    const all = Object.values(runs).flat();
+    const hot = all.filter(c=>c.status==='open' && c.sev==='error').length;
+    const pc = closed.has('p:'+proj) ? 'closed' : '';
+    html += `<div class="grp ${pc}"><div class="grp-h" data-toggle="p:${proj}">
+      <svg class="chev" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg>
+      ${esc(proj)} <span class="cnt ${hot?'hot':''}">${all.length}</span></div><div class="grp-b">`;
+    for(const [runKey, cases] of Object.entries(runs)){
+      const r = RUNS[runKey];
+      const rhot = cases.filter(c=>c.status==='open' && c.sev==='error').length;
+      const rc = closed.has('r:'+runKey) ? 'closed' : '';
+      html += `<div class="rg ${rc}"><div class="run-h" data-toggle="r:${runKey}">
+        <svg class="chev" width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="m6 9 6 6 6-6"/></svg>
+        <span style="font-family:var(--mono);color:var(--text2)">${esc(r.name || r.label)}</span>
+        <span class="src ${r.kind==='task'?'task':''}">${r.kind==='task'?'task':'cockpit telemetry'}</span>
+        ${r.live?'<span class="spin" title="rodando"></span>':''}
+        <span class="cnt ${rhot?'hot':''}">run #${r.runNo}</span></div><div class="run-b">`;
+      for(const c of cases){
+        const tags = [];
+        if(c.regression && c.status==='open') tags.push('<span class="tag reg">regressão</span>');
+        else if(c.isNew && c.status==='open') tags.push('<span class="tag new">new</span>');
+        if(c.status==='resolved') tags.push('<span class="tag res">resolvido</span>');
+        if(c.status==='ignored') tags.push('<span class="tag ign">ignorado</span>');
+        html += `<div class="it ${c.sev} ${c.status} ${c.id===selected?'sel':''}" data-id="${c.id}" title="${esc(c.msg)}">
+          <span class="sev"></span>
+          <span class="t">${esc(c.msg)}</span>
+          <span class="x">×${c.count}</span>
+          <span class="m">${tags.join('')}<span class="loc">${esc(c.loc)}</span>${c.blame && c.status==='open' && !c.regression ? `<span class="bl">· ${esc(c.blame)}</span>`:''}</span>
+          <span class="quick">
+            ${c.status==='open' ? `<button class="qb" data-act="resolve" data-id="${c.id}" title="Marcar resolvido"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5L20 7"/></svg></button>
+            <button class="qb" data-act="ignore" data-id="${c.id}" title="Ignorar (não mostrar nem pro agente)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.6 6.6A17 17 0 0 0 2 12s4 7 10 7a9.7 9.7 0 0 0 4.3-1"/></svg></button>` :
+            `<button class="qb" data-act="reopen" data-id="${c.id}" title="Reabrir"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg></button>`}
+            <button class="qb" data-act="clear" data-id="${c.id}" title="Limpar ocorrências"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg></button>
+          </span>
+        </div>`;
+      }
+      html += '</div></div>';
+    }
+    html += '</div></div>';
+  }
+  tree.innerHTML = html;
+  updateCounts();
+}
+
+function updateCounts(){
+  const open = CASES.filter(c=>c.status==='open');
+  const nnew = open.filter(c=>c.isNew||c.regression).length;
+  $('#c-open').textContent = open.length;
+  $('#c-new').textContent = nnew;
+  $('#c-res').textContent = CASES.filter(c=>c.status==='resolved').length;
+  $('#c-ign').textContent = CASES.filter(c=>c.status==='ignored').length;
+  $('#c-warn').textContent = open.filter(c=>c.sev==='warn').length;
+  $('#mode-n').textContent = nnew; $('#mode-n').hidden = !nnew;
+  const appN = open.filter(c=>c.run==='app/flutter run' && c.sev==='error').length;
+  const apiN = open.filter(c=>c.run==='backend/api' && c.sev==='error').length;
+  $('#badge-app').textContent = appN; $('#badge-app').hidden = !appN;
+  $('#badge-api').textContent = apiN; $('#badge-api').hidden = !apiN;
+}
+
+/* ---------------- detalhe ---------------- */
+function renderCase(){
+  const c = CASES.find(x=>x.id===selected);
+  const el = $('#case');
+  if(!c){ el.innerHTML = '<div class="empty-case">Selecione um caso no painel Telemetry.</div>'; $('#case-tab-title').textContent='Telemetry'; return; }
+  const r = RUNS[c.run];
+  $('#case-tab-title').textContent = `${c.kind} · ${c.loc.split('/').pop()}`;
+  const max = Math.max(...c.runs.map(x=>x.n));
+  const stack = c.stack.map(s => {
+    const inner = s.p ? `${esc(s.f)}<span class="p" title="Abrir ${esc(s.p)}">${esc(s.p)}</span>${esc(s.tail||'')}` : esc(s.f);
+    return `<span class="f ${s.proj?'proj':''} ${s.top?'top':''}">${inner}</span>`;
+  }).join('\n');
+  const corr = c.corr ? `<div class="corr">${Object.entries(c.corr).map(([k,v])=>`<span class="k">${esc(k)}</span><span class="v">${v.startsWith('"')?`<span class="s">${esc(v)}</span>`:`<span class="n">${esc(v)}</span>`}</span>`).join('')}</div>` : '';
+  const ctx = c.ctx.map((l,i)=>`<span class="${l.hit?'hit':''}"><span class="ln">${String(i+1).padStart(3,' ')}</span><span class="pre">${esc(l.pre)}</span><span class="${l.json?'json':''}">${esc(l.t)}</span></span>`).join('\n');
+  const statusCls = c.status;
+  const statusTxt = {open:'Aberto', resolved:'Resolvido', ignored:'Ignorado'}[c.status];
+
+  el.innerHTML = `
+  <div class="case">
+    <div class="case-head">
+      <div class="crumbs"><b>${esc(r.project)}</b><span class="sep">›</span><b>${esc(r.name||r.label)}</b><span class="sep">›</span>run #${r.runNo}<span class="sep">·</span>${r.kind==='task'?'task':'cockpit telemetry '+esc(r.label)}<span class="sep">·</span>pane ${r.kind==='task'?'t3':'t9'}</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="kind ${c.sev==='warn'?'warn':'error'}">${esc(c.kind)}</span>
+        ${c.regression && c.status==='open' ? '<span class="tag reg">regressão</span>' : (c.isNew && c.status==='open' ? '<span class="tag new">new</span>' : '')}
+      </div>
+      <h1 class="msg">${esc(c.msg)}</h1>
+      <div class="idline">
+        <code>${c.id}</code>
+        <span class="status ${statusCls}"><i></i>${statusTxt}</span>
+        <span>fingerprint = tipo + mensagem normalizada + <span style="font-family:var(--mono)">${esc(c.loc)}</span></span>
+        ${c.blame ? `<span class="blame"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>${esc(c.blame)}</span>` : ''}
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" data-open="${esc(c.loc)}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M14 3h7v7M21 3l-9 9M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/></svg>Abrir ${esc(c.loc)}</button>
+      <button class="btn" data-term="${c.run}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>Ver no terminal</button>
+      <button class="btn copy" data-copy="cockpit telemetry show ${c.id}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg><code>cockpit telemetry show ${c.id}</code></button>
+      <span style="flex:1"></span>
+      ${c.status==='open' ? `<button class="btn" data-act="resolve" data-id="${c.id}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="m5 12 5 5L20 7"/></svg>Resolvido</button>
+      <button class="btn ghost" data-act="ignore" data-id="${c.id}">Ignorar</button>` : `<button class="btn" data-act="reopen" data-id="${c.id}">Reabrir</button>`}
+      <button class="btn ghost" data-act="clear" data-id="${c.id}">Limpar</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="l">Ocorrências</div><div class="v">${c.count}<small>em ${c.runs.length} run${c.runs.length>1?'s':''}</small></div></div>
+      <div class="stat"><div class="l">Primeira</div><div class="v">${esc(c.first)}</div></div>
+      <div class="stat"><div class="l">Última</div><div class="v">${esc(c.last)}</div></div>
+      <div class="stat"><div class="l">Origem</div><div class="v" style="font-family:var(--mono);font-size:13px">${r.kind==='task'?'task '+esc(r.name):'stdout · pipe'}<small>${r.kind==='task'?'PTY':'agente'}</small></div></div>
+    </div>
+
+    <div class="sections">
+      <div class="sec"><h2>Stack <span>frames do projeto em destaque · clique abre o arquivo</span></h2>
+        <div class="card"><div class="stack">${stack}</div></div></div>
+
+      <div class="sec"><h2>Log correlacionado <span>o JSON mais próximo antes do erro, no mesmo run</span></h2>
+        <div class="card">${corr || '<div class="corr" style="color:var(--text4)">nenhum</div>'}${c.corrNote?`<div class="corr-note">${esc(c.corrNote)}</div>`:''}</div></div>
+
+      <div class="sec"><h2>Ocorrências por run <span>mesma chave (cwd, comando): é assim que "new" e "regressão" são calculados</span></h2>
+        <div class="card runs">${c.runs.map(x=>`<div class="run ${x.cur?'cur':''}"><span class="id">run #${x.no}</span><span class="bar"><i style="width:${Math.max(6, x.n/max*100)}%"></i></span><span><span class="n">×${x.n}</span><span class="when">${esc(x.when)}</span></span></div>`).join('')}</div></div>
+
+      <div class="sec"><h2>Contexto cru <span>linhas do terminal ao redor da última ocorrência</span></h2>
+        <div class="card"><div class="ctx">${ctx}</div></div></div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- interações ---------------- */
+function showTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('active', t.dataset.tab===id));
+  ['term-app','term-api','term-claude','case'].forEach(k => $('#'+k).hidden = (k!==id));
+}
+function toast(html){ const t=$('#toast'); t.innerHTML=html; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),1800); }
+
+function act(action, id){
+  const c = CASES.find(x=>x.id===id); if(!c) return;
+  if(action==='resolve'){ c.status='resolved'; c.isNew=false; c.regression=false; c.blame='resolvido agora por você'; toast(`Resolvido. Se <code>${id}</code> voltar num run futuro, reaparece como <b>regressão</b>.`); }
+  if(action==='ignore'){ c.status='ignored'; c.isNew=false; c.regression=false; c.blame='ignorado por você'; toast(`Ignorado. O agente não vê mais <code>${id}</code> (salvo <code>--include-ignored</code>).`); }
+  if(action==='reopen'){ c.status='open'; c.blame=null; toast(`Reaberto.`); }
+  if(action==='clear'){ const i=CASES.indexOf(c); CASES.splice(i,1); if(selected===id) selected=null; toast(`Ocorrências apagadas. Regras de triagem ficam.`); }
+  renderTree(); renderCase();
+}
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('.tab'); if(tab){ showTab(tab.dataset.tab); return; }
+  const chip = e.target.closest('.chip'); if(chip){ filter=chip.dataset.f; document.querySelectorAll('.chip').forEach(x=>x.classList.toggle('on', x===chip)); renderTree(); return; }
+  const tg = e.target.closest('[data-toggle]'); if(tg){ const k=tg.dataset.toggle; closed.has(k)?closed.delete(k):closed.add(k); renderTree(); return; }
+  const a = e.target.closest('[data-act]'); if(a){ e.stopPropagation(); act(a.dataset.act, a.dataset.id); return; }
+  const it = e.target.closest('.it'); if(it){ selected=it.dataset.id; renderTree(); renderCase(); showTab('case'); return; }
+  const cp = e.target.closest('[data-copy]'); if(cp){ const s=cp.dataset.copy; (navigator.clipboard?.writeText(s)||Promise.reject()).catch(()=>{}); toast(`Copiado: <code>${esc(s)}</code>`); return; }
+  const op = e.target.closest('[data-open], .stack .p'); if(op){ toast(`Abriria <code>${esc(op.dataset.open||op.textContent)}</code> no editor (mock).`); return; }
+  const tm = e.target.closest('[data-term]'); if(tm){ showTab(tm.dataset.term.startsWith('backend')?'term-api':'term-app'); toast('Terminal focado e rolado até a linha crua (destacada).'); return; }
+});
+$('#q').addEventListener('input', e => { query=e.target.value.trim().toLowerCase(); renderTree(); });
+
+renderTree(); renderCase(); showTab('case');
+</script>
+</body>
+</html>

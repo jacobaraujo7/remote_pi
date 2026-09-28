@@ -497,7 +497,10 @@ fn new_workspace_manda_path_resolvido_e_nome_opcional() {
     assert_eq!(req["type"], "cmd");
     assert_eq!(req["cmd"], "new-workspace");
     assert!(
-        req["args"]["path"].as_str().unwrap().ends_with("my/project"),
+        req["args"]["path"]
+            .as_str()
+            .unwrap()
+            .ends_with("my/project"),
         "path deve ser absoluto: {}",
         req["args"]["path"]
     );
@@ -524,8 +527,7 @@ fn new_remote_workspace_com_flags_host_e_path() {
     assert_eq!(req["cmd"], "new-workspace");
     assert_eq!(req["args"]["host"], "workspace-scott-meyer-2");
     assert_eq!(
-        req["args"]["path"],
-        "/home/ubuntu/repo-worktrees/task-1",
+        req["args"]["path"], "/home/ubuntu/repo-worktrees/task-1",
         "caminho remoto deve ser preservado exatamente como passado"
     );
     assert_eq!(req["args"]["name"], "task-1");
@@ -556,7 +558,6 @@ fn new_workspace_com_host_e_posicional_remoto() {
     assert_eq!(parsed["host"], "workspace-vm");
     assert_eq!(code, 0);
 }
-
 
 #[test]
 fn new_workspace_json_ecoa_o_objeto_completo() {
@@ -654,4 +655,3 @@ fn workspace_erros_propagam_exit_1() {
     assert_eq!(code, 1);
     assert!(stderr.contains("directory not found: /nonexistent"));
 }
-

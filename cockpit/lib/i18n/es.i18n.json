@@ -174,7 +174,13 @@
       "importFailed": "No se pudieron importar las tasks. Inténtalo de nuevo.",
       "copy": "Copiar",
       "copyAll": "Copiar todo",
-      "clearConsole": "Limpiar consola"
+      "clearConsole": "Limpiar consola",
+      "generateComposeTasks": "Generar tareas de Compose",
+      "selectComposeEngine": "Elige un motor de Compose",
+      "noComposeEngine": "No se encontró Docker Compose ni Podman Compose.",
+      "invalidComposeFile": "El archivo activo no es un Compose válido con servicios.",
+      "invalidTasksJson": "tasks.json no es válido. No se guardaron cambios.",
+      "composeConflicts": "Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Elige la carpeta del proyecto",
@@ -243,7 +249,11 @@
       "dropHereToMove": "Suelta aquí para mover la pestaña",
       "dockAsTab": "Acoplar como pestaña",
       "openBrowser": "Abrir navegador",
-      "openTerminal": "Abrir terminal"
+      "openTerminal": "Abrir terminal",
+      "openAsLayout": "Abrir como diseño",
+      "openAsYaml": "Abrir como YAML",
+      "openAsPanel": "Abrir como panel",
+      "openAsHtml": "Abrir como HTML"
     },
     "fileTreePanel": {
       "viewDiff": "Ver Diff",
@@ -300,7 +310,7 @@
       "openLayout": "Abrir layout",
       "openAsMarkdown": "Abrir como markdown",
       "showGitDiff": "Mostrar diff de git",
-      "createTerminal": "Crear terminal",
+      "createTerminal": "Abrir en terminal",
       "rename": "Renombrar",
       "copy": "Copiar",
       "cut": "Cortar",
@@ -345,13 +355,20 @@
       "diffNoChanges": "Sin cambios.",
       "diffError": "No se pudo leer el diff: ${detail}",
       "galleryTooltip": "Galería",
-      "sectionGallery": "GALERÍA"
+      "sectionGallery": "GALERÍA",
+      "openAsHtml": "Abrir como HTML",
+      "importQuestionTitle": "¿Copiar aquí?",
+      "importMessage": "¿Copiar ${count} elementos en “${dest}”?",
+      "importAction": "Copiar",
+      "couldNotImportTitle": "No se pudo copiar",
+      "openInAgent": "Abrir en ${harness}"
     },
     "fileViewer": {
       "cantOpen": "No se puede abrir este archivo.",
       "couldNotLoadImage": "No se pudo cargar la imagen.",
       "preview": "Vista previa",
-      "source": "Código fuente"
+      "source": "Código fuente",
+      "reload": "Recargar"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Elegir foto del workspace",
@@ -764,6 +781,10 @@
       "diagram": {
         "title": "Diagrama",
         "description": "Un markdown con un diagrama Mermaid: diagramas de flujo, secuencia, clases y Gantt, renderizados en la vista previa."
+      },
+      "panel": {
+        "title": "Panel",
+        "description": "Una página HTML con puente a la app: sus botones ejecutan comandos de la CLI de Cockpit y del shell en esta máquina. Un playground para dashboards rápidos."
       }
     },
     "notebook": {
@@ -807,6 +828,93 @@
       "deleteTagConfirm": "¿Quitar “${name}” de ${count} notas? Las notas se conservan.",
       "showList": "Mostrar lista de notas",
       "hideList": "Ocultar lista de notas"
+    },
+    "layoutPreview": {
+      "applyFailedTitle": "No se pudo aplicar el diseño",
+      "applyInCockpit": "Aplicar en Cockpit",
+      "applyNewWorkspace": "Abrir como nuevo espacio de trabajo",
+      "applyTo": "Aplicar en ${workspace}",
+      "autorunWorktree": "autorun: worktree. Este diseño también se aplica solo al crear un worktree del espacio de trabajo que lo contiene.",
+      "command": "Comando",
+      "folder": "Carpeta",
+      "noCommand": "sin comando, abre un shell",
+      "replaceConfirm": "Reemplazar diseño",
+      "replaceMessage": "Se cerrarán ${n} pestañas abiertas de este espacio de trabajo, incluidas las que tienen trabajo en curso.",
+      "replaceTitle": "¿Reemplazar el diseño de ${workspace}?",
+      "skippedTitle": "No se crean en este sistema",
+      "splitDown": "divide abajo",
+      "splitRight": "divide a la derecha",
+      "splitTab": "pestaña",
+      "subtitle": "Este diseño abre ${n} terminales. Lee los comandos antes de aplicarlo."
+    },
+    "telemetry": {
+      "tooltip": "Telemetría",
+      "title": "Telemetría",
+      "liveRuns": "${n} activos",
+      "noWorkspace": "Abre un workspace para ver su telemetría.",
+      "empty": "Nada por aquí todavía.",
+      "emptyFiltered": "Nada por aquí todavía.",
+      "searchHint": "Filtrar casos",
+      "chipOpen": "Abiertos",
+      "chipNew": "Nuevos",
+      "chipResolved": "Resueltos",
+      "chipIgnored": "Ignorados",
+      "chipWarnings": "Avisos",
+      "tagNew": "nuevo",
+      "tagRegression": "regresión",
+      "tagResolved": "resuelto",
+      "tagIgnored": "ignorado",
+      "srcTask": "task",
+      "srcWrapper": "cockpit telemetry",
+      "run": "run ${id}",
+      "resolve": "Marcar resuelto",
+      "ignore": "Ignorar (también se oculta a los agentes)",
+      "reopen": "Reabrir",
+      "clear": "Limpiar ocurrencias",
+      "clearRun": "Limpiar este run",
+      "clearProject": "Limpiar proyecto",
+      "openFile": "Abrir ${location}",
+      "showInTerminal": "Ver en la terminal",
+      "copyCommand": "Copiar comando de la CLI",
+      "copied": "Copiado",
+      "statusOpen": "Abierto",
+      "statusResolved": "Resuelto",
+      "statusIgnored": "Ignorado",
+      "occurrences": "Ocurrencias",
+      "inRuns": "en ${n} runs",
+      "first": "Primera",
+      "last": "Última",
+      "origin": "Origen",
+      "sectionStack": "Stack",
+      "stackHint": "frames del proyecto destacados · clic abre el archivo",
+      "sectionCorrelated": "Log correlacionado",
+      "correlatedHint": "el JSON más cercano antes del error, en el mismo run",
+      "none": "ninguno",
+      "sectionRuns": "Ocurrencias por run",
+      "runsHint": "misma clave (cwd, comando): así se calculan nuevo y regresión",
+      "sectionContext": "Contexto crudo",
+      "contextHint": "líneas de la terminal alrededor de la última ocurrencia",
+      "current": "actual",
+      "fingerprintHint": "fingerprint = tipo + mensaje normalizado + ${location}",
+      "blameUncommitted": "cambiado en el working tree",
+      "blameCommit": "cambiado ${ago} (${sha})",
+      "justNow": "ahora",
+      "minutesAgo": "hace ${n} min",
+      "hoursAgo": "hace ${n} h",
+      "daysAgo": "hace ${n} d",
+      "resolvedToast": "Resuelto. Si vuelve en un run futuro, reaparece como regresión.",
+      "ignoredToast": "Ignorado. Los agentes ya no lo ven (salvo --include-ignored).",
+      "clearedToast": "Ocurrencias borradas. Las reglas de triaje se mantienen.",
+      "byHuman": "por ti",
+      "byAgent": "por el agente",
+      "caseTabTitle": "${type} · ${file}",
+      "srcApp": "App",
+      "chipApp": "Cockpit"
+    },
+    "panelView": {
+      "unavailable": "Los paneles necesitan la web view integrada, que todavía no existe en Linux.",
+      "openInBrowser": "Abrir en el navegador",
+      "openAsHtml": "Abrir como HTML"
     }
   },
   "settings": {
@@ -852,7 +960,9 @@
           "weekly": "Semanalmente",
           "monthly": "Mensualmente",
           "never": "Nunca"
-        }
+        },
+        "developerModeTitle": "Modo desarrollador",
+        "developerModeDesc": "Registra los errores y avisos del propio Cockpit en una base aparte de la Telemetría (chip “Cockpit”) y activa las métricas de rendimiento. Solo sirve a quien mantiene la app."
       },
       "diagnostics": {
         "sectionTitle": "Diagnóstico",
@@ -1082,7 +1192,8 @@
       "formatterFailed": "No se pudo ejecutar el formateador.",
       "osFailure": "${detail}",
       "nameHasSlash": "El nombre no puede contener “/”.",
-      "invalidName": "Nombre inválido."
+      "invalidName": "Nombre inválido.",
+      "remoteDropUnsupported": "Soltar archivos en un workspace remoto todavía no está soportado."
     }
   },
   "theme": {

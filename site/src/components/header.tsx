@@ -2,7 +2,27 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LogoMark, IconDownload } from "@/components/landing/icons";
+
+/* The site carries two products. Cockpit owns the root, Remote Pi lives under
+   /remote-pi, and the nav swaps wholesale so a visitor always sees the links of
+   the product they are reading about, plus a way back to the other one. */
+type NavLink = { href: string; label: string };
+
+const COCKPIT_LINKS: NavLink[] = [
+  { href: "/docs", label: "Docs" },
+  { href: "/tutorials", label: "Tutorials" },
+  { href: "/download", label: "Download" },
+  { href: "/remote-pi", label: "Remote Pi" },
+];
+
+const REMOTE_PI_LINKS: NavLink[] = [
+  { href: "/remote-pi/docs", label: "Docs" },
+  { href: "/remote-pi/tutorials", label: "Tutorials" },
+  { href: "/remote-pi/download", label: "Download" },
+  { href: "/remote-pi/why", label: "Why Pi" },
+];
 
 const GITHUB_URL = "https://github.com/jacobaraujo7/remote_pi";
 
@@ -56,31 +76,44 @@ function HamburgerIcon({ open }: { open: boolean }) {
 
 export function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const pathname = usePathname() ?? "/";
+  const onRemotePi = pathname === "/remote-pi" || pathname.startsWith("/remote-pi/");
+
+  const links = onRemotePi ? REMOTE_PI_LINKS : COCKPIT_LINKS;
+  const home = onRemotePi ? "/remote-pi" : "/";
+  const brand = onRemotePi ? "Remote Pi" : "Cockpit";
+  const cta = onRemotePi
+    ? { href: "/remote-pi#install", label: "Install" }
+    : { href: "/download", label: "Download" };
 
   return (
     <header className="nav">
+      {onRemotePi ? (
+        <div className="sibling-bar">
+          <div className="wrap sibling-bar-inner">
+            <span>
+              You are reading about <strong>Remote Pi</strong>, the sibling
+              project: agents on your phone, 24/7 daemons and the mesh.
+            </span>
+            <Link href="/">Back to Cockpit</Link>
+          </div>
+        </div>
+      ) : null}
       <div className="wrap nav-inner">
-        <Link className="brand" href="/" aria-label="Remote Pi — home">
+        <Link className="brand" href={home} aria-label={`${brand} home`}>
           <span className="mark">
             <LogoMark />
           </span>
-          Remote Pi
+          {brand}
         </Link>
 
         {/* Desktop links */}
         <nav className="nav-links" aria-label="Primary">
-          <Link className="lnk" href="/cockpit">
-            Cockpit
-          </Link>
-          <Link className="lnk" href="/tutorials">
-            Tutorials
-          </Link>
-          <Link className="lnk" href="/docs">
-            Docs
-          </Link>
-          <Link className="lnk" href="/download">
-            Download
-          </Link>
+          {links.map((l) => (
+            <Link className="lnk" href={l.href} key={l.href}>
+              {l.label}
+            </Link>
+          ))}
           <a
             className="lnk"
             href={GITHUB_URL}
@@ -89,8 +122,8 @@ export function SiteHeader() {
           >
             GitHub
           </a>
-          <Link className="nav-cta" href="/#install">
-            <IconDownload /> Install
+          <Link className="nav-cta" href={cta.href}>
+            <IconDownload /> {cta.label}
           </Link>
         </nav>
 
@@ -115,34 +148,16 @@ export function SiteHeader() {
           aria-hidden={false}
         >
           <div className="wrap mobile-nav-inner">
-            <Link
-              className="m-lnk"
-              href="/cockpit"
-              onClick={() => setMenuOpen(false)}
-            >
-              Cockpit
-            </Link>
-            <Link
-              className="m-lnk"
-              href="/tutorials"
-              onClick={() => setMenuOpen(false)}
-            >
-              Tutorials
-            </Link>
-            <Link
-              className="m-lnk"
-              href="/docs"
-              onClick={() => setMenuOpen(false)}
-            >
-              Docs
-            </Link>
-            <Link
-              className="m-lnk"
-              href="/download"
-              onClick={() => setMenuOpen(false)}
-            >
-              Download
-            </Link>
+            {links.map((l) => (
+              <Link
+                className="m-lnk"
+                href={l.href}
+                key={l.href}
+                onClick={() => setMenuOpen(false)}
+              >
+                {l.label}
+              </Link>
+            ))}
             <a
               className="m-lnk"
               href={GITHUB_URL}
@@ -154,10 +169,10 @@ export function SiteHeader() {
             </a>
             <Link
               className="nav-cta m-cta"
-              href="/#install"
+              href={cta.href}
               onClick={() => setMenuOpen(false)}
             >
-              <IconDownload /> Install
+              <IconDownload /> {cta.label}
             </Link>
           </div>
         </div>

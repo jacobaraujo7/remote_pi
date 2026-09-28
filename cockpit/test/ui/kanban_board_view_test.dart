@@ -464,6 +464,17 @@ void main() {
     expect(find.text('Primeiro card'), findsNothing);
   });
 
+  testWidgets('adoptDisk sozinho reconstrói o quadro (janela de documento)', (
+    tester,
+  ) async {
+    await pump(tester);
+
+    session.adoptDisk(const FileViewText('## Nova\n\n- [ ] vindo do agente\n'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('vindo do agente'), findsOneWidget);
+  });
+
   group('aba de arquivo', () {
     FileViewerSession viewer() => FileViewerSession(
       id: 'v9',

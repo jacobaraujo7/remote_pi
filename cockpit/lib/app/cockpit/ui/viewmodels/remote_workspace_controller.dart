@@ -8,6 +8,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/worktree_manager.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_file_status.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_host.dart';
 import 'package:cockpit/app/cockpit/ui/remote/remote_hosts_controller.dart';
 import 'package:cockpit/app/core/domain/result.dart';
@@ -309,6 +310,8 @@ class RemoteWorkspaceController extends ChangeNotifier {
     final host = hostForWorkspace(p.id);
     final root = p.remotePath;
     if (host == null || root == null || root.isEmpty) return;
+    // Host caído em backoff: não abre mais uma tentativa de SSH só pro badge.
+    if (!_reachable(host)) return;
     _loading.add(p.id);
     try {
       await _readGit(p, host);
@@ -368,13 +371,32 @@ class RemoteWorkspaceController extends ChangeNotifier {
   // remoteHostId + remotePath) com parentId apontando pro workspace de origem,
   // derivado do `git worktree list` do host. Ops via `git.run` (sem RPC novo).
 
+  /// Vale tentar falar com [host] agora? `idle` (nunca tentou) e `connected`
+  /// sim; fases em voo também (o `ensure()` do connector deduplica). `failed`
+  /// e `reconnecting` NÃO: o connector já tem o retry dele com backoff, e cada
+  /// chamada aqui abriria OUTRA tentativa de SSH. Era o que acontecia: o sync
+  /// de projetos chama [ensureLoaded] a cada mudança, cada refresh de worktree
+  /// reabria conexão com um host fora do ar, a fase mudava, o sync rodava de
+  /// novo — centenas de `sshUnreachable` por hora no store de Telemetria.
+  bool _reachable(RemoteHost host) => switch (_hosts.phaseOf(host.id)) {
+    RemoteHostPhase.failed || RemoteHostPhase.reconnecting => false,
+    _ => true,
+  };
+
+  /// Gateway de worktrees do host de [wsId]. Best-effort: host fora do ar (ou
+  /// em backoff de reconexão) → `null`, sem lançar. Quem precisa reagir à
+  /// volta do host observa a fase do connector, não este método.
   Future<RemoteWorktreeGateway?> _gatewayFor(String wsId) async {
     final host = hostForWorkspace(wsId);
-    if (host == null) return null;
-    return RemoteWorktreeGateway(
-      await _hosts.gitServiceFor(host),
-      await _hosts.fileServiceFor(host),
-    );
+    if (host == null || !_reachable(host)) return null;
+    try {
+      return RemoteWorktreeGateway(
+        await _hosts.gitServiceFor(host),
+        await _hosts.fileServiceFor(host),
+      );
+    } on RemoteHostException {
+      return null;
+    }
   }
 
   /// Lista e reconcilia os worktrees remotos de [wsId] (slots-fork do rail).

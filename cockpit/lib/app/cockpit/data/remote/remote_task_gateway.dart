@@ -233,7 +233,9 @@ class RemoteTaskRunner implements TaskRunnerGateway {
       task.stopping = true;
       try {
         await _terminal?.kill(task.sessionId);
-      } catch (_) {}
+      } on Object catch (_) {
+        // conexão já caiu: o host mata o filho pelo exit-on-parent-close.
+      }
       await task.sub?.cancel();
       await task.out.close();
     }

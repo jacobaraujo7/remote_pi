@@ -17,6 +17,7 @@ mod commands;
 mod flags;
 mod hook;
 mod keys;
+mod telemetry;
 mod transport;
 mod util;
 
@@ -60,10 +61,9 @@ fn main() {
         "list-tasks" => commands::list("list-tasks", args),
         "read-tab" | "read-pane" => commands::read("read-pane", args),
         "read-task" => commands::read("read-task", args),
-        "run-task" | "stop-task" | "restart-task" | "send-task-key" => {
-            commands::task(first, args)
-        }
+        "run-task" | "stop-task" | "restart-task" | "send-task-key" => commands::task(first, args),
         "db" => commands::db(args),
+        "telemetry" => telemetry::telemetry(args),
         "http" => commands::http(args),
         "redis" => commands::redis(args),
         "mongo" => commands::mongo(args),
@@ -74,6 +74,7 @@ fn main() {
         }
         "close-workspace" => commands::close_workspace(args),
         "rename-workspace" => commands::rename_workspace(args),
+        "exec" => commands::exec(args),
         "browse" => commands::browse_url(args),
         "orchestrate" => commands::orchestrate(args),
         "note" => commands::note(args),

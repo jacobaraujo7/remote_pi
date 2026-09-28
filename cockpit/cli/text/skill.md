@@ -54,6 +54,13 @@ Cockpit tabs (it is not on the global PATH).
   (tab next to the terminal). `cockpit <file>` is the shortcut. The path is
   resolved against the tab cwd (relative, `~` and absolute all work). Any type
   opens as text — including extensionless ones (`.zprofile`, `Makefile`).
+- `cockpit exec [--cwd <dir>] [--timeout <s>] [--json] [--] <command...>` —
+  run a shell line through the app (login shell, so your PATH applies) and
+  print its output; the exit code is the command's. `--json` prints
+  `{ok, code, stdout, stderr, timedOut}` on one line. This is what `.panel`
+  buttons use under the hood; from a terminal you already have a shell, so
+  prefer it only when you want the app's environment (`cockpit` on PATH,
+  `COCKPIT_TAB_ID` set) from outside a Cockpit tab.
 - `cockpit browse <url> [--json]` — open the app's built-in **browser tab** at
   `<url>` (e.g. a dev server you just started: `cockpit browse
   http://localhost:3000`). A browser tab already open on the same host:port is
@@ -355,6 +362,126 @@ Two things to prefer:
 - Editing the file beats driving the UI. Keep the diff small (the app does the
   same — a card move is a three-line diff), and never reformat the whole file.
 
+## Panel files (`*.panel`)
+
+A `.panel` file is a **live HTML page** with a bridge to the app: the tab runs
+the page in a web view and injects `window.cockpit`, so buttons and scripts in
+it can run Cockpit CLI verbs and shell commands on this machine. Use it as a
+playground: a quick dashboard to validate something, a form that triggers a
+task, a status board that polls `git`/`db`. One file, no server, no ports.
+
+Write it with your normal file tools (`cockpit open x.panel` puts it in front
+of the human). The open tab reloads by itself when you save. The file is a
+plain HTML document with an optional YAML frontmatter on top:
+
+```html
+---
+title: Repo status     # tab label (default: file name)
+reload: true           # reload the page when the file changes (default true)
+cwd: .                 # working dir for exec/CLI calls, relative to this file
+---
+<!doctype html>
+<meta charset="utf-8">
+<style>body { background: var(--ckp-bg); color: var(--ckp-text) }</style>
+<button onclick="run()">git status</button>
+<pre id="out"></pre>
+<script>
+async function run() {
+  const r = await cockpit("exec git status --short");
+  document.getElementById("out").textContent = r.ok ? r.stdout : r.error;
+}
+</script>
+```
+
+The bridge is one function. `await cockpit("<line>")` runs `cockpit <line>`
+exactly as you would type it in a tab, and resolves to
+`{ok, code, stdout, stderr, json, error}`: `json` is the parsed stdout when
+the verb printed JSON (`list-tabs --json`, `db query`, `exec --json`),
+`error` is the stderr (or the exit code) when `ok` is false. Anything the CLI
+can do, a panel can do: `db query main 'select ...'`, `exec npm test`,
+`send --tab-id t3 --enter 'make'`, `run-task npm:dev`, `note add ...`.
+`cockpit.on("theme", vars => ...)` fires when the app theme changes;
+`cockpit.theme` holds the current `--ckp-*` CSS variables (`--ckp-bg`,
+`--ckp-text`, `--ckp-text-muted`, `--ckp-border`, `--ckp-code-bg`,
+`--ckp-link`, `--ckp-accent`), already set on `:root` so plain CSS can use
+them (also `--ckp-bg-raised`, `--ckp-text-secondary`, `--ckp-border-strong`,
+`--ckp-accent-soft`, `--ckp-accent-text`, `--ckp-ok`, `--ckp-warn`,
+`--ckp-error`). Relative assets (`<img src="chart.png">`,
+`<script src="app.js">`) resolve inside the file's folder only. External links
+open in the OS browser. There is no allowlist: a panel can run anything the
+human could run in a tab, so only put in it what you would type yourself.
+
+### Bundled libraries (`/__cockpit__/…`) — no network, no build step
+
+The app ships a small set of libraries and serves them at the reserved path
+`/__cockpit__/<name>`. Use these instead of a CDN: they work offline, are the
+same version on every machine, and never touch the user's repo. Prefer them for
+anything beyond a plain page.
+
+| URL | What | Use it for |
+|---|---|---|
+| `/__cockpit__/cockpit.css` | classless base styles + a few utilities, themed by `--ckp-*` | **always include it first**: tables, buttons, inputs, `.card`, `.stat`, `.badge`, `.row/.col/.grid`, `.tabs` look native and follow the app theme |
+| `/__cockpit__/petite-vue.js` | petite-vue 0.4 (Vue syntax, 6 KB, `PetiteVue.createApp`) | reactive state, lists, forms, conditional views. Default choice for any interactive panel |
+| `/__cockpit__/chart.js` | Chart.js 4 (UMD, `new Chart(canvas, cfg)`) | dashboards: line/bar/pie over `db query` / `exec` output |
+| `/__cockpit__/marked.js` | marked 15 (`marked.parse(md)`) | render markdown from notes, results, README |
+| `/__cockpit__/tailwind.js` | Tailwind v4 browser build (runtime JIT, ~250 KB) | only when you want utility classes instead of `cockpit.css`; heavier to load |
+
+`cockpit.route` gives hash routing for multi-page panels in one file:
+`cockpit.route.path` (`"/"`, `"/job/3"`), `cockpit.route.go("/job/3")`,
+`cockpit.route.match("/job/:id")` → `{id:"3"}` or `null`, and
+`cockpit.on("route", r => ...)` on every change. Use `<a href="#/job/3">` for
+links. Do not link to another `.panel` file: navigation to a second file
+renders it as raw HTML (its frontmatter is only read for the opened tab).
+
+Minimal reactive dashboard (copy this shape):
+
+```html
+---
+title: Git dashboard
+---
+<!doctype html>
+<meta charset="utf-8">
+<link rel="stylesheet" href="/__cockpit__/cockpit.css">
+<script src="/__cockpit__/petite-vue.js"></script>
+<script src="/__cockpit__/chart.js"></script>
+<div v-scope="App()" @vue:mounted="load" v-cloak>
+  <div class="tabs">
+    <button :class="{active: page==='/'}" @click="cockpit.route.go('/')">Status</button>
+    <button :class="{active: page==='/log'}" @click="cockpit.route.go('/log')">Log</button>
+  </div>
+  <div v-if="page==='/'" class="grid">
+    <div class="card stat"><span class="value">{{ files.length }}</span><span class="label">changed files</span></div>
+    <div class="card"><canvas id="chart"></canvas></div>
+  </div>
+  <table v-else><tr v-for="l in log"><td class="mono">{{ l }}</td></tr></table>
+  <p v-if="error" class="error">{{ error }}</p>
+</div>
+<script>
+function App() {
+  return {
+    page: cockpit.route.path, files: [], log: [], error: '',
+    async load() {
+      cockpit.on('route', r => { this.page = r.path; });
+      const st = await cockpit('exec git status --short');
+      if (!st.ok) { this.error = st.error; return; }
+      this.files = st.stdout.split('\n').filter(Boolean);
+      const lg = await cockpit('exec git log --oneline -20');
+      this.log = lg.ok ? lg.stdout.split('\n').filter(Boolean) : [];
+      new Chart(document.getElementById('chart'), { type: 'bar',
+        data: { labels: ['changed'], datasets: [{ data: [this.files.length],
+          backgroundColor: cockpit.theme['--ckp-accent'] }] } });
+    },
+  };
+}
+PetiteVue.createApp().mount();
+</script>
+```
+
+Rules of thumb: `cockpit.css` first, petite-vue for state, one `.panel` per
+tool, hash routes for sub-pages, `cockpit.theme['--ckp-*']` for chart colors
+(re-draw on `cockpit.on('theme')`). Reach for `tailwind.js` only when the
+layout is genuinely custom; for a data dashboard the base CSS is enough.
+
 ## Notebooks (`*.notebook`)
 
 A folder whose name ends in `.notebook` is a **notebook**: one markdown file
@@ -410,6 +537,108 @@ Rules that matter:
 - Diagrams: a ```mermaid fence (flowchart, sequence, class, state, gantt…)
   renders as a diagram in the app's markdown preview, in notes and in any
   `.md` file. Prefer it over ASCII art when explaining a flow.
+
+## Telemetry (the error store) — query it instead of reading terminals
+
+The app keeps a structured, per-workspace store of what the workspace's
+processes print: errors grouped by fingerprint (type + normalized message +
+first project frame), JSON log lines with their fields, and raw lines with a
+guessed level. **Every task the app runs feeds it by default.** Anything you
+run yourself enters it only through the wrapper.
+
+### Rule of thumb
+
+- If a task exists for what you want to run: `cockpit run-task <id>` (already
+  observed). Otherwise **prefix the command**: `cockpit telemetry flutter test`,
+  `cockpit telemetry --name api npm run dev`. Works from your own shell
+  (pipes) and from a terminal tab (nested PTY, keys and colors preserved).
+- Never `read-tab` thousands of lines when a run exists. The wrapper prints a
+  summary line at exit; follow it:
+
+  ```
+  telemetry: run r_42 · 3 errors · 12 warnings · cockpit telemetry errors --run r_42
+  ```
+
+### The loop
+
+```sh
+cockpit telemetry flutter test            # run → summary line
+cockpit telemetry errors --run r_42       # grouped cases, ids e_xxxx
+cockpit telemetry show e_3f2a             # stack (project frames flagged), the
+                                          # JSON log right before it, context lines
+# fix the code, then either run again, or on a dev server with hot reload:
+cockpit telemetry wait --fingerprint e_3f2a --absent 30s   # ok | hit | inconclusive
+cockpit telemetry resolve e_3f2a --reason "off-by-one in CartService.add"
+```
+
+Useful filters: `--new` (never seen in earlier runs of the same command),
+`--since-edit` (since the human's last editor save), `--since 10m`,
+`--before ev_xxxx --window 5s`, `--project <root>`, `--text <words>`,
+`--probe <name>`. Replies are capped: `"truncated": true` comes with a `hint`.
+Human triage is respected: resolved/ignored cases are hidden unless you pass
+`--include-resolved` / `--include-ignored`. A resolved case that comes back is
+flagged `"regression": true`.
+
+### Make the project speak telemetry (permanent instrumentation)
+
+One rule: **the project's logger emits JSON Lines to stdout**. No SDK.
+
+| Stack | Recipe |
+|---|---|
+| Flutter / Dart | `logging` package with a listener doing `print(jsonEncode({...}))`; also `FlutterError.onError` and `PlatformDispatcher.instance.onError` printing `{"level":"error","msg":..., "err":{"type":..., "message":..., "stack":...}}` |
+| Node / TS | `pino` (JSON by default) or `console.log(JSON.stringify({...}))` |
+| Python | `structlog` with `JSONRenderer`, or `python-json-logger` |
+| Rust | `tracing-subscriber` with `.json()` |
+| Go | `slog.NewJSONHandler(os.Stdout, nil)` |
+
+Canonical shape (aliases accepted: `severity`/`lvl`, `message`, `ts`/`timestamp`,
+`error`/`stack`; pino's numeric levels work):
+
+```json
+{"level":"error","msg":"cart add failed","err":{"type":"RangeError","message":"index 3 of 2","stack":"#0 ..."},"itemId":"abc","total":42}
+```
+
+**Write messages that group well**: keep `msg` fixed and put variable data in
+fields. `"msg":"order failed","orderId":"91c"` is one case; `"msg":"order 91c
+failed"` becomes one case per order.
+
+Do **not** gate logs on `COCKPIT_*` env vars: the app must behave the same
+inside and outside Cockpit (the vars never reach a phone or a container
+anyway). Control verbosity with the project's own knob (`LOG_LEVEL`,
+`kReleaseMode`), set per task via `env` in `.cockpit/tasks.json`.
+
+### Temporary probes while investigating
+
+Sprinkle JSON prints with a `probe` field, e.g.
+`print(jsonEncode({'probe':'cart','items':cart.length}))`, then filter with
+`cockpit telemetry logs --probe cart`. **Never commit a probe**:
+`cockpit telemetry probes` lists added lines in the working tree that still
+carry one; remove them before committing.
+
+### Per-task opt-out and config
+
+`"telemetry": false` on a task in `.cockpit/tasks.json` keeps that task out.
+`.cockpit/telemetry.json` (optional, versioned) can add `unwrap` regexes for
+odd log prefixes and `ignore` patterns.
+
+### The app's own errors (`--app`)
+
+The app is a source too: one run per boot ("Cockpit", `source: app`) holds
+the errors its global handlers caught and the warnings its fallbacks emit.
+When something in Cockpit itself misbehaves (a tab that would not restore, a
+remote listing that came back empty, a slow spawn), look there before
+guessing:
+
+```sh
+cockpit telemetry errors --app                # framework/async errors, grouped
+cockpit telemetry logs --app --level warn     # fallbacks the app took
+cockpit telemetry show e_xxxx --app
+```
+
+`--app` works with every query verb. The store only fills while
+**Settings → General → Developer mode** is on (it is off by default); with
+it on, performance metrics land in the same run and
+`cockpit telemetry perf --app` prints P50/P95/max per metric.
 
 ## Target (--tab-id)
 

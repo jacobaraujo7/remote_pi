@@ -87,6 +87,7 @@ class TasksJsonLoader {
       previewEnabled: m['preview'] != false,
       previewUrl: m['preview'] is String ? m['preview'] as String : null,
       previewOpen: _previewOpen(m['previewOpen']),
+      telemetryEnabled: m['telemetry'] != false,
     );
   }
 

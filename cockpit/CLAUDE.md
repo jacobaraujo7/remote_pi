@@ -63,6 +63,7 @@ nossa) e quem é pacote externo:
 | **Syntax highlight** (léxico, ~190 linguagens) | pacote `highlight` ^0.7.0 + `core/ui/widgets/code_highlight.dart` (tema/integração) | Externo; decisão do plano LSP: highlight léxico mantido (LSP não colore) |
 | **LSP** (diagnostics/formatação — a camada "IDE") | `lib/app/core/data/lsp/` (cliente JSON-RPC genérico + pool por (lang, raiz)) | **Nosso** — fala com servidores externos achados no PATH |
 | **Status de turno dos agentes** | `lib/app/cockpit/data/hooks/` (hooks do harness + `cockpit-hook` + socket) | **Nosso** — agentes rodam em terminais; ver `docs/turn-status-hooks.md` |
+| **Painéis `.panel`** (HTML vivo + ponte `window.cockpit`) | `lib/app/cockpit/ui/widgets/panel_view.dart` + `assets/panel/bridge.js` + verbo `exec` | **Nosso** — sobre a mesma webview do plano 58; cada `cockpit("<linha>")` spawna a CLI interna (paridade com o terminal); ver `../plan/67-cockpit-panel.md` |
 | **Keep awake** | `packages/cockpit_keepawake/` (caffeinate / SetThreadExecutionState / systemd-inhibit) | **Nosso** — Dart puro, desktop-only |
 | **DB drivers** (SQLite/Postgres/MySQL/MSSQL/Mongo/Redis) | pacotes `anaki_*` (Rust/FFI, do Jacob) + `lib/app/cockpit/data/db/` (Isolate workers + serviços) | Externo-mas-nosso (mantido pelo Jacob fora do repo) |
 | **Git** | `lib/app/cockpit/data/filesystem/git_*` (roda o binário `git`) | Motor é o git do sistema; nosso é o parser/orquestração |

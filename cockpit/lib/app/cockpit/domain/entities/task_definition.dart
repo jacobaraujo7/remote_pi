@@ -124,6 +124,7 @@ class TaskDefinition {
     this.previewEnabled = true,
     this.previewUrl,
     this.previewOpen = TaskPreviewOpen.always,
+    this.telemetryEnabled = true,
   });
 
   /// Identidade estável dentro de um projeto (ex.: `"npm:dev"`, `"flutter:run"`).
@@ -167,6 +168,10 @@ class TaskDefinition {
   /// `"previewOpen"` — em quais execuções o auto-open vale. Default [always]
   /// (retrocompatível). Ignorado quando [previewEnabled] é `false`.
   final TaskPreviewOpen previewOpen;
+
+  /// `"telemetry": false` no tasks.json tira esta task da Caixa Preta
+  /// (plano 66): a saída continua no terminal, mas não vira run/eventos.
+  final bool telemetryEnabled;
 
   /// Este run deve abrir o link sozinho? `preview: false` desliga tudo; fora
   /// isso quem manda é [previewOpen]. [isRestart] é `true` só quando o run

@@ -9,6 +9,7 @@ import 'package:cockpit/app/cockpit/data/hooks/codex_hook_installer_impl.dart';
 import 'package:cockpit/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/hook_installer.dart';
+import 'package:cockpit/app/cockpit/data/telemetry/app_telemetry_bridge.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_process_registry.dart';
 import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
@@ -107,6 +108,9 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         } on Object catch (e, stack) {
           DiagnosticsLog.instance.logError('exit-sidecar', e, stack);
         }
+        // Fecha o run do app na Telemetria (plano 68) antes do marcador de
+        // saída limpa: a base fica com `endedAt`/exit 0 em vez de run "vivo".
+        await AppTelemetryBridge.instance.close();
         DiagnosticsLog.instance.markCleanExit();
         return AppExitResponse.exit;
       },

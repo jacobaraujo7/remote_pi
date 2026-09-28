@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
 
 typedef ProcessRunner =
@@ -70,7 +71,9 @@ class WindowsProcessTreeProvider implements ProcessTreeProvider {
           ),
         );
       }
-    } catch (_) {}
+    } on Object catch (e) {
+      DiagnosticsLog.instance.warn('process-tree', 'scan failed', error: e);
+    }
 
     return snapshots;
   }

@@ -218,14 +218,36 @@ abstract class HostShell {
   Future<String> tailBootLog({int bytes = 2000});
 }
 
+/// Exit code que o `ssh` reserva pra falha do próprio transporte (não do
+/// comando remoto): host inalcançável, conexão recusada, auth negada.
+const int kSshTransportExitCode = 255;
+
+/// O `ssh` não chegou ao host (ver [kSshTransportExitCode]). [detail] é o
+/// stderr cru do ssh, pra UI interpolar.
+class HostUnreachableException implements Exception {
+  const HostUnreachableException(this.detail);
+  final String detail;
+
+  @override
+  String toString() => 'HostUnreachableException($detail)';
+}
+
 /// Descobre o dialeto do host com **um** comando.
 ///
 /// Tenta POSIX primeiro (`uname -sm` + `$HOME`); esse mesmo comando já traz
 /// tudo que o antigo `printf %s "$HOME"` do `SshTunnel.open` buscava, então o
 /// caminho POSIX não paga round-trip novo. Só quando ele falha é que vale
 /// perguntar em PowerShell — num host POSIX essa segunda pergunta nunca ocorre.
+///
+/// Lança [HostUnreachableException] quando o próprio `ssh` falha (exit 255:
+/// timeout, recusa, DNS). Sem isso a falha de transporte caía no probe de
+/// PowerShell, que também falhava, e o host fora do ar virava "sistema
+/// desconhecido" — diagnóstico errado, e o kind errado na UI.
 Future<HostProbe?> probeHost(HostExec exec) async {
-  final (code, out, _) = await exec(r'uname -sm && printf %s "$HOME"');
+  final (code, out, err) = await exec(r'uname -sm && printf %s "$HOME"');
+  if (code == kSshTransportExitCode) {
+    throw HostUnreachableException(err.trim());
+  }
   if (code == 0) {
     final lines = out.trim().split('\n');
     if (lines.length >= 2) {

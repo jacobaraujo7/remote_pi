@@ -24,6 +24,11 @@ class SequencedRunner implements TaskRunnerGateway {
     _runs.add(TaskRun(taskId: taskId, status: TaskRunStatus.running, pid: pid));
   }
 
+  void spawnStarting(String taskId) {
+    _running[taskId] = StreamController<String>.broadcast(sync: true);
+    _runs.add(TaskRun(taskId: taskId, status: TaskRunStatus.starting));
+  }
+
   /// Emite `running` SEM ter registrado output (ordem errada de propósito).
   void emitRunningBeforeRegister(String taskId, {int? pid}) => _runs.add(
     TaskRun(taskId: taskId, status: TaskRunStatus.running, pid: pid),
@@ -138,6 +143,13 @@ void main() {
     runner.spawn('t');
     runner.write('t', 'no-pid\r\n');
     expect(screen('t'), contains('no-pid'));
+  });
+
+  test('stderr de processo que falha durante starting não é perdido', () {
+    runner.spawnStarting('t');
+    runner.write('t', 'compose interpolation failed\r\n');
+    runner.exit('t', code: 1);
+    expect(screen('t'), contains('compose interpolation failed'));
   });
 
   test('re-run com o MESMO pid assina o stream do processo novo', () {

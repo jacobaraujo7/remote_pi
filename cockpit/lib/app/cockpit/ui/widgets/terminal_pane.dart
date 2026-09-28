@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart' show HardwareKeyboard, KeyEvent;
@@ -143,7 +145,11 @@ class _TerminalPaneState extends State<TerminalPane>
 
   CockpitTerminalRender? get _render => _viewKey.currentState?.renderTerminal;
 
-  bool get _isCmd => HardwareKeyboard.instance.isMetaPressed;
+  /// Modificador de abrir link: Cmd no macOS, Ctrl no Windows/Linux (mesma
+  /// regra do `ActivationModifier.primary` do Ghostty).
+  bool get _isCmd => Platform.isMacOS
+      ? HardwareKeyboard.instance.isMetaPressed
+      : HardwareKeyboard.instance.isControlPressed;
 
   /// ⌥ (Option) segurado força a seleção **local** mesmo quando a app dona o
   /// mouse — é o escape hatch pra copiar texto cru, igual iTerm/Terminal.app.

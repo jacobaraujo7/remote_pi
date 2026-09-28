@@ -14,7 +14,9 @@ void _trace(String m) {
     File(
       '${Directory.systemTemp.path}/ck_trace.log',
     ).writeAsStringSync('$m\n', mode: FileMode.append, flush: true);
-  } catch (_) {}
+  } on Object catch (_) {
+    // trace de debug: sem disco, sem trace.
+  }
 }
 
 /// Paleta de cores do avatar de workspace.

@@ -33,11 +33,15 @@ USAGE:
   cockpit rename-workspace <id|path> <name> [--json]
                                                rename a workspace in the sidebar
   cockpit db <list|schema|query|run|execute>   SQL databases (see `cockpit db --help`)
+  cockpit telemetry <cmd…> | errors | show …   run observed / query the error store (see `cockpit telemetry --help`)
   cockpit redis [browse] --db <conn> ...       Redis command / open key table
   cockpit mongo [browse] --db <conn> [--database <name>] ...
                                                MongoDB runCommand / open browser
   cockpit http <list|run> <file.http>          run HTTP requests from a .http
                                                file (see `cockpit http --help`)
+  cockpit exec [--cwd <dir>] [--timeout <s>] [--json] [--] <command...>
+                                               run a shell command via the app and
+                                               print its output (see `cockpit exec --help`)
   cockpit browse <url> [--json]                open the built-in browser tab at
                                                <url> (system browser on Linux)
   cockpit orchestrate <file.ckp> [--append]    apply a .ckp pane layout: close

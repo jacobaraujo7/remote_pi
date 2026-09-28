@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -23,6 +24,7 @@ import 'package:cockpit/app/core/ui/widgets/selectable_scroll.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/media_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/web_markdown_preview.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
@@ -163,6 +165,11 @@ class _FileViewerState extends State<FileViewer> {
   }
 
   /// Tem modo renderizado além da fonte (markdown/svg/html) → mostra o switch
+  /// Recargas manuais do preview de `.html` (botão do rodapé). Entra no
+  /// `revision` do [WebHtmlPreview] junto com o conteúdo lido do disco, pra
+  /// funcionar também quando o arquivo mudou sem o watcher perceber.
+  int _htmlReload = 0;
+
   /// Preview/Source. Demais textos/códigos entram direto em edição (sem toggle).
   bool get _hasPreview =>
       widget.session.view is FileViewMarkdown ||
@@ -665,7 +672,9 @@ class _FileViewerState extends State<FileViewer> {
       _baseline = fresh;
       _updateDirty(false);
       if (_lspOn) unawaited(_vm?.lspChangeDocument(widget.session.path, fresh));
-    } catch (_) {}
+    } on Object catch (e) {
+      DiagnosticsLog.instance.warn('file-viewer', 'reload failed', error: e);
+    }
   }
 
   /// Aplica [text] no buffer preservando o cursor (best-effort).
@@ -841,6 +850,9 @@ class _FileViewerState extends State<FileViewer> {
                   ? WebHtmlPreview(
                       path: widget.session.path,
                       workspaceRoot: _workspaceRoot,
+                      // Conteúdo relido do disco (watcher) OU clique no botão
+                      // de recarregar: qualquer um dos dois recarrega a página.
+                      revision: Object.hash(text, _htmlReload),
                     )
                   : _TextView(
                       text: text,
@@ -890,6 +902,11 @@ class _FileViewerState extends State<FileViewer> {
             dirty: _dirty,
             saving: _saving,
             onToggle: _toggleEditing,
+            // Só o preview de HTML: é o único viewer que renderiza a partir do
+            // disco (webview) em vez do conteúdo que a sessão já releu.
+            onReload: _isHtml && _webPreview && !editingNow
+                ? () => setState(() => _htmlReload++)
+                : null,
           ),
         ],
       ),
@@ -1003,6 +1020,7 @@ class _Toolbar extends StatelessWidget {
     required this.dirty,
     required this.saving,
     required this.onToggle,
+    this.onReload,
   });
 
   /// Conteúdo à esquerda da barra (o breadcrumb do caminho).
@@ -1019,6 +1037,10 @@ class _Toolbar extends StatelessWidget {
   final bool dirty;
   final bool saving;
   final VoidCallback onToggle;
+
+  /// Recarrega o render a partir do disco (preview de `.html`). `null` esconde
+  /// o botão.
+  final VoidCallback? onReload;
 
   @override
   Widget build(BuildContext context) {
@@ -1043,6 +1065,19 @@ class _Toolbar extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: colors.accent,
                   shape: BoxShape.circle,
+                ),
+              ),
+            ),
+          if (onReload != null)
+            AppTooltip(
+              message: context.t.cockpit.fileViewer.reload,
+              child: HoverTap(
+                borderRadius: BorderRadius.circular(5),
+                onTap: onReload,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Icon(Icons.refresh, size: 15, color: colors.text2),
                 ),
               ),
             ),

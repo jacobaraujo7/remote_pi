@@ -292,13 +292,19 @@ class LspClientImpl implements LspClient {
         'shutdown',
         const <String, dynamic>{},
       ).timeout(const Duration(seconds: 2));
-    } catch (_) {}
+    } on Object catch (_) {
+      // servidor já foi: o exit abaixo e o kill cobrem.
+    }
     try {
       _notify('exit', const <String, dynamic>{});
-    } catch (_) {}
+    } on Object catch (_) {
+      // stdin já fechado.
+    }
     try {
       await process.stdin.close();
-    } catch (_) {}
+    } on Object catch (_) {
+      // idem.
+    }
 
     try {
       await process.exitCode.timeout(const Duration(seconds: 3));
@@ -318,7 +324,9 @@ class LspClientImpl implements LspClient {
     if (process != null) {
       try {
         process.stdin.close();
-      } catch (_) {}
+      } on Object catch (_) {
+        // processo já encerrado.
+      }
       process.kill(ProcessSignal.sigterm);
     }
     _stdoutSub?.cancel();

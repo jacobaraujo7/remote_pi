@@ -17,6 +17,10 @@ path = "src/main.rs"
 serde_json = "1"
 base64 = "0.22"
 
+# Wrapper `cockpit telemetry <cmd>`: PTY aninhado (forkpty/termios) no POSIX.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # Binário pequeno: ele é empacotado DUAS vezes no macOS (arm64 + x86_64, unidos
 # com lipo) e uma vez em cada outra plataforma.
 [profile.release]
