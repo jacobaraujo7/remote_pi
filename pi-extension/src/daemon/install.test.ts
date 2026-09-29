@@ -248,6 +248,16 @@ describe("findRemotePiScript", () => {
     // Same dist root as supervisord: dirname(index.js) === dirname(dist/bin).
     expect(dirname(p)).toBe(dirname(dirname(findSupervisorScript())));
   });
+
+  test("matches the package.json `remote-pi` bin", () => {
+    // npm only marks `bin` files executable, so the link must target the bin
+    // (and the bin must run the CLI without the host packages — see
+    // cli_imports.test.ts).
+    const pkg = JSON.parse(readFileSync(new URL("../../package.json", import.meta.url), "utf8")) as {
+      bin: Record<string, string>;
+    };
+    expect(pkg.bin["remote-pi"]).toBe(`dist/${basename(findRemotePiScript())}`);
+  });
 });
 
 // `~/.local/bin` + `:`-delimited PATH are POSIX-only (Windows skips CLI symlinks).
