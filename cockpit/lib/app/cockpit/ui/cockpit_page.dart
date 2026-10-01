@@ -1429,6 +1429,9 @@ class _TreePanel extends StatelessWidget {
                   // (treeRootPath = remotePath); local usa o
                   // path do projeto.
                   cwd: vm.treeRootPath,
+                  sourceWorkspaceCwd: vm.selectedProject!.isRemoteTerminal
+                      ? null
+                      : vm.projectById(vm.selectedProject!.parentId)?.path,
                   activeFile: vm.selectedFileInTree ?? '',
                   listHeight: tasksHeight,
                   onResizeDelta: onTasksResize,
