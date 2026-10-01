@@ -67,6 +67,10 @@ function singleQuestionFlow(overrides: Partial<Record<string, unknown>> = {}) {
 const SUBMIT = "@eko24ive/pi-ask:submit";
 
 describe("extension_ui_bridge", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("returns null when the SDK exposes no events bus (inert)", () => {
     const pi = {} as unknown as ExtensionAPI;
     expect(createExtensionUiBridge(pi, () => {})).toBeNull();
@@ -397,17 +401,36 @@ describe("extension_ui_bridge", () => {
       expect(bridge.pendingRequests()).toEqual([]);
     });
 
-    it("does not replay a flow dropped by the TTL", () => {
-      vi.useFakeTimers();
-      const bus = fakeBus();
-      const bridge = createExtensionUiBridge(fakePi(bus), () => {})!;
+    it.each([10 * 60 * 1000 + 1, 26 * 60 * 60 * 1000])(
+      "keeps unanswered questions replayable and answerable after %i ms",
+      (elapsed) => {
+        vi.useFakeTimers();
+        const bus = fakeBus();
+        const sent: ServerMessage[] = [];
+        const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
 
-      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
-      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
+        bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
+        const originalRequest = sent[0];
+        vi.advanceTimersByTime(elapsed);
 
-      expect(bridge.pendingRequests()).toEqual([]);
-      vi.useRealTimers();
-    });
+        expect(bridge.pendingRequests()).toEqual([originalRequest]);
+        expect(sent).toEqual([originalRequest]);
+        // A late reconnecting client can still map labels back to values.
+        bridge.respond({ type: "extension_ui_response", id: "tool:tc_1", value: "Beta" });
+        expect(bus.emitted.filter((e) => e.name === SUBMIT)).toEqual([{
+          name: SUBMIT,
+          data: {
+            version: 1,
+            requestId: "tool:tc_1",
+            flowId: "tool:tc_1",
+            response: { kind: "answer", mode: "submit", answers: { goal: { values: ["b"] } } },
+          },
+        }]);
+        // Sending an answer alone must not remove a question before completion.
+        expect(bridge.pendingRequests()).toEqual([originalRequest]);
+        bridge.dispose();
+      },
+    );
 
     it("replays every open flow, oldest first", () => {
       const bus = fakeBus();
@@ -444,48 +467,44 @@ describe("extension_ui_bridge", () => {
     });
   });
 
-  describe("flow TTL", () => {
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
-    it("warns the app (matching notify) when a flow's TTL expires", () => {
+  describe("pending question lifecycle", () => {
+    it.each([false, true])("stops replay after completion (cancelled=%s)", (cancelled) => {
       vi.useFakeTimers();
       const bus = fakeBus();
       const sent: ServerMessage[] = [];
       const bridge = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
 
       bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
-      sent.length = 0;
-
-      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
-
-      expect(sent).toHaveLength(1);
-      expect(sent[0]).toMatchObject({
+      vi.advanceTimersByTime(26 * 60 * 60 * 1000);
+      bus.emit("@eko24ive/pi-ask:completed", {
+        version: 1,
+        flowId: "tool:tc_1",
+        result: { cancelled },
+      });
+      expect(bridge.pendingRequests()).toEqual([]);
+      expect(sent.at(-1)).toMatchObject({
         type: "extension_ui_request",
         id: "tool:tc_1",
         method: "notify",
-        notify_type: "warning",
       });
-      // ...and the flow is gone: a degraded response through the SAME bridge
-      // is dropped (rich responses still work — they carry flow_id).
-      bridge.respond({ type: "extension_ui_response", id: "tool:tc_1", value: "Alpha" });
-      expect(bus.emitted.filter((e) => e.name === SUBMIT)).toHaveLength(0);
+      bridge.dispose();
     });
 
-    it("does NOT warn when the flow resolved before the TTL", () => {
-      vi.useFakeTimers();
+    it("replays only new-session questions after bridge replacement", () => {
       const bus = fakeBus();
-      const sent: ServerMessage[] = [];
-      createExtensionUiBridge(fakePi(bus), (m) => sent.push(m));
-
+      const outgoing = createExtensionUiBridge(fakePi(bus), () => {})!;
       bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow());
-      bus.emit("@eko24ive/pi-ask:completed", { version: 1, flowId: "tool:tc_1" });
-      sent.length = 0;
+      expect(outgoing.pendingRequests()).toHaveLength(1);
 
-      vi.advanceTimersByTime(10 * 60 * 1000 + 1);
-
-      expect(sent).toHaveLength(0);
+      outgoing.dispose();
+      const sent: ServerMessage[] = [];
+      const incoming = createExtensionUiBridge(fakePi(bus), (m) => sent.push(m))!;
+      expect(incoming.pendingRequests()).toEqual([]);
+      bus.emit("@eko24ive/pi-ask:started", singleQuestionFlow({ flowId: "new-session" }));
+      expect(incoming.pendingRequests().map((r) => r.id)).toEqual(["new-session"]);
+      expect(sent).toHaveLength(1);
+      expect(outgoing.pendingRequests()).toEqual([]);
+      incoming.dispose();
     });
   });
 });
