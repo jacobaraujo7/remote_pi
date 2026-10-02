@@ -198,6 +198,22 @@ export class MeshNode {
   private relayBackoffIdx = 0;
   private static readonly RELAY_RECONNECT_BACKOFFS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 
+  /**
+   * Backstop for a bridge that has not attached yet.
+   *
+   * Attaching is event-driven (slash commands, injected-relay reconnect, and the
+   * peer's own reconnect), so a single missed event used to strand cross-PC
+   * routing for the rest of the process's life: no siblings, an empty remote
+   * roster, and no output anywhere. Observed in the field as ~19h with zero
+   * cross-PC frames while the peer on the other side polled every 2 minutes.
+   *
+   * Only the injected-relay case is covered here — an owned relay already
+   * retries through `_scheduleRelayReconnect`.
+   */
+  private bridgeAttachRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private bridgeAttachRetryIdx = 0;
+  private static readonly BRIDGE_ATTACH_BACKOFFS_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
+
   constructor(opts: MeshNodeOptions) {
     this.log = opts.log ?? ((): void => {});
     const peerOpts: SessionPeerOptions = { sockPath: opts.sockPath, name: opts.name };
@@ -367,9 +383,15 @@ export class MeshNode {
 
   private async _attemptBridge(generation: number): Promise<void> {
     if (this.closed || this.activeBridge) return;
-    if (this.peer_.currentRole() !== "leader") return;
+    if (this.peer_.currentRole() !== "leader") {
+      this._scheduleBridgeAttachRetry("not the broker-host leader yet");
+      return;
+    }
     const broker: Broker | null = this.peer_.localBroker();
-    if (!broker) return;
+    if (!broker) {
+      this._scheduleBridgeAttachRetry("local broker not ready");
+      return;
+    }
     const paramsAtStart = this.bridgeParams;
     if (!paramsAtStart) return;
     const revisionAtStart = this.topologyRevision;
@@ -478,6 +500,7 @@ export class MeshNode {
 
       // Publish only after activation and owned-close handler installation.
       this.activeBridge = result;
+      this._clearBridgeAttachRetry();
       this.brokerRemote = result.brokerRemote;
       this.piForward = result.piForward;
       this.relay = candidateRelay;
@@ -536,6 +559,7 @@ export class MeshNode {
   }
 
   private _teardownPublishedBridge(closeOwnedRelay: boolean): void {
+    this._clearBridgeAttachRetry();
     const bridge = this.activeBridge;
     const relay = this.relay;
     const relayOwned = this.relayOwned;
@@ -568,6 +592,42 @@ export class MeshNode {
     if (!this.relayReconnectTimer) return;
     clearTimeout(this.relayReconnectTimer);
     this.relayReconnectTimer = null;
+  }
+
+  /**
+   * Re-attempt the bridge attach after `reason`, backing off up to a minute.
+   *
+   * `attachBridge` resolving does not mean the bridge attached: `_attemptBridge`
+   * returns quietly when this node is not (yet) the broker host. The host can
+   * also change under us — a UDS failover promotes a follower — and the relay can
+   * come back before the mesh node is ready to use it. Without this, the only
+   * recovery was an event that had already been missed.
+   */
+  private _scheduleBridgeAttachRetry(reason: string): void {
+    if (this.closed || this.activeBridge || this.bridgeAttachRetryTimer) return;
+    if (this.bridgeParams?.injectedRelay === undefined) return;
+    const backoffs = MeshNode.BRIDGE_ATTACH_BACKOFFS_MS;
+    const delay = backoffs[Math.min(this.bridgeAttachRetryIdx, backoffs.length - 1)]!;
+    this.bridgeAttachRetryIdx += 1;
+    this.log(
+      `mesh bridge: deferred (${reason}) — retrying in ${Math.round(delay / 1_000)}s`,
+    );
+    const timer = setTimeout(() => {
+      this.bridgeAttachRetryTimer = null;
+      void this._requestBridge().catch((error: unknown) => {
+        this.log(`mesh bridge: attach retry failed: ${String(error)}`);
+      });
+    }, delay);
+    timer.unref?.();
+    this.bridgeAttachRetryTimer = timer;
+  }
+
+  private _clearBridgeAttachRetry(): void {
+    if (this.bridgeAttachRetryTimer) {
+      clearTimeout(this.bridgeAttachRetryTimer);
+      this.bridgeAttachRetryTimer = null;
+    }
+    this.bridgeAttachRetryIdx = 0;
   }
 
   private _scheduleRelayReconnect(): void {
