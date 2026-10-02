@@ -67,23 +67,28 @@
       "protobufjs"
     ]
   },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "^0.86.1",
+    "@earendil-works/pi-tui": "^0.86.1",
     "@types/node": "^25.8.0",
     "@types/ws": "^8.18.1",
     "tsx": "^4.22.0",
+    "typebox": "^1.3.34",
     "typescript": "^6.0.3",
     "vite": "^8.0.16",
     "vitest": "^4.1.6"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.79.10",
-    "@earendil-works/pi-tui": "^0.79.10",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@napi-rs/keyring": "^1.3.0",
     "@noble/ed25519": "^3.1.0",
     "croner": "^10.0.1",
     "qrcode-terminal": "^0.12.0",
-    "typebox": "^1.1.38",
     "ws": "^8.21.0",
     "zod": "^4.4.3"
   }
