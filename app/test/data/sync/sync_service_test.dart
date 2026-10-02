@@ -362,6 +362,35 @@ void main() {
     s.sync.dispose();
   });
 
+  test('continuous chunks flush before the source becomes quiet (#136)', () async {
+    final s = await setup();
+    var producing = true;
+    var emittedDuringBurst = false;
+    final sub = s.sync.streamingStream.listen((message) {
+      if (producing && (message?.buffer.isNotEmpty ?? false)) {
+        emittedDuringBurst = true;
+      }
+    });
+
+    for (var i = 0; i < 20; i++) {
+      s.ch.push(AgentChunk(inReplyTo: 'r1', delta: 'x'));
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+    }
+    producing = false;
+
+    expect(
+      emittedDuringBurst,
+      isTrue,
+      reason: 'continuous input must not postpone every 16ms UI flush',
+    );
+    await _settle();
+    expect(s.sync.streaming?.buffer, List.filled(20, 'x').join());
+
+    await sub.cancel();
+    s.conn.dispose();
+    s.sync.dispose();
+  });
+
   test('agent_done finalizes the streamed message + flips to idle', () async {
     final s = await setup();
     s.ch.push(AgentChunk(inReplyTo: 'r1', delta: 'done text'));
