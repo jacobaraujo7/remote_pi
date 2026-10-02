@@ -66,6 +66,11 @@ class _RemotePiAppState extends State<RemotePiApp> with WidgetsBindingObserver {
         meshSync.startPolling();
         // ignore: unawaited_futures
         meshSync.pullOnDemand();
+        // Sockets don't survive backgrounding (the OS RSTs them) and no retry
+        // can run while the process is frozen, so on resume an attempt is
+        // almost always due — don't make the user wait out a backoff that was
+        // scheduled for a loss they never saw.
+        injector.get<ConnectionManager>().onForeground();
       case AppLifecycleState.inactive:
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
