@@ -19,7 +19,9 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     this._service, {
     this.maxDuration = const Duration(seconds: 60),
     Duration tickInterval = const Duration(milliseconds: 200),
+    String? Function()? preferredLocale,
   }) : _tickInterval = tickInterval,
+       _preferredLocale = preferredLocale,
        super(const VoiceIdle());
 
   final SpeechService _service;
@@ -28,8 +30,17 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   final Duration maxDuration;
   final Duration _tickInterval;
 
+  /// Returns the user-pinned recognition locale (e.g. `he_IL`), or `null`
+  /// for the system default. Read on every [ensureInit] so a change in
+  /// Settings takes effect without restarting the app.
+  final String? Function()? _preferredLocale;
+
   SpeechAvailability? _availability;
   String? _localeId;
+  /// The preferred-locale value the cached [_availability] was resolved
+  /// against — when the Settings preference changes, the next init re-runs
+  /// instead of returning the stale cached locale.
+  String? _resolvedPreferred;
   StreamSubscription<double>? _levelSub;
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
@@ -48,10 +59,14 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   /// once [SpeechReady] is reached it short-circuits. On failure the state is
   /// updated to the matching [VoiceUnavailable] so the UI reacts.
   Future<SpeechAvailability> ensureInit() async {
+    final preferred = _preferredLocale?.call();
     final cached = _availability;
-    if (cached is SpeechReady) return cached;
+    if (cached is SpeechReady && _resolvedPreferred == preferred) {
+      return cached;
+    }
 
-    final result = await _service.init();
+    final result = await _service.init(preferredLocaleId: preferred);
+    _resolvedPreferred = preferred;
     _availability = result;
     switch (result) {
       case SpeechReady(:final localeId):

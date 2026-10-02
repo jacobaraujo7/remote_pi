@@ -1,5 +1,7 @@
+import 'package:app/config/dependencies.dart';
 import 'package:app/data/preferences/preferences.dart';
 import 'package:app/data/transport/relay_config.dart';
+import 'package:app/data/voice/speech_service.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/core/themes/themes.dart';
 import 'package:app/ui/settings/states/settings_state.dart';
@@ -51,6 +53,8 @@ class SettingsPage extends StatelessWidget {
           const _RelaySection(),
           Divider(color: colors.border, height: 1),
           const _DisplaySection(),
+          Divider(color: colors.border, height: 1),
+          const _VoiceSection(),
           Divider(color: colors.border, height: 1),
           const _SectionHeader('Pairings'),
           switch (state) {
@@ -346,6 +350,125 @@ class _DisplaySection extends StatelessWidget {
     );
   }
 }
+
+/// Locale label for display: `he_IL` → `Hebrew (Israel)` when resolvable,
+/// otherwise the raw id. Best-effort — unknown codes fall back to the id.
+String _localeLabel(String id) {
+  final parts = id.replaceAll('-', '_').split('_');
+  final lang = parts.first.toLowerCase();
+  final langName = _languageNames[lang] ?? lang.toUpperCase();
+  if (parts.length < 2 || parts[1].isEmpty) return langName;
+  final region = parts[1].toUpperCase();
+  return '$langName ($region)';
+}
+
+const _languageNames = {
+  'ar': 'Arabic', 'de': 'German', 'en': 'English', 'es': 'Spanish',
+  'fr': 'French', 'he': 'Hebrew', 'it': 'Italian', 'ja': 'Japanese',
+  'ko': 'Korean', 'nl': 'Dutch', 'pl': 'Polish', 'pt': 'Portuguese',
+  'ru': 'Russian', 'tr': 'Turkish', 'uk': 'Ukrainian', 'zh': 'Chinese',
+};
+
+/// Settings → Voice input: pinned recognition language for hold-to-talk
+/// dictation. `System default` (null preference) keeps the plan-29 behavior:
+/// the recognizer resolves the platform locale at init time.
+class _VoiceSection extends StatefulWidget {
+  const _VoiceSection();
+
+  @override
+  State<_VoiceSection> createState() => _VoiceSectionState();
+}
+
+class _VoiceSectionState extends State<_VoiceSection> {
+  Future<List<String>>? _localesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    // SpeechService is an injector service (not a widget provider) — read
+    // it through the seam. locales() lists device recognition locales
+    // without triggering the mic permission prompt.
+    _localesFuture = injector.get<SpeechService>().locales();
+  }
+
+  Future<void> _pick(List<String> locales) async {
+    final prefs = context.read<Preferences>();
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      builder: (sheetCtx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            for (final id in locales)
+              ListTile(
+                title: Text(
+                  id == _kSystemDefault ? 'System default' : _localeLabel(id),
+                ),
+                trailing: (prefs.sttLocale ?? _kSystemDefault) == id
+                    ? Icon(Icons.check,
+                        size: 18, color: sheetCtx.colors.accent)
+                    : null,
+                onTap: () => Navigator.of(sheetCtx).pop(id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    await context.read<Preferences>()
+        .setSttLocale(selected == _kSystemDefault ? null : selected);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final prefs = context.watch<Preferences>();
+    final colors = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionHeader('Voice input'),
+        FutureBuilder<List<String>>(
+          future: _localesFuture,
+          builder: (context, snap) {
+            final locales = snap.data ?? const [];
+            // System default first, then the device's recognition locales.
+            final choices = [_kSystemDefault, ...locales];
+            final current = prefs.sttLocale ?? _kSystemDefault;
+            final label = current == _kSystemDefault
+                ? 'System default'
+                : _localeLabel(current);
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 18),
+              title: Text(
+                'Speech-to-text language',
+                style: context.typo.sansBody.copyWith(color: colors.text),
+              ),
+              subtitle: Text(
+                locales.isEmpty
+                    ? (snap.hasError
+                        ? "Couldn't load this device's languages."
+                        : 'Loading device languages…')
+                    : label,
+                style: context.typo.sansBody.copyWith(
+                  color: colors.muted,
+                  fontSize: 12,
+                ),
+              ),
+              trailing: Icon(LucideIcons.chevronDown,
+                  size: 16, color: colors.muted),
+              onTap: locales.isEmpty ? null : () => _pick(choices),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+}
+
+/// Sentinel for the "no explicit choice" entry in the picker (the persisted
+/// preference is null for it).
+const String _kSystemDefault = '__system__';
 
 class _SectionHeader extends StatelessWidget {
   final String label;

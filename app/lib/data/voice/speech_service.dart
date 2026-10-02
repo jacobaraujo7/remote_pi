@@ -34,6 +34,11 @@ abstract class SpeechService extends Service {
   /// [preferredLocaleId] defaults to the platform locale when null.
   Future<SpeechAvailability> init({String? preferredLocaleId});
 
+  /// Recognition locale ids supported on this device (e.g. `pt_BR`, `en_US`),
+  /// for the Settings language picker. Does not trigger the mic permission
+  /// prompt; an empty list means the device exposed no locales.
+  Future<List<String>> locales();
+
   /// Amplitude envelope in `0..1` for the waveform. This is a volume
   /// envelope, **not** an FFT spectrum (Risk 4).
   Stream<double> get soundLevel;
@@ -138,6 +143,9 @@ class SpeechToTextService implements SpeechService {
     final resolved = _resolveLocale(preferred, supported);
     return resolved == null ? const SpeechUnsupported() : SpeechReady(resolved);
   }
+
+  @override
+  Future<List<String>> locales() => _plugin.locales();
 
   @override
   Future<void> start({
