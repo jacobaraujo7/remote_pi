@@ -110,7 +110,7 @@ import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
 import { updateFooter, type FooterState } from "./ui/footer.js";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { chmodSync, mkdtempSync, mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
+import { chmodSync, mkdtempSync, mkdirSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { spawnSync } from "node:child_process";
 import { hostname, tmpdir } from "node:os";
@@ -2083,18 +2083,15 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   _extensionUiBridge?.dispose();
   _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
 
-  // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
-  // agent-network skill on first load. resources_discover lets Pi find it.
+  // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ directories exist. Pi loads the
+  // packaged agent-network skill through the package manifest.
   try {
     ensureGlobalDirs();
-    _deployAgentNetworkSkill();
   } catch { /* best-effort init */ }
 
   // Seed the global-pairings cache from peers.json so the footer can show
   // 🟢/🟡 correctly the moment the relay is up (no race with first refresh).
   _refreshPairingsCache();
-
-  pi.on("resources_discover", () => ({ skillPaths: [skillsDir()] }));
 
   // Plano 20: agent_send + agent_request tools so the LLM can drive the
   // session network natively. Getter captures `_meshNode` live so the
@@ -3995,45 +3992,6 @@ function _cmdUninstall(ctx: Pick<ExtensionContext, "ui">, opts: { linkCli?: bool
 
 // ── Agent-network commands (plano 19) ─────────────────────────────────────────
 
-function _resolveExtensionDir(): string {
-  // dist/index.js → dist; skills sit at <extensionRoot>/skills/. When we run
-  // from src/ via tsx (dev), index.ts is in src/ and skills/ is sibling. We
-  // detect by checking both locations.
-  const here = fileURLToPath(import.meta.url);
-  // dist/index.js or src/index.ts → parent = <dist or src>; sibling = ../skills
-  const parent = here.replace(/\/[^/]+$/, "");
-  const candidateA = join(parent, "..", "skills"); // dist → ../skills
-  const candidateB = join(parent, "skills");        // src → skills
-  if (existsSync(candidateA)) return parent.replace(/\/dist$/, "");
-  if (existsSync(candidateB)) return parent;
-  return parent;
-}
-
-function _deployAgentNetworkSkill(): void {
-  // Pi SDK spec (core/skills.js): every skill must live at
-  //   <skillsRoot>/<skill-name>/SKILL.md
-  // The skill `name:` frontmatter must equal the parent directory name. We
-  // ship the source pre-arranged that way so deploy is a straight copy into
-  // ~/.pi/remote/skills/agent-network/SKILL.md.
-  const root = _resolveExtensionDir();
-  const src1 = join(root, "skills", "agent-network", "SKILL.md");
-  const src2 = join(root, "..", "skills", "agent-network", "SKILL.md");
-  const src = existsSync(src1) ? src1 : (existsSync(src2) ? src2 : null);
-  if (!src) return;
-  const dstDir = join(skillsDir(), "agent-network");
-  const dst = join(dstDir, "SKILL.md");
-  try {
-    mkdirSync(dstDir, { recursive: true });
-    copyFileSync(src, dst);
-    // Cleanup legacy deploy at ~/.pi/remote/skills/agent-network.md (flat
-    // layout, fails the Pi SDK's name-vs-parent-dir validation).
-    const legacy = join(skillsDir(), "agent-network.md");
-    if (existsSync(legacy)) {
-      try { unlinkSync(legacy); } catch { /* ignored */ }
-    }
-  } catch { /* best-effort */ }
-}
-
 /**
  * Inject text into the agent as a user message, waking a turn. The Pi SDK's
  * `ExtensionAPI.sendUserMessage` is fire-and-forget (returns `void`) and
@@ -5283,8 +5241,9 @@ if (_isDirectRun()) {
 /**
  * Resolve the packaged agent-network skill path
  * (`<pkgRoot>/skills/agent-network/SKILL.md`). Single source of truth shared
- * by both runtimes: Pi discovers it via `resources_discover`, and the Claude
- * launcher injects it as a system prompt (see `_cmdClaudeCli`). Returns null
+ * by both runtimes: Pi discovers it through the package manifest, and the
+ * Claude launcher injects it as a system prompt (see `_cmdClaudeCli`).
+ * Returns null
  * if the file is missing (e.g. running before `pnpm build`).
  */
 function _agentNetworkSkillPath(): string | null {
