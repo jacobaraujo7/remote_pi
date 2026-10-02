@@ -10,7 +10,7 @@ import 'package:app/data/transport/channel.dart';
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:app/pairing/owner_identity_bridge.dart';
-import 'package:app/pairing/pair_request_flow.dart' show PeerTransport;
+import 'package:app/pairing/pair_request_flow.dart' as pair_flow;
 import 'package:app/pairing/storage.dart';
 import 'package:app/ui/pairing/states/pairing_state.dart';
 import 'package:app/ui/pairing/viewmodels/pairing_viewmodel.dart';
@@ -42,7 +42,7 @@ class _Q {
   }
 }
 
-class _MemTransport implements PeerTransport {
+class _MemTransport implements pair_flow.PeerTransport {
   final _Q _s;
   final _Q _r;
   _MemTransport({required _Q send, required _Q recv}) : _s = send, _r = recv;
@@ -284,6 +284,29 @@ void main() {
       expect(err.message, contains('QR expired'));
       expect(storage._saved, isEmpty);
 
+      vm.dispose();
+    });
+
+    test('pair timeout preserves relay-specific guidance', () async {
+      final storage = _FakeStorage();
+      final bridge = await _bootedBridge(storage);
+      const guidance =
+          'Timed out on http://192.0.2.10:8787 — verify the relay port';
+      final vm = PairingViewModel(
+        storage,
+        (qr, key) async => throw const pair_flow.PairingError(
+          code: 'pair_timeout',
+          message: guidance,
+        ),
+        _SpyConn(),
+        _PrefsForTest(),
+        bridge,
+      );
+
+      await vm.onQrScanned(_qrUri);
+
+      expect(vm.state, isA<PairingError>());
+      expect((vm.state as PairingError).message, guidance);
       vm.dispose();
     });
 

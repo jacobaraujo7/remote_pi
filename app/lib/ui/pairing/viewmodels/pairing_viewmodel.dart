@@ -63,6 +63,7 @@ class PairingViewModel extends ViewModel<PairingState> {
       // the router's _BootState well before pairing is reachable, so
       // requireKeyPair() never throws here.
       final ownerKey = await _ownerBridge.requireKeyPair();
+      final currentRelayUrl = resolveRelayUrl(_prefs);
 
       final transport = await _transportFactory(qr, ownerKey);
       _transport = transport;
@@ -73,14 +74,16 @@ class PairingViewModel extends ViewModel<PairingState> {
             transport: transport,
             storage: _storage,
             deviceName: _deviceName(),
-            currentRelayUrl: resolveRelayUrl(_prefs),
+            currentRelayUrl: currentRelayUrl,
           )
           .timeout(
             const Duration(seconds: 30),
-            onTimeout: () => throw const pair_flow.PairingError(
+            onTimeout: () => throw pair_flow.PairingError(
               code: 'pair_timeout',
-              message:
-                  'Timed out — make sure /remote-pi is running on your Mac',
+              message: pair_flow.pairingTimeoutMessage(
+                qr: qr,
+                currentRelayUrl: currentRelayUrl,
+              ),
             ),
           );
 
@@ -136,7 +139,9 @@ class PairingViewModel extends ViewModel<PairingState> {
     'token_expired' => 'QR expired — generate a new one on your Mac',
     'token_consumed' => 'QR already used — generate a new one',
     'token_unknown' => 'QR not recognized by Mac — re-run /remote-pi pair',
-    'pair_timeout' => 'Timed out — make sure /remote-pi is running on your Mac',
+    'pair_timeout' => e.message.isEmpty
+        ? 'Timed out — make sure /remote-pi is still running'
+        : e.message,
     _ => e.message.isEmpty ? e.code : e.message,
   };
 
