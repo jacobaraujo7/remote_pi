@@ -4326,12 +4326,14 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
     // again from `_cmdStart`).
     _attachBridgeIfReady();
   } catch (err) {
+    // Close on every failure path, not just the superseded one. A failed leader
+    // election leaves this MeshNode owning the broker socket, so skipping close
+    // would keep an idle session brokering the machine's mesh while it reports
+    // "join failed" to the user.
+    try { await peer.close(); } catch { /* best-effort */ }
     // A replacement/stop/newer join can invalidate this candidate before its
-    // failure arrives. Clean it up and never notify the outgoing session ctx.
-    if (!isCurrentCandidate()) {
-      try { await peer.close(); } catch { /* best-effort */ }
-      return;
-    }
+    // failure arrives; never notify the outgoing session ctx in that case.
+    if (!isCurrentCandidate()) return;
     ctx.ui.notify(`[remote-pi] join failed: ${String(err)}`, "error");
   }
 }
