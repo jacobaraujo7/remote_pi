@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
 import { ipcAddress, usesNamedPipe } from "./ipc.js";
+import { remotePiHome } from "../paths.js";
 
-const HOME_PI_REMOTE = join((process.env["REMOTE_PI_HOME"] || homedir()), ".pi", "remote");
+const HOME_PI_REMOTE = remotePiHome();
 const SESSIONS_DIR = join(HOME_PI_REMOTE, "sessions");
 const SKILLS_DIR = join(HOME_PI_REMOTE, "skills");
 /**
