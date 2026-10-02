@@ -366,7 +366,13 @@ class ChatPage extends StatelessWidget {
       s.length <= max ? s : '${s.substring(0, max - 1)}…';
 
   Widget _buildBody(BuildContext context, ChatState state, ChatViewModel vm) {
-    final hideToolCalls = context.watch<Preferences>().hideToolCalls;
+    // Per-room tool-calls toggle: keyed by the exact (peer, room) pair so
+    // one room can hide tool rows while another shows them. No record
+    // (or no resolved peer yet) → show them.
+    final prefs = context.watch<Preferences>();
+    final epk = vm.activePeer?.remoteEpk;
+    final hideToolCalls =
+        epk == null ? false : prefs.hideToolCallsFor(epk, vm.activeRoomId);
     return switch (state) {
       // Edge case: opened /chat without a peer (e.g. peer revoked while
       // user was here). The chat is not the place to pair — render

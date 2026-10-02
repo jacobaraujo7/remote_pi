@@ -198,6 +198,10 @@ export type ClientMessage =
   | { type: "model_set"; id: string; provider: string; model_id: string }
   | { type: "thinking_set"; id: string; level: ThinkingLevel }
   | { type: "list_models"; id: string }
+  // Room management — register / remove supervisor daemons from the app.
+  // Session-agnostic: no `_pi`/ctx dependency, handled straight in index.ts.
+  | { type: "room_create"; id: string; path: string; create_if_missing?: boolean }
+  | { type: "room_delete"; id: string; path: string }
   // Plan/57 — interactive extension prompt response (ask_user via pi-ask).
   // Mirrors RpcExtensionUIResponse; the optional `ask` envelope carries
   // pi-ask's structured answer so multi/preview/notes survive the round-trip.
@@ -347,7 +351,9 @@ export type ActionName =
   | "session_new"
   | "session_compact"
   | "model_set"
-  | "thinking_set";
+  | "thinking_set"
+  | "room_create"
+  | "room_delete";
 
 /**
  * Plan/28 — Mirror of the SDK's `ThinkingLevel` (defined in

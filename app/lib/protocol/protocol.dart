@@ -596,7 +596,12 @@ enum ActionName {
   sessionNew('session_new'),
   sessionCompact('session_compact'),
   modelSet('model_set'),
-  thinkingSet('thinking_set');
+  thinkingSet('thinking_set'),
+  // Room management — supervisor daemon register / unregister, driven
+  // from Home (new-room button / room delete). Session-agnostic on the
+  // Pi side (no Pi session required to answer them).
+  roomCreate('room_create'),
+  roomDelete('room_delete');
 
   final String wire;
   const ActionName(this.wire);
@@ -749,6 +754,42 @@ class ListModels extends ClientMessage {
 
   @override
   Map<String, dynamic> toJson() => {'type': 'list_models', 'id': id};
+}
+
+/// Room management — register (and start) a supervisor daemon for the
+/// directory [path]. `createIfMissing` lets the Pi `mkdir` the path when
+/// it doesn't exist yet; the Pi replies `action_error` with the exact
+/// string `'directory_missing'` when the path is absent and this flag
+/// is off, which Home turns into a "create it anyway?" confirm dialog.
+class RoomCreate extends ClientMessage {
+  final String id;
+  final String path;
+  final bool createIfMissing;
+  RoomCreate({required this.id, required this.path, this.createIfMissing = false});
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'room_create',
+    'id': id,
+    'path': path,
+    if (createIfMissing) 'create_if_missing': true,
+  };
+}
+
+/// Room management — unregister the daemon behind the directory [path].
+/// The Pi stops the agent process for that cwd and removes it from the
+/// supervisor registry; the room then disappears from the relay.
+class RoomDelete extends ClientMessage {
+  final String id;
+  final String path;
+  RoomDelete({required this.id, required this.path});
+
+  @override
+  Map<String, dynamic> toJson() => {
+    'type': 'room_delete',
+    'id': id,
+    'path': path,
+  };
 }
 
 // --- ServerMessage (extension → app) ---

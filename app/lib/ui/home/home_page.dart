@@ -1,3 +1,6 @@
+import 'package:app/data/actions/actions_repository.dart';
+import 'package:app/data/preferences/preferences.dart';
+import 'package:app/data/transport/connection_manager.dart' show StatusOnline;
 import 'package:app/data/transport/epk_encoding.dart';
 import 'package:app/pairing/storage.dart';
 import 'package:app/protocol/protocol.dart' show RoomInfo;
@@ -95,6 +98,17 @@ class HomePage extends StatelessWidget {
       toolbarHeight: 56,
       automaticallyImplyLeading: false,
       actions: [
+        // Room management needs the actions channel; a harness that builds the
+        // HomeViewModel without one gets no entry point (see `vm.actions`).
+        if (vm.actions != null)
+          IconButton(
+            key: const Key('home-new-room'),
+            tooltip: 'New room',
+            // Lucide's set here has no home-plus variant — Material's
+            // add_home stays close enough to the 'new room' semantics.
+            icon: Icon(Icons.add_home_outlined, color: colors.muted2),
+            onPressed: () => _promptNewRoom(context, vm),
+          ),
         IconButton(
           tooltip: 'Settings',
           icon: Icon(LucideIcons.settings, color: colors.muted2),
@@ -423,6 +437,22 @@ class HomePage extends StatelessWidget {
                         _confirmDelete(context, vm, it);
                       },
               ),
+              if (vm.actions != null)
+                ListTile(
+                  leading: Icon(LucideIcons.unplug, color: colors.error),
+                  title: Text(
+                    'Delete room (on the Pi)',
+                    style: TextStyle(color: colors.text),
+                  ),
+                  subtitle: Text(
+                    'Stops the agent process for this directory',
+                    style: TextStyle(color: colors.muted, fontSize: 11),
+                  ),
+                  onTap: () {
+                    Navigator.of(sheetCtx).pop();
+                    _confirmDeleteRoom(context, vm, it);
+                  },
+                ),
             ],
           ),
         );
@@ -473,6 +503,272 @@ class HomePage extends StatelessWidget {
     );
     if (result == null) return;
     await vm.renameRoom(it.peer.remoteEpk, it.room.roomId, result);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Room management (Pi-side create / delete)
+  // ---------------------------------------------------------------------------
+
+  /// 'New room' button — ask for a directory, then drive the Pi's
+  /// `room_create` action through one of the peer's LIVE rooms (the
+  /// create frame must ride an already-open room channel; the new room
+  /// announces itself on the relay afterwards and the tile appears
+  /// automatically via `roomsStream`).
+  Future<void> _promptNewRoom(BuildContext context, HomeViewModel vm) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final controller = TextEditingController();
+    final path = await showDialog<String?>(
+      context: context,
+      builder: (dCtx) {
+        final colors = dCtx.colors;
+        return AlertDialog(
+          backgroundColor: colors.bg,
+          title: Text(
+            'New room',
+            style: TextStyle(
+              fontFamily: kMonoFamily,
+              color: colors.text,
+              fontSize: 14,
+            ),
+          ),
+          content: TextField(
+            key: const Key('new-room-path'),
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: colors.text, fontFamily: kMonoFamily),
+            decoration: InputDecoration(
+              hintText: 'Directory path, e.g. ~/projects/foo',
+              hintStyle: TextStyle(color: colors.muted),
+              enabledBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderSide: BorderSide(color: colors.accent),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(null),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.muted, fontFamily: kMonoFamily),
+              ),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dCtx).pop(controller.text.trim()),
+              child: Text(
+                'Create',
+                style: TextStyle(
+                  color: colors.accent,
+                  fontFamily: kMonoFamily,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    final trimmed = path?.trim() ?? '';
+    if (trimmed.isEmpty) return;
+    if (!context.mounted) return;
+    await _runRoomCreate(context, vm, trimmed, messenger);
+  }
+
+  Future<void> _runRoomCreate(
+    BuildContext context,
+    HomeViewModel vm,
+    String path,
+    ScaffoldMessengerState messenger,
+  ) async {
+    final actions = vm.actions;
+    if (actions == null) return;
+    final conn = vm.conn;
+    final prefs = context.read<Preferences>();
+    if (conn.status is! StatusOnline) {
+      messenger.showSnackBar(const SnackBar(content: Text('Relay offline — try again later')));
+      return;
+    }
+    // Which peer to target: the one the user last selected (if it is
+    // the connected one); otherwise the active connection's peer.
+    final activeEpk = conn.activePeer?.remoteEpk;
+    final selectedEpk = prefs.selectedPeerEpk;
+    final targetEpk =
+        selectedEpk != null && selectedEpk == activeEpk ? selectedEpk : activeEpk;
+    final liveRoom = targetEpk == null ? null : vm.firstLiveRoom(targetEpk);
+    if (liveRoom == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Open a room first')));
+      return;
+    }
+    final previousRoom = conn.activeRoomId;
+    conn.switchRoom(liveRoom);
+    try {
+      try {
+        await actions.createRoom(path);
+        messenger.showSnackBar(const SnackBar(content: Text('Room created')));
+      } on ActionFailure catch (e) {
+        // Exact error string the Pi sends when the directory is absent
+        // and `create_if_missing` is off — offer a create-anyway retry.
+        if (e.message == 'directory_missing' && context.mounted) {
+          final confirm = await _confirmCreateDirectory(context);
+          if (confirm) {
+            try {
+              await actions.createRoom(path, createIfMissing: true);
+              messenger.showSnackBar(const SnackBar(content: Text('Room created')));
+            } on ActionFailure catch (e2) {
+              messenger.showSnackBar(SnackBar(content: Text(e2.message)));
+            }
+          }
+        } else {
+          messenger.showSnackBar(SnackBar(content: Text(e.message)));
+        }
+      }
+    } finally {
+      // Restore the room the UI was addressing before the round-trip —
+      // the create frame only needed ONE live room to ride on.
+      conn.switchRoom(previousRoom);
+    }
+  }
+
+  /// 'Delete room (on the Pi)' — confirm, drive `room_delete` through a
+  /// live room of the SAME peer (the frame targets the room's OWN cwd,
+  /// not the channel's), then drop the room from the local cache so the
+  /// tile leaves Home.
+  Future<void> _confirmDeleteRoom(
+    BuildContext context,
+    HomeViewModel vm,
+    HomeItem it,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        final colors = dCtx.colors;
+        return AlertDialog(
+          backgroundColor: colors.bg,
+          title: Text(
+            'Delete room?',
+            style: TextStyle(
+              fontFamily: kMonoFamily,
+              color: colors.text,
+              fontSize: 14,
+            ),
+          ),
+          content: Text(
+            'This stops the agent process for ${it.room.cwd ?? 'this directory'} '
+            'and removes the room on the Pi.',
+            style: TextStyle(
+              fontFamily: kMonoFamily,
+              color: colors.muted,
+              fontSize: 12,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.muted, fontFamily: kMonoFamily),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(true),
+              child: Text(
+                'Delete',
+                style: TextStyle(
+                  color: colors.error,
+                  fontFamily: kMonoFamily,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (ok != true) return;
+
+    final actions = vm.actions;
+    if (actions == null) return;
+    final conn = vm.conn;
+    if (conn.status is! StatusOnline) {
+      messenger.showSnackBar(const SnackBar(content: Text('Relay offline — try again later')));
+      return;
+    }
+    final cwd = it.room.cwd;
+    if (cwd == null || cwd.isEmpty) {
+      messenger.showSnackBar(const SnackBar(content: Text('Room has no directory')));
+      return;
+    }
+    final epk = it.peer.remoteEpk;
+    final liveRoom = vm.firstLiveRoom(epk);
+    if (liveRoom == null) {
+      messenger.showSnackBar(const SnackBar(content: Text('Open a room first')));
+      return;
+    }
+    final previousRoom = conn.activeRoomId;
+    conn.switchRoom(liveRoom);
+    try {
+      try {
+        await actions.deleteRoom(cwd);
+        // Removed on the Pi — drop it locally too so the tile leaves Home
+        // immediately instead of waiting for the relay's RoomEnded.
+        await vm.deleteRoom(epk, it.room.roomId);
+        messenger.showSnackBar(const SnackBar(content: Text('Room deleted')));
+      } on ActionFailure catch (e) {
+        messenger.showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      conn.switchRoom(previousRoom);
+    }
+  }
+
+  Future<bool> _confirmCreateDirectory(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) {
+        final colors = dCtx.colors;
+        return AlertDialog(
+          backgroundColor: colors.bg,
+          title: Text(
+            'Create directory?',
+            style: TextStyle(
+              fontFamily: kMonoFamily,
+              color: colors.text,
+              fontSize: 14,
+            ),
+          ),
+          content: Text(
+            'The directory does not exist yet. Create it?',
+            style: TextStyle(
+              fontFamily: kMonoFamily,
+              color: colors.muted,
+              fontSize: 12,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(false),
+              child: Text(
+                'Cancel',
+                style: TextStyle(color: colors.muted, fontFamily: kMonoFamily),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(dCtx).pop(true),
+              child: Text(
+                'Create',
+                style: TextStyle(
+                  color: colors.accent,
+                  fontFamily: kMonoFamily,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    return result == true;
   }
 
   Future<void> _confirmDelete(
