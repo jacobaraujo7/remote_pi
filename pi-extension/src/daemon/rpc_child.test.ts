@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RpcChild, busyTransition, resolvePiBin, resolvePiSpawn, _npmShimTarget, rpcSpawnArgs, type RpcChildExitEvent } from "./rpc_child.js";
+import { RpcChild, backendForBin, busyTransition, resolveDefaultAgentBin, resolvePiBin, resolvePiSpawn, _npmShimTarget, rpcSpawnArgs, type RpcChildExitEvent } from "./rpc_child.js";
 
 /**
  * Regression for the orphaned-daemon bug: a deliberate `stop()` kills the
@@ -14,27 +14,35 @@ import { RpcChild, busyTransition, resolvePiBin, resolvePiSpawn, _npmShimTarget,
  * just sleeps, so the child is genuinely alive when we stop it.
  */
 describe("rpcSpawnArgs", () => {
-  test("includes --continue so a restart resumes the latest session (not a new one)", () => {
+  test("pi backend: --approve + --continue so a restart resumes the latest session", () => {
     expect(rpcSpawnArgs("/path/to/dist/index.js")).toEqual([
       "--mode", "rpc", "--approve", "--continue", "-e", "/path/to/dist/index.js",
     ]);
   });
 
-  test("pins the session display name via --name when one is given", () => {
-    expect(rpcSpawnArgs("/path/to/dist/index.js", "PC")).toEqual([
-      "--mode", "rpc", "--approve", "--continue", "--name", "PC", "-e", "/path/to/dist/index.js",
+  test("omp backend: oh-my-pi spells the trust flag --auto-approve (issue #170)", () => {
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "omp")).toEqual([
+      "--mode", "rpc", "--auto-approve", "--continue", "-e", "/path/to/dist/index.js",
     ]);
   });
 
   test("can omit --continue for one daemon fresh-session restart", () => {
-    expect(rpcSpawnArgs("/path/to/dist/index.js", "PC", false)).toEqual([
-      "--mode", "rpc", "--approve", "--name", "PC", "-e", "/path/to/dist/index.js",
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "pi", false)).toEqual([
+      "--mode", "rpc", "--approve", "-e", "/path/to/dist/index.js",
+    ]);
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "omp", false)).toEqual([
+      "--mode", "rpc", "--auto-approve", "-e", "/path/to/dist/index.js",
     ]);
   });
 
-  test("always passes --approve (pi >=0.79 project trust; RPC is non-interactive)", () => {
+  test("never passes --name — omp lacks it; the name goes over stdin instead", () => {
+    expect(rpcSpawnArgs("/path/to/dist/index.js")).not.toContain("--name");
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "omp")).not.toContain("--name");
+  });
+
+  test("always passes a trust flag (pi >=0.79 project trust; RPC is non-interactive)", () => {
     expect(rpcSpawnArgs("/path/to/dist/index.js")).toContain("--approve");
-    expect(rpcSpawnArgs("/path/to/dist/index.js", "PC", false)).toContain("--approve");
+    expect(rpcSpawnArgs("/path/to/dist/index.js", "omp", false)).toContain("--auto-approve");
   });
 });
 
@@ -139,6 +147,65 @@ describe("resolvePiSpawn (plan/40 — directly-spawnable target)", () => {
       command: "C:\\tools\\pi.exe",
       prefixArgs: [],
     });
+  });
+});
+
+describe("resolveDefaultAgentBin (issue #170 — pi or omp)", () => {
+  const originalAgentBin = process.env["REMOTE_PI_AGENT_BIN"];
+
+  afterEach(() => {
+    if (originalAgentBin === undefined) delete process.env["REMOTE_PI_AGENT_BIN"];
+    else process.env["REMOTE_PI_AGENT_BIN"] = originalAgentBin;
+  });
+
+  /** Makes `name` an executable (0755) inside a temp dir on the given PATH. */
+  function makeBin(dir: string, name: string): string {
+    const bin = join(dir, name);
+    writeFileSync(bin, "#!/bin/sh\nexit 0\n");
+    chmodSync(bin, 0o755);
+    return bin;
+  }
+
+  test("prefers pi when both pi and omp are on PATH (backwards compat)", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agent-bin-both-"));
+    try {
+      makeBin(dir, "pi");
+      makeBin(dir, "omp");
+      expect(resolveDefaultAgentBin("darwin", dir)).toBe("pi");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("falls back to omp when only oh-my-pi is installed", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agent-bin-omp-"));
+    try {
+      makeBin(dir, "omp");
+      expect(resolveDefaultAgentBin("darwin", dir)).toBe("omp");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("defaults to pi (honest ENOENT) when neither is found", () => {
+    expect(resolveDefaultAgentBin("darwin", "/nonexistent-path-dir")).toBe("pi");
+  });
+
+  test("REMOTE_PI_AGENT_BIN override wins over PATH detection", () => {
+    process.env["REMOTE_PI_AGENT_BIN"] = "omp";
+    expect(resolveDefaultAgentBin("darwin", "/nonexistent-path-dir")).toBe("omp");
+  });
+});
+
+describe("backendForBin (issue #170 — infer backend from the binary)", () => {
+  test("omp* basenames → omp, everything else → pi", () => {
+    expect(backendForBin("omp")).toBe("omp");
+    expect(backendForBin("/Users/x/.bun/bin/omp")).toBe("omp");
+    expect(backendForBin("omp.cmd")).toBe("omp");
+    expect(backendForBin("OMP")).toBe("omp");
+    expect(backendForBin("pi")).toBe("pi");
+    expect(backendForBin("/opt/homebrew/bin/pi")).toBe("pi");
+    expect(backendForBin("pi.cmd")).toBe("pi");
   });
 });
 

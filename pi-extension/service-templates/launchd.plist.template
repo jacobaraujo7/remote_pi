@@ -18,9 +18,9 @@
   <true/>
 
   <key>StandardOutPath</key>
-  <string>{HOME}/.pi/remote/supervisord.log</string>
+  <string>{LOG}</string>
   <key>StandardErrorPath</key>
-  <string>{HOME}/.pi/remote/supervisord.log</string>
+  <string>{LOG}</string>
 
   <key>EnvironmentVariables</key>
   <dict>
@@ -30,6 +30,12 @@
     <string>{PATH}</string>
     <key>HOME</key>
     <string>{HOME}</string>
+    <!-- Pin the agent backend (pi or omp) so the state namespace the
+         installer detected survives the reboot (issue #170). -->
+    <key>REMOTE_PI_AGENT_BIN</key>
+    <string>{AGENT_BIN}</string>
+    <key>REMOTE_PI_STATE_PREFIX</key>
+    <string>{STATE_PREFIX}</string>
   </dict>
 </dict>
 </plist>
