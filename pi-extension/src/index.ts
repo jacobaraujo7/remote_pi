@@ -4600,7 +4600,7 @@ export function _routeClientMessageFrom(
       handleThinkingSet(_pi, sender, msg);
       break;
     case "list_models":
-      handleListModels(
+      void handleListModels(
         ((_lastEventCtx ?? _lastCtx) as ActionCtx | null),
         ensureModelRegistry((_lastEventCtx ?? _lastCtx) as ActionCtx | null),
         sender,
