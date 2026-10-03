@@ -179,7 +179,7 @@ void main() {
       monitor.dispose();
     });
 
-    test('requestPoll coalesces while a poll is in flight', () async {
+    test('requestPoll coalesces without an immediate pending scan', () async {
       final gate = Completer<void>();
       final fakeProvider = _GatedProcessTreeProvider(gate);
       final monitor = TerminalHarnessMonitor(
@@ -202,7 +202,10 @@ void main() {
 
       gate.complete();
       await pumpEventQueue();
-      expect(fakeProvider.callCount, greaterThanOrEqualTo(2));
+      expect(fakeProvider.callCount, 1);
+
+      await Future<void>.delayed(const Duration(milliseconds: 1050));
+      expect(fakeProvider.callCount, 2);
 
       monitor.dispose();
     });
@@ -214,7 +217,7 @@ void main() {
         final monitor = TerminalHarnessMonitor(
           provider: fakeProvider,
           pollInterval: const Duration(days: 1),
-          activityPollCooldown: const Duration(milliseconds: 200),
+          activityPollCooldown: const Duration(milliseconds: 500),
         );
         for (var i = 0; i < 8; i++) {
           monitor.registerSession(
@@ -223,17 +226,79 @@ void main() {
             onHarnessChanged: (_) {},
           );
         }
-        await pumpEventQueue();
+        // Let urgent registration requests coalesce before measuring output.
+        await Future<void>.delayed(const Duration(milliseconds: 300));
         final beforeActivity = fakeProvider.callCount;
-
         for (var i = 0; i < 80; i++) {
           monitor.requestPoll(sessionId: 'session-${i % 8}');
         }
         await Future<void>.delayed(const Duration(milliseconds: 50));
         expect(fakeProvider.callCount, beforeActivity);
-
-        await Future<void>.delayed(const Duration(milliseconds: 210));
+        await Future<void>.delayed(const Duration(milliseconds: 510));
         expect(fakeProvider.callCount, beforeActivity + 1);
+        monitor.dispose();
+      },
+    );
+
+    test(
+      'output requests from all sessions share a one-second scan budget',
+      () async {
+        final fakeProvider = FakeProcessTreeProvider();
+        final monitor = TerminalHarnessMonitor(
+          provider: fakeProvider,
+          pollInterval: const Duration(days: 1),
+          idlePollInterval: const Duration(days: 1),
+        );
+        monitor.registerSession(
+          sessionId: 'session-1',
+          rootPid: () => 100,
+          onHarnessChanged: (_) {},
+        );
+        monitor.registerSession(
+          sessionId: 'session-2',
+          rootPid: () => 200,
+          onHarnessChanged: (_) {},
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        await pumpEventQueue();
+        final initialCount = fakeProvider.callCount;
+
+        for (var i = 0; i < 10; i++) {
+          monitor.requestPoll(sessionId: 'session-1');
+          monitor.requestPoll(sessionId: 'session-2');
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(fakeProvider.callCount, initialCount);
+        await Future<void>.delayed(const Duration(milliseconds: 950));
+        expect(fakeProvider.callCount, initialCount + 1);
+
+        monitor.dispose();
+      },
+    );
+
+    test(
+      'urgent submitted command scans promptly and coalesces retries',
+      () async {
+        final fakeProvider = FakeProcessTreeProvider();
+        final monitor = TerminalHarnessMonitor(
+          provider: fakeProvider,
+          pollInterval: const Duration(days: 1),
+        );
+        monitor.registerSession(
+          sessionId: 'session-1',
+          rootPid: () => 100,
+          onHarnessChanged: (_) {},
+        );
+        await pumpEventQueue();
+        expect(fakeProvider.callCount, 1);
+
+        monitor.requestPoll(sessionId: 'session-1', urgent: true);
+        monitor.requestPoll(sessionId: 'session-1', urgent: true);
+        await pumpEventQueue();
+        expect(fakeProvider.callCount, 1);
+        await Future<void>.delayed(const Duration(milliseconds: 200));
+        expect(fakeProvider.callCount, 2);
+
         monitor.dispose();
       },
     );

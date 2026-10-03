@@ -19,6 +19,7 @@ final class PtyOutputScheduler {
     this.maxSliceChars = 4 * 1024,
     this.maxWorkPerFrame = const Duration(milliseconds: 4),
     this.hiddenDrainInterval = const Duration(milliseconds: 100),
+    this.scheduleHiddenFrames = false,
     void Function(VoidCallback drain)? scheduleFrame,
     int Function()? clockMicros,
   }) : assert(maxCharsPerFrame > 0),
@@ -52,10 +53,16 @@ final class PtyOutputScheduler {
   /// nunca dispara.
   final Duration hiddenDrainInterval;
 
+  /// Diagnostic override for comparing the previous hidden-output behavior.
+  /// Normal operation drains hidden-only output on the timer without asking
+  /// Flutter to draw a frame that cannot display any of that output.
+  final bool scheduleHiddenFrames;
+
   final void Function(VoidCallback drain) _scheduleFrame;
   final int Function() _clockMicros;
   final ListQueue<PtyOutputCoalescer> _ready = ListQueue();
-  bool _frameScheduled = false;
+  bool _drainScheduled = false;
+  bool _frameCallbackScheduled = false;
   Timer? _hiddenDrain;
   bool _draining = false;
   int _pendingChars = 0;
@@ -101,18 +108,26 @@ final class PtyOutputScheduler {
   }
 
   void _ensureFrame() {
-    if (_frameScheduled || _ready.isEmpty) return;
-    _frameScheduled = true;
-    _scheduleFrame(_drainFrame);
-    // Watchdog: se o frame não vier (janela oculta), drena por timer. Quem
-    // chegar primeiro drena; o outro vê `_frameScheduled == false` e sai.
-    _hiddenDrain?.cancel();
-    _hiddenDrain = Timer(hiddenDrainInterval, _drainFrame);
+    if (_ready.isEmpty) return;
+    if (!_drainScheduled) {
+      _drainScheduled = true;
+      // Always consume the PTY, including when no Flutter frame is needed.
+      _hiddenDrain = Timer(hiddenDrainInterval, _drainFrame);
+    }
+    if ((scheduleHiddenFrames || _ready.any((source) => source.visible)) &&
+        !_frameCallbackScheduled) {
+      _frameCallbackScheduled = true;
+      _scheduleFrame(() => _drainFrame(fromFrame: true));
+    }
   }
 
-  void _drainFrame() {
-    if (!_frameScheduled) return; // já drenado pelo outro caminho
-    _frameScheduled = false;
+  void _drainFrame({bool fromFrame = false}) {
+    // A timer drain cannot cancel a callback already registered with Flutter.
+    // Keep its slot occupied until that callback actually runs, or callbacks
+    // would accumulate during a long period without vsync.
+    if (fromFrame) _frameCallbackScheduled = false;
+    if (!_drainScheduled) return; // already drained by the other path
+    _drainScheduled = false;
     _hiddenDrain?.cancel();
     _hiddenDrain = null;
     if (_ready.isEmpty) return;
@@ -156,6 +171,10 @@ final class PtyOutputScheduler {
       });
       _ensureFrame();
     }
+  }
+
+  void _visibilityChanged(PtyOutputCoalescer source) {
+    if (source.visible && source._queued && !_draining) _ensureFrame();
   }
 }
 
@@ -203,7 +222,14 @@ final class PtyOutputCoalescer {
   bool get ackPaused => _ackPaused;
 
   /// Apenas para diagnóstico: output oculto ainda precisa passar pelo parser.
-  bool visible = true;
+  bool _visible = true;
+  bool get visible => _visible;
+  set visible(bool value) {
+    if (_visible == value) return;
+    _visible = value;
+    _scheduler._visibilityChanged(this);
+  }
+
   bool get _hasPending => _pendingLength > 0;
 
   /// Completa quando tudo que já entrou foi entregue ao consumidor.

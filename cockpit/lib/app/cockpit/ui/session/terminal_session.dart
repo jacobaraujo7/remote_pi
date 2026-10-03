@@ -533,7 +533,7 @@ class TerminalSession extends PaneItem {
       return;
     }
     _lastHarnessKickAt = now;
-    monitor.requestPoll(sessionId: id);
+    monitor.requestPoll(sessionId: id, urgent: burst);
 
     if (!burst) return;
     for (final t in _harnessKickTimers) {
@@ -547,7 +547,7 @@ class TerminalSession extends PaneItem {
           Duration(milliseconds: 120),
           Duration(milliseconds: 280),
         ])
-          Timer(delay, () => monitor.requestPoll(sessionId: id)),
+          Timer(delay, () => monitor.requestPoll(sessionId: id, urgent: true)),
       ]);
   }
 

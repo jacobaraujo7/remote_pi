@@ -390,13 +390,11 @@ dependency_overrides:
   # asset (.dart_tool/hooks_runner, build/native_assets) precisa ser invalidado,
   # senao a dylib velha crasha o processo (exit -10) ao carregar os bindings novos.
   #
-  # Quando sair release do flterm com o refactor + nosso patch de iOS (ou o
-  # patch for merjado upstream), trocar por versoes do pub.dev e remover os git.
+  # flterm e mantido localmente para suspender a apresentacao em abas ocultas.
+  # A biblioteca nativa continua presa a tag upstream-2026-10 acima. Quando
+  # upstream expuser esta opcao, remover a copia local.
   flterm:
-    git:
-      url: https://github.com/jacobaraujo7/libghostty.git
-      ref: cockpit-pin-flterm-upstream-2026-10
-      path: packages/flterm
+    path: packages/flterm
   libghostty:
     git:
       url: https://github.com/jacobaraujo7/libghostty.git

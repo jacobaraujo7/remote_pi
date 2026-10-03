@@ -136,6 +136,7 @@ class _GhosttyPane extends StatelessWidget {
       // sem LayoutBuilder, mata crash e espelho.
       key: GlobalObjectKey(terminal.controller),
       controller: terminal.controller,
+      presentationActive: active,
       focusNode: focusNode,
       showKeyboard: !readOnly,
       padding: EdgeInsets.zero,
@@ -153,9 +154,8 @@ class _GhosttyPane extends StatelessWidget {
     // resize) — era o delay visível na troca de aba. `Offstage` mantém o
     // Element/State (nada de re-attach), pula paint e hit-test, e o
     // `TickerMode` desliga o blink do cursor enquanto oculta. O parser e o
-    // scrollback seguem no controller, como antes; o que muda é que a view
-    // não é destruída. `Offstage` ainda faz layout do filho, mas só quando as
-    // constraints mudam, não por batch de output.
+    // scrollback seguem no controller; presentationActive suspende apenas as
+    // invalidacoes visuais e faz um layout completo ao reabrir.
     return Offstage(
       offstage: !active,
       child: TickerMode(
