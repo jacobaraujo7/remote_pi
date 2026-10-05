@@ -9,6 +9,7 @@ import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 import 'package:cockpit/app/core/terminal/cockpit_terminal.dart';
 import 'package:cockpit/app/core/terminal/cockpit_terminal_render.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'terminal_link.dart';
 
 /// Envólucro do [CockpitTerminal] que adiciona **auto-scroll durante a
@@ -34,6 +35,8 @@ class TerminalPane extends StatefulWidget {
     required this.onKeyEvent,
     this.hardwareKeyboardOnly = false,
     this.onOpenFile,
+    this.enableLineHover = false,
+    this.onContextMenu,
   });
 
   final Terminal terminal;
@@ -43,6 +46,8 @@ class TerminalPane extends StatefulWidget {
   final TerminalTheme theme;
   final KeyEventResult Function(KeyEvent event) onKeyEvent;
   final bool hardwareKeyboardOnly;
+  final bool enableLineHover;
+  final TerminalContextMenuCallback? onContextMenu;
 
   /// Cmd+clique num caminho de arquivo do buffer → abre no FileViewer. `null`
   /// desliga a detecção de arquivos (mantém só URLs). [line] vem do sufixo
@@ -72,6 +77,8 @@ class _TerminalPaneState extends State<TerminalPane>
   /// Movimento mínimo (px) com o botão pressionado pra contar como "arraste".
   /// Abaixo disso é clique/duplo-clique — esses seguem no gesto do xterm.
   static const _dragSlop = 3.0;
+
+  static const _lineHoverOpacity = 0.12;
 
   Offset? _downLocal; // pointer-down em coords do RenderTerminal
   Offset? _pointer; // última posição do ponteiro (mesmas coords)
@@ -104,6 +111,8 @@ class _TerminalPaneState extends State<TerminalPane>
   MouseCursor _cursor = SystemMouseCursors.text;
   TerminalLink? _hoverLink; // link sob o ponteiro (só quando Cmd está segurado)
   TerminalHighlight? _linkHighlight; // realce do link (removível)
+  TerminalHighlight? _lineHighlight;
+  TerminalLineHit? _hoverLine;
   Offset? _lastHoverGlobal; // pra reavaliar quando o Cmd muda sem mover o mouse
 
   @override
@@ -113,12 +122,15 @@ class _TerminalPaneState extends State<TerminalPane>
     _ticker = createTicker(_onTick);
     // Cmd pressionado/solto sem mover o mouse também atualiza o realce/cursor.
     HardwareKeyboard.instance.addHandler(_onKey);
+    _scroll.addListener(_refreshLineHover);
   }
 
   @override
   void dispose() {
     HardwareKeyboard.instance.removeHandler(_onKey);
+    _scroll.removeListener(_refreshLineHover);
     _linkHighlight?.dispose();
+    _lineHighlight?.dispose();
     _ticker.dispose();
     _anchor?.dispose();
     _scroll.dispose();
@@ -145,6 +157,77 @@ class _TerminalPaneState extends State<TerminalPane>
 
   /// A app declarou mouse reporting (claude/vim): ela dona cliques e seleção.
   bool get _appOwnsMouse => widget.terminal.mouseMode != MouseMode.none;
+
+  void _refreshLineHover() {
+    if (widget.enableLineHover) _updateLineHover(_lastHoverGlobal);
+  }
+
+  TerminalLineHit? _lineAt(CellOffset cell) {
+    final buffer = widget.terminal.buffer;
+    final lines = buffer.lines;
+    if (cell.y < 0 || cell.y >= lines.length) return null;
+    final cursor = buffer.absoluteCursorY;
+    final hasOutput =
+        cursor > 0 || buffer.cursorX > 0 || lines[0].getText().isNotEmpty;
+    if (!hasOutput || cell.y > cursor) return null;
+    var first = cell.y;
+    while (first > 0 && lines[first].isWrapped) {
+      first--;
+    }
+    var last = cell.y;
+    while (last + 1 < lines.length && lines[last + 1].isWrapped) {
+      last++;
+    }
+    final text = StringBuffer();
+    for (var row = first; row <= last; row++) {
+      text.write(lines[row].getText());
+    }
+    return TerminalLineHit(
+      text: text.toString(),
+      firstViewportRow: first,
+      lastViewportRow: last,
+    );
+  }
+
+  void _updateLineHover(Offset? global) {
+    final r = _render;
+    final next = r == null || global == null
+        ? null
+        : _lineAt(r.getCellOffset(r.globalToLocal(global)));
+    if (next?.firstViewportRow == _hoverLine?.firstViewportRow &&
+        next?.lastViewportRow == _hoverLine?.lastViewportRow) {
+      return;
+    }
+    _lineHighlight?.dispose();
+    _lineHighlight = null;
+    _hoverLine = next;
+    if (next != null) {
+      final buffer = widget.terminal.buffer;
+      _lineHighlight = _controller.highlight(
+        p1: buffer.createAnchor(0, next.firstViewportRow),
+        p2: buffer.createAnchor(
+          widget.terminal.viewWidth,
+          next.lastViewportRow,
+        ),
+        color: widget.theme.selection.withValues(alpha: _lineHoverOpacity),
+      );
+    }
+  }
+
+  void _openContextMenu(TapUpDetails details, CellOffset cell) {
+    final callback = widget.onContextMenu;
+    if (callback == null) return;
+    final selection = _controller.selection;
+    callback(
+      TerminalContextMenuRequest(
+        globalPosition: details.globalPosition,
+        selectedText: selection == null
+            ? ''
+            : widget.terminal.buffer.getText(selection),
+        line: _lineAt(cell),
+      ),
+    );
+  }
 
   /// Reavalia o link sob [global] (coords globais). Só detecta com Cmd segurado:
   /// sem Cmd, o terminal opera normal (seleção / clique vai pro app).
@@ -545,10 +628,12 @@ class _TerminalPaneState extends State<TerminalPane>
       onHover: (e) {
         _lastHoverGlobal = e.position;
         _evaluateHover(e.position);
+        if (widget.enableLineHover) _updateLineHover(e.position);
       },
       onExit: (_) {
         _lastHoverGlobal = null;
         _setHoverLink(null);
+        _updateLineHover(null);
       },
       child: Listener(
         onPointerDown: _onPointerDown,
@@ -573,6 +658,9 @@ class _TerminalPaneState extends State<TerminalPane>
           theme: widget.theme,
           textStyle: widget.textStyle,
           mouseCursor: MouseCursor.defer,
+          onSecondaryTapUp: widget.onContextMenu == null
+              ? null
+              : _openContextMenu,
         ),
       ),
     );

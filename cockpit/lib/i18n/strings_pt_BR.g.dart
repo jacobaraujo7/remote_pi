@@ -406,6 +406,13 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get sectionTasks => 'TAREFAS';
 	@override String get noTasks => 'Nenhuma tarefa detectada neste projeto.';
 	@override String get createTasksJson => 'Criar tasks.json';
+	@override String get importWorkspaceTasks => 'Importar do workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'O workspace de origem não possui um arquivo de tasks.';
+	@override String get importFailed => 'Não foi possível importar as tasks. Tente novamente.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar tudo';
+	@override String get clearConsole => 'Limpar console';
 	@override String get generateComposeTasks => 'Gerar tasks do Compose';
 	@override String get selectComposeEngine => 'Escolha uma engine Compose';
 	@override String get noComposeEngine => 'Docker Compose ou Podman Compose não foi encontrado.';
@@ -2022,6 +2029,13 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREFAS',
 			'cockpit.tasksPanel.noTasks' => 'Nenhuma tarefa detectada neste projeto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Criar tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar do workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'O workspace de origem não possui um arquivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'Não foi possível importar as tasks. Tente novamente.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar tudo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpar console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Gerar tasks do Compose',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Escolha uma engine Compose',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose ou Podman Compose não foi encontrado.',
@@ -2386,6 +2400,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
@@ -2393,8 +2409,6 @@ extension on TranslationsPtBr {
 			'cockpit.sshPrompts.trust' => 'Confiar',
 			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Senha da chave SSH',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloqueie ${keyPath} para conectar "${connectionName}".',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Mantida em memória até o Cockpit fechar. Para permitir que agentes usem esta conexão, ative "Salvar senha da chave" na conexão.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
 			'cockpit.projectsRail.workspaces' => 'Workspaces',

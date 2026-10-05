@@ -69,6 +69,11 @@ class JsonLogHighlighter {
     return out;
   }
 
+  /// Descarta a linha incompleta atual. Usado quando o usuário limpa o
+  /// console: um fragmento anterior à limpeza não pode reaparecer ao receber o
+  /// restante da linha depois dela.
+  void clearPending() => _pending = '';
+
   /// Só segura a cauda quando ela pode virar uma linha JSON. Prompt
   /// interativo, barra de progresso com `\r` e texto solto saem na hora — o
   /// realce nunca pode atrasar output que o usuário está esperando ver.

@@ -26,6 +26,13 @@ sealed class CockpitTerminalController {
   void paste(String text);
   List<String> plainLines();
 
+  /// Conteúdo textual renderizado, sem ANSI e sem as linhas vazias que existem
+  /// apenas para completar a grade do terminal.
+  String plainText();
+
+  /// Limpa tela e scrollback localmente, sem enviar input para o processo.
+  void clearBuffer();
+
   /// Texto atualmente selecionado, ou vazio se não há seleção.
   ///
   /// Serve o botão de copiar da barra de teclas do mobile, que não tem como
@@ -72,6 +79,19 @@ final class XtermTerminalController implements CockpitTerminalController {
     final lines = terminal.buffer.lines;
     return [for (var i = 0; i < lines.length; i++) lines[i].getText()];
   }
+
+  @override
+  String plainText() => terminal.buffer
+      .getText(
+        xterm.BufferRangeLine(
+          const xterm.CellOffset(0, 0),
+          xterm.CellOffset(terminal.viewWidth, terminal.buffer.height - 1),
+        ),
+      )
+      .trimRight();
+
+  @override
+  void clearBuffer() => terminal.write('\x1b[H\x1b[2J\x1b[3J');
 
   /// A seleção do xterm pertence ao controller da view (`CockpitTerminal`), que
   /// a sessão não enxerga — o motor em si não guarda seleção. Copiar por aqui
@@ -238,6 +258,23 @@ final class GhosttyTerminalController implements CockpitTerminalController {
       formatter.dispose();
     }
   }
+
+  @override
+  String plainText() {
+    final formatter = controller.createFormatter(
+      format: FormatterFormat.plain,
+      unwrap: true,
+      trim: true,
+    );
+    try {
+      return formatter.format().trimRight();
+    } finally {
+      formatter.dispose();
+    }
+  }
+
+  @override
+  void clearBuffer() => _replayNow('\x1bc');
 
   @override
   String selectedText() =>
