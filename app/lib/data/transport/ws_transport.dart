@@ -226,8 +226,20 @@ class WsTransport implements PeerTransport, IControlLink {
 
   @override
   Future<void> close() async {
+    // Close the sink FIRST. `_sub.cancel()` awaits the underlying stream's
+    // teardown, which on a live WebSocket can block until the socket itself is
+    // gone — so cancelling first meant `_ws.sink.close()` (the call that
+    // actually sends the Close frame and closes the TCP socket) could never
+    // run, leaving an authenticated-but-unused socket behind. The relay logs
+    // show exactly that: a socket that completed the handshake, exchanged
+    // nothing at all, and was only reaped when the OS reset it in the same
+    // instant as its healthy sibling.
+    try {
+      await _ws.sink.close();
+    } catch (_) {
+      // Best effort: teardown below still runs so the local side is released.
+    }
     await _sub?.cancel();
-    await _ws.sink.close();
     _queue.close();
     if (!_controlController.isClosed) await _controlController.close();
   }
