@@ -16,7 +16,8 @@ void main() {
     if (await dir.exists()) await dir.delete(recursive: true);
   });
 
-  File sessionFile() => File('${dir.path}/session.json');
+  File sessionFile() => File('${dir.path}/session-debug.json');
+  File releaseSessionFile() => File('${dir.path}/session.json');
 
   group('DiagnosticsLog', () {
     test('primeira execução não acusa crash', () async {
@@ -93,9 +94,9 @@ void main() {
 
     test('sessão de debug é marcada como tal', () async {
       await log.init(appVersion: '1.0.0', baseDir: dir.path);
-      final marcador =
-          jsonDecode(await sessionFile().readAsString())
-              as Map<String, Object?>;
+      final marcador = jsonDecode(
+        await sessionFile().readAsString(),
+      ) as Map<String, Object?>;
       // O teste roda em debug; o campo existe para o boot seguinte distinguir
       // "morreu" de "foi parado pela IDE".
       expect(marcador['debug'], isTrue);
@@ -104,25 +105,59 @@ void main() {
       expect(log.previousCrash!.debug, isTrue);
     });
 
+    test('debug e release mantêm marcadores independentes', () async {
+      await log.init(
+        appVersion: '1.0.0',
+        baseDir: dir.path,
+        debugSession: false,
+      );
+      expect(releaseSessionFile().existsSync(), isTrue);
+
+      await log.init(
+        appVersion: '1.0.0',
+        baseDir: dir.path,
+        debugSession: true,
+      );
+      expect(log.previousCrash, isNull);
+      expect(sessionFile().existsSync(), isTrue);
+      expect(releaseSessionFile().existsSync(), isTrue);
+
+      log.markCleanExit();
+      expect(sessionFile().existsSync(), isFalse);
+      expect(releaseSessionFile().existsSync(), isTrue);
+    });
+
     test('marcador antigo sem o campo debug conta como release', () async {
       // Compatibilidade: quem atualizar com um marcador sujo gravado pela
       // versão anterior não pode ter o aviso silenciado por engano.
-      await sessionFile().writeAsString(jsonEncode({'pid': 1}));
-      await log.init(appVersion: '1.0.0', baseDir: dir.path);
+      await releaseSessionFile().writeAsString(jsonEncode({'pid': 1}));
+      await log.init(
+        appVersion: '1.0.0',
+        baseDir: dir.path,
+        debugSession: false,
+      );
       expect(log.previousCrash!.debug, isFalse);
     });
 
     test('marcador corrompido é tratado como saída limpa', () async {
-      await sessionFile().writeAsString('{ não é json');
-      await log.init(appVersion: '1.0.0', baseDir: dir.path);
+      await releaseSessionFile().writeAsString('{ não é json');
+      await log.init(
+        appVersion: '1.0.0',
+        baseDir: dir.path,
+        debugSession: false,
+      );
       expect(log.previousCrash, isNull);
     });
 
     test(
       'marcador sem campos ainda produz um DirtySession utilizável',
       () async {
-        await sessionFile().writeAsString(jsonEncode({}));
-        await log.init(appVersion: '1.0.0', baseDir: dir.path);
+        await releaseSessionFile().writeAsString(jsonEncode({}));
+        await log.init(
+          appVersion: '1.0.0',
+          baseDir: dir.path,
+          debugSession: false,
+        );
         expect(log.previousCrash, isNotNull);
         expect(log.previousCrash!.appVersion, 'desconhecida');
       },

@@ -57,6 +57,7 @@ class DiagnosticsLog {
   Directory? _dir;
   File? _sessionFile;
   String? _appVersion;
+  bool _debugSession = kDebugMode;
   bool _truncated = false;
 
   /// Sessão anterior que não registrou saída limpa — `null` quando o último
@@ -87,8 +88,10 @@ class DiagnosticsLog {
   Future<void> init({
     required String appVersion,
     @visibleForTesting String? baseDir,
+    @visibleForTesting bool? debugSession,
   }) async {
     _appVersion = appVersion;
+    _debugSession = debugSession ?? kDebugMode;
     _truncated = false;
     try {
       final home = baseDir ?? userHome();
@@ -96,7 +99,10 @@ class DiagnosticsLog {
       final dir = Directory(baseDir != null ? home : '$home/.cockpit/logs');
       await dir.create(recursive: true);
       _dir = dir;
-      _sessionFile = File('${dir.path}/session.json');
+      // Debug and release share the log directory, but must not overwrite
+      // each other's crash marker when both apps are running.
+      final marker = _debugSession ? 'session-debug.json' : 'session.json';
+      _sessionFile = File('${dir.path}/$marker');
 
       await _rotate(dir);
       previousCrash = await _readDirtySession();
@@ -266,7 +272,7 @@ class DiagnosticsLog {
         // Em debug o processo é morto o tempo todo pelo ferramental (hot
         // restart, stop da IDE), e nada disso é crash. Quem grava a sessão é
         // quem sabe em que build ela rodou.
-        'debug': kDebugMode,
+        'debug': _debugSession,
       }),
     );
   }
