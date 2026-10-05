@@ -2,9 +2,9 @@ import 'package:cockpit/app/cockpit/domain/contracts/notifier.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/core/domain/entities/sound_event.dart';
+import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:flutter/foundation.dart';
-import 'package:window_manager/window_manager.dart';
 
 /// Avisos de fim de turno: badge na aba, notificação do SO e chime, com as
 /// preferências que a `CockpitPage` empurra do `SettingsController` app-scoped.
@@ -12,9 +12,10 @@ import 'package:window_manager/window_manager.dart';
 /// Extraído do `CockpitViewModel`: o VM só diz *qual sessão* terminou e *qual
 /// está em foco*; a matriz foco/janela/preferência mora aqui.
 class SessionNotificationsController extends ChangeNotifier {
-  SessionNotificationsController(this._notifier);
+  SessionNotificationsController(this._notifier, this._windowActivity);
 
   final Notifier _notifier;
+  final WindowActivityController _windowActivity;
 
   // ---- contexto injetado pelo VM dono (mesma vida page-scoped) -------------
 
@@ -48,11 +49,10 @@ class SessionNotificationsController extends ChangeNotifier {
 
   bool _soundEnabledFor(SoundEvent event) => _events[event] ?? true;
 
-  /// A janela do app está em foco? No mobile `window_manager` não vale
-  /// (`isFocused()` retorna false), e o app só roda em foreground quando visível
-  /// — foreground = focado (plano 60, Wave G).
-  Future<bool> get _windowFocused async =>
-      isMobilePlatform || await windowManager.isFocused();
+  /// O bootstrap mantém este estado sincronizado com foco e minimização.
+  /// Consultar o plugin nativo a cada fim de turno enfileirava uma chamada
+  /// por terminal quando vários agentes terminavam juntos.
+  bool get _windowFocused => isMobilePlatform || _windowActivity.isActive;
 
   /// Badge (ponto na aba) → só se a sessão NÃO for a aba ativa.
   /// Notificação do SO → só se a janela não estiver focada.
@@ -70,7 +70,7 @@ class SessionNotificationsController extends ChangeNotifier {
         : SoundEvent.turnDone;
     final isActiveTab = _markUnseenIfHidden(s);
 
-    if (!await _windowFocused) {
+    if (!_windowFocused) {
       // Janela em outro app → notificação do SO (tem som próprio).
       if (!_enabled) return;
       final workspace = workspaceName?.call(s.projectId) ?? '';
@@ -96,7 +96,7 @@ class SessionNotificationsController extends ChangeNotifier {
   /// quando **é** a ativa (o chamador decide o som).
   bool _markUnseenIfHidden(PaneItem s) {
     final isActiveTab = s.id == focusedTabId?.call();
-    if (!isActiveTab) {
+    if (!isActiveTab && !s.unseenFinish) {
       s.markUnseen();
       notifyListeners();
     }

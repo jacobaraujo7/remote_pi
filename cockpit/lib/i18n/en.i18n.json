@@ -778,10 +778,6 @@
         "title": "Workspace env",
         "description": "Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent's prompt. Kept out of git."
       },
-      "diagram": {
-        "title": "Diagram",
-        "description": "A markdown file with a Mermaid diagram: flowcharts, sequences, class models and Gantt charts, rendered in the preview."
-      },
       "panel": {
         "title": "Panel",
         "description": "An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards."

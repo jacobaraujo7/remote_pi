@@ -21,6 +21,32 @@ body {
   font-size: var(--ckp-font-size, 14px);
   line-height: 1.6;
 }
+/* Barra de rolagem: no WKWebView (macOS) ela é overlay e some sozinha; no
+   WebView2 (Windows) é a clássica do sistema, larga e clara, destoando do
+   resto do app. Fina, sem trilho e com o polegar na cor da borda do tema —
+   o mais perto do overlay que o Chromium permite sem JS. No macOS a regra
+   não muda nada visível (overlay continua overlay). */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--ckp-border, #333);
+  border-radius: 4px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ckp-text-muted, #888);
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 #content {
   max-width: 860px;
   margin: 0 auto;
@@ -110,25 +136,4 @@ hr {
 }
 input[type="checkbox"] {
   accent-color: var(--ckp-link, #4da3ff);
-}
-
-/* Diagramas Mermaid (blocos ```mermaid). O SVG vem do próprio mermaid
-   (securityLevel strict); largura livre com rolagem horizontal. */
-.ckp-mermaid {
-  margin: 1em 0;
-  overflow-x: auto;
-}
-.ckp-mermaid svg {
-  max-width: 100%;
-  height: auto;
-}
-/* Diagrama com erro de sintaxe: mostra a fonte e a mensagem em vez de sumir. */
-.ckp-mermaid-error {
-  border-left: 3px solid #d9534f;
-  padding-left: 0.75em;
-}
-.ckp-mermaid-error .ckp-mermaid-msg {
-  color: #d9534f;
-  font-size: 0.85em;
-  margin: 0.25em 0 0;
 }

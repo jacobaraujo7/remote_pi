@@ -2,7 +2,9 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/process/linux_process_tree_provider.dart';
 import 'package:cockpit/app/cockpit/data/process/macos_process_tree_provider.dart';
 import 'package:cockpit/app/cockpit/data/process/windows_process_tree_provider.dart';
+import 'package:cockpit/app/cockpit/data/process/windows_native_process_snapshot.dart';
 import 'package:cockpit/app/cockpit/data/process/wsl_process_tree_provider.dart';
+import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -52,6 +54,149 @@ void main() {
         expect(snapshots[0].pid, equals(1000));
         expect(snapshots[1].pid, equals(1001));
         expect(snapshots[1].executable, equals('C:\\bin\\claude.exe'));
+      },
+    );
+
+    test('Windows native snapshot contains the current process', () {
+      if (!Platform.isWindows) return;
+      final snapshots = windowsNativeProcessSnapshot();
+      final current = snapshots.where((snapshot) => snapshot.pid == pid);
+      expect(current, hasLength(1));
+      expect(current.single.executable, isNotEmpty);
+    });
+
+    test('Windows provider enumerates off the UI isolate', () async {
+      if (!Platform.isWindows) return;
+      final snapshots = await WindowsProcessTreeProvider().getProcessSnapshots(
+        rootPids: [pid],
+      );
+      expect(snapshots.map((snapshot) => snapshot.pid), contains(pid));
+    });
+
+    test(
+      'Windows provider keeps only rooted processes without invoking CIM for shells',
+      () async {
+        var calls = 0;
+        final provider = WindowsProcessTreeProvider(
+          snapshotter: () => const [
+            ProcessSnapshot(
+              pid: 100,
+              ppid: 1,
+              executable: 'pwsh.exe',
+              argv: ['pwsh.exe'],
+            ),
+            ProcessSnapshot(
+              pid: 101,
+              ppid: 100,
+              executable: 'git.exe',
+              argv: ['git.exe'],
+            ),
+            ProcessSnapshot(
+              pid: 999,
+              ppid: 1,
+              executable: 'codex.exe',
+              argv: ['codex.exe'],
+            ),
+          ],
+          runner: (executable, arguments) async {
+            calls++;
+            return ProcessResult(0, 0, '[]', '');
+          },
+        );
+        final snapshots = await provider.getProcessSnapshots(rootPids: [100]);
+        expect(
+          snapshots.map((snapshot) => snapshot.pid),
+          containsAll([100, 101]),
+        );
+        expect(snapshots, hasLength(2));
+        expect(calls, 0);
+      },
+    );
+
+    test(
+      'Windows provider fetches a new harness command line only once',
+      () async {
+        var calls = 0;
+        final provider = WindowsProcessTreeProvider(
+          snapshotter: () => const [
+            ProcessSnapshot(
+              pid: 100,
+              ppid: 1,
+              executable: 'pwsh.exe',
+              argv: ['pwsh.exe'],
+            ),
+            ProcessSnapshot(
+              pid: 101,
+              ppid: 100,
+              executable: 'codex.exe',
+              argv: ['codex.exe'],
+            ),
+          ],
+          runner: (executable, arguments) async {
+            calls++;
+            expect(executable, 'powershell.exe');
+            expect(arguments.last, contains('ProcessId=101'));
+            return ProcessResult(0, 0, '''
+{"ProcessId":101,"ParentProcessId":100,"ExecutablePath":"codex.exe","CommandLine":"codex.exe"}
+''', '');
+          },
+        );
+        final first = await provider.getProcessSnapshots(rootPids: [100]);
+        final second = await provider.getProcessSnapshots(rootPids: [100]);
+        expect(first.last.executable, 'codex.exe');
+        expect(second.last.executable, 'codex.exe');
+        expect(calls, 1);
+      },
+    );
+
+    test(
+      'Windows provider batches harnesses that appear during restore',
+      () async {
+        var now = DateTime.utc(2026);
+        var includeSecond = false;
+        final filters = <String>[];
+        final provider = WindowsProcessTreeProvider(
+          clock: () => now,
+          snapshotter: () => [
+            const ProcessSnapshot(
+              pid: 100,
+              ppid: 1,
+              executable: 'pwsh.exe',
+              argv: ['pwsh.exe'],
+            ),
+            const ProcessSnapshot(
+              pid: 101,
+              ppid: 100,
+              executable: 'claude.exe',
+              argv: ['claude.exe'],
+            ),
+            if (includeSecond)
+              const ProcessSnapshot(
+                pid: 102,
+                ppid: 100,
+                executable: 'claude.exe',
+                argv: ['claude.exe'],
+              ),
+          ],
+          runner: (executable, arguments) async {
+            filters.add(arguments.last);
+            return ProcessResult(0, 0, '''
+[
+  {"ProcessId":101,"ParentProcessId":100,"ExecutablePath":"claude.exe","CommandLine":"claude.exe"},
+  {"ProcessId":102,"ParentProcessId":100,"ExecutablePath":"claude.exe","CommandLine":"claude.exe"}
+]
+''', '');
+          },
+        );
+
+        await provider.getProcessSnapshots(rootPids: [100]);
+        includeSecond = true;
+        await provider.getProcessSnapshots(rootPids: [100]);
+        expect(filters, hasLength(1));
+        now = now.add(const Duration(seconds: 3));
+        await provider.getProcessSnapshots(rootPids: [100]);
+        expect(filters, hasLength(2));
+        expect(filters.last, contains('ProcessId=102'));
       },
     );
 

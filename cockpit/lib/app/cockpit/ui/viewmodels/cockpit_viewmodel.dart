@@ -217,7 +217,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     notifications
       ..focusedTabId = (() => _focusedAgentId)
       ..workspaceName = ((projectId) => _projectById(projectId)?.name ?? '');
-    notifications.addListener(notifyListeners);
+    notifications.addListener(_onNotificationsChanged);
     files.addListener(notifyListeners);
     remote.addListener(notifyListeners);
     _lastGitRevision = git.revision;
@@ -417,6 +417,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// Árvore de splits por projeto (workspace).
   final Map<String, PaneNode> _trees = <String, PaneNode>{};
 
+  /// Evita restaurar o mesmo layout duas vezes se a seleção mudar durante o load.
+  final Map<String, Future<void>> _projectActivations =
+      <String, Future<void>>{};
+  int _projectSelectionGeneration = 0;
+
   /// Pane focada por projeto.
   final Map<String, String> _focused = <String, String>{};
 
@@ -473,8 +478,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// layout salvo (e daí no default expandido) enquanto não houver override.
   final Map<String, bool> _worktreesExpanded = <String, bool>{};
 
-  /// `true` enquanto reconstruímos um projeto — evita gravar layout meio-feito.
-  bool _restoring = false;
+  /// Quantos projetos estão em restore — evita gravar layout meio-feito.
+  int _restoringCount = 0;
 
   /// Worktrees (forks) por workspace raiz, na ordem do `git worktree list`
   /// (decisão 20). Reconciliado contra o git nos ganchos de refresh; a
@@ -3533,9 +3538,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     // workspaces distintos em realms diferentes (ids são UUIDs).
     for (final existing in _projectList) {
       if (existing.path == path && existing.realmId == realmCtrl.activeId) {
-        _selectedProjectId = existing.id;
-        unawaited(_projects.saveLastSelected(realmCtrl.activeId, existing.id));
-        notifyListeners();
+        selectProject(existing.id);
         return existing;
       }
     }
@@ -4595,7 +4598,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   void selectProject(String id) {
     if (_selectedProjectId == id) return;
-    PerformanceDiagnostics.instance.timeToNextFrame(PerfMetric.workspaceSwitch);
+    final diagnostics = PerformanceDiagnostics.instance;
+    diagnostics.timeToNextFrame(PerfMetric.workspaceSwitch);
+    final readyClock = diagnostics.enabled ? (Stopwatch()..start()) : null;
+    final cold = !_trees.containsKey(id);
+    final selection = ++_projectSelectionGeneration;
     // Seleção vinda de fora do recorte atual (clique em notificação, CLI
     // `cockpit open`, restauração): troca o realm ativo junto — selecionar um
     // workspace de outro realm sem trazê-lo deixaria o rail "sem seleção".
@@ -4622,7 +4629,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     // por realm: cada realm lembra a própria última seleção.
     unawaited(_projects.saveLastSelected(realmCtrl.activeId, _rootOf(id)));
     _clearFocusedNotification();
-    unawaited(_activateProject(id)); // reconstrói (lazy) se ainda não ativo
+    final activation = _activateProject(id); // reconstrói (lazy) se necessário
+    if (readyClock != null) {
+      unawaited(
+        _measureProjectReady(id, selection, cold, readyClock, activation),
+      );
+    } else {
+      unawaited(activation);
+    }
     git.watchProject(id); // segue o working tree do novo projeto ao vivo
     unawaited(git.refresh(id)); // pode ter mudado desde a última vez
     unawaited(_refreshWorktrees(_rootOf(id))); // reflete worktrees externas
@@ -4808,6 +4822,19 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final tree = _activeTree;
     if (projectId == null || tree == null) return;
     final paneId = _focused[projectId] ?? leaves(tree).first.id;
+    newTerminalInPane(paneId, subRelative: subRelative, profile: profile);
+  }
+
+  /// Cria o terminal diretamente na pane que recebeu o clique no `+`.
+  /// Evita montar um EmptyTab e esperar outro frame para iniciar o shell.
+  void newTerminalInPane(
+    String paneId, {
+    String subRelative = '',
+    TerminalProfile? profile,
+  }) {
+    final projectId = _selectedProjectId;
+    final tree = _activeTree;
+    if (projectId == null || tree == null) return;
     final leaf = findLeaf(tree, paneId) ?? leaves(tree).first;
     final s = _spawn(subRelative, profile: profile);
 
@@ -5122,11 +5149,15 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// Digita [command] + Enter no terminal [tabId] após uma folga pro shell
   /// terminar o boot (.zshrc etc). O PTY bufferiza, mas shells com zle podem
   /// descartar input chegado no meio do init — a folga evita isso.
+  ///
+  /// Enter é `\r` (o byte da tecla), igual ao `startupCommand` da restauração:
+  /// `\n` só submete em tty Unix; no ConPTY/PSReadLine vira quebra de linha no
+  /// buffer e o comando fica esperando um Enter manual.
   void _typeWhenReady(String tabId, String command) {
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 700)).then((_) {
         final s = _sessions[tabId];
-        if (s is TerminalSession) s.insertText('$command\n');
+        if (s is TerminalSession) s.insertText('$command\r');
       }),
     );
   }
@@ -5267,6 +5298,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _setActiveTree(t);
     _focused[projectId] = targetPaneId;
     _ensureFocusValid();
+    PerformanceDiagnostics.instance.timeToNextFrame(
+      PerfMetric.terminalDockFrame,
+      tabs: _sessions.length,
+    );
     notifyListeners();
   }
 
@@ -5320,6 +5355,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _setActiveTree(t);
     _focused[projectId] = newLeaf.id;
     _ensureFocusValid();
+    PerformanceDiagnostics.instance.timeToNextFrame(
+      PerfMetric.terminalDockFrame,
+      tabs: _sessions.length,
+    );
     notifyListeners();
   }
 
@@ -5350,6 +5389,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         ),
       );
       _focused[projectId] = srcPaneId;
+      PerformanceDiagnostics.instance.timeToNextFrame(
+        PerfMetric.terminalDockFrame,
+        tabs: _sessions.length,
+      );
       notifyListeners();
       return;
     }
@@ -5378,7 +5421,50 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _setActiveTree(t);
     _focused[projectId] = targetPaneId;
     _ensureFocusValid();
+    PerformanceDiagnostics.instance.timeToNextFrame(
+      PerfMetric.terminalDockFrame,
+      tabs: _sessions.length,
+    );
     notifyListeners();
+  }
+
+  /// Inclui o restore assíncrono e o primeiro frame com a árvore carregada.
+  /// `workspaceSwitch` acima mede apenas o primeiro frame após a seleção, que
+  /// pode ser uma tela ainda vazia quando o projeto é ativado pela primeira vez.
+  Future<void> _measureProjectReady(
+    String id,
+    int selection,
+    bool cold,
+    Stopwatch clock,
+    Future<void> activation,
+  ) async {
+    try {
+      await activation;
+    } on Object catch (error, stack) {
+      DiagnosticsLog.instance.logError('activate-project', error, stack);
+      return;
+    }
+    if (_selectedProjectId != id || _projectSelectionGeneration != selection) {
+      return;
+    }
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (_selectedProjectId != id ||
+          _projectSelectionGeneration != selection) {
+        return;
+      }
+      final tree = _trees[id];
+      final tabs = tree == null
+          ? 0
+          : leaves(
+              tree,
+            ).fold<int>(0, (count, leaf) => count + leaf.tabs.length);
+      PerformanceDiagnostics.instance.record(PerfMetric.workspaceReadyFrame, {
+        PerfField.durationUs: clock.elapsedMicroseconds,
+        PerfField.tabs: tabs,
+        PerfField.cold: cold ? 1 : 0,
+      }, force: true);
+    });
+    SchedulerBinding.instance.scheduleFrame();
   }
 
   /// Qual aba fica ativa numa folha após [removedId] sair (mantém a ativa se não
@@ -5462,7 +5548,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _ensureFocusValid(projectId);
     notifyListeners();
     // `notifyListeners` só agenda a gravação do workspace selecionado.
-    if (!_restoring && projectId != _selectedProjectId) {
+    if (_restoringCount == 0 && projectId != _selectedProjectId) {
       _scheduleSave(projectId);
     }
   }
@@ -5571,6 +5657,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (split == null) return;
     _setActiveTree(
       setFrac(tree, splitId, (split.frac + dFrac).clamp(0.16, 0.84)),
+    );
+    PerformanceDiagnostics.instance.timeToNextFrame(
+      PerfMetric.terminalResizeFrame,
+      tabs: _sessions.length,
+      coalesce: true,
     );
     notifyListeners();
   }
@@ -5694,6 +5785,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     TerminalProfile? profile,
     TerminalEngine? engine,
   }) {
+    final openWatch = PerformanceDiagnostics.instance.enabled
+        ? (Stopwatch()..start())
+        : null;
     // `.env.cockpit` do workspace (raiz + cada root em multi-root), lido a
     // cada spawn: aba nova já vê a chave nova. Só local: no remoto o arquivo
     // mora no host e este processo não o enxerga.
@@ -5771,6 +5865,16 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     built = t;
     _sessions[t.id] = t;
     if (!remote) _warnTrackedWorkspaceEnv(t, projectId);
+    if (openWatch != null && _restoringCount == 0) {
+      PerformanceDiagnostics.instance.record(PerfMetric.terminalOpen, {
+        PerfField.durationUs: openWatch.elapsedMicroseconds,
+        PerfField.tabs: _sessions.length,
+      }, force: true);
+      PerformanceDiagnostics.instance.timeToNextFrame(
+        PerfMetric.terminalOpenFrame,
+        tabs: _sessions.length,
+      );
+    }
     return t;
   }
 
@@ -5938,6 +6042,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     line,
     cwd: cwd,
     environment: cliEnvironment(tabId: sessionId),
+    profile: defaultTerminalProfile,
   );
 
   Map<String, String> _cliPathEnv() {
@@ -6055,8 +6160,26 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   /// Ativa um projeto (sobe os processos). Se há layout salvo, reconstrói a
   /// árvore + sessões; senão, abre uma pane vazia. Idempotente: já-ativo é no-op.
-  Future<void> _activateProject(String id) async {
-    if (_trees.containsKey(id)) return;
+  Future<void> _activateProject(String id) {
+    final pending = _projectActivations[id];
+    if (pending != null) return pending;
+    if (_trees.containsKey(id)) return Future<void>.value();
+    final done = Completer<void>();
+    _projectActivations[id] = done.future;
+    unawaited(() async {
+      try {
+        await _activateProjectOnce(id);
+        done.complete();
+      } on Object catch (error, stack) {
+        done.completeError(error, stack);
+      } finally {
+        _projectActivations.remove(id);
+      }
+    }());
+    return done.future;
+  }
+
+  Future<void> _activateProjectOnce(String id) async {
     // Projeto que entrou na lista DEPOIS do boot — todo fork de worktree é
     // assim, local ou remoto: eles são derivados do `git worktree list`, que
     // só responde depois das duas passagens de carga do `init`. Sem esta
@@ -6086,11 +6209,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       notifyListeners();
       return;
     }
-    _restoring = true;
+    _restoringCount++;
     try {
       await _restoreProject(id, doc);
     } finally {
-      _restoring = false;
+      _restoringCount--;
     }
     notifyListeners();
   }
@@ -6876,10 +6999,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   @override
   void notifyListeners() {
     super.notifyListeners();
-    if (_restoring) return;
+    if (_restoringCount > 0) return;
     final id = _selectedProjectId;
     if (id != null && _trees.containsKey(id)) _scheduleSave(id);
   }
+
+  /// O badge de conclusão não altera o layout. Atualiza a rail sem reiniciar
+  /// o timer de serialização do workspace a cada notificação simultânea.
+  void _onNotificationsChanged() => super.notifyListeners();
 
   /// Re-sincroniza os workspaces remotos quando o [RemoteHostsController] muda
   /// por fora (aba "Remote hosts" das Configurações). Idempotente.
@@ -6902,7 +7029,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     git.removeListener(_onGitNotify);
     remote.removeListener(notifyListeners);
     files.removeListener(notifyListeners);
-    notifications.removeListener(notifyListeners);
+    notifications.removeListener(_onNotificationsChanged);
     realmCtrl.removeListener(notifyListeners);
     for (final t in _saveTimers.values) {
       t.cancel();

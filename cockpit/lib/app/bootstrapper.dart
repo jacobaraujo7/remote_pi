@@ -633,6 +633,8 @@ class WindowStateKeeperState extends State<WindowStateKeeper>
   /// o `destroy()` roda no `finally`.
   @override
   Future<void> onWindowClose() async {
+    final closeClock = Stopwatch()..start();
+    DiagnosticsLog.instance.log('close', 'pedido recebido');
     // ORDEM IMPORTA. O listener sai PRIMEIRO: destruir a janela faz o GTK
     // emitir os eventos finais, e um `onWindowResize` atendido depois disso
     // pergunta a uma janela morta se está maximizada — SIGSEGV dentro do GTK.
@@ -651,6 +653,10 @@ class WindowStateKeeperState extends State<WindowStateKeeper>
     } on Object catch (_) {
       /* o próprio markCleanExit já é best-effort */
     } finally {
+      DiagnosticsLog.instance.log(
+        'close',
+        'até destroy: ${closeClock.elapsedMilliseconds}ms',
+      );
       await windowManager.destroy();
     }
   }

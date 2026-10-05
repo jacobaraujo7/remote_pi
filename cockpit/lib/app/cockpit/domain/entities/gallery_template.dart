@@ -140,23 +140,6 @@ enum GalleryTemplate {
         '    split: right\n'
         '    command: claude\n',
   ),
-  diagram(
-    baseName: 'diagram',
-    extension: 'md',
-    iconAsset: 'assets/file_icons/mermaid.svg',
-    content:
-        '# Diagram\n'
-        '\n'
-        'Mermaid fences render as diagrams in the preview. Ask the agent to draw\n'
-        'a flow, a sequence, a class model or a Gantt chart here.\n'
-        '\n'
-        '```mermaid\n'
-        'flowchart LR\n'
-        '  A[Idea] --> B{Decision}\n'
-        '  B -->|yes| C[Build]\n'
-        '  B -->|no| D[Park it]\n'
-        '```\n',
-  ),
   workspaceEnv(
     baseName: '',
     extension: 'env.cockpit',

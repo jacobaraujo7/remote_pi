@@ -1157,7 +1157,6 @@ class _Translations$cockpit$gallery$es extends Translations$cockpit$gallery$en {
 	@override late final _Translations$cockpit$gallery$tasks$es tasks = _Translations$cockpit$gallery$tasks$es._(_root);
 	@override late final _Translations$cockpit$gallery$notebook$es notebook = _Translations$cockpit$gallery$notebook$es._(_root);
 	@override late final _Translations$cockpit$gallery$workspaceEnv$es workspaceEnv = _Translations$cockpit$gallery$workspaceEnv$es._(_root);
-	@override late final _Translations$cockpit$gallery$diagram$es diagram = _Translations$cockpit$gallery$diagram$es._(_root);
 	@override late final _Translations$cockpit$gallery$panel$es panel = _Translations$cockpit$gallery$panel$es._(_root);
 }
 
@@ -1557,17 +1556,6 @@ class _Translations$cockpit$gallery$workspaceEnv$es extends Translations$cockpit
 	// Translations
 	@override String get title => 'Env del workspace';
 	@override String get description => 'Variables inyectadas en cada terminal de este workspace. Pon tokens o credenciales de API aquí en vez de pegarlos en el prompt del agente. Queda fuera de git.';
-}
-
-// Path: cockpit.gallery.diagram
-class _Translations$cockpit$gallery$diagram$es extends Translations$cockpit$gallery$diagram$en {
-	_Translations$cockpit$gallery$diagram$es._(TranslationsEs root) : this._root = root, super.internal(root);
-
-	final TranslationsEs _root; // ignore: unused_field
-
-	// Translations
-	@override String get title => 'Diagrama';
-	@override String get description => 'Un markdown con un diagrama Mermaid: diagramas de flujo, secuencia, clases y Gantt, renderizados en la vista previa.';
 }
 
 // Path: cockpit.gallery.panel
@@ -2554,8 +2542,6 @@ extension on TranslationsEs {
 			'cockpit.gallery.notebook.description' => 'Una carpeta de notas cortas con tags. El agente escribe, tú lees y editas. También abre en Obsidian.',
 			'cockpit.gallery.workspaceEnv.title' => 'Env del workspace',
 			'cockpit.gallery.workspaceEnv.description' => 'Variables inyectadas en cada terminal de este workspace. Pon tokens o credenciales de API aquí en vez de pegarlos en el prompt del agente. Queda fuera de git.',
-			'cockpit.gallery.diagram.title' => 'Diagrama',
-			'cockpit.gallery.diagram.description' => 'Un markdown con un diagrama Mermaid: diagramas de flujo, secuencia, clases y Gantt, renderizados en la vista previa.',
 			'cockpit.gallery.panel.title' => 'Panel',
 			'cockpit.gallery.panel.description' => 'Una página HTML con puente a la app: sus botones ejecutan comandos de la CLI de Cockpit y del shell en esta máquina. Un playground para dashboards rápidos.',
 			'cockpit.notebook.notes' => 'Notas',

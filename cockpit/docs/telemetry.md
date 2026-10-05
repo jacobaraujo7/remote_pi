@@ -119,13 +119,20 @@ própria máquina.
 | `slowFrame` | durationUs, buildUs, rasterUs | cada frame ≥ 50 ms |
 | `eventLoop` | delayUs | watchdog de 1 s |
 | `memory` | rssBytes | a cada 1 s (throttle) |
-| `pty` | durationUs, pending, sources | drain do scheduler |
+| `pty` | durationUs, pending, sources, processedChars, hiddenChars | amostra de um drain do scheduler; `hiddenChars` veio de terminais sem view ativa |
 | `processScan` | durationUs, sessions | monitor de harness |
 | `gitRefresh` | durationUs, active, queued, failed | painel SC |
 | `boot` | durationUs | `start()` → workspace pronto |
 | `restore` | durationUs, tabs | por workspace restaurado |
 | `workspaceSwitch` / `tabSwitch` | durationUs | até o próximo frame pintado |
+| `workspaceReadyFrame` | durationUs, tabs, cold | seleção → restore concluído e próximo frame; cold=1 na primeira ativação |
 | `spawn` | durationUs, failed | `Process.start` do shell (exec, painéis) |
+| `terminalOpen` | durationUs, tabs | criação síncrona da sessão, incluindo o início do gateway (o spawn remoto pode continuar depois) |
+| `terminalFirstOutput` | durationUs | criação da sessão → primeiro lote de saída do PTY |
+| `terminalOpenFrame` | durationUs, tabs | criação da sessão → callback pós-frame |
+| `terminalDockFrame` | durationUs, tabs | encaixe de aba → callback pós-frame |
+| `terminalResizeFrame` | durationUs, tabs | primeiro delta do divisor → callback pós-frame; deltas no mesmo frame são agrupados |
+| `windowControl` | action, phase, durationUs | Windows: 1/2/3 = minimizar/maximizar/fechar; phase 0/1/2 = clique/conclusão/erro |
 
 `cockpit telemetry perf [--run r_xx] [--metric m]` agrega P50/P95/máx por
 campo. Baseline oficial: medido no `.dmg` instalado (nunca em `debug`, o JIT

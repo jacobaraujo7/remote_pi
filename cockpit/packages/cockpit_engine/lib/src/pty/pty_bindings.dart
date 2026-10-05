@@ -45,6 +45,8 @@ typedef PtyAckReadDart = void Function(Pointer<Void>);
 typedef PtyKillC = Int32 Function(Pointer<Void>);
 typedef PtyKillDart = int Function(Pointer<Void>);
 typedef PtyErrorC = Pointer<Char> Function();
+typedef PtyConptyBundledC = Int32 Function();
+typedef PtyConptyBundledDart = int Function();
 
 class PtyBindings {
   PtyBindings(DynamicLibrary lib)
@@ -57,7 +59,8 @@ class PtyBindings {
       getPid = lib.lookupFunction<PtyGetPidC, PtyGetPidDart>('pty_getpid'),
       ackRead = lib.lookupFunction<PtyAckReadC, PtyAckReadDart>('pty_ack_read'),
       error = lib.lookupFunction<PtyErrorC, PtyErrorC>('pty_error'),
-      kill = _lookupKill(lib);
+      kill = _lookupKill(lib),
+      conptyBundled = _lookupConptyBundled(lib);
 
   /// `pty_kill` é OPCIONAL na resolução: uma dylib anterior à issue #163 não
   /// exporta o símbolo, e um `lookupFunction` direto lançaria no construtor —
@@ -82,4 +85,19 @@ class PtyBindings {
   final PtyKillDart? kill;
 
   final PtyErrorC error;
+
+  /// Windows: `1` quando o `conpty.dll`/`OpenConsole.exe` embarcado está em
+  /// uso, `0` no conhost do sistema. `null` se a dylib não exporta o símbolo
+  /// (anterior a este diagnóstico). Fora do Windows devolve sempre `0`.
+  final PtyConptyBundledDart? conptyBundled;
+
+  static PtyConptyBundledDart? _lookupConptyBundled(DynamicLibrary lib) {
+    try {
+      return lib.lookupFunction<PtyConptyBundledC, PtyConptyBundledDart>(
+        'pty_conpty_bundled',
+      );
+    } on ArgumentError {
+      return null;
+    }
+  }
 }

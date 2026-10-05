@@ -37,7 +37,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   final _running = <String, _RunningTask>{};
   final _starting = <String>{};
   final _lastState = <String, TaskRun>{};
-  final _watchers = <String, StreamSubscription<FileSystemEvent>>{};
+  final _watchers = <String, List<StreamSubscription<FileSystemEvent>>>{};
   final _watchDebounce = <String, Timer>{};
   final _composeDefinitions =
       <String, ({TaskDefinition def, ComposeTask task})>{};
@@ -569,25 +569,75 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   void startWatch(TaskDefinition def) {
     final w = def.watch;
     if (w == null || _watchers.containsKey(def.id)) return;
-    final dir = Directory(def.cwd);
-    if (!dir.existsSync()) return;
-    try {
-      _watchers[def.id] = dir.watch(recursive: true).listen((event) {
-        if (!_matchesWatch(def.cwd, w, event.path)) return;
-        _watchDebounce[def.id]?.cancel();
-        _watchDebounce[def.id] = Timer(
-          Duration(milliseconds: w.debounceMs),
-          () => _dispatchWatch(def, w),
-        );
-      });
-    } catch (_) {
-      // FS sem suporte a watch recursivo → silencioso (sem reload automático).
+    // Observa SÓ as pastas de `watch.paths` (ou o cwd, se vazio), não o cwd
+    // inteiro filtrando depois: no Windows o `ReadDirectoryChangesW` tem um
+    // buffer fixo, e a rajada de um `flutter run` em `build/`/`.dart_tool/`
+    // dentro do cwd o estourava — o SO fecha o handle, o Dart emite
+    // "Directory watcher closed unexpectedly" e o reload-on-save morria em
+    // silêncio pelo resto do run (18:42 de 2026-10-03, na task Cockpit).
+    final roots = w.paths.isEmpty
+        ? [def.cwd]
+        : w.paths.map((p) => _joinPath(def.cwd, p)).toList();
+    final subs = <StreamSubscription<FileSystemEvent>>[];
+    for (final root in roots) {
+      final sub = _watchDir(def, w, root);
+      if (sub != null) subs.add(sub);
     }
+    if (subs.isNotEmpty) _watchers[def.id] = subs;
+  }
+
+  StreamSubscription<FileSystemEvent>? _watchDir(
+    TaskDefinition def,
+    TaskWatch w,
+    String root,
+  ) {
+    final dir = Directory(root);
+    if (!dir.existsSync()) return null;
+    try {
+      return dir.watch(recursive: true).listen(
+        (event) {
+          if (!_matchesWatch(def.cwd, w, event.path)) return;
+          _watchDebounce[def.id]?.cancel();
+          _watchDebounce[def.id] = Timer(
+            Duration(milliseconds: w.debounceMs),
+            () => _dispatchWatch(def, w),
+          );
+        },
+        // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
+        // de deixar o erro vazar (uncaught) e o watch morrer.
+        onError: (Object e) {
+          DiagnosticsLog.instance.warn('task', 'watch $root: $e');
+          Timer(const Duration(seconds: 2), () {
+            final current = _watchers[def.id];
+            if (current == null) return; // stopWatch nesse meio tempo
+            final again = _watchDir(def, w, root);
+            if (again != null) current.add(again);
+          });
+        },
+        cancelOnError: true,
+      );
+    } on FileSystemException {
+      // FS sem suporte a watch recursivo → silencioso (sem reload automático).
+      return null;
+    }
+  }
+
+  static String _joinPath(String base, String rel) {
+    final sep = Platform.pathSeparator;
+    final b = base.endsWith(sep) || base.endsWith('/')
+        ? base.substring(0, base.length - 1)
+        : base;
+    return '$b$sep${rel.replaceAll('/', sep)}';
   }
 
   @override
   void stopWatch(String taskId) {
-    unawaited(_watchers.remove(taskId)?.cancel());
+    final subs = _watchers.remove(taskId);
+    if (subs != null) {
+      for (final s in subs) {
+        unawaited(s.cancel());
+      }
+    }
     _watchDebounce.remove(taskId)?.cancel();
   }
 
@@ -839,7 +889,16 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   /// Junta executável + args numa linha de shell, citando o que tem espaço.
   String _join(List<String> parts) => parts.map(_quote).join(' ');
 
+  /// POSIX: aspas simples (`'\''` escapa a aspa). Windows: a linha vai pro
+  /// `cmd.exe /c` e o filho a re-parseia com as regras do CRT
+  /// (CommandLineToArgvW): aspas DUPLAS, `\"` escapa a aspa interna. Citar em
+  /// aspas simples aqui entregava `'$env:PATH = ...'` literal pro pwsh — todo
+  /// arg com espaço, `$` ou aspas quebrava no Windows.
   String _quote(String s) {
+    if (Platform.isWindows) {
+      if (s.isNotEmpty && !RegExp(r'[\s"]').hasMatch(s)) return s;
+      return '"${s.replaceAll('"', r'\"')}"';
+    }
     if (s.isNotEmpty && !RegExp(r'''[\s"'$`\\]''').hasMatch(s)) return s;
     return "'${s.replaceAll("'", r"'\''")}'";
   }

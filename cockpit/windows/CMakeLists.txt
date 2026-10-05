@@ -165,6 +165,46 @@ add_custom_target(cockpit_cli ALL DEPENDS "${COCKPIT_CLI_EXE}")
 install(PROGRAMS "${COCKPIT_CLI_EXE}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
   COMPONENT Runtime)
 
+# === ConPTY moderno (OpenConsole embarcado) ===
+# O `CreatePseudoConsole` do kernel32 usa o conhost que vem com o Windows; no
+# Windows 10 ele é a geração legada do ConPTY, que não repassa tela alternativa
+# (`?1049h`) nem modos de mouse ao terminal e desalinha o cursor na repintura
+# do PSReadLine. Embarcamos `conpty.dll` + `OpenConsole.exe` do pacote oficial
+# `Microsoft.Windows.Console.ConPTY` (o mesmo que o Windows Terminal, WezTerm e
+# Alacritty embarcam); o `cockpit_pty.dll` carrega o `conpty.dll` da própria
+# pasta e cai no kernel32 se faltar (ver cockpit_pty_win.c). Os dois arquivos
+# precisam ficar na MESMA pasta do `cockpit_pty.dll`: no bundle do sidecar
+# (`bin/`) e ao lado do `cockpit.exe` (fallback in-process).
+set(CONPTY_VERSION "1.25.260930003")
+set(CONPTY_SHA256 "02b07b349af66d801159bdf9e440d4a1ce78bb951f37fc8609731665afdae7ee")
+set(CONPTY_NUPKG "${CMAKE_BINARY_DIR}/conpty/microsoft.windows.console.conpty.${CONPTY_VERSION}.nupkg")
+set(CONPTY_EXTRACT_DIR "${CMAKE_BINARY_DIR}/conpty/pkg")
+set(CONPTY_DLL "${CONPTY_EXTRACT_DIR}/runtimes/win-x64/native/conpty.dll")
+set(CONPTY_OPENCONSOLE "${CONPTY_EXTRACT_DIR}/build/native/runtimes/x64/OpenConsole.exe")
+if(NOT EXISTS "${CONPTY_DLL}" OR NOT EXISTS "${CONPTY_OPENCONSOLE}")
+  file(DOWNLOAD
+    "https://api.nuget.org/v3-flatcontainer/microsoft.windows.console.conpty/${CONPTY_VERSION}/microsoft.windows.console.conpty.${CONPTY_VERSION}.nupkg"
+    "${CONPTY_NUPKG}"
+    EXPECTED_HASH SHA256=${CONPTY_SHA256}
+    STATUS CONPTY_DOWNLOAD_STATUS)
+  list(GET CONPTY_DOWNLOAD_STATUS 0 CONPTY_DOWNLOAD_CODE)
+  if(NOT CONPTY_DOWNLOAD_CODE EQUAL 0)
+    message(FATAL_ERROR "Falha ao baixar Microsoft.Windows.Console.ConPTY ${CONPTY_VERSION}: ${CONPTY_DOWNLOAD_STATUS}")
+  endif()
+  file(MAKE_DIRECTORY "${CONPTY_EXTRACT_DIR}")
+  # .nupkg é um zip; `cmake -E tar` extrai sem depender de ferramenta externa.
+  execute_process(
+    COMMAND "${CMAKE_COMMAND}" -E tar xf "${CONPTY_NUPKG}"
+    WORKING_DIRECTORY "${CONPTY_EXTRACT_DIR}"
+    RESULT_VARIABLE CONPTY_EXTRACT_CODE)
+  if(NOT CONPTY_EXTRACT_CODE EQUAL 0 OR NOT EXISTS "${CONPTY_DLL}")
+    message(FATAL_ERROR "Falha ao extrair ${CONPTY_NUPKG}")
+  endif()
+endif()
+# Ao lado do cockpit.exe (mesma pasta do cockpit_pty.dll do plugin).
+install(FILES "${CONPTY_DLL}" "${CONPTY_OPENCONSOLE}"
+  DESTINATION "${INSTALL_BUNDLE_LIB_DIR}" COMPONENT Runtime)
+
 # === cockpit-server (sidecar) ===
 # Bundle `bin/` + `lib/` do servidor headless, instalado AO LADO do executável
 # (o Inno empacota o bundle inteiro). Equivale ao Run Script do macOS
@@ -203,6 +243,9 @@ add_custom_command(
   # Reusa o artefato do plugin em vez de compilar o mesmo .c duas vezes.
   COMMAND "${CMAKE_COMMAND}" -E copy
           "$<TARGET_FILE:cockpit_pty>" "${COCKPIT_SERVER_DIR}/bin/"
+  # ConPTY moderno ao lado do cockpit_pty.dll do sidecar (ver bloco acima).
+  COMMAND "${CMAKE_COMMAND}" -E copy
+          "${CONPTY_DLL}" "${CONPTY_OPENCONSOLE}" "${COCKPIT_SERVER_DIR}/bin/"
   # CLI embarcada ao lado do servidor (plano 60, Wave G): o servidor instala o
   # hook do agente apontando pra ela, e a acha na mesma pasta bin/.
   COMMAND "${CMAKE_COMMAND}" -E copy

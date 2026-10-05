@@ -19,6 +19,15 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   flutter::DartProject project(L"data");
 
+  // Impeller desligado no Windows: com ele ligado (default desde o Flutter
+  // 3.47) o backend GLES/ANGLE quebra ao compor a textura das webviews
+  // (WebView2 via flutter_inappwebview) — `[FATAL] render_pass_gles.cc: Could
+  // not create a complete framebuffer` no debug e, no release, APPCRASH em
+  // `impeller::AiksContext::GetContentContext` (Event Log de 2026-10-03). Abrir
+  // um preview de markdown ou um .panel derrubava o app. Skia segue como era
+  // ate o 3.46; reavaliar quando o Impeller/GLES tratar texturas externas.
+  project.set_impeller_switch(flutter::ImpellerSwitch::Disabled);
+
   std::vector<std::string> command_line_arguments =
       GetCommandLineArguments();
 
@@ -38,6 +47,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
+  // window_manager.destroy() posts WM_QUIT without destroying the HWND. Tear
+  // down the Flutter view and plugins while COM is still initialized; leaving
+  // this to the stack destructor runs their teardown after CoUninitialize().
+  if (window.GetHandle()) {
+    window.Destroy();
+  }
   ::CoUninitialize();
   return EXIT_SUCCESS;
 }

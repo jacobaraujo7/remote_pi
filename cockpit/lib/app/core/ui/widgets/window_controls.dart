@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
+import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
@@ -35,6 +37,45 @@ Future<void> _toggleZoom() async {
     await windowManager.unmaximize();
   } else {
     await windowManager.maximize();
+  }
+}
+
+Future<void> _runWindowControl(
+  int action,
+  Future<void> Function() operation,
+) async {
+  final diagnostics = PerformanceDiagnostics.instance;
+  final label = switch (action) {
+    1 => 'minimize',
+    2 => 'maximize',
+    _ => 'close',
+  };
+  DiagnosticsLog.instance.log('window-control', '$label click');
+  diagnostics.record(PerfMetric.windowControl, {
+    PerfField.action: action,
+    PerfField.phase: 0,
+  }, force: true);
+  final clock = Stopwatch()..start();
+  try {
+    await operation();
+    if (clock.elapsedMilliseconds >= 250) {
+      DiagnosticsLog.instance.log(
+        'window-control',
+        '$label levou ${clock.elapsedMilliseconds}ms',
+      );
+    }
+    diagnostics.record(PerfMetric.windowControl, {
+      PerfField.action: action,
+      PerfField.phase: 1,
+      PerfField.durationUs: clock.elapsedMicroseconds,
+    }, force: true);
+  } on Object catch (error, stack) {
+    diagnostics.record(PerfMetric.windowControl, {
+      PerfField.action: action,
+      PerfField.phase: 2,
+      PerfField.durationUs: clock.elapsedMicroseconds,
+    }, force: true);
+    DiagnosticsLog.instance.logError('window-control', error, stack);
   }
 }
 
@@ -265,17 +306,17 @@ class WindowControlsTrailing extends StatelessWidget {
         _WinButton(
           icon: Icons.remove,
           tooltip: context.t.core.windowControls.minimize,
-          onTap: windowManager.minimize,
+          onTap: () => unawaited(_runWindowControl(1, windowManager.minimize)),
         ),
         _WinButton(
           icon: Icons.crop_square,
           tooltip: context.t.core.windowControls.maximize,
-          onTap: _toggleMaximize,
+          onTap: () => unawaited(_runWindowControl(2, _toggleMaximize)),
         ),
         _WinButton(
           icon: Icons.close,
           tooltip: context.t.core.windowControls.close,
-          onTap: windowManager.close,
+          onTap: () => unawaited(_runWindowControl(3, windowManager.close)),
           danger: true,
         ),
       ],

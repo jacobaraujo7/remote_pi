@@ -290,3 +290,8 @@ FFI_PLUGIN_EXPORT char *pty_error(void)
 {
     return NULL;
 }
+
+FFI_PLUGIN_EXPORT int pty_conpty_bundled(void)
+{
+    return 0;
+}

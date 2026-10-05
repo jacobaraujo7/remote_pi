@@ -113,9 +113,16 @@ class ClaudeHookInstallerImpl extends HookInstallerBase {
       if (h[_marker] == _markerValue) return true;
       final cmd = h['command'];
       if (cmd is! String) return false;
-      return cmd.contains('cockpit-hook') ||
-          cmd.contains('cockpit" hook') ||
-          cmd.endsWith('cockpit hook');
+      if (cmd.contains('cockpit-hook')) return true;
+      // `cockpit.exe hook` sem aspas foi materializado em versões antigas no
+      // Windows. O detector anterior só casava `cockpit" hook` (sem `.exe`),
+      // então cada boot preservava a entrada antiga e anexava outra,
+      // disparando vários helpers iguais por evento.
+      final normalized = cmd.trim().replaceAll('\\', '/');
+      return RegExp(
+        r'(?:^|/)cockpit(?:\.exe)?"?\s+hook(?:\s|$)',
+        caseSensitive: false,
+      ).hasMatch(normalized);
     });
   }
 }

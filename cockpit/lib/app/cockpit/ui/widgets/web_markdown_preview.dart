@@ -7,6 +7,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -40,6 +41,16 @@ class WebMarkdownPreview extends StatefulWidget {
 class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
   InAppWebViewController? _web;
   bool _loaded = false;
+
+  /// Esqueleto composto (ver [_composePage]), ainda com o placeholder do tema.
+  String? _page;
+
+  /// A página que o webview carrega: [_page] com as variáveis `--ckp-*` do
+  /// tema **inlined** no `:root`. Sem isso o primeiro paint usava o fallback
+  /// escuro do CSS (`#1e1e1e`) até o `setTheme` do `onLoadStop` chegar — a
+  /// "tela preta" no começo do carregamento, gritante no tema claro. Montada
+  /// uma vez (o `initialData` só vale na criação da view); troca de tema
+  /// depois disso segue por JS.
   String? _html;
 
   /// Último tema injetado na página, pra não reinjetar igual a cada rebuild.
@@ -59,9 +70,6 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
       rootBundle.loadString('$base/markdown-it.min.js'),
       rootBundle.loadString('$base/purify.min.js'),
       rootBundle.loadString('$base/morphdom-umd.min.js'),
-      // Mermaid 11 (IIFE, ~2.7 MB): diagramas em blocos ```mermaid. Sem eval
-      // nem import dinâmico, então cabe na CSP de nonce da página.
-      rootBundle.loadString('$base/mermaid.min.js'),
       rootBundle.loadString('$base/preview.js'),
     ]);
     final nonce = base64Url.encode(
@@ -81,8 +89,7 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
         .replaceFirst('__JS_MARKDOWN_IT__;', inline(results[2]))
         .replaceFirst('__JS_PURIFY__;', inline(results[3]))
         .replaceFirst('__JS_MORPHDOM__;', inline(results[4]))
-        .replaceFirst('__JS_MERMAID__;', inline(results[5]))
-        .replaceFirst('__JS_PREVIEW__;', inline(results[6]));
+        .replaceFirst('__JS_PREVIEW__;', inline(results[5]));
     return _cachedPage = page;
   }
 
@@ -90,9 +97,48 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
   void initState() {
     super.initState();
     _composePage().then((page) {
-      if (mounted) setState(() => _html = page);
+      if (mounted) setState(() => _page = page);
     });
   }
+
+  /// Windows: a rolagem é feita pela página, a partir dos deltas do Flutter.
+  ///
+  /// O plugin (`flutter_inappwebview_windows` 0.6.0) repassa roda e gesto de
+  /// touchpad ao WebView2 como `SendMouseInput` de roda. O gesto chegava ao
+  /// Flutter nos dois sentidos (medido: 38 gestos, 17 pra cima), mas pela
+  /// injeção do plugin subia travado ou nem rolava. Aqui os mesmos eventos
+  /// viram `window.scrollBy` na página, e a roda nativa é bloqueada nela
+  /// (`captureScroll`) pra não rolar em dobro. macOS não passa por aqui: o
+  /// WKWebView recebe o mouse direto do AppKit.
+  Widget _windowsScroll(Widget child) {
+    if (!Platform.isWindows) return child;
+    return Listener(
+      onPointerSignal: (e) {
+        if (e is PointerScrollEvent) {
+          _scrollBy(e.scrollDelta.dx, e.scrollDelta.dy);
+        }
+      },
+      // Touchpad: o conteúdo acompanha os dedos (rolagem natural), então o
+      // deslocamento da página é o inverso do pan.
+      onPointerPanZoomUpdate: (e) => _scrollBy(-e.panDelta.dx, -e.panDelta.dy),
+      child: child,
+    );
+  }
+
+  void _scrollBy(double dx, double dy) {
+    final web = _web;
+    if (web == null || !_loaded || (dx == 0 && dy == 0)) return;
+    unawaited(
+      web.evaluateJavascript(
+        source:
+            'window.__cockpit.scrollBy && window.__cockpit.scrollBy($dx, $dy);',
+      ),
+    );
+  }
+
+  /// `--ckp-bg: #...; --ckp-text: #...;` pro `:root` do esqueleto.
+  static String _themeCss(Map<String, String> vars) =>
+      vars.entries.map((e) => '${e.key}: ${e.value};').join(' ');
 
   @override
   void didUpdateWidget(WebMarkdownPreview old) {
@@ -147,7 +193,10 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
     await web.evaluateJavascript(
       source:
           'window.__cockpit.setTheme($theme);'
-          'window.__cockpit.setContent($text, $dir);',
+          'window.__cockpit.setContent($text, $dir);'
+          // Windows: rolagem pela página (ver [_windowsScroll]). Na mesma
+          // chamada do conteúdo e com guarda: nunca pode impedir o render.
+          '${Platform.isWindows ? 'if (window.__cockpit.captureScroll) window.__cockpit.captureScroll();' : ''}',
     );
   }
 
@@ -171,7 +220,7 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
     return CustomSchemeResponse(
       data: bytes,
       contentType: _mimeOf(canonical),
-      contentEncoding: 'utf-8',
+      contentEncoding: webViewTextEncoding,
     );
   }
 
@@ -191,45 +240,56 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
 
   @override
   Widget build(BuildContext context) {
-    final html = _html;
-    if (html == null) {
+    final page = _page;
+    if (page == null) {
       return ColoredBox(color: context.colors.panel);
     }
+    final html = _html ??= page.replaceFirst(
+      '__THEME__',
+      _themeCss(_themeVars(context)),
+    );
     // Fora do zoom do app (platform view recebe mouse direto do sistema): sem
     // isso a seleção de texto cai deslocada. Ver [UnzoomedNativeView].
     return WebViewCover(
       loaded: _loaded,
-      child: UnzoomedNativeView(
-        builder: (context, contentZoom) => InAppWebView(
-          initialData: InAppWebViewInitialData(data: html),
-          initialUserScripts: kWebViewUserScripts,
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: true,
-            resourceCustomSchemes: ['ckp-res'],
-            isInspectable: false,
-            underPageBackgroundColor: webViewBackground(context),
-            pageZoom: contentZoom,
+      child: _windowsScroll(
+        WebViewEnvironmentGate(
+          builder: (context, environment) => UnzoomedNativeView(
+            builder: (context, contentZoom) => InAppWebView(
+              webViewEnvironment: environment,
+              initialData: InAppWebViewInitialData(data: html),
+              initialUserScripts: kWebViewUserScripts,
+              initialSettings: InAppWebViewSettings(
+                javaScriptEnabled: true,
+                resourceCustomSchemes: ['ckp-res'],
+                isInspectable: false,
+                underPageBackgroundColor: webViewBackground(context),
+                pageZoom: contentZoom,
+              ),
+              onWebViewCreated: (web) {
+                _web = web;
+                WebViewPointerRelay.register(web, context, contentZoom);
+              },
+              onLoadStop: (web, _) {
+                if (mounted) setState(() => _loaded = true);
+                _push();
+              },
+              onLoadResourceWithCustomScheme: _serveLocal,
+              // Link clicado abre no browser do SO — o preview não navega pra fora.
+              shouldOverrideUrlLoading: (web, action) async {
+                final url = action.request.url;
+                if (url == null ||
+                    url.scheme == 'about' ||
+                    url.scheme == 'data') {
+                  return NavigationActionPolicy.ALLOW;
+                }
+                if (url.scheme == 'http' || url.scheme == 'https') {
+                  await launcher.launchUrl(url);
+                }
+                return NavigationActionPolicy.CANCEL;
+              },
+            ),
           ),
-          onWebViewCreated: (web) {
-            _web = web;
-            WebViewPointerRelay.register(web, context, contentZoom);
-          },
-          onLoadStop: (web, _) {
-            if (mounted) setState(() => _loaded = true);
-            _push();
-          },
-          onLoadResourceWithCustomScheme: _serveLocal,
-          // Link clicado abre no browser do SO — o preview não navega pra fora.
-          shouldOverrideUrlLoading: (web, action) async {
-            final url = action.request.url;
-            if (url == null || url.scheme == 'about' || url.scheme == 'data') {
-              return NavigationActionPolicy.ALLOW;
-            }
-            if (url.scheme == 'http' || url.scheme == 'https') {
-              await launcher.launchUrl(url);
-            }
-            return NavigationActionPolicy.CANCEL;
-          },
         ),
       ),
     );
@@ -296,35 +356,40 @@ class _WebHtmlPreviewState extends State<WebHtmlPreview> {
     // Mesmo motivo do preview de markdown: platform view fora do zoom do app.
     return WebViewCover(
       loaded: _loaded,
-      child: UnzoomedNativeView(
-        builder: (context, contentZoom) => InAppWebView(
-          key: ValueKey('html:${widget.path}'),
-          initialUrlRequest: URLRequest(url: WebUri.uri(Uri.file(widget.path))),
-          // User script roda mesmo com JS da página desligado (é do host).
-          initialUserScripts: kWebViewUserScripts,
-          onWebViewCreated: (c) {
-            _controller = c;
-            WebViewPointerRelay.register(c, context, contentZoom);
-            if (_pending) {
-              _pending = false;
-              unawaited(c.reload());
-            }
-          },
-          onLoadStop: (_, _) {
-            if (mounted) setState(() => _loaded = true);
-          },
-          initialSettings: InAppWebViewSettings(
-            // JS ligado: o `javaScriptEnabled: false` do WebKit desliga TAMBÉM
-            // os user scripts do host (sem rubber-band, repasse de hover), e
-            // a página que o agente escreve costuma precisar de JS mesmo.
-            javaScriptEnabled: true,
-            isInspectable: false,
-            underPageBackgroundColor: webViewBackground(context),
-            pageZoom: contentZoom,
-            // Leitura restrita à raiz do workspace (loadFileURL:allowingReadAccessTo:).
-            allowingReadAccessTo: widget.workspaceRoot.isEmpty
-                ? null
-                : WebUri.uri(Uri.directory(widget.workspaceRoot)),
+      child: WebViewEnvironmentGate(
+        builder: (context, environment) => UnzoomedNativeView(
+          builder: (context, contentZoom) => InAppWebView(
+            key: ValueKey('html:${widget.path}'),
+            webViewEnvironment: environment,
+            initialUrlRequest: URLRequest(
+              url: WebUri.uri(Uri.file(widget.path)),
+            ),
+            // User script roda mesmo com JS da página desligado (é do host).
+            initialUserScripts: kWebViewUserScripts,
+            onWebViewCreated: (c) {
+              _controller = c;
+              WebViewPointerRelay.register(c, context, contentZoom);
+              if (_pending) {
+                _pending = false;
+                unawaited(c.reload());
+              }
+            },
+            onLoadStop: (_, _) {
+              if (mounted) setState(() => _loaded = true);
+            },
+            initialSettings: InAppWebViewSettings(
+              // JS ligado: o `javaScriptEnabled: false` do WebKit desliga TAMBÉM
+              // os user scripts do host (sem rubber-band, repasse de hover), e
+              // a página que o agente escreve costuma precisar de JS mesmo.
+              javaScriptEnabled: true,
+              isInspectable: false,
+              underPageBackgroundColor: webViewBackground(context),
+              pageZoom: contentZoom,
+              // Leitura restrita à raiz do workspace (loadFileURL:allowingReadAccessTo:).
+              allowingReadAccessTo: widget.workspaceRoot.isEmpty
+                  ? null
+                  : WebUri.uri(Uri.directory(widget.workspaceRoot)),
+            ),
           ),
         ),
       ),

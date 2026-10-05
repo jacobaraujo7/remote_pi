@@ -59,6 +59,19 @@ class NativeTerminalService implements TerminalService {
         'Dart_InitializeApiDL failed',
       );
     }
+    // Windows: qual ConPTY está em uso. O conhost do sistema (Win10) não
+    // repassa tela alternativa nem mouse ao terminal; o esperado em produção é
+    // o OpenConsole embarcado. Uma linha no stderr do sidecar pra conferir.
+    if (Platform.isWindows) {
+      final bundled = _bindings.conptyBundled?.call();
+      stderr.writeln(
+        'cockpit-server: conpty=${switch (bundled) {
+          1 => 'bundled (OpenConsole)',
+          0 => 'system (kernel32 conhost)',
+          _ => 'unknown (dylib sem pty_conpty_bundled)',
+        }}',
+      );
+    }
   }
 
   final PtyBindings _bindings;

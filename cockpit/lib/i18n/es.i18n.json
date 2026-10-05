@@ -778,10 +778,6 @@
         "title": "Env del workspace",
         "description": "Variables inyectadas en cada terminal de este workspace. Pon tokens o credenciales de API aquí en vez de pegarlos en el prompt del agente. Queda fuera de git."
       },
-      "diagram": {
-        "title": "Diagrama",
-        "description": "Un markdown con un diagrama Mermaid: diagramas de flujo, secuencia, clases y Gantt, renderizados en la vista previa."
-      },
       "panel": {
         "title": "Panel",
         "description": "Una página HTML con puente a la app: sus botones ejecutan comandos de la CLI de Cockpit y del shell en esta máquina. Un playground para dashboards rápidos."

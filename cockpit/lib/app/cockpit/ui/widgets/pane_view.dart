@@ -51,7 +51,11 @@ import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart'
-    show HitTestResult, PointerScrollEvent, PointerDeviceKind;
+    show
+        HitTestResult,
+        PointerScrollEvent,
+        PointerDeviceKind,
+        kPrimaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -170,6 +174,36 @@ class PaneView extends StatelessWidget {
 
 /// Largura fixa de uma aba — também usada pra calcular o auto-scroll do ativo.
 const double _kTabWidth = 188;
+
+/// Seleciona uma aba desktop no pointer-down, antes da arena entre tap e drag.
+/// O canto do X fica de fora para fechar sem ativar outra aba primeiro.
+class TabPointerSelection extends StatelessWidget {
+  const TabPointerSelection({
+    super.key,
+    required this.tabWidth,
+    required this.onSelect,
+    required this.child,
+  });
+
+  final double tabWidth;
+  final VoidCallback onSelect;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Listener(
+    behavior: HitTestBehavior.translucent,
+    onPointerDown: (event) {
+      if (isMobilePlatform ||
+          event.kind != PointerDeviceKind.mouse ||
+          event.buttons & kPrimaryMouseButton == 0 ||
+          event.localPosition.dx >= tabWidth - 25) {
+        return;
+      }
+      onSelect();
+    },
+    child: child,
+  );
+}
 
 /// Ícone por tipo de aba (usado na aba e no dropdown "todas as abas").
 IconData _tabIcon(PaneItem? item) {
@@ -638,7 +672,7 @@ class _TabState extends State<_Tab> {
     super.dispose();
   }
 
-  /// Tap na aba: **seleciona na hora** e detecta duplo-clique manualmente pra
+  /// Tap na aba: detecta duplo-clique manualmente pra
   /// renomear (desktop), fixar (preview) ou abrir o menu (mobile).
   ///
   /// NUNCA registre `onDoubleTap` no `GestureDetector` da aba: um
@@ -647,7 +681,7 @@ class _TabState extends State<_Tab> {
   /// "ia" depois desse intervalo, em todo tipo de aba (era o delay percebido
   /// na troca). Por isso o duplo-clique é resolvido AQUI, por timestamp, sem
   /// segurar o primeiro clique.
-  void _handleTap(BuildContext menuCtx) {
+  void _handleTap(BuildContext menuCtx, {required bool selectOnTapUp}) {
     final s = widget.item;
     final viewer = s is FileViewerSession ? s : null;
     final terminal = s is TerminalSession ? s : null;
@@ -679,7 +713,9 @@ class _TabState extends State<_Tab> {
         return;
       }
     }
-    widget.onSelect();
+    // Mouse na área principal já selecionou no pointer-down. Touch e o espaço
+    // junto ao X selecionam aqui, após a arena resolver o tap.
+    if (selectOnTapUp) widget.onSelect();
   }
 
   void _startEditing() {
@@ -1021,13 +1057,22 @@ class _TabState extends State<_Tab> {
 
         // Builder garante um BuildContext com RenderBox para showAppMenu.
         final interactive = Builder(
-          builder: (menuCtx) => GestureDetector(
-            onTapUp: (_) => _handleTap(menuCtx),
-            onSecondaryTapUp: isEmpty ? null : (_) => _showTabMenu(menuCtx),
-            onTertiaryTapUp: (_) => _requestClose(),
-            // Sem `onDoubleTap` aqui — ver [_handleTap]: o reconhecedor de
-            // duplo-clique atrasaria o tap simples em ~300ms.
-            child: tabBody,
+          builder: (menuCtx) => TabPointerSelection(
+            tabWidth: _kTabWidth,
+            onSelect: widget.onSelect,
+            child: GestureDetector(
+              onTapUp: (details) => _handleTap(
+                menuCtx,
+                selectOnTapUp:
+                    details.kind != PointerDeviceKind.mouse ||
+                    details.localPosition.dx >= _kTabWidth - 25,
+              ),
+              onSecondaryTapUp: isEmpty ? null : (_) => _showTabMenu(menuCtx),
+              onTertiaryTapUp: (_) => _requestClose(),
+              // Sem `onDoubleTap` aqui — ver [_handleTap]: o reconhecedor de
+              // duplo-clique atrasaria o tap simples em ~300ms.
+              child: tabBody,
+            ),
           ),
         );
 

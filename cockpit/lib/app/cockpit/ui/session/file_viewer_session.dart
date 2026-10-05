@@ -2,6 +2,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/scm_line_decoration_coordinator.dart';
+import 'package:path/path.dart' as p;
 
 /// Uma aba de viewer read-only de arquivo (texto/markdown/imagem). O conteúdo
 /// ([view]) já vem classificado/lido pela VM (binário/vídeo nem chega aqui).
@@ -59,13 +60,15 @@ class FileViewerSession extends PaneItem {
     notifyListeners();
   }
 
+  // `package:path`, não corte no `/`: no Windows o path chega com `\` (CLI
+  // `open`, "abrir com" do Explorer) e o corte devolvia o caminho inteiro como
+  // título e o próprio arquivo como cwd.
   @override
   String get title => scratch
       ? (scratchTitle ?? 'Untitled')
-      : (documentTitle ?? path.split('/').where((p) => p.isNotEmpty).last);
+      : (documentTitle ?? p.basename(path));
   @override
-  String get workingDirectory =>
-      path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : path;
+  String get workingDirectory => p.dirname(path);
 
   /// Aponta a aba para [newPath] (rename/move). A VM cuida de re-ler o conteúdo
   /// e re-observar o disco; aqui só trocamos o caminho e avisamos a UI.

@@ -722,10 +722,12 @@ class CockpitCliHandler {
         return CockpitCommandResult.ok(readTerminalWindow(term, c.args));
 
       // `cockpit exec <command...>` (plano 67) — roda uma linha de shell na
-      // máquina do app (shell de login, `-lc`) e devolve stdout/stderr/exit
-      // code. É o que os botões de um `.panel` usam por baixo; o env leva o
-      // roteamento da CLI (`COCKPIT_TAB_ID`, socket, PATH do `cockpit`), então
-      // o comando pode chamar `cockpit` de volta.
+      // máquina do app e devolve stdout/stderr/exit code. O shell é o **perfil
+      // de terminal padrão** das configurações (o mesmo que o `+` abre: no
+      // Windows, PowerShell/cmd/WSL; no POSIX, o login shell com `-lc`). É o
+      // que os botões de um `.panel` usam por baixo; o env leva o roteamento
+      // da CLI (`COCKPIT_TAB_ID`, socket, PATH do `cockpit`), então o comando
+      // pode chamar `cockpit` de volta.
       case 'exec':
         final command = (c.args['command'] ?? '').toString();
         if (command.trim().isEmpty) {
@@ -742,6 +744,7 @@ class CockpitCliHandler {
           cwd: cwd.isEmpty ? null : cwd,
           environment: _vm.cliEnvironment(tabId: c.tabId),
           timeout: Duration(seconds: timeout <= 0 ? 60 : timeout),
+          profile: _vm.defaultTerminalProfile,
         );
         return CockpitCommandResult.ok(result.toJson());
 

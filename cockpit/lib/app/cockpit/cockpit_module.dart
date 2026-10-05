@@ -287,7 +287,8 @@ Future<Module> buildCockpitModule({
             ..addChangeNotifier<FileOpsController>(FileOpsController.new)
             ..addChangeNotifier<RealmController>(RealmController.new)
             ..addChangeNotifier<SessionNotificationsController>(
-              SessionNotificationsController.new,
+              (Notifier notifier) =>
+                  SessionNotificationsController(notifier, windowActivity),
             )
             // Motor dos workspaces remotos (git do host + worktrees remotos),
             // mesmo contrato do GitController.

@@ -1,4 +1,5 @@
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -57,5 +58,34 @@ void main() {
     diagnostics.record(PerfMetric.pty, {PerfField.pending: 1}, force: true);
     diagnostics.markBootReady();
     expect(diagnostics.entries, isEmpty);
+  });
+
+  testWidgets('coalesces resize measurements within one frame', (tester) async {
+    final diagnostics = PerformanceDiagnostics(
+      enabled: true,
+      minSampleInterval: Duration.zero,
+      sink: (_, _) {},
+    );
+    diagnostics.timeToNextFrame(
+      PerfMetric.terminalResizeFrame,
+      tabs: 10,
+      coalesce: true,
+    );
+    diagnostics.timeToNextFrame(
+      PerfMetric.terminalResizeFrame,
+      tabs: 10,
+      coalesce: true,
+    );
+    await tester.pumpWidget(const SizedBox());
+    expect(diagnostics.entries.length, 1);
+    expect(diagnostics.entries.single['tabs'], 10);
+
+    diagnostics.timeToNextFrame(
+      PerfMetric.terminalResizeFrame,
+      tabs: 10,
+      coalesce: true,
+    );
+    await tester.pumpWidget(const SizedBox());
+    expect(diagnostics.entries.length, 2);
   });
 }

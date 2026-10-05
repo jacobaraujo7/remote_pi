@@ -31,11 +31,23 @@ enum PerfMetric {
   /// Troca de workspace → próximo frame pintado (`durationUs`).
   workspaceSwitch,
 
+  /// Seleção → restauração concluída e primeiro frame com o projeto (`durationUs`).
+  workspaceReadyFrame,
+
   /// Troca de aba → próximo frame pintado (`durationUs`).
   tabSwitch,
 
   /// `Process.start` → processo vivo (`durationUs`, `failed`).
   spawn,
+  terminalOpen,
+  terminalFirstOutput,
+  terminalOpenFrame,
+  terminalDockFrame,
+  terminalResizeFrame,
+
+  /// Ação dos controles da janela: 1=minimizar, 2=maximizar, 3=fechar.
+  /// `phase`: 0=clique entregue, 1=concluído, 2=erro.
+  windowControl,
 }
 
 enum PerfField {
@@ -46,6 +58,8 @@ enum PerfField {
   rssBytes,
   pending,
   sources,
+  processedChars,
+  hiddenChars,
   sessions,
   active,
   queued,
@@ -55,6 +69,9 @@ enum PerfField {
   p95Us,
   maxUs,
   tabs,
+  cold,
+  action,
+  phase,
 }
 
 /// Amostra pronta pro sink: nome da métrica + campos numéricos.
@@ -111,6 +128,7 @@ final class PerformanceDiagnostics {
   // Janela de frames (agregada no flush).
   final List<int> _frameUs = [];
   int _jank = 0;
+  final Set<PerfMetric> _pendingFrameMetrics = {};
 
   @visibleForTesting
   List<Map<String, Object>> get entries => [
@@ -184,13 +202,17 @@ final class PerformanceDiagnostics {
 
   /// Mede de agora até o PRÓXIMO frame pintado (troca de aba/workspace: o
   /// custo real é o rebuild que a troca dispara, não o setState).
-  void timeToNextFrame(PerfMetric metric) {
+  void timeToNextFrame(PerfMetric metric, {int? tabs, bool coalesce = false}) {
     if (!enabled) return;
+    if (coalesce && !_pendingFrameMetrics.add(metric)) return;
     final sw = Stopwatch()..start();
     SchedulerBinding.instance.addPostFrameCallback((_) {
-      record(metric, {
+      if (coalesce) _pendingFrameMetrics.remove(metric);
+      final values = <PerfField, num>{
         PerfField.durationUs: sw.elapsedMicroseconds,
-      }, force: true);
+      };
+      if (tabs != null) values[PerfField.tabs] = tabs;
+      record(metric, values, force: true);
     });
   }
 

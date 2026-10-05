@@ -60,4 +60,9 @@ FFI_PLUGIN_EXPORT int pty_getpid(PtyHandle *handle);
 
 FFI_PLUGIN_EXPORT char *pty_error(void);
 
+/// Windows: 1 se o ConPTY em uso é o `conpty.dll`/`OpenConsole.exe` embarcado
+/// ao lado desta dll, 0 se caiu no conhost do sistema. Outras plataformas: 0.
+/// Só diagnóstico (log no primeiro spawn).
+FFI_PLUGIN_EXPORT int pty_conpty_bundled(void);
+
 #endif

@@ -85,7 +85,22 @@ void RegisterDocumentWindowChannel(flutter::FlutterViewController* controller) {
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
 
-FlutterWindow::~FlutterWindow() {}
+FlutterWindow::~FlutterWindow() {
+  // Fechamento limpo do Cockpit: o Dart chama `windowManager.destroy()`, que
+  // no window_manager (Windows) é só `PostQuitMessage(0)`. O loop de mensagens
+  // sai com a janela top-level AINDA VIVA e o controller ainda de pé, e o
+  // destrutor padrão do membro `unique_ptr` deletaria o controller SEM zerar
+  // o ponteiro antes. Destruir a view Flutter manda mensagens à janela viva
+  // (ativação/foco/tamanho), `MessageHandler` vê `flutter_controller_` não
+  // nulo e repassa pra um controller meio destruído → APPCRASH c0000005 em
+  // `flutter_windows.dll` ~1 s depois do `[exit] encerramento limpo` (dump de
+  // 2026-10-03, stack em FlutterDesktopViewControllerDestroy →
+  // NtUserDestroyWindow → nosso WndProc → HandleTopLevelWindowProc).
+  //
+  // Mesmo caminho do `OnDestroy` (WM_DESTROY): `reset` zera o membro ANTES de
+  // deletar, então as mensagens durante a destruição não encontram controller.
+  flutter_controller_.reset();
+}
 
 bool FlutterWindow::OnCreate() {
   if (!Win32Window::OnCreate()) {
@@ -149,7 +164,9 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
 
   switch (message) {
     case WM_FONTCHANGE:
-      flutter_controller_->engine()->ReloadSystemFonts();
+      if (flutter_controller_) {
+        flutter_controller_->engine()->ReloadSystemFonts();
+      }
       break;
   }
 

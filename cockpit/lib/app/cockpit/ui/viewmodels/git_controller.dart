@@ -33,6 +33,8 @@ class GitController extends ChangeNotifier {
     this._activity, {
     DirectoryWatch? directoryWatch,
     this._watchRetryDelay = const Duration(milliseconds: 500),
+    this._fileTreeDebounce = const Duration(milliseconds: 400),
+    this._fileTreeMaxLatency = const Duration(seconds: 2),
   }) : _directoryWatch = directoryWatch ?? _defaultDirectoryWatch {
     _activity.addListener(_onActivityChanged);
   }
@@ -42,6 +44,13 @@ class GitController extends ChangeNotifier {
   final WindowActivityController _activity;
   final DirectoryWatch _directoryWatch;
   final Duration _watchRetryDelay;
+
+  /// Debounce do bump da árvore (junta a rajada) e o teto: com eventos
+  /// estruturais chegando sem parar (build, `pub get`, agente escrevendo em
+  /// `.dart_tool/`), um debounce puro era rearmado a cada evento e **nunca**
+  /// disparava — arquivo criado na raiz só aparecia quando a rajada acabava.
+  final Duration _fileTreeDebounce;
+  final Duration _fileTreeMaxLatency;
 
   static Stream<FileSystemEvent> _defaultDirectoryWatch(String path) =>
       Directory(path).watch(recursive: true);
@@ -116,6 +125,9 @@ class GitController extends ChangeNotifier {
   /// [_gitWatchDebounce] pra um modify (que não muda a árvore) não segurar
   /// o bump nem vice-versa.
   Timer? _fileTreeWatchDebounce;
+
+  /// Quando a rajada estrutural em curso começou (pra aplicar o teto).
+  DateTime? _fileTreeBurstStart;
 
   /// Poll de segurança do git. O `_gitWatch` só cobre o projeto **selecionado**
   /// e o `Directory.watch(recursive:)` do macOS coalesce/perde eventos (e forks
@@ -370,6 +382,9 @@ class GitController extends ChangeNotifier {
       final selected = selectedProjectId?.call();
       _gitWatchPath = null; // libera o guard de [watchProject]
       watchProject(selected);
+      // O que aconteceu no disco entre a morte do watcher e o re-arm se
+      // perdeu: relê a árvore pra não ficar com a raiz desatualizada.
+      onStructuralFsChange?.call();
     });
   }
 
@@ -404,6 +419,10 @@ class GitController extends ChangeNotifier {
     watchProject(_watchedProjectId ?? selectedProjectId?.call());
     _armPoll();
     if (_pollRequested) _pollTick();
+    // Enquanto a janela esteve sem foco o watcher ficou desligado: tudo que
+    // nasceu/sumiu no disco nesse intervalo passou batido. Relê a árvore ao
+    // voltar — era a causa clássica do "criei na raiz e não apareceu".
+    onStructuralFsChange?.call();
   }
 
   void _cancelWatch() {
@@ -411,6 +430,7 @@ class GitController extends ChangeNotifier {
     _gitWatchDebounce?.cancel();
     _gitWatchRetry?.cancel();
     _fileTreeWatchDebounce?.cancel();
+    _fileTreeBurstStart = null;
     _gitWatch = null;
     _gitWatchPath = null;
   }
@@ -429,16 +449,32 @@ class GitController extends ChangeNotifier {
         event.type == FileSystemEvent.move) {
       // Mudança estrutural no working tree → árvore de arquivos relê as
       // pastas abertas (modify não muda a estrutura, só o conteúdo).
-      _fileTreeWatchDebounce?.cancel();
-      _fileTreeWatchDebounce = Timer(
-        const Duration(milliseconds: 400),
-        () => onStructuralFsChange?.call(),
-      );
+      _scheduleFileTreeBump();
     }
     _gitWatchDebounce?.cancel();
     _gitWatchDebounce = Timer(const Duration(milliseconds: 400), () {
       unawaited(refresh(projectId));
     });
+  }
+
+  /// Debounce com teto: rearma a cada evento, mas se a rajada já dura
+  /// [_fileTreeMaxLatency] dispara agora e começa uma rajada nova.
+  void _scheduleFileTreeBump() {
+    final now = DateTime.now();
+    final start = _fileTreeBurstStart ??= now;
+    if (now.difference(start) >= _fileTreeMaxLatency) {
+      _fireFileTreeBump();
+      return;
+    }
+    _fileTreeWatchDebounce?.cancel();
+    _fileTreeWatchDebounce = Timer(_fileTreeDebounce, _fireFileTreeBump);
+  }
+
+  void _fireFileTreeBump() {
+    _fileTreeWatchDebounce?.cancel();
+    _fileTreeWatchDebounce = null;
+    _fileTreeBurstStart = null;
+    onStructuralFsChange?.call();
   }
 
   /// Deriva as roots git de uma pasta (síncrono, raso — só `existsSync`):

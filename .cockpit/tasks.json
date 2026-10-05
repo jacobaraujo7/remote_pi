@@ -7,6 +7,7 @@
   "tasks": [
     {
       "label": "Cockpit", // shown in the Tasks list
+      "platforms": ["macos", "linux"], // Windows: a task "Cockpit" abaixo (PATH do Zig/cargo)
       "cwd": "cockpit", // run dir, relative to this file (monorepo-friendly)
       "command": "flutter", // base executable
       "args": ["run"], // base args, before the profile
@@ -42,12 +43,44 @@
       ]
     },
     {
+      // Mesma task "Cockpit", versão Windows. O build desktop precisa do Zig
+      // (libghostty) e do cargo (CLI interna) no PATH, que o PTY da task não
+      // herda do shell de login — o script prefixa os dois e chama
+      // `flutter run -d windows`. É um arquivo, não `-Command`, porque a linha
+      // de comando da task no Windows não suporta args com espaços/aspas.
+      // O flutter fica em foreground no mesmo console: as teclas interativas
+      // (r/R) chegam nele normalmente.
+      "label": "Cockpit",
+      "platforms": "windows",
+      "cwd": "cockpit",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "tool/run-windows.ps1"],
+      "kind": "watch",
+      "interactiveKeys": [
+        { "key": "r", "label": "Hot reload", "icon": "bolt", "primary": true },
+        { "key": "R", "label": "Hot restart", "icon": "restart", "primary": true },
+        { "key": "p", "label": "Toggle debug paint" },
+        { "key": "o", "label": "Toggle platform" }
+      ],
+      "watch": {
+        "paths": ["lib", "assets"],
+        "ignore": ["build", ".dart_tool"],
+        "onChange": "Hot reload",
+        "debounceMs": 300
+      },
+      "progressPatterns": [
+        { "begin": "Performing hot reload", "end": "Reloaded .* in .*ms" },
+        { "begin": "Performing hot restart", "end": "Restarted application in .*ms" }
+      ]
+    },
+    {
       // NextJS dev server em "modo server" (serve, sem build/export) e SEM abrir
       // navegador: `next dev` já não abre por si; `BROWSER=none` garante que
       // nenhum wrapper abra. Envolto num shell só pra fixar o env sem depender de
       // suporte a `env` na task; `exec` faz o pnpm ser o filho direto do PTY
-      // (stop/restart batem nele).
+      // (stop/restart batem nele). Usa `sh`, então só macOS/Linux.
       "label": "Site",
+      "platforms": ["macos", "linux"],
       "cwd": "site",
       "command": "sh",
       "args": ["-c", "BROWSER=none exec pnpm dev"],

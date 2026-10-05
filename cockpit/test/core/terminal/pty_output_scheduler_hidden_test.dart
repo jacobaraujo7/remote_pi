@@ -66,4 +66,66 @@ void main() {
       source.dispose();
     });
   });
+
+  test('output apenas oculto não pede frame e continua dando ack', () {
+    fakeAsync((async) {
+      final frames = <VoidCallback>[];
+      final flushed = <String>[];
+      var acknowledgements = 0;
+      final scheduler = PtyOutputScheduler(
+        scheduleFrame: frames.add,
+        hiddenDrainInterval: const Duration(milliseconds: 100),
+      );
+      final source = PtyOutputCoalescer(
+        scheduler: scheduler,
+        onAcknowledge: () => acknowledgements++,
+        onFlush: flushed.add,
+      )..visible = false;
+
+      source.add('hidden output');
+      expect(frames, isEmpty);
+      async.elapse(const Duration(milliseconds: 101));
+      expect(flushed, ['hidden output']);
+      expect(acknowledgements, greaterThan(0));
+
+      source.add('becomes visible');
+      expect(frames, isEmpty);
+      source.visible = true;
+      expect(frames, hasLength(1));
+      frames.single();
+      expect(flushed, ['hidden output', 'becomes visible']);
+      expect(scheduler.pendingChars, 0);
+      source.dispose();
+    });
+  });
+
+  test('timer drains do not queue duplicate callbacks without vsync', () {
+    fakeAsync((async) {
+      final frames = <VoidCallback>[];
+      final flushed = <String>[];
+      final scheduler = PtyOutputScheduler(
+        scheduleFrame: frames.add,
+        maxSliceChars: 1,
+        maxCharsPerFrame: 1,
+        hiddenDrainInterval: const Duration(milliseconds: 100),
+      );
+      final source = PtyOutputCoalescer(
+        scheduler: scheduler,
+        onAcknowledge: () {},
+        onFlush: flushed.add,
+      );
+
+      source.add('abc');
+      expect(frames, hasLength(1));
+      async.elapse(const Duration(milliseconds: 301));
+      expect(flushed.join(), 'abc');
+      expect(frames, hasLength(1));
+
+      source.add('d');
+      expect(frames, hasLength(1));
+      frames.single();
+      expect(flushed.join(), 'abcd');
+      source.dispose();
+    });
+  });
 }

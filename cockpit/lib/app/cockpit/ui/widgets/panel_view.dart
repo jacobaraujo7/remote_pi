@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data' show Uint8List;
 
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
@@ -53,10 +54,11 @@ class _PanelViewState extends State<PanelView> {
   PanelDocument? _doc;
   Map<String, String>? _pushedTheme;
 
-  String get _docDir {
-    final p = widget.session.path;
-    return p.contains('/') ? p.substring(0, p.lastIndexOf('/')) : p;
-  }
+  /// Pasta do arquivo `.panel`: cwd default do `exec`/CLI e raiz dos recursos
+  /// relativos. Via `File.parent`, não cortando no `/`: no Windows o path vem
+  /// com `\` e o corte devolvia o próprio arquivo como "pasta" — o spawn da
+  /// CLI morria com "O nome do diretório é inválido".
+  String get _docDir => File(widget.session.path).parent.path;
 
   /// cwd do `exec`/CLI: `cwd:` do front-matter relativo à pasta do arquivo.
   String get _cwd {
@@ -131,6 +133,12 @@ class _PanelViewState extends State<PanelView> {
     if (!doc.reload || doc.body == before) return;
     final web = _web;
     if (web == null || !_loaded) return;
+    if (Platform.isWindows) {
+      // Mesma razão do `initialUrlRequest` no build: a página é servida pelo
+      // scheme, então recarregar é navegar de novo pra URL base.
+      unawaited(web.loadUrl(urlRequest: URLRequest(url: WebUri(_baseUrl))));
+      return;
+    }
     unawaited(
       web.loadData(
         data: doc.body,
@@ -191,7 +199,9 @@ class _PanelViewState extends State<PanelView> {
     final uri = request.url;
     if (uri.scheme != 'ckp-panel') return null;
     final rel = Uri.decodeComponent(uri.path).replaceFirst(RegExp(r'^/+'), '');
-    if (rel.isEmpty) return null;
+    // A raiz é o próprio documento: no Windows a página é carregada por esta
+    // URL (ver `initialUrlRequest` no build), não por `loadData`.
+    if (rel.isEmpty) return _serveDocument();
     if (rel.startsWith(kPanelLibPrefix)) return _serveBundled(rel);
     final root = Directory(_docDir).absolute.path;
     final file = File('$root/$rel').absolute;
@@ -202,7 +212,19 @@ class _PanelViewState extends State<PanelView> {
     return CustomSchemeResponse(
       data: bytes,
       contentType: _mimeOf(canonical),
-      contentEncoding: 'utf-8',
+      contentEncoding: webViewTextEncoding,
+    );
+  }
+
+  /// O HTML do `.panel` (sem o front-matter), servido como documento principal
+  /// de `ckp-panel://<sessão>/`.
+  CustomSchemeResponse? _serveDocument() {
+    final doc = _doc;
+    if (doc == null) return null;
+    return CustomSchemeResponse(
+      data: Uint8List.fromList(utf8.encode(doc.body)),
+      contentType: 'text/html; charset=utf-8',
+      contentEncoding: webViewTextEncoding,
     );
   }
 
@@ -218,7 +240,7 @@ class _PanelViewState extends State<PanelView> {
       return CustomSchemeResponse(
         data: data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
         contentType: _mimeOf(name),
-        contentEncoding: 'utf-8',
+        contentEncoding: webViewTextEncoding,
       );
     } on FlutterError {
       return null;
@@ -267,62 +289,78 @@ class _PanelViewState extends State<PanelView> {
     if (bridge == null || doc == null) {
       return ColoredBox(color: context.colors.panel);
     }
-    return WebViewCover(
-      loaded: _loaded,
-      child: UnzoomedNativeView(
-        builder: (context, contentZoom) => InAppWebView(
-          key: ValueKey('panel:${widget.session.id}'),
-          initialData: InAppWebViewInitialData(
+    // No Windows o plugin ignora o `baseUrl` do `initialData` (vira
+    // `NavigateToString`, origem `about:blank`): `/__cockpit__/x.js` e
+    // `<img src="a.png">` não resolvem pra lugar nenhum. Lá a página é
+    // carregada pela própria URL do scheme e [_serveLocal] entrega o corpo na
+    // raiz — base real, recursos relativos funcionam. No macOS o `loadHTMLString`
+    // honra o `baseUrl` e segue como estava.
+    final initialData = Platform.isWindows
+        ? null
+        : InAppWebViewInitialData(
             data: doc.body,
             baseUrl: WebUri(_baseUrl),
             mimeType: 'text/html',
             encoding: 'utf-8',
-          ),
-          initialUserScripts: UnmodifiableListView<UserScript>([
-            ...kWebViewUserScripts,
-            UserScript(
-              source: bridge,
-              injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+          );
+    final initialUrlRequest = Platform.isWindows
+        ? URLRequest(url: WebUri(_baseUrl))
+        : null;
+    return WebViewCover(
+      loaded: _loaded,
+      child: WebViewEnvironmentGate(
+        builder: (context, environment) => UnzoomedNativeView(
+          builder: (context, contentZoom) => InAppWebView(
+            key: ValueKey('panel:${widget.session.id}'),
+            webViewEnvironment: environment,
+            initialData: initialData,
+            initialUrlRequest: initialUrlRequest,
+            initialUserScripts: UnmodifiableListView<UserScript>([
+              ...kWebViewUserScripts,
+              UserScript(
+                source: bridge,
+                injectionTime: UserScriptInjectionTime.AT_DOCUMENT_START,
+              ),
+            ]),
+            initialSettings: InAppWebViewSettings(
+              javaScriptEnabled: true,
+              resourceCustomSchemes: ['ckp-panel'],
+              // Playground de desenvolvedor: o inspetor do Safari/Edge ajuda a
+              // depurar o painel.
+              isInspectable: true,
+              underPageBackgroundColor: webViewBackground(context),
+              pageZoom: contentZoom,
             ),
-          ]),
-          initialSettings: InAppWebViewSettings(
-            javaScriptEnabled: true,
-            resourceCustomSchemes: ['ckp-panel'],
-            // Playground de desenvolvedor: o inspetor do Safari/Edge ajuda a
-            // depurar o painel.
-            isInspectable: true,
-            underPageBackgroundColor: webViewBackground(context),
-            pageZoom: contentZoom,
+            onWebViewCreated: (web) {
+              _web = web;
+              web.addJavaScriptHandler(
+                handlerName: 'cockpit',
+                callback: _handleCall,
+              );
+              WebViewPointerRelay.register(web, context, contentZoom);
+            },
+            onLoadStop: (web, _) {
+              if (mounted) setState(() => _loaded = true);
+              final vars = _themeVars(context);
+              _pushedTheme = vars;
+              unawaited(_pushTheme(vars));
+            },
+            onLoadResourceWithCustomScheme: _serveLocal,
+            // Links externos abrem no browser do SO — a aba não navega pra fora.
+            shouldOverrideUrlLoading: (web, action) async {
+              final url = action.request.url;
+              if (url == null ||
+                  url.scheme == 'about' ||
+                  url.scheme == 'data' ||
+                  url.scheme == 'ckp-panel') {
+                return NavigationActionPolicy.ALLOW;
+              }
+              if (url.scheme == 'http' || url.scheme == 'https') {
+                await launcher.launchUrl(url);
+              }
+              return NavigationActionPolicy.CANCEL;
+            },
           ),
-          onWebViewCreated: (web) {
-            _web = web;
-            web.addJavaScriptHandler(
-              handlerName: 'cockpit',
-              callback: _handleCall,
-            );
-            WebViewPointerRelay.register(web, context, contentZoom);
-          },
-          onLoadStop: (web, _) {
-            if (mounted) setState(() => _loaded = true);
-            final vars = _themeVars(context);
-            _pushedTheme = vars;
-            unawaited(_pushTheme(vars));
-          },
-          onLoadResourceWithCustomScheme: _serveLocal,
-          // Links externos abrem no browser do SO — a aba não navega pra fora.
-          shouldOverrideUrlLoading: (web, action) async {
-            final url = action.request.url;
-            if (url == null ||
-                url.scheme == 'about' ||
-                url.scheme == 'data' ||
-                url.scheme == 'ckp-panel') {
-              return NavigationActionPolicy.ALLOW;
-            }
-            if (url.scheme == 'http' || url.scheme == 'https') {
-              await launcher.launchUrl(url);
-            }
-            return NavigationActionPolicy.CANCEL;
-          },
         ),
       ),
     );

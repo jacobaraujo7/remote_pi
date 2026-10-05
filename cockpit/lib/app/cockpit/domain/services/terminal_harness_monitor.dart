@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/process_tree_provider.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_snapshot.dart';
@@ -31,11 +32,18 @@ class TerminalHarnessMonitor {
   final Duration pollInterval;
   final Duration idlePollInterval;
   final Duration inactivePollInterval;
+  final Duration activityPollInterval;
+  final Duration urgentPollInterval;
+  final Duration pendingPollDelay;
   final bool Function()? windowIsActive;
 
   Timer? _timer;
   bool _inFlight = false;
   bool _pendingPoll = false;
+  bool _pendingUrgent = false;
+  DateTime? _lastPollStartedAt;
+  DateTime? _lastUrgentPollStartedAt;
+  DateTime? _lastPollFinishedAt;
   final Map<String, SessionAnchor> _anchors = {};
   final Map<String, HarnessKind?> _lastKnownHarness = {};
   final Map<String, ProcessTreeProvider> _wslProviderCache = {};
@@ -46,13 +54,36 @@ class TerminalHarnessMonitor {
     this.wslProviderForDistro,
     // Baseline safety net for silent exits / nested tools. Interactive
     // launches are kicked immediately from TerminalSession (Enter/output).
-    this.pollInterval = const Duration(seconds: 2),
-    this.idlePollInterval = const Duration(seconds: 5),
-    this.inactivePollInterval = const Duration(seconds: 10),
+    Duration? pollInterval,
+    Duration? idlePollInterval,
+    Duration? inactivePollInterval,
+    Duration? activityPollInterval,
+    Duration? activityPollCooldown,
+    this.urgentPollInterval = const Duration(milliseconds: 150),
+    this.pendingPollDelay = const Duration(milliseconds: 40),
     this.windowIsActive,
-  });
+  }) : activityPollInterval =
+           activityPollInterval ??
+           activityPollCooldown ??
+           const Duration(seconds: 1),
+       pollInterval =
+           pollInterval ??
+           (Platform.isWindows
+               ? const Duration(seconds: 8)
+               : const Duration(seconds: 2)),
+       idlePollInterval =
+           idlePollInterval ??
+           (Platform.isWindows
+               ? const Duration(seconds: 20)
+               : const Duration(seconds: 5)),
+       inactivePollInterval =
+           inactivePollInterval ??
+           (Platform.isWindows
+               ? const Duration(seconds: 30)
+               : const Duration(seconds: 10));
 
   bool get isRunning => _anchors.isNotEmpty && (_timer != null || _inFlight);
+  Duration get activityPollCooldown => activityPollInterval;
   int get registeredCount => _anchors.length;
 
   void registerSession({
@@ -72,7 +103,7 @@ class TerminalHarnessMonitor {
       _scheduleNextPoll();
     }
     // Immediate poll on registration (and whenever a session is (re)bound).
-    requestPoll();
+    requestPoll(urgent: true);
   }
 
   void unregisterSession(String sessionId) {
@@ -82,22 +113,46 @@ class TerminalHarnessMonitor {
     if (_anchors.isEmpty) {
       _stopTimer();
       _pendingPoll = false;
+      _pendingUrgent = false;
     }
   }
 
-  /// Ask for a poll as soon as possible. Coalesces with an in-flight poll.
-  void requestPoll({String? sessionId}) {
+  /// Request a global scan. Output/title activity shares a one-second budget
+  /// across sessions; submitted commands and registration get a fast scan.
+  void requestPoll({String? sessionId, bool urgent = false}) {
     if (_anchors.isEmpty) return;
     if (sessionId != null) {
       _anchors[sessionId]?.lastActivity = DateTime.now();
     }
-    _timer?.cancel();
-    _timer = null;
+    _pendingPoll = true;
+    _pendingUrgent |= urgent;
     if (_inFlight) {
-      _pendingPoll = true;
       return;
     }
-    unawaited(poll());
+    _scheduleRequestedPoll();
+  }
+
+  void _scheduleRequestedPoll() {
+    if (!_pendingPoll || _anchors.isEmpty || _inFlight) return;
+    final now = DateTime.now();
+    final last = _pendingUrgent ? _lastUrgentPollStartedAt : _lastPollStartedAt;
+    final interval = _pendingUrgent ? urgentPollInterval : activityPollInterval;
+    var due = last?.add(interval) ?? now;
+    final finished = _lastPollFinishedAt;
+    if (finished != null && due.isBefore(finished.add(pendingPollDelay))) {
+      due = finished.add(pendingPollDelay);
+    }
+    _timer?.cancel();
+    final delay = due.difference(now);
+    if (delay <= Duration.zero) {
+      _timer = null;
+      unawaited(poll());
+    } else {
+      _timer = Timer(delay, () {
+        _timer = null;
+        unawaited(poll());
+      });
+    }
   }
 
   /// Informa se uma sessão tem superfície visível. A sessão e seu PTY
@@ -106,8 +161,11 @@ class TerminalHarnessMonitor {
     final anchor = _anchors[sessionId];
     if (anchor == null || anchor.visible == visible) return;
     anchor.visible = visible;
-    anchor.lastActivity = DateTime.now();
-    if (visible) requestPoll(sessionId: sessionId);
+    // Switching tabs or workspaces changes visibility, not the process tree.
+    // On Windows an eager poll starts a full CIM scan for every switch.
+    // Terminal input/output still calls requestPoll for real activity.
+    if (visible) anchor.lastActivity = DateTime.now();
+    if (!_inFlight && !_pendingPoll) _scheduleNextPoll();
   }
 
   void _scheduleNextPoll() {
@@ -125,7 +183,10 @@ class TerminalHarnessMonitor {
     final delay = !windowActive
         ? inactivePollInterval
         : (hasVisible || hasRecentActivity ? pollInterval : idlePollInterval);
-    _timer = Timer(delay, requestPoll);
+    _timer = Timer(delay, () {
+      _timer = null;
+      unawaited(poll());
+    });
   }
 
   void _stopTimer() {
@@ -138,8 +199,13 @@ class TerminalHarnessMonitor {
       if (_inFlight) _pendingPoll = true;
       return;
     }
+    _timer?.cancel();
+    _timer = null;
     _inFlight = true;
+    _lastPollStartedAt = DateTime.now();
+    if (_pendingUrgent) _lastUrgentPollStartedAt = _lastPollStartedAt;
     _pendingPoll = false;
+    _pendingUrgent = false;
     final stopwatch = Stopwatch()..start();
 
     try {
@@ -197,9 +263,9 @@ class TerminalHarnessMonitor {
         PerfField.sessions: _anchors.length,
       });
       _inFlight = false;
+      _lastPollFinishedAt = DateTime.now();
       if (_pendingPoll && _anchors.isNotEmpty) {
-        _pendingPoll = false;
-        scheduleMicrotask(requestPoll);
+        _scheduleRequestedPoll();
       } else {
         _scheduleNextPoll();
       }
@@ -247,5 +313,6 @@ class TerminalHarnessMonitor {
     _lastKnownHarness.clear();
     _wslProviderCache.clear();
     _pendingPoll = false;
+    _pendingUrgent = false;
   }
 }

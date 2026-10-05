@@ -2404,7 +2404,6 @@ class Translations$cockpit$gallery$en {
 	late final Translations$cockpit$gallery$tasks$en tasks = Translations$cockpit$gallery$tasks$en.internal(_root);
 	late final Translations$cockpit$gallery$notebook$en notebook = Translations$cockpit$gallery$notebook$en.internal(_root);
 	late final Translations$cockpit$gallery$workspaceEnv$en workspaceEnv = Translations$cockpit$gallery$workspaceEnv$en.internal(_root);
-	late final Translations$cockpit$gallery$diagram$en diagram = Translations$cockpit$gallery$diagram$en.internal(_root);
 	late final Translations$cockpit$gallery$panel$en panel = Translations$cockpit$gallery$panel$en.internal(_root);
 }
 
@@ -3217,21 +3216,6 @@ class Translations$cockpit$gallery$workspaceEnv$en {
 
 	/// en: 'Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent's prompt. Kept out of git.'
 	String get description => 'Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent\'s prompt. Kept out of git.';
-}
-
-// Path: cockpit.gallery.diagram
-class Translations$cockpit$gallery$diagram$en {
-	Translations$cockpit$gallery$diagram$en.internal(this._root);
-
-	final Translations _root; // ignore: unused_field
-
-	// Translations
-
-	/// en: 'Diagram'
-	String get title => 'Diagram';
-
-	/// en: 'A markdown file with a Mermaid diagram: flowcharts, sequences, class models and Gantt charts, rendered in the preview.'
-	String get description => 'A markdown file with a Mermaid diagram: flowcharts, sequences, class models and Gantt charts, rendered in the preview.';
 }
 
 // Path: cockpit.gallery.panel
@@ -4609,8 +4593,6 @@ extension on Translations {
 			'cockpit.gallery.notebook.description' => 'A folder of short notes with tags. The agent writes, you read and edit. Also opens in Obsidian.',
 			'cockpit.gallery.workspaceEnv.title' => 'Workspace env',
 			'cockpit.gallery.workspaceEnv.description' => 'Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent\'s prompt. Kept out of git.',
-			'cockpit.gallery.diagram.title' => 'Diagram',
-			'cockpit.gallery.diagram.description' => 'A markdown file with a Mermaid diagram: flowcharts, sequences, class models and Gantt charts, rendered in the preview.',
 			'cockpit.gallery.panel.title' => 'Panel',
 			'cockpit.gallery.panel.description' => 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.',
 			'cockpit.notebook.notes' => 'Notes',

@@ -19,7 +19,9 @@ import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/core/data/repositories/json_settings_store.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
+import 'package:cockpit/app/core/data/terminal/terminal_profile_resolver_impl.dart';
 import 'package:cockpit/app/core/data/theme_store.dart';
+import 'package:cockpit/app/core/domain/contracts/terminal_profile_resolver.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/ui/app_zoom.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
@@ -73,6 +75,12 @@ Future<void> _boot(String path) async {
   );
   await settings.load();
   _followSettingsFile(store, settings);
+  // Perfis de terminal: o `.panel` na janela solta roda `cockpit <line>` no
+  // perfil padrão das configurações, como na aba. A descoberta (pwsh? WSL?)
+  // aquece em paralelo; até lá o `effectiveDefault` cai no fallback da
+  // plataforma, que já é um perfil válido.
+  final terminalProfiles = TerminalProfileResolverImpl();
+  unawaited(terminalProfiles.discover());
   stderr.writeln('[document-window] booted for $path');
 
   unawaited(
@@ -86,7 +94,10 @@ Future<void> _boot(String path) async {
         provide: (s) => s
           ..addChangeNotifier<SettingsController>(() => settings)
           ..addChangeNotifier<EditorMenuBridge>(EditorMenuBridge.new),
-        child: DocumentWindowRoot(path: path),
+        child: DocumentWindowRoot(
+          path: path,
+          terminalProfiles: terminalProfiles,
+        ),
       ),
     ),
   );
@@ -141,9 +152,17 @@ class _BootError extends StatelessWidget {
 /// Raiz visual da janela de documento: mesmo tema/tokens do app (lê o
 /// [SettingsController]) em volta de um [DocumentScreen].
 class DocumentWindowRoot extends StatelessWidget {
-  const DocumentWindowRoot({super.key, required this.path});
+  const DocumentWindowRoot({
+    super.key,
+    required this.path,
+    this.terminalProfiles,
+  });
 
   final String path;
+
+  /// Perfis de terminal — o `.panel` roda `cockpit <line>` no padrão das
+  /// configurações. `null` = shell da plataforma.
+  final TerminalProfileResolver? terminalProfiles;
 
   @override
   Widget build(BuildContext context) {
@@ -196,7 +215,10 @@ class DocumentWindowRoot extends StatelessWidget {
                     terminal: tokens.terminal,
                     child: ColoredBox(
                       color: tokens.colors.bg,
-                      child: DocumentScreen(path: path),
+                      child: DocumentScreen(
+                        path: path,
+                        terminalProfiles: terminalProfiles,
+                      ),
                     ),
                   ),
                 ),
@@ -215,9 +237,12 @@ class DocumentWindowRoot extends StatelessWidget {
 /// das conexões do workspace, que a janela solta não tem. Relê o arquivo
 /// quando ele muda no disco (edição em outra janela ou por agente).
 class DocumentScreen extends StatefulWidget {
-  const DocumentScreen({super.key, required this.path});
+  const DocumentScreen({super.key, required this.path, this.terminalProfiles});
 
   final String path;
+
+  /// Ver [DocumentWindowRoot.terminalProfiles].
+  final TerminalProfileResolver? terminalProfiles;
 
   @override
   State<DocumentScreen> createState() => _DocumentScreenState();
@@ -399,6 +424,14 @@ class _DocumentScreenState extends State<DocumentScreen>
             line,
             cwd: cwd,
             environment: RunningInstance.cliEnvironment,
+            // Lido na chamada (não no build): o padrão pode mudar nas
+            // configurações com a janela aberta.
+            profile: widget.terminalProfiles?.effectiveDefault(
+              context
+                  .read<SettingsController>()
+                  .settings
+                  .defaultTerminalProfileId,
+            ),
           ),
         );
       } else {

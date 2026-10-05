@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import 'package:path/path.dart' as p;
 
 /// Uma aba de **diff** read-only (split, estilo VSCode): mostra o arquivo em
 /// [path] comparado com o HEAD do git. Sem ações — só visual. O conteúdo
@@ -37,15 +38,12 @@ class DiffViewerSession extends PaneItem {
   /// Caminho anterior de um rename/copy, relativo a [repoRoot].
   String? previousRelativePath;
 
+  // `package:path`, não corte no `/`: no Windows o path pode vir com `\`.
   @override
-  String get title {
-    final name = path.split('/').where((p) => p.isNotEmpty).last;
-    return '$name (diff)';
-  }
+  String get title => '${p.basename(path)} (diff)';
 
   @override
-  String get workingDirectory =>
-      path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : path;
+  String get workingDirectory => p.dirname(path);
 
   /// `true` se é aba de preview (sobrescrita ao abrir outro diff; duplo-clique
   /// fixa).

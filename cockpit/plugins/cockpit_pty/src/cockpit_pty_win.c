@@ -9,6 +9,89 @@
 #include "include/dart_api_dl.h"
 #include "include/dart_native_api.h"
 
+// === ConPTY: OpenConsole embarcado em vez do conhost do sistema ===
+//
+// O `CreatePseudoConsole` do kernel32 delega ao conhost que vem com o Windows.
+// No Windows 10 (19045) esse conhost é a geração legada do ConPTY: não repassa
+// `?1049h` (tela alternativa) nem os modos de mouse ao terminal hospedeiro —
+// TUIs como o claude ficam no buffer principal e a roda do mouse rola o nosso
+// scrollback em vez de ir pro app — e desalinha o cursor na primeira tecla
+// após repintura do PSReadLine. É o mesmo motivo pelo qual Windows Terminal,
+// WezTerm e Alacritty embarcam `conpty.dll` + `OpenConsole.exe` (pacote
+// `Microsoft.Windows.Console.ConPTY`) ao lado do binário.
+//
+// Resolução: `conpty.dll` na MESMA pasta desta dll (o `conpty.dll` acha o
+// `OpenConsole.exe` ao lado dele); se faltar, cai no kernel32 — comportamento
+// anterior, nunca pior. O build Windows (windows/CMakeLists.txt) baixa o
+// pacote e copia os dois arquivos ao lado do `cockpit_pty.dll`.
+typedef HRESULT(WINAPI *CreatePseudoConsoleFn)(COORD, HANDLE, HANDLE, DWORD, HPCON *);
+typedef HRESULT(WINAPI *ResizePseudoConsoleFn)(HPCON, COORD);
+
+static CreatePseudoConsoleFn s_createPseudoConsole = NULL;
+static ResizePseudoConsoleFn s_resizePseudoConsole = NULL;
+static int s_conptyBundled = 0;
+static INIT_ONCE s_conptyOnce = INIT_ONCE_STATIC_INIT;
+
+static BOOL CALLBACK resolve_conpty(PINIT_ONCE once, PVOID param, PVOID *ctx)
+{
+    (void)once;
+    (void)param;
+    (void)ctx;
+
+    HMODULE self = NULL;
+    WCHAR path[MAX_PATH];
+    HMODULE bundled = NULL;
+
+    if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                           (LPCWSTR)&resolve_conpty, &self) &&
+        GetModuleFileNameW(self, path, MAX_PATH) > 0)
+    {
+        WCHAR *slash = wcsrchr(path, L'\\');
+        if (slash != NULL)
+        {
+            slash[1] = L'\0';
+            if (wcslen(path) + wcslen(L"conpty.dll") < MAX_PATH)
+            {
+                wcscat_s(path, MAX_PATH, L"conpty.dll");
+                // ALTERED_SEARCH_PATH: dependências do conpty.dll (e o próprio
+                // OpenConsole.exe que ele spawna) resolvem a partir da pasta dele.
+                bundled = LoadLibraryExW(path, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+            }
+        }
+    }
+
+    if (bundled != NULL)
+    {
+        s_createPseudoConsole = (CreatePseudoConsoleFn)GetProcAddress(bundled, "CreatePseudoConsole");
+        s_resizePseudoConsole = (ResizePseudoConsoleFn)GetProcAddress(bundled, "ResizePseudoConsole");
+        if (s_createPseudoConsole != NULL && s_resizePseudoConsole != NULL)
+        {
+            s_conptyBundled = 1;
+            return TRUE;
+        }
+        FreeLibrary(bundled);
+    }
+
+    s_createPseudoConsole = CreatePseudoConsole;
+    s_resizePseudoConsole = ResizePseudoConsole;
+    s_conptyBundled = 0;
+    return TRUE;
+}
+
+static void ensure_conpty(void)
+{
+    InitOnceExecuteOnce(&s_conptyOnce, resolve_conpty, NULL, NULL);
+}
+
+/// 1 quando o ConPTY em uso é o `conpty.dll`/`OpenConsole.exe` embarcado,
+/// 0 quando caiu no conhost do sistema (kernel32). Só diagnóstico.
+FFI_PLUGIN_EXPORT int pty_conpty_bundled(void)
+{
+    ensure_conpty();
+    return s_conptyBundled;
+}
+
 // Monta a lpCommandLine do CreateProcessW.
 //
 // NB: NÃO prefixe o `executable` aqui. Chamamos o CreateProcessW com
@@ -584,7 +667,8 @@ FFI_PLUGIN_EXPORT PtyHandle *pty_create(PtyOptions *options)
 
     HPCON hPty;
 
-    HRESULT result = CreatePseudoConsole(size, inputReadSide, outputWriteSide, 0, &hPty);
+    ensure_conpty();
+    HRESULT result = s_createPseudoConsole(size, inputReadSide, outputWriteSide, 0, &hPty);
 
     if (FAILED(result))
     {
@@ -823,7 +907,8 @@ FFI_PLUGIN_EXPORT int pty_resize(PtyHandle *handle, int rows, int cols)
     size.X = cols;
     size.Y = rows;
 
-    return ResizePseudoConsole(handle->hPty, size);
+    ensure_conpty();
+    return s_resizePseudoConsole(handle->hPty, size);
 }
 
 /// Preenche [out] com os descendentes de [root] (filhos, netos, ...), em

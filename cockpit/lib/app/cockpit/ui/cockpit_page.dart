@@ -979,17 +979,30 @@ class _RailPanel extends StatelessWidget {
 
 /// Multiplexador (árvore de splits) do workspace ativo — um por projeto, todos
 /// montados no `IndexedStack` pra preservar estado ao trocar de workspace.
-class _CenterPanel extends StatelessWidget {
+class _CenterPanel extends StatefulWidget {
   const _CenterPanel({required this.centerKey});
 
   final GlobalKey centerKey;
 
   @override
+  State<_CenterPanel> createState() => _CenterPanelState();
+}
+
+class _CenterPanelState extends State<_CenterPanel> {
+  // Reuse the exact child widgets across VM notifications. Each child selects
+  // only its own pane state, so a terminal update does not rebuild every
+  // workspace's pane tree.
+  final Map<String, Widget> _workspaceWidgets = {};
+
+  @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
     final colors = context.colors;
+    final projectIds = vm.projects.map((project) => project.id).toList();
+    final liveIds = projectIds.toSet();
+    _workspaceWidgets.removeWhere((id, _) => !liveIds.contains(id));
     return KeyedSubtree(
-      key: centerKey,
+      key: widget.centerKey,
       child: vm.selectedProjectId == null
           ? WelcomeView(
               hasHosts: vm.remoteHosts.hosts.isNotEmpty,
@@ -1014,16 +1027,14 @@ class _CenterPanel extends StatelessWidget {
                 children: [
                   // Um multiplexador por projeto — todos montados, só
                   // o ativo pintado → estado preservado ao trocar.
-                  for (final project in vm.projects)
+                  for (final id in projectIds)
                     KeyedSubtree(
-                      key: ValueKey(project.id),
+                      key: ValueKey(id),
                       child: ColoredBox(
                         color: colors.border,
-                        child: _multiplexer(
-                          context,
-                          vm,
-                          project.id,
-                          active: project.id == vm.selectedProjectId,
+                        child: _workspaceWidgets.putIfAbsent(
+                          id,
+                          () => _ProjectMultiplexer(projectId: id),
                         ),
                       ),
                     ),
@@ -1037,16 +1048,37 @@ class _CenterPanel extends StatelessWidget {
     final index = vm.projects.indexWhere((p) => p.id == vm.selectedProjectId);
     return index < 0 ? 0 : index;
   }
+}
 
-  Widget _multiplexer(
-    BuildContext context,
-    CockpitViewModel vm,
-    String projectId, {
-    required bool active,
-  }) {
-    final tree = vm.tree(projectId);
+typedef _ProjectPaneState = ({
+  PaneNode? tree,
+  String? focusedPaneId,
+  bool active,
+  int focusGen,
+  bool profilePicker,
+});
+
+class _ProjectMultiplexer extends StatelessWidget {
+  const _ProjectMultiplexer({required this.projectId});
+
+  final String projectId;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.select<CockpitViewModel, _ProjectPaneState>((vm) {
+      final active = vm.selectedProjectId == projectId;
+      return (
+        tree: vm.tree(projectId),
+        focusedPaneId: active ? vm.focusedPaneId(projectId) : null,
+        active: active,
+        focusGen: active ? vm.tabFocusGen : 0,
+        profilePicker: active && vm.showTerminalProfilePicker,
+      );
+    });
+    final tree = state.tree;
     if (tree == null) return const SizedBox.shrink();
-    return _renderNode(context, vm, projectId, tree, active: active);
+    final vm = context.read<CockpitViewModel>();
+    return _renderNode(context, vm, projectId, tree, active: state.active);
   }
 
   Widget _renderNode(
@@ -1067,7 +1099,7 @@ class _CenterPanel extends StatelessWidget {
           vm: vm,
           focused: active && node.id == vm.focusedPaneId(projectId),
           active: active,
-          onCreateTab: () => vm.newEmptyTab(node.id),
+          onCreateTab: () => vm.newTerminalInPane(node.id),
           // Aba placeholder "Novo": o novo pane vira outro placeholder (que
           // cai direto em terminal). As demais abrem na raiz do workspace.
           onSplit: (dir) {

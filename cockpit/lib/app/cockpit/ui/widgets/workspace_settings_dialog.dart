@@ -8,17 +8,6 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-// DEBUG temporário: marcadores síncronos pra localizar o segfault no Windows ARM.
-void _trace(String m) {
-  try {
-    File(
-      '${Directory.systemTemp.path}/ck_trace.log',
-    ).writeAsStringSync('$m\n', mode: FileMode.append, flush: true);
-  } on Object catch (_) {
-    // trace de debug: sem disco, sem trace.
-  }
-}
-
 /// Paleta de cores do avatar de workspace.
 const List<int> kWorkspacePalette = <int>[
   0xFF6E56CF,
@@ -93,11 +82,8 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
     _name = TextEditingController(text: widget.name);
     _color = widget.colorValue;
     _imagePath = widget.imagePath;
-    _trace('dlg:initState');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _trace('dlg:postframe-before-focus');
       if (mounted) _nameFocus.requestFocus();
-      _trace('dlg:postframe-after-focus');
     });
   }
 
@@ -111,11 +97,9 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
   void _save() {
     final name = _name.text.trim();
     if (name.isEmpty) return;
-    _trace('save:before-pop');
     Navigator.of(
       context,
     ).pop((name: name, colorValue: _color, imagePath: _imagePath));
-    _trace('save:after-pop');
   }
 
   /// Pasta em que o seletor abre: a da imagem atual (se ainda existir) ou a
@@ -159,7 +143,6 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    _trace('dlg:build');
     final colors = context.colors;
     final initial = _name.text.trim().isEmpty
         ? '?'
@@ -257,9 +240,7 @@ class _WorkspaceSettingsDialogState extends State<_WorkspaceSettingsDialog> {
       actions: [
         OutlineButton(
           onPressed: () {
-            _trace('cancel:before-pop');
             Navigator.of(context).pop();
-            _trace('cancel:after-pop');
           },
           child: Text(context.t.common.cancel),
         ),

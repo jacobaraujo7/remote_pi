@@ -212,33 +212,39 @@ class _BrowserPaneState extends State<BrowserPane> {
           Expanded(
             // Fora do zoom do app: platform view recebe evento de mouse direto
             // do sistema e o clique cairia deslocado. Ver [UnzoomedNativeView].
-            child: UnzoomedNativeView(
-              builder: (context, contentZoom) => InAppWebView(
-                initialUrlRequest: URLRequest(url: WebUri(initial)),
-                initialUserScripts: kWebViewUserScripts,
-                initialSettings: InAppWebViewSettings(
-                  underPageBackgroundColor: webViewBackground(context),
-                  // Navegador de verdade: JS ligado. O preview de markdown (CSP
-                  // restritiva) usa outro widget com settings próprios.
-                  javaScriptEnabled: true,
-                  isInspectable: false,
-                  applicationNameForUserAgent: _safariUaToken,
-                  // O zoom do app volta por dentro do WebKit (a view em si roda
-                  // em escala 1) — mesmo tamanho aparente, hit-test alinhado.
-                  pageZoom: contentZoom,
+            // Mesmo ambiente das outras webviews (ver cockpitWebViewEnvironment):
+            // o navegador não usa os schemes, mas no Windows uma webview no
+            // ambiente default impediria as outras de nascer com eles.
+            child: WebViewEnvironmentGate(
+              builder: (context, environment) => UnzoomedNativeView(
+                builder: (context, contentZoom) => InAppWebView(
+                  webViewEnvironment: environment,
+                  initialUrlRequest: URLRequest(url: WebUri(initial)),
+                  initialUserScripts: kWebViewUserScripts,
+                  initialSettings: InAppWebViewSettings(
+                    underPageBackgroundColor: webViewBackground(context),
+                    // Navegador de verdade: JS ligado. O preview de markdown (CSP
+                    // restritiva) usa outro widget com settings próprios.
+                    javaScriptEnabled: true,
+                    isInspectable: false,
+                    applicationNameForUserAgent: _safariUaToken,
+                    // O zoom do app volta por dentro do WebKit (a view em si roda
+                    // em escala 1) — mesmo tamanho aparente, hit-test alinhado.
+                    pageZoom: contentZoom,
+                  ),
+                  onWebViewCreated: (web) {
+                    _web = web;
+                    WebViewPointerRelay.register(web, context, contentZoom);
+                    final pending = _pendingUrl;
+                    _pendingUrl = null;
+                    if (pending != null && pending != initial) {
+                      web.loadUrl(urlRequest: URLRequest(url: WebUri(pending)));
+                    }
+                  },
+                  onLoadStop: _onLoadStop,
+                  onTitleChanged: (web, title) =>
+                      widget.session.reportNavigation(title: title),
                 ),
-                onWebViewCreated: (web) {
-                  _web = web;
-                  WebViewPointerRelay.register(web, context, contentZoom);
-                  final pending = _pendingUrl;
-                  _pendingUrl = null;
-                  if (pending != null && pending != initial) {
-                    web.loadUrl(urlRequest: URLRequest(url: WebUri(pending)));
-                  }
-                },
-                onLoadStop: _onLoadStop,
-                onTitleChanged: (web, title) =>
-                    widget.session.reportNavigation(title: title),
               ),
             ),
           ),

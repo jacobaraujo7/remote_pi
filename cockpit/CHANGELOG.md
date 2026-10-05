@@ -24,6 +24,119 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.11] - 2026-10-03
+
+**Terminals in hidden tabs no longer cost frames, and the Windows app no
+longer crashes on close.** With several agents writing at once in background
+tabs, the visible terminal stays smooth; on Windows, closing the window with
+many sessions open ended in an APPCRASH after the clean exit.
+
+### Fixed
+
+- **Windows close crash**: `flutter_windows.dll` faulted about a second after
+  the app logged a clean exit. Two causes, both fixed: the Flutter view
+  controller was deleted while the window still received messages, and the
+  window was torn down after COM had already been uninitialized (#231).
+- **Windows markdown preview**: touchpad and wheel scrolling now work, and the
+  scrollbar follows the app theme.
+- **Windows tasks**: the "Cockpit" task (flutter run) works on Windows
+  (`tasks.json` and runner quoting), and task file watchers observe only the
+  configured `watch.paths` and re-arm after an error.
+
+### Changed
+
+- **Hidden terminal tabs** keep their view mounted but stop painting
+  (`presentationActive` in flterm, tag `cockpit-pin-flterm-upstream-2026-10c`),
+  and output arriving only in hidden tabs no longer asks Flutter for a frame.
+  Agent-activity scans share a 1 s budget, with a 150 ms fast path for Enter
+  and session start. Benchmark with 10 terminals: slow frames dropped from
+  9-13 to 1-2 per 15 s (#230, by moregola).
+
+## [2.1.10] - 2026-10-03
+
+**New terminal engine build, and a modern ConPTY on Windows.** The terminal
+now runs on the latest upstream libghostty/flterm (search, snapshots, touch
+selection handles on iPad, clipboard APIs, Kitty graphics fixes) with all
+Cockpit patches carried over. On Windows 10 the app ships its own ConPTY, so
+TUIs such as Claude Code finally get the alternate screen and mouse modes.
+
+### Fixed
+
+- **Windows 10 terminals**: the system ConPTY did not forward the alternate
+  screen or mouse modes and misaligned the cursor after PSReadLine repaints.
+  The app now bundles Microsoft's OpenConsole ConPTY and uses it when present
+  (falls back to the system one).
+- **`.ckp` commands on Windows** were typed but never submitted (LF instead of
+  CR). They now run.
+- **Terminal tabs** select on pointer down, and agent-completion notifications
+  no longer churn when the hook fires repeatedly.
+
+### Changed
+
+- **Terminal engine**: libghostty/flterm refreshed to upstream main
+  (2026-10-02) with Cockpit's patches re-applied: iOS text input recovery,
+  dead keys under the Kitty protocol, Cmd+letter chords reaching the app, and
+  modified click opening links while a TUI tracks the mouse. Upstream brings
+  terminal search, snapshots, touch selection handles with magnifiers,
+  clipboard APIs and Ctrl+Space as a control chord.
+
+## [2.1.9] - 2026-10-03
+
+**Windows: markdown preview and `.panel` work again, and no longer crash the
+app.** Also fixes the file tree missing files created at the workspace root
+while the window was in the background or during a build.
+
+### Fixed
+
+- **Windows webviews crashed the app** when opening a markdown preview or a
+  `.panel`: one crash came from the pointer-relay script (now injected only on
+  macOS, where it is needed), the other from the Impeller renderer composing
+  the WebView2 texture (disabled on Windows).
+- **Windows markdown preview was blank**: the composed page exceeded the 2 MB
+  limit of WebView2 because of the bundled Mermaid library. Mermaid diagrams
+  were removed (the feature was unused); the page is ~177 KB now.
+- **Windows `.panel` loaded no resources**: `/__cockpit__/…` libraries, local
+  assets and the page itself now go through a shared WebView environment with
+  the custom schemes registered. `exec` runs in the default terminal profile
+  (PowerShell, cmd, WSL or login shell) instead of always `cmd /c`.
+- **Windows paths**: `.panel` folder, `exec` working directory and tab titles
+  no longer break on backslashes.
+- **Markdown preview no longer flashes black** on load: theme variables are
+  inlined before the first paint.
+- **File tree missed new files at the root**: the disk watcher was off while
+  the window had no focus and did not re-read on return; a long burst of
+  create/delete events (builds, `pub get`, agents writing to `.dart_tool/`)
+  kept postponing the refresh forever; a watcher restart re-armed without
+  re-reading. The tree now re-reads on focus and on watcher restart, and the
+  refresh fires at least every 2 s during a burst.
+
+### Changed
+
+- Agent-activity scans are throttled, and new terminal tabs open directly
+  without an intermediate empty tab.
+
+## [2.1.8] - 2026-10-01
+
+**Faster terminals and window actions on Windows.** Process scans behind the
+agent status badge now look only at the terminal's own descendants, the
+folder picker no longer stalls the UI, and opening, docking and closing
+terminals is traced so the remaining latency can be measured.
+
+### Changed
+
+- **Windows process scans**: the harness monitor (the badge that says which
+  agent runs in a tab) used to walk the whole process table; it now walks only
+  the descendants of each terminal's shell, with a native snapshot. Less CPU
+  while agents stream output.
+- **Windows folder picker**: the "Add workspace" picker runs off the UI
+  isolate, so the window no longer freezes while the dialog is open.
+- **Window close on Windows**: shutting down terminals no longer blocks the
+  close button; PTY shutdown is benchmarked (`tool/benchmark_pty_lifecycle`).
+- **Performance diagnostics**: new metrics for opening a terminal, first
+  output, docking a tab and project readiness, recorded with `COCKPIT_PERF=1`
+  or Developer mode (see `docs/telemetry.md` and the 2026-09-30 investigation
+  in `docs/`).
+
 ## [2.1.7] - 2026-09-28
 
 **`.panel` files now open as a live page in their own document window.**

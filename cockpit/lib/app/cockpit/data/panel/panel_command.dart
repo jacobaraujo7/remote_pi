@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/shell_command.dart';
 
 /// Executa `cockpit <line>` num shell e devolve o mapa que a página de um
@@ -11,10 +12,15 @@ import 'package:cockpit/app/core/utils/shell_command.dart';
 ///
 /// `json` é o stdout parseado quando é JSON (`--json`, `db query`...), senão
 /// `null`. Nunca lança: falha de spawn vira `ok: false` com o stderr.
+///
+/// [profile] é o perfil de terminal padrão das configurações: a linha roda no
+/// mesmo shell que o `+` abre (no Windows, PowerShell em vez de `cmd` quando é
+/// esse o padrão), então a citação que vale no terminal vale no botão.
 Future<Map<String, Object?>> runPanelCommandLine(
   String line, {
   required String cwd,
   required Map<String, String> environment,
+  TerminalProfile? profile,
 }) async {
   final trimmed = line.trim();
   if (trimmed.isEmpty) {
@@ -31,6 +37,7 @@ Future<Map<String, Object?>> runPanelCommandLine(
     'cockpit $trimmed',
     cwd: cwd,
     environment: environment,
+    profile: profile,
   );
   Object? parsed;
   final out = result.stdout.trim();
