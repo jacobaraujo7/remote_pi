@@ -9,11 +9,11 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::mpsc;
 use tokio::time::{self, Duration};
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::AppState;
 use crate::auth::challenge::{
-    HELLO_TIMEOUT_MS, challenge_line, gen_nonce, parse_hello, verify_auth,
+    AUTH_TIMEOUT_MS, HELLO_TIMEOUT_MS, challenge_line, gen_nonce, parse_hello, verify_auth,
 };
 use crate::protocol::outer::{OuterEnvelope, parse_line};
 use crate::rooms::{RoomMeta, RoomMetaPatch};
@@ -28,6 +28,38 @@ pub async fn ws_handler(
     ws.on_upgrade(move |socket| handle_peer(socket, addr, state))
 }
 
+/// Concrete sink type from `WebSocket::split`, named so [send_or_log] can take
+/// it by reference.
+type PeerSink = futures_util::stream::SplitSink<WebSocket, Message>;
+
+/// Per-connection counters, reported on teardown. They answer "was this
+/// connection alive, and was the peer actually receiving?" without needing a
+/// packet capture.
+#[derive(Default)]
+struct ConnStats {
+    rx_text: u64,
+    rx_control: u64,
+    tx_text: u64,
+    tx_ping: u64,
+    rx_pong: u64,
+    forwarded: u64,
+    dropped: u64,
+}
+
+/// `sink.send` with the error surfaced. The plain `is_err()` form threw the
+/// reason away, which made every teardown indistinguishable from every other
+/// — the root of the "connection keeps dropping" investigation that motivated
+/// these logs.
+async fn send_or_log(sink: &mut PeerSink, msg: Message, what: &str) -> Result<(), ()> {
+    match sink.send(msg).await {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            warn!(what = %what, err = %e, "send failed, closing peer");
+            Err(())
+        }
+    }
+}
+
 /// Owns one peer's WebSocket connection: hello/challenge/auth → register →
 /// routing loop (forwarding outer envelopes + handling presence/rooms control
 /// frames + sending 25 s keepalive pings) → unregister on disconnect.
@@ -35,17 +67,41 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
     let peer_addr = peer_addr.to_string();
     let (mut sink, mut stream) = socket.split();
 
+    // Every step of the handshake is logged, so "the client shows reconnecting"
+    // can be answered with *where* it stopped: upgrade accepted → hello →
+    // challenge → auth. Before this, the pre-auth phase was near-silent (a
+    // single `_ =>` arm covered timeout, clean end and stream error alike), and
+    // step 3 below returned without logging anything at all.
+    debug!(addr = %peer_addr, "websocket upgrade accepted");
+
     // ── 1. Wait for hello (with timeout) ──────────────────────────────────
     let hello_result =
         tokio::time::timeout(Duration::from_millis(HELLO_TIMEOUT_MS), stream.next()).await;
 
     let hello_text = match hello_result {
         Ok(Some(Ok(Message::Text(t)))) => t,
-        _ => {
-            warn!(addr = %peer_addr, "no hello received, closing");
+        Ok(Some(Ok(other))) => {
+            warn!(addr = %peer_addr, frame = ?other, "expected a text hello, closing");
+            return;
+        }
+        Ok(Some(Err(e))) => {
+            warn!(addr = %peer_addr, err = %e, "stream error before hello, closing");
+            return;
+        }
+        Ok(None) => {
+            warn!(addr = %peer_addr, "stream ended before hello, closing");
+            return;
+        }
+        Err(_) => {
+            warn!(
+                addr = %peer_addr,
+                timeout_ms = HELLO_TIMEOUT_MS,
+                "no hello within timeout, closing"
+            );
             return;
         }
     };
+    debug!(addr = %peer_addr, "hello received");
 
     let vk = match parse_hello(&hello_text) {
         Ok(vk) => vk,
@@ -62,13 +118,38 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
         .await
         .is_err()
     {
+        warn!(addr = %peer_addr, "failed to send challenge, closing");
         return;
     }
+    debug!(addr = %peer_addr, "challenge sent, awaiting auth");
 
     // ── 3. Receive and verify auth ────────────────────────────────────────
-    let auth_text = match stream.next().await {
-        Some(Ok(Message::Text(t))) => t,
-        _ => return,
+    // Bounded by AUTH_TIMEOUT_MS: this await used to be unbounded, so a client
+    // that went away between the challenge and its reply left the task and the
+    // socket alive until TCP noticed.
+    let auth_text = match time::timeout(Duration::from_millis(AUTH_TIMEOUT_MS), stream.next()).await
+    {
+        Ok(Some(Ok(Message::Text(t)))) => t,
+        Ok(Some(Ok(other))) => {
+            warn!(addr = %peer_addr, frame = ?other, "expected a text auth, closing");
+            return;
+        }
+        Ok(Some(Err(e))) => {
+            warn!(addr = %peer_addr, err = %e, "stream error while awaiting auth, closing");
+            return;
+        }
+        Ok(None) => {
+            warn!(addr = %peer_addr, "stream ended while awaiting auth, closing");
+            return;
+        }
+        Err(_) => {
+            warn!(
+                addr = %peer_addr,
+                timeout_ms = AUTH_TIMEOUT_MS,
+                "no auth within timeout, closing"
+            );
+            return;
+        }
     };
 
     if let Err(e) = verify_auth(&nonce, &vk, &auth_text) {
@@ -152,20 +233,61 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
         Duration::from_secs(25),
     );
 
+    // ── connection diagnostics ────────────────────────────────────────────
+    // `reason` records which way the loop below exited and `stats` counts what
+    // moved. Both are reported by the single `disconnected` line at the end,
+    // so a teardown is never anonymous — previously every `break` discarded
+    // its error and the log carried no cause at all.
+    let mut stats = ConnStats::default();
+    // Assigned on every exit path below; the loop only ever ends via a `break`
+    // that sets it, which the compiler verifies.
+    let reason: &str;
+    debug!(
+        peer = %peer_short,
+        room = %room_id,
+        addr = %peer_addr,
+        "routing loop started"
+    );
+
     'routing: loop {
         tokio::select! {
             item = stream.next() => {
                 match item {
-                    None | Some(Err(_)) => break,
+                    None => {
+                        reason = "peer_stream_ended";
+                        break;
+                    }
+                    Some(Err(e)) => {
+                        // The one that matters most: a network-level death
+                        // (reset, protocol error, half-open timeout) lands here
+                        // and used to be swallowed by `Some(Err(_))`.
+                        reason = "peer_stream_error";
+                        warn!(peer = %peer_short, err = %e, "stream error, closing peer");
+                        break;
+                    }
                     Some(Ok(msg)) => {
                         let text = match msg {
                             Message::Text(t) => t,
-                            Message::Close(_) => break,
-                            // Pong frames are keepalive responses; Ping frames are
-                            // answered automatically by axum's WS. Drop both.
-                            Message::Ping(_) | Message::Pong(_) => continue,
+                            Message::Close(cf) => {
+                                reason = "client_close";
+                                debug!(peer = %peer_short, close = ?cf, "close frame received");
+                                break;
+                            }
+                            // Ping frames are answered automatically by axum's WS;
+                            // Pong frames are the peer's answer to our keepalive.
+                            Message::Ping(_) => continue,
+                            Message::Pong(_) => {
+                                stats.rx_pong += 1;
+                                debug!(
+                                    peer = %peer_short,
+                                    pongs = stats.rx_pong,
+                                    "pong received"
+                                );
+                                continue;
+                            }
                             Message::Binary(_) => continue, // ignore binary
                         };
+                        stats.rx_text += 1;
 
                         // Parse as JSON to check for relay control frames.
                         let frame: serde_json::Value = match serde_json::from_str(&text) {
@@ -178,6 +300,8 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
 
                         // Frames with a top-level "type" are handled by the relay itself.
                         if let Some(t) = frame.get("type").and_then(|v| v.as_str()) {
+                            stats.rx_control += 1;
+                            debug!(peer = %peer_short, frame_type = %t, "control frame");
                             let peers: Vec<String> = frame
                                 .get("peers")
                                 .and_then(|v| v.as_array())
@@ -217,9 +341,14 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                         metrics.inc_presence_suppressed(1);
                                     } else {
                                         last_presence_resp = Some(resp.clone());
-                                        if sink.send(Message::Text(resp)).await.is_err() {
+                                        if send_or_log(&mut sink, Message::Text(resp), "presence")
+                                            .await
+                                            .is_err()
+                                        {
+                                            reason = "tx_failed";
                                             break;
                                         }
+                                        stats.tx_text += 1;
                                         metrics.inc_presence_emitted(1);
                                     }
                                 }
@@ -248,9 +377,14 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                             continue;
                                         }
                                         last_rooms_resp.insert(target_peer.clone(), resp.clone());
-                                        if sink.send(Message::Text(resp)).await.is_err() {
+                                        if send_or_log(&mut sink, Message::Text(resp), "rooms")
+                                            .await
+                                            .is_err()
+                                        {
+                                            reason = "tx_failed";
                                             break 'routing;
                                         }
+                                        stats.tx_text += 1;
                                         metrics.inc_rooms_emitted(1);
                                     }
                                 }
@@ -316,9 +450,46 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     {
                                         PiForwardResult::Forwarded => {}
                                         PiForwardResult::TransportError(err_msg) => {
-                                            if sink.send(err_msg).await.is_err() {
+                                            // The reason was previously only ever sent to
+                                            // the sender, so a Pi reported "denied" while
+                                            // the relay said nothing at all about why the
+                                            // frame was refused. Metadata only — the
+                                            // envelope body is never inspected here.
+                                            let why = match &err_msg {
+                                                Message::Text(text) => serde_json::from_str::<
+                                                    serde_json::Value,
+                                                >(
+                                                    text
+                                                )
+                                                .ok()
+                                                .and_then(|value| {
+                                                    value
+                                                        .get("envelope")
+                                                        .and_then(|env| env.get("body"))
+                                                        .and_then(|body| body.get("reason"))
+                                                        .and_then(|reason| reason.as_str())
+                                                        .map(str::to_owned)
+                                                })
+                                                .unwrap_or_else(|| "unknown".to_owned()),
+                                                _ => "unknown".to_owned(),
+                                            };
+                                            warn!(
+                                                peer = %peer_short,
+                                                reason = %why,
+                                                "pi_envelope rejected"
+                                            );
+                                            if send_or_log(
+                                                &mut sink,
+                                                err_msg,
+                                                "pi_forward_error",
+                                            )
+                                            .await
+                                            .is_err()
+                                            {
+                                                reason = "tx_failed";
                                                 break;
                                             }
+                                            stats.tx_text += 1;
                                         }
                                     }
                                 }
@@ -355,12 +526,15 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
                                     .expect("OuterEnvelope serialisation is infallible");
                                 // Skip-sender: pass our own conn_id so multi-device
                                 // Owners don't echo their own outbound messages.
-                                if !registry.forward(
+                                if registry.forward(
                                     &dest_peer,
                                     &dest_room,
                                     Message::Text(fwd_line),
                                     conn_id,
                                 ) {
+                                    stats.forwarded += 1;
+                                } else {
+                                    stats.dropped += 1;
                                     warn!(
                                         from = %peer_short,
                                         dest = %dest_tail,
@@ -377,15 +551,31 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
             result = rx.recv() => {
                 match result {
                     Some(msg) => {
-                        if sink.send(msg).await.is_err() {
+                        if send_or_log(&mut sink, msg, "outbound").await.is_err() {
+                            reason = "tx_failed";
                             break;
                         }
+                        stats.tx_text += 1;
                     }
-                    None => break,
+                    None => {
+                        reason = "outbound_channel_closed";
+                        break;
+                    }
                 }
             }
             _ = heartbeat.tick() => {
-                if sink.send(Message::Ping(Vec::new())).await.is_err() {
+                stats.tx_ping += 1;
+                debug!(
+                    peer = %peer_short,
+                    pings = stats.tx_ping,
+                    pongs = stats.rx_pong,
+                    "heartbeat ping sent"
+                );
+                if send_or_log(&mut sink, Message::Ping(Vec::new()), "heartbeat")
+                    .await
+                    .is_err()
+                {
+                    reason = "heartbeat_failed";
                     break;
                 }
             }
@@ -394,5 +584,21 @@ async fn handle_peer(socket: WebSocket, peer_addr: SocketAddr, state: AppState) 
 
     registry.unregister(&peer_id, &room_id, conn_id).await;
     rooms.unsubscribe_all(&peer_id).await;
-    info!(peer = %peer_short, room = %room_id, addr = %peer_addr, "disconnected");
+    // The single line that explains how this connection ended. `reason` is one
+    // of: client_close, peer_stream_ended, peer_stream_error, tx_failed,
+    // heartbeat_failed, outbound_channel_closed.
+    info!(
+        peer = %peer_short,
+        room = %room_id,
+        addr = %peer_addr,
+        reason = %reason,
+        rx_text = stats.rx_text,
+        rx_control = stats.rx_control,
+        tx_text = stats.tx_text,
+        tx_ping = stats.tx_ping,
+        rx_pong = stats.rx_pong,
+        forwarded = stats.forwarded,
+        dropped = stats.dropped,
+        "disconnected"
+    );
 }
