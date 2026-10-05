@@ -47,6 +47,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     ::DispatchMessage(&msg);
   }
 
+  // window_manager.destroy() posts WM_QUIT without destroying the HWND. Tear
+  // down the Flutter view and plugins while COM is still initialized; leaving
+  // this to the stack destructor runs their teardown after CoUninitialize().
+  if (window.GetHandle()) {
+    window.Destroy();
+  }
   ::CoUninitialize();
   return EXIT_SUCCESS;
 }

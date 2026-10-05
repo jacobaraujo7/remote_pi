@@ -24,6 +24,34 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.11] - 2026-10-03
+
+**Terminals in hidden tabs no longer cost frames, and the Windows app no
+longer crashes on close.** With several agents writing at once in background
+tabs, the visible terminal stays smooth; on Windows, closing the window with
+many sessions open ended in an APPCRASH after the clean exit.
+
+### Fixed
+
+- **Windows close crash**: `flutter_windows.dll` faulted about a second after
+  the app logged a clean exit. Two causes, both fixed: the Flutter view
+  controller was deleted while the window still received messages, and the
+  window was torn down after COM had already been uninitialized (#231).
+- **Windows markdown preview**: touchpad and wheel scrolling now work, and the
+  scrollbar follows the app theme.
+- **Windows tasks**: the "Cockpit" task (flutter run) works on Windows
+  (`tasks.json` and runner quoting), and task file watchers observe only the
+  configured `watch.paths` and re-arm after an error.
+
+### Changed
+
+- **Hidden terminal tabs** keep their view mounted but stop painting
+  (`presentationActive` in flterm, tag `cockpit-pin-flterm-upstream-2026-10c`),
+  and output arriving only in hidden tabs no longer asks Flutter for a frame.
+  Agent-activity scans share a 1 s budget, with a 150 ms fast path for Enter
+  and session start. Benchmark with 10 terminals: slow frames dropped from
+  9-13 to 1-2 per 15 s (#230, by moregola).
+
 ## [2.1.10] - 2026-10-03
 
 **New terminal engine build, and a modern ConPTY on Windows.** The terminal
