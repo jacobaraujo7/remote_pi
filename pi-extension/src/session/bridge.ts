@@ -135,7 +135,14 @@ async function discoverStandaloneTopology(
       myPubkey: opts.keypair.publicKey,
       log: silent,
     });
-  } catch {
+  } catch (error) {
+    // An empty topology means no siblings, i.e. no cross-PC peers at all. That is
+    // a legitimate degradation when the relay is unreachable or the Owner blob
+    // cannot be verified, but staying silent made "this PC shows no remote peers"
+    // undiagnosable from the extension's own output.
+    opts.log?.(
+      `[remote-pi] mesh discovery failed, using an empty topology: ${String(error)}`,
+    );
     return buildTopologySnapshot(opts.keypair.publicKey, []);
   }
 }
