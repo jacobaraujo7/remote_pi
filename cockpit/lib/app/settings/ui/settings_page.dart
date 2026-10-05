@@ -1138,6 +1138,23 @@ class _TerminalPanel extends StatelessWidget {
                   ],
                 ),
               ),
+              _Section(
+                label: 'Behavior',
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: 'Close tab when the shell exits',
+                      description:
+                          'When a shell ends on its own (exit, Ctrl-D), close '
+                          'its tab instead of leaving a dead terminal.',
+                      trailing: Switch(
+                        value: controller.settings.closeTabOnShellExit,
+                        onChanged: controller.setCloseTabOnShellExit,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Sem WSL instalado a lista tem só PowerShell e cmd. Dizer isso é
               // melhor que deixar o usuário achar que a detecção falhou.
               if (!profiles.any(

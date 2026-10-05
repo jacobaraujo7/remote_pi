@@ -193,6 +193,7 @@ class _CockpitPageState extends State<CockpitPage> {
     context.read<CockpitViewModel>()
       ..setDefaultTerminalProfileId(initialSettings.defaultTerminalProfileId)
       ..setDefaultTerminalEngine(initialSettings.terminalEngine)
+      ..setCloseTabOnShellExit(initialSettings.closeTabOnShellExit)
       ..setFileEditorEngine(initialSettings.fileEditorEngine);
     // Dispara o carregamento inicial dos ViewModels page-scoped ao montar a rota.
     // Os módulos provêm via `.new`, então não encadeiam mais `..init()`/`..check()`.
@@ -510,6 +511,7 @@ class _CockpitPageState extends State<CockpitPage> {
       _settings!.settings.defaultTerminalProfileId,
     );
     _vm.setDefaultTerminalEngine(_settings!.settings.terminalEngine);
+    _vm.setCloseTabOnShellExit(_settings!.settings.closeTabOnShellExit);
   }
 
   /// Espelha o toggle "Show Cockpit terminal" (Configurações › General) para a

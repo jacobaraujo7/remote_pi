@@ -44,6 +44,7 @@ class AppSettings {
     this.lspCommands = const <String, String>{},
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
+    this.closeTabOnShellExit = false,
     this.fileEditorEngine = FileEditorEngine.cockpit,
     this.notificationsEnabled = true,
     this.soundEvents = const <SoundEvent, bool>{},
@@ -120,6 +121,10 @@ class AppSettings {
 
   /// Formatar automaticamente ao salvar (Cmd+S).
   final bool formatOnSave;
+
+  /// Fecha a aba quando o shell encerra sozinho (ex.: `exit`, Ctrl-D), em vez
+  /// de deixar um terminal morto na tela. Só vale para abas de shell.
+  final bool closeTabOnShellExit;
 
   /// Motor global de arquivos comuns. Visualizações especializadas e arquivos
   /// remotos continuam no Cockpit, independentemente desta preferência.
@@ -260,6 +265,7 @@ class AppSettings {
     Map<String, String>? lspCommands,
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
+    bool? closeTabOnShellExit,
     FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
     Map<SoundEvent, bool>? soundEvents,
@@ -309,6 +315,7 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
+      closeTabOnShellExit: closeTabOnShellExit ?? this.closeTabOnShellExit,
       fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       soundEvents: soundEvents ?? this.soundEvents,
@@ -358,6 +365,7 @@ class AppSettings {
     if (lspCommands.isNotEmpty) 'lspCommands': lspCommands,
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
+    if (closeTabOnShellExit) 'closeTabOnShellExit': true,
     'editor.engine': fileEditorEngine.name,
     if (!notificationsEnabled) 'notificationsEnabled': false,
     if (soundEvents.isNotEmpty)
@@ -441,6 +449,7 @@ class AppSettings {
       lspCommands: _strMap(json['lspCommands']),
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
+      closeTabOnShellExit: json['closeTabOnShellExit'] as bool? ?? false,
       fileEditorEngine: _enumByName(
         FileEditorEngine.values,
         json['editor.engine'],
