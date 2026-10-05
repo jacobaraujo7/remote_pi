@@ -136,6 +136,7 @@ class _GhosttyPane extends StatelessWidget {
       // sem LayoutBuilder, mata crash e espelho.
       key: GlobalObjectKey(terminal.controller),
       controller: terminal.controller,
+      scrollController: terminal.scrollController,
       presentationActive: active,
       focusNode: focusNode,
       showKeyboard: !readOnly,

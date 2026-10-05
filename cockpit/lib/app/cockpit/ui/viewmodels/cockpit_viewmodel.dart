@@ -6663,7 +6663,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     session?.dispose();
   }
 
-  void _disposeSession(String id) => _detachSession(id)?.dispose();
+  // A tree update removes the pane immediately, but Flutter detaches the
+  // TerminalView at the end of the frame. Keep Ghostty alive until then.
+  void _disposeSession(String id) => unawaited(_disposeSessionAfterFrame(id));
 
   /// Tira a sessão [id] do registro (com o que está pendurado nela) e a
   /// devolve, sem destruir.
