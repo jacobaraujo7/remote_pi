@@ -81,6 +81,7 @@ List<MenuBarMenu> buildAppMenus(
       if (!isMobilePlatform)
         MenuAction(
           tr.newTerminal,
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.keyT),
           onSelected: workspace.hasWorkspace ? workspace.newTerminal : null,
         ),
       if (!isMobilePlatform) const MenuSeparator(),

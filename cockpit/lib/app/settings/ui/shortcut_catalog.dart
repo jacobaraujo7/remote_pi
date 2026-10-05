@@ -41,6 +41,7 @@ List<ShortcutSection> buildShortcutCatalog() {
       AppShortcut('Open Workspace', [cmd, 'O']),
     ]),
     ShortcutSection('Workspace', <AppShortcut>[
+      AppShortcut('New Terminal', [cmd, 'T']),
       AppShortcut('Toggle Workspace Panel', [cmd, 'B']),
       AppShortcut('Toggle Files', [cmd, shift, 'B']),
       AppShortcut('Split Pane Right', [cmd, 'D']),
