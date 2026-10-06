@@ -11,5 +11,6 @@ overrides:
   esbuild: ^0.28.1
   hono: ^4.12.25
   protobufjs: ^7.6.3
+  qs: ^6.16.0
   vite: ^8.0.16
   ws: ^8.21.0

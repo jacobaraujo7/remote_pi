@@ -253,6 +253,24 @@ and 27 (see [`plan/`](plan/) directory for design history).
   relay sees plaintext envelopes at rest and in forwarding. Self-hosting is
   the recommended path for sensitive deployments. E2E payload encryption is
   on the public roadmap (see `PROTOCOL.md` "Roadmap").
+- **Audit advisories cleared via Pi SDK bump (0.79.10 → 0.87.1).**
+  `pi install npm:remote-pi` reported 5 advisories (2 high, 3 moderate),
+  inherited from the bundled `@earendil-works/pi-coding-agent` SDK pinned at
+  `^0.79.10`: undici < 8.9.0 (response desynchronization via retry
+  interceptor, cache-directive info disclosure, CRLF injection via blob-like
+  body `type`, cookie attribute injection), brace-expansion < 5.0.9 (DoS via
+  unbounded `{}` expansion), protobufjs < 7.6.5 (DoS in `.proto` option
+  parsing). pnpm overrides can't fix the consumer tree (they don't propagate
+  to `pi install`), so the SDK floor itself was raised to `^0.87.1`
+  (`pi-coding-agent` and `pi-tui`): undici 8.5.0 → 8.10.2, brace-expansion
+  5.0.6 → 5.0.9, protobufjs 7.6.4 → 7.6.6, hono 4.12.27 → 4.13.5 — all
+  resolved naturally, no new overrides. Companion updates: `engines.node`
+  `>=20.0.0` → `>=22.19.0` (matching the SDK), README/CLAUDE.md/install.sh
+  aligned, vitest `^4.1.6` → `^4.1.11` (dev-only path-traversal advisory),
+  and a `qs: ^6.16.0` override floor for the freshly published
+  body-parser transitive (resolves naturally for npm consumers too).
+  `pnpm audit` (prod + dev): no known vulnerabilities; `npm audit` on a
+  clean packed-consumer install: 0 vulnerabilities.
 
 ### Removed
 
