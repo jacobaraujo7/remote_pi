@@ -383,6 +383,82 @@ void main() {
     });
 
     test(
+      'firstLiveRoom picks the peer\'s first live room, and null when none',
+      () async {
+        final ch = _ControllableChannel();
+        final storage = _FakeStorage([_peerA]);
+        final conn = ConnectionManager(
+          factory: (_, _) async => ch,
+          storage: storage,
+          emitDebounce: Duration.zero,
+        );
+        final prefs = Preferences(_FakeSecureStorage());
+        final vm = HomeViewModel(storage, prefs, conn);
+        await conn.connectTo(_peerA);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        // Room management rides the create/delete frames on a live room of
+        // the same peer — no live room means the flow refuses up front.
+        expect(vm.firstLiveRoom('epk_A'), isNull);
+        expect(vm.firstLiveRoom('epk_unknown'), isNull);
+
+        ch.pushControl(
+          const RoomAnnounced(peer: 'epk_A', roomId: 'r1', startedAt: 1),
+        );
+        ch.pushControl(
+          const RoomAnnounced(peer: 'epk_A', roomId: 'r2', startedAt: 2),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(vm.firstLiveRoom('epk_A'), 'r1');
+
+        // A cached-but-offline room is not a usable channel.
+        ch.pushControl(const RoomEnded(peer: 'epk_A', roomId: 'r1', sinceTs: 3));
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(vm.firstLiveRoom('epk_A'), 'r2');
+
+        vm.dispose();
+        await conn.disconnect();
+        conn.dispose();
+      },
+    );
+
+    test(
+      'deleteRoom drops the room from the cache and clears its liveness',
+      () async {
+        final ch = _ControllableChannel();
+        final storage = _FakeStorage([_peerA]);
+        final conn = ConnectionManager(
+          factory: (_, _) async => ch,
+          storage: storage,
+          emitDebounce: Duration.zero,
+        );
+        final prefs = Preferences(_FakeSecureStorage());
+        final vm = HomeViewModel(storage, prefs, conn);
+        await conn.connectTo(_peerA);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+
+        ch.pushControl(
+          const RoomAnnounced(peer: 'epk_A', roomId: 'r1', startedAt: 1),
+        );
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        expect(vm.isRoomLive('epk_A', 'r1'), isTrue);
+
+        // Deleting on the Pi kills the daemon behind the room; until the
+        // relay's RoomEnded lands the local liveness must not keep the tile
+        // selectable.
+        await vm.deleteRoom('epk_A', 'r1');
+
+        expect(vm.isRoomLive('epk_A', 'r1'), isFalse);
+        expect(conn.roomsFor('epk_A').map((r) => r.roomId), isEmpty);
+        expect(vm.visibleItems, isEmpty);
+
+        vm.dispose();
+        await conn.disconnect();
+        conn.dispose();
+      },
+    );
+
+    test(
       'setFilter is a no-op when the tab is unchanged, and emits exactly once '
       'when it changes',
       () async {

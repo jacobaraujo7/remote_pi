@@ -7,12 +7,15 @@
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createServer, type Socket } from "node:net";
+import { homedir, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { ClientMessage } from "./protocol/types.js";
+import type { ControlReply, ControlRequest } from "./daemon/control_protocol.js";
 
 const _convertToPngMock = vi.hoisted(() => vi.fn(async () => null));
 
@@ -3337,6 +3340,262 @@ describe("rooms wiring", () => {
     }
   });
 });
+
+// ── room_create / room_delete ─────────────────────────────────────────────────
+//
+// Both actions drive the supervisor over its UDS, so instead of mocking
+// `callSupervisor` these tests stand up a real one-line-per-request fake
+// supervisor and assert the ops that actually reach it (including the daemon
+// id derivation the app never sees).
+//
+// The block also rebinds `_pi` to null on purpose: a room being created has no
+// Pi session to bind to yet, and deleting the last one removes the session, so
+// both frames must be answered without one.
+
+describe.skipIf(process.platform === "win32")("room management actions", () => {
+  let home: string;
+  let sockPath: string;
+  let prevHome: string | undefined;
+  let server: ReturnType<typeof createServer> | null = null;
+  let requests: ControlRequest[] = [];
+  let replyFor: (req: ControlRequest) => ControlReply<unknown>;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    _knownPeers.length = 0;
+    _addedPeers.length = 0;
+    _removedPeers.length = 0;
+    _consumeCalls.length = 0;
+    _setRelayCalls.length = 0;
+    _savedRelayUrl = null;
+    _tokenStatus = "ok";
+    relayRef.current = null;
+    relayInstances.length = 0;
+    _defaultConnectImpl = async () => undefined;
+    _setPiForTest(null);
+    const qr = await import("./pairing/qr.js");
+    (qr.qrSession.consumeToken as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+      (token: string) => {
+        _consumeCalls.push(token);
+        return _tokenStatus;
+      },
+    );
+    const stop = captureHandler("remote-pi stop");
+    await stop("", makeMockCtx());
+
+    home = mkdtempSync(join(tmpdir(), "rp-room-home-"));
+    prevHome = process.env["REMOTE_PI_HOME"];
+    process.env["REMOTE_PI_HOME"] = home;
+    sockPath = join(home, ".pi", "remote", "supervisor.sock");
+    mkdirSync(dirname(sockPath), { recursive: true });
+    requests = [];
+    replyFor = (req) => ({ ok: true, data: _successReplyFor(req) });
+    server = createServer((sock: Socket) => {
+      let buf = "";
+      sock.on("data", (chunk: Buffer) => {
+        buf += chunk.toString("utf8");
+        const nl = buf.indexOf("\n");
+        if (nl < 0) return;
+        const req = JSON.parse(buf.slice(0, nl)) as ControlRequest;
+        requests.push(req);
+        sock.write(`${JSON.stringify(replyFor(req))}\n`);
+      });
+    });
+    await new Promise<void>((resolve) => server!.listen(sockPath, resolve));
+  });
+
+  afterEach(async () => {
+    if (prevHome === undefined) delete process.env["REMOTE_PI_HOME"];
+    else process.env["REMOTE_PI_HOME"] = prevHome;
+    const s = server;
+    server = null;
+    if (s) await new Promise<void>((resolve) => s.close(() => resolve()));
+    rmSync(home, { recursive: true, force: true });
+  });
+
+  /** Routes one client frame through the paired owner channel and returns every
+   *  inner frame the extension sent back, once a reply has landed. */
+  async function route(msg: ClientMessage): Promise<Array<{ type: string; [k: string]: unknown }>> {
+    const relay = relayRef.current!;
+    const before = relay.send.mock.calls.length;
+    routeClientMessage(msg, { abort: () => undefined });
+    const sent = (): Array<{ type: string; [k: string]: unknown }> =>
+      relay.send.mock.calls.slice(before).map((c) => decodeSentCt(c[0] as string).inner);
+    await vi.waitFor(
+      () => {
+        expect(
+          sent().some((f) => f.type === "action_ok" || f.type === "action_error"),
+        ).toBe(true);
+      },
+      { timeout: 2000 },
+    );
+    return sent();
+  }
+
+  test("room_create registers and starts the daemon for an existing directory", async () => {
+    await _pairForTest("owner-rooms-1");
+    const dir = mkdtempSync(join(home, "projects-"));
+
+    const frames = await route({ type: "room_create", id: "rc-1", path: dir });
+
+    expect(frames.filter((f) => f.type === "action_ok")).toEqual([
+      { type: "action_ok", in_reply_to: "rc-1", action: "room_create" },
+    ]);
+    expect(requests.map((r) => r.op)).toEqual(["register", "start"]);
+    expect(requests[0]).toEqual({ op: "register", cwd: dir });
+    expect(requests[1]).toEqual({ op: "start", id: expectedDaemonId(dir) });
+  });
+
+  test("room_create expands `~` and resolves relative paths against the cwd", async () => {
+    await _pairForTest("owner-rooms-tilde");
+
+    await route({ type: "room_create", id: "rc-tilde", path: "~" });
+    await route({ type: "room_create", id: "rc-rel", path: "." });
+
+    expect(requests).toEqual([
+      { op: "register", cwd: homedir() },
+      { op: "start", id: expectedDaemonId(homedir()) },
+      { op: "register", cwd: process.cwd() },
+      { op: "start", id: expectedDaemonId(process.cwd()) },
+    ]);
+  });
+
+  test("room_create answers the exact `directory_missing` string and touches nothing", async () => {
+    await _pairForTest("owner-rooms-2");
+    const missing = join(home, "no-such-dir");
+
+    const frames = await route({ type: "room_create", id: "rc-2", path: missing });
+
+    // The app switches on this exact string to offer "create it anyway?".
+    expect(frames.filter((f) => f.type === "action_error")).toEqual([
+      {
+        type: "action_error",
+        in_reply_to: "rc-2",
+        action: "room_create",
+        error: "directory_missing",
+      },
+    ]);
+    expect(existsSync(missing)).toBe(false);
+    expect(requests).toEqual([]);
+  });
+
+  test("room_create creates the missing directory when create_if_missing is set", async () => {
+    await _pairForTest("owner-rooms-3");
+    const nested = join(home, "a", "b", "c");
+
+    const frames = await route({
+      type: "room_create",
+      id: "rc-3",
+      path: nested,
+      create_if_missing: true,
+    });
+
+    expect(existsSync(nested)).toBe(true);
+    expect(frames.map((f) => f.type)).toEqual(["action_ok"]);
+    expect(requests).toEqual([
+      { op: "register", cwd: nested },
+      { op: "start", id: expectedDaemonId(nested) },
+    ]);
+  });
+
+  test("room_create reports a supervisor refusal as action_error", async () => {
+    await _pairForTest("owner-rooms-4");
+    replyFor = () => ({ ok: false, error: "cwd already managed" });
+    const dir = mkdtempSync(join(home, "refused-"));
+
+    const frames = await route({ type: "room_create", id: "rc-4", path: dir });
+
+    expect(frames.filter((f) => f.type === "action_error")).toEqual([
+      {
+        type: "action_error",
+        in_reply_to: "rc-4",
+        action: "room_create",
+        error: "cwd already managed",
+      },
+    ]);
+  });
+
+  test("room_create reports an unreachable supervisor as action_error", async () => {
+    await _pairForTest("owner-rooms-5");
+    const s = server!;
+    server = null;
+    await new Promise<void>((resolve) => s.close(() => resolve()));
+    const dir = mkdtempSync(join(home, "offline-"));
+
+    const frames = await route({ type: "room_create", id: "rc-5", path: dir });
+
+    expect(frames.filter((f) => f.type === "action_error")).toHaveLength(1);
+    expect(String(frames.find((f) => f.type === "action_error")!["error"])).toMatch(
+      /Supervisor is not running/,
+    );
+  });
+
+  test("room_create rejects an empty path before calling the supervisor", async () => {
+    await _pairForTest("owner-rooms-6");
+
+    const frames = await route({ type: "room_create", id: "rc-6", path: "   " });
+
+    expect(frames.filter((f) => f.type === "action_error")).toEqual([
+      {
+        type: "action_error",
+        in_reply_to: "rc-6",
+        action: "room_create",
+        error: "path is required",
+      },
+    ]);
+    expect(requests).toEqual([]);
+  });
+
+  test("room_delete unregisters the daemon derived from the path", async () => {
+    await _pairForTest("owner-rooms-7");
+    const dir = mkdtempSync(join(home, "doomed-"));
+
+    const frames = await route({ type: "room_delete", id: "rd-1", path: dir });
+
+    expect(requests).toEqual([{ op: "unregister", id: expectedDaemonId(dir) }]);
+    expect(frames.filter((f) => f.type === "action_ok")).toEqual([
+      { type: "action_ok", in_reply_to: "rd-1", action: "room_delete" },
+    ]);
+  });
+
+  test("room_delete is idempotent when the supervisor had nothing to remove", async () => {
+    await _pairForTest("owner-rooms-8");
+    replyFor = () => ({ ok: true, data: { removed: false } });
+    const dir = mkdtempSync(join(home, "gone-"));
+
+    const frames = await route({ type: "room_delete", id: "rd-2", path: dir });
+
+    expect(frames.filter((f) => f.type === "action_ok")).toHaveLength(1);
+  });
+
+  test("room_delete reports an unreachable supervisor as action_error", async () => {
+    await _pairForTest("owner-rooms-9");
+    const s = server!;
+    server = null;
+    await new Promise<void>((resolve) => s.close(() => resolve()));
+    const dir = mkdtempSync(join(home, "offline-del-"));
+
+    const frames = await route({ type: "room_delete", id: "rd-3", path: dir });
+
+    expect(frames.filter((f) => f.type === "action_error")).toHaveLength(1);
+  });
+});
+
+/** Success data for one fake-supervisor op, shaped like `ControlReplyShapes`. */
+function _successReplyFor(req: ControlRequest): unknown {
+  switch (req.op) {
+    case "register": return { id: req.cwd, cwd: req.cwd };
+    case "start": return { id: req.id, state: "running", started: true };
+    case "unregister": return { removed: true, cwd: "" };
+    default: return {};
+  }
+}
+
+/** Same derivation as `daemonIdForCwd`, recomputed here so the assertions do
+ *  not simply mirror the implementation under test. */
+function expectedDaemonId(cwd: string): string {
+  return createHash("sha256").update(realpathSync(cwd)).digest("hex").slice(0, 8);
+}
 
 // ── session_sync (catch-up replay) ────────────────────────────────────────────
 

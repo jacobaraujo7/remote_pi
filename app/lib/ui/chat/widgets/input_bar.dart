@@ -311,11 +311,17 @@ class _InputBarState extends State<InputBar> {
         !visionBlocked &&
         !hasImage;
 
+    // Stay reachable for the whole turn, including while the agent is
+    // working. Nothing in the sheet is blocked by an in-flight turn —
+    // compact / new session / model / thinking all queue on the relay, and
+    // the per-room "Hide tool calls" switch is a purely local preference.
+    // Hiding the entry point mid-turn used to strand exactly that switch:
+    // the moment you wanted to hide the tool rows being streamed at you was
+    // the moment the button vanished.
     final showQuickActions =
         _empty &&
         !hasImage &&
         canInteract &&
-        !widget.streaming &&
         !showStrip &&
         hasQuickActions;
 
