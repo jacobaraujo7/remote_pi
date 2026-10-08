@@ -506,16 +506,6 @@ class _TabStripState extends State<_TabStrip> {
                                         widget.vm.resetPaneLabel(pane.tabs[i]),
                                   ),
                                 ),
-                              // Windows: "+" e a seta formam um grupo — a divisória
-                              // fica só no fim dele. Ausente no POSIX (lá só existe
-                              // o login shell, sem escolha a fazer).
-                              _TabAdd(
-                                onTap: widget.onCreateTab,
-                                trailingBorder:
-                                    !widget.vm.showTerminalProfilePicker,
-                              ),
-                              if (widget.vm.showTerminalProfilePicker)
-                                _TabProfilePicker(vm: widget.vm),
                             ],
                           ),
                         ),
@@ -534,6 +524,14 @@ class _TabStripState extends State<_TabStrip> {
                   onTap: () => _showTabList(ctx),
                 ),
               ),
+            // Controles de criação ficam fora da faixa rolável: numa pane
+            // estreita, uma única aba de 188px já esconde o "+".
+            _TabAdd(
+              onTap: widget.onCreateTab,
+              trailingBorder: !widget.vm.showTerminalProfilePicker,
+            ),
+            if (widget.vm.showTerminalProfilePicker)
+              _TabProfilePicker(vm: widget.vm),
             _PaneTools(
               onSplitRight: () => widget.onSplit(SplitDir.vertical),
               onSplitDown: () => widget.onSplit(SplitDir.horizontal),
@@ -1234,20 +1232,33 @@ class _TabAdd extends StatelessWidget {
     final colors = context.colors;
     return AppTooltip(
       message: context.t.cockpit.paneView.newTab,
-      child: GestureDetector(
+      child: Listener(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: MouseRegion(
-          cursor: SystemMouseCursors.click,
-          child: Container(
-            height: 40,
-            padding: const EdgeInsets.symmetric(horizontal: 9),
-            decoration: BoxDecoration(
-              border: trailingBorder
-                  ? Border(right: BorderSide(color: colors.border))
-                  : null,
+        // Mouse: cria no pointer-down, como a seleção de abas. Um pequeno
+        // movimento até o pointer-up pode cancelar o tap na arena de gestos.
+        onPointerDown: (event) {
+          if (event.kind == PointerDeviceKind.mouse &&
+              event.buttons & kPrimaryMouseButton != 0) {
+            onTap();
+          }
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: (details) {
+            if (details.kind != PointerDeviceKind.mouse) onTap();
+          },
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 9),
+              decoration: BoxDecoration(
+                border: trailingBorder
+                    ? Border(right: BorderSide(color: colors.border))
+                    : null,
+              ),
+              child: Icon(Icons.add, size: 14, color: colors.text4),
             ),
-            child: Icon(Icons.add, size: 14, color: colors.text4),
           ),
         ),
       ),
