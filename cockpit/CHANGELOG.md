@@ -24,6 +24,32 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.13] - 2026-10-09
+
+**Remote workspaces: `cockpit exec` and `.panel` buttons now run on the
+host.** Requires cockpit-server 2.1.13 on the host (same version as the app).
+
+### Fixed
+
+- **`exec` from a remote terminal or a remote `.panel`** used to run on the
+  Cockpit machine with the host's working directory, which does not exist
+  there, so every call failed or returned nothing. It now runs on the host
+  through the new `proc.run` RPC: login shell, host cwd, timeout, and the
+  `cockpit` CLI available to the command. An old server answers with a
+  message explaining how to update.
+- **Remote `.panel` showed the previous file**: when the preview tab was
+  reused, the panel rendered the previous file's text as HTML and ignored the
+  real content when it arrived. The tab now shows a spinner while loading and
+  applies a late reload.
+- **cockpit-server installer left a dead Claude hook**: the smoke test ran
+  the server from the staging folder and registered the hook with that path,
+  which disappears after the swap ("Stop hook error" in Claude Code). The
+  smoke test no longer registers hooks, and the installer removes stale
+  staging entries from `~/.claude/settings.json`.
+- **Narrow panes hid the `+` button**: the new-tab control and the profile
+  picker sit outside the scrollable tab strip, and the `+` responds on
+  mouse-down like tab selection (#232, moregola).
+
 ## [2.1.12] - 2026-10-06
 
 **Comment toggling in the editor, a link menu in the terminal, ⌘T for a new
