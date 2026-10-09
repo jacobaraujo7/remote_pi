@@ -1782,6 +1782,11 @@ class _PaneBodyState extends State<_PaneBody> {
                 focused: widget.focused,
                 onSave: (content) => vm.saveFile(item.id, content),
               )
+            // Remoto: a aba abre em loading enquanto o `fs.read` viaja; sem
+            // o gate, o PanelView montava com o corpo da aba de preview
+            // anterior (ver `_openRemoteFileLoading`).
+            : item.loading
+            ? const Center(child: CircularProgressIndicator())
             : PanelView(
                 session: item,
                 onCall: (line, cwd) =>

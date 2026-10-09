@@ -132,7 +132,20 @@ class _PanelViewState extends State<PanelView> {
     final doc = _doc!;
     if (!doc.reload || doc.body == before) return;
     final web = _web;
-    if (web == null || !_loaded) return;
+    if (web == null || !_loaded) {
+      // Conteúdo mudou ANTES do webview terminar de carregar: caso da aba de
+      // preview reaproveitada num workspace remoto, que nasce com o corpo do
+      // arquivo anterior enquanto o `fs.read` viaja. Sem isto o painel ficava
+      // preso mostrando o arquivo errado (um docker-compose.yml como HTML).
+      _pendingReload = true;
+      return;
+    }
+    _reload(web, doc);
+  }
+
+  bool _pendingReload = false;
+
+  void _reload(InAppWebViewController web, PanelDocument doc) {
     if (Platform.isWindows) {
       // Mesma razão do `initialUrlRequest` no build: a página é servida pelo
       // scheme, então recarregar é navegar de novo pra URL base.
@@ -344,6 +357,11 @@ class _PanelViewState extends State<PanelView> {
               final vars = _themeVars(context);
               _pushedTheme = vars;
               unawaited(_pushTheme(vars));
+              if (_pendingReload) {
+                _pendingReload = false;
+                final doc = _doc;
+                if (doc != null) _reload(web, doc);
+              }
             },
             onLoadResourceWithCustomScheme: _serveLocal,
             // Links externos abrem no browser do SO — a aba não navega pra fora.
