@@ -60,8 +60,11 @@ Cockpit tabs (it is not on the global PATH).
   Terminal): the login shell on macOS/Linux (so your PATH applies), and on
   Windows whatever the `+` opens — PowerShell, cmd or a WSL distro — so write
   the line in that shell's syntax. `--json` prints
-  `{ok, code, stdout, stderr, timedOut}` on one line. This is what `.panel`
-  buttons use under the hood; from a terminal you already have a shell, so
+  `{ok, code, stdout, stderr, timedOut}` on one line. In a **remote**
+  workspace the line runs on the host (login shell, host cwd), so paths and
+  tools are the host's; the host needs cockpit-server 2.1.13 or newer. This
+  is what `.panel` buttons use under the hood; from a terminal you already
+  have a shell, so
   prefer it only when you want the app's environment (`cockpit` on PATH,
   `COCKPIT_TAB_ID` set) from outside a Cockpit tab.
 - `cockpit browse <url> [--json]` — open the app's built-in **browser tab** at

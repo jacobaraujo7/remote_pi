@@ -14,6 +14,14 @@ class _RpcUnknown implements Exception {
   final String method;
 }
 
+/// Falha tipada de um RPC sem exceção de domínio própria (`proc.run`):
+/// vira `RpcResponse{ok:false, code, detail}` como as demais.
+class RemoteRpcFailure implements Exception {
+  const RemoteRpcFailure(this.code, [this.detail]);
+  final String code;
+  final String? detail;
+}
+
 /// Servidor do protocolo Cockpit Remote sobre socket local (UDS).
 ///
 /// Sessões pertencem ao [TerminalService], não às conexões: um cliente que
@@ -689,6 +697,70 @@ class _Connection {
     }
   }
 
+  /// `proc.run`: roda UMA linha de shell neste host e devolve
+  /// `{code, stdout, stderr, timedOut}` (mesmo mapa do `exec` local do app).
+  /// É o `cockpit exec` de um terminal remoto e o `await cockpit("exec …")`
+  /// de um `.panel` em workspace remoto: antes, o app executava no cliente,
+  /// com o cwd do host, e falhava. Shell de login (`-lc`) pelo mesmo motivo
+  /// das PTYs: o PATH do perfil do usuário vale. Env leva a CLI `cockpit` e o
+  /// socket de status, então o comando pode chamar `cockpit` de volta.
+  Future<Map<String, Object?>> _procRun(Map<String, Object?> p) async {
+    final command = (p['command'] ?? '').toString();
+    if (command.trim().isEmpty) {
+      throw const RemoteRpcFailure('bad_request', 'missing command');
+    }
+    final cwd = (p['cwd'] ?? '').toString();
+    if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
+      throw RemoteRpcFailure('cwd_not_found', cwd);
+    }
+    final timeoutRaw = p['timeout'];
+    final seconds = (timeoutRaw is num ? timeoutRaw.toInt() : 60).clamp(1, 600);
+    final env = <String, String>{..._statusEnv, ..._cliPathEnv(null)};
+    final shell = Platform.environment['SHELL'] ?? '/bin/sh';
+    final Process proc;
+    try {
+      proc = await Process.start(
+        shell,
+        <String>['-lc', command],
+        workingDirectory: cwd.isEmpty ? null : cwd,
+        environment: env,
+        includeParentEnvironment: true,
+      );
+    } on ProcessException catch (e) {
+      return <String, Object?>{
+        'code': 127,
+        'stdout': '',
+        'stderr': 'cockpit-server: spawn failed: ${e.message}',
+        'timedOut': false,
+      };
+    }
+    final out = StringBuffer();
+    final err = StringBuffer();
+    final drained = Future.wait<void>([
+      proc.stdout.transform(utf8.decoder).forEach(out.write),
+      proc.stderr.transform(utf8.decoder).forEach(err.write),
+    ]);
+    var timedOut = false;
+    final code = await proc.exitCode.timeout(
+      Duration(seconds: seconds),
+      onTimeout: () {
+        timedOut = true;
+        proc.kill(ProcessSignal.sigkill);
+        return 124;
+      },
+    );
+    await drained.timeout(
+      const Duration(seconds: 2),
+      onTimeout: () => const <void>[],
+    );
+    return <String, Object?>{
+      'code': code,
+      'stdout': out.toString(),
+      'stderr': err.toString(),
+      'timedOut': timedOut,
+    };
+  }
+
   /// Prefixa a pasta da CLI `cockpit` deste host no PATH da PTY, para que
   /// `cockpit …` resolva num terminal remoto como resolve num local. Sem a CLI
   /// instalada, devolve vazio (e o comando segue "not found", como hoje).
@@ -769,6 +841,7 @@ class _Connection {
           p['repo'] as String,
           (p['args'] as List).cast<String>(),
         )).toJson(),
+        'proc.run' => await _procRun(p),
         'db.query' => _db.query(
           await _conn(p),
           p['sql'] as String,
@@ -865,6 +938,10 @@ class _Connection {
           code: e.kind.name,
           detail: e.detail,
         ),
+      );
+    } on RemoteRpcFailure catch (e) {
+      _send(
+        RpcResponse(rid: req.rid, ok: false, code: e.code, detail: e.detail),
       );
     } on _RpcUnknown catch (e) {
       _send(

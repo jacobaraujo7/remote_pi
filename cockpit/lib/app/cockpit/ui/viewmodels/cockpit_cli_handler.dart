@@ -2,6 +2,8 @@ import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
 
+import 'package:cockpit_remote/cockpit_remote.dart' show RemoteRpcException;
+import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
@@ -736,6 +738,40 @@ class CockpitCliHandler {
         final cwd = (c.args['cwd'] ?? '').toString();
         final timeoutRaw = c.args['timeout'];
         final timeout = timeoutRaw is num ? timeoutRaw.toInt() : 60;
+        // Aba remota: o comando e o cwd são do HOST. Roda lá via `proc.run`
+        // (cockpit-server ≥ 2.1.13); antes executava aqui, com um cwd que
+        // não existe neste disco, e o `.panel` remoto recebia erro em tudo.
+        if (_isRemoteTab(c.tabId)) {
+          final session = _vm.session(c.tabId!);
+          final host = session == null
+              ? null
+              : _vm.remote.hostForWorkspace(session.projectId);
+          if (host == null) {
+            return const CockpitCommandResult.fail('remote host not found');
+          }
+          try {
+            final proc = await _vm.remoteHosts.procServiceFor(host);
+            final data = await proc.run(
+              command,
+              cwd: cwd,
+              timeoutSeconds: timeout <= 0 ? 60 : timeout,
+            );
+            return CockpitCommandResult.ok(data);
+          } on RemoteRpcException catch (e) {
+            return CockpitCommandResult.fail(switch (e.code) {
+              'cwd_not_found' => 'cwd not found on host: "$cwd"',
+              'unknown_method' =>
+                'the cockpit-server on this host is too old for exec '
+                    '(update it: curl -fsSL '
+                    'https://remote-pi.jacobmoura.work/cockpit-server.sh | bash)',
+              _ => 'exec failed on host: ${e.detail ?? e.code}',
+            });
+          } on RemoteHostException catch (e) {
+            return CockpitCommandResult.fail(
+              'host unreachable: ${e.kind.name}',
+            );
+          }
+        }
         if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
           return CockpitCommandResult.fail('cwd not found: "$cwd"');
         }

@@ -216,6 +216,12 @@ class RemoteHostConnector {
     return RemoteGitService(_connection!);
   }
 
+  /// Execução de processo no host (`exec` remoto). Conecta se preciso.
+  Future<RemoteProcService> procService() async {
+    await ensure();
+    return RemoteProcService(_connection!);
+  }
+
   /// Serviço de DB do host (mesma conexão). Conecta se preciso.
   Future<RemoteDbService> dbService() async {
     await ensure();
