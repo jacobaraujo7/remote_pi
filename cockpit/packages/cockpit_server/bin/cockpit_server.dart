@@ -83,7 +83,12 @@ Future<void> _run(List<String> args) async {
   final hookInstaller = HostHookInstaller(
     cliPathOverride: _argValue(args, '--cli'),
   );
-  unawaited(hookInstaller.ensureInstalled());
+  // `--no-hooks`: o smoke test do install.sh sobe o server DE DENTRO da pasta
+  // de staging; sem a flag ele registrava o hook com o caminho do stage, que
+  // morre no swap, e todo hook do Claude passava a falhar no host.
+  if (!args.contains('--no-hooks')) {
+    unawaited(hookInstaller.ensureInstalled());
+  }
   // Mesma CLI serve a dois papéis: o hook (acima) e os comandos digitados num
   // terminal remoto. Guardar o caminho deixa a pasta dela entrar no PATH das
   // PTYs; sem CLI, o shell remoto simplesmente segue sem o comando.
@@ -146,10 +151,10 @@ String? bundleVersion() {
   final bin = File(Platform.resolvedExecutable).parent;
   final file = File('${bin.parent.path}/VERSION');
   if (!file.existsSync()) return null;
-  final first = file.readAsLinesSync().map((l) => l.trim()).firstWhere(
-    (l) => l.isNotEmpty,
-    orElse: () => '',
-  );
+  final first = file
+      .readAsLinesSync()
+      .map((l) => l.trim())
+      .firstWhere((l) => l.isNotEmpty, orElse: () => '');
   return first.isEmpty ? null : first;
 }
 

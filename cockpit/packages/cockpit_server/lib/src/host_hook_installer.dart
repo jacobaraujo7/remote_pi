@@ -36,7 +36,10 @@ class HostHookInstaller {
     if (home == null || home.isEmpty) return;
     final cli = await resolveCli();
     if (cli == null) return;
-    await _writeClaudeConfig(home, '${_quote(cli)} hook');
+    await writeClaudeConfig(
+      File('$home/.claude/settings.json'),
+      '${_quote(cli)} hook',
+    );
   }
 
   /// Resolve a CLI `cockpit` que sabe o subcomando `hook`. Público porque o
@@ -84,8 +87,9 @@ class HostHookInstaller {
     }
   }
 
-  Future<void> _writeClaudeConfig(String home, String command) async {
-    final file = File('$home/.claude/settings.json');
+  /// Grava o grupo de hook em [file] (o `~/.claude/settings.json` do host),
+  /// trocando o nosso grupo anterior e limpando sobras. Público pra teste.
+  Future<void> writeClaudeConfig(File file, String command) async {
     Map<String, dynamic> root = <String, dynamic>{};
     if (file.existsSync()) {
       final decoded = jsonDecode(await file.readAsString());
@@ -115,7 +119,7 @@ class HostHookInstaller {
       final list = existing is List
           ? List<dynamic>.from(existing)
           : <dynamic>[];
-      list.removeWhere(_isOurs);
+      list.removeWhere((g) => _isOurs(g) || _isStaleStage(g));
       list.add(ourGroup());
       hooks[event] = list;
     }
@@ -132,6 +136,25 @@ class HostHookInstaller {
     final hooks = group['hooks'];
     if (hooks is! List) return false;
     return hooks.any((h) => h is Map && h[_marker] == _markerValue);
+  }
+
+  /// Grupo cujo comando aponta pra uma pasta de staging do instalador
+  /// (`.cockpit/server.stage.XXXX` do install.sh ou `.cockpit/server.staging-`
+  /// do cliente desktop). Versões antigas do server registravam o hook de
+  /// dentro do stage durante o smoke test; a pasta some no swap e o hook
+  /// quebra ("Stop hook error" no Claude). Removido mesmo sem o marcador.
+  bool _isStaleStage(dynamic group) {
+    if (group is! Map) return false;
+    final hooks = group['hooks'];
+    if (hooks is! List) return false;
+    return hooks.any((h) {
+      if (h is! Map) return false;
+      final cmd = h['command'];
+      return cmd is String &&
+          cmd.endsWith(' hook') &&
+          (cmd.contains('/.cockpit/server.stage.') ||
+              cmd.contains('/.cockpit/server.staging-'));
+    });
   }
 
   String _quote(String path) => path.contains(' ') ? '"$path"' : path;

@@ -137,7 +137,7 @@ chmod +x "$STAGE/bin/cockpit-server" "$STAGE/install.sh"
 
 SOCK="$(mktemp -u "${TMPDIR:-/tmp}/cockpit-server-smoke.XXXXXX.sock")"
 COCKPIT_PTY_DYLIB="$STAGE/lib/libcockpit_pty.so" \
-  "$STAGE/bin/cockpit-server" --socket "$SOCK" --exit-on-idle 1 >"$LOG" 2>&1 &
+  "$STAGE/bin/cockpit-server" --socket "$SOCK" --exit-on-idle 1 --no-hooks >"$LOG" 2>&1 &
 SMOKE_PID=$!
 for _ in $(seq 1 40); do [ -S "$SOCK" ] && break; sleep 0.25; done
 if [ ! -S "$SOCK" ]; then
