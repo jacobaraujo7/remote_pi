@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flterm/flterm.dart' as ghost;
 import 'package:libghostty/libghostty.dart' show FormatterFormat;
+import 'package:pasteboard/pasteboard.dart';
 
 typedef TerminalResizeCallback = void Function(int columns, int rows);
 
@@ -105,6 +106,43 @@ final class GhosttyTerminalController implements CockpitTerminalController {
     };
     controller.onResize = _handleControllerResize;
     controller.onTitleChanged = () => onTitleChanged?.call(controller.title);
+    // OSC 52 / iTerm2 Copy: programas no terminal copiando pro clipboard do
+    // usuário. Sem o callback o flterm IGNORA o pedido, e era por isso que
+    // copiar não funcionava em Linux (local ou host remoto): lá não existe
+    // `pbcopy`, tmux/neovim/yank e o próprio Claude Code usam OSC 52. No macOS
+    // local ninguém notava porque o `pbcopy` resolve. Só o destino `standard`
+    // (o clipboard de verdade); `selection`/`primary` são do X11. Leitura
+    // (`onClipboardRead`) fica desligada de propósito: conteúdo não confiável
+    // do terminal não lê o clipboard do usuário.
+    controller.onClipboardWrite = handleClipboardWrite;
+  }
+
+  /// Política do OSC 52 (write). Pública e pura pra testar: devolve o resultado
+  /// e entrega o texto a [writeClipboard] (default: `Pasteboard`, o mesmo do
+  /// ⌘C e do paste, pra aba ter um clipboard só).
+  static ghost.ClipboardWriteResult handleClipboardWrite(
+    ghost.ClipboardWrite write, {
+    void Function(String text) writeClipboard = _writePasteboard,
+  }) {
+    if (write.location != ghost.ClipboardLocation.standard) {
+      return ghost.ClipboardWriteResult.unsupported;
+    }
+    // Vazio = limpar o clipboard (contrato do flterm).
+    if (write.contents.isEmpty) {
+      writeClipboard('');
+      return ghost.ClipboardWriteResult.success;
+    }
+    final text = write.contents
+        .where((c) => c.mime.startsWith('text/'))
+        .map((c) => utf8.decode(c.data, allowMalformed: true))
+        .firstOrNull;
+    if (text == null) return ghost.ClipboardWriteResult.unsupported;
+    writeClipboard(text);
+    return ghost.ClipboardWriteResult.success;
+  }
+
+  static void _writePasteboard(String text) {
+    Pasteboard.writeText(text);
   }
 
   void _handleControllerResize(int columns, int rows) {
