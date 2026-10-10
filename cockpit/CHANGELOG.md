@@ -24,6 +24,24 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.14] - 2026-10-10
+
+**Copying from Linux terminals works, and remote `.panel` buttons reach the
+host.** No server update needed: cockpit-server 2.1.13 stays compatible.
+
+### Fixed
+
+- **Copy from programs in the terminal (OSC 52)**: tmux, neovim, `yank` and
+  Claude Code copy through the terminal when there is no `pbcopy`, which is
+  every Linux, local or remote. The Ghostty engine supported it but the app
+  never handled the request, so nothing reached the clipboard. Writes to the
+  system clipboard are now honored (text only, `standard` destination);
+  clipboard reads by terminal content stay disabled.
+- **Remote `.panel` `exec`**: the bridge launched the CLI with the panel's
+  folder as working directory, a host path that does not exist on this
+  machine, so the call failed before reaching the host. Remote panels now run
+  `exec` with `--cwd <host folder>` through the host as intended in 2.1.13.
+
 ## [2.1.13] - 2026-10-09
 
 **Remote workspaces: `cockpit exec` and `.panel` buttons now run on the
