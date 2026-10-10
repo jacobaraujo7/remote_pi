@@ -464,6 +464,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _workspaceMenu?.setWorkspace(
       hasWorkspace: vm.selectedProject != null,
       onNewTerminal: () => vm.newTabIn(''),
+      onGoToFile: _openFileFinder,
       onSplitRight: () => _splitFocused(SplitDir.vertical),
       onSplitDown: () => _splitFocused(SplitDir.horizontal),
       onToggleRail: vm.toggleRail,

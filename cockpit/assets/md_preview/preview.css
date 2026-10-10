@@ -47,10 +47,18 @@ body {
   background: transparent;
 }
 
+/* Largura toda do pane, ancorado à esquerda: a coluna de 860px centralizada
+   deixava faixa vazia dos lados e apertava as tabelas, que rolavam de lado
+   mesmo com espaço sobrando. */
 #content {
-  max-width: 860px;
-  margin: 0 auto;
-  padding: 16px 24px 40px;
+  padding: 24px 40px 48px;
+}
+/* Texto corrido justificado. Só parágrafo e item de lista: título, código,
+   célula de tabela e citação curta ficam à esquerda (justificar linha curta
+   só abre buraco entre as palavras). */
+p,
+li {
+  text-align: justify;
 }
 h1,
 h2 {
@@ -107,6 +115,18 @@ td {
 }
 th {
   background: var(--ckp-code-bg, #2a2a2a);
+}
+/* Path, URL e `code` longos são o que estoura a tabela e força a rolagem
+   lateral. `anywhere` (e não `break-word`) porque só ele reduz a largura
+   mínima, e é ela que decide se a tabela cabe no pane. Fica restrito a
+   código e link: na célula inteira o layout da tabela partia até palavra
+   curta ("St/at/us") pra espremer coluna. A rolagem segue de reserva pra
+   tabela que nem assim cabe. */
+td code,
+td a,
+th code,
+th a {
+  overflow-wrap: anywhere;
 }
 /* Frontmatter (cabeçalho de SKILL.md/agent.md): tabela chave/valor, o mesmo
    formato do MarkdownFrontmatterTable no Flutter. Chave alinhada à esquerda e

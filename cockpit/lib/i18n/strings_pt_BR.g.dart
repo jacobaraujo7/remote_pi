@@ -275,6 +275,7 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get file => 'Arquivo';
 	@override String get newTerminal => 'Novo Terminal';
 	@override String get openWorkspace => 'Abrir Workspace';
+	@override String get goToFile => 'Ir para Arquivo…';
 	@override String get save => 'Salvar';
 	@override String get discard => 'Descartar';
 	@override String get format => 'Formatar';
@@ -1932,6 +1933,7 @@ extension on TranslationsPtBr {
 			'core.menu.file' => 'Arquivo',
 			'core.menu.newTerminal' => 'Novo Terminal',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
+			'core.menu.goToFile' => 'Ir para Arquivo…',
 			'core.menu.save' => 'Salvar',
 			'core.menu.discard' => 'Descartar',
 			'core.menu.format' => 'Formatar',
@@ -2412,9 +2414,9 @@ extension on TranslationsPtBr {
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
 			'cockpit.sshPrompts.trust' => 'Confiar',
 			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Senha da chave SSH',
-			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloqueie ${keyPath} para conectar "${connectionName}".',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloqueie ${keyPath} para conectar "${connectionName}".',
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Mantida em memória até o Cockpit fechar. Para permitir que agentes usem esta conexão, ative "Salvar senha da chave" na conexão.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
@@ -2926,9 +2928,9 @@ extension on TranslationsPtBr {
 			'theme.error.notAnObject' => ({required Object field}) => 'Esperava um objeto em "${field}".',
 			'theme.error.missingField' => ({required Object field}) => 'Falta o campo obrigatório "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.',
-			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			_ => null,
 		} ?? switch (path) {
+			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',
 			_ => null,
 		};

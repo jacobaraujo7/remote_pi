@@ -44,6 +44,7 @@
       "file": "Archivo",
       "newTerminal": "Nueva Terminal",
       "openWorkspace": "Abrir Workspace",
+      "goToFile": "Ir a Archivo…",
       "save": "Guardar",
       "discard": "Descartar",
       "format": "Formatear",
