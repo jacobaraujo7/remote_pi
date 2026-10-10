@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/shell_command.dart';
@@ -33,9 +34,16 @@ Future<Map<String, Object?>> runPanelCommandLine(
       'json': null,
     };
   }
+  // Painel de workspace REMOTO: `cwd` é uma pasta do host, que não existe
+  // neste disco. Spawnar a CLI com esse workingDirectory falhava antes de
+  // qualquer coisa (o `proc.run` do host nunca era alcançado). Nesse caso a
+  // CLI roda sem cwd e o `exec` leva `--cwd <pasta do host>`, que o handler
+  // encaminha pro servidor remoto.
+  final localCwd = await Directory(cwd).exists() ? cwd : null;
+  final cliLine = localCwd == null ? injectExecCwd(trimmed, cwd) : trimmed;
   final result = await runShellCommand(
-    'cockpit $trimmed',
-    cwd: cwd,
+    'cockpit $cliLine',
+    cwd: localCwd,
     environment: environment,
     profile: profile,
   );
@@ -62,4 +70,16 @@ Future<Map<String, Object?>> runPanelCommandLine(
               ? result.stderr.trim()
               : 'exit code ${result.code}'),
   };
+}
+
+/// `exec …` sem `--cwd` ganha `--cwd <cwd>` logo após o verbo; outros verbos e
+/// um `exec` que já traz `--cwd` passam intactos. Aspas duplas protegem
+/// espaço no caminho (a linha vai pra um shell).
+String injectExecCwd(String line, String cwd) {
+  final m = RegExp(r'^exec(\s|$)').firstMatch(line);
+  if (m == null) return line;
+  if (RegExp(r'(^|\s)--cwd(=|\s)').hasMatch(line)) return line;
+  final rest = line.substring(4).trimLeft();
+  final quoted = cwd.contains(' ') ? '"$cwd"' : cwd;
+  return rest.isEmpty ? 'exec --cwd $quoted' : 'exec --cwd $quoted $rest';
 }
