@@ -65,4 +65,45 @@ void main() {
     expect(activator.control, !Platform.isMacOS);
     expect(activator.shift, isFalse);
   });
+
+  test('Go to File carries ⌘P/Ctrl+P and reaches the shell callback', () {
+    final t = AppLocale.en.buildSync();
+    final controller = SettingsController(_FakeSettingsStore());
+    final editor = EditorMenuBridge();
+    var opened = 0;
+    final workspace = WorkspaceMenuBridge()
+      ..setWorkspace(hasWorkspace: true, onGoToFile: () => opened++);
+
+    final menus = buildAppMenus(t, controller, editor, workspace);
+    final goToFile = _findAction(menus, t.core.menu.goToFile);
+
+    expect(goToFile, isNotNull, reason: 'Go to File item must exist');
+    expect(goToFile!.accelerator?.key, LogicalKeyboardKey.keyP);
+    expect(goToFile.accelerator?.shift, isFalse);
+
+    goToFile.onSelected!();
+    expect(opened, 1);
+
+    // The shell's CallbackShortcuts already binds the key outside macOS: the
+    // menu must not register it again, or the palette would open twice.
+    expect(goToFile.shortcutHandledExternally, isTrue);
+    expect(
+      menuShortcuts(
+        menus,
+      ).keys.any((a) => a.trigger == LogicalKeyboardKey.keyP),
+      isFalse,
+    );
+  });
+
+  test('Go to File is disabled without a workspace', () {
+    final t = AppLocale.en.buildSync();
+    final menus = buildAppMenus(
+      t,
+      SettingsController(_FakeSettingsStore()),
+      EditorMenuBridge(),
+      WorkspaceMenuBridge(),
+    );
+
+    expect(_findAction(menus, t.core.menu.goToFile)?.onSelected, isNull);
+  });
 }
