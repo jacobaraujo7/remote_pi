@@ -4722,6 +4722,95 @@ describe("same-folder same-name → #N suffix (no refusal)", () => {
   });
 });
 
+// ── Session replacement must not initiate first-run setup (issue #236) ───────
+describe("session replacement respects local configuration (#236)", () => {
+  let cwd: string;
+  let savedDirectConfig: string | undefined;
+
+  beforeEach(async () => {
+    savedDirectConfig = process.env["REMOTE_PI_DIRECT_CONFIG"];
+    delete process.env["REMOTE_PI_DIRECT_CONFIG"];
+    cwd = mkdtempSync(join(tmpdir(), "pi-ext-session-rearm-"));
+    _setDisposedForTest(false);
+    _resetAutoInitedForTest();
+    await captureHandler("remote-pi stop")("", makeMockCtx(cwd));
+    _resetCwdLockForTest();
+    relayInstances.length = 0;
+    _defaultConnectImpl = async () => undefined;
+  });
+
+  afterEach(async () => {
+    await captureHandler("remote-pi stop")("", makeMockCtx(cwd));
+    _setDisposedForTest(false);
+    _resetAutoInitedForTest();
+    _resetCwdLockForTest();
+    vi.restoreAllMocks();
+    if (savedDirectConfig === undefined) delete process.env["REMOTE_PI_DIRECT_CONFIG"];
+    else process.env["REMOTE_PI_DIRECT_CONFIG"] = savedDirectConfig;
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  test.each(["new", "resume", "fork", "reload"])(
+    "unconfigured cwd stays idle after repeated %s replacements",
+    async (reason) => {
+      const lockModule = await import("./session/cwd_lock.js");
+      const acquireLock = vi.spyOn(lockModule, "acquireCwdLock")
+        .mockResolvedValue({ ok: true, release: vi.fn() });
+      const ctx = {
+        ...makeMockCtx(cwd),
+        ui: { notify: vi.fn(), input: vi.fn().mockResolvedValue(undefined), select: vi.fn() },
+      };
+      const harness = captureEventHarness();
+      harness.handler("session_start")({ type: "session_start" }, ctx);
+      expect(acquireLock).not.toHaveBeenCalled();
+
+      for (let i = 0; i < 2; i += 1) {
+        await harness.handler("session_shutdown")({ type: "session_shutdown", reason });
+        harness.handler("session_start")({ type: "session_start" }, ctx);
+        // Let a mistakenly started root finish against the cancelled UI mock;
+        // the fake lock avoids real socket work and leaking a pending root.
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(acquireLock).not.toHaveBeenCalled();
+        expect(ctx.ui.input).not.toHaveBeenCalled();
+        expect(ctx.ui.select).not.toHaveBeenCalled();
+        expect(_hasMeshNodeForTest()).toBe(false);
+        expect(relayInstances).toHaveLength(0);
+        expect(indexModule._getDisposedForTest()).toBe(false);
+      }
+      expect(readdirSync(cwd)).toEqual([]);
+    },
+  );
+
+  test.each(["disk", "inline"])(
+    "%s-configured local-only mesh still rejoins after repeated replacements",
+    async (source) => {
+      const config = JSON.stringify({ agent_name: "configured", auto_start_relay: false });
+      if (source === "inline") process.env["REMOTE_PI_DIRECT_CONFIG"] = config;
+      else {
+        mkdirSync(join(cwd, ".pi", "remote-pi"), { recursive: true });
+        writeFileSync(join(cwd, ".pi", "remote-pi", "config.json"), config);
+      }
+      const ctx = {
+        ...makeMockCtx(cwd),
+        ui: { notify: vi.fn(), input: vi.fn(), select: vi.fn() },
+      };
+      // Local-only configs are connected explicitly, not by relay auto-init.
+      await captureHandler("remote-pi")("", ctx);
+      expect(_hasMeshNodeForTest()).toBe(true);
+      const harness = captureEventHarness();
+      for (let i = 0; i < 2; i += 1) {
+        await harness.handler("session_shutdown")({ type: "session_shutdown", reason: "resume" });
+        expect(_hasMeshNodeForTest()).toBe(false);
+        harness.handler("session_start")({ type: "session_start" }, ctx);
+        await vi.waitFor(() => expect(_hasMeshNodeForTest()).toBe(true));
+      }
+      expect(ctx.ui.input).not.toHaveBeenCalled();
+      expect(ctx.ui.select).not.toHaveBeenCalled();
+      expect(relayInstances).toHaveLength(0);
+    },
+  );
+});
+
 // ── print/-p mode never auto-starts the relay (issue #44) ────────────────────
 describe("session_start auto-init skips relay in print/-p mode (#44)", () => {
   const savedArgv = process.argv;
@@ -4773,9 +4862,9 @@ describe("session_start auto-init skips relay in print/-p mode (#44)", () => {
     const onSessionStart = captureEventHandler("session_start");
     _resetAutoInitedForTest();
     onSessionStart({ type: "session_start" }, makeMockCtx("/home/user/projects/rp-interactive"));
-    await new Promise<void>((r) => setTimeout(r, 20));
-
-    expect(_hasMeshNodeForTest()).toBe(true);
+    // Auto-init acquires a real IPC lock before joining; a fixed 20ms sleep
+    // races that asynchronous work on macOS and leaks it into the next test.
+    await vi.waitFor(() => expect(_hasMeshNodeForTest()).toBe(true));
   });
 });
 
