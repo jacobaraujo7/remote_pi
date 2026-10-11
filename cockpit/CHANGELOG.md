@@ -24,6 +24,31 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.15] - 2026-10-11
+
+**Four agent skills instead of one, installed on every machine (including
+remote hosts), and a design kit for `.panel` dashboards.** Pair with
+cockpit-server 2.1.15 so hosts get the skills too.
+
+### Added
+
+- **Skills split by purpose**: `cockpit-cli` (tabs, tasks, exec),
+  `cockpit-db` (SQL, Redis, Mongo, connections), `cockpit-telemetry` (the
+  error store) and `cockpit-design` (files the human reads: `.panel`, `.html`,
+  `.kanban`, `.notebook`, `.ckp`, `.http`, `.dbq`). Each is short, with
+  references read on demand, so the right one triggers for the right task.
+- **Skills everywhere**: `cockpit install-skill` installs all four into every
+  harness found on the machine (Claude Code, Codex, Pi), keeps a manifest per
+  skill (updates and removals are exact, your own files are left alone), and
+  the remote `cockpit-server` installs them on the host at boot.
+- **`cockpit panel new --template dashboard|list-detail|form <file>`**:
+  scaffolds a working `.panel` from a bundled template and opens it.
+- **`cockpit panel screenshot [<tab|file>] [--out x.png]`**: a PNG of an open
+  `.panel`, so an agent can look at what it built and iterate.
+- **`cockpit.css` page anatomy**: `.page`, `.toolbar`, `.kpis`, `.split`,
+  `.empty`, `.skeleton`, `.status-dot`, `.kv`, responsive in narrow panes.
+  The Gallery's "panel" template is now a real dashboard.
+
 ## [2.1.14] - 2026-10-10
 
 **Copying from Linux terminals works, and remote `.panel` buttons reach the
