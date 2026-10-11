@@ -93,7 +93,19 @@ Future<void> _run(List<String> args) async {
   // terminal remoto. Guardar o caminho deixa a pasta dela entrar no PATH das
   // PTYs; sem CLI, o shell remoto simplesmente segue sem o comando.
   unawaited(
-    hookInstaller.resolveCli().then((path) => RemoteServer.cliPath = path),
+    hookInstaller.resolveCli().then((path) async {
+      RemoteServer.cliPath = path;
+      // Skills do agente (plano 69): o host ganha `~/.claude/skills/cockpit-*`
+      // (e Codex/Pi, se existirem) como o desktop já fazia. Sem isto um agente
+      // numa VPS "não sabia que estava num Cockpit". `--no-skills` é do smoke
+      // test do install.sh, que sobe o server de dentro do staging.
+      if (path == null || args.contains('--no-skills')) return;
+      try {
+        await Process.run(path, const <String>['install-skill']);
+      } on ProcessException {
+        /* best-effort: sem skill o terminal segue funcionando */
+      }
+    }),
   );
 
   // Saída em inglês por decisão (CLI interna não se traduz).

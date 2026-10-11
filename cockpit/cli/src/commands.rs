@@ -1438,36 +1438,6 @@ fn nosql_request(wire: &str, cmd_args: Map<String, Value>, tab_id: Option<String
     db_fail("error", &raw)
 }
 
-// ---- install-skill ----------------------------------------------------------
-
-const SKILL_MARKDOWN: &str = include_str!("../text/skill.md");
-
-pub fn install_skill(args: &[String]) -> ! {
-    let parsed = Flags::parse(args);
-    let home = match crate::util::home_dir() {
-        Some(h) => h,
-        None => die("cockpit: HOME not resolved", 1),
-    };
-    let dir = format!("{home}/.claude/skills/cockpit-cli");
-    let path = format!("{dir}/SKILL.md");
-    if !parsed.force {
-        if let Ok(current) = std::fs::read_to_string(&path) {
-            if current == SKILL_MARKDOWN {
-                println!("cockpit: skill already installed ({path})");
-                std::process::exit(0);
-            }
-        }
-    }
-    if let Err(e) = std::fs::create_dir_all(&dir) {
-        die(&format!("cockpit: {e}"), 1);
-    }
-    if let Err(e) = std::fs::write(&path, SKILL_MARKDOWN) {
-        die(&format!("cockpit: {e}"), 1);
-    }
-    println!("cockpit: skill installed at {path}");
-    std::process::exit(0)
-}
-
 // ---- helpers de parsing -----------------------------------------------------
 
 /// Lê `--flag valor` ou `--flag=valor` na posição atual, avançando o índice
