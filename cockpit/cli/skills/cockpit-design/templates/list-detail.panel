@@ -1,0 +1,84 @@
+---
+title: List & detail
+reload: true
+cwd: .
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>List & detail</title>
+  <link rel="stylesheet" href="/__cockpit__/cockpit.css">
+  <script src="/__cockpit__/petite-vue.js"></script>
+  <script src="/__cockpit__/marked.js"></script>
+</head>
+<body>
+  <div class="page" v-scope="App()" @vue:mounted="init" v-cloak>
+    <div class="toolbar">
+      <h1>Files</h1>
+      <span class="status">{{ status }}</span>
+      <input v-model="filter" placeholder="filter…" style="width: 200px">
+      <button @click="load" :disabled="loading">Refresh</button>
+    </div>
+
+    <!-- list on the left, detail on the right; the hash route selects -->
+    <div class="split">
+      <div class="list card">
+        <div v-if="loading" class="col"><div class="skeleton"></div><div class="skeleton"></div></div>
+        <p v-else-if="!visible.length" class="empty">Nothing matches.</p>
+        <div v-else v-for="f in visible" :key="f" class="item" :class="{ active: f === selected }"
+             @click="cockpit.route.go('/f/' + encodeURIComponent(f))">
+          <span class="status-dot ok"></span><span class="truncate mono">{{ f }}</span>
+        </div>
+      </div>
+      <div class="card">
+        <p v-if="!selected" class="empty">Select a file on the left.</p>
+        <template v-else>
+          <div class="toolbar"><h2 class="mono">{{ selected }}</h2><button @click="cockpit('open ' + selected)">Open</button></div>
+          <div v-if="detailLoading" class="skeleton" style="min-height: 120px"></div>
+          <div v-else-if="isMarkdown" class="body" v-html="marked.parse(detail)"></div>
+          <pre v-else class="scroll" style="max-height: 60vh">{{ detail }}</pre>
+        </template>
+      </div>
+    </div>
+
+    <pre v-if="error" class="error">{{ error }}</pre>
+  </div>
+
+  <script>
+    function App() {
+      return {
+        loading: false, detailLoading: false, status: '', error: '', filter: '',
+        files: [], selected: '', detail: '',
+        get visible() { const q = this.filter.toLowerCase(); return this.files.filter(f => f.toLowerCase().includes(q)); },
+        get isMarkdown() { return /\.(md|markdown)$/i.test(this.selected); },
+
+        async init() {
+          cockpit.on('route', () => this.route());
+          await this.load();
+          this.route();
+        },
+        async load() {
+          this.loading = true; this.status = 'loading…'; this.error = '';
+          const r = await cockpit('exec git ls-files');
+          this.loading = false;
+          if (!r.ok) { this.error = r.error; this.status = ''; return; }
+          this.files = r.stdout.split('\n').filter(Boolean);
+          this.status = this.files.length + ' files';
+        },
+        async route() {
+          const m = cockpit.route.match('/f/:name');
+          if (!m) { this.selected = ''; return; }
+          this.selected = decodeURIComponent(m.name);
+          this.detailLoading = true;
+          const r = await cockpit('exec head -c 20000 -- "' + this.selected.replace(/"/g, '\\"') + '"');
+          this.detailLoading = false;
+          this.detail = r.ok ? r.stdout : (r.error || '');
+          if (!r.ok) this.error = r.error;
+        },
+      };
+    }
+    PetiteVue.createApp().mount();
+  </script>
+</body>
+</html>

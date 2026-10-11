@@ -1,0 +1,62 @@
+---
+title: Run
+reload: true
+cwd: .
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Run</title>
+  <link rel="stylesheet" href="/__cockpit__/cockpit.css">
+  <script src="/__cockpit__/petite-vue.js"></script>
+</head>
+<body>
+  <div class="page" v-scope="App()" v-cloak>
+    <div class="toolbar">
+      <h1>Run a command</h1>
+      <span class="status" v-if="running"><span class="status-dot running"></span> running…</span>
+      <span class="status" v-else-if="last">exit {{ last.code }} · {{ last.ms }} ms</span>
+    </div>
+
+    <!-- form: inputs left, log right -->
+    <div class="split">
+      <form class="card col" @submit.prevent="run">
+        <label>Command<input v-model="command" placeholder="npm test" required></label>
+        <label>Working directory<input v-model="cwd" placeholder="."></label>
+        <label>Timeout (s)<input v-model.number="timeout" type="number" min="1" max="600"></label>
+        <div class="row">
+          <button class="primary" type="submit" :disabled="running || !command">Run</button>
+          <button type="button" @click="log = ''; last = null">Clear</button>
+        </div>
+      </form>
+      <div class="card">
+        <h3>Output</h3>
+        <p v-if="!log && !running" class="empty">Run something to see its output here.</p>
+        <pre v-else class="scroll" style="max-height: 60vh">{{ log }}</pre>
+      </div>
+    </div>
+
+    <pre v-if="error" class="error">{{ error }}</pre>
+  </div>
+
+  <script>
+    function App() {
+      return {
+        command: '', cwd: '.', timeout: 60, running: false, log: '', last: null, error: '',
+        async run() {
+          this.running = true; this.error = '';
+          const t0 = performance.now();
+          const line = 'exec --cwd ' + JSON.stringify(this.cwd || '.') + ' --timeout ' + (this.timeout || 60) + ' -- ' + this.command;
+          const r = await cockpit(line);
+          this.running = false;
+          this.last = { code: r.code, ms: Math.round(performance.now() - t0) };
+          this.log = (r.stdout || '') + (r.stderr ? '\n' + r.stderr : '');
+          if (!r.ok && !r.stdout && !r.stderr) this.error = r.error;
+        },
+      };
+    }
+    PetiteVue.createApp().mount();
+  </script>
+</body>
+</html>

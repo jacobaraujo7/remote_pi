@@ -34,6 +34,7 @@ import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
@@ -783,6 +784,68 @@ class CockpitCliHandler {
           profile: _vm.defaultTerminalProfile,
         );
         return CockpitCommandResult.ok(result.toJson());
+
+      // `cockpit panel screenshot [<label|tab-id|file.panel>] [--out x.png]`
+      // (plano 69): PNG da webview de um .panel aberto, pro agente ver o que
+      // escreveu. Sem --out grava em arquivo temporário e devolve o caminho.
+      case 'panel-screenshot':
+        final target = (c.args['target'] ?? '').toString();
+        final PaneItem? s;
+        if (target.isNotEmpty) {
+          if (target.endsWith('.panel')) {
+            s = _vm.allSessions
+                .whereType<FileViewerSession>()
+                .cast<PaneItem?>()
+                .firstWhere(
+                  (x) => (x as FileViewerSession).path == target,
+                  orElse: () => null,
+                );
+            if (s == null) {
+              return CockpitCommandResult.fail('no open tab for "$target"');
+            }
+          } else {
+            final resolved = _resolvePaneTarget(target);
+            if (resolved case Failure(:final error)) {
+              return CockpitCommandResult.fail(error);
+            }
+            s = (resolved as Success<PaneItem, String>).value;
+          }
+        } else {
+          final id = c.tabId;
+          s = (id == null || id.isEmpty) ? null : _vm.session(id);
+          if (s == null) {
+            return const CockpitCommandResult.fail(
+              'missing target (pass <label|tab-id|file.panel> or run from the panel)',
+            );
+          }
+        }
+        if (s is! FileViewerSession ||
+            !s.path.toLowerCase().endsWith('.panel')) {
+          return CockpitCommandResult.fail('tab "${s.id}" is not a .panel');
+        }
+        final web = PanelWebViews.of(s.id);
+        if (web == null) {
+          return CockpitCommandResult.fail(
+            'panel "${s.id}" has no web view yet (not visible or still loading)',
+          );
+        }
+        final png = await web.takeScreenshot();
+        if (png == null || png.isEmpty) {
+          return const CockpitCommandResult.fail('screenshot failed');
+        }
+        final out = (c.args['out'] ?? '').toString();
+        final file = out.isNotEmpty
+            ? File(out)
+            : File(
+                '${Directory.systemTemp.path}/cockpit-panel-${s.id}-'
+                '${DateTime.now().millisecondsSinceEpoch}.png',
+              );
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(png, flush: true);
+        return CockpitCommandResult.ok({
+          'path': file.path,
+          'bytes': png.length,
+        });
 
       // `cockpit list-tasks` — tasks do workspace do pane emissor (tabId,
       // default da CLI = a própria tab; fallback: workspace selecionado).

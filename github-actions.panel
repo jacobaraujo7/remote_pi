@@ -27,13 +27,13 @@ cwd: .
   </style>
 </head>
 <body>
-  <div v-scope="App()" @vue:mounted="init" v-cloak>
+  <div class="page" v-scope="App()" @vue:mounted="init" v-cloak>
 
     <!-- ===== Lista: últimos 5 runs ===== -->
     <div v-if="!run">
-      <div class="row between mb-16">
-        <h1 class="grow">GitHub Actions</h1>
-        <span class="muted">{{ status }}</span>
+      <div class="toolbar">
+        <h1>GitHub Actions</h1>
+        <span class="status">{{ status }}</span>
         <span class="badge warn" v-if="timer">live · {{ countdown }}s</span>
         <button @click="loadList" :disabled="loading">Refresh</button>
       </div>

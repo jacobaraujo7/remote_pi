@@ -32,6 +32,7 @@ PATH). `ck` is the same binary under a shorter name.
 | `list-tabs` · `list-workspaces` | what is open (ids change every boot) |
 | `new-workspace <path> [--host]` · `close-workspace` · `rename-workspace` | the rail |
 | `orchestrate <file.ckp> [--append]` | apply a pane layout (format: cockpit-design, `references/ckp.md`) |
+| `panel new --template <t> <file>` · `panel screenshot [<target>]` | scaffold a `.panel`, see it as a PNG (cockpit-design) |
 
 Flags, output shapes and edge cases of every verb: **read `references/verbs.md`**
 before using a verb for the first time.

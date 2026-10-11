@@ -1727,6 +1727,155 @@ pub fn exec(args: &[String]) -> ! {
     std::process::exit(code)
 }
 
+// ---- panel ------------------------------------------------------------------
+
+const PANEL_HELP: &str = "cockpit panel <new|screenshot> …
+  cockpit panel new --template <dashboard|list-detail|form> <file.panel>
+      Writes the embedded template to <file.panel> (refuses to overwrite) and
+      opens it in the app. Templates ship with the cockpit-design skill.
+  cockpit panel screenshot [<label|tab-id>] [--out <file.png>]
+      PNG of an open .panel tab's web view (default: the tab you are in, or
+      the one holding the file you passed). Without --out, writes a temp file
+      and prints its path, so you can look at your own panel and iterate.";
+
+pub fn panel(args: &[String]) -> ! {
+    let Some(sub) = args.first() else {
+        die(
+            &format!("cockpit panel: missing subcommand\n{PANEL_HELP}"),
+            2,
+        )
+    };
+    match sub.as_str() {
+        "new" => panel_new(&args[1..]),
+        "screenshot" => panel_screenshot(&args[1..]),
+        "-h" | "--help" => {
+            println!("{PANEL_HELP}");
+            std::process::exit(0)
+        }
+        other => die(
+            &format!("cockpit panel: unknown subcommand {other}\n{PANEL_HELP}"),
+            2,
+        ),
+    }
+}
+
+fn panel_new(args: &[String]) -> ! {
+    let mut template: Option<String> = None;
+    let mut file: Option<String> = None;
+    let mut i = 0usize;
+    while i < args.len() {
+        if let Some((_, value)) = take(args, &mut i, &["--template"]) {
+            template = value;
+        } else if args[i] == "-h" || args[i] == "--help" {
+            println!("{PANEL_HELP}");
+            std::process::exit(0)
+        } else if args[i].starts_with("--") {
+            die(
+                &format!("cockpit panel new: unknown flag {}\n{PANEL_HELP}", args[i]),
+                2,
+            )
+        } else {
+            file = Some(args[i].clone());
+        }
+        i += 1;
+    }
+    let template = template.unwrap_or_else(|| "dashboard".to_string());
+    let file = file.unwrap_or_else(|| {
+        die(
+            &format!("cockpit panel new: missing <file.panel>\n{PANEL_HELP}"),
+            2,
+        )
+    });
+    let key = format!("cockpit-design/templates/{template}.panel");
+    let Some((_, bytes)) = crate::skills::SKILLS.iter().find(|(rel, _)| *rel == key) else {
+        let available: Vec<&str> = crate::skills::SKILLS
+            .iter()
+            .filter_map(|(rel, _)| rel.strip_prefix("cockpit-design/templates/"))
+            .filter_map(|n| n.strip_suffix(".panel"))
+            .collect();
+        die(
+            &format!(
+                "cockpit panel new: unknown template {template} (available: {})",
+                available.join(", ")
+            ),
+            2,
+        )
+    };
+    let path = resolve_path(&file);
+    if std::path::Path::new(&path).exists() {
+        die(
+            &format!("cockpit panel new: {path} already exists (refusing to overwrite)"),
+            1,
+        );
+    }
+    if let Some(parent) = std::path::Path::new(&path).parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    if let Err(e) = std::fs::write(&path, bytes) {
+        die(&format!("cockpit panel new: {e}"), 1);
+    }
+    let mut req = json!({"cmd": "open", "args": {"path": path}});
+    with_tab_id(&mut req, self_tab_id());
+    let resp = transport::request(req, DEFAULT_TIMEOUT);
+    if !is_ok(&resp) {
+        eprintln!("cockpit panel new: written, but could not open it in the app");
+        fail_with(&resp);
+    }
+    println!("{path}");
+    std::process::exit(0)
+}
+
+fn panel_screenshot(args: &[String]) -> ! {
+    let mut out: Option<String> = None;
+    let mut target: Option<String> = None;
+    let mut i = 0usize;
+    while i < args.len() {
+        if let Some((_, value)) = take(args, &mut i, &["--out"]) {
+            out = value;
+        } else if args[i] == "-h" || args[i] == "--help" {
+            println!("{PANEL_HELP}");
+            std::process::exit(0)
+        } else if args[i].starts_with("--") {
+            die(
+                &format!(
+                    "cockpit panel screenshot: unknown flag {}\n{PANEL_HELP}",
+                    args[i]
+                ),
+                2,
+            )
+        } else {
+            target = Some(args[i].clone());
+        }
+        i += 1;
+    }
+    let mut cmd_args = Map::new();
+    if let Some(t) = target {
+        // Um caminho de arquivo vira o alvo pelo path (absoluto); senão label/id.
+        let v = if t.ends_with(".panel") {
+            resolve_path(&t)
+        } else {
+            t
+        };
+        cmd_args.insert("target".into(), json!(v));
+    }
+    if let Some(o) = out {
+        cmd_args.insert("out".into(), json!(resolve_path(&o)));
+    }
+    let mut req = json!({"cmd": "panel-screenshot", "args": Value::Object(cmd_args)});
+    with_tab_id(&mut req, self_tab_id());
+    let resp = transport::request(req, Duration::from_secs(20));
+    if !is_ok(&resp) {
+        fail_with(&resp);
+    }
+    let path = resp
+        .get("data")
+        .and_then(|d| d.get("path"))
+        .and_then(|p| p.as_str())
+        .unwrap_or("");
+    println!("{path}");
+    std::process::exit(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -142,3 +142,12 @@ shows flags, output shape and the mistakes to avoid.
 
 The `.http` file format itself (requests, variables) is documented in the
 **cockpit-design** skill, `references/http.md`.
+
+- `cockpit panel new --template <dashboard|list-detail|form> <file.panel>` —
+  writes an embedded template (refuses to overwrite) and opens it. Templates
+  and the design rules are in the **cockpit-design** skill.
+- `cockpit panel screenshot [<label|tab-id|file.panel>] [--out <file.png>]` —
+  PNG of an open `.panel` tab (default: your own tab, or the tab holding the
+  file). Without `--out` writes a temp file and prints the path; read that
+  image to see what the human sees. Fails if the panel is not visible yet.
+
