@@ -114,6 +114,11 @@ PetiteVue.createApp().mount();
 </script>
 ```
 
+petite-vue pitfalls: do **not** use `<template v-if>` / `<template v-else>`
+as direct children of the `v-scope` root (it throws `insertBefore` on null
+at mount); wrap each view in a `<div v-if … class="col gap-16">`. Register
+`cockpit.on('theme', …)` once, inside your `init`/`load`, not at top level.
+
 Rules of thumb: `cockpit.css` first, petite-vue for state, one `.panel` per
 tool, hash routes for sub-pages, `cockpit.theme['--ckp-*']` for chart colors
 (re-draw on `cockpit.on('theme')`). Reach for `tailwind.js` only when the

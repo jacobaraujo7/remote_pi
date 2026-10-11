@@ -11,18 +11,12 @@ cwd: .
   <link rel="stylesheet" href="/__cockpit__/cockpit.css">
   <script src="/__cockpit__/petite-vue.js"></script>
   <style>
-    .run { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center; cursor: pointer; }
+    /* Só o que o cockpit.css não cobre: a linha de run como grid clicável e
+       a lista de steps recuada sob o job. Cores, dots e estados vêm da base. */
+    .run { display: grid; grid-template-columns: 16px 1fr auto; gap: 12px; align-items: center; cursor: pointer; }
     .run:hover, .job:hover { border-color: var(--ckp-accent); }
     .job { cursor: pointer; }
-    .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; background: var(--ckp-text-muted); }
-    .dot.success { background: var(--ckp-ok); }
-    .dot.failure, .dot.cancelled, .dot.timed_out { background: var(--ckp-error); }
-    .dot.in_progress { background: var(--ckp-warn); animation: pulse 1s infinite alternate; }
-    .dot.queued, .dot.waiting, .dot.pending { background: var(--ckp-warn); opacity: .5; }
-    .dot.skipped { background: var(--ckp-border-strong); }
-    @keyframes pulse { from { opacity: .35 } to { opacity: 1 } }
-    .steps { margin: 8px 0 0 22px; }
-    .step { display: flex; gap: 8px; align-items: center; padding: 2px 0; }
+    .steps { margin: 8px 0 0 16px; display: flex; flex-direction: column; gap: 2px; }
     .tick { font-size: 11px; color: var(--ckp-text-muted); font-variant-numeric: tabular-nums; }
   </style>
 </head>
@@ -30,7 +24,7 @@ cwd: .
   <div class="page" v-scope="App()" @vue:mounted="init" v-cloak>
 
     <!-- ===== Lista: últimos 5 runs ===== -->
-    <div v-if="!run">
+    <div v-if="!run" class="col gap-16">
       <div class="toolbar">
         <h1>GitHub Actions</h1>
         <span class="status">{{ status }}</span>
@@ -38,9 +32,15 @@ cwd: .
         <button @click="loadList" :disabled="loading">Refresh</button>
       </div>
 
-      <div class="col">
+      <div class="col" v-if="loading && !runs.length">
+        <div class="card"><div class="skeleton"></div></div>
+        <div class="card"><div class="skeleton"></div></div>
+        <div class="card"><div class="skeleton"></div></div>
+      </div>
+      <p v-else-if="!runs.length && !error" class="empty">No workflow runs in this repository.</p>
+      <div v-else class="col">
         <div class="card run" v-for="r in runs" :key="r.databaseId" @click="cockpit.route.go('/run/' + r.databaseId)">
-          <span class="dot" :class="r.status === 'completed' ? r.conclusion : r.status"></span>
+          <span class="status-dot" :class="dot(r)"></span>
           <div class="truncate">
             <div class="truncate"><b>{{ r.displayTitle }}</b></div>
             <div class="muted truncate">
@@ -50,38 +50,39 @@ cwd: .
           <span class="badge" :class="badge(r)">{{ label(r) }}</span>
         </div>
       </div>
-      <p v-if="!loading && !runs.length && !error" class="muted">No workflow runs.</p>
     </div>
 
     <!-- ===== Detalhe: jobs de um run ===== -->
-    <div v-else>
-      <div class="row between mb-16">
+    <div v-else class="col gap-16">
+      <div class="toolbar">
         <button @click="cockpit.route.go('/')">← Back</button>
-        <span class="muted grow truncate">{{ run.workflowName }} · <code>{{ run.headBranch }}</code> · #{{ run.number }}</span>
+        <h1>{{ run.displayTitle }}</h1>
+        <span class="status">{{ run.workflowName }} · <code>{{ run.headBranch }}</code> · #{{ run.number }}</span>
         <span class="badge warn" v-if="timer">live · {{ countdown }}s</span>
         <span class="badge" :class="badge(run)">{{ label(run) }}</span>
         <a class="btn" :href="run.url">Open on GitHub</a>
       </div>
-      <h1>{{ run.displayTitle }}</h1>
-      <div class="row gap-16 muted mb-16">
-        <span>{{ run.jobs.length }} jobs</span>
-        <span class="ok">{{ count('success') }} ok</span>
-        <span class="error" v-if="count('failure')">{{ count('failure') }} failed</span>
-        <span class="warn" v-if="active(run.jobs)">{{ active(run.jobs) }} running</span>
-        <span>{{ duration(run.createdAt, run.updatedAt, run.status) }}</span>
+
+      <div class="kpis">
+        <div class="card stat"><span class="value">{{ run.jobs.length }}</span><span class="label">jobs</span></div>
+        <div class="card stat"><span class="value ok">{{ count('success') }}</span><span class="label">succeeded</span></div>
+        <div class="card stat"><span class="value" :class="{ error: count('failure') }">{{ count('failure') }}</span><span class="label">failed</span></div>
+        <div class="card stat"><span class="value" :class="{ warn: active(run.jobs) }">{{ active(run.jobs) }}</span><span class="label">running</span></div>
+        <div class="card stat"><span class="value">{{ duration(run.createdAt, run.updatedAt, run.status) }}</span><span class="label">elapsed</span></div>
       </div>
 
-      <div class="col">
+      <p v-if="!run.jobs.length" class="empty">No jobs reported yet.</p>
+      <div v-else class="col">
         <div class="card job" v-for="j in run.jobs" :key="j.databaseId" @click="toggle(j.databaseId)">
           <div class="row">
-            <span class="dot" :class="j.status === 'completed' ? j.conclusion : j.status"></span>
+            <span class="status-dot" :class="dot(j)"></span>
             <b class="grow truncate">{{ j.name }}</b>
             <span class="tick">{{ duration(j.startedAt, j.completedAt, j.status) }}</span>
             <span class="badge" :class="badge(j)">{{ label(j) }}</span>
           </div>
           <div class="steps" v-if="open[j.databaseId] || j.status === 'in_progress'">
-            <div class="step" v-for="s in j.steps" :key="s.number">
-              <span class="dot" :class="s.status === 'completed' ? s.conclusion : s.status"></span>
+            <div class="row" v-for="s in j.steps" :key="s.number">
+              <span class="status-dot" :class="dot(s)"></span>
               <span class="grow truncate" :class="{ muted: s.conclusion === 'skipped' }">{{ s.name }}</span>
               <span class="tick">{{ duration(s.startedAt, s.completedAt, s.status) }}</span>
             </div>
@@ -90,7 +91,7 @@ cwd: .
       </div>
     </div>
 
-    <pre v-if="error" class="error mt-16">{{ error }}</pre>
+    <pre v-if="error" class="error">{{ error }}</pre>
   </div>
 
   <script>
@@ -114,7 +115,7 @@ cwd: .
         },
 
         async loadList() {
-          this.loading = true; this.status = 'loading...'; this.error = '';
+          this.loading = true; this.status = 'loading…'; this.error = '';
           const r = await cockpit('exec gh run list --limit 5 --json ' + LIST_FIELDS);
           this.loading = false;
           if (!r.ok) { this.status = ''; this.error = r.error; this.stop(); return; }
@@ -148,6 +149,11 @@ cwd: .
         count(c) { return this.run.jobs.filter(j => j.conclusion === c).length; },
         active(jobs) { return jobs.filter(j => j.status !== 'completed').length; },
 
+        // Mapeia status/conclusion do GitHub pros estados do .status-dot da base.
+        dot(x) {
+          if (x.status !== 'completed') return x.status === 'in_progress' ? 'running' : 'warn';
+          return { success: 'ok', failure: 'error', cancelled: 'error', timed_out: 'error', skipped: '' }[x.conclusion] || '';
+        },
         label(x) { return x.status === 'completed' ? (x.conclusion || 'done') : x.status.replace('_', ' '); },
         badge(x) {
           if (x.status !== 'completed') return 'warn';
