@@ -252,6 +252,14 @@ let _disposed = false;
 // true) — interactive AND daemon — instead of only REMOTE_PI_DAEMON=1.
 let _autoInited = false;
 
+function _isPiSubagentChildProcess(): boolean {
+  // PI_SUBAGENT_PARENT_SESSION is also present in parent sessions.
+  return (
+    process.env["PI_SUBAGENT_CHILD"] === "1" ||
+    Boolean(process.env["PI_SUBAGENT_RUN_ID"] || process.env["PI_SUBAGENT_CHILD_AGENT"])
+  );
+}
+
 // Cached state of global pairings (`peers.json`). Pairing is per-machine, so a
 // device paired in any Pi process is paired everywhere. Refreshed on boot,
 // after addPeer (handle_pair_request), and after removePeer (revoke).
@@ -2395,6 +2403,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       const cwd = isDaemon ? process.cwd() : "cwd" in ctx ? ctx.cwd : undefined;
       if (
         !isPrintMode &&
+        !_isPiSubagentChildProcess() &&
         cwd &&
         localConfigExists(cwd) &&
         effectiveAutoStartRelay(loadLocalConfig(cwd))
