@@ -110,8 +110,8 @@ cockpit/lib/app/cockpit/ui/viewmodels/cockpit_cli_handler.dart  # panel screensh
 
 ## Definition of Done
 
-- [ ] Onda 1: árvore embutida, manifesto, `--agent`, server instalando, skill atual intacta
-- [ ] Onda 2: quatro skills, nenhuma acima de 150 linhas, teste de gatilho registrado
+- [x] Onda 1: árvore embutida, manifesto, `--agent`, server instalando, skill atual intacta (2026-10-10, `522f7aa9`)
+- [ ] Onda 2: quatro skills, nenhuma acima de 150 linhas (feito 2026-10-10), teste de gatilho registrado (pendente)
 - [ ] Onda 3: `cockpit.css` de estrutura, regras, três templates, Galeria, `panel new`, `panel screenshot`
 - [ ] Os dois painéis da raiz reescritos com as classes novas e sem CSS próprio
 - [ ] Release do app e do server na mesma versão (o server precisa do `--no-skills` e da chamada ao `install-skill`)
