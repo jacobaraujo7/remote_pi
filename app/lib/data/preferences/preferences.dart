@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -13,6 +15,10 @@ import 'package:app/ui/core/themes/app_font_scale.dart';
 class Preferences extends ChangeNotifier {
   final FlutterSecureStorage _store;
   bool _hideToolCalls = false;
+  // Room-level variant of the tool-calls toggle — keyed by 'epk:roomId'.
+  // The global `_hideToolCalls` field is kept for compatibility (old
+  // persisted value); the chat UI reads [hideToolCallsFor] instead.
+  final Map<String, bool> _hideToolCallsRooms = <String, bool>{};
   String? _selectedPeerEpk;
   String? _relayUrl;
   bool _onboardingCompleted = false;
@@ -23,6 +29,7 @@ class Preferences extends ChangeNotifier {
       : _store = store ?? const FlutterSecureStorage();
 
   static const _kHideToolCallsKey = 'prefs.hide_tool_calls';
+  static const _kHideToolCallsRoomsKey = 'prefs.hide_tool_calls_rooms';
   static const _kSelectedPeerEpkKey = 'prefs.selected_peer_epk';
   static const _kRelayUrlKey = 'prefs.relay_url';
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
@@ -31,6 +38,24 @@ class Preferences extends ChangeNotifier {
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
+
+  /// Room-level tool-calls toggle: `true` when the (peer, room) pair has
+  /// an explicit `true` record. No record → `false` (default). Stored as
+  /// one JSON blob `{'<epk>:<roomId>': bool}` so the map grows without
+  /// needing a new storage key per room.
+  bool hideToolCallsFor(String epk, String roomId) =>
+      _hideToolCallsRooms['$epk:$roomId'] ?? false;
+
+  Future<void> setHideToolCallsFor(String epk, String roomId, bool value) async {
+    final key = '$epk:$roomId';
+    if ((_hideToolCallsRooms[key] ?? false) == value) return;
+    _hideToolCallsRooms[key] = value;
+    await _store.write(key: _kHideToolCallsRoomsKey, value: _encodeRooms());
+    notifyListeners();
+  }
+
+  String _encodeRooms() =>
+      jsonEncode(Map<String, dynamic>.from(_hideToolCallsRooms));
 
   /// Epoch of the peer the user last picked from Home — the one
   /// `/chat` will connect to when it mounts. Null = no peer selected yet
@@ -129,6 +154,17 @@ class Preferences extends ChangeNotifier {
       changed = true;
     }
 
+    final roomsRaw = await _store.read(key: _kHideToolCallsRoomsKey);
+    final rooms = _decodeRooms(roomsRaw);
+    final sameRooms = rooms.length == _hideToolCallsRooms.length &&
+        rooms.entries.every((e) => _hideToolCallsRooms[e.key] == e.value);
+    if (!sameRooms) {
+      _hideToolCallsRooms
+        ..clear()
+        ..addAll(rooms);
+      changed = true;
+    }
+
     if (changed) notifyListeners();
   }
 
@@ -208,6 +244,26 @@ class Preferences extends ChangeNotifier {
     _fontScale = value;
     await _store.write(key: _kFontScaleKey, value: value.name);
     notifyListeners();
+  }
+
+  /// Parse the room-toggle JSON blob into a map; any malformation
+  /// yields an empty map (the toggle silently resets to defaults).
+  static Map<String, bool> _decodeRooms(String? raw) {
+    if (raw == null || raw.isEmpty) return const {};
+    try {
+      final j = jsonDecode(raw);
+      if (j is! Map) return const {};
+      return j
+          .map(
+            (k, v) => MapEntry(
+              k.toString(),
+              v == true || v == 'true' || v == 1,
+            ),
+          )
+          .cast<String, bool>();
+    } on FormatException {
+      return const {};
+    }
   }
 
   static ThemeMode _themeModeFromString(String? raw) {

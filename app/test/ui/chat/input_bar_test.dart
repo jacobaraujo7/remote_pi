@@ -108,7 +108,10 @@ void main() {
     expectCollapsed(tester);
   });
 
-  testWidgets('quick actions button hides (collapses) while streaming', (
+  // Ungated from `streaming`: a working turn does not block anything in the
+  // sheet, and hiding the entry point mid-turn stranded the local "Hide tool
+  // calls" switch precisely when it was most wanted.
+  testWidgets('quick actions button stays visible while streaming', (
     tester,
   ) async {
     await pumpBar(
@@ -118,7 +121,23 @@ void main() {
       onOpenQuickActions: () {},
     );
     await tester.pumpAndSettle();
-    expectCollapsed(tester);
+    expectExpanded(tester);
+  });
+
+  testWidgets('quick actions button is tappable while streaming', (
+    tester,
+  ) async {
+    var opened = 0;
+    await pumpBar(
+      tester,
+      disabled: false,
+      streaming: true,
+      onOpenQuickActions: () => opened++,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(quickActionsKey);
+    await tester.pumpAndSettle();
+    expect(opened, 1);
   });
 
   // Plan/43 — `streaming` (the whole working turn, fed by vm.isWorking) keeps

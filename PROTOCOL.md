@@ -228,6 +228,8 @@ Vocabulário curado de ações tipadas que o app mobile invoca sobre a sessão d
 | Set model | `model_set {provider, model_id}` | `ModelRegistry.find(...)` + `pi.setModel(model)` |
 | Set thinking | `thinking_set {level}` | `pi.setThinkingLevel(level)` |
 | List models | `list_models` | `ModelRegistry.getAvailable()` |
+| Create room | `room_create {path, create_if_missing?}` | supervisor `register` + `start` |
+| Delete room | `room_delete {path}` | supervisor `unregister` (mata o processo) |
 
 ### Wire — exemplos
 
@@ -255,6 +257,27 @@ Vocabulário curado de ações tipadas que o app mobile invoca sobre a sessão d
   ],
   "current": { "id": "claude-opus-4-7", "name": "Claude Opus 4.7", "...": "..." }
 }
+```
+
+### Room management (`room_create` / `room_delete`)
+
+Diferente das demais, essas duas **não dependem de sessão**: uma sala nova ainda não tem sessão pra bindar, e apagar a última remove a sessão que existia. Por isso o pi-extension responde antes do guard de binding (`_pi`/ctx nulos) — o efeito é no supervisor, não na sessão.
+
+- `room_create {path, create_if_missing?}`: normaliza `path` (trim, `~`/`~/x` → `$HOME`, relativo → cwd do processo), depois `register` + `start` do daemon daquele cwd. O daemon anuncia a sala ao subir, então a lista de salas do app se atualiza sozinha.
+- `room_delete {path}`: `unregister` do daemon derivado do mesmo cwd. O supervisor mata o processo filho e só então remove a entrada do registro. Um id que nunca existiu também recebe `action_ok` — o estado final (sala ausente) é o pretendido.
+
+Diretório inexistente com `create_if_missing` ausente/false responde `action_error` com o erro **exatamente** `directory_missing`. O app chaveia o diálogo de "criar assim mesmo?" nessa string, então ela não leva texto adicional.
+
+```json
+// Request
+{ "type": "room_create", "id": "<uuid>", "path": "~/projects/foo" }
+
+// Success reply
+{ "type": "action_ok", "in_reply_to": "<uuid>", "action": "room_create" }
+
+// Diretório ausente com create_if_missing off — o app oferece criar assim mesmo
+{ "type": "action_error", "in_reply_to": "<uuid>", "action": "room_create",
+  "error": "directory_missing" }
 ```
 
 ### Thinking levels (enum fixo)

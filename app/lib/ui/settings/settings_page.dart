@@ -324,23 +324,8 @@ class _DisplaySection extends StatelessWidget {
             ],
           ),
         ),
-        SwitchListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 18),
-          activeThumbColor: colors.accent,
-          title: Text(
-            'Hide tool calls in chat',
-            style: context.typo.sansBody.copyWith(color: colors.text),
-          ),
-          subtitle: Text(
-            'Only show your messages and the assistant replies.',
-            style: context.typo.sansBody.copyWith(
-              color: colors.muted,
-              fontSize: 12,
-            ),
-          ),
-          value: prefs.hideToolCalls,
-          onChanged: (v) => prefs.setHideToolCalls(v),
-        ),
+        // 'Hide tool calls' moved out of Settings — it is now a per-room
+        // switch on the chat's Quick Actions sheet (QuickActionsViewModel).
         const SizedBox(height: 8),
       ],
     );

@@ -975,12 +975,22 @@ class ConnectionManager extends Service {
 
   /// Plan-17 follow-up — delete a cached room locally. Only safe when
   /// the room is offline (not live); UI gates this.
+  ///
+  /// Room-management extension: also drops the id from `_liveRoomIds`
+  /// so a room that was JUST deleted from the Pi (its daemon unregistered,
+  /// which kills the process) can't linger as "live" until the relay's
+  /// RoomEnded arrives — the tile is gone, so its liveness is moot.
   Future<void> deleteCachedRoom(String epk, String roomId) async {
     final key = toStandardB64(epk);
     final list = _roomsByPeer[key];
     if (list != null) {
       list.removeWhere((r) => r.roomId == roomId);
       if (list.isEmpty) _roomsByPeer.remove(key);
+    }
+    if (_liveRoomIds[key]?.remove(roomId) ?? false) {
+      if (_liveRoomIds[key]?.isEmpty ?? false) {
+        _liveRoomIds.remove(key);
+      }
     }
     final cached = await _storage.loadRooms(epk);
     final pruned = cached.where((c) => c.roomId != roomId).toList();

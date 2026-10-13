@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:app/config/dependencies.dart';
 import 'package:app/data/actions/actions_repository.dart' show ActionFailure;
+import 'package:app/data/preferences/preferences.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/routing/adaptive.dart';
 import 'package:app/ui/core/themes/themes.dart';
@@ -77,6 +78,8 @@ class QuickActionsSheetBody extends StatefulWidget {
 
 class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
   StreamSubscription<String>? _errorSub;
+  Preferences? _prefs;
+  void Function()? _prefsNotifier;
 
   @override
   void initState() {
@@ -86,6 +89,16 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
       if (!mounted) return;
       final vm = context.read<QuickActionsViewModel>();
       _errorSub = vm.errors.listen(_showError);
+      // The per-room tool-calls value lives in Preferences, not in the
+      // VM's state — rebuild on prefs notify so the switch flips on
+      // toggle (the VM getter re-reads storage-fresh values on build).
+      _prefs = vm.preferences;
+      if (_prefs != null) {
+        _prefsNotifier = () {
+          if (mounted) setState(() {});
+        };
+        _prefs!.addListener(_prefsNotifier!);
+      }
     });
   }
 
@@ -112,6 +125,9 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
 
   @override
   void dispose() {
+    if (_prefs != null && _prefsNotifier != null) {
+      _prefs!.removeListener(_prefsNotifier!);
+    }
     _errorSub?.cancel();
     super.dispose();
   }
@@ -165,6 +181,13 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
               busy: busyAction == ActionName.thinkingSet,
               onPick: (level) => _onThinking(vm, level),
             ),
+            if (vm.preferences != null) ...[
+              const _Divider(),
+              _HideToolCallsRow(
+                value: vm.hideToolCalls,
+                onToggle: (v) => _onHideToolCalls(vm, v),
+              ),
+            ],
             const SizedBox(height: 18),
           ],
         ),
@@ -270,6 +293,14 @@ class _QuickActionsSheetBodyState extends State<QuickActionsSheetBody> {
       await vm.setThinking(level);
     } catch (_) {
       /* surfaced via vm.errors */
+    }
+  }
+
+  Future<void> _onHideToolCalls(QuickActionsViewModel vm, bool value) async {
+    try {
+      await vm.setHideToolCalls(value);
+    } catch (_) {
+      // Local-only preference write — nothing to surface on failure.
     }
   }
 
@@ -505,6 +536,45 @@ class _ThinkingRow extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _ThinkingSegmented(current: current, disabled: busy, onPick: onPick),
+        ],
+      ),
+    );
+  }
+}
+
+/// Per-room variant of the old Settings "Hide tool calls" toggle — the
+/// value is keyed by the active (peer, room) pair, so the same app can
+/// hide tool rows in one room and show them in another.
+class _HideToolCallsRow extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onToggle;
+  const _HideToolCallsRow({required this.value, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      child: Row(
+        children: [
+          Icon(LucideIcons.terminal, color: colors.accent, size: 18),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Text(
+              'Hide tool calls',
+              style: TextStyle(
+                fontFamily: kMonoFamily,
+                fontSize: 12,
+                color: colors.text,
+              ),
+            ),
+          ),
+          Switch(
+            key: const Key('qa-hide-tool-calls'),
+            value: value,
+            onChanged: onToggle,
+            activeThumbColor: colors.accent,
+          ),
         ],
       ),
     );

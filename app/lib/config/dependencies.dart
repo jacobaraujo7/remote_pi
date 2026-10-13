@@ -143,6 +143,7 @@ Future<void> setupDependencies() async {
       _injector.get<PairingStorage>(),
       _injector.get<Preferences>(),
       _injector.get<ConnectionManager>(),
+      _injector.get<IActionsRepository>(),
     ),
   );
   _injector.addViewModel<SettingsViewModel>(
@@ -164,7 +165,10 @@ Future<void> setupDependencies() async {
   );
   _injector.addViewModel<OnboardingViewModel>(OnboardingViewModel.new);
   _injector.addViewModel<QuickActionsViewModel>(
-    () => QuickActionsViewModel(_injector.get<IActionsRepository>()),
+    () => QuickActionsViewModel(
+      _injector.get<IActionsRepository>(),
+      _injector.get<Preferences>(),
+    ),
   );
   // Plan 29 — voice input. New instance per chat mount; reuses the shared
   // SpeechService singleton (which it stops/cancels but never disposes).
