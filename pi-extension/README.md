@@ -387,6 +387,18 @@ identity; never use an alias as proof of identity.
 `agent_send`, then handle any later inbox/turn reply whose `re` matches the
 original message id.
 
+A Pi agent that is busy when a message arrives reads it once its current run
+ends: messages wait in a queue and then start one new turn, so the agent is
+never interrupted. To have a busy agent read them sooner, set
+`"steer_mesh_messages": true` in its `<cwd>/.pi/remote-pi/config.json`.
+Waiting messages are then steered into the running agent as soon as its
+current tool calls finish, all together in one message. While Pi has other
+messages queued, such as your own, they wait until Pi has read those or the
+run ends. Messages still waiting when you stop a run (Escape) arrive after it
+ends, as before, but one already handed to Pi and not yet read is discarded
+with Pi's queue. The setting is read when the agent joins the mesh: on
+startup, `/reload`, or `/remote-pi`.
+
 The wire format is a 5-field envelope `{ from, to, id, re, body }` serialized
 as one JSON line per message. The leader's broker writes an `audit.jsonl`
 log at `~/.pi/remote/sessions/<name>/audit.jsonl` for postmortem inspection.
@@ -594,7 +606,7 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 
 | Path | Scope | What's in it |
 |---|---|---|
-| `<cwd>/.pi/remote-pi/config.json` | Per-directory | `agent_name`, `session_name`, `auto_start_relay` |
+| `<cwd>/.pi/remote-pi/config.json` | Per-directory | `agent_name`, `session_name`, `auto_start_relay`, `steer_mesh_messages` |
 | `~/.pi/remote/config.json` | Per-user | `relay` URL |
 | `~/.pi/remote/peers.json` | Per-machine | Paired mobile devices |
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
