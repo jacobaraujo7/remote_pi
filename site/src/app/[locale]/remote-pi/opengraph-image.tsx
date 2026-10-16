@@ -1,10 +1,17 @@
 import { ImageResponse } from "next/og";
+import { getTranslations } from "next-intl/server";
 
 export const alt = "Remote Pi: your coding agents, in your pocket";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "Og" });
   return new ImageResponse(
     (
       <div
@@ -67,7 +74,7 @@ export default function OpengraphImage() {
               lineHeight: 1.1,
             }}
           >
-            Your coding agents, in your pocket.
+            {t("remotePiHeadline")}
           </div>
           <div
             style={{
@@ -76,7 +83,7 @@ export default function OpengraphImage() {
               lineHeight: 1.4,
             }}
           >
-            Phone gateway · always-on 24/7 · one mesh, any machine
+            {t("remotePiTag")}
           </div>
         </div>
       </div>
