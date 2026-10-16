@@ -184,19 +184,21 @@ código e dos nomes de flag entre `en` e as outras locales não mostra diferenç
 
 ## Definition of Done
 
-- [ ] `next-intl` e `proxy.ts` sobre a árvore 2.0, sem nenhuma rota fora do `[locale]`
-- [ ] `messages/en.json` como fonte; `pt-BR.json`/`es.json` idênticos em chaves; build falha se divergir
-- [ ] Redirects da 2.0 funcionam com e sem prefixo de locale
-- [ ] Seletor de idioma preserva o path em todas as rotas
-- [ ] Onda 1: header, footer, home do Cockpit e `/download` nas 3 locales
-- [ ] Onda 2: `/remote-pi`, `/remote-pi/download`, `/remote-pi/why`, privacy e terms nas 3 locales
-- [ ] Onda 2: `llms.txt` e `robots.txt` atualizados para a 2.0
-- [ ] Onda 3: todos os tutoriais (Cockpit e Remote Pi) nas 3 locales
-- [ ] Onda 4: `/docs` e `/remote-pi/docs` nas 3 locales
-- [ ] `generateMetadata` por locale, `hreflang` e `sitemap.ts` com alternates
-- [ ] Nenhum texto da copy antiga (aba de agente, pairing, daemons no Cockpit) reintroduzido
-- [ ] `pnpm lint` e `pnpm build` limpos; teste de render com `node .next/standalone/server.js`
+- [x] `next-intl` e `proxy.ts` sobre a árvore 2.0, sem nenhuma rota fora do `[locale]`
+- [x] `messages/en.json` como fonte; `pt-BR.json`/`es.json` idênticos em chaves; build falha se divergir
+- [x] Redirects da 2.0 funcionam com e sem prefixo de locale
+- [x] Seletor de idioma preserva o path em todas as rotas
+- [x] Onda 1: header, footer, home do Cockpit e `/download` nas 3 locales
+- [x] Onda 2: `/remote-pi`, `/remote-pi/download`, `/remote-pi/why`, privacy e terms nas 3 locales
+- [x] Onda 2: `llms.txt` e `robots.txt` atualizados para a 2.0
+- [x] Onda 3: todos os tutoriais (Cockpit e Remote Pi) nas 3 locales
+- [x] Onda 4: `/docs` e `/remote-pi/docs` nas 3 locales
+- [x] `generateMetadata` por locale, `hreflang` e `sitemap.ts` com alternates
+- [x] Nenhum texto da copy antiga (aba de agente, pairing, daemons no Cockpit) reintroduzido
+- [x] `pnpm lint` e `pnpm build` limpos; teste de render com `node .next/standalone/server.js`
 - [ ] PR #165 fechado com link para os PRs novos
+
+> Implementado em 2026-10-16/17 no PR #249 (ondas 1, 2, 3 e 4 juntas, 20 commits). Pendente: fechar o #165 com link para o #249 depois do merge.
 
 ## Riscos
 
