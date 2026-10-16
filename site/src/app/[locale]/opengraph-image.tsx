@@ -1,10 +1,17 @@
 import { ImageResponse } from "next/og";
+import { getTranslations } from "next-intl/server";
 
 export const alt = "Remote Pi Cockpit: Just a terminal. Until your agents need more.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OpengraphImage() {
+export default async function OpengraphImage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "Og" });
   return new ImageResponse(
     (
       <div
@@ -43,7 +50,7 @@ export default function OpengraphImage() {
             maxWidth: 980,
           }}
         >
-          Just a terminal. Until your agents need more.
+          {t("cockpitHeadline")}
         </div>
         <div
           style={{
@@ -65,7 +72,7 @@ export default function OpengraphImage() {
               padding: "14px 24px",
             }}
           >
-            $ cockpit · local, no cloud, no account
+            {`$ cockpit · ${t("cockpitTag")}`}
           </div>
         </div>
       </div>
