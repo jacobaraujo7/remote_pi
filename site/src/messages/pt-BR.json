@@ -1167,5 +1167,569 @@
       "language": "Idioma",
       "links": "Links"
     }
+  },
+  "CockpitTutorials": {
+    "layouts": {
+      "intro": {
+        "span1": "Cockpit · fluxo de trabalho",
+        "span2": "Tutorial · Cockpit",
+        "h11": "Layouts e tarefas no Cockpit",
+        "p1": "Dois arquivos pequenos transformam “configurar meu ambiente” em um clique: um layout <code1>.ckp</code1> que abre os terminais certos nas pastas certas, e um <code1>.cockpit/tasks.json</code1> que roda seus servidores de desenvolvimento com botões, perfis e reload ao salvar. Os dois ficam no repositório, então seus colegas — e todo novo git worktree — recebem o mesmo setup de graça."
+      },
+      "what": {
+        "title": "O que você vai construir",
+        "p1": "Um pequeno monorepo com uma API e um app web. No final, abrir o projeto te dá três terminais nas pastas certas, uma lista de tarefas com os dois servidores prontos para o play e um novo worktree que recria tudo sozinho.",
+        "label1": "layout do projeto",
+        "p2": "Tudo aqui é local ao Cockpit: sem conta, sem mesh, sem agentes obrigatórios. Se você quer agentes por cima disso, siga em seguida <link1>Um time de agentes no Cockpit</link1>."
+      },
+      "prereqs": {
+        "title": "Antes de começar",
+        "li1": "<strong1>Cockpit instalado</strong1> — macOS, Windows ou Linux, pela <link2>página de download</link2>.",
+        "li2": "Uma pasta de projeto aberta como workspace. Qualquer coisa com algumas subpastas serve; os comandos abaixo assumem <code1>npm</code1>, mas o runner é genérico."
+      },
+      "firstLayout": {
+        "title": "1. Escreva o seu primeiro layout",
+        "p1": "Crie <code1>dev.ckp</code1> na raiz do projeto. Um layout é YAML, e o menor útil tem três linhas:",
+        "p2": "Clique com o botão direito no arquivo na árvore do Cockpit e escolha <strong2>Abrir layout</strong2>. Uma aba chamada <code1>Agent</code1> abre na raiz do projeto e digita <code1>claude</code1> para você. Aplique de novo: nada acontece. Um painel cujo <code1>name</code1> já existe é pulado, então um layout pode ser reexecutado com segurança e nunca fecha nada.",
+        "callout1": "O nome é o rótulo",
+        "p3": "<code1>name</code1> vira o <strong2>rótulo estável</strong2> da aba — aquele que a CLI <code1>cockpit</code1> consegue endereçar por nome em vez de por um id ligado ao boot, e o mesmo rótulo que você definiria dando um duplo clique na aba."
+      },
+      "splits": {
+        "title": "2. Adicione divisões e pastas",
+        "p1": "Agora a geometria de verdade. <code1>cwd</code1> é relativo ao arquivo <code1>.ckp</code1> (só com barras normais, para o arquivo funcionar em todo SO), e <code1>split</code1> diz onde cada painel nasce em relação ao criado antes dele: <code1>tab</code1> (padrão), <code1>right</code1> ou <code1>down</code1>.",
+        "p2": "Você também pode aplicá-lo de dentro de qualquer terminal do Cockpit, que é como um agente monta o próprio workspace:",
+        "label1": "Terminal do Cockpit",
+        "callout1": "autorun: worktree",
+        "p3": "Essa linha é o prêmio. Toda vez que você faz fork do workspace para um git worktree novo, o Cockpit aplica o layout sozinho — e como um worktree novo começa vazio, as divisões saem exatamente como escritas. Mantenha um único arquivo de autorun na raiz: com dois ou mais, nenhum roda, porque a ambiguidade nunca é adivinhada."
+      },
+      "tasks": {
+        "title": "3. Declare suas tarefas",
+        "p1": "O Cockpit já detecta tarefas a partir de <code1>package.json</code1> e <code1>pubspec.yaml</code1> sem configuração — abra o painel Tasks e os seus scripts estão lá. Você escreve <code1>.cockpit/tasks.json</code1> quando quer mais do que isso: um monorepo, teclas interativas, perfis de ambiente.",
+        "p2": "O arquivo vai na raiz do workspace que você abre — a descoberta é literal, sem subir pela árvore. O <code1>cwd</code1> de cada tarefa é relativo a esse arquivo, o que permite que um único arquivo na raiz do monorepo conduza todo subpacote. Aperte play e a saída flui para a sua própria aba, com controles de stop e restart e quaisquer <code1>interactiveKeys</code1> que você declarou como botões que escrevem direto no stdin do processo.",
+        "p3": "<code1>profiles</code1> são launch configs: um chip alterna entre eles antes de você apertar play, acrescentando <code1>args</code1> e mesclando <code1>env</code1>. O runner continua genérico de propósito — um flavor do Flutter ou um <code1>--dart-define</code1> é só mais <code1>args</code1>.",
+        "callout1": "Reload ao salvar",
+        "p4": "Para um processo que não observa arquivos sozinho (<code1>flutter run</code1> é o caso clássico), adicione um bloco <code1>watch</code1>: <code1>paths</code1> para observar, <code1>ignore</code1> para evitar que pastas de build gerem loops e <code1>onChange</code1> apontando para um rótulo de <code1>interactiveKeys</code1> (<code1>\"Hot reload\"</code1>) ou <code1>\"__restart__\"</code1>. Pule para Vite ou Next, que já recarregam sozinhos."
+      },
+      "agents": {
+        "title": "4. Deixe um agente usá-los",
+        "p1": "Os dois arquivos são alcançáveis pela CLI <code1>cockpit</code1> interna, que só existe dentro dos terminais do Cockpit. Isso significa que um agente numa aba pode iniciar o seu servidor de desenvolvimento, ler o que ele imprimiu e abrir um arquivo para você olhar — sem screenshot nem screen scraping.",
+        "label1": "Terminal do Cockpit",
+        "p2": "Os ids de tarefa são estáveis por workspace: <code1>json:'<'label'>'</code1> para as que você declarou, <code1>npm:'<'script'>'</code1> e <code1>flutter:run</code1> para as detectadas. A superfície completa de comandos está na <link3>referência do Cockpit</link3>."
+      },
+      "commit": {
+        "title": "5. Faça commit",
+        "p1": "Os dois arquivos pertencem ao git. <code1>dev.ckp</code1> é a sua geometria de trabalho, e <code1>.cockpit/tasks.json</code1> é como o projeto é executado — o mesmo motivo pelo qual um <code1>Makefile</code1> é commitado. Um colega clona, abre a pasta no Cockpit e recebe seus terminais e sua lista de tarefas. Aponte <code1>$schema</code1> para o <code1>tasks.schema.json</code1> do repositório e o editor dele também autocompleta os campos; o Cockpit ignora o campo ao executar.",
+        "p2": "A partir daqui: <link1>coloque um time de agentes</link1> nesses painéis, ou leia a <link4>referência do Cockpit</link4> para cada campo, flag e o formato de tema."
+      },
+      "pager": {
+        "prev": "Conheça o Cockpit",
+        "next": "Um time de agentes no Cockpit"
+      },
+      "meta": {
+        "title": "Layouts e tarefas no Cockpit",
+        "description": "Faça commit do seu setup de trabalho: um layout .ckp que abre os terminais certos nas pastas certas, e um .cockpit/tasks.json que roda seus servidores de desenvolvimento com reload ao salvar."
+      }
+    },
+    "team": {
+      "intro": {
+        "span1": "Cockpit · multiagente",
+        "span2": "Tutorial · Cockpit",
+        "h11": "Um time de agentes no Cockpit",
+        "p1": "O verdadeiro poder do Cockpit é o multiplexador: vários agentes numa janela, cada um na sua pasta. Aqui você monta três, um <strong1>orquestrador</strong1>, um <strong1>backend</strong1> e um <strong1>frontend</strong1>, e deixa o orquestrador conduzir os outros dois com a CLI <code1>cockpit</code1> interna."
+      },
+      "what": {
+        "title": "O que você vai construir",
+        "p1": "Três abas de agente, lado a lado, em um único workspace do Cockpit. Cada uma é um terminal comum rodando o harness da sua escolha (este tutorial usa <code1>claude</code1>; <code1>codex</code1> ou <code1>pi</code1> funcionam do mesmo jeito), iniciada na sua própria subpasta para pegar o brief daquela pasta e assumir um papel.",
+        "p2": "Eles se coordenam pelo próprio Cockpit. O orquestrador abre as abas dos trabalhadores, digita instruções nelas e lê a saída de volta, usando a CLI <code1>cockpit</code1> que existe dentro de todo terminal do Cockpit. Sem rede, sem conta, sem serviço extra: é o app que você já tem aberto, conduzido pelos mesmos verbos que um humano usa.",
+        "callout1": "Vale ler antes",
+        "callout2": "A referência da CLI está na <link1>documentação do Cockpit</link1>, e <link2>Layouts e tarefas</link2> mostra como um arquivo <code1>.ckp</code1> recria uma janela como esta em qualquer máquina."
+      },
+      "prereqs": {
+        "title": "Antes de começar",
+        "li1": "<strong1>Cockpit instalado</strong1>, pela <link3>página de download</link3>. Nada mais é necessário: o Cockpit não precisa de conta nem de nuvem.",
+        "li2": "<strong1>Um harness no seu PATH</strong1>, o que você já usa. O Cockpit o executa como um processo normal, então o que funciona no seu terminal funciona numa aba."
+      },
+      "folders": {
+        "title": "1. Organize as pastas",
+        "p1": "A identidade de um agente vem de onde ele começa, então dê a cada colega uma pasta com o próprio brief:",
+        "label1": "layout do projeto",
+        "p2": "<code1>AGENTS.md</code1> é o brief permanente que um agente lê quando começa numa pasta (o Claude Code também lê <code1>CLAUDE.md</code1>). Dê a cada um um trabalho claro e diga ao orquestrador como alcançar os outros.",
+        "callout1": "Uma pasta, um colega",
+        "callout2": "Manter cada agente na sua própria subpasta é o que mantém os briefs, os históricos e as edições separados. Três pastas, três abas, três papéis."
+      },
+      "tabs": {
+        "title": "2. Abra as três abas",
+        "p1": "Abra <code1>my-app/</code1> como workspace. Depois abra um terminal em cada subpasta e inicie o seu harness ali. O jeito mais rápido é pelo painel Files: clique com o botão direito numa pasta e abra um terminal nela, depois rode <code1>claude</code1>.",
+        "p2": "Divida o canvas para que as três fiquem visíveis ao mesmo tempo, o orquestrador de um lado e os trabalhadores do outro, e renomeie cada aba com um duplo clique: <code1>Orchestrator</code1>, <code1>Backend</code1>, <code1>Frontend</code1>. Esses rótulos são como a CLI endereça uma aba e, ao contrário dos ids, sobrevivem a um reinício do app.",
+        "p3": "Faça uma vez à mão, ou faça commit da geometria inteira como um <code1>team.ckp</code1> e deixe o Cockpit montar a janela para você:",
+        "label1": "qualquer terminal do Cockpit",
+        "callout1": "Rótulos, não ids",
+        "callout2": "Os ids de aba (<code1>t0</code1>, <code1>t1</code1>…) são distribuídos a cada boot do app, então nunca fixe um num brief ou script. Endereçe a aba pelo rótulo, ou descubra o id do momento com <code1>cockpit list-tabs</code1>."
+      },
+      "wiring": {
+        "title": "3. Ensine a CLI ao orquestrador",
+        "p1": "Todo terminal que o Cockpit abre tem <code1>cockpit</code1> no seu <code1>PATH</code1>, e só esses terminais têm. Então o orquestrador já consegue conduzir os colegas; só precisa conhecer os verbos. Peça que ele olhe em volta:",
+        "label1": "Orquestrador · prompt",
+        "label2": "Orquestrador · chamada de ferramenta",
+        "p2": "Quatro verbos bastam para conduzir um time. Se você usa o Claude Code, o <code1>cockpit install-skill</code1> instala uma skill que ensina todos eles, então o brief pode ficar curto.",
+        "label3": "os quatro verbos",
+        "callout1": "Enter é uma tecla",
+        "callout2": "Um <code1>cockpit send</code1> sozinho digita o texto e o deixa no campo de entrada. Use <code1>--enter</code1> (ou um <code1>cockpit send-key Enter</code1> separado) para enviá-lo, porque uma quebra de linha dentro do texto é uma quebra de linha para o harness, não um envio."
+      },
+      "run": {
+        "title": "4. Execute a orquestração",
+        "p1": "Agora dê ao orquestrador algo de verdade. Você fala só com ele; ele fala com os outros.",
+        "label1": "Orquestrador · prompt",
+        "p2": "Ele divide o trabalho em dois e digita uma instrução em cada trabalhador. O send retorna assim que o texto é entregue, então é um despacho, não uma chamada bloqueante:",
+        "label2": "Orquestrador · chamadas de ferramenta",
+        "p3": "Cada trabalhador vê a instrução na sua própria aba, faz o trabalho <em1>na sua própria pasta</em1> e imprime o resultado. O orquestrador espera o turno terminar e então lê a resposta:",
+        "label3": "Orquestrador · chamadas de ferramenta",
+        "p4": "Com o contrato em mãos, ele libera o frontend, repassando o formato exato, e reporta a funcionalidade pronta a você. Três agentes, três pastas, uma mudança coordenada, e você viu tudo acontecer.",
+        "callout1": "Quem está trabalhando agora",
+        "callout2": "Você não precisa fazer polling para saber: cada aba mostra o próprio status de turno (trabalhando, esperando por você, concluído), com um sinal sonoro quando a janela está em foco e uma notificação do sistema quando não está. É o mesmo sinal que o orquestrador lê em <code1>working</code1> no <code1>list-tabs --json</code1>."
+      },
+      "why": {
+        "title": "Por que fazer isso no Cockpit",
+        "p1": "Você poderia rodar três terminais, mas aí nada os conecta. Aqui o time inteiro vive numa janela: cada agente transmite o próprio trabalho na própria aba, o orquestrador despacha e lê sem você copiar texto de um lado para o outro, e o layout volta quando você reabre o app. Adicione uma aba de terminal para o servidor de desenvolvimento e o build, os agentes e o tráfego deles ficam todos à sua frente ao mesmo tempo.",
+        "p2": "A partir daqui: faça commit do <code1>.ckp</code1> e de um <code1>.cockpit/tasks.json</code1> para um colega receber a mesma janela ao clonar (<link2>Layouts e tarefas</link2>), ou mova o time para uma máquina maior e continue a conduzi-lo por SSH (<link4>Hosts remotos</link4>)."
+      },
+      "pager": {
+        "prev": "Layouts e tarefas",
+        "next": "Telemetria para agentes"
+      },
+      "meta": {
+        "title": "Um time de agentes no Cockpit",
+        "description": "Rode um orquestrador e dois agentes trabalhadores como abas de terminal em uma janela do Cockpit, cada um na sua pasta, coordenados pela CLI cockpit interna."
+      }
+    },
+    "telemetry": {
+      "intro": {
+        "span1": "Cockpit · depuração",
+        "span2": "Tutorial · Cockpit",
+        "h11": "Telemetria: deixe os agentes consultarem erros, não terminais",
+        "p1": "Um servidor de desenvolvimento imprime milhares de linhas. Em algum lugar ali está o único erro que importa, e o agente que depura o seu app precisa ler tudo para achá-lo. O Cockpit mantém um armazenamento estruturado, por workspace, do que seus processos imprimem, agrupa erros por fingerprint e dá aos agentes uma CLI para perguntar <em1>o que quebrou, onde, e se é novo</em1>. Sem SDK, sem conta, nada sai da sua máquina."
+      },
+      "what": {
+        "title": "O que você ganha",
+        "li1": "<strong1>Uma aba Telemetry</strong1> no painel direito (ao lado de Files, Search, Database, Tasks): casos agrupados por projeto e execução, com contagens, arquivo:linha e tags de <em1>new</em1> e <em1>regression</em1>. Clicar em um caso o abre no painel central com o stack, o log JSON impresso logo antes dele, ocorrências por execução e as linhas de contexto brutas.",
+        "li2": "<strong1>Triagem que os agentes respeitam.</strong1> Marque um caso como resolvido e ele some; se voltar numa execução posterior, retorna marcado como regressão. Ignore um caso e os agentes também param de vê-lo.",
+        "li3": "<strong1><code1>cockpit telemetry</code1></strong1>, uma CLI que responde em JSON compacto: erros, logs, um caso em detalhe, esperar-até-parar-de-acontecer."
+      },
+      "how": {
+        "title": "1. De onde vêm os dados",
+        "p1": "Toda tarefa que você roda a partir de <code1>.cockpit/tasks.json</code1> alimenta o armazenamento por padrão. Qualquer outra coisa entra quando você prefixa o comando com <code1>cockpit telemetry</code1>. Isso funciona numa aba de terminal (cores e teclas preservadas) e no shell do próprio agente, que é o caso que mais importa: um agente rodando <code1>flutter test</code1> recebe os três testes que falharam com arquivo:linha em vez da saída inteira.",
+        "callout1": "Nada é capturado pelas suas costas",
+        "callout2": "O Cockpit nunca espia um terminal que você não pediu para observar. As tarefas são observadas porque o Cockpit é o processo pai; o wrapper é a adesão explícita para todo o resto."
+      },
+      "loop": {
+        "title": "2. O ciclo do agente",
+        "p1": "O wrapper imprime uma linha de resumo ao sair. A partir daí o agente afunila em vez de ler tudo de cima a baixo:",
+        "p2": "Filtros úteis: <code1>--new</code1> (nunca visto em execuções anteriores do mesmo comando), <code1>--since-edit</code1> (desde o seu último save no editor), <code1>--before ev_xxxx --window 5s</code1> (o que aconteceu logo antes de um evento), <code1>--project</code1> em um monorepo. As respostas têm limite e dizem ao agente como afunilar mais. A skill instalada por <code1>cockpit install-skill</code1> ensina tudo isso ao Claude Code e afins."
+      },
+      "speak": {
+        "title": "3. Faça o seu projeto falar telemetria",
+        "p1": "Stack traces e blocos de erro são reconhecidos como estão (Dart, Flutter, Node, Python, Rust, Go, test runners). Para todo o resto há uma regra: faça o logger do projeto emitir <strong1>JSON Lines</strong1> no stdout. Todo ecossistema já faz isso (pino, structlog, slog, tracing). O Cockpit só conhece os aliases de campos:",
+        "label1": "uma linha de log",
+        "label2": "exemplo Flutter",
+        "p2": "Mantenha <code1>msg</code1> fixo e coloque os dados variáveis em campos: <code1>\"msg\":\"order failed\",\"orderId\":\"91c\"</code1> agrupa em um só caso; <code1>\"order 91c failed\"</code1> vira um caso por pedido.",
+        "callout1": "Não condicione logs ao Cockpit",
+        "callout2": "O app deve se comportar igual dentro e fora do Cockpit. Controle a verbosidade com o seu próprio botão (<code1>LOG_LEVEL</code1>, <code1>kReleaseMode</code1>), definido por tarefa via <code1>env</code1>. Um check de <code1>COCKPIT=1</code1> nem chegaria a um celular ou a um container."
+      },
+      "extras": {
+        "title": "4. Flutter, OpenTelemetry, proxy HTTP",
+        "li1": "<strong1>Flutter, zero código.</strong1> Quando uma execução imprime a URI do Dart VM Service, o Cockpit se conecta como segundo cliente e lê os registros do <code1>dart:developer log()</code1> e os erros estruturados do framework. Um erro que também chegou ao console conta uma vez.",
+        "li2": "<strong1>OpenTelemetry.</strong1> Os processos observados recebem <code1>OTEL_EXPORTER_OTLP_ENDPOINT</code1> e <code1>OTEL_SERVICE_NAME</code1> no ambiente. Um app com o SDK do OTel (ou a auto-instrumentação do Node) envia logs e spans para um receptor local, só de loopback; spans com falha também viram casos.",
+        "li3": "<strong1>Proxy HTTP.</strong1> Aponte o frontend para a porta do proxy e toda requisição/resposta é gravada com status, duração, corpos redigidos e um <code1>x-request-id</code1> injetado. Marque uma janela de reprodução e a reexecute depois da correção."
+      },
+      "privacy": {
+        "title": "Privacidade e retenção",
+        "p1": "O armazenamento é um arquivo SQLite por workspace no cache local do Cockpit, nunca dentro do seu repositório e nunca sincronizado. Os segredos são redigidos na entrada (headers de autorização, cookies, tokens, JWTs, senhas). Execuções antigas são descartadas após 7 dias ou 256 MB, as mais antigas primeiro. Apague o que quiser pela aba Telemetry a qualquer momento.",
+        "p2": "A partir daqui: coloque <link1>um time de agentes</link1> por cima, ou leia a <link2>referência do Cockpit</link2>."
+      },
+      "pager": {
+        "prev": "Um time de agentes no Cockpit",
+        "next": "Referência do Cockpit"
+      },
+      "meta": {
+        "title": "Telemetria: deixe os agentes consultarem erros, não terminais",
+        "description": "O Cockpit mantém um armazenamento por workspace do que seus processos imprimem: erros agrupados por fingerprint, logs JSON com seus campos e as linhas ao redor. Os agentes o consultam com uma CLI em vez de ler milhares de linhas de terminal."
+      }
+    },
+    "index": {
+      "meta": {
+        "title": "Tutoriais",
+        "description": "Guias práticos do Cockpit: faça commit do layout e das tarefas com que o seu projeto abre e rode um time de agentes em uma janela."
+      },
+      "eyebrow": "Tutoriais",
+      "h1": "Aprenda o Cockpit na prática.",
+      "lede": "Dois guias práticos que levam o app além de um terminal comum. Para cada comando, formato de arquivo e flag, a <ref>referência</ref> tem o quadro completo. Procura os guias do Remote Pi (pareamento, mesh, daemons)? Eles ficam em <remote>/remote-pi/tutorials</remote>.",
+      "open": "Abrir tutorial",
+      "step1": {
+        "title": "Layouts e tarefas",
+        "desc": "Faça commit de um layout .ckp que abre seus terminais e de um tasks.json que roda seus servidores de desenvolvimento, com perfis e reload ao salvar."
+      },
+      "step2": {
+        "title": "Um time de agentes",
+        "desc": "Rode um orquestrador, um backend e um frontend como três abas de agente, cada uma na sua pasta, coordenados pela CLI cockpit interna."
+      },
+      "step3": {
+        "title": "Telemetria para agentes",
+        "desc": "Um armazenamento de erros por workspace que os agentes consultam em vez de ler terminais: casos agrupados, triagem, uma só CLI."
+      }
+    }
+  },
+  "RemoteTutorials": {
+    "gettingStarted": {
+      "intro": {
+        "span1": "Tutorial · 1 de 4",
+        "h11": "Primeiros passos",
+        "p1": "Ao final deste guia você terá o Remote Pi rodando em uma máquina, o seu celular pareado a ela e o seu primeiro comando enviado pelo app — o agente o executa e o resultado volta em streaming para o seu bolso. Conte com cerca de cinco minutos."
+      },
+      "prereqs": {
+        "title": "Antes de começar",
+        "p1": "Você precisa de duas coisas:",
+        "li1": "Uma máquina com o <strong1>Pi</strong1> (o agente de código) e o <strong1>Node 20+</strong1> instalados.",
+        "li2": "O app <strong1>Remote Pi</strong1> no seu celular — pela <a1>App Store</a1>, pelo <a2>Google Play</a2>, ou pelo download direto do <link1>APK Android</link1>.",
+        "p2": "Ainda não tem o Pi? A aba <strong1>Ainda não tenho Pi</strong1> abaixo roda um instalador <code1>curl</code1> de um comando que configura o Pi, o plugin e o supervisor para você. Já tem o Pi? Use o caminho <strong1>Já tenho Pi</strong1>."
+      },
+      "install": {
+        "title": "1. Instale o plugin",
+        "p1": "O Remote Pi é um plugin do Pi. Adicione-o, rode o assistente de configuração e depois mostre um QR de pareamento:",
+        "p2": "Passando pelos três comandos:",
+        "callout1": "A ordem importa",
+        "callout2": "Rode <code1>/remote-pi</code1> antes de <code1>/remote-pi pair</code1>. Numa pasta nova, sem configuração, o <code1>pair</code1> vai mandar você rodar o assistente primeiro — é a etapa de configuração fazendo o seu trabalho."
+      },
+      "install_piInstallNpmremotePi": {
+        "title": "pi install npm:remote-pi",
+        "p1": "Instala o plugin no Pi. Isso registra o comando <code1>/remote-pi</code1> e implanta a skill agent-network que ensina as ferramentas da mesh ao LLM."
+      },
+      "install_remotePi": {
+        "title": "/remote-pi",
+        "p1": "A primeira execução abre um assistente curto que <strong1>cria a configuração desta pasta</strong1>. Ele faz duas perguntas:",
+        "li1": "<strong1>Nome do agente</strong1> — como os outros peers endereçam este agente. O padrão é o nome da pasta.",
+        "li2": "<strong1>Usar o relay?</strong1> — responda <code1>Yes</code1> para que o seu celular (e, depois, outros PCs) alcance este agente.",
+        "p2": "Quando termina, o agente entrou na mesh local e o relay está conectado."
+      },
+      "install_remotePiPair": {
+        "title": "/remote-pi pair",
+        "p1": "Imprime um QR code (e uma URI de pareamento para copiar e colar). Deixe-o na tela para o próximo passo. O pareamento é <strong1>por máquina</strong1>: depois que um celular é pareado, todo agente Pi desta máquina o aceita."
+      },
+      "pair": {
+        "title": "2. Pareie o seu celular",
+        "p1": "Com o QR na tela:",
+        "li1": "Abra o app Remote Pi no seu celular.",
+        "li2": "Toque em <strong1>Parear um dispositivo</strong1> (ou no botão de escanear) e aponte a câmera para o QR.",
+        "li3": "O app confirma o pareamento e o agente aparece na sua lista de dispositivos. O rodapé do terminal do Pi muda para <code1>🟢 relay</code1> e mostra <code1>📱 '<'shortid'>'</code1> enquanto o celular está conectado.",
+        "p2": "O pareamento autentica os dois lados entre si com Ed25519, e todo o tráfego do relay é criptografado em trânsito (TLS)."
+      },
+      "firstCommand": {
+        "title": "3. Envie o seu primeiro comando",
+        "p1": "Agora você está conduzindo o agente pelo celular. No chat do app para este agente, digite um prompt e envie:",
+        "label1": "Pelo app",
+        "p2": "O prompt chega à sessão do Pi na sua máquina exatamente como se você o tivesse digitado lá. O agente roda, e a resposta volta em streaming para o seu celular ao vivo. Essa ida e volta — do celular ao agente e de volta — é o ponto central do Remote Pi.",
+        "p3": "Além de conversar, o app pode conduzir a sessão com algumas ações tipadas: <strong1>compactar contexto</strong1>, <strong1>nova sessão</strong1>, <strong1>definir modelo</strong1> e <strong1>definir nível de thinking</strong1>. O seletor de modelo lê ao vivo do host, então sempre reflete o que aquela máquina realmente consegue rodar."
+      },
+      "next": {
+        "title": "Para onde ir agora",
+        "p1": "Isso é um agente, um celular. A partir daqui você pode fazer vários agentes conversarem entre si, alcançar outras máquinas ou manter um agente rodando quando você sai de perto:",
+        "li1": "<link2>Mesh local</link2> — dois agentes na mesma máquina se descobrindo e trocando mensagens.",
+        "li2": "<link3>Modo daemon</link3> — promova uma pasta a um agente em segundo plano 24/7."
+      },
+      "pager": {
+        "next": "Mesh local"
+      },
+      "meta": {
+        "title": "Primeiros passos",
+        "description": "Instale o Remote Pi no Pi, pareie o seu celular e envie seu primeiro comando a um agente pelo app — da instalação ao primeiro prompt."
+      }
+    },
+    "meshLocal": {
+      "intro": {
+        "span1": "Tutorial · 2 de 4",
+        "h11": "Mesh local",
+        "p1": "Dois agentes rodando lado a lado numa máquina conseguem se ver e trocar mensagens — sem nenhuma rede envolvida. Aqui você vai iniciar um segundo agente, fazer o primeiro encontrá-lo e ver uma mensagem ir de um ao outro e voltar."
+      },
+      "how": {
+        "title": "Como funciona a descoberta local",
+        "p1": "Todo agente que roda <code1>/remote-pi</code1> numa máquina entra na mesma sessão local, chamada <code1>local</code1>. Eles se encontram por um Unix domain socket — um broker local em <code1>~/.pi/remote/sessions/local/broker.sock</code1> — então as mensagens nunca saem da máquina. O primeiro agente a iniciar hospeda o broker; os demais se conectam a ele. Se o anfitrião sai, outro agente assume automaticamente.",
+        "callout1": "Um agente por pasta",
+        "callout2": "Um lock permite exatamente um agente Pi por diretório. Para rodar dois agentes ao mesmo tempo, coloque-os em <strong1>duas pastas diferentes</strong1> — cada um ganha seu próprio workspace, e os dois se encontram na sessão <code1>local</code1>."
+      },
+      "start": {
+        "title": "1. Inicie um segundo agente",
+        "p1": "Você já tem um agente do guia de <link1>primeiros passos</link1>. Abra um segundo terminal numa pasta <strong1>diferente</strong1> e inicie o Remote Pi ali também:",
+        "label1": "Segundo terminal",
+        "p2": "Digamos que o primeiro agente se chama <code1>agent-a</code1> e o segundo <code1>agent-b</code1> (o assistente usa o nome da pasta por padrão). Os dois estão agora na sessão <code1>local</code1>."
+      },
+      "tools": {
+        "title": "2. As três ferramentas da mesh",
+        "p1": "A skill agent-network dá três ferramentas ao LLM. Você não as chama à mão — pede ao agente em linguagem natural e ele as chama por você.",
+        "li1": "<code1>list_peers()</code1> — quem está online agora. Retorna os nomes dos peers, um por linha.",
+        "li2": "<code1>agent_send('{' to, body, re? '}')</code1> — envia uma mensagem e espera um ACK. Defina <code1>re</code1> quando estiver respondendo a uma mensagem anterior.",
+        "li3": "<code1>get_messages()</code1> — esvazia a caixa de entrada deste agente. O agente a consulta no início de cada turno, então as mensagens recebidas aparecem na próxima resposta dele."
+      },
+      "exchange": {
+        "title": "3. Envie uma mensagem de um lado ao outro",
+        "p1": "No terminal do <code1>agent-a</code1>, peça que ele encontre seus peers:",
+        "label1": "agent-a · prompt",
+        "p2": "O LLM chama a ferramenta e recebe a lista de volta:",
+        "label2": "agent-a · chamada de ferramenta",
+        "p3": "Agora peça que ele envie algo:",
+        "label3": "agent-a · prompt",
+        "label4": "agent-a · chamada de ferramenta",
+        "p4": "<code1>Delivered</code1> significa que a caixa de entrada do <code1>agent-b</code1> aceitou o envelope. No próximo turno, o <code1>agent-b</code1> o vê. Peça a ele:",
+        "label5": "agent-b · prompt",
+        "label6": "agent-b · chamadas de ferramenta",
+        "p5": "De volta no <code1>agent-a</code1>, o <code1>pong</code1> aparece no próximo turno, carregando <code1>re=ab12cd34</code1> para o agente saber a qual mensagem ele responde. A troca inteira é orientada a eventos — nada bloqueia esperando uma resposta."
+      },
+      "acks": {
+        "title": "Lendo o ACK",
+        "p1": "O <code1>agent_send</code1> diz o que aconteceu com o envelope:",
+        "li1": "<code1>Delivered</code1> — a caixa de entrada do peer o aceitou.",
+        "li2": "<code1>busy</code1> — o peer está no meio de um turno; a mensagem foi descartada. Tente de novo em instantes.",
+        "li3": "<code1>denied</code1> — o peer recusou. Não tente de novo.",
+        "li4": "<strong1>Sem ACK (timeout)</strong1> — o peer pode estar offline.",
+        "callout1": "Um envio não é uma requisição",
+        "callout2": "O <code1>agent_send</code1> é fire-and-ACK, não RPC. Não há obrigação de o outro agente responder. Se você precisa de uma resposta, o prompt ao receptor precisa pedir uma — como o <code1>reply to the sender</code1> acima."
+      },
+      "pager": {
+        "prev": "Primeiros passos",
+        "next": "Mesh remota"
+      },
+      "meta": {
+        "title": "Mesh local",
+        "description": "Rode dois agentes Pi na mesma máquina e faça-os se descobrirem e trocarem mensagens pelo broker local com list_peers, agent_send e get_messages."
+      }
+    },
+    "meshRemote": {
+      "intro": {
+        "span1": "Tutorial · 3 de 4",
+        "h11": "Mesh remota",
+        "p1": "A <link1>mesh local</link1> para em uma máquina. Ligue o relay e o mesmo <code1>agent_send</code1> alcança agentes em outros PCs — o seu notebook falando com o desktop, uma máquina de build, um servidor. As ferramentas são idênticas; só o endereçamento muda."
+      },
+      "setup": {
+        "title": "1. Coloque as duas máquinas em uma mesh",
+        "p1": "O roteamento entre PCs viaja pelo relay. Toda máquina pareada sob a mesma <strong1>chave Owner</strong1> forma uma mesh lógica — não há servidor central, só um relay encaminhando entre peers pareados. Para chegar lá:",
+        "li1": "Em cada máquina, rode <code1>/remote-pi</code1> e responda <strong1>Yes</strong1> para usar o relay.",
+        "li2": "Pareie as duas máquinas ao <strong1>mesmo Owner</strong1> para compartilharem uma mesh. Os detalhes da associação à mesh — como a chave Owner assina a lista de dispositivos — estão no <a1>PROTOCOL.md</a1>.",
+        "p2": "Aponte as duas máquinas para o mesmo relay. O padrão é o relay da comunidade; para o seu próprio, veja <link2>a referência do relay</link2>."
+      },
+      "addressing": {
+        "title": "2. Endereçe peers entre PCs",
+        "p1": "Quando as duas máquinas estão na mesh, <code1>list_peers()</code1> mostra os agentes locais mais os remotos, cada um prefixado com o rótulo da máquina de origem:",
+        "label1": "qualquer agente · chamada de ferramenta",
+        "p2": "Para enviar uma mensagem a um peer remoto, use o nome completo <code1>pc_label:peer</code1> literalmente — essa é a única diferença de um envio local:",
+        "label2": "frontend · chamada de ferramenta",
+        "p3": "A resposta chega do mesmo jeito que uma local — na sua caixa de entrada em um turno futuro, carregando <code1>re='<'your-send-id'>'</code1>."
+      },
+      "delivered": {
+        "title": "3. “Delivered” não é “vivo”",
+        "p1": "Esta é a coisa a internalizar sobre envios remotos. Um ACK <code1>Delivered</code1> significa que <strong1>o broker remoto aceitou o envelope</strong1> — nada além disso. Ele <em1>não</em1> significa que o peer está vivo, processou a mensagem ou algum dia vai responder.",
+        "callout1": "Valide por roundtrip",
+        "callout2": "Não trate o <code1>Delivered</code1> como prova de que o outro agente está trabalhando. O <code1>list_peers</code1> pode até listar um peer que ficou obsoleto. A única confirmação real é uma <strong1>resposta que você de fato recebe</strong1>: peça ao agente remoto que responda e depois espere esse envelope na sua caixa de entrada. Se ele nunca chegar, o peer pode estar offline, independentemente do que o ACK disse.",
+        "p2": "Quando uma mensagem encaminhada realmente não pode ser entregue, o relay devolve um envelope <code1>transport_error</code1> com <code1>re='<'your-send-id'>'</code1> — fique de olho na sua caixa de entrada para isso também."
+      },
+      "trust": {
+        "title": "O que o relay enxerga",
+        "p1": "O relay é a única peça que toca a rede, então vale ser preciso sobre o que ele protege e o que não protege:",
+        "callout1": "Criptografado em trânsito — os payloads não",
+        "callout2": "As conexões com o relay são <strong1>criptografadas em trânsito (TLS)</strong1> e os dispositivos se autenticam entre si com <strong1>pareamento Ed25519</strong1>. Mas os payloads das mensagens <strong1>não</strong1> são criptografados na camada de aplicação — o operador do relay poderia, em princípio, ler o texto claro na memória enquanto encaminha. Se você precisa de confidencialidade em relação ao operador do relay, faça <link3>self-host do relay</link3> atrás de uma VPN.",
+        "p2": "O relay da comunidade não registra, persiste nem inspeciona payloads, mas o self-host é o caminho para um isolamento de nível criptográfico. O modelo de confiança completo está no <a1>PROTOCOL.md</a1>."
+      },
+      "uses": {
+        "title": "Para que serve",
+        "p1": "A mensagem entre PCs permite dividir o trabalho entre papéis que vivem em máquinas diferentes — um <code1>frontend</code1> no seu notebook entregando tarefas a um <code1>backend</code1> numa máquina mais parruda, ou um agente <code1>tests</code1> num servidor de build reportando de volta. Mesmas ferramentas, mesmo envelope; o relay só o leva entre máquinas."
+      },
+      "uses_KeepThemReachable": {
+        "title": "Mantenha-os alcançáveis",
+        "p1": "A coordenação entre PCs é mais útil quando os agentes remotos estão sempre de pé. Esse é o próximo guia: <link4>rode-os como daemons 24/7</link4>."
+      },
+      "pager": {
+        "prev": "Mesh local",
+        "next": "Modo daemon"
+      },
+      "meta": {
+        "title": "Mesh remota",
+        "description": "Roteie mensagens entre agentes em PCs diferentes pelo relay, endereçe peers como pc_label:peer e entenda o que um ACK garante e o que não garante."
+      }
+    },
+    "daemon": {
+      "intro": {
+        "span1": "Tutorial · 4 de 4",
+        "h11": "Modo daemon",
+        "p1": "Até agora os seus agentes só rodam enquanto um terminal está aberto. O modo daemon mantém uma pasta rodando como agente em segundo plano que sobrevive ao logout, reinicia em caso de crash e responde ao seu celular às 3h da manhã. Este é o <em1>como</em1>; para o <em1>porquê</em1> — e como ele se compara a plataformas tudo-em-um — veja <link1>Por que o Pi</link1>."
+      },
+      "model": {
+        "title": "O formato da coisa",
+        "p1": "Um <strong1>supervisor</strong1> roda por máquina. Sob ele ficam N agentes em segundo plano — um por pasta que você promove. O supervisor é um serviço de usuário normal: <code1>launchd</code1> no macOS, <code1>systemd --user</code1> no Linux. Ele inicia no login, sobrevive a reboots e reinicia qualquer agente que trave.",
+        "callout1": "Restrinja as permissões de ferramentas primeiro",
+        "callout2": "Um daemon herda as mesmas permissões de ferramentas do Pi que a sua sessão interativa tem — <code1>Bash</code1>, <code1>Edit</code1>, <code1>Write</code1> rodam todos <strong1>sem pedir confirmação</strong1>, porque não há ninguém no teclado para aprovar. Configure as permissões de ferramentas do Pi ao seu gosto <em2>antes</em2> de promover uma pasta a daemon 24/7. Uma barreira de aprovação de ferramentas está no roadmap."
+      },
+      "install": {
+        "title": "1. Instale o supervisor (uma vez por máquina)",
+        "p1": "De dentro do Pi:",
+        "label1": "No Pi",
+        "p2": "Esse único comando faz duas coisas:",
+        "li1": "Instala e ativa o serviço supervisor em nível de usuário (<code1>launchd</code1> / <code1>systemd --user</code1>), para iniciar sozinho no login e após o reboot.",
+        "li2": "Cria symlinks das CLIs <code1>remote-pi</code1> e <code1>pi-supervisord</code1> em <code1>~/.local/bin/</code1> para você gerenciar daemons de qualquer shell. Se esse diretório não está no seu <code1>$PATH</code1>, o comando imprime a linha a adicionar.",
+        "p3": "Esta é uma adesão separada e explícita — <strong1>não</strong1> faz parte do assistente de configuração normal. Você só a roda nas máquinas em que quer agentes 24/7."
+      },
+      "create": {
+        "title": "2. Promova uma pasta a daemon",
+        "p1": "Nenhuma configuração por pasta é necessária antes — o <code1>create</code1> registra qualquer pasta e o supervisor injeta a config do daemon no spawn (um workspace fixo <code1>assistent</code1>, relay ligado), então a pasta não precisa de um <code1>.pi/remote-pi/</code1> próprio. Para alcançar o daemon pelo celular, basta que esta máquina tenha sido pareada uma vez — o pareamento é por máquina, então qualquer <code1>/remote-pi pair</code1> anterior nela vale. Depois registre:",
+        "p2": "O id é um hash estável do caminho da pasta (<code1>sha256(realpath)[:8]</code1>), então sobrevive a mudanças de lugar e é o mesmo em toda máquina. Com o supervisor rodando, o <code1>create</code1> <strong1>inicia o daemon imediatamente</strong1> — não há uma etapa separada de start. Ele reinicia em caso de crash e volta sozinho após um reboot.",
+        "callout1": "Um daemon por pasta",
+        "callout2": "O id por caminho rejeita um segundo daemon no mesmo diretório na hora do <code1>create</code1>. O pareamento continua interativo — um daemon reaproveita o keypair e os dispositivos pareados já configurados nesta máquina; ele mesmo não mostra um QR."
+      },
+      "fleet": {
+        "title": "3. Gerencie a frota",
+        "p1": "Todo comando funciona como slash command do Pi (<code1>/remote-pi …</code1>) e, com a CLI linkada, como um comando de shell comum (<code1>remote-pi …</code1>):",
+        "label1": "Comandos da frota",
+        "p2": "Um daemon recebe um prompt como se um usuário o tivesse digitado; a resposta dele volta pela mesma mesh e relay que você configurou — o seu celular a vê ao vivo, e outros agentes da máquina a veem pela mesh local."
+      },
+      "fleet_WhereTheLogsAre": {
+        "title": "Onde ficam os logs",
+        "p1": "A saída de cada daemon é encaminhada para o log do supervisor com um prefixo <code1>['<'cwd'>']</code1>, então um único fluxo mostra a frota inteira."
+      },
+      "cron": {
+        "title": "4. Agende prompts recorrentes (cron)",
+        "p1": "Um daemon só age quando algo o aciona. O <code1>cron</code1> deixa o supervisor ser esse algo numa agenda — “todo dia útil às 9h, resuma os PRs novos” — sem ninguém no teclado. Os jobs alvejam um daemon por id e sobrevivem a reboots junto com o supervisor.",
+        "callout1": "O cron precisa do supervisor instalado como serviço",
+        "callout2": "O agendador roda <em1>dentro</em1> do supervisor, então só dispara quando o supervisor está instalado como serviço de usuário. Rode <code1>/remote-pi install</code1> (passo 1) antes — sem isso, o <code1>cron add</code1> avisa em vez de fingir que agenda. É o mesmo serviço launchd / systemd que mantém seus daemons vivos; não há um segundo agendador.",
+        "p2": "Com um daemon registrado (passo 2) e o supervisor rodando, adicione um job. O primeiro argumento é o id do daemon, depois uma expressão cron padrão de cinco campos, depois o prompt:",
+        "label1": "Agende um prompt",
+        "p3": "As execuções precisam ter pelo menos <strong1>60 segundos</strong1> de intervalo — uma expressão mais frequente é rejeitada com uma mensagem clara, já que cada disparo gasta tokens. Flags do <code1>cron add</code1>:",
+        "li1": "<code1>--tz Area/City</code1> — roda num fuso horário específico, ciente de horário de verão (por exemplo <code1>America/Sao_Paulo</code1>). O padrão é o horário local da máquina.",
+        "li2": "<code1>--wake</code1> — se o daemon está parado quando o job dispara, inicia-o primeiro e depois envia. Padrão: pular (registrado como <code1>skipped_down</code1>).",
+        "li3": "<code1>--no-skip-busy</code1> — envia mesmo se o daemon está no meio de um turno. Por padrão um disparo é pulado enquanto o daemon ainda está trabalhando (<code1>skipped_busy</code1>) para os prompts não se acumularem sobre um turno inacabado.",
+        "li4": "<code1>--catchup</code1> — depois de o supervisor ter ficado fora, dispara <em1>uma</em1> execução perdida na inicialização. Desligado por padrão; nunca reexecuta todo o backlog.",
+        "p4": "Cada job recebe um id como <code1>j_ab12</code1> (impresso por <code1>cron add</code1> e <code1>cron list</code1>). Inspecione, teste e audite a agenda da frota:",
+        "p5": "A resposta do agente é fire-and-forget na mesh — o seu celular e outros agentes a veem ao vivo, exatamente como um <code1>daemon send</code1> manual. O cron em si só audita o <em1>gatilho</em1>: todo disparo e todo pulo acrescenta uma linha em <code1>~/.pi/remote/cron.jsonl</code1>, que o <code1>cron log</code1> acompanha. A referência completa de subcomandos está na <link2>documentação</link2>."
+      },
+      "cleanup": {
+        "title": "Removendo um daemon",
+        "p1": "O <code1>uninstall</code1> é reversível — rodar <code1>/remote-pi install</code1> de novo depois traz de volta todo daemon registrado. As flags e caminhos completos estão na <link3>documentação de referência</link3>."
+      },
+      "pager": {
+        "prev": "Mesh remota"
+      },
+      "meta": {
+        "title": "Modo daemon",
+        "description": "Mantenha um agente Pi vivo 24/7: instale o supervisor (launchd / systemd --user), registre uma pasta como daemon e gerencie a frota com uma só CLI."
+      }
+    },
+    "claudeMesh": {
+      "intro": {
+        "span1": "Extra · só terminal — ainda sem app",
+        "span2": "Tutorial · Extra",
+        "h11": "Claude na mesh",
+        "p1": "O <code1>remote-pi claude</code1> coloca o <strong1>Claude Code</strong1> na mesma mesh de agentes do Pi — um peer nomeado no broker UDS local e, pelo relay, entre PCs. Esta é uma configuração avançada, de agente para agente, conduzida inteiramente pelo terminal. Ela <strong1>ainda não aparece no app mobile</strong1> — veja o <a1>porquê</a1> no final."
+      },
+      "prereqs": {
+        "title": "Antes de começar",
+        "li1": "A CLI <code1>remote-pi</code1> no seu <code1>$PATH</code1> — rode <code1>/remote-pi install</code1> uma vez (veja o <link1>tutorial de daemon</link1>) para linká-la.",
+        "li2": "<strong1>Claude Code</strong1> instalado e no seu <code1>$PATH</code1> como <code1>claude</code1>.",
+        "li3": "Uma pasta que <strong1>não</strong1> esteja rodando um agente Pi (veja <a2>um agente por pasta</a2>)."
+      },
+      "run": {
+        "title": "Rode",
+        "p1": "Na primeira execução numa pasta, ele pede um nome de agente (padrão: o nome da pasta) e salva uma pequena config:",
+        "label1": "Primeira execução",
+        "p2": "Esse nome é como os outros agentes endereçam este Claude em <code1>list_peers</code1> e <code1>agent_send</code1>. Depois ele conecta três coisas ao Claude Code e o inicia."
+      },
+      "injected": {
+        "title": "O que ele conecta",
+        "p1": "O <code1>remote-pi claude</code1> é um wrapper. Ele injeta três coisas e depois inicia o <code1>claude</code1> na pasta de destino."
+      },
+      "injected_mcp": {
+        "title": "1. Um servidor MCP (as ferramentas da mesh)",
+        "p1": "Ele registra um servidor MCP stdio chamado <code1>remote-pi-mesh</code1> no <strong1>escopo local</strong1> do Claude — por pasta, guardado em <code1>~/.claude.json</code1>, sem ser escrito no diretório do projeto nem commitado no controle de versão:",
+        "label1": "O que o wrapper executa (você não digita isto)",
+        "p2": "O servidor expõe três ferramentas ao Claude — a mesma API de mesh que os agentes Pi recebem:",
+        "li1": "<code1>list_peers</code1> — quem está online: peers locais mais os de outros PCs na forma <code1>pc_label:peer</code1> (por exemplo <code1>MacMini:backend</code1>).",
+        "li2": "<code1>agent_send('{' to, body, re? '}')</code1> — envia uma mensagem e recebe um <strong1>ACK</strong1> de volta (<code1>received</code1>, <code1>busy</code1>, <code1>denied</code1> ou <code1>timeout</code1>). <strong1>Não é fire-and-forget</strong1>; defina <code1>re</code1> como o id da mensagem à qual você está respondendo.",
+        "li3": "<code1>get_messages</code1> — esvazia a caixa de entrada de mensagens pendentes deste agente."
+      },
+      "injected_skill": {
+        "title": "2. A skill agent-network",
+        "p1": "Um servidor MCP dá as ferramentas ao Claude, mas não os <em1>hábitos</em1>. As skills só carregam do disco, então o wrapper implanta uma em <code1>~/.claude/skills/agent-network/SKILL.md</code1>. A descrição da skill se restringe a contextos de mesh, para não intrometer-se em sessões do Claude não relacionadas. Ela ensina o Claude a:",
+        "li1": "chamar <code1>get_messages</code1> no início de cada turno, para ver as mensagens recebidas logo;",
+        "li2": "ler o ACK do <code1>agent_send</code1> e agir sobre ele (tentar de novo em <code1>busy</code1>, desistir em <code1>denied</code1>) em vez de presumir a entrega;",
+        "li3": "responder repetindo o id da mensagem original em <code1>re</code1>, para as conversas continuarem ligadas;",
+        "li4": "tratar <code1>broadcast</code1> como fire-and-forget — sem ACK por destinatário."
+      },
+      "injected_channels": {
+        "title": "3. Channel push (acordar com a mensagem)",
+        "p1": "Quando uma mensagem chega, o servidor MCP emite um <code1>notifications/claude/channel</code1>. Se isso alcança o Claude imediatamente depende de uma flag de inicialização:",
+        "li1": "<strong1>Push</strong1> — com <code1>--dangerously-load-development-channels server:remote-pi-mesh</code1> ligado (o wrapper o define), a notificação <strong1>acorda o Claude</strong1> na hora, então ele reage a uma mensagem recebida sem você acionar um prompt.",
+        "li2": "<strong1>Poll</strong1> — sem essa flag, o Claude só vê a mensagem na próxima vez que chamar <code1>get_messages</code1> (ou seja, no próximo turno)."
+      },
+      "flags": {
+        "title": "As flags --dangerously-*",
+        "p1": "O wrapper inicia o Claude com duas flags:",
+        "label1": "Inicialização (o wrapper executa isto)",
+        "callout1": "Saiba o que essas flags fazem",
+        "callout2": "<code1>--dangerously-skip-permissions</code1> <strong1>aprova automaticamente toda chamada de ferramenta</strong1> — o Claude roda Bash, edições e escritas sem pedir confirmação, o que torna possível o trabalho autônomo de agente para agente mas também remove a sua barreira de aprovação. <code1>--dangerously-load-development-channels</code1> abre um canal de desenvolvimento para o servidor MCP local (mostra um diálogo de confirmação único na inicialização). Aponte isto só para pastas e peers em que você confia — a mesma postura de promover uma pasta a <link1>daemon</link1>."
+      },
+      "cwdLock": {
+        "title": "Um agente por pasta",
+        "p1": "Um lock aplicado pelo kernel (o mesmo que o <code1>/remote-pi</code1> toma) permite <strong1>um agente remote-pi por pasta</strong1> — Pi <em1>ou</em1> Claude, nunca os dois no mesmo diretório. Se uma pasta já tem um agente Pi, inicie o Claude em outra pasta; os dois ainda se encontram na mesma mesh local. Um segundo agente numa pasta travada é recusado antes de se conectar, então nunca vira um peer fantasma."
+      },
+      "noApp": {
+        "title": "Por que isto ainda não está no app",
+        "p1": "O app mobile conversa com o <strong1>relay</strong1> e vê só o agente Pi que o pareou. Ele não vê peers UDS locais — como um Claude conectado com <code1>remote-pi claude</code1> — então um Claude colega de mesh não aparece no seu celular. Mostrar a mesh inteira no app é trabalho futuro; por ora, este é um recurso conduzido pelo terminal, de agente para agente. O tráfego do relay, onde é usado, é criptografado em trânsito.",
+        "p2": "Para ver dois agentes conversando numa máquina, combine isto com o tutorial de <link2>mesh local</link2> — inicie um peer como Pi e outro como Claude, em duas pastas, e faça-os trocar mensagens."
+      },
+      "pager": {
+        "prev": "Modo daemon",
+        "next": "Todos os tutoriais"
+      },
+      "meta": {
+        "title": "Claude na mesh",
+        "description": "Extra avançado: o remote-pi claude coloca o Claude Code na mesh de agentes como um peer nomeado ao lado do Pi — de agente para agente, conduzido pelo terminal. Ainda não está no app."
+      }
+    },
+    "index": {
+      "meta": {
+        "title": "Tutoriais",
+        "description": "Guias práticos do Remote Pi: comece pelo app, rode uma mesh local, roteie entre PCs e mantenha um agente vivo 24/7."
+      },
+      "eyebrow": "Tutoriais",
+      "h1": "Aprenda o Remote Pi na prática.",
+      "lede": "Quatro guias práticos, em ordem. Comece pelo app e depois adicione agentes, roteamento entre PCs e um supervisor 24/7 conforme precisar. Para o <em>porquê</em> por trás disso, <why>leia Por que o Pi</why>; para flags e configuração exatas, a <docs>documentação de referência</docs>. Procura o Cockpit? Os tutoriais dele estão em <cockpit>/tutorials</cockpit>.",
+      "open": "Abrir tutorial",
+      "extras": "Extras",
+      "extraTag": "extra",
+      "step1": {
+        "title": "Primeiros passos",
+        "desc": "Instale o Remote Pi, pareie o seu celular e conduza o seu primeiro agente pelo app."
+      },
+      "step2": {
+        "title": "Mesh local",
+        "desc": "Deixe dois agentes na mesma máquina se descobrirem e trocarem mensagens."
+      },
+      "step3": {
+        "title": "Mesh remota",
+        "desc": "Roteie mensagens entre agentes em PCs diferentes pelo relay."
+      },
+      "step4": {
+        "title": "Modo daemon",
+        "desc": "Mantenha um agente vivo 24/7 com o supervisor e depois gerencie a frota."
+      },
+      "extra1": {
+        "title": "Claude na mesh",
+        "desc": "Coloque o Claude Code na mesh de agentes ao lado do Pi — avançado, só terminal (ainda não está no app)."
+      }
+    }
+  },
+  "InstallTabs": {
+    "aria": "Instalar o Remote Pi",
+    "tabFresh": "Ainda não tenho Pi",
+    "tabHasPi": "Já tenho Pi",
+    "soon": " · em breve",
+    "labelFresh": "bash — um comando",
+    "labelHasPi": "pi — três comandos",
+    "noteFresh": "Instala o Pi, o plugin Remote Pi e o supervisor sempre ativo, depois mostra o passo de pareamento. Sem sudo — tudo fica no seu diretório home.",
+    "noteHasPi": "Rode na ordem: instale o plugin, rode o assistente de configuração e depois mostre o QR de pareamento. Cada um é explicado abaixo."
   }
 }
