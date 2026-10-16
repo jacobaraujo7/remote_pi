@@ -540,5 +540,632 @@
       "foot": "Prefer a store? Remote Pi is on <play>Google Play</play> and on the <appstore>App Store</appstore>."
     },
     "foot": "The app drives agents on your machines, so install the <code>remote-pi</code> side first: <guide>the getting started guide</guide> goes from a fresh machine to a paired phone. Looking for the Cockpit desktop app instead? It has its own <cockpit>download page</cockpit>."
+  },
+  "RemoteDocs": {
+    "intro": {
+      "span1": "Documentation",
+      "h11": "Remote Pi docs",
+      "span2": "Last updated: 2026-05-31",
+      "span3": "License: MIT",
+      "p1": "This is the <strong1>reference</strong1>. Remote Pi is a mesh for coding agents: agents on the same machine talk through a local UDS broker, agents on different machines reach each other through an open-source relay, and your phone authenticates new peers and drives sessions. The first supported harness is the <a1>Pi coding agent</a1>; <code1>/remote-pi</code1> wires everything up. To <strong1>learn by doing</strong1>, start with the <link1>tutorials</link1>; for <strong1>why</strong1> it works this way, see <link2>Why Pi</link2>. The pages below are for looking things up."
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "p1": "Install the plugin, run the setup wizard, and pair your phone in a few commands — then send your first prompt from the app. The full walkthrough, including the mobile side, is a tutorial.",
+      "link1": "See the Getting started tutorial"
+    },
+    "whatItDoes": {
+      "title": "What it does",
+      "p1": "Remote Pi adds two independent layers on top of Pi. The <strong1>agent network</strong1> lets agents discover and message each other — over a local socket on one machine, or through the relay across PCs. The <strong1>mobile control plane</strong1> is your phone: it authenticates new peers into the mesh and drives sessions. Each is covered hands-on:",
+      "li1": "<link3>Local mesh</link3> — agents discovering and messaging on the same machine.",
+      "li2": "<link4>Remote mesh</link4> — routing between agents on different PCs.",
+      "li3": "<link5>Getting started</link5> — pairing your phone and driving an agent from it."
+    },
+    "install": {
+      "title": "Install",
+      "p1": "Requirements: Node 20+ and Pi (the host coding agent). Remote Pi installs as a Pi plugin with <code1>pi install npm:remote-pi</code1>, which self-registers the <code1>/remote-pi</code1> slash command and deploys the agent-network skill. The complete setup — wizard, pairing, first command — is in the tutorial.",
+      "p2": "→ <link5>See the Getting started tutorial</link5>. Daemon mode has its own one-time install — see <a2>Daemon mode</a2> below."
+    },
+    "usingRemotePi": {
+      "title": "Using /remote-pi",
+      "p1": "<code1>/remote-pi</code1> is the everyday entry point. The first run opens a short wizard (agent name, whether to use the relay) that creates the per-folder config; later runs join the local mesh and start the relay automatically. Re-run the wizard with <code1>/remote-pi setup</code1>. Every subcommand is in the <a3>command reference</a3>.",
+      "p2": "→ <link5>See the Getting started tutorial</link5> for the guided flow."
+    },
+    "pairing": {
+      "title": "Pairing a mobile device",
+      "p1": "<code1>/remote-pi pair</code1> prints a QR (and a copy-paste URI); scan it with the Remote Pi app. Pairing is <strong1>per machine</strong1> — once a device is paired, every Pi process on that machine accepts it. Manage devices with <code1>/remote-pi devices</code1> and <code1>/remote-pi revoke '<'shortid'>'</code1> (see the <a3>command reference</a3>).",
+      "link1": "See the Getting started tutorial"
+    },
+    "quickActions": {
+      "title": "Quick actions from the phone",
+      "p1": "Beyond chatting, the app drives a session with a small set of typed actions — <strong1>compact context</strong1>, <strong1>new session</strong1>, <strong1>set model</strong1>, and <strong1>set thinking</strong1> level. The model picker reads live from the host, so it always reflects what that machine can run. The full vocabulary, wire format, and fallback semantics live in <a4>PROTOCOL.md</a4> (the <em1>App actions</em1> section).",
+      "link1": "See the Getting started tutorial"
+    },
+    "agentNetwork": {
+      "title": "Agent network",
+      "p1": "Each agent is a peer in a mesh. The LLM gets three tools — <code1>list_peers</code1> (who is online), <code1>agent_send</code1> (send with an ACK), and <code1>get_messages</code1> (drain the inbox). On one machine, peers talk over a Unix-domain-socket broker; across machines, the same <code1>agent_send</code1> routes through the relay, addressing remote peers as <code1>pc_label:peer</code1>. Both paths are covered hands-on:",
+      "li1": "<link3>Local mesh</link3> — the broker, the three tools, a concrete exchange.",
+      "li2": "<link4>Remote mesh</link4> — cross-PC addressing and what an ACK does (and doesn't) guarantee."
+    },
+    "daemonMode": {
+      "title": "Daemon mode",
+      "p1": "Promote a folder to a 24/7 background agent: run <code1>/remote-pi install</code1> once per machine to install the supervisor (launchd on macOS, <code1>systemd --user</code1> on Linux) and link the CLI, then <code1>remote-pi create '<'folder'>' --name \"…\"</code1> to register and start a daemon. One supervisor per machine, N daemons under it. Every command is in the <a3>command reference</a3> below.",
+      "p2": "→ <link6>See the Daemon mode tutorial</link6> for the full how-to; the <em1>why</em1> (and how it compares to all-in-one platforms) is <link2>Why Pi</link2>."
+    },
+    "relay": {
+      "title": "The relay",
+      "p1": "The relay is the only network-touching piece of Remote Pi. In the current MVP it sees both message payloads (forwarded but never logged or inspected by the community operator) and connection metadata: which keypair is online, which room/cwd identifiers exist, message timing, sizes. Traffic is encrypted in transit (TLS) and peers authenticate with Ed25519 pairing, but payloads are not encrypted at the application layer — see <a5>Protocol & Security</a5> and the Privacy Policy, section 9, for the full picture.",
+      "p2": "The relay also <strong1>persists a small SQLite table</strong1> called <code1>mesh_versions</code1> — blobs signed by your Owner key listing the Pi devices that belong to your mesh (a few KB per Owner). The relay verifies the Ed25519 signature on every <code1>POST /mesh/'<'owner_pk_hash'>'</code1> and stores what you signed; it never decides membership itself. New devices restoring your Owner key recover their peer list from this blob. A relay compromise means DoS, not impersonation. See the <a4>PROTOCOL.md</a4> mesh-membership section for the wire format.",
+      "p3": "You have two options."
+    },
+    "relay_communityRelay": {
+      "title": "Option A — Use the community relay",
+      "p1": "<code1>https://relay-rp1.jacobmoura.work</code1> (default). Zero setup. Good for trying things out or for casual use. (Internally the extension uses the WebSocket form <code1>wss://…</code1> — both schemes point at the same endpoint.)",
+      "p2": "Caveats:",
+      "li1": "Shared infrastructure — availability is best-effort.",
+      "li2": "<strong1>TLS in transit is the only network protection</strong1> — the relay operator sees plaintext envelopes (payloads, routing metadata, peer pubkeys, timing). Self-host for confidentiality from the operator.",
+      "li3": "<strong1>No IP allow-listing or VPN gating</strong1> built in. Anyone with a paired keypair can connect; layer a VPN on top via Option B if you want network-level isolation."
+    },
+    "relay_selfHost": {
+      "title": "Option B — Self-host (recommended for privacy)",
+      "p1": "Run the relay yourself in Docker and put it behind a VPN like <a6>Tailscale</a6>, <a7>WireGuard</a7>, or your own VPC. Because the relay's network-level protection is just TLS + keypair authentication, layering a VPN on top means <strong1>only your devices</strong1> can even reach the WebSocket port — defense in depth.",
+      "p2": "Quick Docker outline (see the <a8>relay README</a8> for the full setup, environment variables, and reverse-proxy guidance):",
+      "label1": "On your relay host",
+      "p3": "The <code1>-v remote-pi-data:/data</code1> mount is required — that's where the relay keeps <code1>mesh.db</code1> (the Owner-signed mesh blobs). Skip the volume and the table is wiped on every container restart, forcing every client to re-publish.",
+      "p4": "The relay serves the WebSocket upgrade, <code1>/health</code1>, and <code1>/mesh/'<'owner_pk_hash'>'</code1> on the same port (default 3000) — point your reverse proxy at one upstream and you're done. Use <code1>/health</code1> for liveness probes (Coolify, Kubernetes, Fly health checks).",
+      "p5": "Bind the container to your VPN interface, terminate TLS in a reverse proxy, and point both your Pi and your phone at the resulting <code1>https://…</code1> URL."
+    },
+    "relay_pointPi": {
+      "title": "Pointing Pi at your own relay",
+      "p1": "Once your relay is reachable, tell the extension:",
+      "label1": "In Pi",
+      "p2": "The URL must be <code1>http://</code1> or <code1>https://</code1> — <code1>wss://</code1> / <code1>ws://</code1> are rejected at validation. The extension converts to the WebSocket form internally when it opens the connection, so you can paste whatever URL your reverse proxy or PaaS dashboard exposes.",
+      "p3": "This writes <code1>~/.pi/remote/config.json</code1> with <code1>'{' \"relay\": \"...\" '}'</code1>. Resolution order (highest precedence first):",
+      "li1": "<code1>REMOTE_PI_RELAY</code1> environment variable (CI / one-off overrides)",
+      "li2": "The built-in default (<code1>https://relay-rp1.jacobmoura.work</code1>)",
+      "p4": "Verify the active URL and its source with:",
+      "label2": "In Pi",
+      "p5": "To switch URLs while connected: <code1>/remote-pi stop</code1> then <code1>/remote-pi</code1> again. The mobile app has its own relay-URL setting in its preferences pane — keep both pointing at the same relay."
+    },
+    "protocol": {
+      "title": "Protocol & Security",
+      "p1": "The canonical spec for everything wire-level — envelope format, identity model (Owner key + per-device subkeys), ACK protocol, cross-PC routing, mesh membership, trust model, and failure modes — lives in <a4>PROTOCOL.md</a4> on GitHub. It is the source of truth that the Pi extension, the mobile apps, and the relay all implement against. Read it when you need exact behavior or when writing a new harness adapter.",
+      "p2": "<strong1>Security posture, in short.</strong1> Connections to the relay are <strong1>encrypted in transit (TLS)</strong1>, and devices authenticate each other with <strong1>Ed25519 pairing</strong1>, so paired peers verify identity cryptographically. Message payloads are <strong1>not</strong1> encrypted at the application layer — the relay operator could in principle read plaintext in memory while forwarding. If you need confidentiality from the relay operator, <a9>self-host the relay</a9> behind a VPN. The Privacy Policy, section 9, restates this in plain language, and PROTOCOL.md is the deep dive that matches the code."
+    },
+    "commands": {
+      "title": "Command reference",
+      "p1": "Every command works as a Pi slash command (interactive) and as a shell-level <code1>remote-pi '<'subcommand'>'</code1> when the package is installed globally (<code1>npm install -g remote-pi</code1>).",
+      "p2": "The footer in the Pi TUI reflects state live:",
+      "li1": "<code1>📡 local (N)</code1> — local mesh session and peer count",
+      "li2": "<code1>🟢 relay</code1> — relay connected, at least one device paired on this machine",
+      "li3": "<code1>🟡 relay waiting for pairing</code1> — relay connected, no device paired yet",
+      "li4": "<code1>📱 '<'shortid'>'</code1> — a mobile device is actively connected right now",
+      "p3": "The window title is two parts — <code1>'<'agent-name'>' · On</code1> when the relay is up or <code1>'<'agent-name'>' · Off</code1> otherwise — so you can tell your terminal tabs apart at a glance."
+    },
+    "commands_commandsLocal": {
+      "title": "Local session — one Pi, one terminal",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Connect (join local mesh + start relay), or run setup on first use",
+      "td2": "Run the setup wizard and update local config",
+      "td3": "Show local mesh + relay status",
+      "td4": "List local and cross-PC mesh peers, grouped by PC label",
+      "cell1": "Stop everything for <em1>this</em1> terminal (mesh + relay)",
+      "td5": "Show QR + copy-paste pairing URI for a new mobile device (QR valid 60s by default; --ttl clamps to 10–600s)",
+      "td6": "List paired mobile devices (online/offline per device)",
+      "td7": "Revoke a paired device by its shortid (brings the relay up first, like pair, to notify the device)",
+      "td8": "Persist a new relay URL (http:// or https://)"
+    },
+    "commands_commandsDaemon": {
+      "title": "Daemon fleet — one supervisor, N background Pis",
+      "p1": "See <a2>Daemon mode</a2> for the overview and the <link6>Daemon mode tutorial</link6> for the full how-to.",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Register a folder as a daemon (starts it when the supervisor is running)",
+      "td2": "Unregister a daemon (local config preserved)",
+      "td3": "List registered daemons + state",
+      "td4": "Start one daemon by id, or every registered daemon with no id",
+      "cell1": "Stop one daemon by id, or every running daemon with no id (<code1>/remote-pi stop</code1> stops only the local terminal)",
+      "td5": "Restart one daemon by id, or every daemon with no id",
+      "td6": "Detailed runtime status (pid, uptime, restart count)",
+      "td7": "Send a prompt to a specific daemon",
+      "cell2": "Install <code1>pi-supervisord</code1> as a system service <strong1>and</strong1> symlink the <code1>remote-pi</code1> CLI into <code1>~/.local/bin/</code1>",
+      "cell3": "Remove the system service <strong1>and</strong1> the <code1>~/.local/bin</code1> symlinks (daemon registry preserved)"
+    },
+    "commands_commandsCron": {
+      "title": "Daemon cron — scheduled prompts",
+      "p1": "Schedule recurring prompts to a daemon. The scheduler runs <strong1>inside the supervisor</strong1>, so it only fires when the supervisor is installed as a service (<a2>Daemon mode</a2> / <code1>/remote-pi install</code1>) — otherwise <code1>cron add</code1> warns instead of scheduling. See the <link7>Daemon mode tutorial</link7> for the walkthrough.",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Schedule a recurring prompt to a daemon (5-field cron expression; runs must be ≥60s apart)",
+      "td2": "List jobs: schedule, enabled, last run / status, next run",
+      "td3": "Fire a job now, ignoring its schedule",
+      "td4": "Resume a paused job",
+      "td5": "Pause a job without deleting it",
+      "td6": "Delete a job",
+      "cell1": "Tail the fire / skip audit log (default N = 20), optionally for one job",
+      "li1": "<strong1>Minimum interval 60s.</strong1> A more frequent expression is rejected (each fire spends tokens). Croner syntax — five fields (<code1>min hour day-of-month month day-of-week</code1>), plus an optional seconds field, still bounded by the 60s floor.",
+      "li2": "<strong1>Timezone per job.</strong1> <code1>--tz Area/City</code1> resolves DST; without it a job runs in the machine's local time.",
+      "li3": "<strong1>Overlap & downtime.</strong1> A fire is skipped while the daemon is mid-turn (<code1>--no-skip-busy</code1> overrides), skipped if the daemon is down (<code1>--wake</code1> starts it first), and at most one missed run is replayed on startup (<code1>--catchup</code1>, off by default).",
+      "li4": "<strong1>Audit.</strong1> Every fire <em1>and</em1> every skip appends one line to <code1>~/.pi/remote/cron.jsonl</code1> with a <code1>result</code1> of <code1>delivered</code1>, <code1>deliver_failed</code1>, <code1>woke_and_delivered</code1>, <code1>skipped_busy</code1>, <code1>skipped_down</code1>, or <code1>skipped_disabled</code1>. The agent's reply itself is fire-and-forget into the mesh — cron records the trigger, not the response."
+    },
+    "config": {
+      "title": "Configuration files",
+      "th1": "Path",
+      "th2": "Scope",
+      "th3": "What's in it",
+      "td1": "Per-directory",
+      "td2": "Per-user",
+      "cell1": "<code1>relay</code1> URL",
+      "td3": "Per-machine",
+      "td4": "Paired mobile devices",
+      "td5": "Per-machine",
+      "cell2": "Daemon registry (list of <code1>'{' cwd, name '}'</code1> entries)",
+      "td6": "Per-machine",
+      "cell3": "Pi-secret fallback when the OS keyring is unavailable (headless Linux). Stored with <code1>chmod 0600</code1>. See <a4>PROTOCOL.md</a4> for the keyring details.",
+      "td7": "Per-machine",
+      "cell4": "Broker socket + <code1>audit.jsonl</code1>",
+      "td8": "Per-user",
+      "td9": "Agent skill the LLM reads",
+      "p1": "Override the relay for a single run without persisting:",
+      "label1": "Shell",
+      "p2": "Only <code1>http://</code1> / <code1>https://</code1> are accepted — <code1>wss://</code1> / <code1>ws://</code1> are rejected at validation, the extension converts to the WebSocket form internally when it opens the connection.",
+      "p3": "Daemons don't read the per-directory file at all — the supervisor injects their whole config inline via the <code1>REMOTE_PI_DIRECT_CONFIG</code1> environment variable at spawn (a fixed <code1>assistent</code1> workspace with the relay on), so a daemon folder needs no <code1>.pi/remote-pi/</code1> of its own. You can set the same variable yourself to override <code1>'<'cwd'>'/.pi/remote-pi/config.json</code1> for a single run — an escape hatch for CI, ops, and the Cockpit desktop client:",
+      "label2": "Shell"
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting"
+    },
+    "troubleshooting_footerStuck": {
+      "title": "Footer says 🟡 relay waiting for pairing even though I paired a device",
+      "p1": "The icon reflects whether <em1>any</em1> device has been paired on this machine, not whether one is connected right now. If you really have a paired device in <code1>/remote-pi devices</code1>, restart Pi — the cache may be stale (fixed in current release; report a bug if it recurs)."
+    },
+    "troubleshooting_timeoutMobile": {
+      "title": "Mobile app times out connecting",
+      "p1": "Verify the same relay URL is configured on both sides. If you self-host behind a VPN, your phone must also be on the VPN (Tailscale on iOS/Android works fine)."
+    },
+    "troubleshooting_timeoutRequest": {
+      "title": "Reply never arrives",
+      "p1": "<code1>agent_send</code1> returned <code1>'{' status: \"received\" '}'</code1> but no reply ever lands in your inbox. Possible causes:",
+      "li1": "<strong1>Receiver crashed or never processed.</strong1> Run <code1>/remote-pi peers</code1> to see whether the peer is still online.",
+      "li2": "<strong1>The receiver chose not to reply.</strong1> <code1>agent_send</code1> is not RPC — there's no obligation to respond. If the conversation needs a reply, the prompt to the receiver must say so explicitly.",
+      "li3": "<strong1>Cross-PC: peer went offline.</strong1> Look in your inbox for a <code1>transport_error</code1> envelope with <code1>re='<'your-send-id'>'</code1> — the relay returns one when a forwarded message can't be delivered. A <code1>Delivered</code1> ACK only means the remote broker accepted the envelope, not that the peer is alive — validate by roundtrip.",
+      "p2": "<strong1>Note:</strong1> <code1>agent_request</code1> is deprecated (still available as a wrapper for backward compat, emits a warning). New agents call <code1>agent_send</code1> and observe the inbox in a future turn."
+    },
+    "troubleshooting_onePiPerCwd": {
+      "title": "Two Pi processes can't share a directory",
+      "p1": "A cwd lock allows <strong1>one Pi process per directory</strong1>. If you try to run <code1>/remote-pi</code1> in a second terminal that's already in the same folder, the second start is rejected (and the relay, separately, refuses a duplicate room with <code1>RoomAlreadyOpenError</code1>).",
+      "p2": "<strong1>To run two agents side by side:</strong1> put them in two different directories — each gets its own workspace and both meet in the same <code1>local</code1> session. See the <link3>Local mesh tutorial</link3>.",
+      "p3": "If you actually wanted a second terminal at the same workspace (e.g. just to read state), stop the running Pi first or open a shell that does <em1>not</em1> launch Pi."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "Homepage: <link8>Remote Pi</link8>",
+      "li2": "Tutorials: <link1>hands-on guides</link1>",
+      "li3": "Cockpit reference: <link9>CLI, layouts, tasks, themes</link9>",
+      "li4": "Source: <a10>github.com/jacobaraujo7/remote_pi</a10>",
+      "li5": "Protocol spec: <a4>PROTOCOL.md</a4>",
+      "li6": "Pi coding agent: <a1>github.com/earendil-works/pi</a1>",
+      "li7": "Relay (self-hosting guide): <a11>relay/README.md</a11>",
+      "li8": "Issues / bugs: <a12>github.com/jacobaraujo7/remote_pi/issues</a12>",
+      "p1": "License: MIT."
+    },
+    "meta": {
+      "title": "Docs",
+      "description": "Reference for Remote Pi: the relay, protocol & security, the full command reference, configuration files, and troubleshooting."
+    },
+    "toc": {
+      "quickStart": "Quick start",
+      "whatItDoes": "What it does",
+      "install": "Install",
+      "pairing": "Pairing a mobile device",
+      "quickActions": "Quick actions from the phone",
+      "agentNetwork": "Agent network",
+      "daemonMode": "Daemon mode",
+      "relay": "The relay",
+      "communityRelay": "Community relay",
+      "selfHost": "Self-host",
+      "pointPi": "Point Pi at your relay",
+      "protocol": "Protocol & Security",
+      "commands": "Command reference",
+      "commandsLocal": "Local session",
+      "commandsDaemon": "Daemon fleet",
+      "commandsCron": "Daemon cron",
+      "config": "Configuration files",
+      "troubleshooting": "Troubleshooting",
+      "footerStuck": "Stuck on pairing",
+      "timeoutMobile": "Mobile times out",
+      "timeoutRequest": "Reply never arrives",
+      "onePiPerCwd": "One Pi per cwd",
+      "links": "Links",
+      "usingRemotePi": "Using <code1>/remote-pi</code1>"
+    }
+  },
+  "DocsShared": {
+    "tocOnThisPage": "On this page",
+    "pagerAriaLabel": "Tutorial navigation",
+    "pagerPrev": "← Previous",
+    "pagerNext": "Next →"
+  },
+  "CockpitDocs": {
+    "intro": {
+      "span1": "Documentation · Cockpit",
+      "h11": "Cockpit reference",
+      "span2": "Last updated: 2026-09-21",
+      "span3": "License: MIT",
+      "p1": "Everything the desktop app reads from your repository or writes to your machine: the internal <code1>cockpit</code1> CLI that agents use to drive tabs, the <code1>.ckp</code1> pane layouts, the <code1>.cockpit/tasks.json</code1> Task Run file, the theme format, the documents that open as tabs, the <code1>.env.cockpit</code1> that feeds your terminals, and the harness hooks behind the turn status. For the product tour, see the <link1>Cockpit page</link1>; for the mesh, daemons, and the relay, see the <link2>Remote Pi docs</link2>."
+    },
+    "install": {
+      "title": "Install",
+      "p1": "Cockpit ships for macOS, Windows, and Linux. macOS builds are signed and notarized, and every platform that supports it gets in-app updates. Grab a build from the <link3>download page</link3> — <code1>.dmg</code1>, <code1>.exe</code1>, <code1>.deb</code1> and <code1>.rpm</code1> (x64 and arm64), each with a published SHA-256.",
+      "p2": "Cockpit is a terminal first: it needs no account, no cloud and nothing else installed to be useful. Agents run as ordinary processes in its tabs, so the harness you already use (Claude Code, Codex CLI, Pi, OpenCode) is the one that runs here.",
+      "p3": "Working on another machine is SSH plus <code1>cockpit-server</code1>, described in <a1>Remote hosts & VPS</a1>. That is unrelated to the Remote Pi relay: the mesh, the phone app and the 24/7 daemons belong to the <link4>Remote Pi project</link4> and are not part of Cockpit."
+    },
+    "cli": {
+      "title": "The cockpit CLI",
+      "p1": "Cockpit materializes a small binary at <code1>~/.cockpit/bin/cockpit</code1> and puts that folder on the <code1>PATH</code1> of the terminals it spawns — and only those. So the CLI exists for anything running inside Cockpit (you, a script, an agent) and does not leak into the rest of your shell environment. It talks to the app over a local socket: a Unix socket on macOS and Linux, a loopback TCP port plus a token on Windows.",
+      "p2": "This is what makes Cockpit an <em1>agentic</em1> multiplexer: an agent in one tab can open another tab, type into it, read what it printed, run a project task, or query a database — the same verbs a human uses, with no screen scraping."
+    },
+    "cli_cliTargets": {
+      "title": "Targets & ids",
+      "p1": "The unit the CLI addresses is a <strong1>tab</strong1> (one terminal or agent session). A <strong1>pane</strong1> is the split leaf that groups tabs and is not addressable — <code1>list-panes</code1> and <code1>read-pane</code1> survive as legacy aliases.",
+      "th1": "Flag",
+      "th2": "What it does",
+      "cell1": "Target another tab. Defaults to <code1>$COCKPIT_TAB_ID</code1> (the current tab; legacy fallback <code1>$COCKPIT_PANE_ID</code1>).",
+      "cell2": "Target whatever tab you are looking at, resolved by the app. Works from outside a Cockpit terminal too (dictation tools, scripts): with no env inherited the CLI finds the app through <code1>~/.cockpit/status.sock</code1>. Wins over <code1>--tab-id</code1>.",
+      "cell3": "(<code1>send</code1> only) press Enter right after the text, as a separate keystroke — a <code1>send</code1> plus a <code1>send-key Enter</code1> in one call.",
+      "callout1": "Tab ids reset on boot",
+      "p2": "Ids (<code1>t0</code1>, <code1>t1</code1>…) are assigned per app boot, so never hardcode one. Discover them with <code1>cockpit list-tabs</code1>, or give a tab a <strong1>stable label</strong1> (double-click the tab, or <code1>new-tab --title</code1>) and address it by name. Labels persist across boots; workspace ids are opaque UUIDs, so use <code1>workspacePath</code1> / <code1>path</code1> when you need the folder on disk."
+    },
+    "cli_cliCommands": {
+      "title": "Command reference",
+      "th1": "Command",
+      "th2": "What it does",
+      "td1": "Type text into a tab.",
+      "cell1": "Press named keys: <code1>Enter Tab Escape Space BSpace Up Down Left Right Home End PageUp PageDown Delete</code1> and <code1>C-'<'letter'>'</code1> (e.g. <code1>C-c</code1>).",
+      "cell2": "Open a file in the app's viewer. Bare <code1>cockpit '<'file'>'</code1> is a shortcut for it, relative to the tab's cwd.",
+      "cell3": "Open a terminal tab and print its id. <code1>h</code1>/<code1>right</code1> splits side by side, <code1>v</code1>/<code1>down</code1> stacks; omit to open as a tab in the same pane. Anchored at the emitting tab's pane.",
+      "cell4": "Read a tab's rendered output. No target = the current tab. Alias: <code1>read-pane</code1>.",
+      "td2": "Read a task's output, even with no tab open for it.",
+      "cell5": "List active tabs (alias: <code1>list-panes</code1>). The JSON carries <code1>label</code1>, <code1>workspacePath</code1>, <code1>working</code1> and, for task output tabs, <code1>taskId</code1>.",
+      "td3": "List workspaces (projects) and their paths.",
+      "cell6": "List this workspace's tasks. <code1>[output]</code1> marks tasks whose output <code1>read-task</code1> can read (ran this boot); ● marks tasks running right now.",
+      "cell7": "SQL databases registered in the workspace — see <a2>Databases</a2>.",
+      "td4": "Run a Redis command, or open the key table for a human.",
+      "td5": "Run a MongoDB command, or open the collection browser.",
+      "cell8": "Apply a pane layout — see <a3><code1>.ckp</code1> layouts</a3>.",
+      "td6": "Install the Claude Code skill that teaches this CLI.",
+      "label1": "Cockpit terminal"
+    },
+    "cli_cliRead": {
+      "title": "Reading output",
+      "p1": "<code1>read-tab</code1> and <code1>read-task</code1> share a windowing model. Output is always chronological (top to bottom); the flags only pick which window you get.",
+      "th1": "Flag",
+      "th2": "Default",
+      "th3": "What it does",
+      "td1": "How many lines to return (server cap: 2000).",
+      "td2": "Skip N lines from the anchor — this is your pagination.",
+      "td3": "off",
+      "td4": "Anchor at the start of the buffer instead of the tail.",
+      "p2": "Task ids are stable per workspace: <code1>npm:'<'script'>'</code1> from <code1>package.json</code1>, <code1>flutter:run</code1> / <code1>flutter:test</code1>, and <code1>json:'<'label'>'</code1> from <code1>.cockpit/tasks.json</code1>."
+    },
+    "layouts": {
+      "title": ".ckp pane layouts",
+      "p1": "A <code1>.ckp</code1> file is a versionable YAML that describes the terminals to open in a workspace — the equivalent of a tmuxinator layout. One file is one layout, and the file name is the layout name (<code1>dev.ckp</code1> → layout “dev”). Commit it, and a teammate gets your working geometry on clone.",
+      "p2": "There are three ways to apply one:",
+      "li1": "<strong1>GUI</strong1> — right-click the <code1>.ckp</code1> file in the tree → <strong1>Open layout</strong1>.",
+      "li2": "<strong1>CLI</strong1> — <code1>cockpit orchestrate dev.ckp</code1> from inside a tab.",
+      "li3": "<strong1>Worktree autorun</strong1> — <code1>autorun: worktree</code1> in the file: the layout is applied by itself whenever you create a worktree of the workspace. The worktree is born empty, so the geometry comes out exact."
+    },
+    "layouts_layoutsFields": {
+      "title": "Fields",
+      "p1": "<strong1>Root:</strong1> <code1>panes</code1> (required) is the list of panes in creation order. <code1>autorun</code1> (optional) accepts only <code1>worktree</code1>; with two or more autorun files at the root, none of them runs — ambiguity is never guessed.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Default",
+      "th4": "Description",
+      "td1": "yes",
+      "td2": "Unique (case-insensitive). Becomes the tab's manual label and the merge key.",
+      "td3": "no",
+      "cell1": "Relative to the file's folder, forward slashes only. Absolute paths and <code1>\\</code1> are rejected for portability.",
+      "td4": "no",
+      "cell2": "Where it is born, relative to the <em1>previously created</em1> pane: <code1>tab</code1>, <code1>right</code1>, <code1>down</code1>.",
+      "td5": "no",
+      "td6": "Typed into the terminal and run by the tab's shell (resolved through the machine's PATH).",
+      "td7": "no",
+      "td8": "all",
+      "cell3": "<code1>macos</code1> / <code1>windows</code1> / <code1>linux</code1>, string or list — same semantics as in <code1>tasks.json</code1>."
+    },
+    "layouts_layoutsMerge": {
+      "title": "Replace semantics",
+      "li1": "Opening a layout means <strong1>become this layout</strong1>: the file is validated first, then every tab of the workspace is closed (pinned ones included), then the panes are built with exact geometry. If any tab has work running (an agent mid-turn, a process in a terminal, a live task) the GUI asks before closing; idle tabs close silently.",
+      "li2": "<code1>cockpit orchestrate dev.ckp</code1> replaces without asking and keeps only the tab that ran the command. Pass <code1>--append</code1> to keep the old additive behavior: panes whose <code1>name</code1> already exists are skipped and nothing is closed. The worktree autorun always appends (the worktree is born empty, so it makes no difference).",
+      "li3": "A missing <code1>cwd</code1> or invalid YAML gives a readable error (dialog in the GUI, stderr in the CLI); nothing is applied halfway from the failing pane on.",
+      "li4": "<code1>command</code1> is typed ~700 ms after the tab opens, so the shell has time to finish booting, with Enter at the end.",
+      "p1": "Cockpit treats <code1>.ckp</code1> as YAML for highlighting and shows the Cockpit logo as the file icon in the tree."
+    },
+    "tasks": {
+      "title": "Task Run",
+      "p1": "Task Run executes your project's build and dev commands (<code1>npm run dev</code1>, <code1>flutter run</code1>, <code1>go run</code1>, <code1>make</code1>…) with streamed output, a visual lifecycle (play / stop / restart), interactive keys, and reload-on-save. Two sources coexist:",
+      "li1": "<strong1>Auto-detected</strong1> — on opening a project, Cockpit reads the manifests (<code1>package.json</code1> scripts, <code1>pubspec.yaml</code1>) and shows tasks with no config at all.",
+      "li2": "<strong1>Declared</strong1> — <code1>.cockpit/tasks.json</code1>, for customizing, adding tasks, or describing a monorepo. JSON tasks take precedence over a detected task with the same id.",
+      "callout1": "The runner is generic",
+      "p2": "It knows only <code1>command</code1>, <code1>args</code1>, and <code1>env</code1>. There are no stack-specific keys (flavor, dart-define, <code1>NODE_ENV</code1>) — all of that is expressed as <code1>args</code1> and <code1>env</code1>."
+    },
+    "tasks_tasksFile": {
+      "title": "Where the file lives",
+      "p1": "At the <strong1>root of the workspace you open</strong1>. Discovery is literal — Cockpit does not walk up the tree. For a single package, open the package folder. For a <strong1>monorepo</strong1>, open the root and let one <code1>.cockpit/tasks.json</code1> drive the subpackages through a per-task <code1>cwd</code1>.",
+      "p2": "The file is <strong1>JSONC</strong1>: comments (<code1>//</code1> and <code1>/* */</code1>) and trailing commas are allowed, just like VSCode's <code1>tasks.json</code1>. Point <code1>$schema</code1> at <a4><code1>docs/tasks.schema.json</code1></a4> for editor autocomplete; Cockpit ignores the field when running."
+    },
+    "tasks_tasksFields": {
+      "title": "Fields",
+      "p1": "Root: <code1>tasks</code1> (required) and <code1>cwd</code1> (optional) — a default <code1>cwd</code1> for every task, which each task may override.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Default",
+      "th4": "Description",
+      "td1": "yes",
+      "cell1": "Short display name. The task id is derived from it: <code1>json:'<'label'>'</code1>.",
+      "td2": "yes",
+      "td3": "Base executable (npm, flutter, dart…).",
+      "td4": "no",
+      "td5": "Base args, placed before the profile's args.",
+      "td6": "no",
+      "td7": "root",
+      "cell2": "Run folder, relative to the <code1>tasks.json</code1> folder (absolute also accepted). Falls back to the top-level <code1>cwd</code1>, then the root.",
+      "td8": "no",
+      "td9": "all",
+      "cell3": "OSes where the task is visible: <code1>macos</code1>, <code1>windows</code1>, <code1>linux</code1>.",
+      "td10": "no",
+      "cell4": "<code1>watch</code1> (long-lived process, e.g. a dev server) or <code1>oneShot</code1> (runs and exits).",
+      "td11": "no",
+      "cell5": "Buttons that write to the process' stdin: <code1>key</code1>, <code1>label</code1>, optional <code1>icon</code1> (<code1>refresh</code1>, <code1>restart</code1>, <code1>stop</code1>, <code1>bolt</code1>) and <code1>primary</code1>.",
+      "td12": "no",
+      "cell6": "Reload on save: <code1>paths</code1>, <code1>ignore</code1>, <code1>onChange</code1> (required — an <code1>interactiveKeys</code1> label or <code1>\"__restart__\"</code1>) and <code1>debounceMs</code1> (300). Leave it out for tools that already watch (Vite, Next).",
+      "td13": "no",
+      "cell7": "<code1>begin</code1> / <code1>end</code1> regexes that swing the badge between <em1>building</em1> and <em1>running</em1>.",
+      "td14": "no",
+      "cell8": "Named run variants (launch configs): <code1>name</code1>, extra <code1>args</code1> appended after the task's, and <code1>env</code1> merged into the process environment. A chip cycles them before you hit play.",
+      "callout1": "Two known limits",
+      "p2": "For an argument value containing spaces, use <strong1>separate items</strong1> in <code1>args</code1> (<code1>[\"--dart-define\", \"MSG=hello world\"]</code1>). And the output tab does not survive an app restart — the task dies with it."
+    },
+    "databases": {
+      "title": "Databases",
+      "p1": "Connections live per workspace in <code1>.cockpit/databases.json</code1>, plus any SQLite files Cockpit auto-detects in the project. SQLite, Postgres, MySQL, SQL Server, Redis, and MongoDB open as tabs: a table view for SQL and Redis, a collection browser for MongoDB. A <code1>.dbq</code1> file is a saved query you can commit and re-run.",
+      "p2": "The same connections are reachable from the CLI, and the output is <strong1>one JSON line</strong1> — built to be parsed by an agent, not read by a human.",
+      "label1": "Cockpit terminal",
+      "callout1": "Per-connection guardrails",
+      "p3": "Each connection carries an <code1>access</code1> level (<code1>read</code1> — the default, including for connections created before the field existed — or <code1>readwrite</code1>) and an <code1>agents</code1> flag. A connection with <code1>agents: false</code1> is invisible to the CLI. The gates are enforced on the CLI surface: what you do by hand in the GUI is never blocked, but what an agent can reach is yours to decide. Run <code1>cockpit db --help</code1> for the full surface."
+    },
+    "documents": {
+      "title": "Documents as tabs",
+      "p1": "Besides terminals, a Cockpit tab can be a document. Each one is a plain file in your repository, so git sees it, your agent can write it from the CLI, and nothing is locked inside the app. The <strong1>Gallery</strong1> panel, next to Database, has one card per document type: click it and the file is created at the workspace root and opened, on local and remote workspaces alike."
+    },
+    "documents_documentsNotebook": {
+      "title": "Notebook (.notebook)",
+      "p1": "A folder whose name ends in <code1>.notebook</code1> is a notebook: one <code1>.md</code1> per note, each with a shallow YAML frontmatter. Cockpit shows the folder as a single item in the tree and opens it as a notes tab. Outside the app it is an ordinary folder, so git, Obsidian and an agent in the terminal read the same files.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Notes",
+      "td1": "no",
+      "td2": "Without it, the title is the file name minus .md",
+      "td3": "no",
+      "cell1": "A list <code1>[a, b]</code1>. With none, the note lands in the “no tag” group",
+      "td4": "no",
+      "td5": "no",
+      "td6": "Rewritten by the app on save",
+      "p2": "The parser never throws: a file with no frontmatter, or with an unterminated <code1>---</code1>, becomes a note whose body is the whole content. The app only rewrites the <code1>title</code1>, <code1>tags</code1> and <code1>updated</code1> lines, leaving the body and any other key untouched.",
+      "p3": "Notes are always editable, in a single mode: the markdown is painted live as you type while the markers stay visible, so the file remains plain markdown. It saves on its own about a second and a half after you stop typing (and on tab change or close), and ⌘S forces it. Pasting or dropping an image writes it to <code1>_assets/</code1> inside the notebook. <code1>[[Note title]]</code1> in the body becomes a clickable chip, creating the note if it does not exist, and each note lists its backlinks at the bottom.",
+      "label1": "Cockpit terminal",
+      "callout1": "The agent tag",
+      "p4": "The CLI always adds the reserved tag <code1>agent</code1> to a note it writes, and the UI marks those with a spark, so a note left by an agent is never confused with one you wrote."
+    },
+    "documents_documentsHttp": {
+      "title": "HTTP requests (.http)",
+      "p1": "A <code1>.http</code1> file is a request tab: editor on one side, response on the other. The syntax is the one the REST Client and JetBrains HTTP Client use, so files you already have work here: <code1>###</code1> separates requests, <code1>@name = value</code1> declares a variable and <code1>'{{'name'}}'</code1> interpolates it. Run the request under the cursor with ⌘↵ and read the response as JSON, as headers or as raw text.",
+      "p2": "The agent runs the same file through the CLI, and gets one JSON line back. A 4xx or 5xx is a normal response, so it should check <code1>status</code1> rather than the exit code.",
+      "label1": "Cockpit terminal"
+    },
+    "documents_documentsMore": {
+      "title": "Boards, diagrams and windows",
+      "li1": "<strong1>Kanban</strong1>: a <code1>.kanban</code1> markdown file renders as a board, with dependencies between cards (<code1>blockedBy</code1>, plus blocked and ready filters), a title and label filter, drag and drop in list mode, markdown in comments, and a hold on the advance arrow to send a card straight to the last column.",
+      "li2": "<strong1>Mermaid</strong1>: a <code1>```mermaid</code1> fence renders as a diagram in the markdown preview, offline, in your theme. Prefer it over ASCII art when an agent explains a flow.",
+      "li3": "<strong1>Document window</strong1>: open any file in its own light window from the app, or straight from the operating system. Double-click a <code1>.kanban</code1>, <code1>.notebook</code1>, <code1>.ckp</code1>, <code1>.dbq</code1>, <code1>.http</code1> or a markdown file in Finder, in Explorer or in your Linux file manager, and Cockpit opens it, forwarding the path to the instance you already have running."
+    },
+    "env": {
+      "title": "Workspace environment (.env.cockpit)",
+      "p1": "A plain <code1>KEY=VALUE</code1> file named <code1>.env.cockpit</code1> at the workspace root is injected into every terminal Cockpit opens there: every root of a multi-root workspace, and remote workspaces too, where the host reads its own copy right before spawning the shell. Put the tokens your agents need there instead of pasting them into a prompt. New tabs pick up changes, and <strong1>Restart</strong1> reloads an existing tab in place."
+    },
+    "env_envRedaction": {
+      "title": "Redaction",
+      "p1": "Values injected from the file are replaced by <code1>***</code1> before the output reaches the emulator, which covers the screen, the saved scrollback and <code1>cockpit read-tab</code1> at once. An agent reading another tab does not read your secrets back.",
+      "p2": "Out of scope, on purpose: a value that the program re-encodes (base64, for instance) or splits with ANSI escapes, and the file itself, which is an ordinary file that anything with your permissions can read."
+    },
+    "env_envBlocked": {
+      "title": "Keys that are never injected",
+      "p1": "Keys that change <em1>who runs what</em1> are ignored, so a file that arrives with a repository cannot redirect the programs your shell starts:",
+      "label1": "blocked",
+      "p2": "On top of that, when the <code1>.env.cockpit</code1> is tracked by git (so it came with the repository, it is not yours), new terminals print a notice listing the key <em1>names</em1> it injected, never the values. The Gallery card that creates the file also keeps it out of git."
+    },
+    "env_envAccounts": {
+      "title": "A personal and a work account, side by side",
+      "p1": "Claude Code and Codex read their whole account (credentials, settings and history) from a directory you can point somewhere else, and Cockpit injects those variables per workspace like any other. That is the recipe for separate accounts: no extra feature, one line per workspace.",
+      "p2": "Restart the tabs (or open new ones), run <code1>claude</code1> and log in once with <code1>/login</code1>. From then on that workspace uses that account, and your other workspaces keep the default one. Use absolute paths: the variables name a directory, not a profile."
+    },
+    "themes": {
+      "title": "Themes",
+      "p1": "Cockpit ships nine built-in themes — <code1>cockpit</code1>, <code1>cockpit.2</code1>, <code1>violet</code1>, <code1>violet.2</code1>, <code1>midnight</code1>, <code1>rose</code1>, <code1>sun</code1>, <code1>flexoki</code1> and <code1>pantera</code1> — each with a light and a dark variant. Beyond those, a theme is <strong1>a single JSON file</strong1> that paints all three layers at once: the app UI, the code viewer's syntax highlighting, and the terminal palette."
+    },
+    "themes_themesFile": {
+      "title": "The theme file",
+      "li1": "Import with <strong1>Settings → Appearance → Theme → Import…</strong1>",
+      "li2": "Themes live in <code1>'<'data folder'>'/themes/</code1> (the same root as the “Storage” setting), one file per theme, named after its <code1>id</code1>. Copying a <code1>.json</code1> in there installs it too.",
+      "li3": "Export produces a <strong1>complete</strong1> file (every token, no <code1>extends</code1>) — a good starting point for hand editing.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "What it is",
+      "td1": "yes",
+      "cell1": "Stable, namespaced identity (<code1>publisher.name</code1>). It is what gets stored in preferences, so renaming <code1>name</code1> never loses the user's choice. Cannot collide with a built-in id.",
+      "td2": "yes",
+      "td3": "What shows up in the picker.",
+      "td4": "no",
+      "td5": "Metadata.",
+      "td6": "no",
+      "td7": "Metadata.",
+      "td8": "no",
+      "cell2": "Id of a built-in theme to inherit from. Absent = inherits from <code1>cockpit</code1>.",
+      "td9": "yes",
+      "cell3": "At least one of <code1>dark</code1> / <code1>light</code1>. A dark-only theme is applied in light mode too — better than mixing half a light theme with half a dark one.",
+      "p1": "<strong1>Inheritance is the point.</strong1> Every token you do not declare comes from the base, so a useful theme can be five lines long:",
+      "p2": "Colors are CSS-style hex — <code1>#RGB</code1>, <code1>#RRGGBB</code1> or <code1>#RRGGBBAA</code1>, <strong1>alpha last</strong1>. It is not Dart's <code1>0xAARRGGBB</code1>. On a bad import the parser points at the <strong1>field path</strong1> that broke (<code1>variants.dark.ui.accent</code1>), and validation runs before the copy, so an invalid file never reaches the themes folder.",
+      "label1": "theme.json — shape"
+    },
+    "themes_themesTokens": {
+      "title": "Tokens",
+      "th1": "Group",
+      "th2": "Tokens",
+      "cell1": "Surfaces <code1>bg</code1> <code1>panel</code1> <code1>panel2</code1> <code1>panel3</code1> · strokes <code1>border</code1> <code1>border2</code1> · text <code1>text</code1> <code1>text2</code1> <code1>text3</code1> <code1>text4</code1> · brand <code1>accent</code1> <code1>accentSoft</code1> <code1>accentText</code1> · state <code1>online</code1> <code1>ok</code1> <code1>error</code1> <code1>warn</code1> · editing <code1>edited</code1> <code1>editedBg</code1> · git <code1>gitStaged</code1> <code1>gitUntracked</code1> <code1>gitDeleted</code1> <code1>gitConflict</code1> · overlay <code1>scrim</code1> <code1>shadow</code1>",
+      "cell2": "<code1>cursor</code1> <code1>selection</code1> <code1>foreground</code1> <code1>background</code1>, the 8 normal ANSI colors, their 8 <code1>bright*</code1> counterparts, and <code1>searchHitBackground</code1> <code1>searchHitBackgroundCurrent</code1> <code1>searchHitForeground</code1>",
+      "p1": "Text drawn <em1>on top of</em1> <code1>accent</code1> and <code1>error</code1> is not a token: it is derived from the color's luminance, so a light accent automatically gets dark text.",
+      "p2": "<code1>syntax.background</code1> has a special default. The code viewer, the editor, and the terminal are all content inside a tab, so they share the field: when a theme declares neither <code1>syntax.background</code1> nor <code1>terminal.background</code1>, the three follow <code1>ui.panel</code1> of <em1>this</em1> theme, not of the base. Declare the field if your code palette needs a surface of its own.",
+      "p3": "The <code1>$schema</code1> URL lives in the repository, versioned next to the code that implements it, so the app and the schema can never drift apart. Cockpit ignores the field when reading a theme — it only serves your editor. See <a5><code1>theme.example.json</code1></a5> for a commented file with every group filled in."
+    },
+    "turnStatus": {
+      "title": "Agent turn status",
+      "p1": "When an agent runs in a tab, Cockpit shows whether it is <strong1>working</strong1>, <strong1>waiting</strong1> for you, or <strong1>idle</strong1> — as a spinner, a badge, a chime, and an OS notification when the window is unfocused. Supported harnesses today: <strong1>Claude Code</strong1> and <strong1>Codex CLI</strong1> (0.147+).",
+      "p2": "How it works:",
+      "li1": "At boot, Cockpit materializes the internal CLI at <code1>~/.cockpit/bin/cockpit</code1> and registers <code1>cockpit hook</code1> on the harness' lifecycle events.",
+      "li2": "On each event the harness runs the hook, passing a JSON payload on stdin.",
+      "li3": "The hook translates it into a status and sends it to the app over the local socket. (A socket rather than an escape sequence on the PTY: harnesses run hooks with no controlling terminal, and writing to <code1>/dev/tty</code1> fails with <code1>ENXIO</code1>.)",
+      "li4": "Routing is by the <code1>COCKPIT_PANE_ID</code1> env var, which the app injects into the tab's PTY. An agent session started <em1>outside</em1> Cockpit does not have it, so the hook is a no-op there. Nothing to configure, nothing to disable.",
+      "th1": "Harness",
+      "th2": "File",
+      "th3": "Format",
+      "td1": "Claude Code",
+      "cell1": "<code1>hooks.'<'Event'>'[]</code1>, each item <code1>'{'matcher, hooks:['{'type, command'}']'}'</code1>",
+      "td2": "Codex CLI",
+      "cell2": "Same shape, <strong1>plus</strong1> a trust block in <code1>~/.codex/config.toml</code1> (Codex silently ignores an untrusted hook, so Cockpit computes and writes the trust hash for you, between <code1># '>>>' cockpit hooks</code1> delimiters).",
+      "p3": "Both installers do an <strong1>idempotent append</strong1> of a marked entry (<code1>_cockpit: v1</code1>): re-running removes our old entry and re-adds it, never rewriting the list — your own hooks, and those of plugins or iTerm2, survive untouched."
+    },
+    "turnStatus_turnStatusEvents": {
+      "title": "Event mapping",
+      "th1": "Event",
+      "th2": "Claude",
+      "th3": "Codex",
+      "th4": "Status",
+      "cell1": "<code1>working</code1> (turn starts)",
+      "cell2": "<code1>working</code1> — except for Claude's blocking tools (below)",
+      "cell3": "<code1>waiting</code1> / <code1>idle</code1> (heuristic on the text)",
+      "strong1": "ignored",
+      "p1": "Two asymmetries matter. On <strong1>Claude</strong1>, tools that block waiting for the user (<code1>AskUserQuestion</code1>, <code1>ExitPlanMode</code1>) emit no <code1>Notification</code1>; the last hook before the block is <code1>PreToolUse</code1>, so that one maps to <code1>waiting</code1> for those two — otherwise the tab would spin forever with no chime. On <strong1>Codex</strong1>, approval has its own event, so there is no text heuristic and no detour."
+    },
+    "turnStatus_turnStatusResume": {
+      "title": "Resuming a session",
+      "p1": "Cockpit persists the <code1>session_id</code1> that arrived through the hook, and on restoring the tab it types the command that reattaches the conversation. A session id alone does not say which harness it belongs to, and the commands differ — <code1>claude --resume '<'id'>'</code1> versus <code1>codex resume '<'id'>'</code1> — so the installer registers the hook as <code1>cockpit hook --harness '<'name'>'</code1> and the layout stores the harness next to the id. Entries written by older versions pass no flag and are assumed to be Claude, which is what they all were.",
+      "callout1": "Codex trust is index-keyed",
+      "p2": "The Codex trust key includes the hook's group index. If you add a hook of your own <em1>before</em1> ours on the same event — or edit <code1>hooks.json</code1> by hand — the hash stops matching and the hook silently stops running. The installer repairs it on the next boot, because it recomputes the indices from the final file."
+    },
+    "remote": {
+      "title": "Remote hosts & VPS",
+      "p1": "A remote workspace is a folder on another machine, reached over SSH. Cockpit runs a small headless <code1>cockpit-server</code1> on the host, talks to it through an SSH tunnel to a Unix socket, and nothing is ever exposed on the network: SSH is the only door. Terminals and agents keep running on the host when you disconnect, and the next connection picks them up where they were.",
+      "p2": "From the <strong1>desktop</strong1> app you usually need nothing on the host: Cockpit uploads the server over SSH on first connect and keeps it updated (it compares a manifest of the installed files with the bundle it ships and reinstalls when they differ). The <strong1>mobile</strong1> apps (iPad, Android) carry no server, so a host you want to reach from them must be prepared once, either by a desktop or with the installer below.",
+      "p3": "The desktop can only install the targets it ships, so the installer is also the way in for the other combinations:",
+      "th1": "Client",
+      "th2": "Linux arm64 host",
+      "th3": "Linux x86_64 host",
+      "td1": "macOS",
+      "td2": "installs and updates over SSH",
+      "td3": "installer",
+      "td4": "Linux arm64",
+      "td5": "installs and updates over SSH",
+      "td6": "installer",
+      "td7": "Linux x86_64",
+      "td8": "installer",
+      "td9": "installs and updates over SSH",
+      "td10": "Windows",
+      "td11": "installer",
+      "td12": "installer",
+      "td13": "iPad / Android",
+      "td14": "installer",
+      "td15": "installer",
+      "p4": "Both paths land in the same place and recognize each other: a host prepared with the installer is reused as is by a desktop that ships the same version, and a host prepared by a desktop can be updated later with the installer. Whoever gets there first installs; the other one just connects."
+    },
+    "remote_remoteInstall": {
+      "title": "Install the server",
+      "p1": "Linux x86_64 and arm64. User space, no sudo, idempotent; re-run it to update.",
+      "label1": "on the host",
+      "p2": "The script detects the architecture, downloads <code1>cockpit-server-'<'version'>'-linux-'<'arch'>'.zip</code1> from the GitHub release, verifies its SHA-256 and runs the <code1>install.sh</code1> shipped inside the zip. That installs to <code1>~/.cockpit/server</code1> (the same layout the desktop app uses), links the binary into <code1>~/.local/bin</code1>, checks every file against <code1>bundle.manifest</code1> and does a smoke start before swapping the new version in. A host without internet access can take the zip by <code1>scp</code1> and run <code1>./cockpit-server/install.sh</code1> directly.",
+      "p3": "<strong1>Versions must match.</strong1> Client and server are released together and the app refuses a different server version. Pin one with <code1>COCKPIT_VERSION=1.28.33</code1> in front of the command; without it the latest release is used. Desktop clients fix a mismatch by themselves over SSH; from mobile, re-run the installer."
+    },
+    "remote_remoteService": {
+      "title": "Start at boot",
+      "p1": "By default the app starts the server on demand and it exits when idle with no live session; terminals and agents keep the server alive while they run, so most hosts need no service. Note that if you kill the server while a Cockpit workspace is open on it, the client treats that as a dropped connection and starts it again. For a dedicated VPS you can register a <code1>systemd --user</code1> unit: the server is up right after a reboot, never exits on idle, and systemd restarts it on failure. It does not change how the app connects, and a reboot still ends the sessions that were running.",
+      "label1": "on the host",
+      "p2": "The unit lives in <code1>~/.config/systemd/user/cockpit-server.service</code1>. Starting at boot without an open SSH session requires <em1>linger</em1>; the command tries to enable it and, when that needs root, prints the one-line <code1>sudo loginctl enable-linger</code1> for you to run once. Updates restart the unit automatically. To stop it for real use <code1>systemctl --user stop cockpit-server</code1> (a plain kill is undone by systemd in two seconds)."
+    },
+    "remote_remoteTroubleshooting": {
+      "title": "Troubleshooting",
+      "li1": "<strong1>version_mismatch</strong1>: the host runs another release than the app. Re-run the installer (mobile) or reconnect from a desktop, which reinstalls.",
+      "li2": "<strong1>cockpit-server did not start</strong1> during install: the log printed above the error is the reason. A glibc older than the build expects is the usual cause on old distributions; check <code1>ldd --version</code1>.",
+      "li3": "<strong1>Socket permission</strong1>: the server listens on <code1>~/.cockpit/cockpit-server.sock</code1> as the SSH user; connect with the same user that ran the installer.",
+      "li4": "<strong1>Updating means restarting</strong1>: a new server version replaces the running process, which ends the terminals and agents on that host. The desktop does it silently when its bundle differs from the host; the installer does it when you run it with a newer release. Finish long jobs first.",
+      "li5": "<strong1>Nothing after reboot</strong1>: without the service the first connection starts the server (a second or two); with it, check <code1>cockpit-server service status</code1> and linger."
+    },
+    "sounds": {
+      "title": "Sounds & notifications",
+      "p1": "Turn status drives audio too. Under <strong1>Settings → Notifications</strong1> you can bind a sound per event — <strong1>turn done</strong1>, <strong1>action needed</strong1>, <strong1>error</strong1> — pick a custom audio file for each, and set the volume. With the window focused you get the chime; unfocused, an OS notification. Since an agent started outside Cockpit never reports status, nothing fires for sessions the app is not hosting."
+    },
+    "language": {
+      "title": "Language",
+      "p1": "Cockpit's interface is fully localized in <strong1>English</strong1>, <strong1>Portuguese (Brazil)</strong1> and <strong1>Spanish</strong1>, down to the native application menu. Switch it in <strong1>Settings → General → Language</strong1>; the choice is independent of the OS locale."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "<link1>Cockpit product page</link1> — the tour.",
+      "li2": "<link5>Tutorial: layouts and tasks</link5> — build a <code1>.ckp</code1> and a <code1>tasks.json</code1> from scratch.",
+      "li3": "<link6>Tutorial: telemetry for agents</link6> — the error store, the <code1>cockpit telemetry</code1> CLI and how to make a project speak JSON logs.",
+      "link1": "Tutorial: an agent team in Cockpit",
+      "li4": "<link2>Remote Pi docs</link2> — mesh, relay, daemons, pairing.",
+      "li5": "<a6>Source docs & JSON schemas</a6> in the repository.",
+      "li6": "<a7>GitHub</a7> — issues and source."
+    },
+    "meta": {
+      "title": "Cockpit reference",
+      "description": "Reference for Remote Pi Cockpit: the internal CLI, .ckp pane layouts, Task Run, databases, notebooks and .http tabs, .env.cockpit, themes, turn status hooks and remote hosts over SSH."
+    },
+    "toc": {
+      "cli": "The <code1>cockpit</code1> CLI",
+      "layouts": "<code1>.ckp</code1> pane layouts",
+      "documentsHttp": "<code1>.http</code1> requests",
+      "install": "Install",
+      "cliTargets": "Targets & ids",
+      "cliCommands": "Command reference",
+      "cliRead": "Reading output",
+      "layoutsFields": "Fields",
+      "layoutsMerge": "Merge semantics",
+      "tasks": "Task Run",
+      "tasksFile": "tasks.json",
+      "tasksFields": "Fields",
+      "databases": "Databases",
+      "documents": "Documents as tabs",
+      "documentsNotebook": "Notebook",
+      "documentsMore": "Boards, diagrams, windows",
+      "envRedaction": "Redaction",
+      "envBlocked": "Blocked keys",
+      "envAccounts": "Separate accounts",
+      "themes": "Themes",
+      "themesFile": "Theme file",
+      "themesTokens": "Tokens",
+      "turnStatus": "Agent turn status",
+      "turnStatusEvents": "Event mapping",
+      "turnStatusResume": "Resuming a session",
+      "remote": "Remote hosts & VPS",
+      "remoteInstall": "Install the server",
+      "remoteService": "Start at boot",
+      "remoteTroubleshooting": "Troubleshooting",
+      "sounds": "Sounds & notifications",
+      "language": "Language",
+      "links": "Links"
+    }
   }
 }

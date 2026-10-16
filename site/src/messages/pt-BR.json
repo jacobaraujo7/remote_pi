@@ -540,5 +540,632 @@
       "foot": "Prefere uma loja? O Remote Pi está no <play>Google Play</play> e na <appstore>App Store</appstore>."
     },
     "foot": "O app controla agentes nas suas máquinas, então instale primeiro o lado <code>remote-pi</code>: o <guide>guia de primeiros passos</guide> vai de uma máquina nova até um celular pareado. Procura o app de desktop Cockpit? Ele tem a sua própria <cockpit>página de download</cockpit>."
+  },
+  "RemoteDocs": {
+    "intro": {
+      "span1": "Documentação",
+      "h11": "Documentação do Remote Pi",
+      "span2": "Última atualização: 2026-05-31",
+      "span3": "Licença: MIT",
+      "p1": "Esta é a <strong1>referência</strong1>. O Remote Pi é uma mesh para agentes de código: agentes na mesma máquina conversam por um broker UDS local, agentes em máquinas diferentes se alcançam por um relay de código aberto, e o seu celular autentica novos peers e conduz sessões. O primeiro harness suportado é o <a1>Pi coding agent</a1>; <code1>/remote-pi</code1> configura tudo. Para <strong1>aprender na prática</strong1>, comece pelos <link1>tutoriais</link1>; para entender <strong1>por que</strong1> funciona assim, veja <link2>Por que o Pi</link2>. As páginas abaixo servem para consulta."
+    },
+    "quickStart": {
+      "title": "Início rápido",
+      "p1": "Instale o plugin, rode o assistente de configuração e pareie o seu celular em poucos comandos — depois envie seu primeiro prompt pelo app. O passo a passo completo, incluindo o lado mobile, é um tutorial.",
+      "link1": "Veja o tutorial de primeiros passos"
+    },
+    "whatItDoes": {
+      "title": "O que ele faz",
+      "p1": "O Remote Pi adiciona duas camadas independentes sobre o Pi. A <strong1>agent network</strong1> permite que agentes se descubram e troquem mensagens — por um socket local numa máquina, ou pelo relay entre PCs. O <strong1>plano de controle mobile</strong1> é o seu celular: ele autentica novos peers na mesh e conduz sessões. Cada uma é abordada na prática:",
+      "li1": "<link3>Mesh local</link3> — agentes se descobrindo e trocando mensagens na mesma máquina.",
+      "li2": "<link4>Mesh remota</link4> — roteamento entre agentes em PCs diferentes.",
+      "li3": "<link5>Primeiros passos</link5> — parear o celular e conduzir um agente por ele."
+    },
+    "install": {
+      "title": "Instalação",
+      "p1": "Requisitos: Node 20+ e o Pi (o agente de código hospedeiro). O Remote Pi se instala como um plugin do Pi com <code1>pi install npm:remote-pi</code1>, que registra sozinho o comando <code1>/remote-pi</code1> e implanta a skill de agent-network. A configuração completa — assistente, pareamento, primeiro comando — está no tutorial.",
+      "p2": "→ <link5>Veja o tutorial de primeiros passos</link5>. O modo daemon tem uma instalação única própria — veja <a2>Modo daemon</a2> abaixo."
+    },
+    "usingRemotePi": {
+      "title": "Usando /remote-pi",
+      "p1": "<code1>/remote-pi</code1> é o ponto de entrada do dia a dia. A primeira execução abre um assistente curto (nome do agente, se deve usar o relay) que cria a configuração por pasta; as execuções seguintes entram na mesh local e iniciam o relay automaticamente. Rode o assistente de novo com <code1>/remote-pi setup</code1>. Todos os subcomandos estão na <a3>referência de comandos</a3>.",
+      "p2": "→ <link5>Veja o tutorial de primeiros passos</link5> para o fluxo guiado."
+    },
+    "pairing": {
+      "title": "Pareando um dispositivo mobile",
+      "p1": "<code1>/remote-pi pair</code1> imprime um QR (e uma URI para copiar e colar); escaneie com o app Remote Pi. O pareamento é <strong1>por máquina</strong1> — depois que um dispositivo é pareado, todo processo Pi daquela máquina o aceita. Gerencie dispositivos com <code1>/remote-pi devices</code1> e <code1>/remote-pi revoke '<'shortid'>'</code1> (veja a <a3>referência de comandos</a3>).",
+      "link1": "Veja o tutorial de primeiros passos"
+    },
+    "quickActions": {
+      "title": "Ações rápidas pelo celular",
+      "p1": "Além de conversar, o app conduz uma sessão com um pequeno conjunto de ações tipadas — <strong1>compactar contexto</strong1>, <strong1>nova sessão</strong1>, <strong1>definir modelo</strong1> e <strong1>definir nível de thinking</strong1>. O seletor de modelo lê ao vivo do host, então sempre reflete o que aquela máquina consegue rodar. O vocabulário completo, o formato de wire e a semântica de fallback estão no <a4>PROTOCOL.md</a4> (seção <em1>App actions</em1>).",
+      "link1": "Veja o tutorial de primeiros passos"
+    },
+    "agentNetwork": {
+      "title": "Agent network",
+      "p1": "Cada agente é um peer em uma mesh. O LLM recebe três ferramentas — <code1>list_peers</code1> (quem está online), <code1>agent_send</code1> (enviar com ACK) e <code1>get_messages</code1> (esvaziar a caixa de entrada). Numa máquina, os peers conversam por um broker de socket Unix-domain; entre máquinas, o mesmo <code1>agent_send</code1> passa pelo relay, endereçando peers remotos como <code1>pc_label:peer</code1>. Os dois caminhos são abordados na prática:",
+      "li1": "<link3>Mesh local</link3> — o broker, as três ferramentas, uma troca concreta.",
+      "li2": "<link4>Mesh remota</link4> — endereçamento entre PCs e o que um ACK garante (e não garante)."
+    },
+    "daemonMode": {
+      "title": "Modo daemon",
+      "p1": "Promova uma pasta a um agente em segundo plano 24/7: rode <code1>/remote-pi install</code1> uma vez por máquina para instalar o supervisor (launchd no macOS, <code1>systemd --user</code1> no Linux) e linkar a CLI, depois <code1>remote-pi create '<'folder'>' --name \"…\"</code1> para registrar e iniciar um daemon. Um supervisor por máquina, N daemons sob ele. Todos os comandos estão na <a3>referência de comandos</a3> abaixo.",
+      "p2": "→ <link6>Veja o tutorial do modo daemon</link6> para o passo a passo completo; o <em1>porquê</em1> (e como ele se compara a plataformas tudo-em-um) está em <link2>Por que o Pi</link2>."
+    },
+    "relay": {
+      "title": "O relay",
+      "p1": "O relay é a única peça do Remote Pi que toca a rede. No MVP atual, ele enxerga tanto os payloads das mensagens (encaminhados, mas nunca registrados nem inspecionados pelo operador da comunidade) quanto os metadados de conexão: qual keypair está online, quais identificadores de room/cwd existem, horário e tamanho das mensagens. O tráfego é criptografado em trânsito (TLS) e os peers se autenticam com pareamento Ed25519, mas os payloads não são criptografados na camada de aplicação — veja <a5>Protocolo e segurança</a5> e a Política de Privacidade, seção 9, para o quadro completo.",
+      "p2": "O relay também <strong1>persiste uma pequena tabela SQLite</strong1> chamada <code1>mesh_versions</code1> — blobs assinados pela sua chave Owner listando os dispositivos Pi que pertencem à sua mesh (alguns KB por Owner). O relay verifica a assinatura Ed25519 em cada <code1>POST /mesh/'<'owner_pk_hash'>'</code1> e guarda o que você assinou; ele nunca decide a associação sozinho. Novos dispositivos que restauram a sua chave Owner recuperam a lista de peers a partir desse blob. Um comprometimento do relay significa DoS, não falsificação de identidade. Veja a seção de associação à mesh do <a4>PROTOCOL.md</a4> para o formato de wire.",
+      "p3": "Você tem duas opções."
+    },
+    "relay_communityRelay": {
+      "title": "Opção A — Usar o relay da comunidade",
+      "p1": "<code1>https://relay-rp1.jacobmoura.work</code1> (padrão). Zero configuração. Bom para experimentar ou para uso casual. (Internamente a extensão usa a forma WebSocket <code1>wss://…</code1> — os dois esquemas apontam para o mesmo endpoint.)",
+      "p2": "Ressalvas:",
+      "li1": "Infraestrutura compartilhada — a disponibilidade é best-effort.",
+      "li2": "<strong1>O TLS em trânsito é a única proteção de rede</strong1> — o operador do relay enxerga envelopes em texto claro (payloads, metadados de roteamento, chaves públicas dos peers, horários). Faça self-host para ter confidencialidade em relação ao operador.",
+      "li3": "<strong1>Sem lista de IPs permitidos nem bloqueio por VPN</strong1> embutidos. Qualquer pessoa com um keypair pareado pode se conectar; coloque uma VPN por cima via Opção B se quiser isolamento em nível de rede."
+    },
+    "relay_selfHost": {
+      "title": "Opção B — Self-host (recomendado para privacidade)",
+      "p1": "Rode o relay você mesmo no Docker e coloque-o atrás de uma VPN como <a6>Tailscale</a6>, <a7>WireGuard</a7> ou a sua própria VPC. Como a proteção de rede do relay é apenas TLS + autenticação por keypair, uma VPN por cima significa que <strong1>só os seus dispositivos</strong1> conseguem sequer alcançar a porta WebSocket — defesa em profundidade.",
+      "p2": "Resumo rápido do Docker (veja o <a8>README do relay</a8> para a configuração completa, variáveis de ambiente e orientação sobre reverse proxy):",
+      "label1": "No host do relay",
+      "p3": "O mount <code1>-v remote-pi-data:/data</code1> é obrigatório — é onde o relay guarda o <code1>mesh.db</code1> (os blobs de mesh assinados pelo Owner). Sem o volume, a tabela é apagada a cada reinício do container, forçando todos os clientes a republicar.",
+      "p4": "O relay serve o upgrade de WebSocket, <code1>/health</code1> e <code1>/mesh/'<'owner_pk_hash'>'</code1> na mesma porta (padrão 3000) — aponte o reverse proxy para um único upstream e pronto. Use <code1>/health</code1> para probes de liveness (Coolify, Kubernetes, health checks do Fly).",
+      "p5": "Vincule o container à sua interface de VPN, termine o TLS em um reverse proxy e aponte tanto o seu Pi quanto o seu celular para a URL <code1>https://…</code1> resultante."
+    },
+    "relay_pointPi": {
+      "title": "Apontando o Pi para o seu próprio relay",
+      "p1": "Quando o seu relay estiver acessível, avise a extensão:",
+      "label1": "No Pi",
+      "p2": "A URL precisa ser <code1>http://</code1> ou <code1>https://</code1> — <code1>wss://</code1> / <code1>ws://</code1> são rejeitadas na validação. A extensão converte para a forma WebSocket internamente ao abrir a conexão, então você pode colar a URL que o seu reverse proxy ou o painel do PaaS expuser.",
+      "p3": "Isso grava <code1>~/.pi/remote/config.json</code1> com <code1>'{' \"relay\": \"...\" '}'</code1>. Ordem de resolução (maior precedência primeiro):",
+      "li1": "variável de ambiente <code1>REMOTE_PI_RELAY</code1> (CI / sobrescritas pontuais)",
+      "li2": "O padrão embutido (<code1>https://relay-rp1.jacobmoura.work</code1>)",
+      "p4": "Verifique a URL ativa e a sua origem com:",
+      "label2": "No Pi",
+      "p5": "Para trocar de URL com a conexão ativa: <code1>/remote-pi stop</code1> e depois <code1>/remote-pi</code1> de novo. O app mobile tem sua própria configuração de URL do relay nas preferências — mantenha os dois apontando para o mesmo relay."
+    },
+    "protocol": {
+      "title": "Protocolo e segurança",
+      "p1": "A especificação canônica de tudo o que é nível de wire — formato do envelope, modelo de identidade (chave Owner + subchaves por dispositivo), protocolo de ACK, roteamento entre PCs, associação à mesh, modelo de confiança e modos de falha — vive no <a4>PROTOCOL.md</a4> no GitHub. É a fonte da verdade contra a qual a extensão do Pi, os apps mobile e o relay são implementados. Leia quando precisar do comportamento exato ou ao escrever um novo adaptador de harness.",
+      "p2": "<strong1>Postura de segurança, em resumo.</strong1> As conexões com o relay são <strong1>criptografadas em trânsito (TLS)</strong1> e os dispositivos se autenticam entre si com <strong1>pareamento Ed25519</strong1>, então peers pareados verificam a identidade criptograficamente. Os payloads das mensagens <strong1>não</strong1> são criptografados na camada de aplicação — o operador do relay poderia, em princípio, ler o texto claro na memória enquanto encaminha. Se você precisa de confidencialidade em relação ao operador do relay, faça <a9>self-host do relay</a9> atrás de uma VPN. A Política de Privacidade, seção 9, repete isso em linguagem simples, e o PROTOCOL.md é o aprofundamento que corresponde ao código."
+    },
+    "commands": {
+      "title": "Referência de comandos",
+      "p1": "Todo comando funciona como slash command do Pi (interativo) e como <code1>remote-pi '<'subcommand'>'</code1> no shell quando o pacote está instalado globalmente (<code1>npm install -g remote-pi</code1>).",
+      "p2": "O rodapé da TUI do Pi reflete o estado ao vivo:",
+      "li1": "<code1>📡 local (N)</code1> — sessão da mesh local e contagem de peers",
+      "li2": "<code1>🟢 relay</code1> — relay conectado, ao menos um dispositivo pareado nesta máquina",
+      "li3": "<code1>🟡 relay waiting for pairing</code1> — relay conectado, nenhum dispositivo pareado ainda",
+      "li4": "<code1>📱 '<'shortid'>'</code1> — um dispositivo mobile está conectado ativamente agora",
+      "p3": "O título da janela tem duas partes — <code1>'<'agent-name'>' · On</code1> quando o relay está ativo ou <code1>'<'agent-name'>' · Off</code1> caso contrário — para você distinguir as abas do terminal num relance."
+    },
+    "commands_commandsLocal": {
+      "title": "Sessão local — um Pi, um terminal",
+      "th1": "Comando",
+      "th2": "Descrição",
+      "td1": "Conecta (entra na mesh local + inicia o relay), ou roda o setup no primeiro uso",
+      "td2": "Roda o assistente de configuração e atualiza a config local",
+      "td3": "Mostra o status da mesh local + relay",
+      "td4": "Lista os peers da mesh locais e entre PCs, agrupados por rótulo de PC",
+      "cell1": "Para tudo em <em1>este</em1> terminal (mesh + relay)",
+      "td5": "Mostra QR + URI de pareamento para copiar e colar para um novo dispositivo mobile (QR válido por 60s por padrão; --ttl limita a 10–600s)",
+      "td6": "Lista os dispositivos mobile pareados (online/offline por dispositivo)",
+      "td7": "Revoga um dispositivo pareado pelo seu shortid (sobe o relay primeiro, como o pair, para notificar o dispositivo)",
+      "td8": "Persiste uma nova URL de relay (http:// ou https://)"
+    },
+    "commands_commandsDaemon": {
+      "title": "Frota de daemons — um supervisor, N Pis em segundo plano",
+      "p1": "Veja <a2>Modo daemon</a2> para a visão geral e o <link6>tutorial do modo daemon</link6> para o passo a passo completo.",
+      "th1": "Comando",
+      "th2": "Descrição",
+      "td1": "Registra uma pasta como daemon (inicia quando o supervisor está rodando)",
+      "td2": "Remove o registro de um daemon (config local preservada)",
+      "td3": "Lista os daemons registrados + estado",
+      "td4": "Inicia um daemon pelo id, ou todos os registrados sem id",
+      "cell1": "Para um daemon pelo id, ou todos os que estão rodando sem id (<code1>/remote-pi stop</code1> para só o terminal local)",
+      "td5": "Reinicia um daemon pelo id, ou todos sem id",
+      "td6": "Status detalhado de runtime (pid, uptime, contagem de reinícios)",
+      "td7": "Envia um prompt a um daemon específico",
+      "cell2": "Instala o <code1>pi-supervisord</code1> como serviço do sistema <strong1>e</strong1> cria o symlink da CLI <code1>remote-pi</code1> em <code1>~/.local/bin/</code1>",
+      "cell3": "Remove o serviço do sistema <strong1>e</strong1> os symlinks de <code1>~/.local/bin</code1> (registro de daemons preservado)"
+    },
+    "commands_commandsCron": {
+      "title": "Cron de daemons — prompts agendados",
+      "p1": "Agende prompts recorrentes para um daemon. O agendador roda <strong1>dentro do supervisor</strong1>, então só dispara quando o supervisor está instalado como serviço (<a2>Modo daemon</a2> / <code1>/remote-pi install</code1>) — caso contrário o <code1>cron add</code1> avisa em vez de agendar. Veja o <link7>tutorial do modo daemon</link7> para o passo a passo.",
+      "th1": "Comando",
+      "th2": "Descrição",
+      "td1": "Agenda um prompt recorrente para um daemon (expressão cron de 5 campos; execuções com ≥60s de intervalo)",
+      "td2": "Lista os jobs: agenda, habilitado, última execução / status, próxima execução",
+      "td3": "Dispara um job agora, ignorando a agenda",
+      "td4": "Retoma um job pausado",
+      "td5": "Pausa um job sem apagá-lo",
+      "td6": "Apaga um job",
+      "cell1": "Mostra o fim do log de auditoria de disparos / pulos (padrão N = 20), opcionalmente de um job",
+      "li1": "<strong1>Intervalo mínimo de 60s.</strong1> Uma expressão mais frequente é rejeitada (cada disparo gasta tokens). Sintaxe Croner — cinco campos (<code1>min hour day-of-month month day-of-week</code1>), mais um campo opcional de segundos, ainda limitado pelo piso de 60s.",
+      "li2": "<strong1>Fuso horário por job.</strong1> <code1>--tz Area/City</code1> resolve o horário de verão; sem ele, um job roda no horário local da máquina.",
+      "li3": "<strong1>Sobreposição e indisponibilidade.</strong1> Um disparo é pulado enquanto o daemon está no meio de um turno (<code1>--no-skip-busy</code1> sobrescreve), pulado se o daemon está parado (<code1>--wake</code1> o inicia antes), e no máximo uma execução perdida é reexecutada na inicialização (<code1>--catchup</code1>, desligado por padrão).",
+      "li4": "<strong1>Auditoria.</strong1> Todo disparo <em1>e</em1> todo pulo acrescenta uma linha em <code1>~/.pi/remote/cron.jsonl</code1> com um <code1>result</code1> de <code1>delivered</code1>, <code1>deliver_failed</code1>, <code1>woke_and_delivered</code1>, <code1>skipped_busy</code1>, <code1>skipped_down</code1> ou <code1>skipped_disabled</code1>. A resposta do agente em si é fire-and-forget na mesh — o cron registra o gatilho, não a resposta."
+    },
+    "config": {
+      "title": "Arquivos de configuração",
+      "th1": "Caminho",
+      "th2": "Escopo",
+      "th3": "O que contém",
+      "td1": "Por diretório",
+      "td2": "Por usuário",
+      "cell1": "URL do <code1>relay</code1>",
+      "td3": "Por máquina",
+      "td4": "Dispositivos mobile pareados",
+      "td5": "Por máquina",
+      "cell2": "Registro de daemons (lista de entradas <code1>'{' cwd, name '}'</code1>)",
+      "td6": "Por máquina",
+      "cell3": "Fallback do segredo do Pi quando o keyring do SO não está disponível (Linux headless). Guardado com <code1>chmod 0600</code1>. Veja o <a4>PROTOCOL.md</a4> para os detalhes do keyring.",
+      "td7": "Por máquina",
+      "cell4": "Socket do broker + <code1>audit.jsonl</code1>",
+      "td8": "Por usuário",
+      "td9": "Skill de agente que o LLM lê",
+      "p1": "Sobrescreva o relay por uma única execução, sem persistir:",
+      "label1": "Shell",
+      "p2": "Só <code1>http://</code1> / <code1>https://</code1> são aceitas — <code1>wss://</code1> / <code1>ws://</code1> são rejeitadas na validação; a extensão converte para a forma WebSocket internamente ao abrir a conexão.",
+      "p3": "Os daemons não leem o arquivo por diretório de jeito nenhum — o supervisor injeta a config completa deles inline pela variável de ambiente <code1>REMOTE_PI_DIRECT_CONFIG</code1> no spawn (um workspace fixo <code1>assistent</code1> com o relay ligado), então a pasta de um daemon não precisa de um <code1>.pi/remote-pi/</code1> próprio. Você pode definir a mesma variável para sobrescrever <code1>'<'cwd'>'/.pi/remote-pi/config.json</code1> por uma única execução — uma válvula de escape para CI, ops e o cliente desktop Cockpit:",
+      "label2": "Shell"
+    },
+    "troubleshooting": {
+      "title": "Solução de problemas"
+    },
+    "troubleshooting_footerStuck": {
+      "title": "O rodapé mostra 🟡 relay waiting for pairing mesmo eu tendo pareado um dispositivo",
+      "p1": "O ícone reflete se <em1>algum</em1> dispositivo foi pareado nesta máquina, não se um está conectado agora. Se você realmente tem um dispositivo pareado em <code1>/remote-pi devices</code1>, reinicie o Pi — o cache pode estar desatualizado (corrigido na versão atual; reporte um bug se voltar a acontecer)."
+    },
+    "troubleshooting_timeoutMobile": {
+      "title": "O app mobile dá timeout ao conectar",
+      "p1": "Confira se a mesma URL de relay está configurada nos dois lados. Se você faz self-host atrás de uma VPN, o celular também precisa estar na VPN (o Tailscale no iOS/Android funciona bem)."
+    },
+    "troubleshooting_timeoutRequest": {
+      "title": "A resposta nunca chega",
+      "p1": "O <code1>agent_send</code1> retornou <code1>'{' status: \"received\" '}'</code1>, mas nenhuma resposta chega à sua caixa de entrada. Causas possíveis:",
+      "li1": "<strong1>O receptor travou ou nunca processou.</strong1> Rode <code1>/remote-pi peers</code1> para ver se o peer ainda está online.",
+      "li2": "<strong1>O receptor optou por não responder.</strong1> O <code1>agent_send</code1> não é RPC — não há obrigação de responder. Se a conversa precisa de resposta, o prompt ao receptor precisa dizer isso explicitamente.",
+      "li3": "<strong1>Entre PCs: o peer ficou offline.</strong1> Procure na sua caixa de entrada um envelope <code1>transport_error</code1> com <code1>re='<'your-send-id'>'</code1> — o relay devolve um quando uma mensagem encaminhada não pode ser entregue. Um ACK <code1>Delivered</code1> só significa que o broker remoto aceitou o envelope, não que o peer está vivo — valide com um roundtrip.",
+      "p2": "<strong1>Nota:</strong1> o <code1>agent_request</code1> está obsoleto (ainda disponível como wrapper por retrocompatibilidade, emite um aviso). Agentes novos chamam <code1>agent_send</code1> e observam a caixa de entrada em um turno futuro."
+    },
+    "troubleshooting_onePiPerCwd": {
+      "title": "Dois processos Pi não podem compartilhar um diretório",
+      "p1": "Um lock por cwd permite <strong1>um processo Pi por diretório</strong1>. Se você tentar rodar <code1>/remote-pi</code1> em um segundo terminal que já está na mesma pasta, a segunda inicialização é rejeitada (e o relay, separadamente, recusa uma room duplicada com <code1>RoomAlreadyOpenError</code1>).",
+      "p2": "<strong1>Para rodar dois agentes lado a lado:</strong1> coloque-os em dois diretórios diferentes — cada um ganha seu próprio workspace e os dois se encontram na mesma sessão <code1>local</code1>. Veja o <link3>tutorial de mesh local</link3>.",
+      "p3": "Se você na verdade queria um segundo terminal no mesmo workspace (por exemplo, só para ler o estado), pare o Pi em execução antes ou abra um shell que <em1>não</em1> inicie o Pi."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "Página inicial: <link8>Remote Pi</link8>",
+      "li2": "Tutoriais: <link1>guias práticos</link1>",
+      "li3": "Referência do Cockpit: <link9>CLI, layouts, tarefas, temas</link9>",
+      "li4": "Código-fonte: <a10>github.com/jacobaraujo7/remote_pi</a10>",
+      "li5": "Especificação do protocolo: <a4>PROTOCOL.md</a4>",
+      "li6": "Pi coding agent: <a1>github.com/earendil-works/pi</a1>",
+      "li7": "Relay (guia de self-hosting): <a11>relay/README.md</a11>",
+      "li8": "Issues / bugs: <a12>github.com/jacobaraujo7/remote_pi/issues</a12>",
+      "p1": "Licença: MIT."
+    },
+    "meta": {
+      "title": "Documentação",
+      "description": "Referência do Remote Pi: o relay, protocolo e segurança, a referência completa de comandos, arquivos de configuração e solução de problemas."
+    },
+    "toc": {
+      "quickStart": "Início rápido",
+      "whatItDoes": "O que ele faz",
+      "install": "Instalação",
+      "pairing": "Pareando um dispositivo mobile",
+      "quickActions": "Ações rápidas pelo celular",
+      "agentNetwork": "Agent network",
+      "daemonMode": "Modo daemon",
+      "relay": "O relay",
+      "communityRelay": "Relay da comunidade",
+      "selfHost": "Self-host",
+      "pointPi": "Apontar o Pi para o seu relay",
+      "protocol": "Protocolo e segurança",
+      "commands": "Referência de comandos",
+      "commandsLocal": "Sessão local",
+      "commandsDaemon": "Frota de daemons",
+      "commandsCron": "Cron de daemons",
+      "config": "Arquivos de configuração",
+      "troubleshooting": "Solução de problemas",
+      "footerStuck": "Preso no pareamento",
+      "timeoutMobile": "Mobile dá timeout",
+      "timeoutRequest": "A resposta nunca chega",
+      "onePiPerCwd": "Um Pi por cwd",
+      "links": "Links",
+      "usingRemotePi": "Usando <code1>/remote-pi</code1>"
+    }
+  },
+  "DocsShared": {
+    "tocOnThisPage": "Nesta página",
+    "pagerAriaLabel": "Navegação do tutorial",
+    "pagerPrev": "← Anterior",
+    "pagerNext": "Próximo →"
+  },
+  "CockpitDocs": {
+    "intro": {
+      "span1": "Documentação · Cockpit",
+      "h11": "Referência do Cockpit",
+      "span2": "Última atualização: 2026-09-21",
+      "span3": "Licença: MIT",
+      "p1": "Tudo o que o app desktop lê do seu repositório ou grava na sua máquina: a CLI <code1>cockpit</code1> interna que os agentes usam para conduzir abas, os layouts de painéis <code1>.ckp</code1>, o arquivo <code1>.cockpit/tasks.json</code1> do Task Run, o formato de tema, os documentos que abrem como abas, o <code1>.env.cockpit</code1> que alimenta seus terminais e os hooks de harness por trás do status de turno. Para o tour do produto, veja a <link1>página do Cockpit</link1>; para a mesh, os daemons e o relay, veja a <link2>documentação do Remote Pi</link2>."
+    },
+    "install": {
+      "title": "Instalação",
+      "p1": "O Cockpit é distribuído para macOS, Windows e Linux. Os builds de macOS são assinados e notarizados, e toda plataforma que suporta recebe atualizações dentro do app. Pegue um build na <link3>página de download</link3> — <code1>.dmg</code1>, <code1>.exe</code1>, <code1>.deb</code1> e <code1>.rpm</code1> (x64 e arm64), cada um com SHA-256 publicado.",
+      "p2": "O Cockpit é um terminal antes de tudo: não precisa de conta, nuvem nem de mais nada instalado para ser útil. Os agentes rodam como processos comuns nas abas dele, então o harness que você já usa (Claude Code, Codex CLI, Pi, OpenCode) é o que roda aqui.",
+      "p3": "Trabalhar em outra máquina é SSH mais <code1>cockpit-server</code1>, descrito em <a1>Hosts remotos e VPS</a1>. Isso não tem relação com o relay do Remote Pi: a mesh, o app de celular e os daemons 24/7 pertencem ao <link4>projeto Remote Pi</link4> e não fazem parte do Cockpit."
+    },
+    "cli": {
+      "title": "A CLI cockpit",
+      "p1": "O Cockpit materializa um pequeno binário em <code1>~/.cockpit/bin/cockpit</code1> e coloca essa pasta no <code1>PATH</code1> dos terminais que ele cria — e só deles. Assim a CLI existe para tudo o que roda dentro do Cockpit (você, um script, um agente) e não vaza para o resto do seu ambiente de shell. Ela conversa com o app por um socket local: um socket Unix no macOS e no Linux, uma porta TCP de loopback mais um token no Windows.",
+      "p2": "É isso que faz do Cockpit um multiplexador <em1>agêntico</em1>: um agente numa aba pode abrir outra aba, digitar nela, ler o que ela imprimiu, rodar uma tarefa do projeto ou consultar um banco de dados — os mesmos verbos que um humano usa, sem screen scraping."
+    },
+    "cli_cliTargets": {
+      "title": "Alvos e ids",
+      "p1": "A unidade que a CLI endereça é a <strong1>aba</strong1> (um terminal ou sessão de agente). Um <strong1>painel</strong1> é a folha de divisão que agrupa abas e não é endereçável — <code1>list-panes</code1> e <code1>read-pane</code1> sobrevivem como aliases legados.",
+      "th1": "Flag",
+      "th2": "O que faz",
+      "cell1": "Alveja outra aba. O padrão é <code1>$COCKPIT_TAB_ID</code1> (a aba atual; fallback legado <code1>$COCKPIT_PANE_ID</code1>).",
+      "cell2": "Alveja a aba que você está olhando, resolvida pelo app. Funciona também de fora de um terminal do Cockpit (ferramentas de ditado, scripts): sem env herdado, a CLI encontra o app por <code1>~/.cockpit/status.sock</code1>. Vence o <code1>--tab-id</code1>.",
+      "cell3": "(só <code1>send</code1>) aperta Enter logo após o texto, como uma tecla separada — um <code1>send</code1> mais um <code1>send-key Enter</code1> em uma só chamada.",
+      "callout1": "Os ids de aba reiniciam a cada boot",
+      "p2": "Os ids (<code1>t0</code1>, <code1>t1</code1>…) são atribuídos a cada boot do app, então nunca fixe um no código. Descubra-os com <code1>cockpit list-tabs</code1>, ou dê à aba um <strong1>rótulo estável</strong1> (duplo clique na aba, ou <code1>new-tab --title</code1>) e endereçe-a pelo nome. Os rótulos persistem entre boots; os ids de workspace são UUIDs opacos, então use <code1>workspacePath</code1> / <code1>path</code1> quando precisar da pasta em disco."
+    },
+    "cli_cliCommands": {
+      "title": "Referência de comandos",
+      "th1": "Comando",
+      "th2": "O que faz",
+      "td1": "Digita texto numa aba.",
+      "cell1": "Aperta teclas nomeadas: <code1>Enter Tab Escape Space BSpace Up Down Left Right Home End PageUp PageDown Delete</code1> e <code1>C-'<'letter'>'</code1> (por exemplo <code1>C-c</code1>).",
+      "cell2": "Abre um arquivo no visualizador do app. <code1>cockpit '<'file'>'</code1> sem subcomando é um atalho para isso, relativo ao cwd da aba.",
+      "cell3": "Abre uma aba de terminal e imprime o id dela. <code1>h</code1>/<code1>right</code1> divide lado a lado, <code1>v</code1>/<code1>down</code1> empilha; omita para abrir como aba no mesmo painel. Ancorado no painel da aba que emite.",
+      "cell4": "Lê a saída renderizada de uma aba. Sem alvo = a aba atual. Alias: <code1>read-pane</code1>.",
+      "td2": "Lê a saída de uma tarefa, mesmo sem nenhuma aba aberta para ela.",
+      "cell5": "Lista as abas ativas (alias: <code1>list-panes</code1>). O JSON traz <code1>label</code1>, <code1>workspacePath</code1>, <code1>working</code1> e, para abas de saída de tarefa, <code1>taskId</code1>.",
+      "td3": "Lista os workspaces (projetos) e seus caminhos.",
+      "cell6": "Lista as tarefas deste workspace. <code1>[output]</code1> marca tarefas cuja saída o <code1>read-task</code1> consegue ler (rodaram neste boot); ● marca tarefas rodando agora.",
+      "cell7": "Bancos SQL registrados no workspace — veja <a2>Bancos de dados</a2>.",
+      "td4": "Roda um comando Redis, ou abre a tabela de chaves para um humano.",
+      "td5": "Roda um comando MongoDB, ou abre o navegador de coleções.",
+      "cell8": "Aplica um layout de painéis — veja <a3>layouts <code1>.ckp</code1></a3>.",
+      "td6": "Instala a skill do Claude Code que ensina esta CLI.",
+      "label1": "Terminal do Cockpit"
+    },
+    "cli_cliRead": {
+      "title": "Lendo a saída",
+      "p1": "<code1>read-tab</code1> e <code1>read-task</code1> compartilham um modelo de janela. A saída é sempre cronológica (de cima para baixo); as flags só escolhem qual janela você recebe.",
+      "th1": "Flag",
+      "th2": "Padrão",
+      "th3": "O que faz",
+      "td1": "Quantas linhas retornar (limite do servidor: 2000).",
+      "td2": "Pula N linhas a partir da âncora — essa é a sua paginação.",
+      "td3": "desligado",
+      "td4": "Ancora no início do buffer em vez do final.",
+      "p2": "Os ids de tarefa são estáveis por workspace: <code1>npm:'<'script'>'</code1> do <code1>package.json</code1>, <code1>flutter:run</code1> / <code1>flutter:test</code1> e <code1>json:'<'label'>'</code1> do <code1>.cockpit/tasks.json</code1>."
+    },
+    "layouts": {
+      "title": "Layouts de painéis .ckp",
+      "p1": "Um arquivo <code1>.ckp</code1> é um YAML versionável que descreve os terminais a abrir em um workspace — o equivalente a um layout do tmuxinator. Um arquivo é um layout, e o nome do arquivo é o nome do layout (<code1>dev.ckp</code1> → layout “dev”). Faça commit dele e um colega recebe a sua geometria de trabalho ao clonar.",
+      "p2": "Há três formas de aplicar um:",
+      "li1": "<strong1>GUI</strong1> — clique com o botão direito no arquivo <code1>.ckp</code1> na árvore → <strong1>Abrir layout</strong1>.",
+      "li2": "<strong1>CLI</strong1> — <code1>cockpit orchestrate dev.ckp</code1> de dentro de uma aba.",
+      "li3": "<strong1>Autorun de worktree</strong1> — <code1>autorun: worktree</code1> no arquivo: o layout é aplicado sozinho sempre que você cria um worktree do workspace. O worktree nasce vazio, então a geometria sai exata."
+    },
+    "layouts_layoutsFields": {
+      "title": "Campos",
+      "p1": "<strong1>Raiz:</strong1> <code1>panes</code1> (obrigatório) é a lista de painéis na ordem de criação. <code1>autorun</code1> (opcional) aceita só <code1>worktree</code1>; com dois ou mais arquivos de autorun na raiz, nenhum deles roda — a ambiguidade nunca é adivinhada.",
+      "th1": "Campo",
+      "th2": "Obrigatório",
+      "th3": "Padrão",
+      "th4": "Descrição",
+      "td1": "sim",
+      "td2": "Único (sem diferenciar maiúsculas). Vira o rótulo manual da aba e a chave de merge.",
+      "td3": "não",
+      "cell1": "Relativo à pasta do arquivo, só com barras normais. Caminhos absolutos e <code1>\\</code1> são rejeitados por portabilidade.",
+      "td4": "não",
+      "cell2": "Onde nasce, relativo ao painel <em1>criado anteriormente</em1>: <code1>tab</code1>, <code1>right</code1>, <code1>down</code1>.",
+      "td5": "não",
+      "td6": "Digitado no terminal e executado pelo shell da aba (resolvido pelo PATH da máquina).",
+      "td7": "não",
+      "td8": "todos",
+      "cell3": "<code1>macos</code1> / <code1>windows</code1> / <code1>linux</code1>, string ou lista — mesma semântica do <code1>tasks.json</code1>."
+    },
+    "layouts_layoutsMerge": {
+      "title": "Semântica de substituição",
+      "li1": "Abrir um layout significa <strong1>tornar-se esse layout</strong1>: o arquivo é validado primeiro, depois todas as abas do workspace são fechadas (inclusive as fixadas), então os painéis são construídos com geometria exata. Se alguma aba tem trabalho em andamento (um agente no meio do turno, um processo num terminal, uma tarefa ativa), a GUI pergunta antes de fechar; abas ociosas fecham em silêncio.",
+      "li2": "<code1>cockpit orchestrate dev.ckp</code1> substitui sem perguntar e mantém só a aba que rodou o comando. Passe <code1>--append</code1> para manter o comportamento aditivo antigo: painéis cujo <code1>name</code1> já existe são pulados e nada é fechado. O autorun de worktree sempre acrescenta (o worktree nasce vazio, então não faz diferença).",
+      "li3": "Um <code1>cwd</code1> ausente ou um YAML inválido gera um erro legível (diálogo na GUI, stderr na CLI); nada é aplicado pela metade a partir do painel com falha.",
+      "li4": "<code1>command</code1> é digitado ~700 ms depois que a aba abre, para o shell ter tempo de terminar de iniciar, com Enter no final.",
+      "p1": "O Cockpit trata <code1>.ckp</code1> como YAML para o destaque de sintaxe e mostra o logo do Cockpit como ícone do arquivo na árvore."
+    },
+    "tasks": {
+      "title": "Task Run",
+      "p1": "O Task Run executa os comandos de build e de desenvolvimento do seu projeto (<code1>npm run dev</code1>, <code1>flutter run</code1>, <code1>go run</code1>, <code1>make</code1>…) com saída em streaming, um ciclo de vida visual (play / stop / restart), teclas interativas e reload ao salvar. Duas fontes coexistem:",
+      "li1": "<strong1>Detectadas automaticamente</strong1> — ao abrir um projeto, o Cockpit lê os manifestos (scripts do <code1>package.json</code1>, <code1>pubspec.yaml</code1>) e mostra tarefas sem nenhuma configuração.",
+      "li2": "<strong1>Declaradas</strong1> — <code1>.cockpit/tasks.json</code1>, para personalizar, adicionar tarefas ou descrever um monorepo. Tarefas JSON têm precedência sobre uma tarefa detectada com o mesmo id.",
+      "callout1": "O runner é genérico",
+      "p2": "Ele só conhece <code1>command</code1>, <code1>args</code1> e <code1>env</code1>. Não há chaves específicas de stack (flavor, dart-define, <code1>NODE_ENV</code1>) — tudo isso é expresso como <code1>args</code1> e <code1>env</code1>."
+    },
+    "tasks_tasksFile": {
+      "title": "Onde o arquivo fica",
+      "p1": "Na <strong1>raiz do workspace que você abre</strong1>. A descoberta é literal — o Cockpit não sobe pela árvore. Para um único pacote, abra a pasta do pacote. Para um <strong1>monorepo</strong1>, abra a raiz e deixe um só <code1>.cockpit/tasks.json</code1> conduzir os subpacotes por um <code1>cwd</code1> por tarefa.",
+      "p2": "O arquivo é <strong1>JSONC</strong1>: comentários (<code1>//</code1> e <code1>/* */</code1>) e vírgulas finais são permitidos, como no <code1>tasks.json</code1> do VSCode. Aponte <code1>$schema</code1> para <a4><code1>docs/tasks.schema.json</code1></a4> para ter autocompletar no editor; o Cockpit ignora o campo ao executar."
+    },
+    "tasks_tasksFields": {
+      "title": "Campos",
+      "p1": "Raiz: <code1>tasks</code1> (obrigatório) e <code1>cwd</code1> (opcional) — um <code1>cwd</code1> padrão para toda tarefa, que cada tarefa pode sobrescrever.",
+      "th1": "Campo",
+      "th2": "Obrigatório",
+      "th3": "Padrão",
+      "th4": "Descrição",
+      "td1": "sim",
+      "cell1": "Nome curto de exibição. O id da tarefa é derivado dele: <code1>json:'<'label'>'</code1>.",
+      "td2": "sim",
+      "td3": "Executável base (npm, flutter, dart…).",
+      "td4": "não",
+      "td5": "Args base, colocados antes dos args do perfil.",
+      "td6": "não",
+      "td7": "raiz",
+      "cell2": "Pasta de execução, relativa à pasta do <code1>tasks.json</code1> (absoluta também é aceita). Recai no <code1>cwd</code1> de nível superior e depois na raiz.",
+      "td8": "não",
+      "td9": "todos",
+      "cell3": "SOs em que a tarefa fica visível: <code1>macos</code1>, <code1>windows</code1>, <code1>linux</code1>.",
+      "td10": "não",
+      "cell4": "<code1>watch</code1> (processo de longa duração, por exemplo um servidor de desenvolvimento) ou <code1>oneShot</code1> (roda e sai).",
+      "td11": "não",
+      "cell5": "Botões que escrevem no stdin do processo: <code1>key</code1>, <code1>label</code1>, <code1>icon</code1> opcional (<code1>refresh</code1>, <code1>restart</code1>, <code1>stop</code1>, <code1>bolt</code1>) e <code1>primary</code1>.",
+      "td12": "não",
+      "cell6": "Reload ao salvar: <code1>paths</code1>, <code1>ignore</code1>, <code1>onChange</code1> (obrigatório — um rótulo de <code1>interactiveKeys</code1> ou <code1>\"__restart__\"</code1>) e <code1>debounceMs</code1> (300). Omita para ferramentas que já observam arquivos (Vite, Next).",
+      "td13": "não",
+      "cell7": "Regexes <code1>begin</code1> / <code1>end</code1> que alternam o selo entre <em1>building</em1> e <em1>running</em1>.",
+      "td14": "não",
+      "cell8": "Variantes de execução nomeadas (launch configs): <code1>name</code1>, <code1>args</code1> extras anexados depois dos da tarefa e <code1>env</code1> mesclado ao ambiente do processo. Um chip alterna entre elas antes de você apertar play.",
+      "callout1": "Dois limites conhecidos",
+      "p2": "Para um valor de argumento que contém espaços, use <strong1>itens separados</strong1> em <code1>args</code1> (<code1>[\"--dart-define\", \"MSG=hello world\"]</code1>). E a aba de saída não sobrevive a uma reinicialização do app — a tarefa morre junto."
+    },
+    "databases": {
+      "title": "Bancos de dados",
+      "p1": "As conexões vivem por workspace em <code1>.cockpit/databases.json</code1>, além de quaisquer arquivos SQLite que o Cockpit detecta automaticamente no projeto. SQLite, Postgres, MySQL, SQL Server, Redis e MongoDB abrem como abas: uma visão de tabela para SQL e Redis, um navegador de coleções para MongoDB. Um arquivo <code1>.dbq</code1> é uma consulta salva que você pode commitar e rodar de novo.",
+      "p2": "As mesmas conexões são acessíveis pela CLI, e a saída é <strong1>uma linha JSON</strong1> — feita para ser lida por um agente, não por um humano.",
+      "label1": "Terminal do Cockpit",
+      "callout1": "Proteções por conexão",
+      "p3": "Cada conexão tem um nível de <code1>access</code1> (<code1>read</code1> — o padrão, inclusive para conexões criadas antes de o campo existir — ou <code1>readwrite</code1>) e uma flag <code1>agents</code1>. Uma conexão com <code1>agents: false</code1> é invisível para a CLI. As barreiras são aplicadas na superfície da CLI: o que você faz manualmente na GUI nunca é bloqueado, mas o que um agente pode alcançar é você quem decide. Rode <code1>cockpit db --help</code1> para a superfície completa."
+    },
+    "documents": {
+      "title": "Documentos como abas",
+      "p1": "Além de terminais, uma aba do Cockpit pode ser um documento. Cada um é um arquivo simples no seu repositório, então o git o enxerga, o seu agente pode escrevê-lo pela CLI e nada fica trancado dentro do app. O painel <strong1>Galeria</strong1>, ao lado de Banco de Dados, tem um cartão por tipo de documento: clique nele e o arquivo é criado na raiz do workspace e aberto, em workspaces locais e remotos."
+    },
+    "documents_documentsNotebook": {
+      "title": "Notebook (.notebook)",
+      "p1": "Uma pasta cujo nome termina em <code1>.notebook</code1> é um notebook: um <code1>.md</code1> por nota, cada um com um frontmatter YAML raso. O Cockpit mostra a pasta como um único item na árvore e a abre como uma aba de notas. Fora do app é uma pasta comum, então git, Obsidian e um agente no terminal leem os mesmos arquivos.",
+      "th1": "Campo",
+      "th2": "Obrigatório",
+      "th3": "Notas",
+      "td1": "não",
+      "td2": "Sem ele, o título é o nome do arquivo sem o .md",
+      "td3": "não",
+      "cell1": "Uma lista <code1>[a, b]</code1>. Sem nenhuma, a nota cai no grupo “sem tag”",
+      "td4": "não",
+      "td5": "não",
+      "td6": "Reescrito pelo app ao salvar",
+      "p2": "O parser nunca lança erro: um arquivo sem frontmatter, ou com um <code1>---</code1> sem fechamento, vira uma nota cujo corpo é o conteúdo inteiro. O app só reescreve as linhas <code1>title</code1>, <code1>tags</code1> e <code1>updated</code1>, deixando o corpo e qualquer outra chave intactos.",
+      "p3": "As notas são sempre editáveis, em um único modo: o markdown é pintado ao vivo enquanto você digita e os marcadores continuam visíveis, então o arquivo segue sendo markdown puro. Salva sozinho cerca de um segundo e meio depois que você para de digitar (e ao trocar ou fechar a aba), e ⌘S força. Colar ou soltar uma imagem a grava em <code1>_assets/</code1> dentro do notebook. <code1>[[Note title]]</code1> no corpo vira um chip clicável, criando a nota se ela não existir, e cada nota lista seus backlinks no final.",
+      "label1": "Terminal do Cockpit",
+      "callout1": "A tag agent",
+      "p4": "A CLI sempre adiciona a tag reservada <code1>agent</code1> a uma nota que escreve, e a UI as marca com uma faísca, então uma nota deixada por um agente nunca é confundida com uma que você escreveu."
+    },
+    "documents_documentsHttp": {
+      "title": "Requisições HTTP (.http)",
+      "p1": "Um arquivo <code1>.http</code1> é uma aba de requisição: editor de um lado, resposta do outro. A sintaxe é a que o REST Client e o JetBrains HTTP Client usam, então arquivos que você já tem funcionam aqui: <code1>###</code1> separa requisições, <code1>@name = value</code1> declara uma variável e <code1>'{{'name'}}'</code1> a interpola. Rode a requisição sob o cursor com ⌘↵ e leia a resposta como JSON, como cabeçalhos ou como texto bruto.",
+      "p2": "O agente roda o mesmo arquivo pela CLI e recebe uma linha JSON de volta. Um 4xx ou 5xx é uma resposta normal, então ele deve checar o <code1>status</code1> em vez do código de saída.",
+      "label1": "Terminal do Cockpit"
+    },
+    "documents_documentsMore": {
+      "title": "Quadros, diagramas e janelas",
+      "li1": "<strong1>Kanban</strong1>: um arquivo markdown <code1>.kanban</code1> é renderizado como um quadro, com dependências entre cartões (<code1>blockedBy</code1>, além de filtros de bloqueados e prontos), filtro por título e etiqueta, arrastar e soltar no modo lista, markdown nos comentários e um clique longo na seta de avançar para mandar um cartão direto para a última coluna.",
+      "li2": "<strong1>Mermaid</strong1>: uma cerca <code1>```mermaid</code1> é renderizada como diagrama na pré-visualização do markdown, offline, no seu tema. Prefira-o a arte ASCII quando um agente explicar um fluxo.",
+      "li3": "<strong1>Janela de documento</strong1>: abra qualquer arquivo na sua própria janela leve pelo app, ou direto do sistema operacional. Dê um duplo clique em um <code1>.kanban</code1>, <code1>.notebook</code1>, <code1>.ckp</code1>, <code1>.dbq</code1>, <code1>.http</code1> ou arquivo markdown no Finder, no Explorer ou no gerenciador de arquivos do Linux, e o Cockpit o abre, repassando o caminho para a instância que você já tem rodando."
+    },
+    "env": {
+      "title": "Ambiente do workspace (.env.cockpit)",
+      "p1": "Um arquivo simples <code1>KEY=VALUE</code1> chamado <code1>.env.cockpit</code1> na raiz do workspace é injetado em todo terminal que o Cockpit abre ali: toda raiz de um workspace multi-raiz, e também workspaces remotos, onde o host lê a sua própria cópia logo antes de iniciar o shell. Coloque ali os tokens de que seus agentes precisam em vez de colá-los num prompt. Abas novas pegam as mudanças, e <strong1>Reiniciar</strong1> recarrega uma aba existente no lugar."
+    },
+    "env_envRedaction": {
+      "title": "Redação",
+      "p1": "Os valores injetados a partir do arquivo são substituídos por <code1>***</code1> antes de a saída chegar ao emulador, o que cobre a tela, o scrollback salvo e o <code1>cockpit read-tab</code1> de uma só vez. Um agente lendo outra aba não lê seus segredos de volta.",
+      "p2": "Fora do escopo, de propósito: um valor que o programa recodifica (base64, por exemplo) ou divide com escapes ANSI, e o próprio arquivo, que é um arquivo comum que qualquer coisa com as suas permissões consegue ler."
+    },
+    "env_envBlocked": {
+      "title": "Chaves que nunca são injetadas",
+      "p1": "Chaves que mudam <em1>quem executa o quê</em1> são ignoradas, então um arquivo que chega com um repositório não consegue redirecionar os programas que o seu shell inicia:",
+      "label1": "bloqueadas",
+      "p2": "Além disso, quando o <code1>.env.cockpit</code1> é rastreado pelo git (ou seja, veio com o repositório, não é seu), os novos terminais imprimem um aviso listando os <em1>nomes</em1> das chaves injetadas, nunca os valores. O cartão da Galeria que cria o arquivo também o mantém fora do git."
+    },
+    "env_envAccounts": {
+      "title": "Uma conta pessoal e uma de trabalho, lado a lado",
+      "p1": "O Claude Code e o Codex leem a conta inteira (credenciais, configurações e histórico) de um diretório que você pode apontar para outro lugar, e o Cockpit injeta essas variáveis por workspace como qualquer outra. Essa é a receita para contas separadas: nenhum recurso extra, uma linha por workspace.",
+      "p2": "Reinicie as abas (ou abra novas), rode <code1>claude</code1> e faça login uma vez com <code1>/login</code1>. A partir daí aquele workspace usa aquela conta, e os seus outros workspaces ficam com a padrão. Use caminhos absolutos: as variáveis nomeiam um diretório, não um perfil."
+    },
+    "themes": {
+      "title": "Temas",
+      "p1": "O Cockpit vem com nove temas embutidos — <code1>cockpit</code1>, <code1>cockpit.2</code1>, <code1>violet</code1>, <code1>violet.2</code1>, <code1>midnight</code1>, <code1>rose</code1>, <code1>sun</code1>, <code1>flexoki</code1> e <code1>pantera</code1> — cada um com uma variante clara e uma escura. Além desses, um tema é <strong1>um único arquivo JSON</strong1> que pinta as três camadas de uma vez: a UI do app, o destaque de sintaxe do visualizador de código e a paleta do terminal."
+    },
+    "themes_themesFile": {
+      "title": "O arquivo de tema",
+      "li1": "Importe com <strong1>Configurações → Aparência → Tema → Importar…</strong1>",
+      "li2": "Os temas ficam em <code1>'<'data folder'>'/themes/</code1> (a mesma raiz da configuração “Armazenamento”), um arquivo por tema, com o nome do seu <code1>id</code1>. Copiar um <code1>.json</code1> para lá também o instala.",
+      "li3": "A exportação produz um arquivo <strong1>completo</strong1> (todo token, sem <code1>extends</code1>) — um bom ponto de partida para edição manual.",
+      "th1": "Campo",
+      "th2": "Obrigatório",
+      "th3": "O que é",
+      "td1": "sim",
+      "cell1": "Identidade estável e com namespace (<code1>publisher.name</code1>). É o que fica guardado nas preferências, então renomear <code1>name</code1> nunca perde a escolha do usuário. Não pode colidir com o id de um tema embutido.",
+      "td2": "sim",
+      "td3": "O que aparece no seletor.",
+      "td4": "não",
+      "td5": "Metadados.",
+      "td6": "não",
+      "td7": "Metadados.",
+      "td8": "não",
+      "cell2": "Id de um tema embutido do qual herdar. Ausente = herda de <code1>cockpit</code1>.",
+      "td9": "sim",
+      "cell3": "Pelo menos um entre <code1>dark</code1> / <code1>light</code1>. Um tema só escuro também é aplicado no modo claro — melhor do que misturar metade de um tema claro com metade de um escuro.",
+      "p1": "<strong1>A herança é o ponto.</strong1> Todo token que você não declara vem da base, então um tema útil pode ter cinco linhas:",
+      "p2": "As cores são hex no estilo CSS — <code1>#RGB</code1>, <code1>#RRGGBB</code1> ou <code1>#RRGGBBAA</code1>, <strong1>alfa por último</strong1>. Não é o <code1>0xAARRGGBB</code1> do Dart. Numa importação ruim, o parser aponta o <strong1>caminho do campo</strong1> que quebrou (<code1>variants.dark.ui.accent</code1>), e a validação roda antes da cópia, então um arquivo inválido nunca chega à pasta de temas.",
+      "label1": "theme.json — formato"
+    },
+    "themes_themesTokens": {
+      "title": "Tokens",
+      "th1": "Grupo",
+      "th2": "Tokens",
+      "cell1": "Superfícies <code1>bg</code1> <code1>panel</code1> <code1>panel2</code1> <code1>panel3</code1> · traços <code1>border</code1> <code1>border2</code1> · texto <code1>text</code1> <code1>text2</code1> <code1>text3</code1> <code1>text4</code1> · marca <code1>accent</code1> <code1>accentSoft</code1> <code1>accentText</code1> · estado <code1>online</code1> <code1>ok</code1> <code1>error</code1> <code1>warn</code1> · edição <code1>edited</code1> <code1>editedBg</code1> · git <code1>gitStaged</code1> <code1>gitUntracked</code1> <code1>gitDeleted</code1> <code1>gitConflict</code1> · sobreposição <code1>scrim</code1> <code1>shadow</code1>",
+      "cell2": "<code1>cursor</code1> <code1>selection</code1> <code1>foreground</code1> <code1>background</code1>, as 8 cores ANSI normais, as suas 8 contrapartes <code1>bright*</code1> e <code1>searchHitBackground</code1> <code1>searchHitBackgroundCurrent</code1> <code1>searchHitForeground</code1>",
+      "p1": "O texto desenhado <em1>sobre</em1> <code1>accent</code1> e <code1>error</code1> não é um token: ele é derivado da luminância da cor, então um accent claro recebe texto escuro automaticamente.",
+      "p2": "<code1>syntax.background</code1> tem um padrão especial. O visualizador de código, o editor e o terminal são todos conteúdo dentro de uma aba, então compartilham o campo: quando um tema não declara nem <code1>syntax.background</code1> nem <code1>terminal.background</code1>, os três seguem o <code1>ui.panel</code1> <em1>deste</em1> tema, não o da base. Declare o campo se a sua paleta de código precisa de uma superfície própria.",
+      "p3": "A URL de <code1>$schema</code1> vive no repositório, versionada junto ao código que a implementa, então o app e o schema nunca se descolam. O Cockpit ignora o campo ao ler um tema — ele só serve ao seu editor. Veja <a5><code1>theme.example.json</code1></a5> para um arquivo comentado com todos os grupos preenchidos."
+    },
+    "turnStatus": {
+      "title": "Status de turno do agente",
+      "p1": "Quando um agente roda numa aba, o Cockpit mostra se ele está <strong1>trabalhando</strong1>, <strong1>esperando</strong1> por você ou <strong1>ocioso</strong1> — como um spinner, um selo, um sinal sonoro e uma notificação do SO quando a janela está sem foco. Harnesses suportados hoje: <strong1>Claude Code</strong1> e <strong1>Codex CLI</strong1> (0.147+).",
+      "p2": "Como funciona:",
+      "li1": "No boot, o Cockpit materializa a CLI interna em <code1>~/.cockpit/bin/cockpit</code1> e registra <code1>cockpit hook</code1> nos eventos de ciclo de vida do harness.",
+      "li2": "A cada evento, o harness executa o hook, passando um payload JSON no stdin.",
+      "li3": "O hook o traduz em um status e o envia ao app pelo socket local. (Um socket, em vez de uma sequência de escape no PTY: os harnesses executam hooks sem terminal de controle, e escrever em <code1>/dev/tty</code1> falha com <code1>ENXIO</code1>.)",
+      "li4": "O roteamento é pela variável de ambiente <code1>COCKPIT_PANE_ID</code1>, que o app injeta no PTY da aba. Uma sessão de agente iniciada <em1>fora</em1> do Cockpit não a tem, então o hook não faz nada ali. Nada para configurar, nada para desligar.",
+      "th1": "Harness",
+      "th2": "Arquivo",
+      "th3": "Formato",
+      "td1": "Claude Code",
+      "cell1": "<code1>hooks.'<'Event'>'[]</code1>, cada item <code1>'{'matcher, hooks:['{'type, command'}']'}'</code1>",
+      "td2": "Codex CLI",
+      "cell2": "Mesma forma, <strong1>mais</strong1> um bloco de confiança em <code1>~/.codex/config.toml</code1> (o Codex ignora em silêncio um hook não confiável, então o Cockpit calcula e grava o hash de confiança para você, entre os delimitadores <code1># '>>>' cockpit hooks</code1>).",
+      "p3": "Os dois instaladores fazem um <strong1>append idempotente</strong1> de uma entrada marcada (<code1>_cockpit: v1</code1>): rodar de novo remove a nossa entrada antiga e a readiciona, sem nunca reescrever a lista — os seus próprios hooks, e os de plugins ou do iTerm2, sobrevivem intactos."
+    },
+    "turnStatus_turnStatusEvents": {
+      "title": "Mapeamento de eventos",
+      "th1": "Evento",
+      "th2": "Claude",
+      "th3": "Codex",
+      "th4": "Status",
+      "cell1": "<code1>working</code1> (o turno começa)",
+      "cell2": "<code1>working</code1> — exceto para as ferramentas bloqueantes do Claude (abaixo)",
+      "cell3": "<code1>waiting</code1> / <code1>idle</code1> (heurística sobre o texto)",
+      "strong1": "ignorado",
+      "p1": "Duas assimetrias importam. No <strong1>Claude</strong1>, as ferramentas que bloqueiam esperando o usuário (<code1>AskUserQuestion</code1>, <code1>ExitPlanMode</code1>) não emitem <code1>Notification</code1>; o último hook antes do bloqueio é <code1>PreToolUse</code1>, então ele mapeia para <code1>waiting</code1> nessas duas — senão a aba giraria para sempre sem sinal sonoro. No <strong1>Codex</strong1>, a aprovação tem um evento próprio, então não há heurística de texto nem desvio."
+    },
+    "turnStatus_turnStatusResume": {
+      "title": "Retomando uma sessão",
+      "p1": "O Cockpit persiste o <code1>session_id</code1> que chegou pelo hook e, ao restaurar a aba, digita o comando que reanexa a conversa. Um id de sessão sozinho não diz a que harness pertence, e os comandos diferem — <code1>claude --resume '<'id'>'</code1> versus <code1>codex resume '<'id'>'</code1> — então o instalador registra o hook como <code1>cockpit hook --harness '<'name'>'</code1> e o layout guarda o harness junto ao id. Entradas escritas por versões antigas não passam a flag e são assumidas como Claude, que é o que todas eram.",
+      "callout1": "A confiança do Codex é indexada",
+      "p2": "A chave de confiança do Codex inclui o índice de grupo do hook. Se você adiciona um hook seu <em1>antes</em1> do nosso no mesmo evento — ou edita o <code1>hooks.json</code1> à mão — o hash deixa de bater e o hook silenciosamente para de rodar. O instalador conserta isso no próximo boot, porque recalcula os índices a partir do arquivo final."
+    },
+    "remote": {
+      "title": "Hosts remotos e VPS",
+      "p1": "Um workspace remoto é uma pasta em outra máquina, acessada via SSH. O Cockpit roda um pequeno <code1>cockpit-server</code1> headless no host, conversa com ele por um túnel SSH até um socket Unix, e nada nunca é exposto na rede: o SSH é a única porta. Terminais e agentes continuam rodando no host quando você desconecta, e a próxima conexão os retoma de onde estavam.",
+      "p2": "No app <strong1>desktop</strong1> você normalmente não precisa de nada no host: o Cockpit envia o servidor por SSH na primeira conexão e o mantém atualizado (compara um manifesto dos arquivos instalados com o bundle que ele traz e reinstala quando diferem). Os apps <strong1>mobile</strong1> (iPad, Android) não carregam servidor, então um host que você quer alcançar por eles precisa ser preparado uma vez, por um desktop ou com o instalador abaixo.",
+      "p3": "O desktop só consegue instalar os alvos que ele traz, então o instalador também é a porta de entrada para as outras combinações:",
+      "th1": "Cliente",
+      "th2": "Host Linux arm64",
+      "th3": "Host Linux x86_64",
+      "td1": "macOS",
+      "td2": "instala e atualiza por SSH",
+      "td3": "instalador",
+      "td4": "Linux arm64",
+      "td5": "instala e atualiza por SSH",
+      "td6": "instalador",
+      "td7": "Linux x86_64",
+      "td8": "instalador",
+      "td9": "instala e atualiza por SSH",
+      "td10": "Windows",
+      "td11": "instalador",
+      "td12": "instalador",
+      "td13": "iPad / Android",
+      "td14": "instalador",
+      "td15": "instalador",
+      "p4": "Os dois caminhos chegam ao mesmo lugar e se reconhecem: um host preparado com o instalador é reaproveitado como está por um desktop que traz a mesma versão, e um host preparado por um desktop pode ser atualizado depois com o instalador. Quem chegar primeiro instala; o outro só se conecta."
+    },
+    "remote_remoteInstall": {
+      "title": "Instale o servidor",
+      "p1": "Linux x86_64 e arm64. Espaço de usuário, sem sudo, idempotente; rode de novo para atualizar.",
+      "label1": "no host",
+      "p2": "O script detecta a arquitetura, baixa o <code1>cockpit-server-'<'version'>'-linux-'<'arch'>'.zip</code1> da release do GitHub, verifica o SHA-256 e roda o <code1>install.sh</code1> que vem dentro do zip. Isso instala em <code1>~/.cockpit/server</code1> (o mesmo layout que o app desktop usa), linka o binário em <code1>~/.local/bin</code1>, confere cada arquivo contra o <code1>bundle.manifest</code1> e faz um smoke start antes de trocar a nova versão. Um host sem acesso à internet pode receber o zip por <code1>scp</code1> e rodar <code1>./cockpit-server/install.sh</code1> diretamente.",
+      "p3": "<strong1>As versões precisam coincidir.</strong1> Cliente e servidor são lançados juntos e o app recusa uma versão diferente do servidor. Fixe uma com <code1>COCKPIT_VERSION=1.28.33</code1> na frente do comando; sem ele, a release mais recente é usada. Clientes desktop corrigem a divergência sozinhos por SSH; pelo mobile, rode o instalador de novo."
+    },
+    "remote_remoteService": {
+      "title": "Iniciar no boot",
+      "p1": "Por padrão o app inicia o servidor sob demanda e ele sai quando ocioso e sem sessão ativa; terminais e agentes mantêm o servidor vivo enquanto rodam, então a maioria dos hosts não precisa de serviço. Note que se você matar o servidor enquanto um workspace do Cockpit está aberto nele, o cliente trata isso como uma conexão caída e o inicia de novo. Para uma VPS dedicada você pode registrar uma unit <code1>systemd --user</code1>: o servidor fica de pé logo após um reboot, nunca sai por ociosidade, e o systemd o reinicia em caso de falha. Isso não muda como o app se conecta, e um reboot ainda encerra as sessões que estavam rodando.",
+      "label1": "no host",
+      "p2": "A unit fica em <code1>~/.config/systemd/user/cockpit-server.service</code1>. Iniciar no boot sem uma sessão SSH aberta exige <em1>linger</em1>; o comando tenta habilitá-lo e, quando isso precisa de root, imprime a linha <code1>sudo loginctl enable-linger</code1> para você rodar uma vez. As atualizações reiniciam a unit automaticamente. Para pará-la de verdade use <code1>systemctl --user stop cockpit-server</code1> (um kill simples é desfeito pelo systemd em dois segundos)."
+    },
+    "remote_remoteTroubleshooting": {
+      "title": "Solução de problemas",
+      "li1": "<strong1>version_mismatch</strong1>: o host roda outra release que o app. Rode o instalador de novo (mobile) ou reconecte de um desktop, que reinstala.",
+      "li2": "<strong1>cockpit-server did not start</strong1> durante a instalação: o log impresso acima do erro é o motivo. Uma glibc mais antiga do que o build espera é a causa usual em distribuições antigas; confira <code1>ldd --version</code1>.",
+      "li3": "<strong1>Permissão do socket</strong1>: o servidor escuta em <code1>~/.cockpit/cockpit-server.sock</code1> como o usuário SSH; conecte com o mesmo usuário que rodou o instalador.",
+      "li4": "<strong1>Atualizar significa reiniciar</strong1>: uma nova versão do servidor substitui o processo em execução, o que encerra os terminais e agentes daquele host. O desktop faz isso em silêncio quando o bundle dele difere do host; o instalador faz quando você o roda com uma release mais nova. Termine os trabalhos longos antes.",
+      "li5": "<strong1>Nada após o reboot</strong1>: sem o serviço, a primeira conexão inicia o servidor (um ou dois segundos); com ele, confira <code1>cockpit-server service status</code1> e o linger."
+    },
+    "sounds": {
+      "title": "Sons e notificações",
+      "p1": "O status de turno também aciona áudio. Em <strong1>Configurações → Notificações</strong1> você pode associar um som a cada evento — <strong1>turno concluído</strong1>, <strong1>ação necessária</strong1>, <strong1>erro</strong1> — escolher um arquivo de áudio próprio para cada um e ajustar o volume. Com a janela em foco você ouve o sinal; sem foco, uma notificação do SO. Como um agente iniciado fora do Cockpit nunca reporta status, nada dispara para sessões que o app não está hospedando."
+    },
+    "language": {
+      "title": "Idioma",
+      "p1": "A interface do Cockpit é totalmente localizada em <strong1>inglês</strong1>, <strong1>português (Brasil)</strong1> e <strong1>espanhol</strong1>, até o menu nativo do aplicativo. Troque em <strong1>Configurações → Geral → Idioma</strong1>; a escolha é independente do idioma do SO."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "<link1>Página do produto Cockpit</link1> — o tour.",
+      "li2": "<link5>Tutorial: layouts e tarefas</link5> — construa um <code1>.ckp</code1> e um <code1>tasks.json</code1> do zero.",
+      "li3": "<link6>Tutorial: telemetria para agentes</link6> — o armazenamento de erros, a CLI <code1>cockpit telemetry</code1> e como fazer um projeto falar em logs JSON.",
+      "link1": "Tutorial: um time de agentes no Cockpit",
+      "li4": "<link2>Documentação do Remote Pi</link2> — mesh, relay, daemons, pareamento.",
+      "li5": "<a6>Docs de código-fonte e JSON schemas</a6> no repositório.",
+      "li6": "<a7>GitHub</a7> — issues e código-fonte."
+    },
+    "meta": {
+      "title": "Referência do Cockpit",
+      "description": "Referência do Remote Pi Cockpit: a CLI interna, layouts de painéis .ckp, Task Run, bancos de dados, notebooks e abas .http, .env.cockpit, temas, hooks de status de turno e hosts remotos via SSH."
+    },
+    "toc": {
+      "cli": "A CLI <code1>cockpit</code1>",
+      "layouts": "Layouts de painéis <code1>.ckp</code1>",
+      "documentsHttp": "Requisições <code1>.http</code1>",
+      "install": "Instalação",
+      "cliTargets": "Alvos e ids",
+      "cliCommands": "Referência de comandos",
+      "cliRead": "Lendo a saída",
+      "layoutsFields": "Campos",
+      "layoutsMerge": "Semântica de merge",
+      "tasks": "Task Run",
+      "tasksFile": "tasks.json",
+      "tasksFields": "Campos",
+      "databases": "Bancos de dados",
+      "documents": "Documentos como abas",
+      "documentsNotebook": "Notebook",
+      "documentsMore": "Quadros, diagramas, janelas",
+      "envRedaction": "Redação",
+      "envBlocked": "Chaves bloqueadas",
+      "envAccounts": "Contas separadas",
+      "themes": "Temas",
+      "themesFile": "Arquivo de tema",
+      "themesTokens": "Tokens",
+      "turnStatus": "Status de turno do agente",
+      "turnStatusEvents": "Mapeamento de eventos",
+      "turnStatusResume": "Retomando uma sessão",
+      "remote": "Hosts remotos e VPS",
+      "remoteInstall": "Instale o servidor",
+      "remoteService": "Iniciar no boot",
+      "remoteTroubleshooting": "Solução de problemas",
+      "sounds": "Sons e notificações",
+      "language": "Idioma",
+      "links": "Links"
+    }
   }
 }
