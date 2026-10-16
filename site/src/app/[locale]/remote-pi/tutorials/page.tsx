@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { IconArrow, IconStar } from "@/components/landing/icons";
 import { RevealController } from "@/components/landing/reveal-controller";
 
@@ -75,7 +76,13 @@ function StepCard({ s }: { s: Step }) {
   );
 }
 
-export default function TutorialsIndexPage() {
+export default async function TutorialsIndexPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

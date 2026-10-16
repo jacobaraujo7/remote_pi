@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { DocsSection, DocsSubsection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
 import { Callout } from "@/components/callout";
@@ -12,7 +13,13 @@ export const metadata: Metadata = {
     "Advanced extra: remote-pi claude puts Claude Code on the agent mesh as a named peer next to Pi — agent-to-agent, driven from the terminal. Not in the app yet.",
 };
 
-export default function ClaudeMeshTutorial() {
+export default async function ClaudeMeshTutorial({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

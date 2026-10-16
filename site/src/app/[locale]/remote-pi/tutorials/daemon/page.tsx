@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { DocsSection, DocsSubsection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
 import { Callout } from "@/components/callout";
@@ -12,7 +13,13 @@ export const metadata: Metadata = {
     "Keep a Pi agent alive 24/7: install the supervisor (launchd / systemd --user), register a folder as a daemon, and manage the fleet from one CLI.",
 };
 
-export default function DaemonTutorial() {
+export default async function DaemonTutorial({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

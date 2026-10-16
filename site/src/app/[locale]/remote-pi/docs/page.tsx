@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import {
   DocsSection,
   DocsSubsection,
@@ -64,7 +65,13 @@ const DOCS_TOC: TocItem[] = [
   { id: "links", label: "Links" },
 ];
 
-export default function DocsPage() {
+export default async function DocsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

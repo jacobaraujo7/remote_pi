@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { DocsSection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
 import { Callout } from "@/components/callout";
@@ -12,7 +13,13 @@ export const metadata: Metadata = {
     "Run two Pi agents on the same machine and have them discover each other and exchange messages over the local broker with list_peers, agent_send, and get_messages.",
 };
 
-export default function MeshLocalTutorial() {
+export default async function MeshLocalTutorial({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

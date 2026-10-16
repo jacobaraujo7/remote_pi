@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import {
   DocsSection,
   DocsSubsection,
@@ -181,7 +182,13 @@ const THEME_MINIMAL = `{
   }
 }`;
 
-export default function CockpitDocsPage() {
+export default async function CockpitDocsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">

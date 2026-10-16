@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { setRequestLocale } from "next-intl/server";
+import { Link } from "@/i18n/navigation";
 import { DocsSection, DocsSubsection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
 import { InstallTabs } from "@/components/install-tabs";
@@ -13,7 +14,13 @@ export const metadata: Metadata = {
     "Install Remote Pi on Pi, pair your phone, and send your first command to an agent from the app — from install to first prompt.",
 };
 
-export default function GettingStartedTutorial() {
+export default async function GettingStartedTutorial({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return (
     <div className="page">
       <div className="page-body">
