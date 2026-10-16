@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { pageAlternates } from "@/i18n/alternates";
 import { IconArrow, IconStar } from "@/components/landing/icons";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "Tutorials",
-  description:
-    "Hands-on guides for Cockpit: commit the layout and tasks your project opens with, and run a team of agents in one window.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.index",
+  });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/tutorials"),
+  };
+}
 
 type Step = {
   n?: string;
@@ -19,31 +29,7 @@ type Step = {
   desc: string;
 };
 
-const STEPS: Step[] = [
-  {
-    n: "1",
-    tag: "01 / 03",
-    title: "Layouts and tasks",
-    href: "/tutorials/cockpit-layouts",
-    desc: "Commit a .ckp layout that opens your terminals and a tasks.json that runs your dev servers, with profiles and reload on save.",
-  },
-  {
-    n: "2",
-    tag: "02 / 03",
-    title: "An agent team",
-    href: "/tutorials/cockpit-team",
-    desc: "Run an orchestrator, a backend and a frontend as three agent tabs, each in its own folder, coordinated with the internal cockpit CLI.",
-  },
-  {
-    n: "3",
-    tag: "03 / 03",
-    title: "Telemetry for agents",
-    href: "/tutorials/cockpit-telemetry",
-    desc: "A per-workspace error store agents query instead of reading terminals: grouped cases, triage, one CLI.",
-  },
-];
-
-function StepCard({ s }: { s: Step }) {
+function StepCard({ s, openLabel }: { s: Step; openLabel: string }) {
   return (
     <Link className="step-card reveal" href={s.href}>
       <div className="sc-top">
@@ -53,38 +39,62 @@ function StepCard({ s }: { s: Step }) {
       <h3>{s.title}</h3>
       <p>{s.desc}</p>
       <span className="sc-link">
-        Open tutorial <IconArrow />
+        {openLabel} <IconArrow />
       </span>
     </Link>
   );
 }
 
-export default async function TutorialsIndexPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function TutorialsIndexPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.index",
+  });
+
+  const steps: Step[] = [
+    {
+      n: "1",
+      tag: "01 / 03",
+      title: t("step1.title"),
+      href: "/tutorials/cockpit-layouts",
+      desc: t("step1.desc"),
+    },
+    {
+      n: "2",
+      tag: "02 / 03",
+      title: t("step2.title"),
+      href: "/tutorials/cockpit-team",
+      desc: t("step2.desc"),
+    },
+    {
+      n: "3",
+      tag: "03 / 03",
+      title: t("step3.title"),
+      href: "/tutorials/cockpit-telemetry",
+      desc: t("step3.desc"),
+    },
+  ];
+
   return (
     <div className="page">
       <div className="page-body">
         <div className="wrap">
           <header className="page-head reveal">
-            <span className="eyebrow">Tutorials</span>
-            <h1>Learn Cockpit by doing.</h1>
+            <span className="eyebrow">{t("eyebrow")}</span>
+            <h1>{t("h1")}</h1>
             <p className="lede">
-              Two hands-on guides that take the app past a plain terminal. For
-              every command, file format and flag, the{" "}
-              <Link href="/docs">reference</Link> has the whole picture. Looking
-              for the Remote Pi guides (pairing, mesh, daemons)? They live at{" "}
-              <Link href="/remote-pi/tutorials">/remote-pi/tutorials</Link>.
+              {t.rich("lede", {
+                ref: (c) => <Link href="/docs">{c}</Link>,
+                remote: (c) => <Link href="/remote-pi/tutorials">{c}</Link>,
+              })}
             </p>
           </header>
 
           <div className="card-list">
-            {STEPS.map((s) => (
-              <StepCard key={s.href} s={s} />
+            {steps.map((s) => (
+              <StepCard key={s.href} s={s} openLabel={t("open")} />
             ))}
           </div>
         </div>

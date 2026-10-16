@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { pageAlternates } from "@/i18n/alternates";
 import { Link } from "@/i18n/navigation";
 import { DocsSection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
@@ -6,11 +9,20 @@ import { Callout } from "@/components/callout";
 import { Pager } from "@/components/pager";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "An agent team in Cockpit",
-  description:
-    "Run an orchestrator and two worker agents as terminal tabs in one Cockpit window, each in its own folder, coordinated with the internal cockpit CLI.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.team",
+  });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/tutorials/cockpit-team"),
+  };
+}
 
 /* ---- example briefs (one per folder) ---- */
 const ORCHESTRATOR_MD = `# Orchestrator
@@ -65,7 +77,41 @@ const TEAM_CKP = `panes:
     split: down
     command: claude`;
 
-export default function CockpitTeamTutorial() {
+/* Inline tags used by the messages: <code1>, <a2>... Handlers live here so
+   each message just spreads TAGS. Contents of <code*> are never translated. */
+const TAGS = {
+  strong1: (c: ReactNode) => <strong className="text-fg">{c}</strong>,
+  code1: (c: ReactNode) => <InlineCode>{c}</InlineCode>,
+  link1: (c: ReactNode) => (
+    <Link href="/docs#cli" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link2: (c: ReactNode) => (
+    <Link href="/tutorials/cockpit-layouts" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link3: (c: ReactNode) => (
+    <Link href="/download" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  em1: (c: ReactNode) => <em>{c}</em>,
+  link4: (c: ReactNode) => (
+    <Link href="/docs#remote" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+};
+
+export default async function CockpitTeamTutorial({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.team",
+  });
   return (
     <div className="page">
       <div className="page-body">
@@ -74,87 +120,34 @@ export default function CockpitTeamTutorial() {
             <header className="page-head reveal" style={{ maxWidth: "none" }}>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-accent">
-                  Cockpit · multi-agent
+                  {t("intro.span1")}
                 </span>
               </div>
               <span className="eyebrow" style={{ marginTop: 14 }}>
-                Tutorial · Cockpit
+                {t("intro.span2")}
               </span>
-              <h1>An agent team in Cockpit</h1>
-              <p className="lede">
-                Cockpit&apos;s real power is the multiplexer: many agents in one
-                window, each in its own folder. Here you wire up three,
-                an <strong className="text-fg">orchestrator</strong>, a{" "}
-                <strong className="text-fg">backend</strong> and a{" "}
-                <strong className="text-fg">frontend</strong>, and let the
-                orchestrator drive the other two with the internal{" "}
-                <InlineCode>cockpit</InlineCode> CLI.
-              </p>
+              <h1>{t("intro.h11")}</h1>
+              <p className="lede">{t.rich("intro.p1", TAGS)}</p>
             </header>
 
             <article className="prose">
-              <DocsSection id="what" title="What you'll build">
-                <p>
-                  Three agent tabs, side by side in a single Cockpit workspace.
-                  Each one is an ordinary terminal running your harness of
-                  choice (this tutorial uses{" "}
-                  <InlineCode>claude</InlineCode>; <InlineCode>codex</InlineCode>{" "}
-                  or <InlineCode>pi</InlineCode> work the same way), started in
-                  its own subfolder so it picks up that folder&apos;s brief and
-                  boots into a role.
-                </p>
-                <p>
-                  They coordinate through Cockpit itself. The orchestrator opens
-                  the worker tabs, types instructions into them and reads their
-                  output back, using the <InlineCode>cockpit</InlineCode> CLI
-                  that exists inside every Cockpit terminal. No network, no
-                  account, no extra service: it is the app you already have
-                  open, driven by the same verbs a human uses.
-                </p>
-                <Callout variant="note" title="Worth reading first">
-                  The CLI reference lives in the{" "}
-                  <Link
-                    href="/docs#cli"
-                    className="text-accent underline"
-                  >
-                    Cockpit docs
-                  </Link>
-                  , and{" "}
-                  <Link
-                    href="/tutorials/cockpit-layouts"
-                    className="text-accent underline"
-                  >
-                    Layouts and tasks
-                  </Link>{" "}
-                  shows how a <InlineCode>.ckp</InlineCode> file recreates a
-                  window like this one on any machine.
+              <DocsSection id="what" title={t("what.title")}>
+                <p>{t.rich("what.p1", TAGS)}</p>
+                <p>{t.rich("what.p2", TAGS)}</p>
+                <Callout variant="note" title={t("what.callout1")}>
+                  {t.rich("what.callout2", TAGS)}
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="prereqs" title="Before you start">
+              <DocsSection id="prereqs" title={t("prereqs.title")}>
                 <ul className="ml-6 list-disc space-y-2">
-                  <li>
-                    <strong className="text-fg">Cockpit installed</strong>, from
-                    the{" "}
-                    <Link href="/download" className="text-accent underline">
-                      download page
-                    </Link>
-                    . Nothing else is required: Cockpit needs no account and no
-                    cloud.
-                  </li>
-                  <li>
-                    <strong className="text-fg">A harness on your PATH</strong>,
-                    the one you already use. Cockpit runs it as a normal
-                    process, so whatever works in your terminal works in a tab.
-                  </li>
+                  <li>{t.rich("prereqs.li1", TAGS)}</li>
+                  <li>{t.rich("prereqs.li2", TAGS)}</li>
                 </ul>
               </DocsSection>
 
-              <DocsSection id="folders" title="1. Lay out the folders">
-                <p>
-                  An agent&apos;s identity comes from where it starts, so give
-                  each teammate a folder with its own brief:
-                </p>
+              <DocsSection id="folders" title={t("folders.title")}>
+                <p>{t("folders.p1")}</p>
                 <CodeBlock
                   code={`my-app/
 ├── orchestrator/
@@ -163,15 +156,10 @@ export default function CockpitTeamTutorial() {
 │   └── AGENTS.md
 └── frontend/
     └── AGENTS.md`}
-                  label="project layout"
+                  label={t("folders.label1")}
                   language="text"
                 />
-                <p>
-                  <InlineCode>AGENTS.md</InlineCode> is the standing brief an
-                  agent reads when it starts in a folder (Claude Code also reads{" "}
-                  <InlineCode>CLAUDE.md</InlineCode>). Give each one a clear job,
-                  and tell the orchestrator how to reach the others.
-                </p>
+                <p>{t.rich("folders.p2", TAGS)}</p>
                 <CodeBlock
                   code={ORCHESTRATOR_MD}
                   label="orchestrator/AGENTS.md"
@@ -187,62 +175,31 @@ export default function CockpitTeamTutorial() {
                   label="frontend/AGENTS.md"
                   language="markdown"
                 />
-                <Callout variant="note" title="One folder, one teammate">
-                  Keeping each agent in its own subfolder is what keeps the
-                  briefs, the histories and the edits apart. Three folders,
-                  three tabs, three roles.
+                <Callout variant="note" title={t("folders.callout1")}>
+                  {t("folders.callout2")}
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="tabs" title="2. Open the three tabs">
-                <p>
-                  Open <InlineCode>my-app/</InlineCode> as a workspace. Then open
-                  a terminal in each subfolder and start your harness there. The
-                  fastest way is from the Files panel: right-click a folder and
-                  open a terminal in it, then run <InlineCode>claude</InlineCode>
-                  .
-                </p>
-                <p>
-                  Split the canvas so all three are visible at once, the
-                  orchestrator on one side and the workers on the other, and
-                  rename each tab by double-clicking it:{" "}
-                  <InlineCode>Orchestrator</InlineCode>,{" "}
-                  <InlineCode>Backend</InlineCode>,{" "}
-                  <InlineCode>Frontend</InlineCode>. Those labels are how the
-                  CLI addresses a tab, and unlike ids they survive a restart of
-                  the app.
-                </p>
-                <p>
-                  Do it once by hand, or commit the whole geometry as a{" "}
-                  <InlineCode>team.ckp</InlineCode> and let Cockpit build the
-                  window for you:
-                </p>
+              <DocsSection id="tabs" title={t("tabs.title")}>
+                <p>{t.rich("tabs.p1", TAGS)}</p>
+                <p>{t.rich("tabs.p2", TAGS)}</p>
+                <p>{t.rich("tabs.p3", TAGS)}</p>
                 <CodeBlock code={TEAM_CKP} label="team.ckp" language="yaml" />
                 <CodeBlock
-                  label="any Cockpit terminal"
+                  label={t("tabs.label1")}
                   prompt
                   code="cockpit orchestrate team.ckp"
                 />
-                <Callout variant="tip" title="Labels, not ids">
-                  Tab ids (<InlineCode>t0</InlineCode>,{" "}
-                  <InlineCode>t1</InlineCode>…) are handed out per app boot, so
-                  never hardcode one in a brief or a script. Address a tab by
-                  its label, or discover the id of the moment with{" "}
-                  <InlineCode>cockpit list-tabs</InlineCode>.
+                <Callout variant="tip" title={t("tabs.callout1")}>
+                  {t.rich("tabs.callout2", TAGS)}
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="wiring" title="3. Teach the orchestrator the CLI">
-                <p>
-                  Every terminal Cockpit opens has{" "}
-                  <InlineCode>cockpit</InlineCode> on its{" "}
-                  <InlineCode>PATH</InlineCode>, and only those terminals do. So
-                  the orchestrator can already drive its teammates; it just
-                  needs to know the verbs. Ask it to look around:
-                </p>
+              <DocsSection id="wiring" title={t("wiring.title")}>
+                <p>{t.rich("wiring.p1", TAGS)}</p>
                 <CodeBlock
                   code="Run `cockpit list-tabs --json` and tell me which tabs you can reach."
-                  label="Orchestrator · prompt"
+                  label={t("wiring.label1")}
                   language="text"
                 />
                 <CodeBlock
@@ -252,16 +209,12 @@ export default function CockpitTeamTutorial() {
   { "id": "t1", "label": "Backend",      "workspacePath": "/Users/me/my-app", "working": false },
   { "id": "t2", "label": "Frontend",     "workspacePath": "/Users/me/my-app", "working": false }
 ]`}
-                  label="Orchestrator · tool call"
+                  label={t("wiring.label2")}
                   language="text"
                 />
-                <p>
-                  Four verbs are enough to run a team. If you use Claude Code,{" "}
-                  <InlineCode>cockpit install-skill</InlineCode> installs a skill
-                  that teaches all of them, so the brief can stay short.
-                </p>
+                <p>{t.rich("wiring.p2", TAGS)}</p>
                 <CodeBlock
-                  label="the four verbs"
+                  label={t("wiring.label3")}
                   prompt
                   code={`# dispatch an instruction and press Enter for it
 cockpit send --tab-id Backend --enter "Expose GET /todos and POST /todos"
@@ -275,32 +228,20 @@ cockpit read-tab Backend --lines 80
 # open a worker beside you, mid-flight, if the work needs one more pair of hands
 cockpit new-tab --cwd ./docs --title Docs --split v`}
                 />
-                <Callout variant="warning" title="Enter is a keystroke">
-                  A bare <InlineCode>cockpit send</InlineCode> types the text and
-                  leaves it in the composer. Use{" "}
-                  <InlineCode>--enter</InlineCode> (or a separate{" "}
-                  <InlineCode>cockpit send-key Enter</InlineCode>) to submit it,
-                  because a newline inside the text is a line break for the
-                  harness, not a send.
+                <Callout variant="warning" title={t("wiring.callout1")}>
+                  {t.rich("wiring.callout2", TAGS)}
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="run" title="4. Run the orchestration">
-                <p>
-                  Now give the orchestrator something real. You talk only to it;
-                  it talks to the others.
-                </p>
+              <DocsSection id="run" title={t("run.title")}>
+                <p>{t("run.p1")}</p>
                 <CodeBlock
                   code={`Add a "todos" feature: an API to list and create todos, and a page
 that shows them with a form to add one. Coordinate Backend and Frontend.`}
-                  label="Orchestrator · prompt"
+                  label={t("run.label1")}
                   language="text"
                 />
-                <p>
-                  It breaks the work in two and types one instruction into each
-                  worker. The send returns as soon as the text is delivered, so
-                  it is a dispatch, not a blocking call:
-                </p>
+                <p>{t("run.p2")}</p>
                 <CodeBlock
                   code={`$ cockpit send --tab-id Backend --enter \\
     "Expose GET /todos and POST /todos (title:string). Print the JSON shape when done."
@@ -309,14 +250,10 @@ sent
 $ cockpit send --tab-id Frontend --enter \\
     "Build a Todos page: list todos and a form to add one. Wait for the API shape first."
 sent`}
-                  label="Orchestrator · tool calls"
+                  label={t("run.label2")}
                   language="text"
                 />
-                <p>
-                  Each worker sees the instruction in its own tab, does the work{" "}
-                  <em>in its own folder</em>, and prints the result. The
-                  orchestrator polls for the turn to end, then reads the answer:
-                </p>
+                <p>{t.rich("run.p3", TAGS)}</p>
                 <CodeBlock
                   code={`$ cockpit list-tabs --json | grep -A1 Backend
   { "id": "t1", "label": "Backend", "working": false }
@@ -324,67 +261,29 @@ sent`}
 $ cockpit read-tab Backend --lines 40
   Added GET /todos and POST /todos.
   Todo: { id: string, title: string, done: bool }`}
-                  label="Orchestrator · tool calls"
+                  label={t("run.label3")}
                   language="text"
                 />
-                <p>
-                  With the contract in hand it unblocks the frontend, forwarding
-                  the exact shape, and reports the finished feature back to you.
-                  Three agents, three folders, one coordinated change, and you
-                  watched all of it happen.
-                </p>
-                <Callout variant="note" title="Who is working right now">
-                  You do not have to poll to know: each tab shows its own turn
-                  status (working, waiting on you, done), with a chime when the
-                  window is focused and a system notification when it is not.
-                  The same signal the orchestrator reads from{" "}
-                  <InlineCode>working</InlineCode> in{" "}
-                  <InlineCode>list-tabs --json</InlineCode>.
+                <p>{t("run.p4")}</p>
+                <Callout variant="note" title={t("run.callout1")}>
+                  {t.rich("run.callout2", TAGS)}
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="why" title="Why do this in Cockpit">
-                <p>
-                  You could run three terminals, but then nothing connects them.
-                  Here the whole team lives in one window: every agent streams
-                  its own work in its own tab, the orchestrator dispatches and
-                  reads without you copying text around, and the layout comes
-                  back when you reopen the app. Add a terminal tab for the dev
-                  server, and the build, the agents and their traffic are all in
-                  front of you at once.
-                </p>
-                <p>
-                  From here: commit the{" "}
-                  <InlineCode>.ckp</InlineCode> and a{" "}
-                  <InlineCode>.cockpit/tasks.json</InlineCode> so a teammate gets
-                  the same window on clone (
-                  <Link
-                    href="/tutorials/cockpit-layouts"
-                    className="text-accent underline"
-                  >
-                    Layouts and tasks
-                  </Link>
-                  ), or move the team onto a bigger machine and keep driving it
-                  over SSH (
-                  <Link
-                    href="/docs#remote"
-                    className="text-accent underline"
-                  >
-                    Remote hosts
-                  </Link>
-                  ).
-                </p>
+              <DocsSection id="why" title={t("why.title")}>
+                <p>{t("why.p1")}</p>
+                <p>{t.rich("why.p2", TAGS)}</p>
               </DocsSection>
             </article>
 
             <Pager
               prev={{
                 href: "/tutorials/cockpit-layouts",
-                label: "Layouts and tasks",
+                label: t("pager.prev"),
               }}
               next={{
                 href: "/tutorials/cockpit-telemetry",
-                label: "Telemetry for agents",
+                label: t("pager.next"),
               }}
             />
           </div>

@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { pageAlternates } from "@/i18n/alternates";
 import { Link } from "@/i18n/navigation";
 import { DocsSection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
@@ -6,11 +9,20 @@ import { Callout } from "@/components/callout";
 import { Pager } from "@/components/pager";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "Layouts and tasks in Cockpit",
-  description:
-    "Commit your working setup: a .ckp layout that opens the right terminals in the right folders, and a .cockpit/tasks.json that runs your dev servers with reload on save.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.layouts",
+  });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/tutorials/cockpit-layouts"),
+  };
+}
 
 const TREE = `my-app/
 ├── .cockpit/
@@ -66,7 +78,41 @@ const TASKS = `{
   ]
 }`;
 
-export default function CockpitLayoutsTutorial() {
+/* Inline tags used by the messages: <code1>, <a2>... Handlers live here so
+   each message just spreads TAGS. Contents of <code*> are never translated. */
+const TAGS = {
+  code1: (c: ReactNode) => <InlineCode>{c}</InlineCode>,
+  link1: (c: ReactNode) => (
+    <Link href="/tutorials/cockpit-team" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  strong1: (c: ReactNode) => <strong className="text-fg">{c}</strong>,
+  link2: (c: ReactNode) => (
+    <Link href="/download" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  strong2: (c: ReactNode) => <strong>{c}</strong>,
+  link3: (c: ReactNode) => (
+    <Link href="/docs#cli" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link4: (c: ReactNode) => (
+    <Link href="/docs" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+};
+
+export default async function CockpitLayoutsTutorial({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.layouts",
+  });
   return (
     <div className="page">
       <div className="page-body">
@@ -75,183 +121,75 @@ export default function CockpitLayoutsTutorial() {
             <header className="page-head reveal" style={{ maxWidth: "none" }}>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-accent">
-                  Cockpit · workflow
+                  {t("intro.span1")}
                 </span>
               </div>
               <span className="eyebrow" style={{ marginTop: 14 }}>
-                Tutorial · Cockpit
+                {t("intro.span2")}
               </span>
-              <h1>Layouts and tasks in Cockpit</h1>
-              <p className="lede">
-                Two small files turn &ldquo;set up my environment&rdquo; into
-                one click: a <InlineCode>.ckp</InlineCode> layout that opens the
-                right terminals in the right folders, and a{" "}
-                <InlineCode>.cockpit/tasks.json</InlineCode> that runs your dev
-                servers with buttons, profiles, and reload on save. Both live in
-                the repository, so your teammates — and every new git worktree —
-                get the same setup for free.
-              </p>
+              <h1>{t("intro.h11")}</h1>
+              <p className="lede">{t.rich("intro.p1", TAGS)}</p>
             </header>
 
             <article className="prose">
-              <DocsSection id="what" title="What you'll build">
-                <p>
-                  A small monorepo with an API and a web app. By the end, opening
-                  the project gives you three terminals in the right folders, a
-                  task list with both servers ready to play, and a new worktree
-                  that recreates the whole thing by itself.
-                </p>
-                <CodeBlock code={TREE} label="project layout" language="text" />
-                <p>
-                  Everything here is Cockpit-local: no account, no mesh, no
-                  agents required. If you want agents on top of this, follow{" "}
-                  <Link
-                    href="/tutorials/cockpit-team"
-                    className="text-accent underline"
-                  >
-                    An agent team in Cockpit
-                  </Link>{" "}
-                  next.
-                </p>
+              <DocsSection id="what" title={t("what.title")}>
+                <p>{t("what.p1")}</p>
+                <CodeBlock
+                  code={TREE}
+                  label={t("what.label1")}
+                  language="text"
+                />
+                <p>{t.rich("what.p2", TAGS)}</p>
               </DocsSection>
 
-              <DocsSection id="prereqs" title="Before you start">
+              <DocsSection id="prereqs" title={t("prereqs.title")}>
                 <ul className="ml-6 list-disc space-y-2">
-                  <li>
-                    <strong className="text-fg">Cockpit installed</strong> —
-                    macOS, Windows, or Linux, from the{" "}
-                    <Link href="/download" className="text-accent underline">
-                      download page
-                    </Link>
-                    .
-                  </li>
-                  <li>
-                    A project folder open as a workspace. Anything with a couple
-                    of subfolders works; the commands below assume{" "}
-                    <InlineCode>npm</InlineCode>, but the runner is generic.
-                  </li>
+                  <li>{t.rich("prereqs.li1", TAGS)}</li>
+                  <li>{t.rich("prereqs.li2", TAGS)}</li>
                 </ul>
               </DocsSection>
 
-              <DocsSection id="first-layout" title="1. Write your first layout">
-                <p>
-                  Create <InlineCode>dev.ckp</InlineCode> at the root of the
-                  project. A layout is YAML, and the smallest useful one is
-                  three lines:
-                </p>
+              <DocsSection id="first-layout" title={t("firstLayout.title")}>
+                <p>{t.rich("firstLayout.p1", TAGS)}</p>
                 <CodeBlock code={CKP_FIRST} label="dev.ckp" language="yaml" />
-                <p>
-                  Right-click the file in Cockpit&apos;s tree and choose{" "}
-                  <strong>Open layout</strong>. A tab named{" "}
-                  <InlineCode>Agent</InlineCode> opens at the project root and
-                  types <InlineCode>claude</InlineCode> for you. Apply it again:
-                  nothing happens. A pane whose <InlineCode>name</InlineCode>{" "}
-                  already exists is skipped, so a layout is safe to re-run and
-                  never closes anything.
-                </p>
-                <Callout variant="tip" title="The name is the label">
-                  <p>
-                    <InlineCode>name</InlineCode> becomes the tab&apos;s{" "}
-                    <strong>stable label</strong> — the one the{" "}
-                    <InlineCode>cockpit</InlineCode> CLI can address by name
-                    instead of by a boot-scoped id, and the same label you would
-                    otherwise set by double-clicking the tab.
-                  </p>
+                <p>{t.rich("firstLayout.p2", TAGS)}</p>
+                <Callout variant="tip" title={t("firstLayout.callout1")}>
+                  <p>{t.rich("firstLayout.p3", TAGS)}</p>
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="splits" title="2. Add splits and folders">
-                <p>
-                  Now the real geometry. <InlineCode>cwd</InlineCode> is relative
-                  to the <InlineCode>.ckp</InlineCode> file (forward slashes
-                  only, so the file works on every OS), and{" "}
-                  <InlineCode>split</InlineCode> says where each pane is born
-                  relative to the one created before it:{" "}
-                  <InlineCode>tab</InlineCode> (default),{" "}
-                  <InlineCode>right</InlineCode>, or{" "}
-                  <InlineCode>down</InlineCode>.
-                </p>
+              <DocsSection id="splits" title={t("splits.title")}>
+                <p>{t.rich("splits.p1", TAGS)}</p>
                 <CodeBlock code={CKP_FULL} label="dev.ckp" language="yaml" />
-                <p>
-                  You can also apply it from inside any Cockpit terminal, which
-                  is how an agent sets up its own workspace:
-                </p>
+                <p>{t("splits.p2")}</p>
                 <CodeBlock
                   code="cockpit orchestrate dev.ckp"
-                  label="Cockpit terminal"
+                  label={t("splits.label1")}
                   prompt
                 />
-                <Callout variant="note" title="autorun: worktree">
-                  <p>
-                    That one line is the payoff. Every time you fork the
-                    workspace onto a fresh git worktree, Cockpit applies the
-                    layout by itself — and since a new worktree starts empty, the
-                    splits come out exactly as written. Keep a single autorun
-                    file at the root: with two or more, none of them runs, because
-                    ambiguity is never guessed.
-                  </p>
+                <Callout variant="note" title={t("splits.callout1")}>
+                  <p>{t("splits.p3")}</p>
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="tasks" title="3. Declare your tasks">
-                <p>
-                  Cockpit already detects tasks from{" "}
-                  <InlineCode>package.json</InlineCode> and{" "}
-                  <InlineCode>pubspec.yaml</InlineCode> with no configuration —
-                  open the Tasks panel and your scripts are there. You write{" "}
-                  <InlineCode>.cockpit/tasks.json</InlineCode> when you want more
-                  than that: a monorepo, interactive keys, environment profiles.
-                </p>
+              <DocsSection id="tasks" title={t("tasks.title")}>
+                <p>{t.rich("tasks.p1", TAGS)}</p>
                 <CodeBlock
                   code={TASKS}
                   label=".cockpit/tasks.json"
                   language="jsonc"
                 />
-                <p>
-                  The file goes at the root of the workspace you open — discovery
-                  is literal, with no walking up the tree. Each task&apos;s{" "}
-                  <InlineCode>cwd</InlineCode> is relative to that file, which is
-                  what lets one file at the monorepo root drive every subpackage.
-                  Hit play and the output streams into its own tab, with stop and
-                  restart controls and any{" "}
-                  <InlineCode>interactiveKeys</InlineCode> you declared as
-                  buttons that write straight to the process&apos; stdin.
-                </p>
-                <p>
-                  <InlineCode>profiles</InlineCode> are launch configs: a chip
-                  cycles them before you press play, appending{" "}
-                  <InlineCode>args</InlineCode> and merging{" "}
-                  <InlineCode>env</InlineCode>. The runner stays generic on
-                  purpose — a Flutter flavor or a{" "}
-                  <InlineCode>--dart-define</InlineCode> is just more{" "}
-                  <InlineCode>args</InlineCode>.
-                </p>
-                <Callout variant="tip" title="Reload on save">
-                  <p>
-                    For a process that does not watch files itself (
-                    <InlineCode>flutter run</InlineCode> is the classic case),
-                    add a <InlineCode>watch</InlineCode> block:{" "}
-                    <InlineCode>paths</InlineCode> to observe,{" "}
-                    <InlineCode>ignore</InlineCode> to keep build folders from
-                    looping, and <InlineCode>onChange</InlineCode> pointing at an{" "}
-                    <InlineCode>interactiveKeys</InlineCode> label (
-                    <InlineCode>&quot;Hot reload&quot;</InlineCode>) or{" "}
-                    <InlineCode>&quot;__restart__&quot;</InlineCode>. Skip it for
-                    Vite or Next, which already reload on their own.
-                  </p>
+                <p>{t.rich("tasks.p2", TAGS)}</p>
+                <p>{t.rich("tasks.p3", TAGS)}</p>
+                <Callout variant="tip" title={t("tasks.callout1")}>
+                  <p>{t.rich("tasks.p4", TAGS)}</p>
                 </Callout>
               </DocsSection>
 
-              <DocsSection id="agents" title="4. Let an agent use them">
-                <p>
-                  Both files are reachable from the internal{" "}
-                  <InlineCode>cockpit</InlineCode> CLI, which exists only inside
-                  Cockpit&apos;s terminals. That means an agent in one tab can
-                  start your dev server, read what it printed, and open a file
-                  for you to look at — without a screenshot or a screen scrape.
-                </p>
+              <DocsSection id="agents" title={t("agents.title")}>
+                <p>{t.rich("agents.p1", TAGS)}</p>
                 <CodeBlock
-                  label="Cockpit terminal"
+                  label={t("agents.label1")}
                   prompt
                   code={`# what can I run here?
 cockpit list-tasks
@@ -263,55 +201,20 @@ cockpit read-task json:api --lines 80
 id=$(cockpit new-tab --cwd web --title Web --split h)
 cockpit send --tab-id "$id" --enter "npm run build"`}
                 />
-                <p>
-                  Task ids are stable per workspace:{" "}
-                  <InlineCode>json:&lt;label&gt;</InlineCode> for the ones you
-                  declared, <InlineCode>npm:&lt;script&gt;</InlineCode> and{" "}
-                  <InlineCode>flutter:run</InlineCode> for detected ones. The
-                  full command surface is in the{" "}
-                  <Link href="/docs#cli" className="text-accent underline">
-                    Cockpit reference
-                  </Link>
-                  .
-                </p>
+                <p>{t.rich("agents.p2", TAGS)}</p>
               </DocsSection>
 
-              <DocsSection id="commit" title="5. Commit them">
-                <p>
-                  Both files belong in git. <InlineCode>dev.ckp</InlineCode> is
-                  your working geometry, and{" "}
-                  <InlineCode>.cockpit/tasks.json</InlineCode> is how the project
-                  is run — the same reason a{" "}
-                  <InlineCode>Makefile</InlineCode> is committed. A teammate
-                  clones, opens the folder in Cockpit, and gets your terminals
-                  and your task list. Point{" "}
-                  <InlineCode>$schema</InlineCode> at{" "}
-                  <InlineCode>tasks.schema.json</InlineCode> from the repository
-                  and their editor will autocomplete the fields as well; Cockpit
-                  ignores the field when running.
-                </p>
-                <p>
-                  From here:{" "}
-                  <Link
-                    href="/tutorials/cockpit-team"
-                    className="text-accent underline"
-                  >
-                    put a team of agents
-                  </Link>{" "}
-                  into those panes, or read the{" "}
-                  <Link href="/docs" className="text-accent underline">
-                    Cockpit reference
-                  </Link>{" "}
-                  for every field, flag, and the theme format.
-                </p>
+              <DocsSection id="commit" title={t("commit.title")}>
+                <p>{t.rich("commit.p1", TAGS)}</p>
+                <p>{t.rich("commit.p2", TAGS)}</p>
               </DocsSection>
             </article>
 
             <Pager
-              prev={{ href: "/", label: "Meet Cockpit" }}
+              prev={{ href: "/", label: t("pager.prev") }}
               next={{
                 href: "/tutorials/cockpit-team",
-                label: "An agent team in Cockpit",
+                label: t("pager.next"),
               }}
             />
           </div>

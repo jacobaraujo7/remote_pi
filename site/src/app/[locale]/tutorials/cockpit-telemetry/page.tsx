@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { pageAlternates } from "@/i18n/alternates";
 import { Link } from "@/i18n/navigation";
 import { DocsSection, InlineCode } from "@/components/docs-shell";
 import { CodeBlock } from "@/components/code-block";
@@ -6,11 +9,20 @@ import { Callout } from "@/components/callout";
 import { Pager } from "@/components/pager";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "Telemetry: let agents query errors, not terminals",
-  description:
-    "Cockpit keeps a per-workspace store of what your processes print: errors grouped by fingerprint, JSON logs with their fields, and the lines around them. Agents query it with one CLI instead of reading thousands of terminal lines.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.telemetry",
+  });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/tutorials/cockpit-telemetry"),
+  };
+}
 
 const WRAPPER = `# anything you run yourself (a terminal tab, or an agent's shell)
 cockpit telemetry flutter run
@@ -63,7 +75,31 @@ const CONFIG = `// .cockpit/telemetry.json (optional, versioned)
   "proxy": { "listen": 3100, "upstream": "http://127.0.0.1:3000" }
 }`;
 
-export default function CockpitTelemetryTutorial() {
+/* Inline tags used by the messages: <code1>, <a2>... Handlers live here so
+   each message just spreads TAGS. Contents of <code*> are never translated. */
+const TAGS = {
+  em1: (c: ReactNode) => <em>{c}</em>,
+  strong1: (c: ReactNode) => <strong className="text-fg">{c}</strong>,
+  code1: (c: ReactNode) => <InlineCode>{c}</InlineCode>,
+  link1: (c: ReactNode) => (
+    <Link href="/tutorials/cockpit-team" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link2: (c: ReactNode) => (
+    <Link href="/docs" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+};
+
+export default async function CockpitTelemetryTutorial({ params }: Props) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "CockpitTutorials.telemetry",
+  });
   return (
     <div className="page">
       <div className="page-body">
@@ -72,179 +108,85 @@ export default function CockpitTelemetryTutorial() {
             <header className="page-head reveal" style={{ maxWidth: "none" }}>
               <div className="flex flex-wrap items-center gap-3">
                 <span className="inline-flex items-center rounded-full border border-accent/40 bg-accent/15 px-3 py-1 text-xs font-semibold uppercase tracking-[0.15em] text-accent">
-                  Cockpit · debugging
+                  {t("intro.span1")}
                 </span>
               </div>
               <span className="eyebrow" style={{ marginTop: 14 }}>
-                Tutorial · Cockpit
+                {t("intro.span2")}
               </span>
-              <h1>Telemetry: let agents query errors, not terminals</h1>
-              <p className="lede">
-                A dev server prints thousands of lines. Somewhere in there is
-                the one error that matters, and the agent debugging your app
-                has to read all of it to find it. Cockpit keeps a structured,
-                per-workspace store of what your processes print, groups errors
-                by fingerprint, and gives agents one CLI to ask{" "}
-                <em>what broke, where, and is it new</em>. No SDK, no account,
-                nothing leaves your machine.
-              </p>
+              <h1>{t("intro.h11")}</h1>
+              <p className="lede">{t.rich("intro.p1", TAGS)}</p>
             </header>
 
             <article className="prose">
-              <DocsSection id="what" title="What you get">
+              <DocsSection id="what" title={t("what.title")}>
                 <ul className="ml-6 list-disc space-y-2">
-                  <li>
-                    <strong className="text-fg">A Telemetry tab</strong> in the
-                    right panel (next to Files, Search, Database, Tasks): cases
-                    grouped by project and run, with counts, file:line, and
-                    tags for <em>new</em> and <em>regression</em>. Clicking a
-                    case opens it in the center pane with the stack, the JSON
-                    log printed right before it, occurrences per run, and the
-                    raw context lines.
-                  </li>
-                  <li>
-                    <strong className="text-fg">Triage that agents respect.</strong>{" "}
-                    Mark a case resolved and it disappears; if it comes back in
-                    a later run it returns flagged as a regression. Ignore a
-                    case and agents stop seeing it too.
-                  </li>
-                  <li>
-                    <strong className="text-fg">
-                      <InlineCode>cockpit telemetry</InlineCode>
-                    </strong>
-                    , a CLI that answers in compact JSON: errors, logs, one
-                    case in detail, wait-until-it-stops-happening.
-                  </li>
+                  <li>{t.rich("what.li1", TAGS)}</li>
+                  <li>{t.rich("what.li2", TAGS)}</li>
+                  <li>{t.rich("what.li3", TAGS)}</li>
                 </ul>
               </DocsSection>
 
-              <DocsSection id="how" title="1. Where the data comes from">
-                <p>
-                  Every task you run from{" "}
-                  <InlineCode>.cockpit/tasks.json</InlineCode> feeds the store
-                  by default. Anything else enters when you prefix the command
-                  with <InlineCode>cockpit telemetry</InlineCode>. That works in
-                  a terminal tab (colors and keys preserved) and from an
-                  agent&rsquo;s own shell, which is the case that matters most:
-                  an agent running <InlineCode>flutter test</InlineCode> gets
-                  the three failing tests with file:line instead of the whole
-                  output.
-                </p>
+              <DocsSection id="how" title={t("how.title")}>
+                <p>{t.rich("how.p1", TAGS)}</p>
                 <CodeBlock code={WRAPPER} label="terminal" language="bash" />
-                <Callout title="Nothing is captured behind your back">
-                  Cockpit never taps a terminal you did not ask it to observe.
-                  Tasks are observed because Cockpit is the parent process; the
-                  wrapper is the explicit opt-in for everything else.
-                </Callout>
+                <Callout title={t("how.callout1")}>{t("how.callout2")}</Callout>
               </DocsSection>
 
-              <DocsSection id="loop" title="2. The agent loop">
-                <p>
-                  The wrapper prints a summary line at exit. From there the
-                  agent narrows down instead of reading up:
-                </p>
+              <DocsSection id="loop" title={t("loop.title")}>
+                <p>{t("loop.p1")}</p>
                 <CodeBlock code={LOOP} label="terminal" language="bash" />
-                <p>
-                  Useful filters: <InlineCode>--new</InlineCode> (never seen in
-                  earlier runs of the same command),{" "}
-                  <InlineCode>--since-edit</InlineCode> (since your last save in
-                  the editor), <InlineCode>--before ev_xxxx --window 5s</InlineCode>{" "}
-                  (what happened right before an event),{" "}
-                  <InlineCode>--project</InlineCode> in a monorepo. Replies are
-                  capped and tell the agent how to narrow further. The skill
-                  installed by <InlineCode>cockpit install-skill</InlineCode>{" "}
-                  teaches all of this to Claude Code and friends.
-                </p>
+                <p>{t.rich("loop.p2", TAGS)}</p>
               </DocsSection>
 
-              <DocsSection id="speak" title="3. Make your project speak telemetry">
-                <p>
-                  Stack traces and error blocks are recognized as they are
-                  (Dart, Flutter, Node, Python, Rust, Go, test runners). For
-                  everything else there is one rule: make the project&rsquo;s
-                  logger emit <strong className="text-fg">JSON Lines</strong> to
-                  stdout. Every ecosystem already does this (pino, structlog,
-                  slog, tracing). Cockpit only knows the field aliases:
-                </p>
-                <CodeBlock code={JSONL} label="one log line" language="json" />
-                <CodeBlock code={DART} label="Flutter example" language="dart" />
-                <p>
-                  Keep <InlineCode>msg</InlineCode> fixed and put variable data
-                  in fields: <InlineCode>&quot;msg&quot;:&quot;order failed&quot;,&quot;orderId&quot;:&quot;91c&quot;</InlineCode>{" "}
-                  groups into one case; <InlineCode>&quot;order 91c failed&quot;</InlineCode>{" "}
-                  becomes one case per order.
-                </p>
-                <Callout title="Do not gate logs on Cockpit">
-                  The app should behave the same inside and outside Cockpit.
-                  Control verbosity with your own knob (
-                  <InlineCode>LOG_LEVEL</InlineCode>, <InlineCode>kReleaseMode</InlineCode>
-                  ), set per task through <InlineCode>env</InlineCode>.
-                  A <InlineCode>COCKPIT=1</InlineCode> check would not even
-                  reach a phone or a container.
+              <DocsSection id="speak" title={t("speak.title")}>
+                <p>{t.rich("speak.p1", TAGS)}</p>
+                <CodeBlock
+                  code={JSONL}
+                  label={t("speak.label1")}
+                  language="json"
+                />
+                <CodeBlock
+                  code={DART}
+                  label={t("speak.label2")}
+                  language="dart"
+                />
+                <p>{t.rich("speak.p2", TAGS)}</p>
+                <Callout title={t("speak.callout1")}>
+                  {t.rich("speak.callout2", TAGS)}
                 </Callout>
-                <CodeBlock code={TASKS} label=".cockpit/tasks.json" language="json" />
+                <CodeBlock
+                  code={TASKS}
+                  label=".cockpit/tasks.json"
+                  language="json"
+                />
               </DocsSection>
 
-              <DocsSection id="extras" title="4. Flutter, OpenTelemetry, HTTP proxy">
+              <DocsSection id="extras" title={t("extras.title")}>
                 <ul className="ml-6 list-disc space-y-2">
-                  <li>
-                    <strong className="text-fg">Flutter, zero code.</strong> When
-                    a run prints the Dart VM Service URI, Cockpit attaches as a
-                    second client and reads <InlineCode>dart:developer log()</InlineCode>{" "}
-                    records and the framework&rsquo;s structured errors. An
-                    error that also reached the console counts once.
-                  </li>
-                  <li>
-                    <strong className="text-fg">OpenTelemetry.</strong> Observed
-                    processes get <InlineCode>OTEL_EXPORTER_OTLP_ENDPOINT</InlineCode>{" "}
-                    and <InlineCode>OTEL_SERVICE_NAME</InlineCode> in their
-                    environment. An app with the OTel SDK (or Node&rsquo;s
-                    auto-instrumentation) sends logs and spans to a local,
-                    loopback-only receiver; failed spans become cases too.
-                  </li>
-                  <li>
-                    <strong className="text-fg">HTTP proxy.</strong> Point the
-                    frontend at the proxy port and every request/response is
-                    recorded with status, duration, redacted bodies and an
-                    injected <InlineCode>x-request-id</InlineCode>. Mark a
-                    reproduction window and replay it after the fix.
-                  </li>
+                  <li>{t.rich("extras.li1", TAGS)}</li>
+                  <li>{t.rich("extras.li2", TAGS)}</li>
+                  <li>{t.rich("extras.li3", TAGS)}</li>
                 </ul>
-                <CodeBlock code={CONFIG} label=".cockpit/telemetry.json" language="json" />
+                <CodeBlock
+                  code={CONFIG}
+                  label=".cockpit/telemetry.json"
+                  language="json"
+                />
               </DocsSection>
 
-              <DocsSection id="privacy" title="Privacy and retention">
-                <p>
-                  The store is a SQLite file per workspace in Cockpit&rsquo;s
-                  local cache, never inside your repository and never
-                  synchronized. Secrets are redacted on the way in
-                  (authorization headers, cookies, tokens, JWTs, passwords).
-                  Old runs are dropped after 7 days or 256 MB, oldest first.
-                  Delete anything from the Telemetry tab at any time.
-                </p>
-                <p>
-                  From here: put{" "}
-                  <Link
-                    href="/tutorials/cockpit-team"
-                    className="text-accent underline"
-                  >
-                    a team of agents
-                  </Link>{" "}
-                  on top of it, or read the{" "}
-                  <Link href="/docs" className="text-accent underline">
-                    Cockpit reference
-                  </Link>
-                  .
-                </p>
+              <DocsSection id="privacy" title={t("privacy.title")}>
+                <p>{t("privacy.p1")}</p>
+                <p>{t.rich("privacy.p2", TAGS)}</p>
               </DocsSection>
             </article>
 
             <Pager
               prev={{
                 href: "/tutorials/cockpit-team",
-                label: "An agent team in Cockpit",
+                label: t("pager.prev"),
               }}
-              next={{ href: "/docs", label: "Cockpit reference" }}
+              next={{ href: "/docs", label: t("pager.next") }}
             />
           </div>
         </div>
