@@ -12,6 +12,18 @@ const LOCALIZED_PATHS = [
   "/remote-pi/why",
   "/privacy",
   "/terms",
+  "/docs",
+  "/remote-pi/docs",
+  "/tutorials",
+  "/tutorials/cockpit-layouts",
+  "/tutorials/cockpit-team",
+  "/tutorials/cockpit-telemetry",
+  "/remote-pi/tutorials",
+  "/remote-pi/tutorials/getting-started",
+  "/remote-pi/tutorials/mesh-local",
+  "/remote-pi/tutorials/mesh-remote",
+  "/remote-pi/tutorials/daemon",
+  "/remote-pi/tutorials/claude-mesh",
 ];
 
 export default function sitemap(): MetadataRoute.Sitemap {
