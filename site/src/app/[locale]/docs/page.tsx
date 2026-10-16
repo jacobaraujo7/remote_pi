@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import type { ReactNode } from "react";
+import { getTranslations, setRequestLocale } from "next-intl/server";
+import { pageAlternates } from "@/i18n/alternates";
 import { Link } from "@/i18n/navigation";
 import {
   DocsSection,
@@ -12,11 +14,17 @@ import { Callout } from "@/components/callout";
 import { DocsToc, type TocItem } from "@/components/docs-toc";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "Cockpit reference",
-  description:
-    "Reference for Remote Pi Cockpit: the internal CLI, .ckp pane layouts, Task Run, databases, notebooks and .http tabs, .env.cockpit, themes, turn status hooks and remote hosts over SSH.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "CockpitDocs" });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/docs"),
+  };
+}
 
 const GITHUB_URL = "https://github.com/jacobaraujo7/remote_pi";
 const COCKPIT_DOCS =
@@ -28,84 +36,185 @@ const TASKS_SCHEMA =
 const THEME_EXAMPLE =
   "https://github.com/jacobaraujo7/remote_pi/blob/main/cockpit/docs/theme.example.json";
 
-const DOCS_TOC: TocItem[] = [
-  { id: "install", label: "Install" },
-  {
-    id: "cli",
-    label: <>The <InlineCode>cockpit</InlineCode> CLI</>,
-    sub: [
-      { id: "cli-targets", label: "Targets & ids" },
-      { id: "cli-commands", label: "Command reference" },
-      { id: "cli-read", label: "Reading output" },
-    ],
-  },
-  {
-    id: "layouts",
-    label: <><InlineCode>.ckp</InlineCode> pane layouts</>,
-    sub: [
-      { id: "layouts-fields", label: "Fields" },
-      { id: "layouts-merge", label: "Merge semantics" },
-    ],
-  },
-  {
-    id: "tasks",
-    label: "Task Run",
-    sub: [
-      { id: "tasks-file", label: "tasks.json" },
-      { id: "tasks-fields", label: "Fields" },
-    ],
-  },
-  {
-    id: "databases",
-    label: "Databases",
-  },
-  {
-    id: "documents",
-    label: "Documents as tabs",
-    sub: [
-      { id: "documents-notebook", label: "Notebook" },
-      { id: "documents-http", label: <><InlineCode>.http</InlineCode> requests</> },
-      { id: "documents-more", label: "Boards, diagrams, windows" },
-    ],
-  },
-  {
-    id: "env",
-    label: <><InlineCode>.env.cockpit</InlineCode></>,
-    sub: [
-      { id: "env-redaction", label: "Redaction" },
-      { id: "env-blocked", label: "Blocked keys" },
-      { id: "env-accounts", label: "Separate accounts" },
-    ],
-  },
-  {
-    id: "themes",
-    label: "Themes",
-    sub: [
-      { id: "themes-file", label: "Theme file" },
-      { id: "themes-tokens", label: "Tokens" },
-    ],
-  },
-  {
-    id: "turn-status",
-    label: "Agent turn status",
-    sub: [
-      { id: "turn-status-events", label: "Event mapping" },
-      { id: "turn-status-resume", label: "Resuming a session" },
-    ],
-  },
-  {
-    id: "remote",
-    label: "Remote hosts & VPS",
-    sub: [
-      { id: "remote-install", label: "Install the server" },
-      { id: "remote-service", label: "Start at boot" },
-      { id: "remote-troubleshooting", label: "Troubleshooting" },
-    ],
-  },
-  { id: "sounds", label: "Sounds & notifications" },
-  { id: "language", label: "Language" },
-  { id: "links", label: "Links" },
-];
+/* Inline tags used by the messages: <code1>, <a2>... Handlers live here so
+   each message just spreads TAGS. Contents of <code*> are never translated. */
+const TAGS = {
+  code1: (c: ReactNode) => <InlineCode>{c}</InlineCode>,
+  link1: (c: ReactNode) => (
+    <Link href="/" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link2: (c: ReactNode) => (
+    <Link href="/remote-pi/docs" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link3: (c: ReactNode) => (
+    <Link href="/download" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  a1: (c: ReactNode) => (
+    <a href="#remote" className="text-accent underline">
+      {c}
+    </a>
+  ),
+  link4: (c: ReactNode) => (
+    <Link href="/remote-pi" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  em1: (c: ReactNode) => <em>{c}</em>,
+  strong1: (c: ReactNode) => <strong>{c}</strong>,
+  a2: (c: ReactNode) => (
+    <a href="#databases" className="text-accent underline">
+      {c}
+    </a>
+  ),
+  a3: (c: ReactNode) => (
+    <a href="#layouts" className="text-accent underline">
+      {c}
+    </a>
+  ),
+  a4: (c: ReactNode) => (
+    <a
+      className="text-accent underline"
+      href={TASKS_SCHEMA}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {c}
+    </a>
+  ),
+  a5: (c: ReactNode) => (
+    <a
+      className="text-accent underline"
+      href={THEME_EXAMPLE}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {c}
+    </a>
+  ),
+  link5: (c: ReactNode) => (
+    <Link href="/tutorials/cockpit-layouts" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  link6: (c: ReactNode) => (
+    <Link href="/tutorials/cockpit-telemetry" className="text-accent underline">
+      {c}
+    </Link>
+  ),
+  a6: (c: ReactNode) => (
+    <a
+      className="text-accent underline"
+      href={COCKPIT_DOCS}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {c}
+    </a>
+  ),
+  a7: (c: ReactNode) => (
+    <a
+      className="text-accent underline"
+      href={GITHUB_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {c}
+    </a>
+  ),
+};
+
+type Translate = Awaited<ReturnType<typeof getTranslations<"CockpitDocs">>>;
+
+function buildToc(t: Translate): TocItem[] {
+  return [
+    { id: "install", label: t("toc.install") },
+    {
+      id: "cli",
+      label: t.rich("toc.cli", TAGS),
+      sub: [
+        { id: "cli-targets", label: t("toc.cliTargets") },
+        { id: "cli-commands", label: t("toc.cliCommands") },
+        { id: "cli-read", label: t("toc.cliRead") },
+      ],
+    },
+    {
+      id: "layouts",
+      label: t.rich("toc.layouts", TAGS),
+      sub: [
+        { id: "layouts-fields", label: t("toc.layoutsFields") },
+        { id: "layouts-merge", label: t("toc.layoutsMerge") },
+      ],
+    },
+    {
+      id: "tasks",
+      label: t("toc.tasks"),
+      sub: [
+        { id: "tasks-file", label: t("toc.tasksFile") },
+        { id: "tasks-fields", label: t("toc.tasksFields") },
+      ],
+    },
+    {
+      id: "databases",
+      label: t("toc.databases"),
+    },
+    {
+      id: "documents",
+      label: t("toc.documents"),
+      sub: [
+        { id: "documents-notebook", label: t("toc.documentsNotebook") },
+        { id: "documents-http", label: t.rich("toc.documentsHttp", TAGS) },
+        { id: "documents-more", label: t("toc.documentsMore") },
+      ],
+    },
+    {
+      id: "env",
+      label: (
+        <>
+          <InlineCode>.env.cockpit</InlineCode>
+        </>
+      ),
+      sub: [
+        { id: "env-redaction", label: t("toc.envRedaction") },
+        { id: "env-blocked", label: t("toc.envBlocked") },
+        { id: "env-accounts", label: t("toc.envAccounts") },
+      ],
+    },
+    {
+      id: "themes",
+      label: t("toc.themes"),
+      sub: [
+        { id: "themes-file", label: t("toc.themesFile") },
+        { id: "themes-tokens", label: t("toc.themesTokens") },
+      ],
+    },
+    {
+      id: "turn-status",
+      label: t("toc.turnStatus"),
+      sub: [
+        { id: "turn-status-events", label: t("toc.turnStatusEvents") },
+        { id: "turn-status-resume", label: t("toc.turnStatusResume") },
+      ],
+    },
+    {
+      id: "remote",
+      label: t("toc.remote"),
+      sub: [
+        { id: "remote-install", label: t("toc.remoteInstall") },
+        { id: "remote-service", label: t("toc.remoteService") },
+        { id: "remote-troubleshooting", label: t("toc.remoteTroubleshooting") },
+      ],
+    },
+    { id: "sounds", label: t("toc.sounds") },
+    { id: "language", label: t("toc.language") },
+    { id: "links", label: t("toc.links") },
+  ];
+}
 
 const CKP_EXAMPLE = `# dev.ckp — anywhere in the project; cwd is relative to this file
 autorun: worktree        # optional
@@ -182,288 +291,164 @@ const THEME_MINIMAL = `{
   }
 }`;
 
-export default async function CockpitDocsPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function CockpitDocsPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "CockpitDocs" });
   return (
     <div className="page">
       <div className="page-body">
         <div className="wrap">
           <header className="page-head reveal">
-            <span className="eyebrow">Documentation · Cockpit</span>
-            <h1>Cockpit reference</h1>
+            <span className="eyebrow">{t("intro.span1")}</span>
+            <h1>{t("intro.h11")}</h1>
             <div className="meta-line">
-              <span>Last updated: 2026-09-21</span>
-              <span>License: MIT</span>
+              <span>{t("intro.span2")}</span>
+              <span>{t("intro.span3")}</span>
             </div>
-            <p className="lede">
-              Everything the desktop app reads from your repository or writes to
-              your machine: the internal <InlineCode>cockpit</InlineCode> CLI
-              that agents use to drive tabs, the{" "}
-              <InlineCode>.ckp</InlineCode> pane layouts, the{" "}
-              <InlineCode>.cockpit/tasks.json</InlineCode> Task Run file, the
-              theme format, the documents that open as tabs, the{" "}
-              <InlineCode>.env.cockpit</InlineCode> that feeds your terminals,
-              and the harness hooks behind the turn status. For
-              the product tour, see the{" "}
-              <Link href="/" className="text-accent underline">
-                Cockpit page
-              </Link>
-              ; for the mesh, daemons, and the relay, see the{" "}
-              <Link href="/remote-pi/docs" className="text-accent underline">
-                Remote Pi docs
-              </Link>
-              .
-            </p>
+            <p className="lede">{t.rich("intro.p1", TAGS)}</p>
           </header>
 
           <div className="docs-layout">
-            <DocsToc items={DOCS_TOC} />
+            <DocsToc items={buildToc(t)} />
 
             <article className="prose docs-article">
               {/* ── INSTALL ─────────────────────────────────────────────── */}
 
-              <DocsSection id="install" title="Install">
-                <p>
-                  Cockpit ships for macOS, Windows, and Linux. macOS builds are
-                  signed and notarized, and every platform that supports it gets
-                  in-app updates. Grab a build from the{" "}
-                  <Link href="/download" className="text-accent underline">
-                    download page
-                  </Link>{" "}
-                  — <InlineCode>.dmg</InlineCode>,{" "}
-                  <InlineCode>.exe</InlineCode>,{" "}
-                  <InlineCode>.deb</InlineCode> and{" "}
-                  <InlineCode>.rpm</InlineCode> (x64 and arm64), each with a
-                  published SHA-256.
-                </p>
-                <p>
-                  Cockpit is a terminal first: it needs no account, no cloud and
-                  nothing else installed to be useful. Agents run as ordinary
-                  processes in its tabs, so the harness you already use (Claude
-                  Code, Codex CLI, Pi, OpenCode) is the one that runs here.
-                </p>
-                <p>
-                  Working on another machine is SSH plus{" "}
-                  <InlineCode>cockpit-server</InlineCode>, described in{" "}
-                  <a href="#remote" className="text-accent underline">
-                    Remote hosts &amp; VPS
-                  </a>
-                  . That is unrelated to the Remote Pi relay: the mesh, the
-                  phone app and the 24/7 daemons belong to the{" "}
-                  <Link href="/remote-pi" className="text-accent underline">
-                    Remote Pi project
-                  </Link>{" "}
-                  and are not part of Cockpit.
-                </p>
+              <DocsSection id="install" title={t("install.title")}>
+                <p>{t.rich("install.p1", TAGS)}</p>
+                <p>{t("install.p2")}</p>
+                <p>{t.rich("install.p3", TAGS)}</p>
               </DocsSection>
 
               {/* ── CLI ─────────────────────────────────────────────────── */}
 
-              <DocsSection id="cli" title="The cockpit CLI">
-                <p>
-                  Cockpit materializes a small binary at{" "}
-                  <InlineCode>~/.cockpit/bin/cockpit</InlineCode> and puts that
-                  folder on the <InlineCode>PATH</InlineCode> of the terminals
-                  it spawns — and only those. So the CLI exists for anything
-                  running inside Cockpit (you, a script, an agent) and does not
-                  leak into the rest of your shell environment. It talks to the
-                  app over a local socket: a Unix socket on macOS and Linux, a
-                  loopback TCP port plus a token on Windows.
-                </p>
-                <p>
-                  This is what makes Cockpit an <em>agentic</em> multiplexer:
-                  an agent in one tab can open another tab, type into it, read
-                  what it printed, run a project task, or query a database —
-                  the same verbs a human uses, with no screen scraping.
-                </p>
+              <DocsSection id="cli" title={t("cli.title")}>
+                <p>{t.rich("cli.p1", TAGS)}</p>
+                <p>{t.rich("cli.p2", TAGS)}</p>
 
-                <DocsSubsection id="cli-targets" title="Targets & ids">
-                  <p>
-                    The unit the CLI addresses is a <strong>tab</strong> (one
-                    terminal or agent session). A <strong>pane</strong> is the
-                    split leaf that groups tabs and is not addressable —{" "}
-                    <InlineCode>list-panes</InlineCode> and{" "}
-                    <InlineCode>read-pane</InlineCode> survive as legacy
-                    aliases.
-                  </p>
+                <DocsSubsection
+                  id="cli-targets"
+                  title={t("cli_cliTargets.title")}
+                >
+                  <p>{t.rich("cli_cliTargets.p1", TAGS)}</p>
                   <DocsTable
-                    headers={["Flag", "What it does"]}
+                    headers={[t("cli_cliTargets.th1"), t("cli_cliTargets.th2")]}
                     rows={[
                       [
                         <InlineCode key="t">--tab-id &lt;id&gt;</InlineCode>,
-                        <>
-                          Target another tab. Defaults to{" "}
-                          <InlineCode>$COCKPIT_TAB_ID</InlineCode> (the current
-                          tab; legacy fallback{" "}
-                          <InlineCode>$COCKPIT_PANE_ID</InlineCode>).
-                        </>,
+                        <>{t.rich("cli_cliTargets.cell1", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="f">--focused</InlineCode>,
-                        <>
-                          Target whatever tab you are looking at, resolved by
-                          the app. Works from outside a Cockpit terminal too
-                          (dictation tools, scripts): with no env inherited the
-                          CLI finds the app through{" "}
-                          <InlineCode>~/.cockpit/status.sock</InlineCode>. Wins
-                          over <InlineCode>--tab-id</InlineCode>.
-                        </>,
+                        <>{t.rich("cli_cliTargets.cell2", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="e">--enter</InlineCode>,
-                        <>
-                          (<InlineCode>send</InlineCode> only) press Enter right
-                          after the text, as a separate keystroke — a{" "}
-                          <InlineCode>send</InlineCode> plus a{" "}
-                          <InlineCode>send-key Enter</InlineCode> in one call.
-                        </>,
+                        <>{t.rich("cli_cliTargets.cell3", TAGS)}</>,
                       ],
                     ]}
                   />
-                  <Callout variant="warning" title="Tab ids reset on boot">
-                    <p>
-                      Ids (<InlineCode>t0</InlineCode>,{" "}
-                      <InlineCode>t1</InlineCode>…) are assigned per app boot,
-                      so never hardcode one. Discover them with{" "}
-                      <InlineCode>cockpit list-tabs</InlineCode>, or give a tab
-                      a <strong>stable label</strong> (double-click the tab, or{" "}
-                      <InlineCode>new-tab --title</InlineCode>) and address it
-                      by name. Labels persist across boots; workspace ids are
-                      opaque UUIDs, so use <InlineCode>workspacePath</InlineCode>{" "}
-                      / <InlineCode>path</InlineCode> when you need the folder
-                      on disk.
-                    </p>
+                  <Callout
+                    variant="warning"
+                    title={t("cli_cliTargets.callout1")}
+                  >
+                    <p>{t.rich("cli_cliTargets.p2", TAGS)}</p>
                   </Callout>
                 </DocsSubsection>
 
-                <DocsSubsection id="cli-commands" title="Command reference">
+                <DocsSubsection
+                  id="cli-commands"
+                  title={t("cli_cliCommands.title")}
+                >
                   <DocsTable
-                    headers={["Command", "What it does"]}
+                    headers={[
+                      t("cli_cliCommands.th1"),
+                      t("cli_cliCommands.th2"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="c">
                           send [--tab-id id] [--enter] &lt;text&gt;
                         </InlineCode>,
-                        "Type text into a tab.",
+                        t("cli_cliCommands.td1"),
                       ],
                       [
                         <InlineCode key="c">
                           send-key [--tab-id id] &lt;Key&gt;…
                         </InlineCode>,
-                        <>
-                          Press named keys:{" "}
-                          <InlineCode>Enter Tab Escape Space BSpace Up Down
-                          Left Right Home End PageUp PageDown Delete</InlineCode>{" "}
-                          and <InlineCode>C-&lt;letter&gt;</InlineCode> (e.g.{" "}
-                          <InlineCode>C-c</InlineCode>).
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell1", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="c">open &lt;file&gt;</InlineCode>,
-                        <>
-                          Open a file in the app&apos;s viewer. Bare{" "}
-                          <InlineCode>cockpit &lt;file&gt;</InlineCode> is a
-                          shortcut for it, relative to the tab&apos;s cwd.
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell2", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="c">
                           new-tab [--cwd dir] [--title name] [--split h|v]
                         </InlineCode>,
-                        <>
-                          Open a terminal tab and print its id.{" "}
-                          <InlineCode>h</InlineCode>/<InlineCode>right</InlineCode>{" "}
-                          splits side by side,{" "}
-                          <InlineCode>v</InlineCode>/<InlineCode>down</InlineCode>{" "}
-                          stacks; omit to open as a tab in the same pane.
-                          Anchored at the emitting tab&apos;s pane.
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell3", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="c">
                           read-tab [label|tab-id]
                         </InlineCode>,
-                        <>
-                          Read a tab&apos;s rendered output. No target = the
-                          current tab. Alias:{" "}
-                          <InlineCode>read-pane</InlineCode>.
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell4", TAGS)}</>,
                       ],
                       [
-                        <InlineCode key="c">read-task &lt;task-id&gt;</InlineCode>,
-                        "Read a task's output, even with no tab open for it.",
+                        <InlineCode key="c">
+                          read-task &lt;task-id&gt;
+                        </InlineCode>,
+                        t("cli_cliCommands.td2"),
                       ],
                       [
                         <InlineCode key="c">list-tabs [--json]</InlineCode>,
-                        <>
-                          List active tabs (alias:{" "}
-                          <InlineCode>list-panes</InlineCode>). The JSON carries{" "}
-                          <InlineCode>label</InlineCode>,{" "}
-                          <InlineCode>workspacePath</InlineCode>,{" "}
-                          <InlineCode>working</InlineCode> and, for task output
-                          tabs, <InlineCode>taskId</InlineCode>.
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell5", TAGS)}</>,
                       ],
                       [
-                        <InlineCode key="c">list-workspaces [--json]</InlineCode>,
-                        "List workspaces (projects) and their paths.",
+                        <InlineCode key="c">
+                          list-workspaces [--json]
+                        </InlineCode>,
+                        t("cli_cliCommands.td3"),
                       ],
                       [
                         <InlineCode key="c">list-tasks [--json]</InlineCode>,
-                        <>
-                          List this workspace&apos;s tasks.{" "}
-                          <InlineCode>[output]</InlineCode> marks tasks whose
-                          output <InlineCode>read-task</InlineCode> can read
-                          (ran this boot); ● marks tasks running right now.
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell6", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="c">
                           db &lt;list|schema|query|run|execute&gt;
                         </InlineCode>,
-                        <>
-                          SQL databases registered in the workspace — see{" "}
-                          <a href="#databases" className="text-accent underline">
-                            Databases
-                          </a>
-                          .
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell7", TAGS)}</>,
                       ],
                       [
-                        <InlineCode key="c">redis [browse] --db conn</InlineCode>,
-                        "Run a Redis command, or open the key table for a human.",
+                        <InlineCode key="c">
+                          redis [browse] --db conn
+                        </InlineCode>,
+                        t("cli_cliCommands.td4"),
                       ],
                       [
                         <InlineCode key="c">
                           mongo [browse] --db conn [--database name]
                         </InlineCode>,
-                        "Run a MongoDB command, or open the collection browser.",
+                        t("cli_cliCommands.td5"),
                       ],
                       [
                         <InlineCode key="c">
                           orchestrate &lt;file.ckp&gt; [--json]
                         </InlineCode>,
-                        <>
-                          Apply a pane layout — see{" "}
-                          <a href="#layouts" className="text-accent underline">
-                            <InlineCode>.ckp</InlineCode> layouts
-                          </a>
-                          .
-                        </>,
+                        <>{t.rich("cli_cliCommands.cell8", TAGS)}</>,
                       ],
                       [
-                        <InlineCode key="c">install-skill [--force]</InlineCode>,
-                        "Install the Claude Code skill that teaches this CLI.",
+                        <InlineCode key="c">
+                          install-skill [--force]
+                        </InlineCode>,
+                        t("cli_cliCommands.td6"),
                       ],
                     ]}
                   />
                   <CodeBlock
-                    label="Cockpit terminal"
+                    label={t("cli_cliCommands.label1")}
                     prompt
                     code={`# open a worker tab beside you, then drive it
 id=$(cockpit new-tab --cwd ~/proj --title Worker --split h)
@@ -482,247 +467,127 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"`}
                   />
                 </DocsSubsection>
 
-                <DocsSubsection id="cli-read" title="Reading output">
-                  <p>
-                    <InlineCode>read-tab</InlineCode> and{" "}
-                    <InlineCode>read-task</InlineCode> share a windowing model.
-                    Output is always chronological (top to bottom); the flags
-                    only pick which window you get.
-                  </p>
+                <DocsSubsection id="cli-read" title={t("cli_cliRead.title")}>
+                  <p>{t.rich("cli_cliRead.p1", TAGS)}</p>
                   <DocsTable
-                    headers={["Flag", "Default", "What it does"]}
+                    headers={[
+                      t("cli_cliRead.th1"),
+                      t("cli_cliRead.th2"),
+                      t("cli_cliRead.th3"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="l">--lines N</InlineCode>,
                         "100",
-                        "How many lines to return (server cap: 2000).",
+                        t("cli_cliRead.td1"),
                       ],
                       [
                         <InlineCode key="o">--offset N</InlineCode>,
                         "0",
-                        "Skip N lines from the anchor — this is your pagination.",
+                        t("cli_cliRead.td2"),
                       ],
                       [
                         <InlineCode key="s">--from-start</InlineCode>,
-                        "off",
-                        "Anchor at the start of the buffer instead of the tail.",
+                        t("cli_cliRead.td3"),
+                        t("cli_cliRead.td4"),
                       ],
                     ]}
                   />
-                  <p>
-                    Task ids are stable per workspace:{" "}
-                    <InlineCode>npm:&lt;script&gt;</InlineCode> from{" "}
-                    <InlineCode>package.json</InlineCode>,{" "}
-                    <InlineCode>flutter:run</InlineCode> /{" "}
-                    <InlineCode>flutter:test</InlineCode>, and{" "}
-                    <InlineCode>json:&lt;label&gt;</InlineCode> from{" "}
-                    <InlineCode>.cockpit/tasks.json</InlineCode>.
-                  </p>
+                  <p>{t.rich("cli_cliRead.p2", TAGS)}</p>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── .ckp LAYOUTS ────────────────────────────────────────── */}
 
-              <DocsSection id="layouts" title=".ckp pane layouts">
-                <p>
-                  A <InlineCode>.ckp</InlineCode> file is a versionable YAML
-                  that describes the terminals to open in a workspace — the
-                  equivalent of a tmuxinator layout. One file is one layout, and
-                  the file name is the layout name (
-                  <InlineCode>dev.ckp</InlineCode> → layout &ldquo;dev&rdquo;).
-                  Commit it, and a teammate gets your working geometry on
-                  clone.
-                </p>
-                <p>There are three ways to apply one:</p>
+              <DocsSection id="layouts" title={t("layouts.title")}>
+                <p>{t.rich("layouts.p1", TAGS)}</p>
+                <p>{t("layouts.p2")}</p>
                 <ul>
-                  <li>
-                    <strong>GUI</strong> — right-click the{" "}
-                    <InlineCode>.ckp</InlineCode> file in the tree →{" "}
-                    <strong>Open layout</strong>.
-                  </li>
-                  <li>
-                    <strong>CLI</strong> —{" "}
-                    <InlineCode>cockpit orchestrate dev.ckp</InlineCode> from
-                    inside a tab.
-                  </li>
-                  <li>
-                    <strong>Worktree autorun</strong> —{" "}
-                    <InlineCode>autorun: worktree</InlineCode> in the file: the
-                    layout is applied by itself whenever you create a worktree
-                    of the workspace. The worktree is born empty, so the
-                    geometry comes out exact.
-                  </li>
+                  <li>{t.rich("layouts.li1", TAGS)}</li>
+                  <li>{t.rich("layouts.li2", TAGS)}</li>
+                  <li>{t.rich("layouts.li3", TAGS)}</li>
                 </ul>
                 <CodeBlock label="dev.ckp" language="yaml" code={CKP_EXAMPLE} />
 
-                <DocsSubsection id="layouts-fields" title="Fields">
-                  <p>
-                    <strong>Root:</strong> <InlineCode>panes</InlineCode>{" "}
-                    (required) is the list of panes in creation order.{" "}
-                    <InlineCode>autorun</InlineCode> (optional) accepts only{" "}
-                    <InlineCode>worktree</InlineCode>; with two or more autorun
-                    files at the root, none of them runs — ambiguity is never
-                    guessed.
-                  </p>
+                <DocsSubsection
+                  id="layouts-fields"
+                  title={t("layouts_layoutsFields.title")}
+                >
+                  <p>{t.rich("layouts_layoutsFields.p1", TAGS)}</p>
                   <DocsTable
-                    headers={["Field", "Required", "Default", "Description"]}
+                    headers={[
+                      t("layouts_layoutsFields.th1"),
+                      t("layouts_layoutsFields.th2"),
+                      t("layouts_layoutsFields.th3"),
+                      t("layouts_layoutsFields.th4"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="n">name</InlineCode>,
-                        "yes",
+                        t("layouts_layoutsFields.td1"),
                         "—",
-                        "Unique (case-insensitive). Becomes the tab's manual label and the merge key.",
+                        t("layouts_layoutsFields.td2"),
                       ],
                       [
                         <InlineCode key="c">cwd</InlineCode>,
-                        "no",
+                        t("layouts_layoutsFields.td3"),
                         <InlineCode key="d">.</InlineCode>,
-                        <>
-                          Relative to the file&apos;s folder, forward slashes
-                          only. Absolute paths and{" "}
-                          <InlineCode>\</InlineCode> are rejected for
-                          portability.
-                        </>,
+                        <>{t.rich("layouts_layoutsFields.cell1", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="s">split</InlineCode>,
-                        "no",
+                        t("layouts_layoutsFields.td4"),
                         <InlineCode key="d">tab</InlineCode>,
-                        <>
-                          Where it is born, relative to the{" "}
-                          <em>previously created</em> pane:{" "}
-                          <InlineCode>tab</InlineCode>,{" "}
-                          <InlineCode>right</InlineCode>,{" "}
-                          <InlineCode>down</InlineCode>.
-                        </>,
+                        <>{t.rich("layouts_layoutsFields.cell2", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="cm">command</InlineCode>,
-                        "no",
+                        t("layouts_layoutsFields.td5"),
                         "—",
-                        "Typed into the terminal and run by the tab's shell (resolved through the machine's PATH).",
+                        t("layouts_layoutsFields.td6"),
                       ],
                       [
                         <InlineCode key="p">platforms</InlineCode>,
-                        "no",
-                        "all",
-                        <>
-                          <InlineCode>macos</InlineCode> /{" "}
-                          <InlineCode>windows</InlineCode> /{" "}
-                          <InlineCode>linux</InlineCode>, string or list — same
-                          semantics as in <InlineCode>tasks.json</InlineCode>.
-                        </>,
+                        t("layouts_layoutsFields.td7"),
+                        t("layouts_layoutsFields.td8"),
+                        <>{t.rich("layouts_layoutsFields.cell3", TAGS)}</>,
                       ],
                     ]}
                   />
                 </DocsSubsection>
 
-                <DocsSubsection id="layouts-merge" title="Replace semantics">
+                <DocsSubsection
+                  id="layouts-merge"
+                  title={t("layouts_layoutsMerge.title")}
+                >
                   <ul>
-                    <li>
-                      Opening a layout means <strong>become this layout</strong>:
-                      the file is validated first, then every tab of the
-                      workspace is closed (pinned ones included), then the panes
-                      are built with exact geometry. If any tab has work running
-                      (an agent mid-turn, a process in a terminal, a live task)
-                      the GUI asks before closing; idle tabs close silently.
-                    </li>
-                    <li>
-                      <InlineCode>cockpit orchestrate dev.ckp</InlineCode>{" "}
-                      replaces without asking and keeps only the tab that ran
-                      the command. Pass <InlineCode>--append</InlineCode> to
-                      keep the old additive behavior: panes whose{" "}
-                      <InlineCode>name</InlineCode> already exists are skipped
-                      and nothing is closed. The worktree autorun always appends
-                      (the worktree is born empty, so it makes no difference).
-                    </li>
-                    <li>
-                      A missing <InlineCode>cwd</InlineCode> or invalid YAML
-                      gives a readable error (dialog in the GUI, stderr in the
-                      CLI); nothing is applied halfway from the failing pane on.
-                    </li>
-                    <li>
-                      <InlineCode>command</InlineCode> is typed ~700 ms after
-                      the tab opens, so the shell has time to finish booting,
-                      with Enter at the end.
-                    </li>
+                    <li>{t.rich("layouts_layoutsMerge.li1", TAGS)}</li>
+                    <li>{t.rich("layouts_layoutsMerge.li2", TAGS)}</li>
+                    <li>{t.rich("layouts_layoutsMerge.li3", TAGS)}</li>
+                    <li>{t.rich("layouts_layoutsMerge.li4", TAGS)}</li>
                   </ul>
-                  <p>
-                    Cockpit treats <InlineCode>.ckp</InlineCode> as YAML for
-                    highlighting and shows the Cockpit logo as the file icon in
-                    the tree.
-                  </p>
+                  <p>{t.rich("layouts_layoutsMerge.p1", TAGS)}</p>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── TASK RUN ────────────────────────────────────────────── */}
 
-              <DocsSection id="tasks" title="Task Run">
-                <p>
-                  Task Run executes your project&apos;s build and dev commands (
-                  <InlineCode>npm run dev</InlineCode>,{" "}
-                  <InlineCode>flutter run</InlineCode>,{" "}
-                  <InlineCode>go run</InlineCode>,{" "}
-                  <InlineCode>make</InlineCode>…) with streamed output, a visual
-                  lifecycle (play / stop / restart), interactive keys, and
-                  reload-on-save. Two sources coexist:
-                </p>
+              <DocsSection id="tasks" title={t("tasks.title")}>
+                <p>{t.rich("tasks.p1", TAGS)}</p>
                 <ul>
-                  <li>
-                    <strong>Auto-detected</strong> — on opening a project,
-                    Cockpit reads the manifests (
-                    <InlineCode>package.json</InlineCode> scripts,{" "}
-                    <InlineCode>pubspec.yaml</InlineCode>) and shows tasks with
-                    no config at all.
-                  </li>
-                  <li>
-                    <strong>Declared</strong> —{" "}
-                    <InlineCode>.cockpit/tasks.json</InlineCode>, for
-                    customizing, adding tasks, or describing a monorepo. JSON
-                    tasks take precedence over a detected task with the same
-                    id.
-                  </li>
+                  <li>{t.rich("tasks.li1", TAGS)}</li>
+                  <li>{t.rich("tasks.li2", TAGS)}</li>
                 </ul>
-                <Callout variant="note" title="The runner is generic">
-                  <p>
-                    It knows only <InlineCode>command</InlineCode>,{" "}
-                    <InlineCode>args</InlineCode>, and{" "}
-                    <InlineCode>env</InlineCode>. There are no stack-specific
-                    keys (flavor, dart-define, <InlineCode>NODE_ENV</InlineCode>
-                    ) — all of that is expressed as{" "}
-                    <InlineCode>args</InlineCode> and{" "}
-                    <InlineCode>env</InlineCode>.
-                  </p>
+                <Callout variant="note" title={t("tasks.callout1")}>
+                  <p>{t.rich("tasks.p2", TAGS)}</p>
                 </Callout>
 
-                <DocsSubsection id="tasks-file" title="Where the file lives">
-                  <p>
-                    At the <strong>root of the workspace you open</strong>.
-                    Discovery is literal — Cockpit does not walk up the tree.
-                    For a single package, open the package folder. For a{" "}
-                    <strong>monorepo</strong>, open the root and let one{" "}
-                    <InlineCode>.cockpit/tasks.json</InlineCode> drive the
-                    subpackages through a per-task{" "}
-                    <InlineCode>cwd</InlineCode>.
-                  </p>
-                  <p>
-                    The file is <strong>JSONC</strong>: comments (
-                    <InlineCode>{"//"}</InlineCode> and{" "}
-                    <InlineCode>{"/* */"}</InlineCode>) and trailing commas are
-                    allowed, just like VSCode&apos;s{" "}
-                    <InlineCode>tasks.json</InlineCode>. Point{" "}
-                    <InlineCode>$schema</InlineCode> at{" "}
-                    <a
-                      className="text-accent underline"
-                      href={TASKS_SCHEMA}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <InlineCode>docs/tasks.schema.json</InlineCode>
-                    </a>{" "}
-                    for editor autocomplete; Cockpit ignores the field when
-                    running.
-                  </p>
+                <DocsSubsection
+                  id="tasks-file"
+                  title={t("tasks_tasksFile.title")}
+                >
+                  <p>{t.rich("tasks_tasksFile.p1", TAGS)}</p>
+                  <p>{t.rich("tasks_tasksFile.p2", TAGS)}</p>
                   <CodeBlock
                     label=".cockpit/tasks.json"
                     language="jsonc"
@@ -730,160 +595,97 @@ cockpit db query --db dev-local --sql "SELECT * FROM orders LIMIT 5"`}
                   />
                 </DocsSubsection>
 
-                <DocsSubsection id="tasks-fields" title="Fields">
-                  <p>
-                    Root: <InlineCode>tasks</InlineCode> (required) and{" "}
-                    <InlineCode>cwd</InlineCode> (optional) — a default{" "}
-                    <InlineCode>cwd</InlineCode> for every task, which each task
-                    may override.
-                  </p>
+                <DocsSubsection
+                  id="tasks-fields"
+                  title={t("tasks_tasksFields.title")}
+                >
+                  <p>{t.rich("tasks_tasksFields.p1", TAGS)}</p>
                   <DocsTable
-                    headers={["Field", "Required", "Default", "Description"]}
+                    headers={[
+                      t("tasks_tasksFields.th1"),
+                      t("tasks_tasksFields.th2"),
+                      t("tasks_tasksFields.th3"),
+                      t("tasks_tasksFields.th4"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="l">label</InlineCode>,
-                        "yes",
+                        t("tasks_tasksFields.td1"),
                         "—",
-                        <>
-                          Short display name. The task id is derived from it:{" "}
-                          <InlineCode>json:&lt;label&gt;</InlineCode>.
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell1", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="c">command</InlineCode>,
-                        "yes",
+                        t("tasks_tasksFields.td2"),
                         "—",
-                        "Base executable (npm, flutter, dart…).",
+                        t("tasks_tasksFields.td3"),
                       ],
                       [
                         <InlineCode key="a">args</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td4"),
                         <InlineCode key="d">[]</InlineCode>,
-                        "Base args, placed before the profile's args.",
+                        t("tasks_tasksFields.td5"),
                       ],
                       [
                         <InlineCode key="w">cwd</InlineCode>,
-                        "no",
-                        "root",
-                        <>
-                          Run folder, relative to the{" "}
-                          <InlineCode>tasks.json</InlineCode> folder (absolute
-                          also accepted). Falls back to the top-level{" "}
-                          <InlineCode>cwd</InlineCode>, then the root.
-                        </>,
+                        t("tasks_tasksFields.td6"),
+                        t("tasks_tasksFields.td7"),
+                        <>{t.rich("tasks_tasksFields.cell2", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="p">platforms</InlineCode>,
-                        "no",
-                        "all",
-                        <>
-                          OSes where the task is visible:{" "}
-                          <InlineCode>macos</InlineCode>,{" "}
-                          <InlineCode>windows</InlineCode>,{" "}
-                          <InlineCode>linux</InlineCode>.
-                        </>,
+                        t("tasks_tasksFields.td8"),
+                        t("tasks_tasksFields.td9"),
+                        <>{t.rich("tasks_tasksFields.cell3", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="k">kind</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td10"),
                         <InlineCode key="d">oneShot</InlineCode>,
-                        <>
-                          <InlineCode>watch</InlineCode> (long-lived process,
-                          e.g. a dev server) or{" "}
-                          <InlineCode>oneShot</InlineCode> (runs and exits).
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell4", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="i">interactiveKeys</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td11"),
                         <InlineCode key="d">[]</InlineCode>,
-                        <>
-                          Buttons that write to the process&apos; stdin:{" "}
-                          <InlineCode>key</InlineCode>,{" "}
-                          <InlineCode>label</InlineCode>, optional{" "}
-                          <InlineCode>icon</InlineCode> (
-                          <InlineCode>refresh</InlineCode>,{" "}
-                          <InlineCode>restart</InlineCode>,{" "}
-                          <InlineCode>stop</InlineCode>,{" "}
-                          <InlineCode>bolt</InlineCode>) and{" "}
-                          <InlineCode>primary</InlineCode>.
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell5", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="wa">watch</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td12"),
                         <InlineCode key="d">null</InlineCode>,
-                        <>
-                          Reload on save:{" "}
-                          <InlineCode>paths</InlineCode>,{" "}
-                          <InlineCode>ignore</InlineCode>,{" "}
-                          <InlineCode>onChange</InlineCode> (required — an{" "}
-                          <InlineCode>interactiveKeys</InlineCode> label or{" "}
-                          <InlineCode>&quot;__restart__&quot;</InlineCode>) and{" "}
-                          <InlineCode>debounceMs</InlineCode> (300). Leave it
-                          out for tools that already watch (Vite, Next).
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell6", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="pp">progressPatterns</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td13"),
                         <InlineCode key="d">[]</InlineCode>,
-                        <>
-                          <InlineCode>begin</InlineCode> /{" "}
-                          <InlineCode>end</InlineCode> regexes that swing the
-                          badge between <em>building</em> and <em>running</em>.
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell7", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="pr">profiles</InlineCode>,
-                        "no",
+                        t("tasks_tasksFields.td14"),
                         <InlineCode key="d">[]</InlineCode>,
-                        <>
-                          Named run variants (launch configs):{" "}
-                          <InlineCode>name</InlineCode>, extra{" "}
-                          <InlineCode>args</InlineCode> appended after the
-                          task&apos;s, and <InlineCode>env</InlineCode> merged
-                          into the process environment. A chip cycles them
-                          before you hit play.
-                        </>,
+                        <>{t.rich("tasks_tasksFields.cell8", TAGS)}</>,
                       ],
                     ]}
                   />
-                  <Callout variant="warning" title="Two known limits">
-                    <p>
-                      For an argument value containing spaces, use{" "}
-                      <strong>separate items</strong> in{" "}
-                      <InlineCode>args</InlineCode> (
-                      <InlineCode>
-                        [&quot;--dart-define&quot;, &quot;MSG=hello
-                        world&quot;]
-                      </InlineCode>
-                      ). And the output tab does not survive an app restart —
-                      the task dies with it.
-                    </p>
+                  <Callout
+                    variant="warning"
+                    title={t("tasks_tasksFields.callout1")}
+                  >
+                    <p>{t.rich("tasks_tasksFields.p2", TAGS)}</p>
                   </Callout>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── DATABASES ───────────────────────────────────────────── */}
 
-              <DocsSection id="databases" title="Databases">
-                <p>
-                  Connections live per workspace in{" "}
-                  <InlineCode>.cockpit/databases.json</InlineCode>, plus any
-                  SQLite files Cockpit auto-detects in the project. SQLite,
-                  Postgres, MySQL, SQL Server, Redis, and MongoDB open as tabs:
-                  a table view for SQL and Redis, a collection browser for
-                  MongoDB. A <InlineCode>.dbq</InlineCode> file is a saved query
-                  you can commit and re-run.
-                </p>
-                <p>
-                  The same connections are reachable from the CLI, and the
-                  output is <strong>one JSON line</strong> — built to be parsed
-                  by an agent, not read by a human.
-                </p>
+              <DocsSection id="databases" title={t("databases.title")}>
+                <p>{t.rich("databases.p1", TAGS)}</p>
+                <p>{t.rich("databases.p2", TAGS)}</p>
                 <CodeBlock
-                  label="Cockpit terminal"
+                  label={t("databases.label1")}
                   prompt
                   code={`cockpit db list
 cockpit db schema --db dev-local orders
@@ -898,47 +700,21 @@ cockpit mongo --db atlas --database shop --command '{"find":"orders","limit":5}'
 cockpit redis browse --db cache
 cockpit mongo browse --db atlas --database shop`}
                 />
-                <Callout variant="note" title="Per-connection guardrails">
-                  <p>
-                    Each connection carries an{" "}
-                    <InlineCode>access</InlineCode> level (
-                    <InlineCode>read</InlineCode> — the default, including for
-                    connections created before the field existed — or{" "}
-                    <InlineCode>readwrite</InlineCode>) and an{" "}
-                    <InlineCode>agents</InlineCode> flag. A connection with{" "}
-                    <InlineCode>agents: false</InlineCode> is invisible to the
-                    CLI. The gates are enforced on the CLI surface: what you do
-                    by hand in the GUI is never blocked, but what an agent can
-                    reach is yours to decide. Run{" "}
-                    <InlineCode>cockpit db --help</InlineCode> for the full
-                    surface.
-                  </p>
+                <Callout variant="note" title={t("databases.callout1")}>
+                  <p>{t.rich("databases.p3", TAGS)}</p>
                 </Callout>
               </DocsSection>
 
               {/* ── DOCUMENTS ───────────────────────────────────────────── */}
 
-              <DocsSection id="documents" title="Documents as tabs">
-                <p>
-                  Besides terminals, a Cockpit tab can be a document. Each one
-                  is a plain file in your repository, so git sees it, your agent
-                  can write it from the CLI, and nothing is locked inside the
-                  app. The <strong>Gallery</strong> panel, next to Database, has
-                  one card per document type: click it and the file is created
-                  at the workspace root and opened, on local and remote
-                  workspaces alike.
-                </p>
+              <DocsSection id="documents" title={t("documents.title")}>
+                <p>{t.rich("documents.p1", TAGS)}</p>
 
-                <DocsSubsection id="documents-notebook" title="Notebook (.notebook)">
-                  <p>
-                    A folder whose name ends in{" "}
-                    <InlineCode>.notebook</InlineCode> is a notebook: one{" "}
-                    <InlineCode>.md</InlineCode> per note, each with a shallow
-                    YAML frontmatter. Cockpit shows the folder as a single item
-                    in the tree and opens it as a notes tab. Outside the app it
-                    is an ordinary folder, so git, Obsidian and an agent in the
-                    terminal read the same files.
-                  </p>
+                <DocsSubsection
+                  id="documents-notebook"
+                  title={t("documents_documentsNotebook.title")}
+                >
+                  <p>{t.rich("documents_documentsNotebook.p1", TAGS)}</p>
                   <CodeBlock
                     label="notes.notebook/2026-09-07-ssh-tunnel.md"
                     language="markdown"
@@ -952,56 +728,40 @@ updated: 2026-09-07T11:40
 Free markdown body.`}
                   />
                   <DocsTable
-                    headers={["Field", "Required", "Notes"]}
+                    headers={[
+                      t("documents_documentsNotebook.th1"),
+                      t("documents_documentsNotebook.th2"),
+                      t("documents_documentsNotebook.th3"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="t">title</InlineCode>,
-                        "no",
-                        "Without it, the title is the file name minus .md",
+                        t("documents_documentsNotebook.td1"),
+                        t("documents_documentsNotebook.td2"),
                       ],
                       [
                         <InlineCode key="g">tags</InlineCode>,
-                        "no",
+                        t("documents_documentsNotebook.td3"),
                         <>
-                          A list <InlineCode>[a, b]</InlineCode>. With none, the
-                          note lands in the &ldquo;no tag&rdquo; group
+                          {t.rich("documents_documentsNotebook.cell1", TAGS)}
                         </>,
                       ],
                       [
                         <InlineCode key="c">created</InlineCode>,
-                        "no",
+                        t("documents_documentsNotebook.td4"),
                         <InlineCode key="f">YYYY-MM-DDTHH:MM</InlineCode>,
                       ],
                       [
                         <InlineCode key="u">updated</InlineCode>,
-                        "no",
-                        "Rewritten by the app on save",
+                        t("documents_documentsNotebook.td5"),
+                        t("documents_documentsNotebook.td6"),
                       ],
                     ]}
                   />
-                  <p>
-                    The parser never throws: a file with no frontmatter, or with
-                    an unterminated <InlineCode>---</InlineCode>, becomes a note
-                    whose body is the whole content. The app only rewrites the{" "}
-                    <InlineCode>title</InlineCode>,{" "}
-                    <InlineCode>tags</InlineCode> and{" "}
-                    <InlineCode>updated</InlineCode> lines, leaving the body and
-                    any other key untouched.
-                  </p>
-                  <p>
-                    Notes are always editable, in a single mode: the markdown is
-                    painted live as you type while the markers stay visible, so
-                    the file remains plain markdown. It saves on its own about a
-                    second and a half after you stop typing (and on tab change
-                    or close), and ⌘S forces it. Pasting or dropping an image
-                    writes it to <InlineCode>_assets/</InlineCode> inside the
-                    notebook.{" "}
-                    <InlineCode>[[Note title]]</InlineCode> in the body becomes a
-                    clickable chip, creating the note if it does not exist, and
-                    each note lists its backlinks at the bottom.
-                  </p>
+                  <p>{t.rich("documents_documentsNotebook.p2", TAGS)}</p>
+                  <p>{t.rich("documents_documentsNotebook.p3", TAGS)}</p>
                   <CodeBlock
-                    label="Cockpit terminal"
+                    label={t("documents_documentsNotebook.label1")}
                     prompt
                     code={`cockpit note add notes.notebook --title "SSH tunnel on the host" --tag relay \
   --body "The host opens the tunnel, not the client."
@@ -1012,28 +772,19 @@ Everything that changed today.
 NOTE
 cockpit note list notes.notebook`}
                   />
-                  <Callout variant="note" title="The agent tag">
-                    <p>
-                      The CLI always adds the reserved tag{" "}
-                      <InlineCode>agent</InlineCode> to a note it writes, and the
-                      UI marks those with a spark, so a note left by an agent is
-                      never confused with one you wrote.
-                    </p>
+                  <Callout
+                    variant="note"
+                    title={t("documents_documentsNotebook.callout1")}
+                  >
+                    <p>{t.rich("documents_documentsNotebook.p4", TAGS)}</p>
                   </Callout>
                 </DocsSubsection>
 
-                <DocsSubsection id="documents-http" title="HTTP requests (.http)">
-                  <p>
-                    A <InlineCode>.http</InlineCode> file is a request tab:
-                    editor on one side, response on the other. The syntax is the
-                    one the REST Client and JetBrains HTTP Client use, so files
-                    you already have work here:{" "}
-                    <InlineCode>###</InlineCode> separates requests,{" "}
-                    <InlineCode>@name = value</InlineCode> declares a variable
-                    and <InlineCode>{"{{name}}"}</InlineCode> interpolates it.
-                    Run the request under the cursor with ⌘↵ and read the
-                    response as JSON, as headers or as raw text.
-                  </p>
+                <DocsSubsection
+                  id="documents-http"
+                  title={t("documents_documentsHttp.title")}
+                >
+                  <p>{t.rich("documents_documentsHttp.p1", TAGS)}</p>
                   <CodeBlock
                     label="api/users.http"
                     code={`@base = https://api.example.com
@@ -1049,66 +800,31 @@ Content-Type: application/json
 
 { "name": "Ada" }`}
                   />
-                  <p>
-                    The agent runs the same file through the CLI, and gets one
-                    JSON line back. A 4xx or 5xx is a normal response, so it
-                    should check <InlineCode>status</InlineCode> rather than the
-                    exit code.
-                  </p>
+                  <p>{t.rich("documents_documentsHttp.p2", TAGS)}</p>
                   <CodeBlock
-                    label="Cockpit terminal"
+                    label={t("documents_documentsHttp.label1")}
                     prompt
                     code={`cockpit http list api/users.http
 cockpit http run api/users.http --request "list users"`}
                   />
                 </DocsSubsection>
 
-                <DocsSubsection id="documents-more" title="Boards, diagrams and windows">
+                <DocsSubsection
+                  id="documents-more"
+                  title={t("documents_documentsMore.title")}
+                >
                   <ul>
-                    <li>
-                      <strong>Kanban</strong>: a{" "}
-                      <InlineCode>.kanban</InlineCode> markdown file renders as a
-                      board, with dependencies between cards (
-                      <InlineCode>blockedBy</InlineCode>, plus blocked and ready
-                      filters), a title and label filter, drag and drop in list
-                      mode, markdown in comments, and a hold on the advance
-                      arrow to send a card straight to the last column.
-                    </li>
-                    <li>
-                      <strong>Mermaid</strong>: a{" "}
-                      <InlineCode>```mermaid</InlineCode> fence renders as a
-                      diagram in the markdown preview, offline, in your theme.
-                      Prefer it over ASCII art when an agent explains a flow.
-                    </li>
-                    <li>
-                      <strong>Document window</strong>: open any file in its own
-                      light window from the app, or straight from the operating
-                      system. Double-click a <InlineCode>.kanban</InlineCode>,{" "}
-                      <InlineCode>.notebook</InlineCode>,{" "}
-                      <InlineCode>.ckp</InlineCode>,{" "}
-                      <InlineCode>.dbq</InlineCode>,{" "}
-                      <InlineCode>.http</InlineCode> or a markdown file in
-                      Finder, in Explorer or in your Linux file manager, and
-                      Cockpit opens it, forwarding the path to the instance you
-                      already have running.
-                    </li>
+                    <li>{t.rich("documents_documentsMore.li1", TAGS)}</li>
+                    <li>{t.rich("documents_documentsMore.li2", TAGS)}</li>
+                    <li>{t.rich("documents_documentsMore.li3", TAGS)}</li>
                   </ul>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── .env.cockpit ────────────────────────────────────────── */}
 
-              <DocsSection id="env" title="Workspace environment (.env.cockpit)">
-                <p>
-                  A plain <InlineCode>KEY=VALUE</InlineCode> file named{" "}
-                  <InlineCode>.env.cockpit</InlineCode> at the workspace root is
-                  injected into every terminal Cockpit opens there: every root
-                  of a multi-root workspace, and remote workspaces too, where
-                  the host reads its own copy right before spawning the shell.
-                  Put the tokens your agents need there instead of pasting them
-                  into a prompt. New tabs pick up changes, and{" "}
-                  <strong>Restart</strong> reloads an existing tab in place.
-                </p>
+              <DocsSection id="env" title={t("env.title")}>
+                <p>{t.rich("env.p1", TAGS)}</p>
                 <CodeBlock
                   label=".env.cockpit"
                   code={`OPENAI_API_KEY=sk-...
@@ -1116,221 +832,123 @@ GITHUB_TOKEN=ghp_...
 DATABASE_URL=postgres://user:pass@localhost/app`}
                 />
 
-                <DocsSubsection id="env-redaction" title="Redaction">
-                  <p>
-                    Values injected from the file are replaced by{" "}
-                    <InlineCode>***</InlineCode> before the output reaches the
-                    emulator, which covers the screen, the saved scrollback and{" "}
-                    <InlineCode>cockpit read-tab</InlineCode> at once. An agent
-                    reading another tab does not read your secrets back.
-                  </p>
-                  <p>
-                    Out of scope, on purpose: a value that the program re-encodes
-                    (base64, for instance) or splits with ANSI escapes, and the
-                    file itself, which is an ordinary file that anything with
-                    your permissions can read.
-                  </p>
+                <DocsSubsection
+                  id="env-redaction"
+                  title={t("env_envRedaction.title")}
+                >
+                  <p>{t.rich("env_envRedaction.p1", TAGS)}</p>
+                  <p>{t("env_envRedaction.p2")}</p>
                 </DocsSubsection>
 
-                <DocsSubsection id="env-blocked" title="Keys that are never injected">
-                  <p>
-                    Keys that change <em>who runs what</em> are ignored, so a
-                    file that arrives with a repository cannot redirect the
-                    programs your shell starts:
-                  </p>
+                <DocsSubsection
+                  id="env-blocked"
+                  title={t("env_envBlocked.title")}
+                >
+                  <p>{t.rich("env_envBlocked.p1", TAGS)}</p>
                   <CodeBlock
-                    label="blocked"
+                    label={t("env_envBlocked.label1")}
                     code={`PATH  SHELL  HOME  ZDOTDIR  BASH_ENV  ENV  PROMPT_COMMAND  IFS  LD_*  DYLD_*`}
                   />
-                  <p>
-                    On top of that, when the <InlineCode>.env.cockpit</InlineCode>{" "}
-                    is tracked by git (so it came with the repository, it is not
-                    yours), new terminals print a notice listing the key{" "}
-                    <em>names</em> it injected, never the values. The Gallery
-                    card that creates the file also keeps it out of git.
-                  </p>
+                  <p>{t.rich("env_envBlocked.p2", TAGS)}</p>
                 </DocsSubsection>
 
                 <DocsSubsection
                   id="env-accounts"
-                  title="A personal and a work account, side by side"
+                  title={t("env_envAccounts.title")}
                 >
-                  <p>
-                    Claude Code and Codex read their whole account (credentials,
-                    settings and history) from a directory you can point
-                    somewhere else, and Cockpit injects those variables per
-                    workspace like any other. That is the recipe for separate
-                    accounts: no extra feature, one line per workspace.
-                  </p>
+                  <p>{t("env_envAccounts.p1")}</p>
                   <CodeBlock
                     label="work-project/.env.cockpit"
                     code={`CLAUDE_CONFIG_DIR=/Users/me/.claude-work
 # Codex uses its own variable
 CODEX_HOME=/Users/me/.codex-work`}
                   />
-                  <p>
-                    Restart the tabs (or open new ones), run{" "}
-                    <InlineCode>claude</InlineCode> and log in once with{" "}
-                    <InlineCode>/login</InlineCode>. From then on that workspace
-                    uses that account, and your other workspaces keep the
-                    default one. Use absolute paths: the variables name a
-                    directory, not a profile.
-                  </p>
+                  <p>{t.rich("env_envAccounts.p2", TAGS)}</p>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── THEMES ──────────────────────────────────────────────── */}
 
-              <DocsSection id="themes" title="Themes">
-                <p>
-                  Cockpit ships nine built-in themes —{" "}
-                  <InlineCode>cockpit</InlineCode>,{" "}
-                  <InlineCode>cockpit.2</InlineCode>,{" "}
-                  <InlineCode>violet</InlineCode>,{" "}
-                  <InlineCode>violet.2</InlineCode>,{" "}
-                  <InlineCode>midnight</InlineCode>,{" "}
-                  <InlineCode>rose</InlineCode>, <InlineCode>sun</InlineCode>,{" "}
-                  <InlineCode>flexoki</InlineCode> and{" "}
-                  <InlineCode>pantera</InlineCode> — each with a light and a
-                  dark variant. Beyond those, a theme is{" "}
-                  <strong>a single JSON file</strong> that paints all three
-                  layers at once: the app UI, the code viewer&apos;s syntax
-                  highlighting, and the terminal palette.
-                </p>
+              <DocsSection id="themes" title={t("themes.title")}>
+                <p>{t.rich("themes.p1", TAGS)}</p>
 
-                <DocsSubsection id="themes-file" title="The theme file">
+                <DocsSubsection
+                  id="themes-file"
+                  title={t("themes_themesFile.title")}
+                >
                   <ul>
-                    <li>
-                      Import with <strong>Settings → Appearance → Theme →
-                      Import…</strong>
-                    </li>
-                    <li>
-                      Themes live in{" "}
-                      <InlineCode>&lt;data folder&gt;/themes/</InlineCode> (the
-                      same root as the &ldquo;Storage&rdquo; setting), one file
-                      per theme, named after its <InlineCode>id</InlineCode>.
-                      Copying a <InlineCode>.json</InlineCode> in there installs
-                      it too.
-                    </li>
-                    <li>
-                      Export produces a <strong>complete</strong> file (every
-                      token, no <InlineCode>extends</InlineCode>) — a good
-                      starting point for hand editing.
-                    </li>
+                    <li>{t.rich("themes_themesFile.li1", TAGS)}</li>
+                    <li>{t.rich("themes_themesFile.li2", TAGS)}</li>
+                    <li>{t.rich("themes_themesFile.li3", TAGS)}</li>
                   </ul>
                   <CodeBlock
-                    label="theme.json — shape"
+                    label={t("themes_themesFile.label1")}
                     language="json"
                     code={THEME_SHAPE}
                   />
                   <DocsTable
-                    headers={["Field", "Required", "What it is"]}
+                    headers={[
+                      t("themes_themesFile.th1"),
+                      t("themes_themesFile.th2"),
+                      t("themes_themesFile.th3"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="i">id</InlineCode>,
-                        "yes",
-                        <>
-                          Stable, namespaced identity (
-                          <InlineCode>publisher.name</InlineCode>). It is what
-                          gets stored in preferences, so renaming{" "}
-                          <InlineCode>name</InlineCode> never loses the
-                          user&apos;s choice. Cannot collide with a built-in id.
-                        </>,
+                        t("themes_themesFile.td1"),
+                        <>{t.rich("themes_themesFile.cell1", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="n">name</InlineCode>,
-                        "yes",
-                        "What shows up in the picker.",
+                        t("themes_themesFile.td2"),
+                        t("themes_themesFile.td3"),
                       ],
                       [
                         <InlineCode key="a">author</InlineCode>,
-                        "no",
-                        "Metadata.",
+                        t("themes_themesFile.td4"),
+                        t("themes_themesFile.td5"),
                       ],
                       [
                         <InlineCode key="v">version</InlineCode>,
-                        "no",
-                        "Metadata.",
+                        t("themes_themesFile.td6"),
+                        t("themes_themesFile.td7"),
                       ],
                       [
                         <InlineCode key="e">extends</InlineCode>,
-                        "no",
-                        <>
-                          Id of a built-in theme to inherit from. Absent =
-                          inherits from <InlineCode>cockpit</InlineCode>.
-                        </>,
+                        t("themes_themesFile.td8"),
+                        <>{t.rich("themes_themesFile.cell2", TAGS)}</>,
                       ],
                       [
                         <InlineCode key="va">variants</InlineCode>,
-                        "yes",
-                        <>
-                          At least one of <InlineCode>dark</InlineCode> /{" "}
-                          <InlineCode>light</InlineCode>. A dark-only theme is
-                          applied in light mode too — better than mixing half a
-                          light theme with half a dark one.
-                        </>,
+                        t("themes_themesFile.td9"),
+                        <>{t.rich("themes_themesFile.cell3", TAGS)}</>,
                       ],
                     ]}
                   />
-                  <p>
-                    <strong>Inheritance is the point.</strong> Every token you
-                    do not declare comes from the base, so a useful theme can be
-                    five lines long:
-                  </p>
+                  <p>{t.rich("themes_themesFile.p1", TAGS)}</p>
                   <CodeBlock
                     label="acme.violet.json"
                     language="json"
                     code={THEME_MINIMAL}
                   />
-                  <p>
-                    Colors are CSS-style hex —{" "}
-                    <InlineCode>#RGB</InlineCode>,{" "}
-                    <InlineCode>#RRGGBB</InlineCode> or{" "}
-                    <InlineCode>#RRGGBBAA</InlineCode>,{" "}
-                    <strong>alpha last</strong>. It is not Dart&apos;s{" "}
-                    <InlineCode>0xAARRGGBB</InlineCode>. On a bad import the
-                    parser points at the <strong>field path</strong> that broke
-                    (<InlineCode>variants.dark.ui.accent</InlineCode>), and
-                    validation runs before the copy, so an invalid file never
-                    reaches the themes folder.
-                  </p>
+                  <p>{t.rich("themes_themesFile.p2", TAGS)}</p>
                 </DocsSubsection>
 
-                <DocsSubsection id="themes-tokens" title="Tokens">
+                <DocsSubsection
+                  id="themes-tokens"
+                  title={t("themes_themesTokens.title")}
+                >
                   <DocsTable
-                    headers={["Group", "Tokens"]}
+                    headers={[
+                      t("themes_themesTokens.th1"),
+                      t("themes_themesTokens.th2"),
+                    ]}
                     rows={[
                       [
                         <>
                           <InlineCode>ui</InlineCode> (25)
                         </>,
-                        <>
-                          Surfaces <InlineCode>bg</InlineCode>{" "}
-                          <InlineCode>panel</InlineCode>{" "}
-                          <InlineCode>panel2</InlineCode>{" "}
-                          <InlineCode>panel3</InlineCode> · strokes{" "}
-                          <InlineCode>border</InlineCode>{" "}
-                          <InlineCode>border2</InlineCode> · text{" "}
-                          <InlineCode>text</InlineCode>{" "}
-                          <InlineCode>text2</InlineCode>{" "}
-                          <InlineCode>text3</InlineCode>{" "}
-                          <InlineCode>text4</InlineCode> · brand{" "}
-                          <InlineCode>accent</InlineCode>{" "}
-                          <InlineCode>accentSoft</InlineCode>{" "}
-                          <InlineCode>accentText</InlineCode> · state{" "}
-                          <InlineCode>online</InlineCode>{" "}
-                          <InlineCode>ok</InlineCode>{" "}
-                          <InlineCode>error</InlineCode>{" "}
-                          <InlineCode>warn</InlineCode> · editing{" "}
-                          <InlineCode>edited</InlineCode>{" "}
-                          <InlineCode>editedBg</InlineCode> · git{" "}
-                          <InlineCode>gitStaged</InlineCode>{" "}
-                          <InlineCode>gitUntracked</InlineCode>{" "}
-                          <InlineCode>gitDeleted</InlineCode>{" "}
-                          <InlineCode>gitConflict</InlineCode> · overlay{" "}
-                          <InlineCode>scrim</InlineCode>{" "}
-                          <InlineCode>shadow</InlineCode>
-                        </>,
+                        <>{t.rich("themes_themesTokens.cell1", TAGS)}</>,
                       ],
                       [
                         <>
@@ -1355,141 +973,66 @@ CODEX_HOME=/Users/me/.codex-work`}
                         <>
                           <InlineCode>terminal</InlineCode> (23)
                         </>,
-                        <>
-                          <InlineCode>cursor</InlineCode>{" "}
-                          <InlineCode>selection</InlineCode>{" "}
-                          <InlineCode>foreground</InlineCode>{" "}
-                          <InlineCode>background</InlineCode>, the 8 normal ANSI
-                          colors, their 8 <InlineCode>bright*</InlineCode>{" "}
-                          counterparts, and{" "}
-                          <InlineCode>searchHitBackground</InlineCode>{" "}
-                          <InlineCode>searchHitBackgroundCurrent</InlineCode>{" "}
-                          <InlineCode>searchHitForeground</InlineCode>
-                        </>,
+                        <>{t.rich("themes_themesTokens.cell2", TAGS)}</>,
                       ],
                     ]}
                   />
-                  <p>
-                    Text drawn <em>on top of</em>{" "}
-                    <InlineCode>accent</InlineCode> and{" "}
-                    <InlineCode>error</InlineCode> is not a token: it is derived
-                    from the color&apos;s luminance, so a light accent
-                    automatically gets dark text.
-                  </p>
-                  <p>
-                    <InlineCode>syntax.background</InlineCode> has a special
-                    default. The code viewer, the editor, and the terminal are
-                    all content inside a tab, so they share the field: when a
-                    theme declares neither{" "}
-                    <InlineCode>syntax.background</InlineCode> nor{" "}
-                    <InlineCode>terminal.background</InlineCode>, the three
-                    follow <InlineCode>ui.panel</InlineCode> of{" "}
-                    <em>this</em> theme, not of the base. Declare the field if
-                    your code palette needs a surface of its own.
-                  </p>
-                  <p>
-                    The <InlineCode>$schema</InlineCode> URL lives in the
-                    repository, versioned next to the code that implements it,
-                    so the app and the schema can never drift apart. Cockpit
-                    ignores the field when reading a theme — it only serves your
-                    editor. See{" "}
-                    <a
-                      className="text-accent underline"
-                      href={THEME_EXAMPLE}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <InlineCode>theme.example.json</InlineCode>
-                    </a>{" "}
-                    for a commented file with every group filled in.
-                  </p>
+                  <p>{t.rich("themes_themesTokens.p1", TAGS)}</p>
+                  <p>{t.rich("themes_themesTokens.p2", TAGS)}</p>
+                  <p>{t.rich("themes_themesTokens.p3", TAGS)}</p>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── TURN STATUS ─────────────────────────────────────────── */}
 
-              <DocsSection id="turn-status" title="Agent turn status">
-                <p>
-                  When an agent runs in a tab, Cockpit shows whether it is{" "}
-                  <strong>working</strong>, <strong>waiting</strong> for you, or{" "}
-                  <strong>idle</strong> — as a spinner, a badge, a chime, and an
-                  OS notification when the window is unfocused. Supported
-                  harnesses today: <strong>Claude Code</strong> and{" "}
-                  <strong>Codex CLI</strong> (0.147+).
-                </p>
-                <p>How it works:</p>
+              <DocsSection id="turn-status" title={t("turnStatus.title")}>
+                <p>{t.rich("turnStatus.p1", TAGS)}</p>
+                <p>{t("turnStatus.p2")}</p>
                 <ol>
-                  <li>
-                    At boot, Cockpit materializes the internal CLI at{" "}
-                    <InlineCode>~/.cockpit/bin/cockpit</InlineCode> and
-                    registers <InlineCode>cockpit hook</InlineCode> on the
-                    harness&apos; lifecycle events.
-                  </li>
-                  <li>
-                    On each event the harness runs the hook, passing a JSON
-                    payload on stdin.
-                  </li>
-                  <li>
-                    The hook translates it into a status and sends it to the app
-                    over the local socket. (A socket rather than an escape
-                    sequence on the PTY: harnesses run hooks with no controlling
-                    terminal, and writing to <InlineCode>/dev/tty</InlineCode>{" "}
-                    fails with <InlineCode>ENXIO</InlineCode>.)
-                  </li>
-                  <li>
-                    Routing is by the <InlineCode>COCKPIT_PANE_ID</InlineCode>{" "}
-                    env var, which the app injects into the tab&apos;s PTY. An
-                    agent session started <em>outside</em> Cockpit does not have
-                    it, so the hook is a no-op there. Nothing to configure,
-                    nothing to disable.
-                  </li>
+                  <li>{t.rich("turnStatus.li1", TAGS)}</li>
+                  <li>{t("turnStatus.li2")}</li>
+                  <li>{t.rich("turnStatus.li3", TAGS)}</li>
+                  <li>{t.rich("turnStatus.li4", TAGS)}</li>
                 </ol>
                 <DocsTable
-                  headers={["Harness", "File", "Format"]}
+                  headers={[
+                    t("turnStatus.th1"),
+                    t("turnStatus.th2"),
+                    t("turnStatus.th3"),
+                  ]}
                   rows={[
                     [
-                      "Claude Code",
+                      t("turnStatus.td1"),
                       <InlineCode key="c">~/.claude/settings.json</InlineCode>,
-                      <>
-                        <InlineCode>hooks.&lt;Event&gt;[]</InlineCode>, each
-                        item{" "}
-                        <InlineCode>
-                          {"{matcher, hooks:[{type, command}]}"}
-                        </InlineCode>
-                      </>,
+                      <>{t.rich("turnStatus.cell1", TAGS)}</>,
                     ],
                     [
-                      "Codex CLI",
+                      t("turnStatus.td2"),
                       <InlineCode key="x">~/.codex/hooks.json</InlineCode>,
-                      <>
-                        Same shape, <strong>plus</strong> a trust block in{" "}
-                        <InlineCode>~/.codex/config.toml</InlineCode> (Codex
-                        silently ignores an untrusted hook, so Cockpit computes
-                        and writes the trust hash for you, between{" "}
-                        <InlineCode>{"# >>> cockpit hooks"}</InlineCode>{" "}
-                        delimiters).
-                      </>,
+                      <>{t.rich("turnStatus.cell2", TAGS)}</>,
                     ],
                   ]}
                 />
-                <p>
-                  Both installers do an <strong>idempotent append</strong> of a
-                  marked entry (<InlineCode>_cockpit: v1</InlineCode>):
-                  re-running removes our old entry and re-adds it, never
-                  rewriting the list — your own hooks, and those of plugins or
-                  iTerm2, survive untouched.
-                </p>
+                <p>{t.rich("turnStatus.p3", TAGS)}</p>
 
-                <DocsSubsection id="turn-status-events" title="Event mapping">
+                <DocsSubsection
+                  id="turn-status-events"
+                  title={t("turnStatus_turnStatusEvents.title")}
+                >
                   <DocsTable
-                    headers={["Event", "Claude", "Codex", "Status"]}
+                    headers={[
+                      t("turnStatus_turnStatusEvents.th1"),
+                      t("turnStatus_turnStatusEvents.th2"),
+                      t("turnStatus_turnStatusEvents.th3"),
+                      t("turnStatus_turnStatusEvents.th4"),
+                    ]}
                     rows={[
                       [
                         <InlineCode key="e">UserPromptSubmit</InlineCode>,
                         "✓",
                         "✓",
                         <>
-                          <InlineCode>working</InlineCode> (turn starts)
+                          {t.rich("turnStatus_turnStatusEvents.cell1", TAGS)}
                         </>,
                       ],
                       [
@@ -1497,8 +1040,7 @@ CODEX_HOME=/Users/me/.codex-work`}
                         "✓",
                         "✓",
                         <>
-                          <InlineCode>working</InlineCode> — except for
-                          Claude&apos;s blocking tools (below)
+                          {t.rich("turnStatus_turnStatusEvents.cell2", TAGS)}
                         </>,
                       ],
                       [
@@ -1512,8 +1054,7 @@ CODEX_HOME=/Users/me/.codex-work`}
                         "✓",
                         "—",
                         <>
-                          <InlineCode>waiting</InlineCode> /{" "}
-                          <InlineCode>idle</InlineCode> (heuristic on the text)
+                          {t.rich("turnStatus_turnStatusEvents.cell3", TAGS)}
                         </>,
                       ],
                       [
@@ -1544,185 +1085,100 @@ CODEX_HOME=/Users/me/.codex-work`}
                         </>,
                         "—",
                         "✓",
-                        <strong key="s">ignored</strong>,
+                        <strong key="s">
+                          {t("turnStatus_turnStatusEvents.strong1")}
+                        </strong>,
                       ],
                     ]}
                   />
-                  <p>
-                    Two asymmetries matter. On <strong>Claude</strong>, tools
-                    that block waiting for the user (
-                    <InlineCode>AskUserQuestion</InlineCode>,{" "}
-                    <InlineCode>ExitPlanMode</InlineCode>) emit no{" "}
-                    <InlineCode>Notification</InlineCode>; the last hook before
-                    the block is <InlineCode>PreToolUse</InlineCode>, so that
-                    one maps to <InlineCode>waiting</InlineCode> for those two —
-                    otherwise the tab would spin forever with no chime. On{" "}
-                    <strong>Codex</strong>, approval has its own event, so there
-                    is no text heuristic and no detour.
-                  </p>
+                  <p>{t.rich("turnStatus_turnStatusEvents.p1", TAGS)}</p>
                 </DocsSubsection>
 
                 <DocsSubsection
                   id="turn-status-resume"
-                  title="Resuming a session"
+                  title={t("turnStatus_turnStatusResume.title")}
                 >
-                  <p>
-                    Cockpit persists the{" "}
-                    <InlineCode>session_id</InlineCode> that arrived through the
-                    hook, and on restoring the tab it types the command that
-                    reattaches the conversation. A session id alone does not say
-                    which harness it belongs to, and the commands differ —{" "}
-                    <InlineCode>claude --resume &lt;id&gt;</InlineCode> versus{" "}
-                    <InlineCode>codex resume &lt;id&gt;</InlineCode> — so the
-                    installer registers the hook as{" "}
-                    <InlineCode>cockpit hook --harness &lt;name&gt;</InlineCode>{" "}
-                    and the layout stores the harness next to the id. Entries
-                    written by older versions pass no flag and are assumed to be
-                    Claude, which is what they all were.
-                  </p>
-                  <Callout variant="warning" title="Codex trust is index-keyed">
-                    <p>
-                      The Codex trust key includes the hook&apos;s group index.
-                      If you add a hook of your own <em>before</em> ours on the
-                      same event — or edit{" "}
-                      <InlineCode>hooks.json</InlineCode> by hand — the hash
-                      stops matching and the hook silently stops running. The
-                      installer repairs it on the next boot, because it
-                      recomputes the indices from the final file.
-                    </p>
+                  <p>{t.rich("turnStatus_turnStatusResume.p1", TAGS)}</p>
+                  <Callout
+                    variant="warning"
+                    title={t("turnStatus_turnStatusResume.callout1")}
+                  >
+                    <p>{t.rich("turnStatus_turnStatusResume.p2", TAGS)}</p>
                   </Callout>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── REMOTE HOSTS ────────────────────────────────────────── */}
 
-              <DocsSection id="remote" title="Remote hosts & VPS">
-                <p>
-                  A remote workspace is a folder on another machine, reached
-                  over SSH. Cockpit runs a small headless{" "}
-                  <InlineCode>cockpit-server</InlineCode> on the host, talks to
-                  it through an SSH tunnel to a Unix socket, and nothing is ever
-                  exposed on the network: SSH is the only door. Terminals and
-                  agents keep running on the host when you disconnect, and the
-                  next connection picks them up where they were.
-                </p>
-                <p>
-                  From the <strong>desktop</strong> app you usually need nothing
-                  on the host: Cockpit uploads the server over SSH on first
-                  connect and keeps it updated (it compares a manifest of the
-                  installed files with the bundle it ships and reinstalls when
-                  they differ). The <strong>mobile</strong> apps (iPad, Android)
-                  carry no server, so a host you want to reach from them must
-                  be prepared once, either by a desktop or with the installer
-                  below.
-                </p>
-                <p>
-                  The desktop can only install the targets it ships, so the
-                  installer is also the way in for the other combinations:
-                </p>
+              <DocsSection id="remote" title={t("remote.title")}>
+                <p>{t.rich("remote.p1", TAGS)}</p>
+                <p>{t.rich("remote.p2", TAGS)}</p>
+                <p>{t("remote.p3")}</p>
                 <div className="overflow-x-auto">
                   <table>
                     <thead>
                       <tr>
-                        <th>Client</th>
-                        <th>Linux arm64 host</th>
-                        <th>Linux x86_64 host</th>
+                        <th>{t("remote.th1")}</th>
+                        <th>{t("remote.th2")}</th>
+                        <th>{t("remote.th3")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
-                        <td>macOS</td>
-                        <td>installs and updates over SSH</td>
-                        <td>installer</td>
+                        <td>{t("remote.td1")}</td>
+                        <td>{t("remote.td2")}</td>
+                        <td>{t("remote.td3")}</td>
                       </tr>
                       <tr>
-                        <td>Linux arm64</td>
-                        <td>installs and updates over SSH</td>
-                        <td>installer</td>
+                        <td>{t("remote.td4")}</td>
+                        <td>{t("remote.td5")}</td>
+                        <td>{t("remote.td6")}</td>
                       </tr>
                       <tr>
-                        <td>Linux x86_64</td>
-                        <td>installer</td>
-                        <td>installs and updates over SSH</td>
+                        <td>{t("remote.td7")}</td>
+                        <td>{t("remote.td8")}</td>
+                        <td>{t("remote.td9")}</td>
                       </tr>
                       <tr>
-                        <td>Windows</td>
-                        <td>installer</td>
-                        <td>installer</td>
+                        <td>{t("remote.td10")}</td>
+                        <td>{t("remote.td11")}</td>
+                        <td>{t("remote.td12")}</td>
                       </tr>
                       <tr>
-                        <td>iPad / Android</td>
-                        <td>installer</td>
-                        <td>installer</td>
+                        <td>{t("remote.td13")}</td>
+                        <td>{t("remote.td14")}</td>
+                        <td>{t("remote.td15")}</td>
                       </tr>
                     </tbody>
                   </table>
                 </div>
-                <p>
-                  Both paths land in the same place and recognize each other: a
-                  host prepared with the installer is reused as is by a desktop
-                  that ships the same version, and a host prepared by a desktop
-                  can be updated later with the installer. Whoever gets there
-                  first installs; the other one just connects.
-                </p>
+                <p>{t("remote.p4")}</p>
 
-                <DocsSubsection id="remote-install" title="Install the server">
-                  <p>
-                    Linux x86_64 and arm64. User space, no sudo, idempotent;
-                    re-run it to update.
-                  </p>
+                <DocsSubsection
+                  id="remote-install"
+                  title={t("remote_remoteInstall.title")}
+                >
+                  <p>{t("remote_remoteInstall.p1")}</p>
                   <CodeBlock
-                    label="on the host"
+                    label={t("remote_remoteInstall.label1")}
                     language="bash"
                     code={`curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash
 # or straight from GitHub (the URL above redirects here):
 curl -fsSL https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/cockpit/install-server.sh | bash`}
                   />
-                  <p>
-                    The script detects the architecture, downloads{" "}
-                    <InlineCode>cockpit-server-&lt;version&gt;-linux-&lt;arch&gt;.zip</InlineCode>{" "}
-                    from the GitHub release, verifies its SHA-256 and runs the{" "}
-                    <InlineCode>install.sh</InlineCode> shipped inside the zip.
-                    That installs to <InlineCode>~/.cockpit/server</InlineCode>{" "}
-                    (the same layout the desktop app uses), links the binary
-                    into <InlineCode>~/.local/bin</InlineCode>, checks every file
-                    against <InlineCode>bundle.manifest</InlineCode> and does a
-                    smoke start before swapping the new version in. A host
-                    without internet access can take the zip by{" "}
-                    <InlineCode>scp</InlineCode> and run{" "}
-                    <InlineCode>./cockpit-server/install.sh</InlineCode>{" "}
-                    directly.
-                  </p>
+                  <p>{t.rich("remote_remoteInstall.p2", TAGS)}</p>
                   <Callout>
-                    <p>
-                      <strong>Versions must match.</strong> Client and server are
-                      released together and the app refuses a different server
-                      version. Pin one with{" "}
-                      <InlineCode>COCKPIT_VERSION=1.28.33</InlineCode> in front
-                      of the command; without it the latest release is used.
-                      Desktop clients fix a mismatch by themselves over SSH;
-                      from mobile, re-run the installer.
-                    </p>
+                    <p>{t.rich("remote_remoteInstall.p3", TAGS)}</p>
                   </Callout>
                 </DocsSubsection>
 
-                <DocsSubsection id="remote-service" title="Start at boot">
-                  <p>
-                    By default the app starts the server on demand and it
-                    exits when idle with no live session; terminals and agents
-                    keep the server alive while they run, so most hosts need
-                    no service. Note that if you kill the server while a
-                    Cockpit workspace is open on it, the client treats that as
-                    a dropped connection and starts it again. For a dedicated
-                    VPS you can register a{" "}
-                    <InlineCode>systemd --user</InlineCode> unit: the server is
-                    up right after a reboot, never exits on idle, and systemd
-                    restarts it on failure. It does not change how the app
-                    connects, and a reboot still ends the sessions that were
-                    running.
-                  </p>
+                <DocsSubsection
+                  id="remote-service"
+                  title={t("remote_remoteService.title")}
+                >
+                  <p>{t.rich("remote_remoteService.p1", TAGS)}</p>
                   <CodeBlock
-                    label="on the host"
+                    label={t("remote_remoteService.label1")}
                     language="bash"
                     code={`# at install time
 curl -fsSL https://remote-pi.jacobmoura.work/cockpit-server.sh | bash -s -- --service
@@ -1732,159 +1188,54 @@ cockpit-server service install
 cockpit-server service status
 cockpit-server service uninstall`}
                   />
-                  <p>
-                    The unit lives in{" "}
-                    <InlineCode>~/.config/systemd/user/cockpit-server.service</InlineCode>.
-                    Starting at boot without an open SSH session requires{" "}
-                    <em>linger</em>; the command tries to enable it and, when
-                    that needs root, prints the one-line{" "}
-                    <InlineCode>sudo loginctl enable-linger</InlineCode> for you
-                    to run once. Updates restart the unit automatically. To
-                    stop it for real use{" "}
-                    <InlineCode>systemctl --user stop cockpit-server</InlineCode>{" "}
-                    (a plain kill is undone by systemd in two seconds).
-                  </p>
+                  <p>{t.rich("remote_remoteService.p2", TAGS)}</p>
                 </DocsSubsection>
 
                 <DocsSubsection
                   id="remote-troubleshooting"
-                  title="Troubleshooting"
+                  title={t("remote_remoteTroubleshooting.title")}
                 >
                   <ul>
-                    <li>
-                      <strong>version_mismatch</strong>: the host runs another
-                      release than the app. Re-run the installer (mobile) or
-                      reconnect from a desktop, which reinstalls.
-                    </li>
-                    <li>
-                      <strong>cockpit-server did not start</strong> during
-                      install: the log printed above the error is the reason.
-                      A glibc older than the build expects is the usual cause on
-                      old distributions; check{" "}
-                      <InlineCode>ldd --version</InlineCode>.
-                    </li>
-                    <li>
-                      <strong>Socket permission</strong>: the server listens on{" "}
-                      <InlineCode>~/.cockpit/cockpit-server.sock</InlineCode>{" "}
-                      as the SSH user; connect with the same user that ran the
-                      installer.
-                    </li>
-                    <li>
-                      <strong>Updating means restarting</strong>: a new server
-                      version replaces the running process, which ends the
-                      terminals and agents on that host. The desktop does it
-                      silently when its bundle differs from the host; the
-                      installer does it when you run it with a newer release.
-                      Finish long jobs first.
-                    </li>
-                    <li>
-                      <strong>Nothing after reboot</strong>: without the
-                      service the first connection starts the server (a second
-                      or two); with it, check{" "}
-                      <InlineCode>cockpit-server service status</InlineCode> and
-                      linger.
-                    </li>
+                    <li>{t.rich("remote_remoteTroubleshooting.li1", TAGS)}</li>
+                    <li>{t.rich("remote_remoteTroubleshooting.li2", TAGS)}</li>
+                    <li>{t.rich("remote_remoteTroubleshooting.li3", TAGS)}</li>
+                    <li>{t.rich("remote_remoteTroubleshooting.li4", TAGS)}</li>
+                    <li>{t.rich("remote_remoteTroubleshooting.li5", TAGS)}</li>
                   </ul>
                 </DocsSubsection>
               </DocsSection>
 
               {/* ── SOUNDS ──────────────────────────────────────────────── */}
 
-              <DocsSection id="sounds" title="Sounds & notifications">
-                <p>
-                  Turn status drives audio too. Under{" "}
-                  <strong>Settings → Notifications</strong> you can bind a sound
-                  per event — <strong>turn done</strong>,{" "}
-                  <strong>action needed</strong>, <strong>error</strong> — pick
-                  a custom audio file for each, and set the volume. With the
-                  window focused you get the chime; unfocused, an OS
-                  notification. Since an agent started outside Cockpit never
-                  reports status, nothing fires for sessions the app is not
-                  hosting.
-                </p>
+              <DocsSection id="sounds" title={t("sounds.title")}>
+                <p>{t.rich("sounds.p1", TAGS)}</p>
               </DocsSection>
 
               {/* ── LANGUAGE ────────────────────────────────────────────── */}
 
-              <DocsSection id="language" title="Language">
-                <p>
-                  Cockpit&apos;s interface is fully localized in{" "}
-                  <strong>English</strong>, <strong>Portuguese (Brazil)</strong>{" "}
-                  and <strong>Spanish</strong>, down to the native application
-                  menu. Switch it in{" "}
-                  <strong>Settings → General → Language</strong>; the choice is
-                  independent of the OS locale.
-                </p>
+              <DocsSection id="language" title={t("language.title")}>
+                <p>{t.rich("language.p1", TAGS)}</p>
               </DocsSection>
 
               {/* ── LINKS ───────────────────────────────────────────────── */}
 
-              <DocsSection id="links" title="Links">
+              <DocsSection id="links" title={t("links.title")}>
                 <ul>
-                  <li>
-                    <Link href="/" className="text-accent underline">
-                      Cockpit product page
-                    </Link>{" "}
-                    — the tour.
-                  </li>
-                  <li>
-                    <Link
-                      href="/tutorials/cockpit-layouts"
-                      className="text-accent underline"
-                    >
-                      Tutorial: layouts and tasks
-                    </Link>{" "}
-                    — build a <InlineCode>.ckp</InlineCode> and a{" "}
-                    <InlineCode>tasks.json</InlineCode> from scratch.
-                  </li>
-                  <li>
-                    <Link
-                      href="/tutorials/cockpit-telemetry"
-                      className="text-accent underline"
-                    >
-                      Tutorial: telemetry for agents
-                    </Link>{" "}
-                    — the error store, the{" "}
-                    <InlineCode>cockpit telemetry</InlineCode> CLI and how to
-                    make a project speak JSON logs.
-                  </li>
+                  <li>{t.rich("links.li1", TAGS)}</li>
+                  <li>{t.rich("links.li2", TAGS)}</li>
+                  <li>{t.rich("links.li3", TAGS)}</li>
                   <li>
                     <Link
                       href="/tutorials/cockpit-team"
                       className="text-accent underline"
                     >
-                      Tutorial: an agent team in Cockpit
+                      {t("links.link1")}
                     </Link>
                     .
                   </li>
-                  <li>
-                    <Link href="/remote-pi/docs" className="text-accent underline">
-                      Remote Pi docs
-                    </Link>{" "}
-                    — mesh, relay, daemons, pairing.
-                  </li>
-                  <li>
-                    <a
-                      className="text-accent underline"
-                      href={COCKPIT_DOCS}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      Source docs &amp; JSON schemas
-                    </a>{" "}
-                    in the repository.
-                  </li>
-                  <li>
-                    <a
-                      className="text-accent underline"
-                      href={GITHUB_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      GitHub
-                    </a>{" "}
-                    — issues and source.
-                  </li>
+                  <li>{t.rich("links.li4", TAGS)}</li>
+                  <li>{t.rich("links.li5", TAGS)}</li>
+                  <li>{t.rich("links.li6", TAGS)}</li>
                 </ul>
               </DocsSection>
             </article>
