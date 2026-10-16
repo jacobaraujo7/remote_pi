@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { pageAlternates } from "@/i18n/alternates";
 import { IconArrow, IconStar } from "@/components/landing/icons";
 import { RevealController } from "@/components/landing/reveal-controller";
 
-export const metadata: Metadata = {
-  title: "Tutorials",
-  description:
-    "Hands-on guides for Remote Pi: get started with the app, run a local mesh, route across PCs, and keep an agent alive 24/7.",
-};
+type Props = { params: Promise<{ locale: string }> };
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { locale } = await params;
+  const t = await getTranslations({
+    locale,
+    namespace: "RemoteTutorials.index",
+  });
+  return {
+    title: t("meta.title"),
+    description: t("meta.description"),
+    alternates: pageAlternates(locale, "/remote-pi/tutorials"),
+  };
+}
 
 type Step = {
   n?: string;
@@ -19,48 +29,7 @@ type Step = {
   desc: string;
 };
 
-const STEPS: Step[] = [
-  {
-    n: "1",
-    tag: "01 / 04",
-    title: "Getting started",
-    href: "/remote-pi/tutorials/getting-started",
-    desc: "Install Remote Pi, pair your phone, and drive your first agent from the app.",
-  },
-  {
-    n: "2",
-    tag: "02 / 04",
-    title: "Local mesh",
-    href: "/remote-pi/tutorials/mesh-local",
-    desc: "Let two agents on the same machine discover each other and trade messages.",
-  },
-  {
-    n: "3",
-    tag: "03 / 04",
-    title: "Remote mesh",
-    href: "/remote-pi/tutorials/mesh-remote",
-    desc: "Route messages between agents on different PCs through the relay.",
-  },
-  {
-    n: "4",
-    tag: "04 / 04",
-    title: "Daemon mode",
-    href: "/remote-pi/tutorials/daemon",
-    desc: "Keep an agent alive 24/7 with the supervisor, then manage the fleet.",
-  },
-];
-
-const EXTRAS: Step[] = [
-  {
-    star: true,
-    tag: "extra",
-    title: "Claude in the mesh",
-    href: "/remote-pi/tutorials/claude-mesh",
-    desc: "Put Claude Code on the agent mesh next to Pi — advanced, terminal-only (not in the app yet).",
-  },
-];
-
-function StepCard({ s }: { s: Step }) {
+function StepCard({ s, openLabel }: { s: Step; openLabel: string }) {
   return (
     <Link className="step-card reveal" href={s.href}>
       <div className="sc-top">
@@ -70,47 +39,87 @@ function StepCard({ s }: { s: Step }) {
       <h3>{s.title}</h3>
       <p>{s.desc}</p>
       <span className="sc-link">
-        Open tutorial <IconArrow />
+        {openLabel} <IconArrow />
       </span>
     </Link>
   );
 }
 
-export default async function TutorialsIndexPage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function TutorialsIndexPage({ params }: Props) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations({
+    locale,
+    namespace: "RemoteTutorials.index",
+  });
+
+  const steps: Step[] = [
+    {
+      n: "1",
+      tag: "01 / 04",
+      title: t("step1.title"),
+      href: "/remote-pi/tutorials/getting-started",
+      desc: t("step1.desc"),
+    },
+    {
+      n: "2",
+      tag: "02 / 04",
+      title: t("step2.title"),
+      href: "/remote-pi/tutorials/mesh-local",
+      desc: t("step2.desc"),
+    },
+    {
+      n: "3",
+      tag: "03 / 04",
+      title: t("step3.title"),
+      href: "/remote-pi/tutorials/mesh-remote",
+      desc: t("step3.desc"),
+    },
+    {
+      n: "4",
+      tag: "04 / 04",
+      title: t("step4.title"),
+      href: "/remote-pi/tutorials/daemon",
+      desc: t("step4.desc"),
+    },
+  ];
+  const extras: Step[] = [
+    {
+      star: true,
+      tag: t("extraTag"),
+      title: t("extra1.title"),
+      href: "/remote-pi/tutorials/claude-mesh",
+      desc: t("extra1.desc"),
+    },
+  ];
+
   return (
     <div className="page">
       <div className="page-body">
         <div className="wrap">
           <header className="page-head reveal">
-            <span className="eyebrow">Tutorials</span>
-            <h1>Learn Remote Pi by doing.</h1>
+            <span className="eyebrow">{t("eyebrow")}</span>
+            <h1>{t("h1")}</h1>
             <p className="lede">
-              Four hands-on guides, in order. Start with the app, then add
-              agents, cross-PC routing, and a 24/7 supervisor as you need them.
-              For the <em>why</em> behind it,{" "}
-              <Link href="/remote-pi/why">read Why Pi</Link>; for exact flags and
-              config, the <Link href="/remote-pi/docs">reference docs</Link>.
-              Looking for Cockpit instead? Its tutorials are at{" "}
-              <Link href="/tutorials">/tutorials</Link>.
+              {t.rich("lede", {
+                em: (c) => <em>{c}</em>,
+                why: (c) => <Link href="/remote-pi/why">{c}</Link>,
+                docs: (c) => <Link href="/remote-pi/docs">{c}</Link>,
+                cockpit: (c) => <Link href="/tutorials">{c}</Link>,
+              })}
             </p>
           </header>
 
           <div className="card-list">
-            {STEPS.map((s) => (
-              <StepCard key={s.href} s={s} />
+            {steps.map((s) => (
+              <StepCard key={s.href} s={s} openLabel={t("open")} />
             ))}
           </div>
 
-          <div className="group-label reveal">Extras</div>
+          <div className="group-label reveal">{t("extras")}</div>
           <div className="card-list">
-            {EXTRAS.map((s) => (
-              <StepCard key={s.href} s={s} />
+            {extras.map((s) => (
+              <StepCard key={s.href} s={s} openLabel={t("open")} />
             ))}
           </div>
         </div>
