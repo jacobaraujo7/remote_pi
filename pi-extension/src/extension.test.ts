@@ -243,17 +243,18 @@ const { acquireCwdLock } = await import("./session/cwd_lock.js");
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeMockPi(): { pi: ExtensionAPI; registeredCommands: string[] } {
+function makeMockPi(): { pi: ExtensionAPI; registeredCommands: string[]; registeredEvents: string[] } {
   const registeredCommands: string[] = [];
+  const registeredEvents: string[] = [];
   const pi = {
-    on: () => undefined,
+    on(event: string) { registeredEvents.push(event); },
     registerCommand(name: string, _opts: unknown) { registeredCommands.push(name); },
     registerTool: () => undefined, registerShortcut: () => undefined,
     registerFlag: () => undefined, getFlag: () => undefined,
     registerMessageRenderer: () => undefined,
     sendMessage: () => undefined, sendUserMessage: () => undefined,
   } as unknown as ExtensionAPI;
-  return { pi, registeredCommands };
+  return { pi, registeredCommands, registeredEvents };
 }
 
 function makeMockCtx(cwd = "/home/user/projects/remote_pi") {
@@ -321,6 +322,19 @@ const OTHER_OWNER_STANDARD_FIXTURE = OTHER_OWNER_PUBLIC_FIXTURE.toString("base64
 describe("extension default export", () => {
   test("is an ExtensionFactory function", () => {
     expect(typeof extension).toBe("function");
+  });
+
+  test("declares the agent skill as a filterable Pi package resource", () => {
+    const packagePath = join(dirname(fileURLToPath(import.meta.url)), "..", "package.json");
+    const packageJson = JSON.parse(readFileSync(packagePath, "utf8")) as {
+      pi?: { skills?: string[] };
+    };
+    const { pi, registeredEvents } = makeMockPi();
+
+    (extension as ExtensionFactory)(pi);
+
+    expect(packageJson.pi?.skills).toEqual(["./skills"]);
+    expect(registeredEvents).not.toContain("resources_discover");
   });
 
   test("registers the user-facing commands (post plan/26 W3: + install/uninstall)", () => {
