@@ -250,7 +250,11 @@ class _InputBarState extends State<InputBar> {
 
   void _onVoiceMove(LongPressMoveUpdateDetails details) {
     if (widget.voice?.state is! VoiceRecording) return;
-    final armed = details.offsetFromOrigin.dx < -_cancelThreshold;
+    // Slide-to-cancel mirrors with directionality: drag toward the screen
+    // edge the composer starts on (left in LTR, right in RTL).
+    final rtl = Directionality.of(context) == TextDirection.rtl;
+    final dx = details.offsetFromOrigin.dx;
+    final armed = rtl ? dx > _cancelThreshold : dx < -_cancelThreshold;
     if (armed != _cancelArmed) setState(() => _cancelArmed = armed);
   }
 
@@ -514,7 +518,7 @@ class _QueuedMessagePreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Container(
             width: double.infinity,
-            padding: const EdgeInsets.fromLTRB(12, 9, 8, 9),
+            padding: const EdgeInsetsDirectional.fromSTEB(12, 9, 8, 9),
             decoration: BoxDecoration(
               color: colors.accent.withValues(alpha: 0.10),
               borderRadius: BorderRadius.circular(14),
@@ -656,7 +660,7 @@ class _AttachmentPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       key: const Key('attach-preview'),
-      padding: const EdgeInsets.only(left: 4, bottom: 10),
+      padding: const EdgeInsetsDirectional.only(start: 4, bottom: 10),
       child: SizedBox(
         width: 84,
         height: 84,
@@ -673,9 +677,9 @@ class _AttachmentPreview extends StatelessWidget {
                 gaplessPlayback: true,
               ),
             ),
-            Positioned(
+            PositionedDirectional(
               top: -4,
-              right: 8,
+              end: 8,
               child: GestureDetector(
                 key: const Key('attach-remove'),
                 onTap: onRemove,

@@ -28,7 +28,9 @@ class UserBubble extends StatelessWidget {
     final colors = context.colors;
     final typo = context.typo;
     return Align(
-      alignment: Alignment.centerRight,
+      // AlignmentDirectional so the user bubble flips sides under an RTL
+      // directionality (centerEnd = right in LTR, left in RTL).
+      alignment: AlignmentDirectional.centerEnd,
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 300),
         child: Column(
@@ -64,7 +66,7 @@ class UserBubble extends StatelessWidget {
             ),
             if (isPending || isSteering || isFailed)
               Padding(
-                padding: const EdgeInsets.only(top: 4, right: 4),
+                padding: const EdgeInsetsDirectional.only(top: 4, end: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
