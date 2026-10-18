@@ -6,10 +6,10 @@ import type { LocalConfig } from "./local_config.js";
  * ExtensionContext shape.
  */
 export interface WizardUI {
-  /** Free-text prompt. Returns the entered string, or undefined if cancelled. */
-  input?: (title: string, options?: { defaultValue?: string }) => Promise<string | undefined>;
-  /** Picker. Returns the picked option, or undefined if cancelled. */
-  select: (title: string, options: string[]) => Promise<string | undefined>;
+  /** Free-text prompt. Hosts may return null or undefined when cancelled. */
+  input?: (title: string, options?: { defaultValue?: string }) => Promise<string | null | undefined>;
+  /** Picker. Hosts may return null or undefined when cancelled. */
+  select: (title: string, options: string[]) => Promise<string | null | undefined>;
   /** Non-blocking notification. Used for inline validation feedback. */
   notify?: (msg: string, kind: "info" | "warning" | "error") => void;
 }
@@ -92,7 +92,7 @@ async function _askText(
   const raw = ui.input
     ? await ui.input(titleWithHint, { defaultValue })
     : await ui.select(titleWithHint, [defaultValue, CANCEL_TOKEN]);
-  if (raw === undefined) return null;
+  if (raw === undefined || raw === null) return null;
   if (raw === CANCEL_TOKEN) return null;
   const trimmed = raw.trim();
   // Empty submission = accept the default. No re-prompt, no warning — the

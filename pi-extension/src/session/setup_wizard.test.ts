@@ -19,7 +19,7 @@ function tmpCwd(): string {
 }
 
 /** Sequencing helper: returns a UI mock that replays canned answers in order. */
-function makeUI(answers: Array<string | undefined>): WizardUI & {
+function makeUI(answers: Array<string | null | undefined>): WizardUI & {
   inputCalls: Array<{ title: string; defaultValue?: string }>;
   selectCalls: Array<{ title: string; options: string[] }>;
   notifies: Array<{ msg: string; kind: string }>;
@@ -96,7 +96,15 @@ describe("runSetupWizard (2 prompts + confirm)", () => {
     expect(cfg).toBeNull();
   });
 
-  test("3b) cancel on relay prompt → returns null", async () => {
+  test("3b) null from host on first prompt → returns null instead of throwing", async () => {
+    const ui = makeUI([null]);
+    const cfg = await runSetupWizard(ui, {
+      agent_name: "foo", use_relay: true,
+    });
+    expect(cfg).toBeNull();
+  });
+
+  test("3c) cancel on relay prompt → returns null", async () => {
     const ui = makeUI(["agent", undefined]);
     const cfg = await runSetupWizard(ui, {
       agent_name: "foo", use_relay: true,
@@ -104,7 +112,7 @@ describe("runSetupWizard (2 prompts + confirm)", () => {
     expect(cfg).toBeNull();
   });
 
-  test("3c) cancel on final confirm → returns null (NO chosen)", async () => {
+  test("3d) cancel on final confirm → returns null (NO chosen)", async () => {
     const ui = makeUI(["agent", YES, NO]);
     const cfg = await runSetupWizard(ui, {
       agent_name: "foo", use_relay: true,
