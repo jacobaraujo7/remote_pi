@@ -11,6 +11,12 @@ use crate::identity::decode_ed25519_public_key;
 /// Max milliseconds to wait for a "hello" before closing the connection.
 pub const HELLO_TIMEOUT_MS: u64 = 5_000;
 
+/// Max milliseconds to wait for the signed `auth` line after the challenge has
+/// been sent. The handler previously awaited this without a bound, so a client
+/// that stalled mid-handshake — e.g. a phone suspended between receiving the
+/// challenge and answering it — pinned the task and its socket indefinitely.
+pub const AUTH_TIMEOUT_MS: u64 = 10_000;
+
 /// Messages that a peer sends during the auth handshake.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
