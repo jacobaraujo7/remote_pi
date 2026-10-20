@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
 import { daemonIdForCwd } from "./id.js";
 import { defaultAgentName } from "../session/local_config.js";
+import { userStateRoot } from "../state_paths.js";
 
 /**
  * The global daemon registry: which working directories are promoted to
@@ -21,10 +22,10 @@ import { defaultAgentName } from "../session/local_config.js";
  */
 
 /** Resolved at call time so tests can override via `REMOTE_PI_HOME`. The
- *  prod path is always `~/.pi/remote/daemons.json`. */
+ *  prod path is always `~/.pi/remote/daemons.json` (or `~/.omp/remote/…`
+ *  under an oh-my-pi namespace — see `state_paths.ts`). */
 function registryPathInternal(): string {
-  const root = process.env["REMOTE_PI_HOME"] || homedir();
-  return join(root, ".pi", "remote", "daemons.json");
+  return join(userStateRoot(), "daemons.json");
 }
 
 export interface DaemonEntry {

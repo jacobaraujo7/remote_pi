@@ -2,8 +2,10 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { delimiter } from "node:path";
 import { homedir, platform, tmpdir, userInfo } from "node:os";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveDefaultAgentBin } from "./rpc_child.js";
+import { statePrefixForAgentBin, userStateRoot } from "../state_paths.js";
 
 /**
  * Generates and activates a system service for `pi-supervisord` so the
@@ -116,7 +118,7 @@ export const WINDOWS_TASK_NAME = "RemotePiSupervisor";
 
 /** Path of the rendered Task Scheduler XML (input to `schtasks /Create /XML`). */
 export function taskXmlPath(): string {
-  return join(homedir(), ".pi", "remote", "RemotePiSupervisor.xml");
+  return join(userStateRoot(), "RemotePiSupervisor.xml");
 }
 
 /**
@@ -125,7 +127,7 @@ export function taskXmlPath(): string {
  * wrapper is what keeps the supervisor from flashing a console window.
  */
 export function vbsLauncherPath(): string {
-  return join(homedir(), ".pi", "remote", "RemotePiSupervisorLauncher.vbs");
+  return join(userStateRoot(), "RemotePiSupervisorLauncher.vbs");
 }
 
 /**
@@ -135,7 +137,7 @@ export function vbsLauncherPath(): string {
  * already log to `~/.pi/remote/supervisord.log`.
  */
 export function supervisordLogPath(): string {
-  return join(homedir(), ".pi", "remote", "supervisord.log");
+  return join(userStateRoot(), "supervisord.log");
 }
 
 // ── Template rendering ─────────────────────────────────────────────────────
@@ -143,6 +145,14 @@ export function supervisordLogPath(): string {
 export interface RenderVars {
   node: string;
   supervisor: string;
+  /** Agent binary the supervisor should spawn (`pi` or `omp`). Rendered as
+   *  `REMOTE_PI_AGENT_BIN` so the supervisor's rpc children resolve the same
+   *  backend the installer detected (issue #170). */
+  agentBin: string;
+  /** State namespace (`.pi` or `.omp`) implied by `agentBin` (or pinned via
+   *  `REMOTE_PI_STATE_PREFIX`). Rendered as `REMOTE_PI_STATE_PREFIX` so the
+   *  daemon fleet reads/writes the matching state root after a reboot. */
+  statePrefix: string;
   home: string;
   user: string;
   /** PATH inherited so `pi --mode rpc` resolves the same way it does
@@ -157,9 +167,12 @@ export interface RenderVars {
 }
 
 export function defaultRenderVars(): RenderVars {
+  const agentBin = resolveDefaultAgentBin();
   return {
     node: findNodeBinary(),
     supervisor: findSupervisorScript(),
+    agentBin,
+    statePrefix: statePrefixForAgentBin(agentBin),
     home: homedir(),
     user: userInfo().username,
     path: process.env["PATH"] ?? "/usr/local/bin:/usr/bin:/bin",
@@ -168,11 +181,14 @@ export function defaultRenderVars(): RenderVars {
   };
 }
 
-/** Replace `{NODE}` / `{SUPERVISOR}` / `{USER}` / `{HOME}` / `{PATH}` / `{VBS}` / `{LOG}`. */
+/** Replace `{NODE}` / `{SUPERVISOR}` / `{AGENT_BIN}` / `{STATE_PREFIX}` /
+ *  `{USER}` / `{HOME}` / `{PATH}` / `{VBS}` / `{LOG}`. */
 export function renderTemplate(template: string, vars: RenderVars): string {
   return template
     .replace(/\{NODE\}/g, vars.node)
     .replace(/\{SUPERVISOR\}/g, vars.supervisor)
+    .replace(/\{AGENT_BIN\}/g, vars.agentBin)
+    .replace(/\{STATE_PREFIX\}/g, vars.statePrefix)
     .replace(/\{USER\}/g, vars.user)
     .replace(/\{HOME\}/g, vars.home)
     .replace(/\{PATH\}/g, vars.path)

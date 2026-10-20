@@ -1,11 +1,11 @@
 import { existsSync, mkdirSync, unlinkSync } from "node:fs";
 import { createConnection, createServer, type Server, type Socket } from "node:net";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { addDaemon, listDaemons, migrateRegistryNames, removeDaemon } from "./registry.js";
 import { daemonIdForCwd } from "./id.js";
 import { defaultAgentName, type LocalConfig } from "../session/local_config.js";
 import { ipcAddress, usesNamedPipe } from "../session/ipc.js";
+import { userStateRoot } from "../state_paths.js";
 import { EXIT_DAEMON_FRESH_SESSION, RpcChild, type RpcChildExitEvent, type RpcChildOptions } from "./rpc_child.js";
 import {
   type ControlReply,
@@ -58,9 +58,9 @@ const SUPERVISOR_SOCK_NAME = "supervisor.sock";
 const RESTART_BACKOFFS_MS = [1_000, 5_000, 30_000, 5 * 60_000];
 
 function supervisorSockPath(): string {
-  const root = process.env["REMOTE_PI_HOME"] || homedir();
-  // POSIX → ~/.pi/remote/supervisor.sock; Windows → per-user named pipe (plan/40).
-  return ipcAddress("supervisor", join(root, ".pi", "remote", SUPERVISOR_SOCK_NAME));
+  // POSIX → ~/.pi/remote/supervisor.sock (or the .omp namespace — see
+  // `state_paths.ts`); Windows → per-user named pipe (plan/40).
+  return ipcAddress("supervisor", join(userStateRoot(), SUPERVISOR_SOCK_NAME));
 }
 
 /** Thrown by `start()` when another live supervisor already holds the UDS.
@@ -98,7 +98,8 @@ export interface SupervisorOptions {
    *  spawned `pi`. Defaults to the location relative to where this file
    *  is bundled (so the supervisor finds itself). */
   extensionPath: string;
-  /** Override the `pi` binary path. Defaults to "pi" on PATH. */
+  /** Override the agent binary path. Defaults to auto-detecting `pi`/`omp`
+   *  via `REMOTE_PI_AGENT_BIN` / PATH (see `resolveDefaultAgentBin`). */
   piBin?: string;
 }
 
