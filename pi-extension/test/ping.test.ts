@@ -85,7 +85,7 @@ const {
   routeClientMessage,
   _startRelayForTest,
   _stopForTest,
-} = await import("../src/index.js");
+} = await import("../src/extension.js");
 
 import type { ExtensionAPI, ExtensionFactory } from "@mariozechner/pi-coding-agent";
 

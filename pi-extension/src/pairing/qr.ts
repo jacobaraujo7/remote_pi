@@ -105,7 +105,7 @@ export function renderQRAscii(uri: string): string {
 
 /**
  * Legacy stderr writer — kept for the standalone CLI mode
- * (`pi-extension/src/index.ts` bottom block, which runs outside a Pi TUI).
+ * (`pi-extension/src/cli.ts`, which runs outside a Pi TUI).
  * Inside the Pi TUI extension flow, use `renderQRAscii` + `pi.sendMessage`
  * instead — direct stderr writes from inside an extension break the TUI's
  * scrollable output widget (the QR overflows the panel and other writes

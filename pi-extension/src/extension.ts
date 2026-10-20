@@ -1,0 +1,4395 @@
+/**
+ * pi-extension — remote-pi slash commands + AgentBridge wiring
+ *
+ * Exported as ExtensionFactory (default export). Pi loads it through the
+ * package entry (index.ts), which imports this module lazily:
+ *   pi -e $(pwd)/dist/index.js
+ *
+ * State machine:  idle → started → paired
+ *   /remote-pi start   connects to relay (idle → started)
+ *   /remote-pi pair    shows QR for new peers (started, async → paired via auto-listener)
+ *   /remote-pi stop    closes everything (any → idle)
+ *
+ * Pairing (post plano 06 — sem Noise XX):
+ *   App envia inner `pair_request` (id, token, device_name) sobre canal opaco.
+ *   Pi valida o token via qrSession.consumeToken, salva peer em peers.json
+ *   {name, remote_epk, paired_at} e responde com `pair_ok` (ou `pair_error`).
+ *   `ct` é base64(JSON.stringify(inner)) — sem cifra, sem MAC.
+ *
+ * Reconexão de peer conhecido:
+ *   Se uma mensagem chega em estado `started` vinda de um epk presente em
+ *   peers.json, o auto-listener promove direto pra `paired` sem novo
+ *   pair_request, criando o PlainPeerChannel e roteando a mensagem.
+ *
+ * Architecture note — why we don't use AgentBridge directly here:
+ *   AgentBridge.beforeToolCallHook is designed to be passed to createAgentSession().
+ *   Inside an extension Pi already owns the AgentSession, so we can't re-bind
+ *   beforeToolCall after the fact. The equivalent is pi.on("tool_call", …) which
+ *   fires BEFORE execution and supports { block: true }.
+ *   AgentBridge (src/session/agent_bridge.ts) remains the tested, mockable unit
+ *   for integration tests.
+ */
+
+import { randomUUID } from "node:crypto";
+import type {
+  ExtensionAPI,
+  ExtensionCommandContext,
+  ExtensionContext,
+  ExtensionFactory,
+} from "@earendil-works/pi-coding-agent";
+import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
+import { type Ed25519Keypair } from "./pairing/crypto.js";
+import { buildQRUri, qrSession, renderQRAscii, clampPairTtlMs, TOKEN_TTL_MS } from "./pairing/qr.js";
+import {
+  addPeer,
+  getOrCreateEd25519Keypair,
+  KeyringUnavailableError,
+  PairedIdentityMissingError,
+  listPeers,
+  removePeer,
+  snapshotOwnerPubkeys,
+  conditionalRemovePeer,
+  type PeerRecord,
+} from "./pairing/storage.js";
+import { MeshClient } from "./mesh/client.js";
+import { canonicalizeEd25519PublicKey } from "./mesh/encoding.js";
+import { SelfRevoke } from "./mesh/self_revoke.js";
+import type { MeshTopologySnapshot } from "./mesh/siblings.js";
+import type {
+  ClientMessage,
+  PairErrorCode,
+  ServerMessage,
+  SessionHistoryEvent,
+  ThinkingLevel,
+  WireImage,
+  QueuedMessageItem,
+} from "./protocol/types.js";
+import { RelayClient, RoomAlreadyOpenError } from "./transport/relay_client.js";
+import { PlainPeerChannel } from "./transport/peer_channel.js";
+import {
+  createExtensionUiBridge,
+  type ExtensionUiBridge,
+} from "./extension_ui_bridge.js";
+import { roomIdFor } from "./rooms.js";
+import { registerAgentTools } from "./session/tools.js";
+import { formatPeerInventory } from "./session/peer_inventory.js";
+import { MeshNode } from "./session/mesh_node.js";
+import {
+  handleSessionCompact,
+  handleModelSet,
+  handleThinkingSet,
+  handleListModels,
+  type ActionCtx,
+} from "./actions/handlers.js";
+import { ensureModelRegistry } from "./actions/registry.js";
+import {
+  ensureGlobalDirs,
+  LOCAL_SESSION_NAME,
+  sessionAuditPath,
+  sessionSockPath,
+  skillsDir,
+} from "./session/global_config.js";
+import { acquireCwdLock, type AcquiredLock } from "./session/cwd_lock.js";
+import { EXIT_DAEMON_FRESH_SESSION } from "./daemon/rpc_child.js";
+import {
+  defaultAgentName,
+  effectiveAutoStartRelay,
+  loadLocalConfig,
+  localConfigExists,
+  saveLocalConfig,
+} from "./session/local_config.js";
+import { runSetupWizard, type WizardUI } from "./session/setup_wizard.js";
+import {
+  _cmdCreate,
+  _cmdCron,
+  _cmdDaemonRestart,
+  _cmdDaemonSend,
+  _cmdDaemonStart,
+  _cmdDaemonStatus,
+  _cmdDaemonStop,
+  _cmdDaemonsList,
+  _cmdInstall,
+  _cmdRemove,
+  _cmdUninstall,
+  _inspectPeerRecord,
+  _runtimeOwnerFingerprint,
+  type InspectedPeerRecord,
+} from "./commands.js";
+import { updateFooter, type FooterState } from "./ui/footer.js";
+import { join, dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { chmodSync, mkdtempSync, mkdirSync, copyFileSync, existsSync, unlinkSync, readFileSync, writeFileSync, realpathSync } from "node:fs";
+import { hostname, tmpdir } from "node:os";
+import {
+  resolveRelayUrl,
+  saveConfig,
+  isValidRelayUrl,
+  isWebSocketScheme,
+  toWebSocketUrl,
+} from "./config.js";
+import { Box, Container, Image, Text } from "@earendil-works/pi-tui";
+
+// ── State machine ─────────────────────────────────────────────────────────────
+//
+// Pre-2026-05-23: `idle` → `started` → `paired` (one owner at a time, gate-kept
+// by `_appPeerId`/`_peerChannel` singletons). The transition to `paired` was
+// what unblocked the app from sending application messages.
+//
+// Now: `idle` → `started`. The `paired` state is a derived metric
+// (`_activePeers.size > 0`) — N owners can be connected at once, each with
+// its own `PlainPeerChannel` in `_activePeers`. Plan/24 W2D ("multi-channel
+// broadcast"): pairing a second device no longer disconnects the first, and
+// every connected owner receives the same agent stream in parallel.
+
+export type RemoteState = "idle" | "started";
+
+let _state: RemoteState = "idle";
+let _relay: RelayClient | null = null;
+
+/** Relay connectivity as seen by an RPC client (Cockpit). Derived from
+ *  `_state` + `_relay`: "disconnected" = relay off (idle); "connected" = live
+ *  WS; "reconnecting" = was on, WS dropped, retrying. Surfaced via the
+ *  `remote-pi:relay-state` custom message (see `_emitRelayState`). */
+export type RelayConnectivity = "connected" | "reconnecting" | "disconnected";
+
+/** Last `RelayConnectivity` emitted, for change-dedup. Starts "disconnected"
+ *  (the process boots with the relay down). */
+let _lastRelayStatus: RelayConnectivity | null = null;
+
+/** Sentinel prefix for a transparent control message an RPC client sends on the
+ *  `prompt` channel (stdin). The `input` hook intercepts it, runs the action,
+ *  and swallows it (`action:"handled"`) so it never becomes an LLM turn or a
+ *  transcript entry. Starts with NUL so it can't collide with real user input
+ *  and doesn't begin with "/" (which would route to the command parser). */
+export const CTRL_PREFIX = "\x00remote-pi-ctrl:";
+let _relayUrl: string | null = null;  // URL used by current _relay connection
+/**
+ * Owners currently connected via the relay. Key = app peer pubkey (Ed25519,
+ * base64 standard); value = the dedicated PlainPeerChannel routing messages
+ * to/from that owner.
+ *
+ * Operational notes:
+ *   - Adding/removing entries is exclusively in `_attachPeerChannel` and
+ *     `_detachPeerChannel` (or `_goIdle` for the bulk teardown). Don't mutate
+ *     directly elsewhere — those helpers keep the footer/log/state in sync.
+ *   - `paired` UX state is `_activePeers.size > 0`. The footer and the
+ *     `/remote-pi status` output both derive from this.
+ */
+const _activePeers = new Map<string, PlainPeerChannel>();
+let _peerShort = "";  // shortid of the most recently attached peer (UX hint only)
+
+const REMOTE_PI_RECEIVED_IMAGE_TYPE = "remote-pi:received-image";
+const RECEIVED_IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+
+type ReceivedImageDetails = {
+  messageId: string;
+  index: number;
+  mime: string;
+  size?: number;
+  path?: string;
+  previewPath?: string;
+  text?: string;
+  error?: string;
+  reason?: string;
+};
+
+const IMAGE_PREVIEW_MIME = "image/png";
+const IMAGE_CACHE_PREFIX = "pi-app-";
+type ReceivedImagePreviewDelivery = "immediate" | "defer";
+let _imageCacheDir: string | undefined;
+const _pendingReceivedImagePreviews: ReceivedImageDetails[] = [];
+
+function _isBase64Char(code: number): boolean {
+  return (code >= 48 && code <= 57) // 0-9
+    || (code >= 65 && code <= 90) // A-Z
+    || (code >= 97 && code <= 122) // a-z
+    || code === 43 // +
+    || code === 47; // /
+}
+
+function _isStrictBase64(data: string): boolean {
+  if (data.length === 0 || data.length % 4 !== 0) return false;
+  if (data.startsWith("=")) return false;
+
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  for (let i = 0; i < data.length; i += 1) {
+    const code = data.charCodeAt(i);
+    if (i >= data.length - padding) {
+      if (code !== 61) return false;
+      continue;
+    }
+    if (!_isBase64Char(code)) return false;
+  }
+
+  return true;
+}
+
+let _myRoomId: string | null = null;   // this Pi's room id (derived from cwd)
+// Plan/28 Wave D.1: `thinking` published alongside `model` so the app's
+// Quick Actions sheet hydrates the thinking segmented control on first
+// open instead of starting null. The SDK fires `thinking_level_select`
+// on every change (initial load + user toggle), mirrored to room_meta
+// the same way model is — apps subscribe to one channel for both.
+let _myRoomMeta: { name: string; cwd: string; model?: string; thinking?: ThinkingLevel; working?: boolean } | null = null;
+let _currentModel: string | undefined = undefined;  // last-known model name
+let _currentThinking: ThinkingLevel | undefined = undefined;  // last-known thinking level
+
+// ── Agent-network session (plano 19) ──────────────────────────────────────────
+// MeshNode owns both the local UDS mesh (SessionPeer) and the optional
+// cross-PC relay bridge (BrokerRemote + PiForwardClient). The bridge is
+// attached via `_meshNode.attachBridge()` once the relay WS is up and this
+// Pi is the leader; MeshNode re-attaches it across UDS failovers.
+let _meshNode: MeshNode | null = null;
+let _sessionName: string | null = null;
+let _sessionPeerCount = 0;
+// Invalidates an in-flight MeshNode.connect() before it can publish globally.
+let _meshJoinGeneration = 0;
+// Set true by `session_shutdown`. Connecting is async, so shutdown can land
+// while `_cmdRoot` has not published either candidate yet. `_disposed` blocks
+// the outgoing continuation until a same-module `session_start` rearms it;
+// relay/mesh generations below permanently distinguish the old candidates from
+// that replacement lifecycle even after `_disposed` becomes false again.
+let _disposed = false;
+// True once the auto-init has run on the first session_start for this
+// process. Prevents re-running on session replacements (those re-init via
+// the _disposed re-arm path above). The session_start handler below auto-starts
+// remote-pi for ANY session whose local config has auto_start_relay (default
+// true) — interactive AND daemon — instead of only REMOTE_PI_DAEMON=1.
+let _autoInited = false;
+
+// Cached state of global pairings (`peers.json`). Pairing is per-machine, so a
+// device paired in any Pi process is paired everywhere. Refreshed on boot,
+// after addPeer (handle_pair_request), and after removePeer (revoke).
+let _hasGlobalPairings = false;
+
+/** Reads peers.json and updates the global-pairings cache + footer. Fire and
+ *  forget; failures keep the previous cached value. */
+function _refreshPairingsCache(): void {
+  void listPeers()
+    .then((peers) => {
+      _hasGlobalPairings = peers.length > 0;
+      _refreshFooter();
+    })
+    .catch(() => { /* keep prior cached value */ });
+}
+
+/** Re-queries the broker for the authoritative peer list. The broker's map is
+ *  the source of truth — incremental +1/-1 counters drift after failover, lost
+ *  `peer_left` broadcasts (e.g., leader leaves), or any dropped event. Called
+ *  on every `peer_joined`/`peer_left` and once on join. Fire-and-forget. */
+function _refreshSessionPeerCount(
+  peer: MeshNode,
+  ctx?: Pick<ExtensionContext, "ui"> | null,
+): void {
+  void peer.request("broker", { type: "list_peers" }, 2000)
+    .then((reply) => {
+      const peers = (reply.body as { peers?: string[] } | null)?.peers;
+      if (Array.isArray(peers)) {
+        _sessionPeerCount = peers.length;
+        _refreshFooter(ctx);
+      }
+    })
+    .catch(() => { /* older broker without list_peers — keep prior count */ });
+}
+
+/** Friendly model name for room_meta (plano 18). undefined when SDK has none yet. */
+function _currentModelName(): string | undefined {
+  return _currentModel;
+}
+
+/**
+ * Cache the active model name and fan it out to subscribed apps via a
+ * `room_meta_update`. The relay push is a no-op when the room isn't up yet —
+ * the next `room_meta` hello carries the cached value instead. Shared by the
+ * `model_select` event and the connect/turn-start seeding, so a daemon that
+ * just runs its DEFAULT model still reports it: `model_select` only fires on an
+ * explicit set/cycle (never on settings load), so default-model daemons would
+ * otherwise never surface their model.
+ */
+function _setCurrentModel(name: string): void {
+  _currentModel = name;
+  if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, model: name };
+  if (_relay && _myRoomId) {
+    _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { model: name } });
+  }
+}
+
+/**
+ * Plan/32: publish the `working` flag as room_meta (raw, no debounce — the
+ * app debounces). Same shape as model/thinking updates. Used by turn_start/end
+ * AND by the compaction handlers: `compact()` doesn't run a turn (it
+ * disconnects the agent + aborts, emitting compaction_start, NOT turn_start),
+ * so room_meta.working must be bracketed manually around compaction.
+ */
+function _publishWorking(working: boolean): void {
+  if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, working };
+  if (_relay && _myRoomId) {
+    _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working } });
+  }
+}
+
+function _imageCacheRootDir(): string {
+  if (_imageCacheDir) {
+    try { mkdirSync(_imageCacheDir, { recursive: true, mode: 0o700 }); } catch {}
+    try { chmodSync(_imageCacheDir, 0o700); } catch {}
+    return _imageCacheDir;
+  }
+  const dir = mkdtempSync(join(tmpdir(), IMAGE_CACHE_PREFIX));
+  try { chmodSync(dir, 0o700); } catch {}
+  _imageCacheDir = dir;
+  return dir;
+}
+
+function _imageExtension(mime: string): string | undefined {
+  if (mime === "image/jpeg") return "jpg";
+  if (mime === "image/png") return "png";
+  if (mime === "image/webp") return "webp";
+  if (mime === "image/gif") return "gif";
+  return undefined;
+}
+
+function _safeFilenameToken(value: string): string {
+  return value
+    .trim()
+    .replace(/[^A-Za-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    || "message";
+}
+
+function _safePreviewPath(dir: string, messageId: string, index: number): string {
+  return join(dir, `${_safeFilenameToken(messageId)}-${index}.preview.png`);
+}
+
+function _cleanupPreviewFile(previewPath: string): void {
+  try {
+    if (existsSync(previewPath)) unlinkSync(previewPath);
+  } catch {
+    // best effort
+  }
+}
+
+async function _renderablePngPathFromImage(
+  imageData: string,
+  mime: string,
+  previewPath: string,
+): Promise<string | undefined> {
+  if (mime === IMAGE_PREVIEW_MIME) return undefined;
+
+  try {
+    const converted = await convertToPng(imageData, mime);
+    if (!converted || converted.mimeType !== IMAGE_PREVIEW_MIME || !converted.data) {
+      return undefined;
+    }
+
+    const previewBytes = Buffer.from(converted.data, "base64");
+    if (previewBytes.length === 0 || previewBytes.length > RECEIVED_IMAGE_MAX_BYTES) {
+      return undefined;
+    }
+
+    try {
+      writeFileSync(previewPath, previewBytes, { mode: 0o600 });
+      try { chmodSync(previewPath, 0o600); } catch {}
+      return previewPath;
+    } catch {
+      _cleanupPreviewFile(previewPath);
+    }
+  } catch {
+    _cleanupPreviewFile(previewPath);
+  }
+
+  return undefined;
+}
+
+function _decodeImagePayload(data: string, mime: string): { ok: true; decoded: Buffer; size: number } | { ok: false; reason: string } {
+  if (!_imageExtension(mime)) return { ok: false, reason: `unsupported mime: ${mime}` };
+  if (data.startsWith("data:")) return { ok: false, reason: "data URI payloads are not supported" };
+  if (!_isStrictBase64(data)) return { ok: false, reason: "invalid base64 payload" };
+
+  const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+  const estimate = (data.length / 4) * 3 - padding;
+  if (estimate > RECEIVED_IMAGE_MAX_BYTES) {
+    return { ok: false, reason: `image too large (${estimate} bytes)` };
+  }
+
+  const decoded = Buffer.from(data, "base64");
+  if (decoded.length === 0 || decoded.length > RECEIVED_IMAGE_MAX_BYTES) {
+    return { ok: false, reason: `invalid decoded image size (${decoded.length} bytes)` };
+  }
+
+  return { ok: true, decoded, size: decoded.length };
+}
+
+function _sendReceivedImagePreviewNow(details: ReceivedImageDetails): void {
+  if (!_pi) return;
+  try {
+    _pi.sendMessage<ReceivedImageDetails>({
+      customType: REMOTE_PI_RECEIVED_IMAGE_TYPE,
+      content: "",
+      display: true,
+      details,
+    });
+  } catch {
+    // TUI preview is best-effort; skip on failure.
+  }
+}
+
+function _shouldDeferReceivedImagePreview(): boolean {
+  return _currentTurnId !== null || _myRoomMeta?.working === true;
+}
+
+function _sendReceivedImagePreview(
+  details: ReceivedImageDetails,
+  delivery: ReceivedImagePreviewDelivery = "immediate",
+): void {
+  if (delivery === "defer" || _shouldDeferReceivedImagePreview()) {
+    _pendingReceivedImagePreviews.push(details);
+    return;
+  }
+  _sendReceivedImagePreviewNow(details);
+}
+
+function _flushPendingReceivedImagePreviews(): void {
+  if (_pendingReceivedImagePreviews.length === 0) return;
+  const pending = _pendingReceivedImagePreviews.splice(0);
+  for (const details of pending) _sendReceivedImagePreviewNow(details);
+}
+
+async function _collectReceivedImagePreviews(msg: ClientUserMessage): Promise<ReceivedImageDetails[]> {
+  if (!msg.images || msg.images.length === 0) return [];
+
+  const previews: ReceivedImageDetails[] = [];
+  const text = typeof msg.text === "string" ? msg.text : "";
+  const dir = _imageCacheRootDir();
+
+  for (let i = 0; i < msg.images.length; i += 1) {
+    const image = msg.images[i];
+    const mime = typeof image?.mime === "string" ? image.mime : "unknown";
+
+    if (!image || typeof image.data !== "string") {
+      console.error(`[remote-pi] malformed image in message ${msg.id} index=${i}`);
+      previews.push({
+        messageId: msg.id,
+        index: i,
+        mime,
+        ...(text ? { text } : {}),
+        error: "malformed image payload",
+        reason: "missing mime/data payload fields",
+      });
+      continue;
+    }
+
+    const decoded = _decodeImagePayload(image.data, image.mime);
+    if (!decoded.ok) {
+      console.error(`[remote-pi] skipped image id=${msg.id} index=${i}: ${decoded.reason}`);
+      previews.push({
+        messageId: msg.id,
+        index: i,
+        mime: image.mime,
+        ...(text ? { text } : {}),
+        error: "invalid image payload",
+        reason: decoded.reason,
+      });
+      continue;
+    }
+
+    const ext = _imageExtension(image.mime);
+    if (!ext) {
+      console.error(`[remote-pi] unsupported image mime in message ${msg.id} index=${i}: ${image.mime}`);
+      previews.push({
+        messageId: msg.id,
+        index: i,
+        mime: image.mime,
+        ...(text ? { text } : {}),
+        error: "invalid image payload",
+        reason: `unsupported mime: ${image.mime}`,
+      });
+      continue;
+    }
+
+    const filename = `${_safeFilenameToken(msg.id)}-${i}.${ext}`;
+    const path = join(dir, filename);
+
+    try {
+      writeFileSync(path, decoded.decoded, { mode: 0o600 });
+      try { chmodSync(path, 0o600); } catch {}
+
+      const previewPath =
+        image.mime === IMAGE_PREVIEW_MIME
+          ? undefined
+          : await _renderablePngPathFromImage(
+              image.data,
+              image.mime,
+              _safePreviewPath(dir, msg.id, i),
+            );
+
+      previews.push({
+        messageId: msg.id,
+        index: i,
+        mime: image.mime,
+        size: decoded.size,
+        path,
+        ...(previewPath ? { previewPath } : {}),
+        ...(text ? { text } : {}),
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[remote-pi] failed saving image id=${msg.id} index=${i}: ${detail}`);
+      previews.push({
+        messageId: msg.id,
+        index: i,
+        mime: image.mime,
+        ...(text ? { text } : {}),
+        path,
+        error: "failed to save image",
+        reason: detail,
+      });
+    }
+  }
+
+  return previews;
+}
+
+async function _emitReceivedImagePreviews(
+  msg: ClientUserMessage,
+  delivery: ReceivedImagePreviewDelivery = "immediate",
+): Promise<void> {
+  const previews = await _collectReceivedImagePreviews(msg);
+  for (const preview of previews) _sendReceivedImagePreview(preview, delivery);
+}
+
+function _registerReceivedImageRenderer(pi: ExtensionAPI): void {
+  pi.registerMessageRenderer<ReceivedImageDetails>(
+    REMOTE_PI_RECEIVED_IMAGE_TYPE,
+    (message, _options, theme) => {
+      const details = (message.details ?? {}) as Partial<ReceivedImageDetails>;
+      const path = typeof details.path === "string" ? details.path : "";
+      const previewPath = typeof details.previewPath === "string" ? details.previewPath : "";
+      const mime = typeof details.mime === "string" ? details.mime : "application/octet-stream";
+      const inlineImagePath = previewPath.length > 0
+        ? previewPath
+        : (mime === IMAGE_PREVIEW_MIME ? path : "");
+      const size = typeof details.size === "number" ? details.size : undefined;
+      const index = typeof details.index === "number" ? details.index : undefined;
+      const text = typeof details.text === "string" ? details.text.trim() : "";
+      const messageId = typeof details.messageId === "string" ? details.messageId : "unknown";
+      const error = typeof details.error === "string" ? details.error : undefined;
+      const reason = typeof details.reason === "string" ? details.reason : undefined;
+
+      const label = `📷 Photo from Android (${messageId}${index !== undefined ? ` #${index}` : ""})`;
+      const lines = [
+        theme.fg("customMessageLabel", label),
+        theme.fg("customMessageText", `Saved: ${path || "(not saved)"}`),
+      ];
+      if (size !== undefined) lines.push(theme.fg("customMessageText", `Size: ${size} bytes`));
+      if (mime) lines.push(theme.fg("customMessageText", `MIME: ${mime}`));
+      if (error) lines.push(theme.fg("customMessageText", `Error: ${error}`));
+      if (reason) lines.push(theme.fg("customMessageText", `Reason: ${reason}`));
+      if (text) lines.push(theme.fg("customMessageText", `Text: ${text}`));
+
+      const container = new Container();
+      const metadata = new Box(1, 1, (line) => theme.bg("customMessageBg", line));
+      metadata.addChild(new Text(lines.join("\n")));
+      container.addChild(metadata);
+
+      if (inlineImagePath && !error) {
+        try {
+          const imageData = readFileSync(inlineImagePath).toString("base64");
+          if (imageData.length > 0) {
+            const image = new Image(imageData, IMAGE_PREVIEW_MIME, {
+              fallbackColor: (str) => theme.fg("customMessageText", str),
+            });
+            // Keep Kitty image rows out of Box padding/background so pi-tui can
+            // preserve the empty reserved rows that make inline images visible.
+            container.addChild(image);
+          }
+        } catch {
+          // Keep the metadata-only fallback on any IO/terminal issue.
+        }
+      }
+
+      return container;
+    },
+  );
+}
+
+function _isReceivedImageContextMessage(message: unknown): boolean {
+  return typeof message === "object"
+    && message !== null
+    && (message as { role?: unknown }).role === "custom"
+    && (message as { customType?: unknown }).customType === REMOTE_PI_RECEIVED_IMAGE_TYPE;
+}
+
+/**
+ * Issue #105 — pure-data events must not reach the model.
+ *
+ * `display: false` only suppresses TUI rendering. Pi still persists the message
+ * as a `CustomMessageEntry`, and those DO participate in LLM context, so every
+ * relay flap / name collision / pairing was being replayed to the model on
+ * every subsequent call ("Relay connected", "Mesh name reassigned: …"). The
+ * agent burned tokens on internal telemetry and sometimes reasoned about it as
+ * if it were user input.
+ *
+ * The filter is non-destructive: the entries stay in the session (Cockpit and
+ * any other RPC client still read them off the stream), the LLM just never sees
+ * them. Keyed on `display === false` rather than a customType allowlist, so any
+ * pure-data event we add later is covered by construction. Events meant for the
+ * human (`remote-pi:mesh-message`, `remote-pi:mesh-revoked`, …) set
+ * `display: true` and pass through untouched.
+ */
+function _isPureDataContextMessage(message: unknown): boolean {
+  if (typeof message !== "object" || message === null) return false;
+  const m = message as { role?: unknown; customType?: unknown; display?: unknown };
+  return m.role === "custom"
+    && typeof m.customType === "string"
+    && m.customType.startsWith("remote-pi:")
+    && m.display === false;
+}
+
+function _filterInternalMessagesFromContext<T>(messages: T[] | undefined): T[] {
+  return Array.isArray(messages)
+    ? messages.filter((message) =>
+        !_isReceivedImageContextMessage(message) && !_isPureDataContextMessage(message))
+    : [];
+}
+
+function _contentFromUserMessage(
+  msg: ClientUserMessage,
+): Parameters<ExtensionAPI["sendUserMessage"]>[0] {
+  return msg.images && msg.images.length > 0
+    ? [
+        ...msg.images.map((img) => ({ type: "image" as const, data: img.data, mimeType: img.mime })),
+        { type: "text" as const, text: msg.text },
+      ]
+    : msg.text;
+}
+
+function _echoUserMessage(msg: ClientUserMessage, forceSteer = false): void {
+  _broadcastToActive({
+    type: "user_message",
+    id: msg.id,
+    text: msg.text,
+    ...(msg.images && msg.images.length > 0 ? { images: msg.images } : {}),
+    ...(forceSteer || msg.streaming_behavior === "steer"
+      ? { streaming_behavior: "steer" as const }
+      : {}),
+  });
+}
+
+async function _deliverImageUserMessage(
+  sender: PlainPeerChannel,
+  msg: ClientUserMessage,
+  shouldSteer: boolean,
+): Promise<void> {
+  const previewDelivery: ReceivedImagePreviewDelivery =
+    shouldSteer || _currentTurnId !== null || _myRoomMeta?.working === true
+      ? "defer"
+      : "immediate";
+  const emitPreview = async () => {
+    try {
+      await _emitReceivedImagePreviews(msg, previewDelivery);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(`[remote-pi] failed emitting image preview id=${msg.id}: ${detail}`);
+    }
+  };
+  if (previewDelivery === "immediate") {
+    await emitPreview();
+  } else {
+    void emitPreview().finally(() => {
+      if (!_shouldDeferReceivedImagePreview()) _flushPendingReceivedImagePreviews();
+    });
+  }
+
+  const previousTurnId = _currentTurnId;
+  const seededTurnId = !shouldSteer || _currentTurnId === null;
+  if (seededTurnId) _currentTurnId = msg.id;
+
+  const wake = _wakeAgent(
+    _contentFromUserMessage(msg),
+    `app user_message id=${msg.id} (+${msg.images?.length ?? 0} image)`,
+    "steer",
+  );
+  if (!wake.ok) {
+    if (seededTurnId) _currentTurnId = previousTurnId;
+    sender.send({
+      type: "error",
+      code: "internal_error",
+      in_reply_to: msg.id,
+      message: `Agent rejected incoming message: ${wake.detail}`,
+    });
+    return;
+  }
+
+  if (shouldSteer) _trackPendingSteer(msg.id, msg.text);
+  _echoUserMessage(msg, shouldSteer);
+}
+
+// ── Cross-PC mesh wiring (plan/25 Wave B/C) ───────────────────────────────────
+
+/**
+ * Hand the live relay to MeshNode so it can bring up the cross-PC bridge
+ * (BrokerRemote + sibling discovery) — but only when this Pi is the leader
+ * (broker host). MeshNode is idempotent + re-attaches across UDS failovers,
+ * so this is safe to call from `_cmdStart`, relay reconnect, or SelfRevoke.
+ * No-op until the relay WS + cached identity are both present.
+ */
+function _attachBridgeIfReady(): void {
+  if (!_meshNode || !_relay || !_relayUrl || !_cachedEd25519) return;
+  // A newly-created SelfRevoke producer must publish its own initial verified
+  // or fallback snapshot before any retained topology is allowed to attach.
+  if (_selfRevoke !== null) {
+    if (
+      _selfRevokeTopologyReadyEpoch !== _selfRevokeEpoch ||
+      _selfRevokeTopology === null
+    ) {
+      return;
+    }
+    if (!_meshNode.hasTopology()) _meshNode.setTopology(_selfRevokeTopology);
+  }
+  void _meshNode
+    .attachBridge({ relay: _relay, relayUrl: _relayUrl, keypair: _cachedEd25519 })
+    .catch(() => { /* best-effort — UDS mesh works regardless */ });
+}
+
+/**
+ * Prefer an explicit ctx, then the always-fresh session_start ctx, then the
+ * last command ctx. Relay/async paths must not rely on `_lastCtx` alone —
+ * the SDK marks captured command ctxs stale after session replacement.
+ * @see https://github.com/jacobaraujo7/remote_pi/issues/55
+ */
+function _liveCtx(
+  preferred?: { ui?: unknown } | null,
+): { ui?: unknown } | null {
+  return preferred ?? _lastEventCtx ?? _lastCtx ?? null;
+}
+
+/**
+ * Read `ctx.ui` without letting a stale-ctx getter become an uncaughtException.
+ * Optional chaining does NOT protect against a throwing getter.
+ */
+function _ctxUi(preferred?: { ui?: unknown } | null): {
+  setStatus?: (k: string, v: string | undefined) => void;
+  setTitle?: (t: string) => void;
+  notify?: (message: string, level?: string) => void;
+} | null {
+  const target = _liveCtx(preferred);
+  if (!target) return null;
+  try {
+    return (target.ui as {
+      setStatus?: (k: string, v: string | undefined) => void;
+      setTitle?: (t: string) => void;
+      notify?: (message: string, level?: string) => void;
+    } | null | undefined) ?? null;
+  } catch {
+    // Stale after newSession/fork/switchSession/reload — caller no-ops.
+    return null;
+  }
+}
+
+/** Best-effort TUI notify; never throws (relay reconnect must not crash pi). */
+function _safeNotify(message: string, level: "info" | "warning" | "error" = "info"): void {
+  try {
+    const ui = _ctxUi();
+    if (ui && typeof ui.notify === "function") ui.notify(message, level);
+  } catch {
+    /* never let notify take down the process */
+  }
+}
+
+/** Refreshes the Pi TUI footer slots from current module state. Safe no-op when ctx lacks ui. */
+function _refreshFooter(ctx?: { ui?: { setStatus?: unknown; setTitle?: unknown } } | null): void {
+  // Prefer live session_start ctx over capturable-stale command ctx (issue #55).
+  let ui: {
+    setStatus?: (k: string, v: string | undefined) => void;
+    setTitle?: (t: string) => void;
+  } | null;
+  try {
+    ui = _ctxUi(ctx);
+  } catch {
+    return;
+  }
+  if (!ui || typeof ui.setStatus !== "function" || typeof ui.setTitle !== "function") return;
+  try {
+    const state: FooterState = {
+      session: _sessionName ?? undefined,
+      peerCount: _sessionPeerCount,
+      relayOn: _state !== "idle",
+      // `devicePaired` now reflects "any owner currently attached" — picks one
+      // shortid representatively (multi-owner UX detail surfaces in the
+      // `/remote-pi status` line, not the footer slot).
+      devicePaired: _anyPeerActive() ? _peerShort : undefined,
+      hasPairings: _hasGlobalPairings,
+      agentName: _meshNode?.name(),
+    };
+    updateFooter(
+      { ui: { setStatus: ui.setStatus.bind(ui), setTitle: ui.setTitle.bind(ui) } },
+      state,
+    );
+  } catch {
+    // setStatus/setTitle can also throw if the runner went stale mid-call.
+  }
+}
+
+// Epoch ms when the state machine entered 'started' (last /remote-pi start).
+// Used by session_sync to let the app detect Pi restarts (and force a full
+// replay). Cleared on _goIdle.
+let _sessionStartedAt: number | null = null;
+
+// Snapshot of agent messages, captured on every agent_end event. Used to
+// answer session_sync. Cleared on _goIdle.
+type BufferMsg = {
+  role: "user" | "assistant" | "toolResult" | string;
+  content?: unknown;
+  timestamp?: number;
+  toolCallId?: string;
+  toolName?: string;
+  isError?: boolean;
+  usage?: { input?: number; output?: number };
+  /** Plan/32: pre-compaction token count, set on the synthetic
+   *  `role:"compaction"` marker pushed in `session_compact`. */
+  tokensBefore?: number;
+};
+let _messageBuffer: BufferMsg[] = [];
+type PendingSteer = { id: string; text: string };
+let _pendingSteers: PendingSteer[] = [];
+let _lastConsumedSteerText: string | null = null;
+
+type AndroidQueuedItem = QueuedMessageItem & { editable: true };
+let _queuedItems: AndroidQueuedItem[] = [];
+
+type MeshEnvelope = { id: string; from: string; re: string | null; body: unknown };
+let _pendingMeshMessages: MeshEnvelope[] = [];
+let _agentRunActive = false;
+let _agentRunGeneration = 0;
+let _meshDrainScheduled = false;
+
+function _queuedStateMessage(): ServerMessage {
+  const first = _queuedItems[0];
+  return {
+    type: "queued_message_state",
+    ...(first ? { id: first.id, text: first.text } : {}),
+    items: _queuedItems.map((item) => ({ ...item })),
+  };
+}
+
+function _sendQueuedState(sender: PlainPeerChannel): void {
+  sender.send(_queuedStateMessage());
+}
+
+function _broadcastQueuedState(): void {
+  _broadcastToActive(_queuedStateMessage());
+}
+
+function _resetQueuedItems({ broadcast = false }: { broadcast?: boolean } = {}): void {
+  _queuedItems = [];
+  if (broadcast) _broadcastQueuedState();
+}
+
+function _upsertQueuedItem(item: AndroidQueuedItem): void {
+  const index = _queuedItems.findIndex((existing) => existing.id === item.id);
+  if (index === -1) {
+    _queuedItems = [..._queuedItems, item];
+  } else {
+    _queuedItems = [
+      ..._queuedItems.slice(0, index),
+      item,
+      ..._queuedItems.slice(index + 1),
+    ];
+  }
+  _broadcastQueuedState();
+}
+
+function _clearQueuedItems(targetId?: string): void {
+  _queuedItems = targetId
+    ? _queuedItems.filter((item) => item.id !== targetId)
+    : [];
+  _broadcastQueuedState();
+}
+
+function _isBusyForQueueDrain(): boolean {
+  return _currentTurnId !== null || _myRoomMeta?.working === true;
+}
+
+function _normalizeSteerText(text: string): string {
+  return text.trim();
+}
+
+function _trackPendingSteer(id: string, text: string): void {
+  const key = _normalizeSteerText(text);
+  if (!key) return;
+  _pendingSteers.push({ id, text: key });
+}
+
+function _consumePendingSteerForStartedUser(text: string): string | null {
+  if (_pendingSteers.length === 0) return null;
+  const key = _normalizeSteerText(text);
+  const index = key ? _pendingSteers.findIndex((item) => item.text === key) : -1;
+  const [item] = _pendingSteers.splice(index >= 0 ? index : 0, 1);
+  return item?.id ?? null;
+}
+
+function _broadcastConsumedSteerForUserContent(content: unknown): void {
+  const text = _stringifyContent(content);
+  if (_lastConsumedSteerText === text) {
+    _lastConsumedSteerText = null;
+    return;
+  }
+  const id = _consumePendingSteerForStartedUser(text);
+  if (!id) return;
+  _lastConsumedSteerText = text;
+  _broadcastToActive({ type: "steer_consumed", id });
+}
+
+function _maybeDrainQueuedItem(): void {
+  if (_isBusyForQueueDrain()) return;
+  const item = _queuedItems.shift();
+  if (!item) return;
+  _broadcastQueuedState();
+
+  const previousTurnId = _currentTurnId;
+  _currentTurnId = item.id;
+  const msg: ClientUserMessage = { type: "user_message", id: item.id, text: item.text };
+  const wake = _wakeAgent(item.text, `queued app user_message id=${item.id}`, "steer");
+  if (!wake.ok) {
+    _currentTurnId = previousTurnId;
+    _queuedItems = [item, ..._queuedItems];
+    _broadcastQueuedState();
+    _broadcastToActive({
+      type: "error",
+      code: "internal_error",
+      in_reply_to: item.id,
+      message: `Agent rejected queued message: ${wake.detail}`,
+    });
+    return;
+  }
+  _echoUserMessage(msg, false);
+}
+
+/** Test-only override of the message buffer. */
+/**
+ * Test-only: emulate what `/remote-pi` does on the returning-user path
+ * (join the local mesh, then start the relay) without touching the FS for
+ * a `localConfigExists()` lookup. Lets tests bring the relay up without
+ * mocking the wizard or the local config storage.
+ *
+ * Typed loosely to accept any ctx shape with `ui.notify` + `cwd` — the
+ * unit tests use minimal mocks that don't satisfy the full
+ * `ExtensionContext` interface.
+ */
+export async function _connectForTest(ctx: unknown): Promise<void> {
+  const real = ctx as Parameters<typeof _cmdJoin>[0];
+  await _cmdJoin(real);
+  await _cmdStart(real);
+}
+
+/** Test-only: tear everything down (mirrors `/remote-pi stop`). */
+export async function _stopForTest(ctx: unknown): Promise<void> {
+  await _cmdStop(ctx as Parameters<typeof _cmdStop>[0]);
+}
+
+/** Test-only: read/reset the `_disposed` flag. Production clears it only when
+ *  a host reuses this module for a replacement session; tests share one module
+ *  across cases, so they also reset it to avoid cross-test pollution. */
+export function _getDisposedForTest(): boolean { return _disposed; }
+export function _setDisposedForTest(v: boolean): void { _disposed = v; }
+
+/** Test-only: reset the once-per-session auto-init gate so session_start re-runs it. */
+export function _resetAutoInitedForTest(): void { _autoInited = false; }
+
+/** Test-only: set the auto-init gate for lifecycle replacement tests. */
+export function _setAutoInitedForTest(value: boolean): void { _autoInited = value; }
+
+/** Test-only: true when this instance holds a live local-mesh node. */
+export function _hasMeshNodeForTest(): boolean { return _meshNode !== null; }
+
+/** Test-only: drive the current real SelfRevoke producer through one sweep. */
+export async function _checkSelfRevokeForTest(): Promise<void> {
+  await _selfRevoke?.checkOnce();
+}
+
+/** Test-only: the effective (possibly `#N`-suffixed) name the cwd-lock reserved. */
+export function _getLockedNameForTest(): string | null { return _lockedName; }
+
+/** Test-only: release + clear the cwd lock (the lock normally survives stop). */
+export function _resetCwdLockForTest(): void {
+  try { _cwdLock?.release(); } catch { /* ignored */ }
+  _cwdLock = null;
+  _lockedName = null;
+}
+
+/**
+ * Test-only: relay-only startup, no UDS mesh join. Replaces the old
+ * `remote-pi relay start` handler that some tests captured to bring up
+ * the relay in isolation (e.g. ping/pong tests that don't care about the
+ * agent-network broker).
+ */
+export async function _startRelayForTest(ctx: unknown): Promise<void> {
+  await _cmdStart(ctx as Parameters<typeof _cmdStart>[0]);
+}
+
+/** Test-only: public marker for canceled-keypair cache regression checks. */
+export function _getCachedPublicKeyForTest(): string | null {
+  return _cachedEd25519
+    ? Buffer.from(_cachedEd25519.publicKey).toString("base64")
+    : null;
+}
+
+export function _setMessageBufferForTest(msgs: unknown[]): void {
+  _messageBuffer = msgs as BufferMsg[];
+}
+
+/** Test-only accessor: returns a defensive copy of the buffer. */
+export function _getMessageBufferForTest(): unknown[] {
+  return [..._messageBuffer];
+}
+
+/** Test-only override of session started timestamp. */
+export function _setSessionStartedAtForTest(ts: number | null): void {
+  _sessionStartedAt = ts;
+}
+
+/** Test-only: reset the cached model name (between tests). */
+export function _setCurrentModelForTest(name: string | undefined): void {
+  _currentModel = name;
+}
+
+/** Test-only: read the active turn id used for plain `cancel` routing. */
+export function _getCurrentTurnIdForTest(): string | null {
+  return _currentTurnId;
+}
+
+export function _getPendingSteerIdsForTest(text: string): string[] {
+  const key = _normalizeSteerText(text);
+  return _pendingSteers.filter((item) => item.text === key).map((item) => item.id);
+}
+
+/** Test-only: override the bound AgentSession so a spy can capture the
+ *  content handed to `sendUserMessage` (plan/30 multimodal ingest). */
+export function _setPiForTest(pi: unknown): void {
+  _pi = pi as typeof _pi;
+}
+
+/**
+ * Persist a model change to the PROJECT settings (`<cwd>/.pi/settings.json`) so
+ * a model picked from the app survives a Pi/daemon restart. `pi.setModel` only
+ * sets the LIVE model — on the next restart a fresh session reads the saved
+ * default and reverts (the reported bug). We write the PROJECT scope, NOT
+ * global, deliberately: the SDK merges global←project with PROJECT winning
+ * (`SettingsManager`), so a folder that already has a project default (every
+ * created daemon does) would shadow a global write like the TUI's. Project
+ * scope is also correct for a fleet — each daemon keeps its own model rather
+ * than leaking one default globally.
+ *
+ * Read-merge-write + best-effort: preserves other keys and never throws (a
+ * settings write must not fail the live model change, which already applied).
+ */
+function _persistModelDefault(provider: string, modelId: string): void {
+  try {
+    const path = join(process.cwd(), ".pi", "settings.json");
+    let obj: Record<string, unknown> = {};
+    try {
+      const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+      if (parsed && typeof parsed === "object") obj = parsed as Record<string, unknown>;
+    } catch { /* no existing/parseable file → start fresh */ }
+    obj["defaultProvider"] = provider;
+    obj["defaultModel"] = modelId;
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(obj, null, 2));
+  } catch { /* best-effort — model change already applied live */ }
+}
+
+type ClientUserMessage = Extract<ClientMessage, { type: "user_message" }>;
+
+// Per-turn messaging state
+let _currentTurnId: string | null = null;
+
+// Module-level pi reference
+let _pi: ExtensionAPI | null = null;
+
+// Plan/57 — Bridge to pi-ask's clarification-flow events. null until the
+// extension factory wires it (and null if the SDK exposes no events bus).
+let _extensionUiBridge: ExtensionUiBridge | null = null;
+
+let _stopAutoListener: (() => void) | null = null;
+
+// Cached keypair (loaded once, reused across start/pair cycles)
+let _cachedEd25519: Ed25519Keypair | null = null;
+
+// Mesh-membership poller (plan/24 Wave 3). Lives across the relay
+// connection lifecycle: started in _cmdStart after the WS is up, stopped
+// in _goIdle when the relay is torn down.
+let _selfRevoke: SelfRevoke | null = null;
+let _selfRevokeEpoch = 0;
+let _selfRevokeTopologyReadyEpoch = -1;
+let _selfRevokeTopology: MeshTopologySnapshot | null = null;
+
+// Per-cwd lock acquired by the first `/remote-pi` invocation in this
+// process. Holds the UDS socket open until the process exits (OS auto-
+// releases on crash too). Stays held across `/remote-pi stop` cycles —
+// only released when the Node process itself dies.
+let _cwdLock: AcquiredLock | null = null;
+// Effective mesh name this instance locked. Equals the configured/derived name,
+// OR a `#N`-suffixed variant when another agent already holds that (cwd, name)
+// in this folder (same-name agents coexist instead of being refused). `_cmdJoin`
+// registers under this name; the broker confirms it (and may bump it again under
+// a live race). Null until the lock is acquired.
+let _lockedName: string | null = null;
+
+// ── Session sync limit (mirror cache cap) ─────────────────────────────────────
+//
+// Configurable via REMOTE_PI_SYNC_LIMIT env var (positive int, default 30).
+// Read on every session_sync so QA can `export REMOTE_PI_SYNC_LIMIT=N` between
+// runs without restarting the extension. The value is also clamped against
+// the client-provided `limit` (server is authoritative).
+const SYNC_LIMIT_DEFAULT = 30;
+function _getSyncLimit(): number {
+  const raw = process.env["REMOTE_PI_SYNC_LIMIT"];
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : SYNC_LIMIT_DEFAULT;
+}
+
+// ── Relay reconnect state ─────────────────────────────────────────────────────
+// Backoffs in ms: 1s, 2s, 5s, 10s, 30s, then stays at 30s.
+const RECONNECT_BACKOFFS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
+let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let _reconnectAttempt = 0;
+// Every initial connect/reconnect candidate captures this generation. Stop,
+// relay-off, and an unexpected close invalidate older async continuations.
+let _relayLifecycleGeneration = 0;
+// Root startup has pre-candidate awaits (cwd lock, wizard) that relay/mesh
+// generations cannot safely represent: child startup intentionally advances
+// those generations. Stop/off/session replacement advance this separate epoch
+// so a queued root can never regain authority by creating a newer child.
+let _rootLifecycleGeneration = 0;
+// Coalesces concurrent `/remote-pi` startup paths inside ONE extension instance.
+// Separate Pi processes still keep the existing #N behavior via the cwd lock.
+let _cmdRootInFlight: Promise<void> | null = null;
+
+type RootRestartAuthority = Readonly<{
+  rootLifecycleGeneration: number;
+}>;
+
+function _isCurrentRootLifecycle(generation: number): boolean {
+  return !_disposed && generation === _rootLifecycleGeneration;
+}
+
+/** Test-only: exposes pending reconnect timer state. */
+export function _hasPendingReconnect(): boolean {
+  return _reconnectTimer !== null;
+}
+
+/**
+ * Public state-snapshot helper. Returns the derived UX state, not the raw
+ * `_state` enum: the W2D refactor collapsed the internal machine to
+ * `idle | started` and made `paired` a derived metric
+ * (`_activePeers.size > 0`). Tests and the footer keep the three-state
+ * mental model via this getter.
+ */
+export function _getState(): "idle" | "started" | "paired" {
+  if (_state === "idle") return "idle";
+  return _activePeers.size > 0 ? "paired" : "started";
+}
+
+/** Test-only: number of owners currently attached via PlainPeerChannel. */
+export function _getActivePeerCountForTest(): number {
+  return _activePeers.size;
+}
+
+/** Test-only: true if a specific peer (base64 std) has an attached channel. */
+export function _hasActivePeerForTest(appPeerIdStd: string): boolean {
+  return _activePeers.has(appPeerIdStd);
+}
+
+
+// ── Multi-channel helpers ─────────────────────────────────────────────────────
+
+/**
+ * Sends `msg` to every currently-attached owner channel. The default
+ * dispatch for application-level events that are part of "the agent
+ * session is doing X" (agent_chunk, tool_request, tool_result, agent_done,
+ * user_input mirror, room_meta_update, etc.) — all paired devices see the
+ * same stream.
+ *
+ * Per-request responses (e.g. `session_history` answering a specific
+ * `session_sync` query, or `pair_ok` answering `pair_request`) must NOT
+ * use this — they go to the sender channel directly.
+ */
+function _broadcastToActive(msg: ServerMessage): void {
+  for (const ch of _activePeers.values()) {
+    try { ch.send(msg); } catch { /* best-effort per channel */ }
+  }
+}
+
+/** Returns true when at least one owner is attached. Derived `paired` UX. */
+function _anyPeerActive(): boolean {
+  return _activePeers.size > 0;
+}
+
+/**
+ * Adds an owner's channel to `_activePeers`. Also updates the UX hint
+ * `_peerShort` (last-attached shortid) so the footer + status can pick
+ * a representative device when only one is connected.
+ */
+function _attachPeerChannel(appPeerId: string, channel: PlainPeerChannel): void {
+  _activePeers.set(appPeerId, channel);
+  _peerShort = appPeerId.slice(0, 8);
+}
+
+/** Detaches a single owner's channel + removes it from the map. Used by
+ *  `_onPeerDisconnect`, `_cmdRevoke`, and the SelfRevoke callback. */
+function _detachPeerChannel(appPeerId: string): void {
+  const ch = _activePeers.get(appPeerId);
+  if (!ch) return;
+  try { ch.detach(); } catch { /* best-effort */ }
+  _activePeers.delete(appPeerId);
+  if (_peerShort === appPeerId.slice(0, 8)) {
+    // Pick a different remaining peer for the UX hint, or clear when none.
+    const next = _activePeers.keys().next().value;
+    _peerShort = next ? next.slice(0, 8) : "";
+  }
+}
+
+// ── Display-name helpers ──────────────────────────────────────────────────────
+
+/**
+ * Resolves the name this Pi shows to the mobile app and the relay's
+ * `room_meta.name`. Single source of truth for "what does this Pi call
+ * itself when talking to others".
+ *
+ * Resolution order:
+ *   1. Broker-assigned name (when this Pi is on the local UDS mesh) — may
+ *      carry a `#N` suffix from a name collision. Matches what other
+ *      agents see, so the mobile UI shows the exact same string.
+ *   2. `agent_name` from `<cwd>/.pi/remote-pi/config.json` — set by the
+ *      wizard on first run; this is "the name the user configured".
+ *   3. `defaultAgentName(cwd)` (parent/folder) — fallback when no config
+ *      exists yet and the mesh hasn't been joined.
+ *
+ * Pre-2026-05-23 callers computed `cwd.split('/').slice(-2).join('/')`
+ * inline at three different sites (pair_ok, room_meta, QR URI); this
+ * helper consolidates them and lifts the user's configured name above
+ * the raw cwd path.
+ */
+function _displayName(cwd: string): string {
+  if (_meshNode) return _meshNode.name();
+  const local = loadLocalConfig(cwd);
+  return local.agent_name || defaultAgentName(cwd);
+}
+
+
+function _reportRevocationByFingerprint(canonicalOwnerPubkey: string): void {
+  const fingerprint = _runtimeOwnerFingerprint(canonicalOwnerPubkey);
+  _pi?.sendMessage({
+    customType: "remote-pi:mesh-revoked",
+    content:
+      `🔒 Revoked by Owner ${fingerprint}…\n\n` +
+      `The mobile app for this Owner removed this PC from the mesh. ` +
+      `Re-pair via /remote-pi pair if this was unexpected.`,
+    display: true,
+  });
+}
+
+function _revokeActiveOwnerRuntime(canonicalOwnerPubkey: string): void {
+  if (!_activePeers.has(canonicalOwnerPubkey)) return;
+  _refreshPairingsCache();
+  _detachPeerChannel(canonicalOwnerPubkey);
+  _refreshFooter();
+  _reportRevocationByFingerprint(canonicalOwnerPubkey);
+}
+
+async function _findKnownPeer(appPeerIdStd: string): Promise<PeerRecord | null> {
+  let runtimeKey: string;
+  try {
+    runtimeKey = canonicalizeEd25519PublicKey(appPeerIdStd, "Relay Owner key");
+  } catch {
+    return null;
+  }
+  for (const record of await listPeers()) {
+    const inspected = _inspectPeerRecord(record);
+    if (inspected?.runtimeKey === runtimeKey) return inspected.record;
+  }
+  return null;
+}
+
+// ── Transition helpers ────────────────────────────────────────────────────────
+
+/**
+ * Full teardown: stop listener, detach channel, close relay → idle.
+ *
+ * `byeReason` (optional): when present and the channel is up, sends a
+ * `{type:"bye", reason}` to the app before detaching so it sees offline
+ * immediately instead of waiting ~50s for a ping miss. Fire-and-forget —
+ * if the WS already failed (e.g., `relay.on("close")` callback) skip it
+ * by omitting the reason; app falls back to ping miss naturally.
+ */
+function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
+  _rootLifecycleGeneration += 1;
+  _relayLifecycleGeneration += 1;
+
+  // Broadcast bye to every still-attached owner so each app surfaces
+  // "offline" immediately instead of waiting ~50s for a ping miss.
+  if (byeReason && _state !== "idle" && _anyPeerActive()) {
+    _broadcastToActive({ type: "bye", reason: byeReason });
+  }
+
+  // Cancel any pending reconnect attempt. Critical: /remote-pi stop must
+  // win the race against a scheduled reconnect.
+  if (_reconnectTimer !== null) {
+    clearTimeout(_reconnectTimer);
+    _reconnectTimer = null;
+  }
+  _reconnectAttempt = 0;
+
+  _stopAutoListener?.();
+  _stopAutoListener = null;
+
+  if (_queuedItems.length > 0) _resetQueuedItems({ broadcast: true });
+
+  // Tear down every per-owner channel and clear the map.
+  for (const ch of _activePeers.values()) {
+    try { ch.detach(); } catch { /* best-effort */ }
+  }
+  _activePeers.clear();
+  _peerShort = "";
+  _currentTurnId = null;
+  _pendingReceivedImagePreviews.length = 0;
+  _pendingSteers = [];
+  _lastConsumedSteerText = null;
+  _resetQueuedItems();
+
+  // Invalidate async producers and bridge ownership before closing the host
+  // Relay. A synchronous/delayed close callback must observe stale identity.
+  const producer = _selfRevoke;
+  _selfRevoke = null;
+  _selfRevokeEpoch += 1;
+  _selfRevokeTopologyReadyEpoch = -1;
+  _selfRevokeTopology = null;
+  producer?.stop();
+
+  _meshNode?.detachBridge();
+
+  const relay = _relay;
+  _relay = null;
+  _relayUrl = null;
+  relay?.close();
+
+  // Preserve _sessionStartedAt + _messageBuffer across stop/start cycles.
+  // The Pi agent session outlives the relay connection — `message_end` keeps
+  // firing for terminal turns even while idle, and the buffer must survive
+  // so those turns appear in the next session_sync. Only a Pi process
+  // restart resets these (init-time values).
+
+  _state = "idle";
+  _refreshFooter();
+  _emitRelayState();  // → disconnected
+}
+
+/**
+ * Called when the relay WS closes unexpectedly (network drop, relay restart,
+ * etc.). Does a **partial** teardown — keeps `_sessionStartedAt`, `_messageBuffer`,
+ * `_relayUrl`, `_cachedEd25519`, `_peerShort` so the session can resume on
+ * reconnect — and schedules an `_attemptReconnect`.
+ *
+ * Peer (app) reconnect after a successful relay reconnect is handled by the
+ * existing auto-listener via `peers.json` lookup, so we don't need to track
+ * the prior peer here; we just go back to `started` and wait.
+ */
+function _onRelayClose(closedRelay: RelayClient): void {
+  if (_relay !== closedRelay) return; // delayed close from a replaced Relay
+  if (_state === "idle") return;  // already torn down (e.g. /remote-pi stop)
+
+  _relayLifecycleGeneration += 1;
+  _stopAutoListener?.();
+  _stopAutoListener = null;
+
+  // Detach every per-owner channel — relay is gone, none can route. The
+  // auto-listener re-attaches owners after `_attemptReconnect` succeeds
+  // (via the same known-peer + pair_request paths used on first connect).
+  for (const ch of _activePeers.values()) {
+    try { ch.detach(); } catch { /* best-effort */ }
+  }
+  if (_queuedItems.length > 0) _resetQueuedItems({ broadcast: true });
+  _activePeers.clear();
+  _peerShort = "";
+  _currentTurnId = null;
+  _pendingSteers = [];
+  _lastConsumedSteerText = null;
+  _resetQueuedItems();
+
+  _relay = null;  // _relayUrl preserved for retry
+
+  // Cross-PC routing relies on _relay; bring it down. Will be re-instated
+  // by _attemptReconnect on success.
+  _meshNode?.detachBridge();
+
+  _state = "started";
+  _refreshFooter();
+  _emitRelayState();  // → reconnecting
+
+  const reconnectUrl = _relayUrl;
+  if (reconnectUrl) {
+    _scheduleReconnect(_relayLifecycleGeneration, reconnectUrl);
+  }
+}
+
+function _isCurrentReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): boolean {
+  return (
+    lifecycleGeneration === _relayLifecycleGeneration &&
+    _state === "started" &&
+    _relay === null &&
+    _relayUrl === url
+  );
+}
+
+function _scheduleReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): void {
+  if (_reconnectTimer !== null) return;  // already scheduled
+  if (!_cachedEd25519) return;  // can't reconnect without the cached identity
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+
+  const idx = Math.min(_reconnectAttempt, RECONNECT_BACKOFFS_MS.length - 1);
+  const delay = RECONNECT_BACKOFFS_MS[idx]!;
+  _reconnectAttempt += 1;
+
+  // The timer belongs to the lifecycle that scheduled it. Re-check that exact
+  // generation + URL before constructing a candidate so a dequeued old timer
+  // cannot act on a newer stop/start lifecycle.
+  _reconnectTimer = setTimeout(() => {
+    _reconnectTimer = null;
+    if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+    void _attemptReconnect(lifecycleGeneration, url);
+  }, delay);
+}
+
+async function _attemptReconnect(
+  lifecycleGeneration: number,
+  url: string,
+): Promise<void> {
+  if (!_cachedEd25519) return;
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+
+  const edKp = _cachedEd25519;
+  // _relayUrl is stored in canonical http(s):// form — convert at the
+  // WS boundary, same as _cmdStart.
+  const relay = new RelayClient(toWebSocketUrl(url), edKp);
+
+  try {
+    // Replay the same room identity from _cmdStart. Without this the relay
+    // would log this WS as a default-room peer and the app would see a
+    // phantom "legacy session" appear (regression of plano 17 + 18).
+    await relay.connect({
+      ...(_myRoomId ? { roomId: _myRoomId } : {}),
+      ...(_myRoomMeta ? { roomMeta: _myRoomMeta } : {}),
+    });
+  } catch {
+    // A reconnect candidate stays local until publication; every rejected
+    // candidate is deterministically closed before stale-return or retry.
+    try { relay.close(); } catch { /* best-effort rejected candidate cleanup */ }
+    if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
+    _scheduleReconnect(lifecycleGeneration, url);
+    return;
+  }
+
+  if (!_isCurrentReconnect(lifecycleGeneration, url)) {
+    try { relay.close(); } catch { /* best-effort stale candidate cleanup */ }
+    return;
+  }
+
+  _relay = relay;
+  _reconnectAttempt = 0;
+
+  relay.on("close", () => _onRelayClose(relay));
+  _stopAutoListener = _installAutoListener(relay);
+
+  // Plan/25 Wave B/C: relay is back; bring cross-PC routing back online.
+  _attachBridgeIfReady();
+
+  // _state stays "started"; peer reconnect (if previously paired) flows
+  // through _installAutoListener → _findKnownPeer → _promoteToPaired
+  // automatically when the app sends any inner.
+  _emitRelayState();
+}
+
+// ── Relay state event + transparent control channel (Cockpit toggle) ─────────
+
+/** Current relay connectivity, derived from `_state` + `_relay`. */
+function _relayStatus(): RelayConnectivity {
+  if (_getState() === "idle") return "disconnected";
+  return _relay ? "connected" : "reconnecting";
+}
+
+/**
+ * Emit the `remote-pi:relay-state` custom message so an RPC client (Cockpit)
+ * can render a relay on/off indicator. Pure data (`display:false`) — never
+ * shown in the transcript. De-duped on the connectivity value; pass
+ * `force=true` to answer an explicit `relay:status` query regardless.
+ */
+function _emitRelayState(force = false): void {
+  const status = _relayStatus();
+  if (!force && status === _lastRelayStatus) return;
+  _lastRelayStatus = status;
+  // This can run inside a WebSocket 'close' callback (via _onRelayClose). After a
+  // session replacement (newSession/fork/switchSession/reload) the module-level
+  // `_pi` is stale, and `assertActive` throws synchronously inside `sendMessage`.
+  // An uncaught throw from a WS event callback becomes a process-level
+  // uncaughtException and exits pi. Swallow it here: the next relay-state
+  // change re-emits, so connectivity is eventually consistent. See issue #55.
+  try {
+    _pi?.sendMessage({
+      customType: "remote-pi:relay-state",
+      content: `Relay ${status}`,
+      details: {
+        status,
+        connected: status === "connected",
+        ...(_relayUrl ? { relayUrl: _relayUrl } : {}),
+        ...(_myRoomId ? { room: _myRoomId } : {}),
+      },
+      display: false,
+    });
+  } catch {
+    // _pi stale (session replaced) or extension runtime not yet bound.
+  }
+}
+
+/** Minimal ctx for relay start/stop driven by a control message (no command
+ *  ctx is available in the `input` hook). cwd matches the daemon's launch dir,
+ *  so the derived relay room is identical to the one `_cmdStart` first used. */
+function _controlCtx(): Pick<ExtensionContext, "ui" | "cwd"> {
+  return {
+    ui: _headlessUi(),
+    cwd: process.cwd(),
+  } as unknown as Pick<ExtensionContext, "ui" | "cwd">;
+}
+
+/**
+ * `ui.notify` for headless contexts (daemon auto-init + control channel). There
+ * is no TUI, and the RPC client (Cockpit) already gets everything it needs via
+ * structured events (`remote-pi:relay-state`, `remote-pi:name-assigned`,
+ * room_meta) — so routine INFO chatter would just pollute the client's captured
+ * stderr. We drop info and forward only warnings/errors (kept for the
+ * supervisor's journal / genuine failures). The interactive Pi keeps its normal
+ * footer/notify path — this only affects headless ctxs.
+ */
+function _headlessUi(): { notify: (msg: string, type?: "info" | "warning" | "error") => void } {
+  return {
+    notify: (msg: string, type?: "info" | "warning" | "error") => {
+      if (type === "warning" || type === "error") process.stderr.write(`${msg}\n`);
+    },
+  };
+}
+
+/**
+ * Handle a transparent control command from an RPC client (Cockpit), received
+ * as a `CTRL_PREFIX`-tagged input the `input` hook swallowed. Toggles the relay
+ * WITHOUT leaving the local mesh (relay-only: `_cmdStart` up / `_goIdle` down),
+ * then emits the fresh state. `relay:status` just re-emits (no change) so the
+ * client can sync its button after (re)attaching to the RPC stream.
+ */
+export async function _handleControl(cmd: string): Promise<void> {
+  // `rename:<new-name>` carries an argument, so it's matched before the
+  // fixed-verb switch. Renames the agent live (broker re-register + relay room
+  // swap) WITHOUT restarting the process or losing the SDK session.
+  if (cmd.startsWith("rename:")) {
+    await _renameAgent(cmd.slice("rename:".length).trim());
+    return;
+  }
+  switch (cmd) {
+    case "relay:on":
+      if (_getState() === "idle") await _cmdStart(_controlCtx());
+      _emitRelayState(true);
+      return;
+    case "relay:off":
+      if (_getState() !== "idle") _goIdle("peer_stop");
+      else {
+        _rootLifecycleGeneration += 1;
+        _relayLifecycleGeneration += 1;
+      }
+      _emitRelayState(true);
+      return;
+    case "relay:toggle":
+      if (_getState() === "idle") await _cmdStart(_controlCtx());
+      else _goIdle("peer_stop");
+      _emitRelayState(true);
+      return;
+    case "relay:status":
+      _emitRelayState(true);
+      return;
+    default:
+      // Unknown control verb — ignore (forward-compat: a newer client may send
+      // verbs an older extension doesn't know).
+      return;
+  }
+}
+
+/**
+ * Rename the agent LIVE (plan/38/41), without restarting the process or losing
+ * the SDK session/conversation. Touches two layers:
+ *   1. **Broker (mesh)**: `MeshNode.rename` does a soft leave+rejoin → new
+ *      address `<cwd>@<newName>` (broker may add `#N` on a same-(cwd,name)
+ *      collision — we use the assigned result).
+ *   2. **Relay room (App↔Pi)**: the room is keyed by `(cwd, name)`, so the new
+ *      name = a new room. We cycle the relay (`_goIdle` → `_cmdStart`) so the
+ *      room follows; the app re-keys the conversation onto the new tile (the
+ *      inherent cost of room-per-name). Skipped when the relay was off.
+ * Finally re-emits `remote-pi:name-assigned` so the Cockpit updates its label.
+ *
+ * The explicit name IS persisted (decision E only skips the runtime `#N`).
+ */
+async function _renameAgent(newName: string): Promise<void> {
+  if (!newName) return;  // empty rename → no-op
+  const ctx = _controlCtx();
+  const cwd = process.cwd();
+  saveLocalConfig(cwd, { agent_name: newName });
+
+  if (!_meshNode) {
+    // Not on the mesh yet — config persisted; applies on the next join.
+    return;
+  }
+
+  // Relay room is derived from the name → cycle it so it follows. Tear down
+  // first (also detaches the bridge) so the broker re-register below starts
+  // clean; bring it back up after with the new name.
+  const wasStarted = _getState() !== "idle";
+  if (wasStarted) _goIdle("peer_stop");
+
+  let assigned = newName;
+  try {
+    assigned = await _meshNode.rename(newName);  // broker soft rejoin
+  } catch (err) {
+    ctx.ui.notify(`[remote-pi] rename failed: ${String(err)}`, "error");
+  }
+
+  if (wasStarted && !_disposed) await _cmdStart(ctx);  // relay back up → roomIdFor(cwd, assigned)
+
+  _pi?.sendMessage({
+    customType: "remote-pi:name-assigned",
+    content: assigned === newName
+      ? `Mesh name: ${assigned}`
+      : `Mesh name reassigned: "${newName}" → "${assigned}" (collision)`,
+    details: { requested: newName, assigned, changed: assigned !== newName },
+    display: false,
+  });
+}
+
+/**
+ * Per-owner disconnect callback. Fires when one specific owner's channel
+ * detaches (e.g. relay told us the peer is gone). Other owners' channels
+ * keep running — relay stays "started".
+ *
+ * Exported so tests can trigger the disconnect path for a specific peer.
+ *
+ * Backward-compat: a no-arg call (legacy tests / pre-W2D callers) falls
+ * back to detaching the most recently attached peer, mirroring the old
+ * singleton semantics.
+ */
+export function _onPeerDisconnect(appPeerId?: string): void {
+  if (_state === "idle") return;
+  const target = appPeerId ?? [..._activePeers.keys()].pop();
+  if (!target) return;
+  if (!_activePeers.has(target)) return;
+
+  _detachPeerChannel(target);
+  if (_anyPeerActive()) {
+    // Other owners still attached — keep _currentTurnId so they continue
+    // seeing the in-flight agent stream.
+    _refreshFooter();
+    return;
+  }
+
+  // No owner left. Conservatively clear the turn so the next pair_request
+  // starts cleanly.
+  _currentTurnId = null;
+  _refreshFooter();
+  _safeNotify("[remote-pi] All app peers disconnected, listening for reconnect", "info");
+  // Auto-listener stays up — same listener catches the reconnect on any peer.
+}
+
+/**
+ * Attaches a new owner channel to the multi-owner set. Replaces the
+ * pre-W2D singleton `_promoteToPaired` which set `_state = "paired"` and
+ * a single `_peerChannel`. The relay state remains `started`; pairing
+ * status is derived from `_activePeers.size`.
+ *
+ * Idempotent for the same `appPeerId` (re-attaching tears down the prior
+ * channel and installs a fresh one — covers reconnect from the same
+ * device without leaking listeners).
+ */
+function _attachOwner(
+  relay: RelayClient,
+  appPeerId: string,
+  peerName: string,
+  firstInner?: ClientMessage,
+): PlainPeerChannel {
+  const peerShort = appPeerId.slice(0, 8);
+
+  // Drop any stale channel for this owner before re-attaching.
+  if (_activePeers.has(appPeerId)) _detachPeerChannel(appPeerId);
+
+  // Prefer always-fresh session_start ctx for async relay routing — `_lastCtx`
+  // is a captured command ctx that goes stale after session replacement (#55).
+  const channel = new PlainPeerChannel(
+    relay,
+    appPeerId,
+    _myRoomId ?? undefined,
+    (msg) => _routeClientMessageFrom(channel, msg, (_liveCtx() as typeof _noopCtx) ?? _noopCtx),
+    () => _onPeerDisconnect(appPeerId),
+  );
+
+  _attachPeerChannel(appPeerId, channel);
+  _refreshFooter();
+
+  _safeNotify(
+    `[remote-pi] Owner attached: peer=${peerShort}, name=${peerName} ` +
+    `(${_activePeers.size} active)`,
+    "info",
+  );
+
+  if (firstInner) {
+    // The PlainPeerChannel listener fired on the same line that triggered
+    // attachment in some flows; we route explicitly here too to ensure the
+    // inner reaches the handler exactly once.
+    void firstInner;
+  }
+  return channel;
+}
+
+// ── Auto-listener ─────────────────────────────────────────────────────────────
+//
+// Installed while in 'started' state. Decodes the outer envelope as
+// base64(JSON) and dispatches per sender peer_id:
+//   • Sender already in `_activePeers` → ignored here (the per-owner
+//     PlainPeerChannel listens on the same relay event and handles its own
+//     traffic via its `remotePeerId` filter)
+//   • `pair_request` from a new peer → validate token, persist peer, send
+//     pair_ok/pair_error, attach a new channel
+//   • Non-pair message from a known peer (peers.json) without an active
+//     channel yet → attach + route the inner (reconnect path)
+//   • Anything else (unknown peer + non-pair) → emit `error: unknown_peer`
+
+function _installAutoListener(relay: RelayClient): () => void {
+  const listenerGeneration = _relayLifecycleGeneration;
+  const hasListenerAuthority = (): boolean =>
+    !_disposed &&
+    _state === "started" &&
+    _relay === relay &&
+    _relayLifecycleGeneration === listenerGeneration;
+  const onMsg = async (line: string) => {
+    let outer: { peer?: string; ct?: string };
+    try { outer = JSON.parse(line) as { peer?: string; ct?: string }; }
+    catch { return; }
+
+    if (!outer.peer || !outer.ct) return;
+
+    if (!hasListenerAuthority()) return;
+    // Already-attached owners: their PlainPeerChannel handles routing.
+    if (_activePeers.has(outer.peer)) return;
+
+    // Decode inner envelope (base64 JSON)
+    let inner: ClientMessage;
+    try {
+      const plaintext = Buffer.from(outer.ct, "base64").toString("utf8");
+      const parsed = JSON.parse(plaintext) as unknown;
+      if (
+        !parsed ||
+        typeof parsed !== "object" ||
+        typeof (parsed as Record<string, unknown>).type !== "string"
+      ) return;
+      inner = parsed as ClientMessage;
+    } catch { return; }
+
+    const appPeerId = outer.peer;
+
+    if (inner.type === "pair_request") {
+      await _handlePairRequest(relay, appPeerId, inner, hasListenerAuthority);
+      return;
+    }
+
+    // Reconnect path: known peer (peers.json) without an active channel
+    // sends a non-pair message → attach + route through the new channel.
+    // See pairing.md §Reconexão.
+    const known = await _findKnownPeer(appPeerId);
+    if (!hasListenerAuthority()) return;
+    if (known) {
+      const channel = _attachOwner(relay, appPeerId, known.name);
+      // The PlainPeerChannel listener for this owner won't have seen the
+      // line that triggered the attach (we already consumed it); route
+      // it explicitly via the new channel so the sender gets a reply.
+      // Use _liveCtx (session_start-fresh) — not bare _lastCtx (#55).
+      _routeClientMessageFrom(channel, inner, (_liveCtx() as typeof _noopCtx) ?? _noopCtx);
+      return;
+    }
+
+    // Unknown peer with non-pair_request inner — signal so the app can react
+    // (peer was revoked / never paired). pair_request from unknown peer was
+    // already handled above as a legitimate path. We never log inner contents,
+    // only inner.type.
+    const errReply: ServerMessage = {
+      type: "error",
+      code: "unknown_peer",
+      message: "Peer not paired — re-scan QR",
+    };
+    const errCt = Buffer.from(JSON.stringify(errReply)).toString("base64");
+    relay.send(JSON.stringify({ peer: appPeerId, ct: errCt }));
+  };
+
+  relay.on("message", onMsg);
+  return () => relay.off("message", onMsg);
+}
+
+/**
+ * Plan/27 Wave A: lazily resolve the pi-extension package version from
+ * disk so the `pair_ok.harness.version` field reflects what's actually
+ * shipped. The lookup is best-effort — a parse failure (or running this
+ * file out-of-tree) falls back to "0.0.0" which is still semver-valid
+ * and the app tolerates it. Cached at module load.
+ */
+function _readExtensionVersion(): string {
+  try {
+    const here = fileURLToPath(import.meta.url);
+    // dist/extension.js → ../package.json. src/extension.ts under tsx → also one level up.
+    const pkgPath = join(here, "..", "..", "package.json");
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { version?: string };
+    return typeof pkg.version === "string" ? pkg.version : "0.0.0";
+  } catch {
+    return "0.0.0";
+  }
+}
+const _HARNESS = {
+  name: "Pi coding agent",
+  version: _readExtensionVersion(),
+} as const;
+const _HOSTNAME = hostname();
+
+async function _handlePairRequest(
+  relay: RelayClient,
+  appPeerId: string,
+  inner: Extract<ClientMessage, { type: "pair_request" }>,
+  hasListenerAuthority: () => boolean,
+): Promise<void> {
+  const sendInner = (msg: ServerMessage) => {
+    const ct = Buffer.from(JSON.stringify(msg)).toString("base64");
+    relay.send(JSON.stringify({ peer: appPeerId, ct }));
+  };
+
+  const sendError = (code: PairErrorCode, message: string) => {
+    sendInner({ type: "pair_error", in_reply_to: inner.id, code, message });
+  };
+
+  const status = qrSession.consumeToken(inner.token);
+  if (status !== "ok") {
+    const code: PairErrorCode =
+      status === "expired"  ? "token_expired"
+      : status === "consumed" ? "token_consumed"
+      : "token_unknown";
+    const msg =
+      code === "token_expired"  ? "Ephemeral token expired. Generate a new QR with /remote-pi pair."
+      : code === "token_consumed" ? "Token already consumed by another pair_request."
+      : "Token was not issued by this Pi.";
+    sendError(code, msg);
+    return;
+  }
+
+  // A delayed signed revoke must lose authority before the same-process
+  // re-pair enters storage; the replacement owns a fresh token snapshot.
+  const producer = _selfRevoke;
+  const producerEpoch = _selfRevokeEpoch;
+  producer?.invalidateStorageAuthority();
+  const pairedAt = new Date().toISOString();
+  try {
+    await addPeer({
+      name: inner.device_name,
+      remote_epk: appPeerId,
+      paired_at: pairedAt,
+    });
+    if (!hasListenerAuthority()) return;
+    _refreshPairingsCache();
+    if (producer && _selfRevoke === producer && _selfRevokeEpoch === producerEpoch) {
+      void producer.requestFreshCheck().catch(() => {
+        // The regular cadence retries; pairing itself already succeeded.
+      });
+    }
+  } catch (err) {
+    if (!hasListenerAuthority()) return;
+    sendError("internal_error", `Failed to persist peer: ${String(err)}`);
+    return;
+  }
+
+  const cwd = _lastCtx && "cwd" in _lastCtx
+    ? (_lastCtx as ExtensionCommandContext).cwd
+    : process.cwd();
+  // Prefer the user-configured agent_name (with broker suffix when on the
+  // mesh) over the legacy parent/folder path — matches what the user sees
+  // in the terminal title and in /remote-pi status.
+  const sessionName = _displayName(cwd);
+
+  _attachOwner(relay, appPeerId, inner.device_name);
+
+  sendInner({
+    type: "pair_ok",
+    in_reply_to: inner.id,
+    session_name: sessionName,
+    session_started_at: _sessionStartedAt ?? Date.now(),
+    // App uses this to address subsequent inner messages to the right room
+    // when this Pi runs alongside others with the same epk. Defensive fallback
+    // to roomIdFor(cwd, name) covers the edge case where pair_request lands
+    // before _cmdStart could set _myRoomId (shouldn't happen in practice) —
+    // and stays plan/41-consistent (same (cwd, name) derivation as the announce).
+    room_id: _myRoomId ?? roomIdFor(cwd, sessionName),
+    // Plan/27 Wave A — surface the host coding-agent identity + machine
+    // hostname so the app can render a meaningful device row (and tell
+    // two PCs apart even when nicknames collide).
+    harness: _HARNESS,
+    hostname: _HOSTNAME,
+  });
+
+  // Notify local RPC clients (e.g. Cockpit) that pairing completed, so they can
+  // close the QR screen and show the new device. Pure data event (display:false)
+  // — still emitted to the RPC stdout via the session stream.
+  _pi?.sendMessage({
+    customType: "remote-pi:paired",
+    content: `Paired with ${inner.device_name}`,
+    details: { name: inner.device_name, peerId: appPeerId, pairedAt },
+    display: false,
+  });
+}
+
+// ── Extension factory (default export) ───────────────────────────────────────
+
+// Stores most recent command context so the auto-listener can use ui.notify.
+// NOTE: this is a CAPTURED command ctx — the SDK marks it stale after a
+// session replacement (newSession/fork/switch/reload). We re-capture it via
+// `withSession` when WE drive a newSession (see the session_new dispatch).
+let _lastCtx: Pick<ExtensionContext, "ui" | "abort" | "cwd"> | null = null;
+// Freshest base ExtensionContext, re-captured on EVERY `session_start`
+// (startup/new/fork/reload/resume). The session_start ctx is always bound to
+// the CURRENT session, so compact + cancel (base-ctx methods) routed through
+// here never hit a stale ctx — regardless of who triggered the replacement
+// (an app Quick Action OR a `/new` typed in the Pi TUI). It carries only
+// base-ctx methods (no newSession — that's command-ctx only), so command ops
+// keep using `_lastCtx`.
+let _lastEventCtx: Pick<ExtensionContext, "compact" | "abort" | "ui"> | null = null;
+const _noopCtx = { ui: { notify: () => undefined }, abort: () => undefined };
+
+// A single Pi process can load this extension TWICE in the SAME session:
+// pi-supervisord launches each daemon child as `pi -e <dist>/index.js`, but if
+// remote-pi is ALSO installed as a pi-package (auto-discovered from
+// ~/.pi/agent/extensions or <cwd>/.pi/extensions), Pi loads it a second time
+// for that same session. Both loads receive the same session-scoped `pi` and
+// would re-run registerTool/registerCommand for identical names — a hard
+// duplicate-registration conflict that crashes the daemon child on boot (see
+// daemon/rpc_child.ts). Idempotent, first-load-wins: whichever load runs first
+// does all the wiring; the duplicate is an inert no-op. A genuine session
+// REPLACEMENT gets a FRESH `pi`, so re-registration for the new session still
+// happens.
+//
+// We track "already wired" in a process-global WeakSet keyed by `pi` rather
+// than by mutating the host SDK object. The two loads are DISTINCT module
+// instances (the SDK's jiti loader uses moduleCache:false, and the `-e` path vs
+// the installed path resolve to different files), so a module-level Set can't
+// dedupe them; the WeakSet lives on `globalThis` under a `Symbol.for` key so
+// both module instances resolve the SAME set. Keying weakly by `pi` records the
+// fact without adding a foreign property to the API object and lets each `pi`
+// be GC'd when its session ends (no leak).
+const _APPLIED_REGISTRY_KEY = Symbol.for("remote-pi.extension.appliedRegistry");
+function _appliedRegistry(): WeakSet<object> {
+  const g = globalThis as typeof globalThis & { [_APPLIED_REGISTRY_KEY]?: WeakSet<object> };
+  return (g[_APPLIED_REGISTRY_KEY] ??= new WeakSet<object>());
+}
+
+const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
+  const applied = _appliedRegistry();
+  if (applied.has(pi)) return;  // this session's pi was already wired
+  applied.add(pi);
+
+  _pi = pi;
+
+  // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
+  // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
+  // events bus. ask_user without pi-ask doesn't exist, so this never breaks a
+  // Pi that doesn't use the extension. Dispose any prior bridge first so a
+  // factory re-run (new pi session) can't leak subscriptions or double-send.
+  _extensionUiBridge?.dispose();
+  _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+
+  // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
+  // agent-network skill on first load. resources_discover lets Pi find it.
+  try {
+    ensureGlobalDirs();
+    _deployAgentNetworkSkill();
+  } catch { /* best-effort init */ }
+
+  // Seed the global-pairings cache from peers.json so the footer can show
+  // 🟢/🟡 correctly the moment the relay is up (no race with first refresh).
+  _refreshPairingsCache();
+
+  pi.on("resources_discover", () => ({ skillPaths: [skillsDir()] }));
+
+  // Plano 20: agent_send + agent_request tools so the LLM can drive the
+  // session network natively. Getter captures `_meshNode` live so the
+  // tool always sees the current state.
+  registerAgentTools(pi, () => _meshNode?.peer() ?? null);
+  _registerReceivedImageRenderer(pi);
+
+  // Received-image preview entries are for local TUI display only. Pi's custom
+  // messages normally become user-role LLM context, so strip this type before
+  // every provider request; the actual Android image still reaches the model via
+  // the paired sendUserMessage call.
+  pi.on("context", (event) => ({
+    messages: _filterInternalMessagesFromContext(event.messages),
+  }));
+
+  // Tool calls execute without prompting the remote user. The Pi SDK has no
+  // native `requiresApproval` per tool, and a hardcoded gate (Bash/Edit/Write)
+  // misfired on every custom tool from third-party packages. Approval will
+  // come back when the Pi ecosystem ships a permissions convention. tool_result
+  // is still forwarded so the app shows tool activity transparently.
+
+  // Mirror input typed in the Pi terminal (or sent via RPC) to every
+  // connected owner. 'extension' source is our own sendUserMessage call
+  // from routeClientMessage, which already set _currentTurnId — skip to
+  // avoid a double turnId.
+  pi.on("input", (event) => {
+    // Transparent control channel: a `CTRL_PREFIX`-tagged input from an RPC
+    // client (Cockpit button) toggles the relay. Run it and SWALLOW the input
+    // (`action:"handled"`) so it never reaches the LLM or the transcript.
+    // Checked first, before the peer-broadcast path, and regardless of source.
+    if (event.text.startsWith(CTRL_PREFIX)) {
+      void _handleControl(event.text.slice(CTRL_PREFIX.length).trim());
+      return { action: "handled" } as const;
+    }
+    if (!_anyPeerActive()) return;
+    if (event.source === "extension") return;
+    const turnId = `local_${randomUUID()}`;
+    _currentTurnId = turnId;
+    _broadcastToActive({ type: "user_input", id: turnId, text: event.text });
+    return undefined;
+  });
+
+  // Track active model so the app can show it in the SessionTile (plano 18).
+  // SDK fires model_select on settings load + every user switch. We cache the
+  // friendly name and broadcast a room_meta_update so the relay can fan it
+  // out to subscribed apps without needing a new pair.
+  pi.on("model_select", (event) => {
+    const m = event?.model as { name?: string; id?: string } | undefined;
+    const modelName = m?.name ?? m?.id;
+    if (!modelName) return;
+    // Cache + fan out. Keeps the cached room_meta fresh so a future reconnect
+    // carries the current model in its hello, and pushes a room_meta_update to
+    // apps already subscribed.
+    _setCurrentModel(modelName);
+  });
+
+  // Plan/28 Wave D.1: mirror model's room_meta_update path for thinking
+  // level so the app hydrates the segmented control on first open instead
+  // of starting null. SDK fires `thinking_level_select` on settings load
+  // AND on every user toggle (matching `model_select`'s behavior), so
+  // late-pairing apps see the current level via `room_meta_updated`.
+  pi.on("thinking_level_select", (event) => {
+    const level = event?.level as ThinkingLevel | undefined;
+    if (!level) return;
+    _currentThinking = level;
+    if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, thinking: level };
+    if (!_relay || !_myRoomId) return;
+    _relay.sendControl({
+      type: "room_meta_update",
+      room_id: _myRoomId,
+      meta: { thinking: level },
+    });
+  });
+
+  pi.on("agent_start", () => {
+    _agentRunActive = true;
+    _agentRunGeneration += 1;
+  });
+
+  pi.on("message_start", (event) => {
+    const message = event?.message as BufferMsg | undefined;
+    if (!_anyPeerActive() || message?.role !== "user") return;
+    _broadcastConsumedSteerForUserContent(message.content);
+  });
+
+  pi.on("message_update", (event) => {
+    if (!_anyPeerActive() || !_currentTurnId) return;
+    const ae = event.assistantMessageEvent;
+    if (ae.type === "text_delta") {
+      _broadcastToActive({ type: "agent_chunk", in_reply_to: _currentTurnId, delta: ae.delta });
+    }
+  });
+
+  // Notify every connected owner that a tool is about to run (visibility
+  // only, NOT approval). tool_execution_start fires before the tool
+  // executes; tool_execution_end closes the loop with the result. Together
+  // they render a "Tool running… done" timeline in each paired app.
+  pi.on("tool_execution_start", (event) => {
+    if (!_anyPeerActive()) return;
+    _broadcastToActive({
+      type: "tool_request",
+      tool_call_id: event.toolCallId,
+      tool: event.toolName,
+      args: _enrichToolArgs(event.toolName, event.args),
+    });
+  });
+
+  pi.on("tool_execution_end", (event) => {
+    if (!_anyPeerActive()) return;
+    // Stringify like the history mapper (same helper) so the live text == what
+    // a session_sync replays for this tool. Raw `String(event.result)` turned
+    // a content-array/object into "[object Object]" and the success branch sent
+    // the object unstringified — both diverging from re-sync.
+    const text = _stringifyToolResult(event.result);
+    const msg: ServerMessage = event.isError
+      ? { type: "tool_result", tool_call_id: event.toolCallId, error: text }
+      : { type: "tool_result", tool_call_id: event.toolCallId, result: text };
+    _broadcastToActive(msg);
+  });
+
+  // Cumulative session buffer fed via `message_end`, which fires once per
+  // persisted message (user, assistant, toolResult) — same hook the SDK uses
+  // to persist to sessionManager (see agent-session.js:298-309). Pushing here
+  // accumulates the whole session over time, so session_sync can replay every
+  // turn — including turns initiated from the Pi terminal (source:"interactive")
+  // or RPC. Previous impl overwrote on `agent_end` and lost everything but the
+  // last turn (see diagnostics 14, 15).
+  pi.on("message_end", (event) => {
+    const m = event?.message as { role?: string; content?: unknown; stopReason?: string; errorMessage?: string } | undefined;
+    if (!m) return;
+    if (m.role === "user" && _anyPeerActive()) {
+      _broadcastConsumedSteerForUserContent(m.content);
+    }
+    if (m.role === "user" || m.role === "assistant" || m.role === "toolResult") {
+      _messageBuffer.push(m as unknown as BufferMsg);
+    }
+    // Forward a failed turn to connected owners. Without this the app just
+    // hangs with no response when the provider errors (e.g. the TUI's
+    // "Provider finish_reason: error"): the SDK surfaces the failure as an
+    // assistant message with stopReason "error" + an `errorMessage` (pi-ai).
+    // `error` is an existing ServerMessage the app already renders — no
+    // protocol/app change. `in_reply_to` ties it to the turn the app awaits.
+    if (m.role === "assistant" && m.stopReason === "error" && _anyPeerActive()) {
+      const message = typeof m.errorMessage === "string" && m.errorMessage
+        ? m.errorMessage
+        : "Provider error";
+      const errMsg: ServerMessage = _currentTurnId
+        ? { type: "error", in_reply_to: _currentTurnId, code: "provider_error", message }
+        : { type: "error", code: "provider_error", message };
+      _broadcastToActive(errMsg);
+    }
+  });
+
+  pi.on("agent_end", () => {
+    // Buffer is fed by `message_end`; here we only finalize the outbound
+    // turn signal to every connected owner. No buffer mutation.
+    if (_anyPeerActive() && _currentTurnId) {
+      _broadcastToActive({ type: "agent_done", in_reply_to: _currentTurnId });
+      _currentTurnId = null;
+    }
+    _flushPendingReceivedImagePreviews();
+    _lastConsumedSteerText = null;
+    _maybeDrainQueuedItem();
+
+    // agent_end listeners finish before pi-agent-core clears its active run.
+    // Defer mesh delivery to the next event-loop turn so triggerTurn cannot
+    // collide with the prompt that emitted this event. A queued continuation
+    // may start first; its generation keeps the older timer from clearing the
+    // new run's busy flag.
+    const endedGeneration = _agentRunGeneration;
+    setTimeout(() => {
+      if (_agentRunGeneration !== endedGeneration) return;
+      _agentRunActive = false;
+      _scheduleMeshMessageDrain();
+    }, 0);
+  });
+
+  // plan/34: the broker no longer gates delivery on busy state, so we no
+  // longer notify it of turn lifecycle. Working state is still published as
+  // room_meta over the relay (plan/32) below — that's independent of the
+  // broker and drives the app's working indicator.
+  pi.on("turn_start", (_event, ctx) => {
+    // Late model hydration: if the model was still unknown at connect (resolved
+    // lazily by the SDK), grab it on the first turn and fan it out — so a daemon
+    // whose model only materialises at turn 1 still reports it to the app.
+    if (!_currentModel) {
+      try {
+        const m = (ctx as Partial<ExtensionContext> & { getModel?: () => { name?: string; id?: string } | undefined }).getModel?.();
+        const name = m?.name ?? m?.id;
+        if (name) _setCurrentModel(name);
+      } catch { /* defensive — never block a turn on a model lookup */ }
+    }
+    // Plan/32 Part B: publish working=true as room_meta (raw, no debounce —
+    // the debounce lives in the app). Same shape as the model/thinking updates.
+    if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, working: true };
+    if (_relay && _myRoomId) {
+      _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: true } });
+    }
+  });
+  pi.on("turn_end", () => {
+    // Plan/32 Part B: publish working=false as room_meta (raw, no debounce).
+    if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, working: false };
+    if (_relay && _myRoomId) {
+      _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: false } });
+    }
+    _maybeDrainQueuedItem();
+  });
+
+  // Plan/32: compaction feedback. compact() doesn't run a turn, so bracket it
+  // with working=true/false here. Returning void = no veto → default
+  // compaction proceeds.
+  pi.on("session_before_compact", (event) => {
+    if (event.preparation) {
+      event.preparation.messagesToSummarize = _filterInternalMessagesFromContext(
+        event.preparation.messagesToSummarize,
+      );
+      event.preparation.turnPrefixMessages = _filterInternalMessagesFromContext(
+        event.preparation.turnPrefixMessages,
+      );
+    }
+    _publishWorking(true);
+  });
+  pi.on("session_compact", (event) => {
+    const entry = event?.compactionEntry as { summary?: unknown; tokensBefore?: unknown } | undefined;
+    const summary = typeof entry?.summary === "string" ? entry.summary : "";
+    const tokensBefore = typeof entry?.tokensBefore === "number" ? entry.tokensBefore : 0;
+    const ts = Date.now();
+    // (2) Persist in history: the CompactionEntry never reaches _messageBuffer
+    // via message_end (only user/assistant/toolResult), so push a synthetic
+    // marker the mapper turns into a `compaction` event — survives session_sync.
+    _messageBuffer.push({ role: "compaction", content: summary, timestamp: ts, tokensBefore });
+    // (1) Live result to every connected owner.
+    _broadcastToActive({ type: "compaction", summary, tokens_before: tokensBefore, ts });
+    // (3) Working ends.
+    _publishWorking(false);
+    _maybeDrainQueuedItem();
+  });
+
+  // Re-capture the freshest base ctx on every session replacement so compact
+  // never operates on a stale captured ctx — this is the fix for the
+  // "stale after session replacement" crash when the app taps Compact after a
+  // New session. Fires on startup/new/fork/reload/resume; the ctx is always
+  // bound to the current session.
+  pi.on("session_start", (_event, ctx) => {
+    _lastEventCtx = ctx;
+    // session_shutdown disposes per-session pi-ask subscriptions. A host that
+    // reuses this module instance does NOT re-run the factory, so rebind the
+    // bridge here; fresh-module hosts already created theirs in the factory.
+    if (!_extensionUiBridge) {
+      _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+    }
+    // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
+    // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
+    // replacement session, yielding a new instance with _disposed=false. Some hosts
+    // instead REUSE the same module instance across ctx.newSession(). Rearm that
+    // instance, but retain the shutdown generations as replacement authority:
+    // `_cmdRoot` waits for any canceled outgoing root to drain, then starts exactly
+    // one fresh lifecycle only if no later stop/shutdown superseded this session.
+    // No-op when a fresh instance IS created and at first boot.
+    if (_disposed) {
+      _disposed = false;
+      const restartAuthority: RootRestartAuthority = {
+        rootLifecycleGeneration: _rootLifecycleGeneration,
+      };
+      void _cmdRoot(ctx, restartAuthority);
+    }
+    // Auto-start remote-pi on a fresh boot when the cwd's local config has
+    // auto_start_relay enabled (default true). Covers BOTH interactive
+    // sessions (previously required typing /remote-pi each session) AND
+    // headless daemons. We init here — on session_start — NOT via a
+    // factory-return setTimeout(0): the SDK only calls bindCore() (which
+    // replaces the throwing action-method stubs like pi.sendMessage) right
+    // before emitting session_start, so a setTimeout(0) from the factory
+    // raced it and crashed with "Extension runtime not initialized" inside
+    // _emitRelayState -> sendMessage. session_start fires strictly AFTER
+    // bindCore (agent-session bindExtensions), so pi.sendMessage is a real
+    // function here. Guarded by _autoInited so session replacements re-init
+    // only via the _disposed path above. Daemon mode has no interactive UI →
+    // use the headless ctx; interactive sessions use the real session_start
+    // ctx (has ui.notify + dialogs for the first-run wizard).
+    if (!_autoInited) {
+      // Daemon: always init (supervisor sets REMOTE_PI_DIRECT_CONFIG so a config
+      // is present at process.cwd()). Interactive: only init when the
+      // session_start ctx announces its cwd AND a local config already exists
+      // there — never auto-pop the first-run wizard on session_start (a new dir
+      // with no config stays idle until the user runs /remote-pi once). The
+      // cwd guard also keeps tests with a minimal ctx (no cwd) from triggering
+      // the wizard path.
+      const isDaemon = process.env["REMOTE_PI_DAEMON"] === "1";
+      // One-shot / non-interactive Pi (`pi -p` / `pi --print`) is documented as
+      // "process the prompt and exit". Auto-starting the relay there opens a WS
+      // that is never `.unref()`'d, so the idle Node event loop never drains and
+      // the process hangs forever after printing its answer (issue #44). Daemon
+      // mode (REMOTE_PI_DAEMON=1) and normal interactive sessions never pass
+      // `-p`/`--print`, so they still auto-start the relay exactly as before.
+      const isPrintMode =
+        process.argv.includes("-p") || process.argv.includes("--print");
+      const cwd = isDaemon ? process.cwd() : "cwd" in ctx ? ctx.cwd : undefined;
+      if (
+        !isPrintMode &&
+        cwd &&
+        localConfigExists(cwd) &&
+        effectiveAutoStartRelay(loadLocalConfig(cwd))
+      ) {
+        _autoInited = true;
+        const initCtx = isDaemon
+          ? ({ ui: _headlessUi(), cwd: process.cwd() } as Pick<ExtensionContext, "ui" | "cwd">)
+          : ctx;
+        void _cmdRoot(initCtx);
+      }
+    }
+  });
+
+  // Tear down THIS instance's live handles when the SDK replaces the session
+  // (switch_session / new / fork / reload / quit). This is the fix for the
+  // "double mesh connection" the Cockpit hits when it restores a saved
+  // conversation via switch_session on boot.
+  //
+  // Why it happens: the Pi SDK loads extensions through jiti with
+  // `moduleCache: false`, so every session replacement re-evaluates THIS module
+  // FRESH — a brand-new instance whose `_meshNode`, `_relay`, and `_cwdLock`
+  // start back at null. The OUTGOING instance's broker socket, relay WS, and
+  // cwd-lock UDS keep running regardless (module state is gone, but the OS
+  // handles aren't). In daemon mode (REMOTE_PI_DAEMON=1, set by the Cockpit) the
+  // fresh instance re-runs `_cmdRoot` on load, so without releasing the old
+  // handles first we end up with TWO mesh peers under the same name on the
+  // broker + two rooms on the relay. The per-cwd lock is meant to stop the
+  // second connect, but its 500 ms connect-probe can miss the still-bound old
+  // socket while the event loop is saturated at boot, fall through to the
+  // stale-socket unlink path, and let the fresh instance bind a second lock.
+  //
+  // `session_shutdown` fires on the OUTGOING extension runner and is AWAITED by
+  // the SDK (`teardownCurrent`) BEFORE the replacement runtime — and thus the
+  // fresh extension instance — is created. Closing the mesh node, relay, and
+  // lock here guarantees the next instance starts from a clean slate and stands
+  // up exactly ONE connection bound to the restored session. Idempotent +
+  // best-effort: every step is guarded so a partially-initialised instance
+  // (e.g. shutdown lands mid-`_cmdRoot`) tears down without throwing.
+  pi.on("session_shutdown", async () => {
+    // Revoke async authority synchronously, before any teardown await. `_disposed`
+    // blocks the outgoing continuation immediately; the root and candidate
+    // generations keep queued work stale even if a same-module session_start
+    // clears `_disposed` before its promises settle.
+    _disposed = true;
+    _rootLifecycleGeneration += 1;
+    _relayLifecycleGeneration += 1;
+    _meshJoinGeneration += 1;
+    // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
+    // the outgoing session is replaced so stale listeners cannot leak or
+    // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
+    // module instances create their bridge in the factory.
+    _extensionUiBridge?.dispose();
+    _extensionUiBridge = null;
+    // Drop captured ctxs immediately. On module-reuse hosts the same instance
+    // survives session replacement; leaving `_lastCtx` pointing at the now-
+    // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
+    // (issue #55). session_start re-binds `_lastEventCtx` for the new session.
+    _lastCtx = null;
+    _lastEventCtx = null;
+    // No bye reason: the process keeps running and the fresh instance re-joins
+    // the SAME relay room, so an explicit offline→online flap would be wrong.
+    // Revoke producer/Relay/bridge authority while the global node is still
+    // visible, before close() can begin its asynchronous UDS leave.
+    if (_state !== "idle") {
+      _goIdle();
+    } else {
+      _meshNode?.detachBridge();
+    }
+
+    const meshNode = _meshNode;
+    _meshNode = null;
+    _sessionName = null;
+    _sessionPeerCount = 0;
+    let meshClose: Promise<void> | null = null;
+    try { meshClose = meshNode?.close() ?? null; } catch { /* best-effort */ }
+
+    if (_cwdLock) {
+      try { _cwdLock.release(); } catch { /* best-effort */ }
+      _cwdLock = null;
+      _lockedName = null;
+    }
+    try { await meshClose; } catch { /* best-effort */ }
+  });
+
+  // ── Commands ──────────────────────────────────────────────────────────────
+  //
+  // Final surface: 8 commands. Pre-2026-05-23 we had 20 commands covering
+  // multi-session UDS + granular relay control; in practice every install
+  // converged on one session and the relay was always either fully on or
+  // fully off. The simplified surface keeps the day-to-day path one-key
+  // (`/remote-pi`) and exposes only the actions that have distinct user
+  // intent: setup, status, stop, pair, devices, revoke, set-relay.
+  pi.registerCommand("remote-pi", {
+    description: "Connect (join local mesh + start relay), or run setup on first use",
+    getArgumentCompletions: async (prefix) => {
+      if (prefix.startsWith("revoke ") || prefix === "revoke") {
+        const shortPrefix = prefix === "revoke" ? "" : prefix.slice("revoke ".length);
+        return _shortidCompletions(shortPrefix, "revoke ");
+      }
+      return [
+        "setup", "status", "stop",
+        "pair", "devices", "revoke",
+        "rename",
+        "set-relay",
+        "relay", "relay start", "relay stop", "relay status", "relay url",
+        "config",
+        "peers",  // plan/25 Wave D — local + cross-PC inventory
+        "create", "remove", "daemons",  // daemon registry (plan/26 W1)
+        // Fleet ops use the `daemon` prefix so `/remote-pi stop` keeps
+        // meaning "stop this local Pi" — the local UX shipped in plan/25.
+        "daemon start", "daemon stop", "daemon restart",
+        "daemon send", "daemon status",
+        "cron", "cron add", "cron list", "cron remove", "cron enable", "cron disable", "cron run", "cron log",
+        "install", "uninstall",  // service install (plan/26 W3)
+      ]
+        .filter((o) => o.startsWith(prefix))
+        .map((o) => ({ value: o, label: o }));
+    },
+    handler: async (args, ctx) => {
+      _lastCtx = ctx;
+      const sub = args.trim();
+      if      (sub === "")                       { await _cmdRoot(ctx); }
+      else if (sub === "setup")                  { await _cmdSetup(ctx); }
+      else if (sub === "status")                 { _cmdStatus(ctx); }
+      else if (sub === "stop")                   { await _cmdStop(ctx); }
+      else if (sub === "pair" || sub.startsWith("pair ")) { await _cmdPair(ctx, sub.slice("pair".length).trim()); }
+      else if (sub === "devices")                { await _cmdList(ctx); }
+      else if (sub.startsWith("revoke"))         { await _cmdRevoke(sub.slice("revoke".length).trim(), ctx); }
+      else if (sub.startsWith("set-relay"))      { _cmdSetRelay(sub.slice("set-relay".length).trim(), ctx); }
+      else if (sub === "relay" || sub.startsWith("relay ")) { await _cmdRelay(sub.slice("relay".length).trim(), ctx); }
+      else if (sub === "config")                 { _cmdConfig(ctx); }
+      else if (sub === "rename" || sub.startsWith("rename ")) { await _renameAgent(sub.slice("rename".length).trim()); }
+      else if (sub === "peers")                  { await _cmdPeers(ctx); }
+      else if (sub.startsWith("create"))         { await _cmdCreate(sub.slice("create".length).trim(), ctx); }
+      else if (sub.startsWith("remove"))         { await _cmdRemove(sub.slice("remove".length).trim(), ctx); }
+      else if (sub === "daemons")                { await _cmdDaemonsList(ctx); }
+      else if (sub === "daemon start" || sub.startsWith("daemon start "))     { await _cmdDaemonStart(ctx, sub.slice("daemon start".length).trim() || undefined); }
+      else if (sub === "daemon stop" || sub.startsWith("daemon stop "))       { await _cmdDaemonStop(ctx, sub.slice("daemon stop".length).trim() || undefined); }
+      else if (sub === "daemon restart" || sub.startsWith("daemon restart ")) { await _cmdDaemonRestart(ctx, sub.slice("daemon restart".length).trim() || undefined); }
+      else if (sub === "daemon status")          { await _cmdDaemonStatus(ctx); }
+      else if (sub.startsWith("daemon send"))    { await _cmdDaemonSend(sub.slice("daemon send".length).trim(), ctx); }
+      else if (sub === "cron" || sub.startsWith("cron ")) { await _cmdCron(sub.slice("cron".length).trim(), ctx); }
+      else if (sub === "install")                { _cmdInstall(ctx, { linkCli: true }); }
+      else if (sub === "uninstall")              { _cmdUninstall(ctx, { linkCli: true }); }
+      else                                       { await _cmdRoot(ctx); }
+    },
+  });
+
+  // Nested registrations (one entry per public action). The flat handler
+  // above already routes `/remote-pi <sub>` — these exist for the SDK's
+  // command palette and slash-autocomplete in some UI modes.
+  pi.registerCommand("remote-pi setup",    { description: "Run the setup wizard and update local config", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdSetup(ctx); } });
+  pi.registerCommand("remote-pi status",   { description: "Show local mesh + relay status", handler: async (_, ctx) => { _lastCtx = ctx; _cmdStatus(ctx); } });
+  pi.registerCommand("remote-pi stop",     { description: "Stop everything (leave local mesh + disconnect relay)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdStop(ctx); } });
+  pi.registerCommand("remote-pi pair",     { description: "Show a QR code to pair a new mobile device (optional: --ttl <seconds>)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdPair(ctx, args.trim()); } });
+  pi.registerCommand("remote-pi devices",  { description: "List paired mobile devices", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdList(ctx); } });
+  pi.registerCommand("remote-pi rename",  { description: "Rename this agent in the current session (updates mesh + relay room)", handler: async (args, ctx) => { _lastCtx = ctx; await _renameAgent(args.trim()); } });
+  pi.registerCommand("remote-pi revoke", {
+    description: "Revoke a paired device by its shortid",
+    getArgumentCompletions: async (prefix) => _shortidCompletions(prefix),
+    handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRevoke(args.trim(), ctx); },
+  });
+  pi.registerCommand("remote-pi set-relay", { description: "Persist a new relay URL to user config", handler: async (args, ctx) => { _lastCtx = ctx; _cmdSetRelay(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi config", { description: "Show the effective relay URL and where it came from", handler: async (_, ctx) => { _lastCtx = ctx; _cmdConfig(ctx); } });
+  pi.registerCommand("remote-pi relay", { description: "Relay control: start | stop | status | url <http(s) url> (no arg toggles)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRelay(args.trim(), ctx); } });
+
+  // Plan/25 Wave D
+  pi.registerCommand("remote-pi peers", {
+    description: "List local + cross-PC mesh peers, grouped by PC label",
+    handler: async (_, ctx) => { _lastCtx = ctx; await _cmdPeers(ctx); },
+  });
+
+  // Daemon registry (plan/26 Wave 1) — create + remove. start/stop/send/
+  // status/install/uninstall come in later waves with the supervisor.
+  pi.registerCommand("remote-pi create", {
+    description: "Register a folder as a daemon and start it (when the supervisor is running)",
+    handler: async (args, ctx) => { _lastCtx = ctx; await _cmdCreate(args.trim(), ctx); },
+  });
+  pi.registerCommand("remote-pi remove", {
+    description: "Stop + unregister a daemon by id (local config is preserved)",
+    handler: async (args, ctx) => { _lastCtx = ctx; await _cmdRemove(args.trim(), ctx); },
+  });
+
+  // Fleet ops via the supervisor (plan/26 W2). `/remote-pi stop` stays as
+  // local stop — fleet stop is `/remote-pi daemon stop`.
+  pi.registerCommand("remote-pi daemons",        { description: "List registered daemons + state", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonsList(ctx); } });
+  pi.registerCommand("remote-pi daemon start",   { description: "Start daemons: all, or one by id (`daemon start <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonStart(ctx, args.trim() || undefined); } });
+  pi.registerCommand("remote-pi daemon stop",    { description: "Stop daemons: all, or one by id (`daemon stop <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonStop(ctx, args.trim() || undefined); } });
+  pi.registerCommand("remote-pi daemon restart", { description: "Restart daemons: all, or one by id (`daemon restart <id>`)", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonRestart(ctx, args.trim() || undefined); } });
+  pi.registerCommand("remote-pi daemon status",  { description: "Show fleet runtime status (pid, uptime, restarts)", handler: async (_, ctx) => { _lastCtx = ctx; await _cmdDaemonStatus(ctx); } });
+  pi.registerCommand("remote-pi daemon send",    { description: "Send a prompt to a daemon: `daemon send <id> \"<text>\"`", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdDaemonSend(args.trim(), ctx); } });
+  pi.registerCommand("remote-pi cron",           { description: "Schedule recurring prompts to daemons: `cron <add|list|remove|enable|disable|run|log>`", handler: async (args, ctx) => { _lastCtx = ctx; await _cmdCron(args.trim(), ctx); } });
+
+  // Service install / uninstall (plan/26 W3)
+  pi.registerCommand("remote-pi install",   { description: "Install pi-supervisord as a system service + link the remote-pi CLI (systemd/launchd/Task Scheduler; Windows prompts for admin)", handler: async (_, ctx) => { _lastCtx = ctx; _cmdInstall(ctx, { linkCli: true }); } });
+  pi.registerCommand("remote-pi uninstall", { description: "Remove the pi-supervisord system service + the CLI shims (daemons registry preserved; Windows prompts for admin)", handler: async (_, ctx) => { _lastCtx = ctx; _cmdUninstall(ctx, { linkCli: true }); } });
+
+  // Auto-init now runs from the session_start handler (above), AFTER the
+  // SDK calls bindCore(). The original setTimeout(0) here fired before bindCore
+  // replaced the throwing action-method stubs, so the first pi.sendMessage in
+  // _emitRelayState crashed the headless pi process with "Extension runtime not
+  // initialized" in a 5s supervisor crash-loop. The session_start handler now
+  // auto-starts for ANY session with auto_start_relay (default true), so new
+  // interactive pi sessions are on remote automatically — no /remote-pi needed.
+};
+
+export default extension;
+
+// ── Command implementations ───────────────────────────────────────────────────
+
+/**
+ * `/remote-pi status` — full state snapshot. Two lines: local mesh + relay.
+ *
+ * Always callable; safe when nothing is up (renders the off variants).
+ * Reuses the same icons as the footer so terminal + status output stay
+ * visually consistent.
+ */
+function _cmdStatus(ctx: Pick<ExtensionContext, "ui">): void {
+  const relayUrl = _relayUrl ?? resolveRelayUrl().url;
+
+  // Mesh line
+  let meshLine: string;
+  if (_meshNode) {
+    const name = _meshNode.name();
+    meshLine = `🟢 Local mesh: connected as "${name}" (${_sessionPeerCount} peer${_sessionPeerCount === 1 ? "" : "s"})`;
+  } else {
+    meshLine = "⚪ Local mesh: not connected";
+  }
+
+  // Relay line — paired state is derived from _activePeers.size now.
+  let relayLine: string;
+  if (_state === "idle") {
+    relayLine = `⚪ Relay: off (${relayUrl}) — run /remote-pi to start`;
+  } else if (_activePeers.size > 0) {
+    const count = _activePeers.size;
+    const shortids = [..._activePeers.keys()].map((peerId) => peerId.slice(0, 8)).join(", ");
+    relayLine = `🟢 Relay: ${count} owner${count === 1 ? "" : "s"} online (${shortids}) (${relayUrl})`;
+  } else {
+    relayLine = _hasGlobalPairings
+      ? `🟢 Relay: on, waiting for an app to connect (${relayUrl})`
+      : `🟡 Relay: on, waiting for first pairing (${relayUrl})`;
+  }
+
+  ctx.ui.notify(`[remote-pi]\n  ${meshLine}\n  ${relayLine}`, "info");
+}
+
+/**
+ * Plan/25 Wave D: `/remote-pi peers`.
+ *
+ * Queries the local broker for the aggregated peer inventory (`list_peers`
+ * returns locals + cross-PC entries prefixed with `<pc_label>:`). Formats
+ * the result grouped by source so users can see at a glance who's on
+ * their machine vs. on a paired sibling Pi.
+ */
+async function _cmdPeers(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+  if (!_meshNode) {
+    ctx.ui.notify("[remote-pi] Not on the local mesh. Run /remote-pi to join.", "warning");
+    return;
+  }
+  let peers: string[];
+  try {
+    const reply = await _meshNode.request("broker", { type: "list_peers" }, 2000);
+    peers = (reply.body as { peers?: string[] } | null)?.peers ?? [];
+  } catch (err) {
+    ctx.ui.notify(`[remote-pi] peers list failed: ${String(err)}`, "error");
+    return;
+  }
+  // Exclude self from the printed list — `list_peers` returns every peer
+  // registered with the broker including the caller, which is noise here.
+  const selfName = _meshNode.name();
+  ctx.ui.notify(`[remote-pi] peers:\n${formatPeerInventory(peers, selfName)}`, "info");
+}
+
+/**
+ * Root handler for `/remote-pi`. On first run (no local config) drops into
+ * the wizard; on subsequent runs auto-joins the local mesh + starts the
+ * relay (if opted in during setup), then prints the status.
+ *
+ * `/remote-pi` is intentionally the only command users need day-to-day:
+ * idempotent connect + status display.
+ */
+async function _cmdRoot(
+  ctx: Pick<ExtensionContext, "ui" | "cwd">,
+  restartAuthority?: RootRestartAuthority,
+): Promise<void> {
+  const rootLifecycleGeneration = restartAuthority?.rootLifecycleGeneration
+    ?? _rootLifecycleGeneration;
+
+  if (_cmdRootInFlight) {
+    try {
+      await _cmdRootInFlight;
+    } catch (err) {
+      // Stale authority stops here. A current normal duplicate preserves the
+      // outgoing error, while a current replacement suppresses that old-session
+      // failure and falls through to start one fresh root below.
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+      if (!restartAuthority) throw err;
+    }
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+    if (!restartAuthority) {
+      _cmdStatus(ctx);
+      return;
+    }
+  }
+
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+
+  const run = _cmdRootInner(ctx, rootLifecycleGeneration);
+  _cmdRootInFlight = run;
+  try {
+    await run;
+  } finally {
+    if (_cmdRootInFlight === run) _cmdRootInFlight = null;
+  }
+}
+
+async function _cmdRootInner(
+  ctx: Pick<ExtensionContext, "ui" | "cwd">,
+  rootLifecycleGeneration: number,
+): Promise<void> {
+  // A root retains its startup epoch through every pre-candidate await. This is
+  // stronger than `_disposed`, which a same-module session_start intentionally
+  // clears while an outgoing continuation may still be pending.
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  // Lock identity is (cwd, name). Several agents may run in the SAME folder; the
+  // requested name just has to be made unique. Derive the name the same way
+  // `_cmdJoin` does so the lock and the mesh registration agree on identity.
+  const requestedName = loadLocalConfig(cwd).agent_name || defaultAgentName(cwd);
+
+  // Per-(cwd,name) lock. Interactive agents may coexist by auto-suffixing
+  // (`name#2`, `name#3`, …), but supervised daemons must be singletons for their
+  // registered cwd/name. If a daemon silently came up as `#2`, the supervisor
+  // would report "running" while the mesh had duplicate peers for one repo.
+  if (_cwdLock === null) {
+    const isDaemon = process.env["REMOTE_PI_DAEMON"] === "1";
+    const maxAttempts = isDaemon ? 1 : 1000;
+    for (let n = 1; n <= maxAttempts; n++) {
+      const candidate = n === 1 ? requestedName : `${requestedName}#${n}`;
+      const result = await acquireCwdLock(cwd, candidate);
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) {
+        if (result.ok) {
+          try { result.release(); } catch { /* best-effort stale lock cleanup */ }
+        }
+        return;
+      }
+      if (result.ok) { _cwdLock = result; _lockedName = candidate; break; }
+    }
+    if (_cwdLock === null) {
+      if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+      ctx.ui.notify(
+        process.env["REMOTE_PI_DAEMON"] === "1"
+          ? `[remote-pi] Daemon not started: another live agent already owns "${requestedName}" in this folder. Stop the old Pi process, then restart the daemon.`
+          : `[remote-pi] Could not start: too many agents named "${requestedName}" already running in this folder.`,
+        "warning",
+      );
+      return;
+    }
+  }
+
+  // First-time wizard: no local config in this cwd → run interactive setup.
+  if (!localConfigExists(cwd)) {
+    const ui = ctx.ui as unknown as WizardUI;
+    if (typeof ui.select !== "function") {
+      _cmdStatus(ctx);
+      return;
+    }
+    const baseDefault = defaultAgentName(cwd);
+    const newConfig = await runSetupWizard(ui, {
+      agent_name: baseDefault,
+      use_relay: true,
+    });
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+    if (!newConfig) {
+      ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
+      return;
+    }
+    saveLocalConfig(cwd, newConfig);
+    ctx.ui.notify(
+      `[remote-pi] Config saved to ${cwd}/.pi/remote-pi/config.json`,
+      "info",
+    );
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+    await _cmdJoin(ctx);
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
+    if (effectiveAutoStartRelay(newConfig)) await _cmdStart(ctx);
+    if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
+    _cmdStatus(ctx);
+    return;
+  }
+
+  // Returning user with config: ALWAYS join the local UDS mesh on connect; the
+  // relay is the only thing gated by auto_start_relay. So auto_start_relay:false
+  // now means "local mesh, no relay" (matching the first-time/wizard path and
+  // the field's documented intent) — previously a false flag skipped the mesh
+  // join entirely, leaving the agent (incl. daemons) fully idle.
+  const config = loadLocalConfig(cwd);
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration)) return;
+  if (!_meshNode) await _cmdJoin(ctx);
+  // `_cmdJoin` returns void on a canceled/failed join, so recheck both the
+  // root lifecycle and publication before bringing the Relay up.
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
+  if (effectiveAutoStartRelay(config) && _state === "idle") await _cmdStart(ctx);
+  if (!_isCurrentRootLifecycle(rootLifecycleGeneration) || !_meshNode) return;
+  _cmdStatus(ctx);
+}
+
+/**
+ * `/remote-pi setup` — re-run the wizard. Defaults pre-fill from the
+ * existing config so it doubles as an "edit" flow.
+ */
+async function _cmdSetup(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  const ui = ctx.ui as unknown as WizardUI;
+  if (typeof ui.select !== "function") {
+    ctx.ui.notify("[remote-pi] Setup requires an interactive UI.", "warning");
+    return;
+  }
+  const current = loadLocalConfig(cwd);
+  const baseDefault = defaultAgentName(cwd);
+  const newConfig = await runSetupWizard(ui, {
+    agent_name: current.agent_name ?? baseDefault,
+    use_relay: effectiveAutoStartRelay(current),
+  });
+  if (!newConfig) {
+    ctx.ui.notify("[remote-pi] Setup cancelled.", "info");
+    return;
+  }
+  saveLocalConfig(cwd, newConfig);
+  ctx.ui.notify(
+    "[remote-pi] Config updated. Run /remote-pi to apply now.",
+    "info",
+  );
+}
+
+async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  if (_state !== "idle") {
+    ctx.ui.notify("[remote-pi] Already started.", "warning");
+    return;
+  }
+  const lifecycleGeneration = ++_relayLifecycleGeneration;
+  const isCurrentCandidate = (): boolean => (
+    !_disposed &&
+    lifecycleGeneration === _relayLifecycleGeneration &&
+    _state === "idle" &&
+    _relay === null
+  );
+
+  let edKp: Awaited<ReturnType<typeof getOrCreateEd25519Keypair>>;
+  try {
+    edKp = await getOrCreateEd25519Keypair();
+  } catch (err) {
+    // Identity lookup is part of the candidate lifecycle. A later stop/off or
+    // session replacement must silence its stale rejection before any UI or
+    // error propagation touches the superseded context.
+    if (!isCurrentCandidate()) return;
+    if (err instanceof KeyringUnavailableError) {
+      // The platform keyring (macOS Keychain / Windows Credential Manager) is
+      // locked/denied and there's no file identity to fall back to. We refuse
+      // to mint a new key (that's what silently broke pairing after idle), so
+      // abort cleanly with an actionable message instead of crashing or
+      // re-pairing. Unlocking the keychain and re-running fixes it.
+      ctx.ui.notify(
+        "[remote-pi] Could not read this machine's identity: the system " +
+        "keychain is locked or access was denied. Unlock it (open the app / " +
+        "log in) and run /remote-pi again. Your pairing is NOT lost. " +
+        "(Set REMOTE_PI_ALLOW_FILE_IDENTITY=1 only for headless hosts.)",
+        "error",
+      );
+      return;
+    }
+    if (err instanceof PairedIdentityMissingError) {
+      // Issues #95/#69: this process can't reach the keyring that holds the
+      // paired identity (classically a `systemd --user` daemon vs. the desktop
+      // session that paired). Minting a fresh key here would make SelfRevoke
+      // wipe peers.json seconds later and take the phone offline, so storage
+      // refuses. Surface the actionable fix instead of failing silently.
+      ctx.ui.notify(
+        "[remote-pi] Could not read this machine's identity, but devices are " +
+        "already paired — refusing to generate a new one (that would revoke " +
+        "them). This process likely cannot reach the same keyring as the " +
+        "session that paired (e.g. a systemd --user daemon). Give the service " +
+        "keyring access, or copy the paired keypair to ~/.pi/remote/identity.json " +
+        "(0600) so both contexts read the same identity.",
+        "error",
+      );
+      return;
+    }
+    throw err;
+  }
+  // Re-check immediately after the first await, before cache/config/model/UI
+  // mutation or Relay construction. `_disposed` alone is insufficient because
+  // same-module session_start intentionally clears it for the replacement.
+  if (!isCurrentCandidate()) return;
+  _cachedEd25519 = edKp;
+
+  const { url: relayUrl, source } = resolveRelayUrl();
+  const myShort = Buffer.from(edKp.publicKey).toString("base64").slice(0, 8);
+
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  // Same name we send in pair_ok — keeps room_meta.name and the per-pair
+  // session_name aligned so the app shows consistent labels.
+  const sessionName = _displayName(cwd);
+  // plan/41: derive the App↔Pi room from (cwd, name) so several agents in the
+  // SAME folder get distinct rooms (the app renders one tile per agent). The
+  // default/unnamed case preserves the legacy cwd-only id (no re-keying). Uses
+  // the SAME name as room_meta.name / pair_ok below — the invariant that the
+  // app pairs on the room the Pi actually announces.
+  const roomId = roomIdFor(cwd, sessionName);
+
+  // Seed the current model from the SDK's resolved selection so room_meta
+  // carries it on connect. `model_select` only fires on an explicit set/cycle
+  // (NOT on settings load), so a headless daemon that just runs its default
+  // model never emits it — without this its room_meta would omit the model and
+  // the app shows "unknown". `getModel()` returns the session's resolved model
+  // in every mode (interactive + RPC daemon); turn_start hydrates it later if
+  // the SDK resolves the model lazily.
+  if (!_currentModel) {
+    try {
+      const c = ctx as Partial<ExtensionContext> & {
+        model?: { name?: string; id?: string };
+        getModel?: () => { name?: string; id?: string } | undefined;
+      };
+      // Prefer the live getModel() / ctx.model — populated for an interactive
+      // Pi. For a HEADLESS DAEMON both are undefined at connect: the SDK only
+      // resolves `this.model` lazily at the first turn, and `model_select`
+      // never fires for a default-model session. So fall back to the CONFIGURED
+      // default (defaultProvider/defaultModel in <cwd>/.pi/settings.json) — the
+      // model the daemon will actually use. Without this an idle daemon (never
+      // prompted → no turn) would never report its model and the app shows
+      // "unknown". turn_start still hydrates a later override.
+      const live = c.getModel?.() ?? c.model;
+      if (live) {
+        _currentModel = live.name ?? live.id ?? undefined;
+      } else {
+        const sm = SettingsManager.create(cwd);
+        const provider = sm.getDefaultProvider();
+        const modelId = sm.getDefaultModel();
+        if (modelId) {
+          const found = provider
+            ? ensureModelRegistry((c ?? _lastEventCtx ?? _lastCtx) as unknown as ActionCtx | null)
+                .find(provider, modelId)
+            : undefined;
+          _currentModel = found?.name ?? modelId;
+        }
+      }
+    } catch { /* defensive — never block start on a model lookup */ }
+  }
+
+  // Plan/28 Wave D.1: seed thinking from the SDK's current level so the
+  // first room_meta hello already carries it. `pi.getThinkingLevel()` is
+  // safe at this point — extension factory has been bound by the SDK
+  // before any command handler fires. Future toggles go through the
+  // `thinking_level_select` event handler above.
+  try {
+    _currentThinking = _pi?.getThinkingLevel() as ThinkingLevel | undefined;
+  } catch { /* defensive — never block /remote-pi start on this */ }
+
+  const roomMeta: { name: string; cwd: string; model?: string; thinking?: ThinkingLevel } = { name: sessionName, cwd };
+  const modelName = _currentModelName();
+  if (modelName) roomMeta.model = modelName;
+  if (_currentThinking) roomMeta.thinking = _currentThinking;
+  // Persist so _attemptReconnect can replay the same hello payload — without
+  // this, reconnect issues a bare hello and the relay creates a "default room"
+  // entry that surfaces in the app as a phantom legacy session.
+  _myRoomMeta = roomMeta;
+
+  ctx.ui.notify(`[remote-pi] Connecting to relay ${relayUrl} (source: ${source}, room: ${roomId})…`, "info");
+
+  // Transport opens WebSocket; convert the canonical http(s):// stored
+  // form to ws(s):// at this boundary. The relayUrl variable keeps the
+  // http(s):// form for logging + mesh client construction below.
+  const relay = new RelayClient(toWebSocketUrl(relayUrl), edKp);
+  try {
+    await relay.connect({ roomId, roomMeta });
+  } catch (err) {
+    // A rejected local candidate is never published and must always be closed,
+    // regardless of whether this lifecycle is still authoritative.
+    try { relay.close(); } catch { /* best-effort rejected candidate cleanup */ }
+    // A stop, shutdown/replacement, relay-off, or newer start may supersede a
+    // candidate before its rejection arrives. Keep the outgoing context silent;
+    // only the authoritative attempt may report an error.
+    if (!isCurrentCandidate()) return;
+    if (err instanceof RoomAlreadyOpenError) {
+      ctx.ui.notify(
+        "[remote-pi] Already running in this cwd. Stop the other terminal first.",
+        "error",
+      );
+      return;
+    }
+    ctx.ui.notify(`[remote-pi] relay connect failed: ${String(err)}`, "error");
+    return;
+  }
+
+  // The candidate is local until this publication point. Session shutdown,
+  // stop/relay-off, or a newer start may have invalidated it while connect()
+  // was pending; never let that stale continuation resurrect the Relay.
+  if (!isCurrentCandidate()) {
+    try { relay.close(); } catch { /* best-effort stale candidate cleanup */ }
+    return;
+  }
+
+  _relay = relay;
+  _relayUrl = relayUrl;
+  _peerShort = myShort;
+  _myRoomId = roomId;
+  _state = "started";
+  // Set _sessionStartedAt ONLY on first /remote-pi start since process boot.
+  // Subsequent start cycles (after stop) preserve the original epoch so the
+  // app keeps treating it as the same session (and merges new events from
+  // the terminal turns that happened during the idle window). Pi process
+  // restart is the only thing that produces a fresh session_started_at.
+  if (_sessionStartedAt === null) _sessionStartedAt = Date.now();
+  // _messageBuffer intentionally preserved across stop/start — it accumulates
+  // message_end events for the lifetime of the Pi process, including turns
+  // initiated from the terminal while the relay was disconnected.
+
+  relay.on("close", () => _onRelayClose(relay));
+
+  _stopAutoListener = _installAutoListener(relay);
+  _refreshFooter(ctx);
+
+  // SelfRevoke is the Pi path's single initial topology producer. Its first
+  // coalesced sweep always publishes verified membership or a safe fallback
+  // before the bridge may attach.
+  let createdProducer = false;
+  if (_selfRevoke === null) {
+    createdProducer = true;
+    const producerEpoch = ++_selfRevokeEpoch;
+    _selfRevokeTopologyReadyEpoch = -1;
+    _selfRevokeTopology = null;
+    let producer!: SelfRevoke;
+    producer = new SelfRevoke({
+      client: new MeshClient(relayUrl),
+      storage: { snapshotOwnerPubkeys, conditionalRemovePeer },
+      myPubkey: edKp.publicKey,
+      onRevoke: (rawOwnerPubkey, canonicalOwnerPubkey) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
+        }
+        _revokeActiveOwnerRuntime(canonicalOwnerPubkey);
+        void rawOwnerPubkey; // exact storage removal already happened upstream
+      },
+      onAuthoritativeOwners: (canonicalOwnerPubkeys) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
+        }
+        const presentOwners = new Set(canonicalOwnerPubkeys);
+        let effectFailed = false;
+        for (const canonicalOwnerPubkey of [..._activePeers.keys()]) {
+          if (
+            _selfRevoke !== producer ||
+            producerEpoch !== _selfRevokeEpoch
+          ) {
+            return;
+          }
+          if (presentOwners.has(canonicalOwnerPubkey)) continue;
+          try {
+            _revokeActiveOwnerRuntime(canonicalOwnerPubkey);
+          } catch {
+            effectFailed = true;
+          }
+        }
+        if (effectFailed) throw new Error("Owner runtime reconciliation failed");
+      },
+      onTopologyChanged: (snapshot) => {
+        if (
+          _selfRevoke !== producer ||
+          producerEpoch !== _selfRevokeEpoch
+        ) {
+          return;
+        }
+        _selfRevokeTopology = snapshot;
+        _meshNode?.setTopology(snapshot);
+        _selfRevokeTopologyReadyEpoch = producerEpoch;
+        _attachBridgeIfReady();
+      },
+      log: { info: () => {}, warn: () => {}, error: () => {} },
+    });
+    _selfRevoke = producer;
+    producer.start();
+    await producer.checkOnce();
+    if (
+      _disposed ||
+      _selfRevoke !== producer ||
+      producerEpoch !== _selfRevokeEpoch ||
+      _relay !== relay
+    ) {
+      return;
+    }
+  }
+
+  // Relay reconnect reuses the current producer's retained snapshot. Initial
+  // startup is callback-driven above, so it must not issue a second attach.
+  if (!createdProducer) _attachBridgeIfReady();
+
+  _emitRelayState();  // → connected
+  ctx.ui.notify(`[remote-pi] state: started (peer=${myShort}) — Connected to relay ${relayUrl}`, "info");
+}
+
+/**
+ * `/remote-pi pair` — always generates a fresh QR when the relay is up.
+ *
+ * Pre-W2D this rejected with "Already paired with X" once one owner was
+ * connected, forcing /remote-pi stop to pair a second device — the
+ * catch-22 the multi-channel refactor was designed to break. Now the new
+ * device is **added** to `_activePeers` after scanning, while existing
+ * owners keep their session.
+ */
+async function _cmdPair(ctx: Pick<ExtensionContext, "ui" | "cwd">, args = ""): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : "";
+
+  // Auto-bootstrap when services are down. Before this, `/remote-pi pair`
+  // on a fresh terminal forced the user to call `/remote-pi` first — every
+  // session began with the same surprise warning + second command. Now we
+  // do the join + relay-start inline so the common "I just opened a
+  // terminal and want to pair my phone" flow is a single command.
+  //
+  // We don't run the first-time wizard here: pair is a focused operation
+  // and the wizard prompts are wrong UX in that flow. If there's no local
+  // config, the user truly needs to run `/remote-pi` first to configure.
+  if (_state === "idle") {
+    if (!localConfigExists(cwd)) {
+      ctx.ui.notify(
+        "[remote-pi] First-time setup needed. Run /remote-pi to configure, then /remote-pi pair.",
+        "warning",
+      );
+      return;
+    }
+    ctx.ui.notify("[remote-pi] Starting mesh + relay before pairing…", "info");
+    if (!_meshNode) await _cmdJoin(ctx);
+    if (_state === "idle") await _cmdStart(ctx);
+  }
+
+  // Relay must be up — the QR carries a token the app exchanges through
+  // the relay. Without a live WS there's nothing for the scan to land on.
+  if (_state === "idle" || !_relay) {
+    ctx.ui.notify(
+      "[remote-pi] Pair requires the relay to be connected. " +
+      "Run /remote-pi to start it (or fix your relay URL via /remote-pi set-relay).",
+      "warning",
+    );
+    return;
+  }
+
+  const edKp = _cachedEd25519!;
+  // Embed the user-configured name in the QR so the app shows it on the
+  // pairing screen before pair_ok lands (better UX than "remote" or a
+  // raw path snippet).
+  const sessionName = _displayName(cwd);
+
+  // Optional `--ttl <seconds>` — RPC clients (e.g. Cockpit) pass a caller-
+  // defined expiry. Defaults to TOKEN_TTL_MS, clamped to the safe window.
+  const ttlMatch = /--ttl\s+(\d+)/.exec(args);
+  const ttlMs = ttlMatch ? clampPairTtlMs(Number(ttlMatch[1]) * 1000) : TOKEN_TTL_MS;
+  const { token, expiresAt } = qrSession.issueToken(ttlMs);
+  const roomId = _myRoomId ?? roomIdFor(cwd, sessionName);
+  const qrUri = buildQRUri(token, edKp.publicKey, sessionName, roomId);
+  // Render both the QR ASCII and the copy-paste URI inside the Pi TUI's
+  // chat panel via `pi.sendMessage` — the same channel the SDK uses for
+  // agent responses + tool results. `process.stderr.write` (the old QR
+  // path via `displayQR`) broke the TUI layout because it bypassed the
+  // chat widget and bled into the prompt area. qrcode-terminal v0.12
+  // small mode is pure Unicode (█ ▀ ▄ space, no ANSI escapes — see
+  // `lib/main.js:48-53`), so embedding the ASCII inside a sendMessage
+  // content string renders correctly without raw escape bytes.
+  if (_pi) {
+    const qrAscii = renderQRAscii(qrUri);
+    _pi.sendMessage({
+      customType: "remote-pi:pair-code",
+      content:
+        `📱 Scan to pair:\n\n${qrAscii}\n` +
+        `📋 Or copy this pairing code (camera-less devices):\n\n${qrUri}`,
+      // Structured payload for RPC clients (e.g. Cockpit): render their own QR
+      // from `uri` + show the expiry, without scraping the display string.
+      details: { uri: qrUri, token, expiresAt, roomId, name: sessionName },
+      display: true,
+    });
+  }
+
+  ctx.ui.notify(
+    `[remote-pi] QR ready — valid until ${new Date(expiresAt).toLocaleTimeString()}. ` +
+    `Scan with the app, or copy the pairing code printed above.`,
+    "info",
+  );
+  // Returns immediately; the auto-listener transitions to 'paired' on pair_request.
+}
+
+/**
+ * `/remote-pi stop` — full teardown. Leaves the local UDS mesh AND closes
+ * the relay. Safe when one or both are already off. To resume, run
+ * `/remote-pi` again.
+ */
+async function _cmdStop(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+  // Invalidate queued root work and local async candidates even when none has
+  // published yet.
+  _rootLifecycleGeneration += 1;
+  _meshJoinGeneration += 1;
+  const meshUp = _meshNode !== null;
+  const relayUp = _state !== "idle";
+  if (!meshUp && !relayUp) {
+    _relayLifecycleGeneration += 1;
+    ctx.ui.notify("[remote-pi] Already stopped — nothing to do.", "info");
+    return;
+  }
+
+  // Preserve bye ordering, but revoke Relay/SelfRevoke/bridge authority while
+  // the global node is still visible and before close() begins UDS leave.
+  if (relayUp) {
+    _goIdle("peer_stop");
+  } else {
+    _relayLifecycleGeneration += 1;
+    _meshNode?.detachBridge();
+  }
+
+  const meshNode = _meshNode;
+  _meshNode = null;
+  _sessionName = null;
+  _sessionPeerCount = 0;
+  let meshClose: Promise<void> | null = null;
+  try { meshClose = meshNode?.close() ?? null; } catch { /* best-effort */ }
+  try { await meshClose; } catch { /* best-effort */ }
+
+  ctx.ui.notify("[remote-pi] Stopped (mesh + relay disconnected).", "info");
+  _refreshFooter(ctx);
+}
+
+async function _cmdList(ctx: Pick<ExtensionContext, "ui">): Promise<void> {
+  const peers = await listPeers();
+  if (peers.length === 0) { ctx.ui.notify("[remote-pi] No paired devices.", "info"); return; }
+  // Multi-channel (W2D): each peer is either `online` (channel attached
+  // right now) or `offline` (in peers.json but not connected). Replaces
+  // the singleton " (active)" marker that only ever marked one peer.
+  const lines = peers.flatMap((record) => {
+    const inspected = _inspectPeerRecord(record);
+    if (!inspected) return [];
+    const tag = inspected.runtimeKey !== null && _activePeers.has(inspected.runtimeKey)
+      ? " 🟢 online"
+      : " ⚪ offline";
+    return `• ${inspected.rawHandle.slice(0, 8)} — ${inspected.record.name}${tag}`;
+  }).join("\n");
+  ctx.ui.notify(`[remote-pi] Paired devices:\n${lines}`, "info");
+}
+
+async function _cmdRevoke(arg: string, ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const shortid = arg.trim();
+  if (!shortid) {
+    ctx.ui.notify(
+      "[remote-pi] Usage: /remote-pi revoke <shortid>. Run /remote-pi list to see shortids.",
+      "warning",
+    );
+    return;
+  }
+
+  // Revoke needs the relay so the revoked device gets a `bye` and its live
+  // channel is torn down — not just a silent peers.json edit. Auto-bootstrap
+  // the mesh + relay when down, mirroring `_cmdPair`.
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : "";
+  if (_state === "idle") {
+    if (!localConfigExists(cwd)) {
+      ctx.ui.notify(
+        "[remote-pi] First-time setup needed. Run /remote-pi to configure, then /remote-pi revoke.",
+        "warning",
+      );
+      return;
+    }
+    ctx.ui.notify("[remote-pi] Starting mesh + relay before revoking…", "info");
+    if (!_meshNode) await _cmdJoin(ctx);
+    if (_state === "idle") await _cmdStart(ctx);
+  }
+  if (_state === "idle" || !_relay) {
+    ctx.ui.notify(
+      "[remote-pi] Revoke requires the relay to be connected. " +
+      "Run /remote-pi to start it (or fix your relay URL via /remote-pi set-relay).",
+      "warning",
+    );
+    return;
+  }
+
+  const matches = (await listPeers())
+    .map(_inspectPeerRecord)
+    .filter((peer): peer is InspectedPeerRecord => peer !== null)
+    .filter((peer) => peer.rawHandle.startsWith(shortid));
+
+  if (matches.length === 0) {
+    ctx.ui.notify(
+      "[remote-pi] No peer matching that shortid. Run /remote-pi devices to see shortids.",
+      "warning",
+    );
+    return;
+  }
+
+  if (matches.length > 1) {
+    const collisions = matches.map((peer) => peer.rawHandle.slice(0, 8)).join(", ");
+    ctx.ui.notify(
+      `[remote-pi] Ambiguous shortid — ${matches.length} matches: ${collisions}. Use mais chars.`,
+      "warning",
+    );
+    return;
+  }
+
+  const peer = matches[0]!;
+  await removePeer(peer.rawHandle);
+  _refreshPairingsCache();
+
+  // Storage removal uses the exact saved representation; the active channel
+  // is indexed by its canonical identity.
+  if (peer.runtimeKey !== null && _activePeers.has(peer.runtimeKey)) {
+    const channel = _activePeers.get(peer.runtimeKey);
+    try { channel?.send({ type: "bye", reason: "session_replaced" }); } catch { /* best-effort */ }
+    _detachPeerChannel(peer.runtimeKey);
+    _refreshFooter();
+  }
+
+  ctx.ui.notify(
+    `[remote-pi] Revoked: ${peer.record.name} (${peer.rawHandle.slice(0, 8)}…)`,
+    "info",
+  );
+}
+
+async function _shortidCompletions(
+  prefix: string,
+  valuePrefix = "",
+): Promise<Array<{ value: string; label: string }>> {
+  const peers = (await listPeers())
+    .map(_inspectPeerRecord)
+    .filter((peer): peer is InspectedPeerRecord => peer !== null);
+  return peers
+    .map((peer) => ({
+      shortid: peer.rawHandle.slice(0, 8),
+      name: peer.record.name,
+    }))
+    .filter((entry) => entry.shortid.startsWith(prefix))
+    .map((entry) => ({
+      value: `${valuePrefix}${entry.shortid}`,
+      label: `${entry.shortid} (${entry.name})`,
+    }));
+}
+
+function _cmdSetRelay(arg: string, ctx: Pick<ExtensionContext, "ui">): void {
+  const raw = arg.trim();
+  if (!raw) {
+    ctx.ui.notify(
+      "[remote-pi] Usage: /remote-pi set-relay <http:// or https:// url>",
+      "warning",
+    );
+    return;
+  }
+  if (isWebSocketScheme(raw)) {
+    ctx.ui.notify(
+      `[remote-pi] Use http:// or https://. The extension converts to WebSocket automatically.`,
+      "error",
+    );
+    return;
+  }
+  if (!isValidRelayUrl(raw)) {
+    ctx.ui.notify(
+      `[remote-pi] Invalid URL: ${raw}. Must start with http:// or https://`,
+      "error",
+    );
+    return;
+  }
+  saveConfig({ relay: raw });
+  ctx.ui.notify(
+    `[remote-pi] Relay set to ${raw}. Run /remote-pi relay stop then /remote-pi relay start to apply.`,
+    "info",
+  );
+}
+
+/**
+ * `/remote-pi config` — print the effective relay URL and where it came from.
+ *
+ * Documented in the README ("Verify the active URL and its source") and in
+ * CLAUDE.md, but like the `relay` family (issue #119) it had no handler and
+ * fell through to the status panel, which shows the URL but not the source —
+ * so `env` vs `config` vs `default` was unverifiable without a restart.
+ */
+function _cmdConfig(ctx: Pick<ExtensionContext, "ui">): void {
+  const { url, source } = resolveRelayUrl();
+  const origin = source === "env"
+    ? "REMOTE_PI_RELAY environment variable"
+    : source === "config"
+      ? "~/.pi/remote/config.json (set via /remote-pi set-relay)"
+      : "built-in default";
+  const live = _relayUrl && _relayUrl !== url
+    ? `\n  ⚠ Live connection still on ${_relayUrl} — run /remote-pi relay stop then /remote-pi relay start to apply.`
+    : "";
+  ctx.ui.notify(`[remote-pi]\n  Relay URL: ${url}\n  Source: ${source} — ${origin}${live}`, "info");
+}
+
+/**
+ * `/remote-pi relay [start|stop|status|url <url>]` — issue #119.
+ *
+ * The README has always documented this family (`relay url` to point at a
+ * self-hosted relay, `relay stop` + `relay start` to apply the change), but no
+ * handler existed: every `relay …` invocation fell through the `else` in the
+ * flat dispatcher and silently reprinted the status panel. Users following the
+ * README believed they had switched relays and stayed on the community relay —
+ * exactly the case where our own docs warn the operator sees routed plaintext.
+ *
+ * Verbs map onto the same primitives the RPC control channel already uses
+ * (`_handleControl`), so the slash command and the Cockpit button can't drift:
+ * relay-only up (`_cmdStart`) / relay-only down (`_goIdle`), never touching
+ * local-mesh membership — that stays `/remote-pi stop`'s job.
+ */
+async function _cmdRelay(arg: string, ctx: ExtensionContext): Promise<void> {
+  const raw = arg.trim();
+  const [verb, ...rest] = raw.split(/\s+/);
+  const value = rest.join(" ").trim();
+
+  switch (verb) {
+    case "":
+    case "toggle":
+      await _handleControl("relay:toggle");
+      ctx.ui.notify(`[remote-pi] Relay ${_relayStatus()}.`, "info");
+      _refreshFooter(ctx);
+      return;
+    case "start":
+    case "on":
+      if (_getState() === "idle") await _cmdStart(ctx);
+      else ctx.ui.notify(`[remote-pi] Relay already ${_relayStatus()}.`, "info");
+      _emitRelayState(true);
+      return;
+    case "stop":
+    case "off":
+      if (_getState() === "idle") {
+        ctx.ui.notify("[remote-pi] Relay already disconnected.", "info");
+      } else {
+        _goIdle("peer_stop");
+        ctx.ui.notify("[remote-pi] Relay disconnected (local mesh untouched).", "info");
+      }
+      _emitRelayState(true);
+      _refreshFooter(ctx);
+      return;
+    case "status":
+      _cmdStatus(ctx);
+      _emitRelayState(true);
+      return;
+    case "url":
+      // Same writer as `set-relay` — one code path, so validation and the
+      // "restart to apply" hint can never diverge between the two spellings.
+      _cmdSetRelay(value, ctx);
+      return;
+    default:
+      ctx.ui.notify(
+        "[remote-pi] Usage: /remote-pi relay [start|stop|status|url <http(s) url>]",
+        "warning",
+      );
+      return;
+  }
+}
+
+// ── Agent-network commands (plano 19) ─────────────────────────────────────────
+
+function _resolveExtensionDir(): string {
+  // dist/extension.js → dist; skills sit at <extensionRoot>/skills/. When we run
+  // from src/ via tsx (dev), extension.ts is in src/ and skills/ is sibling. We
+  // detect by checking both locations.
+  const here = fileURLToPath(import.meta.url);
+  // dist/extension.js or src/extension.ts → parent = <dist or src>; sibling = ../skills
+  const parent = here.replace(/\/[^/]+$/, "");
+  const candidateA = join(parent, "..", "skills"); // dist → ../skills
+  const candidateB = join(parent, "skills");        // src → skills
+  if (existsSync(candidateA)) return parent.replace(/\/dist$/, "");
+  if (existsSync(candidateB)) return parent;
+  return parent;
+}
+
+function _deployAgentNetworkSkill(): void {
+  // Pi SDK spec (core/skills.js): every skill must live at
+  //   <skillsRoot>/<skill-name>/SKILL.md
+  // The skill `name:` frontmatter must equal the parent directory name. We
+  // ship the source pre-arranged that way so deploy is a straight copy into
+  // ~/.pi/remote/skills/agent-network/SKILL.md.
+  const root = _resolveExtensionDir();
+  const src1 = join(root, "skills", "agent-network", "SKILL.md");
+  const src2 = join(root, "..", "skills", "agent-network", "SKILL.md");
+  const src = existsSync(src1) ? src1 : (existsSync(src2) ? src2 : null);
+  if (!src) return;
+  const dstDir = join(skillsDir(), "agent-network");
+  const dst = join(dstDir, "SKILL.md");
+  try {
+    mkdirSync(dstDir, { recursive: true });
+    copyFileSync(src, dst);
+    // Cleanup legacy deploy at ~/.pi/remote/skills/agent-network.md (flat
+    // layout, fails the Pi SDK's name-vs-parent-dir validation).
+    const legacy = join(skillsDir(), "agent-network.md");
+    if (existsSync(legacy)) {
+      try { unlinkSync(legacy); } catch { /* ignored */ }
+    }
+  } catch { /* best-effort */ }
+}
+
+/**
+ * Inject text into the agent as a user message, waking a turn. The Pi SDK's
+ * `ExtensionAPI.sendUserMessage` is fire-and-forget (returns `void`) and
+ * "always triggers a turn" — the SDK runtime owns any *async* turn failure
+ * (no model/API key, expired auth, provider error), which surfaces in the
+ * agent's own output, not back to us. Two gaps this helper closes, both of
+ * which previously failed silently:
+ *
+ *   1. `_pi` not bound yet (activation race / mesh joined before the session
+ *      attached): the old code did `if (!_pi) return`, dropping the message
+ *      with no trace. We log it (the daemon forwards child stderr to its log
+ *      with a cwd prefix, so it's visible in `journalctl`).
+ *   2. A *synchronous* throw from `sendUserMessage` (e.g. malformed content):
+ *      the old fire-and-forget call let it propagate out of the `onMessage`
+ *      callback, which could wedge the read loop and blackout every later
+ *      message. We catch + surface it instead.
+ *
+ * NOTE: this does NOT make a wake that fails *inside* the SDK observable —
+ * that requires a fix in the Pi runtime (no extension-level error event
+ * exists for it). See `.orchestration/results/mesh-liveness-stale-peer.md`.
+ */
+type SendUserMessageOptions =
+  NonNullable<Parameters<ExtensionAPI["sendUserMessage"]>[1]>;
+
+type WakeAgentResult =
+  | { ok: true }
+  | { ok: false; detail: string };
+
+function _wakeAgent(
+  content: Parameters<ExtensionAPI["sendUserMessage"]>[0],
+  label: string,
+  steeringBehavior?: SendUserMessageOptions["deliverAs"],
+): WakeAgentResult {
+  if (!_pi) {
+    const detail = "agent session not bound yet";
+    console.error(`[remote-pi] ${label}: ${detail} — message dropped`);
+    return { ok: false, detail };
+  }
+  try {
+    const options = steeringBehavior
+      ? ({ deliverAs: steeringBehavior })
+      : undefined;
+    _pi.sendUserMessage(content, options);
+    return { ok: true };
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[remote-pi] ${label}: agent rejected incoming message: ${detail}`);
+    _safeNotify(`[remote-pi] failed to process incoming message: ${detail}`, "error");
+    return { ok: false, detail };
+  }
+}
+
+/**
+ * Deliver an inbound agent-network (mesh) message to the agent + the app.
+ *
+ * Display: the app renders it in the TOOL timeline (a matched
+ * tool_request/tool_result "agent-network" pair) — NOT as the user's own
+ * message, which is what `sendUserMessage` used to produce (the reported bug).
+ *
+ * Wake: we inject a CUSTOM message (role:"custom"), not a user message. The
+ * SDK's `convertToLlm` maps custom → a user-role LLM message, so the agent
+ * still sees + replies to it, but `message_end` does NOT buffer role:"custom",
+ * so it never replays as `user_input` on session_sync. Mesh messages are held
+ * until the current `agent_end` listeners finish, then appended as one batch
+ * before a single turn starts. This avoids calling `prompt()` during the gap
+ * where Pi has stopped streaming but the current agent run is still active.
+ * `id` lets the LLM echo it via
+ * `agent_send(..., re=<id>)`.
+ */
+function _meshMessageForAgent(env: MeshEnvelope) {
+  const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
+  const header = `[agent-network] message from "${env.from}" (id=${env.id}${env.re ? `, re=${env.re}` : ""}):`;
+  const footer = env.re
+    ? "(This is a reply to a previous message of yours.)"
+    : `(If a reply is expected, call agent_send with to="${env.from}" and re="${env.id}".)`;
+  return {
+    customType: "remote-pi:mesh-message",
+    content: `${header}\n${bodyText}\n\n${footer}`,
+    display: true,
+  };
+}
+
+function _scheduleMeshMessageDrain(): void {
+  if (_meshDrainScheduled || _pendingMeshMessages.length === 0) return;
+  _meshDrainScheduled = true;
+  queueMicrotask(() => {
+    _meshDrainScheduled = false;
+    const pi = _pi;
+    if (_agentRunActive || !pi || _pendingMeshMessages.length === 0) return;
+
+    const batch = _pendingMeshMessages.splice(0);
+    let delivered = 0;
+    _agentRunActive = true;
+    try {
+      batch.forEach((env, index) => {
+        const isLast = index === batch.length - 1;
+        pi.sendMessage(
+          _meshMessageForAgent(env),
+          isLast
+            ? { triggerTurn: true, deliverAs: "followUp" }
+            : { triggerTurn: false },
+        );
+        delivered += 1;
+      });
+    } catch (err) {
+      _agentRunActive = false;
+      _pendingMeshMessages = [...batch.slice(delivered), ..._pendingMeshMessages];
+      const detail = err instanceof Error ? err.message : String(err);
+      console.error(`[remote-pi] queued mesh delivery failed: ${detail}`);
+      _safeNotify(`[remote-pi] failed to process queued mesh messages: ${detail}`, "error");
+    }
+  });
+}
+
+function _deliverMeshMessageToAgent(env: MeshEnvelope): void {
+  const bodyText = typeof env.body === "string" ? env.body : JSON.stringify(env.body);
+  const toolCallId = `mesh_${env.id}`;
+  _broadcastToActive({
+    type: "tool_request",
+    tool_call_id: toolCallId,
+    tool: "agent-network",
+    args: env.re
+      ? { from: env.from, re: env.re, message: bodyText }
+      : { from: env.from, message: bodyText },
+  });
+  _broadcastToActive({ type: "tool_result", tool_call_id: toolCallId, result: { from: env.from, message: bodyText } });
+
+  if (!_pi) {
+    console.error(`[remote-pi] agent-network message from "${env.from}": agent session not bound yet — message dropped`);
+    return;
+  }
+  _pendingMeshMessages.push(env);
+  _scheduleMeshMessageDrain();
+}
+
+/** Test-only entry point for verifying mesh-to-agent delivery semantics. */
+export function _deliverMeshMessageToAgentForTest(env: MeshEnvelope): void {
+  _deliverMeshMessageToAgent(env);
+}
+
+/**
+ * Joins the fixed local UDS mesh ("local" session — see LOCAL_SESSION_NAME).
+ * Called by `_cmdRoot` on first run and on subsequent runs when the relay
+ * is up and the user hasn't explicitly stopped. The session name is no
+ * longer user-configurable: every Pi on the same machine joins the same
+ * broker.
+ */
+async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void> {
+  const cwd = "cwd" in ctx ? (ctx as ExtensionCommandContext).cwd : process.cwd();
+  const local = loadLocalConfig(cwd);
+  const sessionName = LOCAL_SESSION_NAME;
+  // What the user configured for this agent…
+  const requestedName = local.agent_name || defaultAgentName(cwd);
+  // …and what we actually register: the name the cwd-lock reserved, which is
+  // `requestedName` or a `#N` variant when same-named agents share this folder.
+  // Falls back to requestedName when join runs without a prior `_cmdRoot` lock
+  // (e.g. legacy/test paths).
+  const agentName = _lockedName ?? requestedName;
+
+  if (_meshNode) {
+    ctx.ui.notify("[remote-pi] Already on the local mesh.", "warning");
+    return;
+  }
+  const joinGeneration = ++_meshJoinGeneration;
+
+  ensureGlobalDirs();
+  mkdirSync(join(skillsDir(), "..", "sessions", sessionName), { recursive: true });
+
+  const sock = sessionSockPath(sessionName);
+  const audit = sessionAuditPath(sessionName);
+  // Forward the cwd so the broker keys this peer by (cwd, name): a same-folder
+  // same-name reincarnation (switch_session re-eval, app restart) takes over the
+  // name instead of registering behind a mute `name#N` ghost. Canonicalize via
+  // realpath so symlinked cwds map to one identity (matches roomIdForCwd).
+  let canonCwd = cwd;
+  try { canonCwd = realpathSync(cwd); } catch { /* cwd missing — use raw path */ }
+  const peer = new MeshNode({
+    sockPath: sock,
+    name: agentName,
+    cwd: canonCwd,
+    auditPath: audit,
+    takeoverExisting: process.env["REMOTE_PI_DAEMON"] === "1",
+  });
+
+  peer.onMessage((env) => {
+    const body = env.body as { type?: string } | null;
+    // Broker system events: re-query broker for authoritative count.
+    // Incremental ±1 drifts when peer_left is missed (leader leaves cleanly,
+    // failover, etc.) — querying list_peers makes the count self-healing.
+    if (body && (body.type === "peer_joined" || body.type === "peer_left")) {
+      _refreshSessionPeerCount(peer, ctx);
+      // Plan/25 Wave B: push fresh peer list to all siblings so their
+      // remotePeers cache stays current without polling.
+      void peer.request("broker", { type: "list_peers" }, 2000)
+        .then((reply) => {
+          const body = reply.body as {
+            peers?: string[];
+            peers_detailed?: Array<{ pc?: string; address?: string }>;
+          } | null;
+          // onLocalPeersChanged wants LOCAL-only addresses (list_peers returns
+          // the aggregated local + cross-PC roster). Prefer the structured
+          // roster (plan/38): a local peer has no `pc`. This is drive-letter
+          // safe — a Windows local address `C:\…@app` contains ':' but is NOT
+          // remote, so the old naive `!p.includes(":")` misclassified it.
+          let local: string[] | null = null;
+          const detailed = body?.peers_detailed;
+          if (Array.isArray(detailed)) {
+            local = detailed
+              .filter((p) => !p.pc && typeof p.address === "string")
+              .map((p) => p.address as string);
+          } else if (Array.isArray(body?.peers)) {
+            // Fallback for a legacy broker without `peers_detailed`.
+            local = body!.peers!.filter((p) => !p.includes(":"));
+          }
+          // No-op when the bridge isn't up (follower / relay down).
+          if (local) peer.onLocalPeersChanged(local);
+        })
+        .catch(() => { /* bridge not bound yet, or list_peers failed */ });
+      return;
+    }
+    if (env.from === "broker") return;  // other broker control messages — ignore
+
+    // Real agent-to-agent message (SessionPeer already correlated replies via
+    // env.re before this point). Show it in the app's TOOL timeline and wake
+    // the agent as a CUSTOM message — never as the user's own message.
+    _deliverMeshMessageToAgent(env);
+  });
+
+  // After failover (leader died, we re-elected): the new broker's peers map
+  // starts fresh, but our cached `_sessionPeerCount` is stale. Re-seed it so
+  // surviving peers don't carry the pre-failover count forever.
+  //
+  // The cross-PC bridge re-attach on failover (drop the stale broker ref,
+  // re-wire against the fresh `localBroker()` if we were promoted to leader)
+  // is handled INSIDE MeshNode — no manual teardown/ensure needed here.
+  peer.onReconnect(() => {
+    _refreshSessionPeerCount(peer, ctx);
+  });
+
+  const isCurrentCandidate = (): boolean => (
+    !_disposed &&
+    joinGeneration === _meshJoinGeneration &&
+    _meshNode === null
+  );
+
+  try {
+    const assigned = await peer.connect();
+    // The candidate stays local until connect resolves. Shutdown, stop, or a
+    // newer join invalidates its generation; close it instead of publishing a
+    // ghost peer or allowing _cmdRoot to continue into Relay startup.
+    if (!isCurrentCandidate()) {
+      try { await peer.close(); } catch { /* best-effort */ }
+      return;
+    }
+    _meshNode = peer;
+    _sessionName = sessionName;
+    _sessionPeerCount = 1;  // optimistic — overwritten by list_peers below
+    // Broker broadcasts `peer_joined` only to existing peers when a new one
+    // arrives — the newcomer doesn't get retroactive joined events. Ask the
+    // broker for the live peer list to seed the count correctly on join.
+    _refreshSessionPeerCount(peer, ctx);
+    // Tell RPC clients (e.g. Cockpit) the EFFECTIVE mesh name. The broker
+    // appends a `#N` suffix only on a same-(cwd,name) collision, so the name we
+    // requested and the one actually assigned can differ. Emit a pure-data event
+    // (display:false) carrying both + a `changed` flag so the client can rename
+    // the agent in its own UI to match what the mesh/relay will show. Fired on
+    // every join (incl. failover re-elect, which can re-assign the name), so the
+    // client always reflects the live name, not just the first one.
+    //
+    // plan/38 decision E: we deliberately DO NOT persist `assigned`. A `#N` is a
+    // RUNTIME collision resolution; freezing it into `agent_name` fossilizes an
+    // accident and causes cross-folder name ping-pong across restarts. The clean
+    // name (wizard / explicit `agent_name`) already lives in config or re-derives
+    // from `basename(cwd)`; the event above carries the live `#N` for the UI.
+    _pi?.sendMessage({
+      customType: "remote-pi:name-assigned",
+      content: assigned === requestedName
+        ? `Mesh name: ${assigned}`
+        : `Mesh name reassigned: "${requestedName}" → "${assigned}" (collision)`,
+      details: { requested: requestedName, assigned, changed: assigned !== requestedName },
+      display: false,
+    });
+    ctx.ui.notify(
+      `[remote-pi] Joined local mesh as "${assigned}" (${peer.currentRole()})`,
+      "info",
+    );
+    _refreshFooter(ctx);
+    // Plan/25 Wave B/C: try to bring up cross-PC routing now that the
+    // local broker exists. No-op if the relay isn't up yet (will fire
+    // again from `_cmdStart`).
+    _attachBridgeIfReady();
+  } catch (err) {
+    // A replacement/stop/newer join can invalidate this candidate before its
+    // failure arrives. Clean it up and never notify the outgoing session ctx.
+    if (!isCurrentCandidate()) {
+      try { await peer.close(); } catch { /* best-effort */ }
+      return;
+    }
+    ctx.ui.notify(`[remote-pi] join failed: ${String(err)}`, "error");
+  }
+}
+
+// ── routeClientMessage ────────────────────────────────────────────────────────
+
+/**
+ * Per-channel router. Replaces the W2D-pre `routeClientMessage` which
+ * implicitly used the `_peerChannel` singleton for replies. Each
+ * PlainPeerChannel now carries its own `sender` and passes it here so
+ * sender-specific responses (cancelled, pong, session_history) flow back
+ * through the right wire instead of being broadcast.
+ *
+ * Broadcast messages (user_input mirror, agent_chunk, tool_*) still use
+ * `_broadcastToActive` from the SDK event handlers; this router only
+ * handles incoming app→pi requests.
+ */
+function _abortCurrentTurn(
+  fallbackCtx?: Pick<ExtensionContext, "abort">,
+): boolean {
+  const candidates: Array<Pick<ExtensionContext, "abort"> | null | undefined> = [
+    _lastEventCtx,
+    _lastCtx,
+    fallbackCtx,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || candidate === _noopCtx) continue;
+    if (typeof candidate.abort !== "function") continue;
+    try {
+      candidate.abort();
+      return true;
+    } catch (err) {
+      // Only skip SDK stale-ctx throws and try the next candidate. Real abort
+      // failures rethrow so the cancel handler can report action_error.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/stale|session replacement or reload/i.test(msg)) continue;
+      throw err;
+    }
+  }
+
+  return false;
+}
+
+export function _routeClientMessageFrom(
+  sender: PlainPeerChannel,
+  msg: ClientMessage,
+  ctx: Pick<ExtensionContext, "abort">,
+): void {
+  // session_sync has its own internal guards — handle before the strict
+  // pi-binding guard so a missing _pi doesn't drop the reply.
+  if (msg.type === "session_sync") {
+    _handleSessionSync(sender, msg);
+    return;
+  }
+  if (msg.type === "cancel") {
+    try {
+      const aborted = _abortCurrentTurn(ctx);
+      if (!aborted) {
+        sender.send({
+          type: "error",
+          code: "internal_error",
+          in_reply_to: msg.id,
+          message: "No active Pi context to abort",
+        });
+        return;
+      }
+      sender.send({ type: "cancelled", in_reply_to: msg.id, target_id: msg.target_id });
+    } catch (err) {
+      sender.send({
+        type: "error",
+        code: "internal_error",
+        in_reply_to: msg.id,
+        message: `Abort failed: ${String(err)}`,
+      });
+    }
+    return;
+  }
+  if (msg.type === "extension_ui_response") {
+    _extensionUiBridge?.respond(msg);
+    return;
+  }
+  if (!_pi) return;
+  switch (msg.type) {
+    case "queued_message_set": {
+      const text = msg.text.trim();
+      if (!text) {
+        _clearQueuedItems(msg.id);
+        break;
+      }
+      _upsertQueuedItem({ id: msg.id, text, editable: true, created_at: Date.now() });
+      _maybeDrainQueuedItem();
+      break;
+    }
+    case "queued_message_clear":
+      _clearQueuedItems(msg.target_id);
+      break;
+    case "user_message": {
+      // Source-of-truth rebroadcast (plan/24 W2D fix). Echo the message
+      // back to every attached owner (sender included) after the SDK accepts
+      // the handoff, so optimistic app bubbles only confirm on real delivery.
+      //   1. The sender's app waits for this echo to render (no eager
+      //      local store), keeping all owners visually consistent.
+      //   2. Other owners see what was said, not just the agent's reply.
+      //   3. `id` is preserved verbatim, so future dedup logic on the app
+      //      side can key off it.
+      // The user_message is also recorded in _messageBuffer indirectly
+      // via `pi.on("message_end")` after the SDK persists the turn — so
+      // a later `session_sync` returns it in the history events.
+      // Plan/30: echo any inline images too so every owner renders the same
+      // image bubble. No-image path is byte-identical to before (no `images`
+      // key on the wire).
+      const requestedSteer = msg.streaming_behavior === "steer";
+      const inferredBusySteer = !requestedSteer && _myRoomMeta?.working === true;
+      const shouldSteer = requestedSteer || inferredBusySteer;
+      // A reconnecting app can correctly send `steer` while our mirror has no
+      // turn id (for example, the turn started while no owner was attached).
+      // Also be defensive for clients that send a plain user_message while the
+      // room is already working. Tell the SDK this is steering; otherwise it
+      // rejects the message as a normal busy prompt. Seed a fallback id so
+      // later chunks/done have a target instead of being dropped.
+      if (msg.images && msg.images.length > 0) {
+        void _deliverImageUserMessage(sender, msg, shouldSteer).catch((error) => {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.error(`[remote-pi] failed delivering image message id=${msg.id}: ${detail}`);
+        });
+        break;
+      }
+
+      const previousTurnId = _currentTurnId;
+      const seededTurnId = !shouldSteer || _currentTurnId === null;
+      if (seededTurnId) {
+        _currentTurnId = msg.id;
+      }
+      // Always include a streaming delivery mode for app-originated messages.
+      // The SDK ignores `deliverAs` when idle, but requires it when a turn is
+      // already running. This avoids a race where Remote Pi's mirror has not
+      // seen turn_start/currentTurnId yet but the SDK is already busy.
+      const wake = _wakeAgent(
+        msg.text,
+        `app user_message id=${msg.id}`,
+        "steer",
+      );
+      if (!wake.ok) {
+        if (seededTurnId) _currentTurnId = previousTurnId;
+        sender.send({
+          type: "error",
+          code: "internal_error",
+          in_reply_to: msg.id,
+          message: `Agent rejected incoming message: ${wake.detail}`,
+        });
+        break;
+      }
+      if (shouldSteer) _trackPendingSteer(msg.id, msg.text);
+      _echoUserMessage(msg, shouldSteer);
+      break;
+    }
+    case "approve_tool":
+      // Approval gate was removed (plano 10.2 revisado). Type kept in
+      // ClientMessage for forward-compat with a future permissions model;
+      // ignore silently if the app still sends it from an older build.
+      break;
+    case "ping":
+      sender.send({ type: "pong", in_reply_to: msg.id });
+      break;
+    case "pair_request":
+      // Already paired — ignore subsequent pair_request to maintain idempotency.
+      // (Token is already consumed and peer is in peers.json.)
+      break;
+    // Plan/28 — Typed app actions. Each delegates to the pure handler in
+    // `actions/handlers.ts`; the only thing this layer does is unify the
+    // dep injection (sender, _pi, _lastCtx, registry). `_lastCtx` may be
+    // null or a narrower Pick than the handlers want, so we cast to
+    // `ActionCtx` — fields that aren't present at runtime are surfaced
+    // as `action_error` by the handlers, not as a TypeError.
+    case "session_compact":
+      // Route through _lastEventCtx (refreshed on every session_start), NOT the
+      // capturable-stale _lastCtx — compact must never hit a ctx left stale by
+      // a prior New session. compact() is a base-ctx method, so the
+      // session_start ctx suffices. Fall back to _lastCtx defensively if no
+      // session_start has landed yet (keeps the pre-replacement happy path).
+      handleSessionCompact((_lastEventCtx ?? _lastCtx) as ActionCtx | null, sender, msg);
+      break;
+    case "session_new": {
+      const actionCtx = _lastCtx as ActionCtx | null;
+      const daemonMode = process.env["REMOTE_PI_DAEMON"] === "1";
+      // Fresh Pi session via the supervisor: ack, clear remote-pi's mirror, then
+      // exit with the private code so the supervisor relaunches without
+      // --continue → a genuinely fresh session. Used when there's NO command ctx
+      // AND as recovery when the captured _lastCtx has gone STALE after an
+      // external session replacement (compact, a /new typed in the TUI,
+      // reload/resume). Reusing a stale ctx throws "stale after session
+      // replacement", which previously surfaced to the app as a hard failure
+      // ("session_new failed") and left New Context wedged.
+      const restartFresh = () => {
+        sender.send({ type: "action_ok", in_reply_to: msg.id, action: "session_new" });
+        _resetSessionForNew(msg.id);
+        setTimeout(() => process.exit(EXIT_DAEMON_FRESH_SESSION), 100);
+      };
+      if (!actionCtx?.newSession) {
+        if (daemonMode) {
+          restartFresh();
+          break;
+        }
+        sender.send({
+          type: "action_error",
+          in_reply_to: msg.id,
+          action: "session_new",
+          error: "newSession unavailable (no command ctx yet)",
+        });
+        break;
+      }
+      // Fast path: drive newSession in-process on the (hopefully fresh) command
+      // ctx, re-capturing the replacement ctx via withSession so later command
+      // ops target the current session. If the ctx turns out stale, recover by
+      // restarting fresh (daemon) instead of failing the action.
+      // Capture the method past the guard above: TS drops the `!actionCtx?.newSession`
+      // narrowing inside the async closure, so bind it to a local const first.
+      const newSession = actionCtx.newSession;
+      void (async () => {
+        try {
+          const result = await newSession({
+            withSession: async (freshCtx) => {
+              _lastCtx = freshCtx as unknown as typeof _lastCtx;
+            },
+          });
+          if (result?.cancelled) {
+            sender.send({
+              type: "action_error",
+              in_reply_to: msg.id,
+              action: "session_new",
+              error: "cancelled by extension hook",
+            });
+            return;
+          }
+          sender.send({ type: "action_ok", in_reply_to: msg.id, action: "session_new" });
+          _resetSessionForNew(msg.id);
+        } catch (e) {
+          const emsg = String((e as Error)?.message ?? e ?? "");
+          const stale = /stale|session replacement or reload/i.test(emsg);
+          if (daemonMode && stale) {
+            restartFresh();
+            return;
+          }
+          sender.send({
+            type: "action_error",
+            in_reply_to: msg.id,
+            action: "session_new",
+            error: emsg || "session_new failed",
+          });
+        }
+      })();
+      break;
+    }
+    case "model_set":
+      void handleModelSet(
+        _pi,
+        (_lastEventCtx ?? _lastCtx) as ActionCtx | null,
+        ensureModelRegistry((_lastEventCtx ?? _lastCtx) as ActionCtx | null),
+        sender,
+        msg,
+        _persistModelDefault,
+      );
+      break;
+    case "thinking_set":
+      handleThinkingSet(_pi, sender, msg);
+      break;
+    case "list_models":
+      handleListModels(
+        ((_lastEventCtx ?? _lastCtx) as ActionCtx | null),
+        ensureModelRegistry((_lastEventCtx ?? _lastCtx) as ActionCtx | null),
+        sender,
+        msg,
+      );
+      break;
+  }
+}
+
+/**
+ * Backward-compatible shim for legacy callers + tests that didn't track
+ * a specific sender channel. Routes to the most recently attached owner,
+ * mirroring the pre-W2D singleton behavior.
+ */
+export function routeClientMessage(
+  msg: ClientMessage,
+  ctx: Pick<ExtensionContext, "abort">,
+): void {
+  const fallback = [..._activePeers.values()].pop();
+  if (!fallback) return;
+  _routeClientMessageFrom(fallback, msg, ctx);
+}
+
+// ── session_sync handler + helpers ────────────────────────────────────────────
+
+/**
+ * `session_sync` is a per-sender query: the owner asking gets the reply,
+ * not the whole broadcast. Otherwise a session_sync from owner A would
+ * also dump history to owner B's wire — duplicate traffic + the wrong
+ * `in_reply_to`.
+ */
+function _handleSessionSync(
+  sender: PlainPeerChannel,
+  msg: Extract<ClientMessage, { type: "session_sync" }>,
+): void {
+  _sendQueuedState(sender);
+  if (_sessionStartedAt === null) {
+    sender.send({
+      type: "session_history",
+      in_reply_to: msg.id,
+      session_started_at: 0,
+      events: [],
+      eos: true,
+      truncated: false,
+    });
+    return;
+  }
+
+  // Mirror semantics: always return the last N events. App SUBSTITUTES its
+  // local cache with this response — no delta/since_ts logic.
+  const serverLimit = _getSyncLimit();
+  const requested = msg.limit ?? serverLimit;
+  const effectiveLimit = Math.min(requested, serverLimit);  // server clamps
+
+  const allEvents = _mapAgentMessagesToEvents(_messageBuffer);
+  const slice = effectiveLimit > 0 ? allEvents.slice(-effectiveLimit) : [];
+  const truncated = allEvents.length > effectiveLimit;
+
+  sender.send({
+    type: "session_history",
+    in_reply_to: msg.id,
+    session_started_at: _sessionStartedAt,
+    events: slice,
+    eos: true,
+    truncated,
+  });
+
+  // Plan/57 — replay ask_user flows still awaiting an answer. The bridge
+  // broadcasts `started` once; a peer that connects afterwards would otherwise
+  // see the tool call as plain history text while the desktop stays blocked on
+  // the TUI dialog (reproduced: close the app, fire ask_user, reopen → no
+  // sheet). Sent AFTER the history so the modal opens over a synced chat, and
+  // per-sender like the rest of this handler — a sync from owner A must not
+  // pop a modal on owner B. Flows past FLOW_TTL_MS are already gone from the
+  // bridge, so an abandoned flow is never resurrected.
+  for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
+    sender.send(req);
+  }
+}
+
+/**
+ * Resets the Pi-side session view after a SUCCESSFUL `session_new`. The app's
+ * New Session clears its local store on `action_ok`, but that alone isn't
+ * durable: `_messageBuffer` (which answers `session_sync`) is append-only and
+ * `_sessionStartedAt` is stamped once, so a later reconnect/restart would
+ * replay the OLD history. We clear the buffer, restamp the clock, and
+ * broadcast an EMPTY `session_history` — the exact shape `_handleSessionSync`
+ * sends, just with `events: []` — so every attached owner drops the stale
+ * conversation. The app's `_applyHistory` substitutes its cache wholesale, so
+ * no new app-side code is needed.
+ *
+ * Unlike a per-request session_history reply (which must go to the sender
+ * channel only — see `_broadcastToActive`), this is an intentional fan-out:
+ * a new session is global state, so every owner must see the reset.
+ */
+function _resetSessionForNew(inReplyTo: string): void {
+  _messageBuffer = [];
+  _pendingSteers = [];
+  _lastConsumedSteerText = null;
+  _resetQueuedItems({ broadcast: true });
+  _sessionStartedAt = Date.now();
+  _broadcastToActive({
+    type: "session_history",
+    in_reply_to: inReplyTo,
+    session_started_at: _sessionStartedAt,
+    events: [],
+    eos: true,
+    truncated: false,
+  });
+}
+
+type ToolArgs = Record<string, unknown>;
+type DiffLine =
+  | { kind: "context"; oldLine?: number; newLine?: number; text: string }
+  | { kind: "remove"; oldLine?: number; text: string }
+  | { kind: "add"; newLine?: number; text: string }
+  | { kind: "ellipsis" };
+
+function _enrichToolArgs(tool: string, args: unknown): ToolArgs {
+  if (!args || typeof args !== "object") return {};
+  const base = args as ToolArgs;
+
+  switch (tool.toLowerCase()) {
+    case "edit":
+      return _enrichEditToolArgs(base);
+    default:
+      return base;
+  }
+}
+
+function _enrichEditToolArgs(base: ToolArgs): ToolArgs {
+  const filePath = _stringArg(base, ["path", "file_path"]);
+  const rawEdits = base["edits"];
+  const edits = Array.isArray(rawEdits) ? rawEdits : [base];
+  const text = _readToolFile(filePath);
+  const hunks: { lines: DiffLine[] }[] = [];
+  let searchFrom = 0;
+  for (const rawEdit of edits) {
+    if (!rawEdit || typeof rawEdit !== "object") continue;
+    const edit = rawEdit as ToolArgs;
+    const oldText = _stringArg(edit, ["oldText", "old_text", "old_string", "oldString"]);
+    const newText = _stringArg(edit, ["newText", "new_text", "new_string", "newString"]);
+    if (!oldText && !newText) continue;
+
+    const matchAt = oldText && text !== null ? text.indexOf(oldText, searchFrom) : -1;
+    const fallbackAt = oldText && matchAt < 0 && text !== null ? text.indexOf(oldText) : matchAt;
+    const startOffset = fallbackAt >= 0 ? fallbackAt : searchFrom;
+    if (text === null) continue;
+    const hunk = _buildEditHunk(text, startOffset, oldText, newText);
+    if (hunk.length > 0) hunks.push({ lines: hunk });
+    searchFrom = startOffset + Math.max(oldText.length, 1);
+  }
+
+  return hunks.length === 0 ? base : { ...base, hunks };
+}
+
+function _readToolFile(filePath: string): string | null {
+  if (!filePath) return null;
+  const cwd = _lastCtx && "cwd" in _lastCtx ? _lastCtx.cwd : process.cwd();
+  const homePath = filePath.startsWith("~/") && process.env.HOME
+    ? resolve(process.env.HOME, filePath.slice(2))
+    : null;
+  const candidates = [filePath, resolve(cwd, filePath), resolve(process.cwd(), filePath), homePath]
+    .filter((p): p is string => typeof p === "string");
+  for (const candidate of candidates) {
+    try {
+      return readFileSync(candidate, "utf8");
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
+}
+
+
+function _buildEditHunk(
+  fileText: string,
+  startOffset: number,
+  oldText: string,
+  newText: string,
+): DiffLine[] {
+  const context = 4;
+  const fileLines = fileText.split("\n");
+  const oldLines = _splitPreviewLines(oldText);
+  const newLines = _splitPreviewLines(newText);
+  const oldStart = _lineNumberAt(fileText, startOffset);
+  const newStart = oldStart;
+  const startIndex = oldStart - 1;
+  const beforeStart = Math.max(0, startIndex - context);
+  const afterStart = startIndex + oldLines.length;
+  const afterEnd = Math.min(fileLines.length, afterStart + context);
+  const out: DiffLine[] = [];
+
+  if (beforeStart > 0) out.push({ kind: "ellipsis" });
+  for (let i = beforeStart; i < startIndex; i++) {
+    out.push({ kind: "context", oldLine: i + 1, newLine: i + 1, text: fileLines[i] ?? "" });
+  }
+  let commonPrefix = 0;
+  while (
+    commonPrefix < oldLines.length &&
+    commonPrefix < newLines.length &&
+    oldLines[commonPrefix] === newLines[commonPrefix]
+  ) {
+    commonPrefix++;
+  }
+
+  let commonSuffix = 0;
+  while (
+    commonSuffix < oldLines.length - commonPrefix &&
+    commonSuffix < newLines.length - commonPrefix &&
+    oldLines[oldLines.length - 1 - commonSuffix] === newLines[newLines.length - 1 - commonSuffix]
+  ) {
+    commonSuffix++;
+  }
+
+  for (let i = 0; i < commonPrefix; i++) {
+    out.push({ kind: "context", oldLine: oldStart + i, newLine: newStart + i, text: oldLines[i] ?? "" });
+  }
+  for (let i = commonPrefix; i < oldLines.length - commonSuffix; i++) {
+    out.push({ kind: "remove", oldLine: oldStart + i, text: oldLines[i] ?? "" });
+  }
+  for (let i = commonPrefix; i < newLines.length - commonSuffix; i++) {
+    out.push({ kind: "add", newLine: newStart + i, text: newLines[i] ?? "" });
+  }
+  for (let i = oldLines.length - commonSuffix; i < oldLines.length; i++) {
+    const newLine = newStart + newLines.length - (oldLines.length - i);
+    out.push({ kind: "context", oldLine: oldStart + i, newLine, text: oldLines[i] ?? "" });
+  }
+  for (let i = afterStart; i < afterEnd; i++) {
+    const newLine = newStart + newLines.length + (i - afterStart);
+    out.push({ kind: "context", oldLine: i + 1, newLine, text: fileLines[i] ?? "" });
+  }
+  if (afterEnd < fileLines.length) out.push({ kind: "ellipsis" });
+  return out;
+}
+
+function _lineNumberAt(text: string, offset: number): number {
+  let line = 1;
+  for (let i = 0; i < Math.max(0, offset); i++) if (text[i] === "\n") line++;
+  return line;
+}
+
+function _splitPreviewLines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split("\n");
+  if (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+  return lines;
+}
+
+function _stringArg(args: ToolArgs, keys: string[]): string {
+  for (const key of keys) {
+    const value = args[key];
+    if (typeof value === "string") return value;
+  }
+  return "";
+}
+
+function _stringifyContent(content: unknown): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content
+    .map((c) => {
+      if (!c || typeof c !== "object") return "";
+      const block = c as { type?: string; text?: unknown };
+      return block.type === "text" ? String(block.text ?? "") : "";
+    })
+    .join("");
+}
+
+/**
+ * Stringify a tool result consistently for BOTH the live `tool_execution_end`
+ * broadcast AND the history mapper, so the app shows the same text live and on
+ * re-sync. The SDK's `ToolExecutionEndEvent.result` is `any` — usually a
+ * content-array of `{type:"text"}` blocks; `String()` on that yields the
+ * "[object Object]" bug. Rules: string → as-is; content-array → join its text
+ * (same as `_stringifyContent`); any other object → readable JSON; other
+ * primitives → `String()`; null/undefined → "". Never "[object Object]".
+ */
+function _stringifyToolResult(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) return _stringifyContent(value);
+  if (value !== null && typeof value === "object") {
+    // The LIVE `tool_execution_end` result is a WRAPPER object
+    // `{ content: [{type:"text",...}], details:{} }` — not the bare
+    // content-array the history path (`m.content`) carries. Unwrap `content`
+    // (or a plain `text`) so live == re-sync; JSON is only the last fallback.
+    const obj = value as { content?: unknown; text?: unknown };
+    if (Array.isArray(obj.content)) return _stringifyContent(obj.content);
+    if (typeof obj.text === "string") return obj.text;
+    try { return JSON.stringify(value); } catch { return ""; }
+  }
+  return value === null || value === undefined ? "" : String(value);
+}
+
+/**
+ * Plan/30: extract `ImageContent` blocks ({type:"image", data, mimeType}) from
+ * an SDK message's content and map them to the wire shape (`mimeType` → `mime`).
+ * Used by the history mapper so a re-synced image bubble keeps its bytes —
+ * `_stringifyContent` only pulls text and would otherwise drop the image.
+ */
+function _imagesFromContent(content: unknown): WireImage[] {
+  if (!Array.isArray(content)) return [];
+  const out: WireImage[] = [];
+  for (const c of content) {
+    if (!c || typeof c !== "object") continue;
+    const block = c as { type?: string; data?: unknown; mimeType?: unknown };
+    if (block.type === "image" && typeof block.data === "string" && typeof block.mimeType === "string") {
+      out.push({ data: block.data, mime: block.mimeType });
+    }
+  }
+  return out;
+}
+
+/**
+ * Maps SDK AgentMessage[] (UserMessage / AssistantMessage / ToolResultMessage)
+ * into the flat SessionHistoryEvent[] shape consumed by the app.
+ *
+ * Caveats (see report): in_reply_to of agent_message is the *last* user_input
+ * id seen in a linear scan — fine for typical conversational flow but not
+ * a perfect reconstruction of multi-turn ordering when tools interleave.
+ * Stable id for user_input is `sync_<timestamp>`.
+ */
+export function _mapAgentMessagesToEvents(
+  messages: BufferMsg[],
+): SessionHistoryEvent[] {
+  const events: SessionHistoryEvent[] = [];
+  let lastUserId: string | null = null;
+
+  for (const m of messages) {
+    const ts = typeof m.timestamp === "number" ? m.timestamp : 0;
+
+    if (m.role === "compaction") {
+      // Plan/32: re-render the compaction notice on history re-sync.
+      events.push({
+        ts,
+        type: "compaction",
+        summary: typeof m.content === "string" ? m.content : "",
+        tokens_before: typeof m.tokensBefore === "number" ? m.tokensBefore : 0,
+      });
+    } else if (m.role === "user") {
+      const id = `sync_${ts}`;
+      lastUserId = id;
+      // Plan/30: keep any image blocks so a re-sync rebuilds the bubble. The
+      // bytes are already in _messageBuffer; only attach `images` when present
+      // so the text-only path stays byte-identical (no `images` key).
+      const images = _imagesFromContent(m.content);
+      const ev: SessionHistoryEvent = {
+        ts,
+        type: "user_input",
+        id,
+        text: _stringifyContent(m.content),
+      };
+      if (images.length > 0) ev.images = images;
+      events.push(ev);
+    } else if (m.role === "assistant") {
+      const content = Array.isArray(m.content) ? m.content : [];
+      const usage = m.usage
+        ? { input_tokens: m.usage.input ?? 0, output_tokens: m.usage.output ?? 0 }
+        : undefined;
+      for (const raw of content) {
+        if (!raw || typeof raw !== "object") continue;
+        const block = raw as { type?: string; text?: unknown; id?: unknown; name?: unknown; arguments?: unknown };
+        if (block.type === "text") {
+          const text = String(block.text ?? "");
+          if (!text) continue;
+          const ev: SessionHistoryEvent = {
+            ts,
+            type: "agent_message",
+            in_reply_to: lastUserId ?? `sync_${ts}`,
+            text,
+            ...(usage ? { usage } : {}),
+          };
+          events.push(ev);
+        } else if (block.type === "toolCall") {
+          events.push({
+            ts,
+            type: "tool_request",
+            tool_call_id: String(block.id ?? ""),
+            tool: String(block.name ?? ""),
+            args: (block.arguments as Record<string, unknown>) ?? {},
+          });
+        }
+      }
+    } else if (m.role === "toolResult") {
+      // Same helper as the live `tool_execution_end` broadcast → live == re-sync.
+      const text = _stringifyToolResult(m.content);
+      const tcid = String(m.toolCallId ?? "");
+      events.push(
+        m.isError
+          ? { ts, type: "tool_result", tool_call_id: tcid, error: text }
+          : { ts, type: "tool_result", tool_call_id: tcid, result: text },
+      );
+    }
+  }
+
+  return events;
+}
