@@ -6604,6 +6604,31 @@ class CockpitViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  /// Set when something wants the right sidebar to reveal the **Source Control**
+  /// (diff) view — e.g. a click on the change counts in the terminal status
+  /// bar. Consumed by the file tree panel on its next init/rebuild. A latched
+  /// flag, not a transient signal, because opening the sidebar re-mounts the
+  /// panel: a signal fired before the fresh panel listens would be lost.
+  bool _pendingSourceControlReveal = false;
+
+  /// Reads and clears the pending Source Control reveal. `true` means the panel
+  /// should switch to its Source Control tab now.
+  bool consumeSourceControlReveal() {
+    if (!_pendingSourceControlReveal) return false;
+    _pendingSourceControlReveal = false;
+    return true;
+  }
+
+  /// Opens the right sidebar (if hidden) and asks it to show Source Control.
+  void revealSourceControl() {
+    _pendingSourceControlReveal = true;
+    if (!_treeVisible) {
+      _treeVisible = true;
+      _persistPanels();
+    }
+    notifyListeners();
+  }
+
   // ---- helpers --------------------------------------------------------------
 
   /// Raiz (path) do workspace [projectId] — usada pela tab `.dbq` pra
