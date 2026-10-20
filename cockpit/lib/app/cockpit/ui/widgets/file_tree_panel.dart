@@ -125,6 +125,7 @@ class FileTreePanel extends StatefulWidget {
     this.galleryPanel,
     this.telemetryPanel,
     this.searchFocusSignal,
+    this.consumePendingSourceControlReveal,
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
     this.sourceControlViewMode = SourceControlViewMode.list,
@@ -225,6 +226,13 @@ class FileTreePanel extends StatefulWidget {
   /// Notificado a cada Cmd+Shift+F → ativa a aba de busca (além de focar o
   /// campo, que o próprio [searchPanel] faz). `null` = sem projeto.
   final Listenable? searchFocusSignal;
+
+  /// Reads and clears a pending request to reveal the Source Control (diff) tab
+  /// — e.g. a click on the change counts in the terminal status bar. Checked on
+  /// init and on rebuild (opening the sidebar re-mounts this panel, so a latched
+  /// flag survives where a transient signal would be lost). Returns `true` once
+  /// per request.
+  final bool Function()? consumePendingSourceControlReveal;
 
   /// Rodapé opcional, fixado abaixo da árvore (ex.: barra de status do LSP).
   final Widget? footer;
@@ -461,6 +469,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
     _sourceControlTree =
         widget.sourceControlViewMode == SourceControlViewMode.tree;
     widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
+    // Consume a pending Source Control reveal requested while this panel was
+    // unmounted (sidebar closed). No setState — initState runs before build.
+    _maybeRevealSourceControl(inInit: true);
   }
 
   @override
@@ -470,6 +481,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
       oldWidget.searchFocusSignal?.removeListener(_onSearchFocusRequested);
       widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
     }
+    // Consume a pending reveal requested while this panel was already mounted
+    // (sidebar open): the VM notify rebuilds us, so check here too.
+    _maybeRevealSourceControl(inInit: false);
     if (oldWidget.sourceControlViewMode != widget.sourceControlViewMode) {
       _sourceControlTree =
           widget.sourceControlViewMode == SourceControlViewMode.tree;
@@ -739,6 +753,22 @@ class _FileTreePanelState extends State<FileTreePanel> {
   void _onSearchFocusRequested() {
     if (widget.searchPanel != null && _tab != _RightPaneTab.search) {
       setState(() => _tab = _RightPaneTab.search);
+    }
+  }
+
+  /// Click on the status-bar change counts: reveal the Source Control (diff)
+  /// tab. Consumes the VM's pending-reveal flag (always, to clear it) and
+  /// switches only in a git repo (the tab is gated on [isGitRepo]). In initState
+  /// the field is assigned directly (no setState before first build); on rebuild
+  /// it goes through setState.
+  void _maybeRevealSourceControl({required bool inInit}) {
+    final requested = widget.consumePendingSourceControlReveal?.call() ?? false;
+    if (!requested || !widget.isGitRepo) return;
+    if (_tab == _RightPaneTab.sourceControl) return;
+    if (inInit) {
+      _tab = _RightPaneTab.sourceControl;
+    } else {
+      setState(() => _tab = _RightPaneTab.sourceControl);
     }
   }
 

@@ -458,6 +458,19 @@ class CockpitTerminalState extends State<CockpitTerminal> {
       return KeyEventResult.ignored;
     }
 
+    // Ctrl+Tab / Ctrl+Shift+Tab is the app's tab-switch chord (a global
+    // HardwareKeyboard handler in CockpitPage cycles tabs); it is never
+    // terminal input. Let it bubble instead of encoding a Tab to the PTY, so
+    // the shortcut wins and no `CSI 27;5;9~` leaks. Pure Ctrl(+Shift) only —
+    // Alt/Meta combos and other Ctrl chords (Ctrl+C) pass through.
+    final kb = HardwareKeyboard.instance;
+    if (event.logicalKey == LogicalKeyboardKey.tab &&
+        kb.isControlPressed &&
+        !kb.isAltPressed &&
+        !kb.isMetaPressed) {
+      return KeyEventResult.ignored;
+    }
+
     final key = keyToTerminalKey(event.logicalKey);
 
     if (key == null) {

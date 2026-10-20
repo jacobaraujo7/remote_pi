@@ -139,6 +139,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$layoutPreview$pt_BR layoutPreview = _Translations$cockpit$layoutPreview$pt_BR._(_root);
 	@override late final _Translations$cockpit$telemetry$pt_BR telemetry = _Translations$cockpit$telemetry$pt_BR._(_root);
 	@override late final _Translations$cockpit$panelView$pt_BR panelView = _Translations$cockpit$panelView$pt_BR._(_root);
+	@override late final _Translations$cockpit$statusBar$pt_BR statusBar = _Translations$cockpit$statusBar$pt_BR._(_root);
 }
 
 // Path: settings
@@ -1309,6 +1310,17 @@ class _Translations$cockpit$panelView$pt_BR extends Translations$cockpit$panelVi
 	@override String get unavailable => 'Painéis precisam da web view embutida, que ainda não existe no Linux.';
 	@override String get openInBrowser => 'Abrir no navegador';
 	@override String get openAsHtml => 'Abrir como HTML';
+}
+
+// Path: cockpit.statusBar
+class _Translations$cockpit$statusBar$pt_BR extends Translations$cockpit$statusBar$en {
+	_Translations$cockpit$statusBar$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String changedFiles({required Object count}) => '${count} arquivos alterados';
+	@override String aheadBehind({required Object ahead, required Object behind}) => '${ahead} à frente, ${behind} atrás';
 }
 
 // Path: settings.language
@@ -2680,6 +2692,8 @@ extension on TranslationsPtBr {
 			'cockpit.panelView.unavailable' => 'Painéis precisam da web view embutida, que ainda não existe no Linux.',
 			'cockpit.panelView.openInBrowser' => 'Abrir no navegador',
 			'cockpit.panelView.openAsHtml' => 'Abrir como HTML',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} arquivos alterados',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} à frente, ${behind} atrás',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglês',
@@ -2927,10 +2941,10 @@ extension on TranslationsPtBr {
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este arquivo não é um JSON válido: ${detail}',
 			'theme.error.invalidTheme' => 'Este arquivo não é um tema válido.',
 			'theme.error.reservedId' => 'Este tema usa o id de um tema nativo. Mude o "id" no arquivo e importe de novo.',
-			'theme.error.notAnObject' => ({required Object field}) => 'Esperava um objeto em "${field}".',
-			'theme.error.missingField' => ({required Object field}) => 'Falta o campo obrigatório "${field}".',
 			_ => null,
 		} ?? switch (path) {
+			'theme.error.notAnObject' => ({required Object field}) => 'Esperava um objeto em "${field}".',
+			'theme.error.missingField' => ({required Object field}) => 'Falta o campo obrigatório "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',

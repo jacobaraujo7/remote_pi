@@ -8,6 +8,7 @@ import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/workspace_actions.dart';
 import 'package:cockpit/app/cockpit/ui/actions/worktree_actions.dart';
 import 'package:cockpit/app/core/app_intents.dart';
+import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_host.dart';
@@ -16,7 +17,9 @@ import 'package:cockpit/app/core/domain/entities/automation.dart';
 import 'package:cockpit/app/core/domain/exceptions/neovim_error.dart';
 import 'package:cockpit/app/core/routes.dart';
 import 'package:cockpit/app/core/ui/menu/workspace_menu_bridge.dart';
+import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
 import 'package:cockpit/app/cockpit/ui/states/panel_drag_sizer.dart';
 import 'package:cockpit/app/cockpit/data/remote/remote_db_executor.dart';
 import 'package:cockpit/app/cockpit/data/remote/remote_task_gateway.dart';
@@ -230,6 +233,7 @@ class _CockpitPageState extends State<CockpitPage> {
     // foco, então pega mesmo com um terminal focado. Ver [_handlePaneNavKey].
     HardwareKeyboard.instance.addHandler(_handlePaneNavKey);
     HardwareKeyboard.instance.addHandler(_realmKeyHandler);
+    HardwareKeyboard.instance.addHandler(_cycleTabKeyHandler);
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
@@ -614,6 +618,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _remoteTaskCtx.clear();
     HardwareKeyboard.instance.removeHandler(_handlePaneNavKey);
     HardwareKeyboard.instance.removeHandler(_realmKeyHandler);
+    HardwareKeyboard.instance.removeHandler(_cycleTabKeyHandler);
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
     _settings?.removeListener(_syncCockpit);
@@ -700,6 +705,29 @@ class _CockpitPageState extends State<CockpitPage> {
       return false;
     }
     unawaited(_vm.cycleRealm(keys.isShiftPressed ? -1 : 1));
+    return true;
+  }
+
+  /// Ctrl+Tab next tab of the focused pane; with Shift, previous. Like
+  /// [_realmKeyHandler], this is a **global** [HardwareKeyboard] handler and not
+  /// a `CallbackShortcuts`: a focused terminal consumes Tab (shell completion —
+  /// `input_map.dart` maps `LogicalKeyboardKey.tab`), so we must see the event
+  /// BEFORE focus distribution and return `true` to swallow it before the PTY.
+  /// Sitting above both engines (Ghostty and xterm), it covers both.
+  ///
+  /// **Ctrl on every platform** (including macOS, where it is ⌃ and not ⌘): that
+  /// is the OS tab-cycling convention. Matches on the physical key; only
+  /// `KeyDownEvent` (no repeat); ignores it when Alt/Meta is also held.
+  bool _cycleTabKeyHandler(KeyEvent event) {
+    if (event is! KeyDownEvent ||
+        event.physicalKey != PhysicalKeyboardKey.tab) {
+      return false;
+    }
+    final keys = HardwareKeyboard.instance;
+    if (!keys.isControlPressed || keys.isAltPressed || keys.isMetaPressed) {
+      return false;
+    }
+    _vm.cycleTabInFocusedPane(keys.isShiftPressed ? -1 : 1);
     return true;
   }
 
@@ -1004,7 +1032,7 @@ class _CenterPanelState extends State<_CenterPanel> {
     final projectIds = vm.projects.map((project) => project.id).toList();
     final liveIds = projectIds.toSet();
     _workspaceWidgets.removeWhere((id, _) => !liveIds.contains(id));
-    return KeyedSubtree(
+    final center = KeyedSubtree(
       key: widget.centerKey,
       child: vm.selectedProjectId == null
           ? WelcomeView(
@@ -1044,6 +1072,15 @@ class _CenterPanelState extends State<_CenterPanel> {
                 ],
               ),
             ),
+    );
+    // Status line pinned to the bottom of the terminal region only (not the
+    // rail/tree): follows the focused terminal tab, shown while a coding agent
+    // runs in it. Inspired by Warp.
+    return Column(
+      children: [
+        Expanded(child: center),
+        const _TerminalStatusBar(),
+      ],
     );
   }
 
@@ -1395,6 +1432,7 @@ class _TreePanel extends StatelessWidget {
                   focusSignal: searchFocusSignal,
                 ),
           searchFocusSignal: searchFocusSignal,
+          consumePendingSourceControlReveal: vm.consumeSourceControlReveal,
           databasePanel: vm.selectedProject == null
               ? null
               : DbPanel(
@@ -1561,6 +1599,226 @@ class _ResizeHandle extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Status line pinned to the bottom of the terminal region (not the rail/tree).
+/// Follows the **focused terminal tab** and is shown only while a coding agent
+/// (harness) is the foreground process in it — mirroring Warp, which surfaces
+/// this block only while an agent runs. Left: changed-file count, inserted and
+/// deleted line totals, ahead/behind. Right (Warp-anchored, with icons): the
+/// tab's live cwd and the git branch of the repo that cwd lives in.
+class _TerminalStatusBar extends StatelessWidget {
+  const _TerminalStatusBar();
+
+  static String _abbreviateHome(String path) {
+    final home = Platform.environment['HOME'];
+    if (home != null && home.isNotEmpty && path.startsWith(home)) {
+      return '~${path.substring(home.length)}';
+    }
+    return path;
+  }
+
+  /// Longest watched root that contains [cwd], so the branch tracks the tab's
+  /// live directory (e.g. after `cd` into a worktree). `null` if none matches.
+  static String? _rootContaining(List<String> roots, String cwd) {
+    String? best;
+    for (final r in roots) {
+      if (cwd == r || cwd.startsWith('$r/')) {
+        if (best == null || r.length > best.length) best = r;
+      }
+    }
+    return best;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<CockpitViewModel>();
+    final session = vm.focusedTab()?.$3;
+    // Only a terminal tab carries a harness. A non-terminal focus collapses the
+    // bar; focus changes notify the view model, so this re-evaluates on switch.
+    if (session is! TerminalSession) return const SizedBox.shrink();
+    // Listen to the session itself even while hidden: the live cwd (OSC 7), the
+    // active harness and the turn status notify on the session, not the view
+    // model — so the bar appears/disappears the instant the agent starts/exits.
+    return ListenableBuilder(
+      listenable: session,
+      builder: (context, _) {
+        // Warp-style gating: shown only while a coding agent is the foreground
+        // process in this tab.
+        if (session.activeHarness == null) return const SizedBox.shrink();
+        return _bar(context, vm, session);
+      },
+    );
+  }
+
+  Widget _bar(
+    BuildContext context,
+    CockpitViewModel vm,
+    TerminalSession session,
+  ) {
+    final colors = context.colors;
+    final label = context.typo.label;
+
+    final cwd = session.currentDirectory ?? session.workingDirectory;
+    final pid = session.projectId;
+    final root = _rootContaining(vm.rootsOf(pid), cwd);
+    final git = root == null ? null : vm.gitInfoForRootIn(pid, root);
+    final spec = HarnessCatalog.getSpec(session.activeHarness!);
+
+    return Container(
+      height: 24,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: colors.panel,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: Row(
+        children: [
+          // LEFT — which agent is running (icon + name), then what changed in
+          // this tab's repo.
+          PaneTabLeading(
+            item: session,
+            defaultIcon: Icons.terminal,
+            iconColor: colors.text2,
+            size: 13,
+          ),
+          if (spec != null) ...[
+            const SizedBox(width: 6),
+            Text(spec.label, style: label.copyWith(color: colors.text2)),
+          ],
+          if (git != null &&
+              (git.dirtyCount > 0 || git.ahead > 0 || git.behind > 0)) ...[
+            const SizedBox(width: 10),
+            _StatusSeparator(color: colors.text4),
+            const SizedBox(width: 10),
+            _ChangeCluster(
+              git: git,
+              onTapChanges: vm.revealSourceControl,
+            ),
+          ],
+          // RIGHT — where the agent is working: cwd then branch, pinned to the
+          // right edge with icons (folder, VCS fork). Expanded (not Spacer +
+          // Flexible) so the cluster hugs the edge instead of centering.
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(Icons.folder_outlined, size: 12, color: colors.text3),
+                const SizedBox(width: 5),
+                Flexible(
+                  child: Text(
+                    _abbreviateHome(cwd),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: label.copyWith(color: colors.text2),
+                  ),
+                ),
+                if (git != null) ...[
+                  const SizedBox(width: 12),
+                  Icon(Icons.call_split, size: 12, color: colors.text3),
+                  const SizedBox(width: 4),
+                  Text(
+                    git.branch,
+                    overflow: TextOverflow.ellipsis,
+                    style: label.copyWith(color: colors.text2),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Left-hand change summary: ahead/behind · changed-file count · inserted and
+/// deleted line totals. The count/line portion is clickable and reveals the
+/// file tree (source control), the entry point to the diff viewer. Collapses
+/// to nothing when the tree is clean and in sync.
+class _ChangeCluster extends StatelessWidget {
+  const _ChangeCluster({required this.git, required this.onTapChanges});
+
+  final GitInfo git;
+  final VoidCallback onTapChanges;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final label = context.typo.label;
+    final t = context.t.cockpit.statusBar;
+
+    final hasAheadBehind = git.ahead > 0 || git.behind > 0;
+    final hasChanges = git.dirtyCount > 0;
+    if (!hasAheadBehind && !hasChanges) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (hasAheadBehind)
+          AppTooltip(
+            message: t.aheadBehind(ahead: git.ahead, behind: git.behind),
+            child: Text(
+              [
+                if (git.ahead > 0) '↑${git.ahead}',
+                if (git.behind > 0) '↓${git.behind}',
+              ].join(' '),
+              style: label.copyWith(color: colors.text3),
+            ),
+          ),
+        if (hasAheadBehind && hasChanges) ...[
+          const SizedBox(width: 10),
+          _StatusSeparator(color: colors.text4),
+          const SizedBox(width: 10),
+        ],
+        if (hasChanges)
+          AppTooltip(
+            message: t.changedFiles(count: git.dirtyCount),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onTapChanges,
+                behavior: HitTestBehavior.opaque,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${git.dirtyCount}',
+                      style: label.copyWith(color: colors.text2),
+                    ),
+                    if (git.insertions > 0) ...[
+                      const SizedBox(width: 8),
+                      Text(
+                        '+${git.insertions}',
+                        style: label.copyWith(color: colors.gitStaged),
+                      ),
+                    ],
+                    if (git.deletions > 0) ...[
+                      const SizedBox(width: 6),
+                      Text(
+                        '-${git.deletions}',
+                        style: label.copyWith(color: colors.gitDeleted),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// A thin vertical rule separating logical groups in the status bar.
+class _StatusSeparator extends StatelessWidget {
+  const _StatusSeparator({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) =>
+      Container(width: 1, height: 12, color: color.withValues(alpha: 0.4));
 }
 
 /// Barra de status do LSP no rodapé do pane de Files. Reflete o servidor da aba

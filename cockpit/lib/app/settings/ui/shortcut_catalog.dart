@@ -34,6 +34,10 @@ List<ShortcutSection> buildShortcutCatalog() {
   final cmd = mac ? '⌘' : 'Ctrl';
   final shift = mac ? '⇧' : 'Shift';
   final alt = mac ? '⌥' : 'Alt';
+  // Ctrl+Tab does NOT resolve to ⌘ on macOS: tab cycling is Control on every
+  // platform (the OS convention), so Control stays literal (⌃ on mac).
+  final ctrl = mac ? '⌃' : 'Ctrl';
+  final tab = mac ? '⇥' : 'Tab';
 
   return <ShortcutSection>[
     ShortcutSection('Application', <AppShortcut>[
@@ -53,6 +57,11 @@ List<ShortcutSection> buildShortcutCatalog() {
       ], note: 'Moves focus to the pane in that direction.'),
       AppShortcut('Select Tab 1–8', [cmd, '1–8']),
       AppShortcut('Select Last Tab', [cmd, '9']),
+      AppShortcut('Next Tab', [
+        ctrl,
+        tab,
+      ], note: 'Cycles tabs in the focused pane. Ctrl on every platform.'),
+      AppShortcut('Previous Tab', [ctrl, shift, tab]),
       AppShortcut('Next Realm', [cmd, '`']),
       AppShortcut('Previous Realm', [cmd, shift, '`']),
     ]),

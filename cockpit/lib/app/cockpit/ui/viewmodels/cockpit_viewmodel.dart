@@ -4766,6 +4766,18 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     selectTab(paneId, leaf.tabs.last);
   }
 
+  /// Cycles the focused pane's tabs — the Ctrl+Tab (next, [delta] 1) and
+  /// Ctrl+Shift+Tab (previous, [delta] -1) shortcuts, wrapping at the ends.
+  /// No-op if there is no focused pane or it has fewer than 2 tabs (see
+  /// [cycleTab]).
+  void cycleTabInFocusedPane(int delta) {
+    final focused = _focusedLeaf();
+    if (focused == null) return;
+    final (paneId, leaf) = focused;
+    final next = cycleTab(leaf, delta);
+    if (next != null) selectTab(paneId, next);
+  }
+
   /// Troca o workspace selecionado pelo vizinho no rail — ⇧⌘M avança, ⇧⌘N
   /// volta. A ordem é a visual: cada raiz seguida dos seus worktrees, e dá a
   /// volta nas pontas. O terminal de sistema "Cockpit" fica fora do ciclo.
@@ -5681,6 +5693,31 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   void toggleTree() {
     _treeVisible = !_treeVisible;
     _persistPanels();
+    notifyListeners();
+  }
+
+  /// Set when something wants the right sidebar to reveal the **Source Control**
+  /// (diff) view — e.g. a click on the change counts in the terminal status
+  /// bar. Consumed by the file tree panel on its next init/rebuild. A latched
+  /// flag, not a transient signal, because opening the sidebar re-mounts the
+  /// panel: a signal fired before the fresh panel listens would be lost.
+  bool _pendingSourceControlReveal = false;
+
+  /// Reads and clears the pending Source Control reveal. `true` means the panel
+  /// should switch to its Source Control tab now.
+  bool consumeSourceControlReveal() {
+    if (!_pendingSourceControlReveal) return false;
+    _pendingSourceControlReveal = false;
+    return true;
+  }
+
+  /// Opens the right sidebar (if hidden) and asks it to show Source Control.
+  void revealSourceControl() {
+    _pendingSourceControlReveal = true;
+    if (!_treeVisible) {
+      _treeVisible = true;
+      _persistPanels();
+    }
     notifyListeners();
   }
 

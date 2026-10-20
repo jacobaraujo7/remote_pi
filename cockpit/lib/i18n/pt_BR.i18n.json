@@ -915,6 +915,10 @@
       "unavailable": "Painéis precisam da web view embutida, que ainda não existe no Linux.",
       "openInBrowser": "Abrir no navegador",
       "openAsHtml": "Abrir como HTML"
+    },
+    "statusBar": {
+      "changedFiles": "${count} arquivos alterados",
+      "aheadBehind": "${ahead} à frente, ${behind} atrás"
     }
   },
   "settings": {

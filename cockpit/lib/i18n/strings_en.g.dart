@@ -187,6 +187,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$layoutPreview$en layoutPreview = Translations$cockpit$layoutPreview$en.internal(_root);
 	late final Translations$cockpit$telemetry$en telemetry = Translations$cockpit$telemetry$en.internal(_root);
 	late final Translations$cockpit$panelView$en panelView = Translations$cockpit$panelView$en.internal(_root);
+	late final Translations$cockpit$statusBar$en statusBar = Translations$cockpit$statusBar$en.internal(_root);
 }
 
 // Path: settings
@@ -2767,6 +2768,21 @@ class Translations$cockpit$panelView$en {
 	String get openAsHtml => 'Open as HTML';
 }
 
+// Path: cockpit.statusBar
+class Translations$cockpit$statusBar$en {
+	Translations$cockpit$statusBar$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: '${count} changed files'
+	String changedFiles({required Object count}) => '${count} changed files';
+
+	/// en: '${ahead} ahead, ${behind} behind'
+	String aheadBehind({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind';
+}
+
 // Path: settings.language
 class Translations$settings$language$en {
 	Translations$settings$language$en.internal(this._root);
@@ -4741,6 +4757,8 @@ extension on Translations {
 			'cockpit.panelView.unavailable' => 'Panels need the embedded web view, which is not available on Linux yet.',
 			'cockpit.panelView.openInBrowser' => 'Open in browser',
 			'cockpit.panelView.openAsHtml' => 'Open as HTML',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} changed files',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -4988,10 +5006,10 @@ extension on Translations {
 			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',
 			'theme.error.invalidTheme' => 'This file is not a valid theme.',
 			'theme.error.reservedId' => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.',
-			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
-			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
 			_ => null,
 		} ?? switch (path) {
+			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
+			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',

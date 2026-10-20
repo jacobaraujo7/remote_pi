@@ -915,6 +915,10 @@
       "unavailable": "Los paneles necesitan la web view integrada, que todavía no existe en Linux.",
       "openInBrowser": "Abrir en el navegador",
       "openAsHtml": "Abrir como HTML"
+    },
+    "statusBar": {
+      "changedFiles": "${count} archivos modificados",
+      "aheadBehind": "${ahead} adelante, ${behind} detrás"
     }
   },
   "settings": {

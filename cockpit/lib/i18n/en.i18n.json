@@ -915,6 +915,10 @@
       "unavailable": "Panels need the embedded web view, which is not available on Linux yet.",
       "openInBrowser": "Open in browser",
       "openAsHtml": "Open as HTML"
+    },
+    "statusBar": {
+      "changedFiles": "${count} changed files",
+      "aheadBehind": "${ahead} ahead, ${behind} behind"
     }
   },
   "settings": {
