@@ -96,10 +96,35 @@ class GitStatusReaderImpl implements GitStatusReader {
         }
       }
 
+      // Inserted/deleted line totals vs HEAD (staged + unstaged; untracked
+      // files are not diffed). `--numstat` emits "<added>\t<deleted>\t<path>"
+      // per file; binary files show "-\t-" (parse fails → counted as 0). Fails
+      // on an unborn HEAD (no commits yet) → totals stay 0.
+      var insertions = 0;
+      var deletions = 0;
+      final numstatRes = await Process.run(git, [
+        '-C',
+        path,
+        'diff',
+        '--numstat',
+        'HEAD',
+      ]);
+      if (numstatRes.exitCode == 0) {
+        for (final line in (numstatRes.stdout as String).split('\n')) {
+          if (line.isEmpty) continue;
+          final cols = line.split('\t');
+          if (cols.length < 2) continue;
+          insertions += int.tryParse(cols[0]) ?? 0;
+          deletions += int.tryParse(cols[1]) ?? 0;
+        }
+      }
+
       return GitInfo(
         branch: branch,
         ahead: ahead,
         behind: behind,
+        insertions: insertions,
+        deletions: deletions,
         files: files,
         stagedFiles: stagedFiles,
         changedFiles: changedFiles,

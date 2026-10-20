@@ -143,6 +143,7 @@ class _Translations$cockpit$zh extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$telemetry$zh telemetry = _Translations$cockpit$telemetry$zh._(_root);
 	@override late final _Translations$cockpit$panelView$zh panelView = _Translations$cockpit$panelView$zh._(_root);
 	@override late final _Translations$cockpit$cloneRepoDialog$zh cloneRepoDialog = _Translations$cockpit$cloneRepoDialog$zh._(_root);
+	@override late final _Translations$cockpit$statusBar$zh statusBar = _Translations$cockpit$statusBar$zh._(_root);
 }
 
 // Path: settings
@@ -1477,6 +1478,17 @@ class _Translations$cockpit$cloneRepoDialog$zh extends Translations$cockpit$clon
 	@override String get hintSshMissing => '此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。';
 	@override String get hintHostKey => '无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。';
 	@override String get hintAuth => '访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。';
+}
+
+// Path: cockpit.statusBar
+class _Translations$cockpit$statusBar$zh extends Translations$cockpit$statusBar$en {
+	_Translations$cockpit$statusBar$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String changedFiles({required Object count}) => '${count} 个文件已更改';
+	@override String aheadBehind({required Object ahead, required Object behind}) => '领先 ${ahead}，落后 ${behind}';
 }
 
 // Path: settings.language
@@ -2926,6 +2938,8 @@ extension on TranslationsZh {
 			'cockpit.cloneRepoDialog.hintSshMissing' => '此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。',
 			'cockpit.cloneRepoDialog.hintHostKey' => '无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。',
 			'cockpit.cloneRepoDialog.hintAuth' => '访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} 个文件已更改',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '领先 ${ahead}，落后 ${behind}',
 			'settings.language.title' => '语言',
 			'settings.language.system' => '跟随系统',
 			'settings.language.english' => 'English',
@@ -3122,10 +3136,10 @@ extension on TranslationsZh {
 			'settings.remoteHosts.add' => '添加主机',
 			'settings.remoteHosts.edit' => '编辑',
 			'settings.remoteHosts.reconnect' => '重新连接',
-			'settings.remoteHosts.remove' => '移除',
-			'settings.remoteHosts.removeTitle' => '移除主机',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.remove' => '移除',
+			'settings.remoteHosts.removeTitle' => '移除主机',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

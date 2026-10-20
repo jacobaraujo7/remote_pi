@@ -977,6 +977,10 @@
       "hintSshMissing": "SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).",
       "hintHostKey": "The server's SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.",
       "hintAuth": "Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login)."
+    },
+    "statusBar": {
+      "changedFiles": "${count} changed files",
+      "aheadBehind": "${ahead} ahead, ${behind} behind"
     }
   },
   "settings": {

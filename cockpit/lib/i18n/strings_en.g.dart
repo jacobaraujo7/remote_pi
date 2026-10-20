@@ -193,6 +193,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$telemetry$en telemetry = Translations$cockpit$telemetry$en.internal(_root);
 	late final Translations$cockpit$panelView$en panelView = Translations$cockpit$panelView$en.internal(_root);
 	late final Translations$cockpit$cloneRepoDialog$en cloneRepoDialog = Translations$cockpit$cloneRepoDialog$en.internal(_root);
+	late final Translations$cockpit$statusBar$en statusBar = Translations$cockpit$statusBar$en.internal(_root);
 }
 
 // Path: settings
@@ -3404,6 +3405,21 @@ class Translations$cockpit$cloneRepoDialog$en {
 	String get hintAuth => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).';
 }
 
+// Path: cockpit.statusBar
+class Translations$cockpit$statusBar$en {
+	Translations$cockpit$statusBar$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: '${count} changed files'
+	String changedFiles({required Object count}) => '${count} changed files';
+
+	/// en: '${ahead} ahead, ${behind} behind'
+	String aheadBehind({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind';
+}
+
 // Path: settings.language
 class Translations$settings$language$en {
 	Translations$settings$language$en.internal(this._root);
@@ -5480,6 +5496,8 @@ extension on Translations {
 			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).',
 			'cockpit.cloneRepoDialog.hintHostKey' => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.',
 			'cockpit.cloneRepoDialog.hintAuth' => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} changed files',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -5669,10 +5687,10 @@ extension on Translations {
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
-			'settings.page.automations.recommendedSuffix' => 'Recommended',
-			'settings.remoteHosts.title' => 'Remote hosts',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.automations.recommendedSuffix' => 'Recommended',
+			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
