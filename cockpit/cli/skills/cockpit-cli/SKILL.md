@@ -1,6 +1,6 @@
 ---
 name: cockpit-cli
-description: Drive Cockpit's terminal tabs from inside one. Use when you (an agent in a Cockpit terminal) need to open, split, type into, read or close tabs, run a shell line through the app (`cockpit exec`), start or read a task run, or list tabs and workspaces. Triggers on tmux-like needs (new window, send keys, read another tab's output, interrupt a stuck process) and on "where am I / what is open" questions. Databases, telemetry and the files the human reads (.panel, .kanban, .notebook, .ckp, .http) have their own skills: cockpit-db, cockpit-telemetry, cockpit-design.
+description: "Drive Cockpit's terminal tabs from inside one. Use when you (an agent in a Cockpit terminal) need to open, split, type into, read or close tabs, run a shell line through the app (`cockpit exec`), start or read a task run, or list tabs and workspaces. Triggers on tmux-like needs (new window, send keys, read another tab's output, interrupt a stuck process) and on \"where am I / what is open\" questions. Databases, telemetry and the files the human reads (.panel, .kanban, .notebook, .ckp, .http) have their own skills: cockpit-db, cockpit-telemetry, cockpit-design."
 ---
 
 # cockpit — Cockpit's internal CLI

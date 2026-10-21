@@ -1,6 +1,6 @@
 ---
 name: cockpit-design
-description: Create or edit a file the human will open inside Cockpit: a live `.panel` dashboard or tool (HTML with the `cockpit()` bridge), an `.html` preview, a `.kanban` board, a `.notebook` of notes, a `.ckp` pane layout, or a `.http` request file. Use before writing any of these, even a quick one: it carries the design rules, the bundled CSS and libraries, and the file formats. Not for running queries or commands (cockpit-cli, cockpit-db).
+description: "Create or edit a file the human will open inside Cockpit: a live `.panel` dashboard or tool (HTML with the `cockpit()` bridge), an `.html` preview, a `.kanban` board, a `.notebook` of notes, a `.ckp` pane layout, or a `.http` request file. Use before writing any of these, even a quick one: it carries the design rules, the bundled CSS and libraries, and the file formats. Not for running queries or commands (cockpit-cli, cockpit-db)."
 ---
 
 # cockpit-design — files the human reads
