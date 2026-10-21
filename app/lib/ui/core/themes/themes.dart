@@ -10,6 +10,7 @@ library;
 
 export 'app_colors.dart';
 export 'app_font_scale.dart';
+export 'app_markdown_theme.dart';
 export 'app_typography.dart';
 export 'app_theme.dart';
 export 'theme_extensions.dart';
