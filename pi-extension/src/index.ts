@@ -2442,7 +2442,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _rootLifecycleGeneration += 1;
     _relayLifecycleGeneration += 1;
     _meshJoinGeneration += 1;
-    // The bridge owns live pi.events subscriptions + flow TTLs. Dispose before
+    // The bridge owns live pi.events subscriptions + pending flows. Dispose before
     // the outgoing session is replaced so stale listeners cannot leak or
     // double-broadcast. session_start rebinds it on module-reuse hosts; fresh
     // module instances create their bridge in the factory.
@@ -4674,8 +4674,8 @@ function _handleSessionSync(
   // the TUI dialog (reproduced: close the app, fire ask_user, reopen → no
   // sheet). Sent AFTER the history so the modal opens over a synced chat, and
   // per-sender like the rest of this handler — a sync from owner A must not
-  // pop a modal on owner B. Flows past FLOW_TTL_MS are already gone from the
-  // bridge, so an abandoned flow is never resurrected.
+  // pop a modal on owner B. Unanswered flows survive long offline periods;
+  // completion or session teardown removes them from replay.
   for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
     sender.send(req);
   }
