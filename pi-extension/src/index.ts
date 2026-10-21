@@ -631,6 +631,11 @@ function _isReceivedImageContextMessage(message: unknown): boolean {
  * pure-data event we add later is covered by construction. Events meant for the
  * human (`remote-pi:mesh-message`, `remote-pi:mesh-revoked`, …) set
  * `display: true` and pass through untouched.
+ *
+ * Senders of filtered messages must pass `{ triggerTurn: false }`. Without it,
+ * pi steers a message sent mid-stream into the running turn and makes another
+ * LLM call; this filter then strips the message, so the request ends with an
+ * assistant message and models without prefill support reject it with a 400.
  */
 function _isPureDataContextMessage(message: unknown): boolean {
   if (typeof message !== "object" || message === null) return false;
@@ -1617,7 +1622,7 @@ function _emitRelayState(force = false): void {
         ...(_myRoomId ? { room: _myRoomId } : {}),
       },
       display: false,
-    });
+    }, { triggerTurn: false });
   } catch {
     // _pi stale (session replaced) or extension runtime not yet bound.
   }
@@ -1740,7 +1745,7 @@ async function _renameAgent(newName: string): Promise<void> {
       : `Mesh name reassigned: "${newName}" → "${assigned}" (collision)`,
     details: { requested: newName, assigned, changed: assigned !== newName },
     display: false,
-  });
+  }, { triggerTurn: false });
 }
 
 /**
@@ -2022,7 +2027,7 @@ async function _handlePairRequest(
     content: `Paired with ${inner.device_name}`,
     details: { name: inner.device_name, peerId: appPeerId, pairedAt },
     display: false,
-  });
+  }, { triggerTurn: false });
 }
 
 // ── Extension factory (default export) ───────────────────────────────────────
@@ -4315,7 +4320,7 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
         : `Mesh name reassigned: "${requestedName}" → "${assigned}" (collision)`,
       details: { requested: requestedName, assigned, changed: assigned !== requestedName },
       display: false,
-    });
+    }, { triggerTurn: false });
     ctx.ui.notify(
       `[remote-pi] Joined local mesh as "${assigned}" (${peer.currentRole()})`,
       "info",
