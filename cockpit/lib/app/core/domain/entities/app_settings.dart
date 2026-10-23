@@ -272,7 +272,6 @@ class AppSettings {
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
     bool? editorWordWrap,
-    bool clearEditorWordWrap = false,
     bool? closeTabOnShellExit,
     FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
@@ -323,9 +322,7 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
-      editorWordWrap: clearEditorWordWrap
-          ? null
-          : (editorWordWrap ?? this.editorWordWrap),
+      editorWordWrap: editorWordWrap ?? this.editorWordWrap,
       closeTabOnShellExit: closeTabOnShellExit ?? this.closeTabOnShellExit,
       fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,

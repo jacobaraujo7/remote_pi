@@ -15,6 +15,8 @@ void main() {
   Widget harness(
     CodeEditingController ctrl, {
     bool wordWrap = true,
+    double width = 300,
+    double height = 200,
     int? revealLine,
     int? revealStart,
     int tick = 0,
@@ -25,8 +27,8 @@ void main() {
       home: Scaffold(
         child: Center(
           child: SizedBox(
-            width: 300,
-            height: 200,
+            width: width,
+            height: height,
             child: CodeEditor(
               controller: ctrl,
               focusNode: FocusNode(),
@@ -171,4 +173,65 @@ void main() {
     expect(horizontalScrollable(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  /// Cada número do gutter alinhado com o início da sua linha no campo.
+  void expectGutterAligned(WidgetTester tester, String source, int lines) {
+    final row = editable(tester).preferredLineHeight;
+    var start = 0;
+    for (var i = 1; i <= lines; i++) {
+      final number = find.text('$i');
+      expect(number, findsOneWidget, reason: 'line $i built in the gutter');
+      expect(
+        (tester.getTopLeft(number).dy - caretY(tester, start)).abs(),
+        lessThan(row / 2),
+        reason: 'gutter number $i aligned with its text',
+      );
+      start = source.indexOf('\n', start) + 1;
+    }
+  }
+
+  testWidgets('editar a linha até ela quebrar realinha o gutter', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(
+      text: 'a\nb\nc\nd',
+      language: 'markdown',
+    );
+    addTearDown(ctrl.dispose);
+    await tester.pumpWidget(harness(ctrl));
+    await tester.pumpAndSettle();
+    expectGutterAligned(tester, ctrl.text, 4);
+
+    // Sem `\n` novo: a linha 2 passa a ocupar várias linhas visuais.
+    ctrl.text = 'a\n${'b' * 60}\nc\nd';
+    await tester.pump();
+    expectGutterAligned(tester, ctrl.text, 4);
+
+    // E volta a uma linha visual.
+    ctrl.text = 'a\nb\nc\nd';
+    await tester.pump();
+    expectGutterAligned(tester, ctrl.text, 4);
+  });
+
+  testWidgets(
+    'tabela de alturas quebra igual ao campo em larguras de fronteira',
+    (tester) async {
+      // Linhas de 1 a 40 caracteres cruzam várias fronteiras de quebra; as 14
+      // larguras seguidas (um glifo da fonte de teste + o `letterSpacing` do
+      // tema) garantem que alguma caia a menos de 3px da fronteira — onde
+      // errar a margem do caret (`kEditorWrapCaretMargin`) ou o estilo
+      // efetivo do campo quebraria a tabela diferente do campo.
+      tester.view.physicalSize = const Size(800, 4200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final source = [for (var n = 1; n <= 40; n++) 'x' * n].join('\n');
+      final ctrl = CodeEditingController(text: source, language: 'markdown');
+      addTearDown(ctrl.dispose);
+      for (var width = 300.0; width < 314; width++) {
+        await tester.pumpWidget(harness(ctrl, width: width, height: 4000));
+        await tester.pumpAndSettle();
+        expectGutterAligned(tester, source, 40);
+      }
+    },
+  );
 }

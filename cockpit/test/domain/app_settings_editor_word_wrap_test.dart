@@ -35,15 +35,11 @@ void main() {
       },
     );
 
-    test('copyWith keeps, sets and clears the choice', () {
+    test('copyWith keeps and sets the choice', () {
       const settings = AppSettings(editorWordWrap: true);
 
       expect(settings.copyWith().editorWordWrap, isTrue);
       expect(settings.copyWith(editorWordWrap: false).editorWordWrap, isFalse);
-      expect(
-        settings.copyWith(clearEditorWordWrap: true).editorWordWrap,
-        isNull,
-      );
     });
   });
 }

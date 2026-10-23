@@ -136,10 +136,23 @@ class _CodeEditorState extends State<CodeEditor> {
   final _horizontal = ScrollController();
   final _gutter = ScrollController();
 
-  /// Alturas por linha lógica no modo [CodeEditor.wordWrap]; atualizada no
-  /// layout (LayoutBuilder acima do Row), antes do gutter e do campo.
+  /// Alturas por linha lógica no modo [CodeEditor.wordWrap]. Medida sob
+  /// demanda ([_ensureWrap]) no layout do gutter — o primeiro a precisar dela
+  /// —, quando o `EditableText` já foi montado e o estilo efetivo dele existe.
   final _wrap = EditorWrapLayout();
   double _wrapWidth = 0;
+  bool _wrapDirty = true;
+
+  /// Estilo efetivo do campo (o `TextField` mescla o tema por baixo do
+  /// `style`, ex. `letterSpacing`): medir com o `codeStyle` puro quebraria em
+  /// outro ponto. `null` antes de o campo existir.
+  TextStyle? _fieldStyle;
+  StrutStyle? _fieldStrut;
+  TextScaler _fieldScaler = TextScaler.noScaling;
+
+  /// Escala de texto do `MediaQuery`, lida no build (o [_ensureWrap] roda no
+  /// layout, onde não se lê InheritedWidget).
+  TextScaler _buildScaler = TextScaler.noScaling;
 
   /// Envolve o `TextField`: dá acesso ao `RenderEditable` (hit-test exato do
   /// go-to-definition quando a linha quebra).
@@ -153,9 +166,47 @@ class _CodeEditorState extends State<CodeEditor> {
   double _lineExtent(int line) =>
       widget.wordWrap ? _wrap.height(line) : _lineHeight;
 
-  /// Linha lógica (base 0) sob o y [contentY] do conteúdo.
+  /// Linha lógica (base 0) sob o y [contentY] do conteúdo. Abaixo do
+  /// documento devolve o nº de linhas (fora), nos dois modos.
   int _lineAtY(double contentY) =>
       widget.wordWrap ? _wrap.lineAtY(contentY) : contentY ~/ _lineHeight;
+
+  /// Mede a tabela de quebra se o texto, a largura ou o estilo mudaram desde a
+  /// última medição. Lê o estilo efetivo do `EditableText` (já montado quando
+  /// o gutter faz layout: o LayoutBuilder infla a subárvore inteira antes de
+  /// fazer layout dos filhos).
+  void _ensureWrap() {
+    if (!widget.wordWrap || !_wrapDirty) return;
+    _wrapDirty = false;
+    EditableText? field;
+    void visit(Element e) {
+      if (field != null) return;
+      final w = e.widget;
+      if (w is EditableText) {
+        field = w;
+        return;
+      }
+      e.visitChildElements(visit);
+    }
+
+    final root = _fieldKey.currentContext;
+    if (root is Element) visit(root);
+    final f = field;
+    if (f != null) {
+      _fieldStyle = f.style;
+      _fieldStrut = f.strutStyle;
+      _fieldScaler = f.textScaler ?? _buildScaler;
+    }
+    final style = _fieldStyle ?? _codeStyle;
+    if (style == null) return;
+    _wrap.update(
+      widget.controller.text,
+      _wrapWidth,
+      style,
+      strut: _fieldStrut,
+      textScaler: _fieldScaler,
+    );
+  }
 
   RenderEditable? _renderEditable() {
     RenderEditable? found;
@@ -340,8 +391,9 @@ class _CodeEditorState extends State<CodeEditor> {
     _pinned = false; // libera o pin: queremos rolar até a coluna do match
 
     if (_vertical.hasClients) {
+      _ensureWrap();
       var matchY = _lineTop(line);
-      final style = _codeStyle;
+      final style = _fieldStyle ?? _codeStyle;
       if (widget.wordWrap && style != null && _wrapWidth > 0) {
         // Com quebra, o match pode estar numa linha visual abaixo do início
         // da linha lógica: soma o y do caret do match dentro da linha.
@@ -354,6 +406,8 @@ class _CodeEditorState extends State<CodeEditor> {
             ),
             style: style,
           ),
+          strutStyle: _fieldStrut,
+          textScaler: _fieldScaler,
           textDirection: TextDirection.ltr,
         )..layout(maxWidth: _wrapWidth);
         matchY += painter
@@ -706,13 +760,23 @@ class _CodeEditorState extends State<CodeEditor> {
     return null;
   }
 
+  String? _lastText;
+
   void _onChanged() {
     _rebuildLineStarts();
-    final n = '\n'.allMatches(widget.controller.text).length + 1;
+    final text = widget.controller.text;
+    final n = '\n'.allMatches(text).length + 1;
     final diag = widget.controller.diagnostics;
+    // Com quebra, editar uma linha muda quantas linhas visuais ela ocupa sem
+    // mudar o nº de linhas: o gutter (alturas da tabela) também precisa de
+    // rebuild a cada mudança de **texto** (seleção sozinha não conta).
+    final wrapTextChanged = widget.wordWrap && !identical(text, _lastText);
+    _lastText = text;
+    if (wrapTextChanged) _wrapDirty = true;
     // Rebuild do gutter quando o nº de linhas OU os diagnostics mudam (o campo
     // de texto repinta sozinho via buildTextSpan; o gutter depende de setState).
-    if ((n != _lineCount || !identical(diag, _lastDiag)) && mounted) {
+    if ((n != _lineCount || !identical(diag, _lastDiag) || wrapTextChanged) &&
+        mounted) {
       setState(() {
         if (n != _lineCount) {
           // Não pinte um frame com a extensão do documento anterior. O novo
@@ -839,6 +903,7 @@ class _CodeEditorState extends State<CodeEditor> {
     final syntax = context.syntax;
     final codeStyle = typo.mono.copyWith(color: syntax.base);
     _codeStyle = codeStyle;
+    _buildScaler = MediaQuery.textScalerOf(context);
     _lineCount = '\n'.allMatches(widget.controller.text).length + 1;
 
     // Altura de uma linha (px) pra mapear posição do mouse → índice de linha.
@@ -988,7 +1053,12 @@ class _CodeEditorState extends State<CodeEditor> {
           physics: const NeverScrollableScrollPhysics(),
           padding: const EdgeInsets.only(bottom: _padBottom),
           itemExtent: wrap ? null : _lineHeight,
-          itemExtentBuilder: wrap ? (i, _) => _wrap.height(i) : null,
+          itemExtentBuilder: wrap
+              ? (i, _) {
+                  _ensureWrap();
+                  return _wrap.height(i);
+                }
+              : null,
           itemCount: lineCount,
           itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
         ),
@@ -1005,8 +1075,8 @@ class _CodeEditorState extends State<CodeEditor> {
     final Widget body;
     if (wrap) {
       // Sem scroll horizontal: o campo ocupa a largura da pane e quebra. A
-      // tabela de alturas é medida AQUI, no layout do Row, porque o gutter
-      // (primeiro filho) faz layout antes do campo e já precisa dela.
+      // largura de quebra sai AQUI, no layout do Row; a tabela é medida no
+      // layout do gutter (primeiro filho, antes do campo) via [_ensureWrap].
       body = LayoutBuilder(
         builder: (context, constraints) {
           final fieldWidth = (constraints.maxWidth - _gutterWidth - 30).clamp(
@@ -1017,12 +1087,7 @@ class _CodeEditorState extends State<CodeEditor> {
             1.0,
             double.infinity,
           );
-          _wrap.update(
-            widget.controller.text.split('\n'),
-            _wrapWidth,
-            codeStyle,
-            _lineHeight,
-          );
+          _wrapDirty = true;
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

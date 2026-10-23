@@ -13,37 +13,55 @@ const double kEditorWrapCaretMargin = 3;
 /// uma num [TextPainter] na largura de quebra do campo e acumula os tops, para
 /// o gutter (`itemExtentBuilder`), o reveal, o hover e o overview.
 ///
-/// A quebra recomeça a cada `\n`, então medir linha a linha dá o mesmo layout
-/// do campo. Cache por **texto** da linha: digitar só remede a linha que mudou.
-/// A largura natural (sem quebra) de cada linha não depende da largura da
-/// pane: numa mudança de largura (arrastar o split) só as linhas mais largas
-/// que a pane são remedidas — as demais ocupam uma linha visual.
+/// Mede com o **mesmo** estilo/strut/escala do `EditableText` (o `TextField`
+/// mescla o estilo do tema, ex. `letterSpacing`, por baixo do estilo passado —
+/// medir só com ele quebra em outro ponto). A quebra recomeça a cada `\n`,
+/// então medir linha a linha dá o mesmo layout do campo.
+///
+/// Cache por **texto** da linha: digitar só remede a linha que mudou. A
+/// largura natural (sem quebra) de cada linha não depende da largura da pane:
+/// numa mudança de largura (arrastar o split) só as linhas mais largas que a
+/// pane são remedidas — as demais ocupam uma linha visual.
 class EditorWrapLayout {
   double _width = -1;
   TextStyle? _style;
+  StrutStyle? _strut;
+  TextScaler _scaler = TextScaler.noScaling;
   double _rowHeight = 0;
+  String? _text;
   final Map<String, double> _heightByText = <String, double>{};
   final Map<String, double> _naturalWidthByText = <String, double>{};
   List<double> _tops = const <double>[0, 0];
 
-  /// Recalcula os tops de [lines] quebradas em [width] (largura do campo, já
-  /// sem [kEditorWrapCaretMargin]). [rowHeight] = altura de uma linha visual.
+  /// Recalcula os tops de [text] quebrado em [width] (largura do campo, já
+  /// sem [kEditorWrapCaretMargin]) com o estilo efetivo do campo. Sem nada
+  /// novo (mesmo texto, largura e estilo), não faz nada.
   void update(
-    List<String> lines,
+    String text,
     double width,
-    TextStyle style,
-    double rowHeight,
-  ) {
-    if (style != _style || rowHeight != _rowHeight) {
+    TextStyle style, {
+    StrutStyle? strut,
+    TextScaler textScaler = TextScaler.noScaling,
+  }) {
+    final styleChanged =
+        style != _style || strut != _strut || textScaler != _scaler;
+    if (!styleChanged && width == _width && identical(text, _text)) return;
+    if (styleChanged) {
       _naturalWidthByText.clear();
       _heightByText.clear();
       _style = style;
-      _rowHeight = rowHeight;
+      _strut = strut;
+      _scaler = textScaler;
+      final probe = _painter(' ')..layout();
+      _rowHeight = probe.preferredLineHeight;
+      probe.dispose();
     }
     if (width != _width) {
       _heightByText.clear();
       _width = width;
     }
+    _text = text;
+    final lines = text.split('\n');
     // Cache limitado: textos de linhas apagadas/editadas acumulam.
     final cap = lines.length * 4 + 64;
     if (_naturalWidthByText.length > cap) _naturalWidthByText.clear();
@@ -70,16 +88,21 @@ class EditorWrapLayout {
   /// compara a revisão, já que o objeto é mutável e a referência não muda.
   int get revision => _revision;
 
+  TextPainter _painter(String line) => TextPainter(
+    text: TextSpan(text: line, style: _style),
+    strutStyle: _strut,
+    textScaler: _scaler,
+    textDirection: TextDirection.ltr,
+  );
+
   double _heightOf(String line) {
     if (line.isEmpty) return _rowHeight;
     final natural = _naturalWidthByText[line] ??= _naturalWidth(line);
     if (natural <= _width) return _rowHeight;
     final cached = _heightByText[line];
     if (cached != null) return cached;
-    final painter = TextPainter(
-      text: TextSpan(text: line, style: _style),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: _width.clamp(1.0, double.infinity));
+    final painter = _painter(line)
+      ..layout(maxWidth: _width.clamp(1.0, double.infinity));
     // Nunca menos que uma linha visual (mesma métrica do campo sem quebra).
     final h = painter.height < _rowHeight ? _rowHeight : painter.height;
     painter.dispose();
@@ -87,14 +110,14 @@ class EditorWrapLayout {
   }
 
   double _naturalWidth(String line) {
-    final painter = TextPainter(
-      text: TextSpan(text: line, style: _style),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final painter = _painter(line)..layout();
     final w = painter.width;
     painter.dispose();
     return w;
   }
+
+  /// Altura de uma linha visual no estilo medido.
+  double get rowHeight => _rowHeight;
 
   /// Nº de linhas lógicas medidas.
   int get lineCount => _tops.length - 1;
@@ -112,9 +135,11 @@ class EditorWrapLayout {
   double get totalHeight => _tops.last;
 
   /// Linha lógica (base 0) que contém o y [y] do conteúdo — busca binária nos
-  /// tops. Fora do conteúdo, satura na primeira/última linha.
+  /// tops. Abaixo do conteúdo devolve [lineCount] (fora do documento, como o
+  /// `y ~/ lineHeight` do modo sem quebra); acima, 0.
   int lineAtY(double y) {
     if (lineCount <= 0 || y <= 0) return 0;
+    if (y >= totalHeight) return lineCount;
     var lo = 0;
     var hi = lineCount - 1;
     while (lo < hi) {

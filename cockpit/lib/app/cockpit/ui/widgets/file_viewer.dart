@@ -154,13 +154,8 @@ class _FileViewerState extends State<FileViewer> {
         _ => null,
       };
 
-  /// Linguagens de texto corrido: sem escolha do usuário, quebram linha.
-  static const _wrapByDefault = {'markdown', 'md', 'txt', 'text'};
-
-  /// Quebra de linha efetiva: a escolha do usuário (global) ou, sem ela, o
-  /// padrão da linguagem do arquivo.
   bool _wordWrapFor(bool? chosen) =>
-      chosen ?? _wrapByDefault.contains(_language);
+      fileEditorWordWrap(chosen: chosen, language: _language);
 
   /// ⌥Z / View → Toggle Word Wrap: grava o oposto do que está valendo agora
   /// — vira escolha explícita, que passa a valer pra todo arquivo.
@@ -1392,3 +1387,13 @@ class _ImageViewState extends State<_ImageView> {
     );
   }
 }
+
+/// Linguagens de texto corrido: sem escolha do usuário, quebram linha.
+const _wrapByDefault = {'markdown', 'md', 'txt', 'text'};
+
+/// Quebra de linha efetiva do editor de arquivos: a escolha do usuário
+/// ([chosen], global — `AppSettings.editorWordWrap`) ou, sem ela, o padrão da
+/// [language] do arquivo (ligado em markdown/texto puro, desligado no resto).
+@visibleForTesting
+bool fileEditorWordWrap({required bool? chosen, required String? language}) =>
+    chosen ?? _wrapByDefault.contains(language);
