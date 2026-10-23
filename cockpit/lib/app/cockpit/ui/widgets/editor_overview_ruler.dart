@@ -398,7 +398,10 @@ class _OverviewRulerPainter extends CustomPainter {
     required this.lineHeight,
     required this.geometry,
     this.wrap,
-  }) : wrapRevision = wrap?.revision;
+  }) : wrapRevision = wrap?.revision,
+       // A tabela é medida no layout, depois deste build: repinta quando ela
+       // mudar, em vez de esperar o próximo rebuild.
+       super(repaint: wrap);
 
   final List<OverviewRulerColumn> columns;
   final int lineCount;

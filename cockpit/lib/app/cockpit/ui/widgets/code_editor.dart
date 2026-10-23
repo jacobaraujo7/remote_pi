@@ -801,6 +801,7 @@ class _CodeEditorState extends State<CodeEditor> {
     _vertical.dispose();
     _horizontal.dispose();
     _gutter.dispose();
+    _wrap.dispose();
     super.dispose();
   }
 

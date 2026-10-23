@@ -22,7 +22,7 @@ const double kEditorWrapCaretMargin = 3;
 /// largura natural (sem quebra) de cada linha não depende da largura da pane:
 /// numa mudança de largura (arrastar o split) só as linhas mais largas que a
 /// pane são remedidas — as demais ocupam uma linha visual.
-class EditorWrapLayout {
+class EditorWrapLayout extends ChangeNotifier {
   double _width = -1;
   TextStyle? _style;
   StrutStyle? _strut;
@@ -70,8 +70,14 @@ class EditorWrapLayout {
     for (var i = 0; i < lines.length; i++) {
       tops[i + 1] = tops[i] + _heightOf(lines[i]);
     }
-    if (!_sameTops(tops, _tops)) _revision++;
+    final changed = !_sameTops(tops, _tops);
     _tops = tops;
+    if (changed) {
+      _revision++;
+      // Roda no layout (gutter): quem pinta da tabela (overview) só repinta
+      // — `markNeedsPaint` é permitido aqui, rebuild não.
+      notifyListeners();
+    }
   }
 
   static bool _sameTops(List<double> a, List<double> b) {
@@ -84,8 +90,8 @@ class EditorWrapLayout {
 
   int _revision = 0;
 
-  /// Sobe quando algum top muda — quem pinta a partir da tabela (overview)
-  /// compara a revisão, já que o objeto é mutável e a referência não muda.
+  /// Sobe quando algum top muda (e os ouvintes são notificados) — o objeto é
+  /// mutável e a referência não muda, então quem compara pinturas usa isto.
   int get revision => _revision;
 
   TextPainter _painter(String line) => TextPainter(
