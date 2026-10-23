@@ -22,9 +22,12 @@ import 'package:flutter/material.dart'
         SystemMouseCursors,
         TextField,
         TextInputType;
+import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/services.dart'
     show HardwareKeyboard, KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
+
+import 'editor_wrap_layout.dart';
 
 /// Área **editável** de código com gutter de número de linha.
 ///
@@ -35,6 +38,11 @@ import 'package:flutter/widgets.dart';
 /// [_vertical]); o gutter tem scroll próprio travado ao input, espelhando
 /// [_vertical] via [_syncGutter], pra alinhar 1:1. `IntrinsicWidth` + scroll
 /// horizontal externo fazem a linha longa **não quebrar**.
+///
+/// Com [wordWrap], o scroll horizontal e o `IntrinsicWidth` saem: o campo
+/// ocupa a largura da pane e quebra as linhas longas. Aí uma linha lógica deixa
+/// de ser uma linha visual, e gutter, reveal, hover e overview passam a ler a
+/// altura de cada linha de um [EditorWrapLayout] em vez de `idx * _lineHeight`.
 ///
 /// Por que o campo é o dono do scroll vertical (e não um container externo):
 /// durante um drag de seleção, o `EditableText` recalcula a âncora convertendo a
@@ -60,6 +68,7 @@ class CodeEditor extends StatefulWidget {
     this.revealMatchTick = 0,
     this.onGoToDefinition,
     this.filePath,
+    this.wordWrap = false,
   });
 
   final CodeEditingController controller;
@@ -93,6 +102,10 @@ class CodeEditor extends StatefulWidget {
   /// Sobe a cada navegação de match → re-dispara mesmo pro mesmo offset.
   final int revealMatchTick;
 
+  /// Quebra linhas longas na largura da pane (soft wrap), sem scroll
+  /// horizontal. `false` = layout de código (uma linha visual por linha).
+  final bool wordWrap;
+
   @override
   State<CodeEditor> createState() => _CodeEditorState();
 }
@@ -122,6 +135,43 @@ class _CodeEditorState extends State<CodeEditor> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   final _gutter = ScrollController();
+
+  /// Alturas por linha lógica no modo [CodeEditor.wordWrap]; atualizada no
+  /// layout (LayoutBuilder acima do Row), antes do gutter e do campo.
+  final _wrap = EditorWrapLayout();
+  double _wrapWidth = 0;
+
+  /// Envolve o `TextField`: dá acesso ao `RenderEditable` (hit-test exato do
+  /// go-to-definition quando a linha quebra).
+  final _fieldKey = GlobalKey();
+
+  /// Y (conteúdo) do topo da linha lógica [line] (base 0).
+  double _lineTop(int line) =>
+      widget.wordWrap ? _wrap.top(line) : line * _lineHeight;
+
+  /// Altura da linha lógica [line] (base 0): N linhas visuais com quebra.
+  double _lineExtent(int line) =>
+      widget.wordWrap ? _wrap.height(line) : _lineHeight;
+
+  /// Linha lógica (base 0) sob o y [contentY] do conteúdo.
+  int _lineAtY(double contentY) =>
+      widget.wordWrap ? _wrap.lineAtY(contentY) : contentY ~/ _lineHeight;
+
+  RenderEditable? _renderEditable() {
+    RenderEditable? found;
+    void visit(RenderObject node) {
+      if (found != null) return;
+      if (node is RenderEditable) {
+        found = node;
+        return;
+      }
+      node.visitChildren(visit);
+    }
+
+    final root = _fieldKey.currentContext?.findRenderObject();
+    if (root != null) visit(root);
+    return found;
+  }
 
   @override
   void initState() {
@@ -196,6 +246,7 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void didUpdateWidget(CodeEditor old) {
     super.didUpdateWidget(old);
+    if (widget.wordWrap != old.wordWrap) _keepTopLineOnWrapToggle(old.wordWrap);
     if (widget.revealLine != null && widget.revealTick != old.revealTick) {
       _scheduleReveal(widget.revealLine!);
     }
@@ -206,6 +257,23 @@ class _CodeEditorState extends State<CodeEditor> {
         if (mounted) _revealMatch(start);
       });
     }
+  }
+
+  /// Ligar/desligar a quebra muda a altura de tudo acima do viewport: sem
+  /// ajuste, o mesmo offset cairia em outra linha. Guarda a primeira linha
+  /// visível (na métrica do modo antigo) e volta a ela no pós-frame, quando o
+  /// novo layout já mediu as linhas.
+  void _keepTopLineOnWrapToggle(bool wasWrapped) {
+    _pinned = false;
+    if (!_vertical.hasClients || _lineHeight <= 0) return;
+    final offset = _vertical.offset;
+    final topLine = wasWrapped ? _wrap.lineAtY(offset) : offset ~/ _lineHeight;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_vertical.hasClients) return;
+      _vertical.jumpTo(
+        _lineTop(topLine).clamp(0.0, _vertical.position.maxScrollExtent),
+      );
+    });
   }
 
   /// Agenda o reveal pro pós-frame (precisa do `_lineHeight` do build e do
@@ -241,7 +309,7 @@ class _CodeEditorState extends State<CodeEditor> {
     _lastCollapsedH = 0;
     if (_horizontal.hasClients) _horizontal.jumpTo(0);
     if (_vertical.hasClients) {
-      final target = (idx * _lineHeight - 80).clamp(
+      final target = (_lineTop(idx) - 80).clamp(
         0.0,
         _vertical.position.maxScrollExtent,
       );
@@ -272,7 +340,31 @@ class _CodeEditorState extends State<CodeEditor> {
     _pinned = false; // libera o pin: queremos rolar até a coluna do match
 
     if (_vertical.hasClients) {
-      final target = (line * _lineHeight - 80).clamp(
+      var matchY = _lineTop(line);
+      final style = _codeStyle;
+      if (widget.wordWrap && style != null && _wrapWidth > 0) {
+        // Com quebra, o match pode estar numa linha visual abaixo do início
+        // da linha lógica: soma o y do caret do match dentro da linha.
+        final lineEnd = text.indexOf('\n', offset);
+        final painter = TextPainter(
+          text: TextSpan(
+            text: text.substring(
+              lineStart,
+              lineEnd < 0 ? text.length : lineEnd,
+            ),
+            style: style,
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout(maxWidth: _wrapWidth);
+        matchY += painter
+            .getOffsetForCaret(
+              TextPosition(offset: offset - lineStart),
+              Rect.zero,
+            )
+            .dy;
+        painter.dispose();
+      }
+      final target = (matchY - 80).clamp(
         0.0,
         _vertical.position.maxScrollExtent,
       );
@@ -388,7 +480,7 @@ class _CodeEditorState extends State<CodeEditor> {
     final scroll = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scroll;
     if (contentY < 0 || _lineHeight <= 0) return _clearHover();
-    final line = (contentY ~/ _lineHeight); // base 0
+    final line = _lineAtY(contentY); // base 0
     if (line == _hoverLine) return; // mesma linha → nada a fazer
     final msgs = widget.controller.messagesForLine(line);
     setState(() {
@@ -418,11 +510,9 @@ class _CodeEditorState extends State<CodeEditor> {
 
     final scrollV = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scrollV;
-    final line = contentY ~/ _lineHeight;
-    if (contentY < 0 ||
-        _lineHeight <= 0 ||
-        line < 0 ||
-        line >= _lineStarts.length) {
+    if (_lineHeight <= 0) return _clearDefinitionHover();
+    final line = _lineAtY(contentY);
+    if (contentY < 0 || line < 0 || line >= _lineStarts.length) {
       return _clearDefinitionHover();
     }
 
@@ -431,20 +521,33 @@ class _CodeEditorState extends State<CodeEditor> {
     if (codeLocalX < 0) return _clearDefinitionHover();
 
     final text = widget.controller.text;
-    final lineStart = _lineStarts[line];
-    final lineEnd = line + 1 < _lineStarts.length
-        ? _lineStarts[line + 1] - 1
-        : text.length;
-    final lineText = text.substring(
-      lineStart,
-      lineEnd.clamp(lineStart, text.length),
-    );
-    final painter = TextPainter(
-      text: TextSpan(text: lineText, style: codeStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
-    final offset = (lineStart + pos.offset).clamp(0, text.length);
+    final int offset;
+    if (widget.wordWrap) {
+      // Com quebra, x/y viram (linha visual, coluna) dentro de uma linha
+      // lógica — o `RenderEditable` resolve o ponto global já descontando o
+      // scroll interno do campo.
+      final editable = _renderEditable();
+      if (editable == null) return _clearDefinitionHover();
+      offset = editable
+          .getPositionForPoint(event.position)
+          .offset
+          .clamp(0, text.length);
+    } else {
+      final lineStart = _lineStarts[line];
+      final lineEnd = line + 1 < _lineStarts.length
+          ? _lineStarts[line + 1] - 1
+          : text.length;
+      final lineText = text.substring(
+        lineStart,
+        lineEnd.clamp(lineStart, text.length),
+      );
+      final painter = TextPainter(
+        text: TextSpan(text: lineText, style: codeStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
+      offset = (lineStart + pos.offset).clamp(0, text.length);
+    }
     final range = widget.controller.wordRangeAt(offset);
 
     final hovered = range != null;
@@ -789,7 +892,7 @@ class _CodeEditorState extends State<CodeEditor> {
   Widget _hoverOverlay(BuildContext context, double maxWidth) {
     final colors = context.colors;
     final scroll = _vertical.hasClients ? _vertical.offset : 0.0;
-    final lineTop = _padTop + (_hoverLine! * _lineHeight) - scroll;
+    final lineTop = _padTop + _lineTop(_hoverLine!) - scroll;
     const tipWidth = 360.0;
     final left = _hoverDx.clamp(
       8.0,
@@ -797,7 +900,7 @@ class _CodeEditorState extends State<CodeEditor> {
     );
     return Positioned(
       left: left,
-      top: lineTop + _lineHeight + 2,
+      top: lineTop + _lineExtent(_hoverLine!) + 2,
       child: IgnorePointer(
         child: Container(
           constraints: const BoxConstraints(maxWidth: tipWidth),
@@ -826,189 +929,220 @@ class _CodeEditorState extends State<CodeEditor> {
     );
     final lineCount = _lineCount;
     final scm = widget.scmDecorations;
+    final wrap = widget.wordWrap;
+
+    final field = NotificationListener<ScrollMetricsNotification>(
+      onNotification: _updateOverviewMetrics,
+      child: Focus(
+        key: _fieldKey,
+        skipTraversal: true,
+        canRequestFocus: false,
+        onKeyEvent: _onEditorKey,
+        child: Actions(
+          actions: _indentActions,
+          child: TextField(
+            controller: widget.controller,
+            focusNode: widget.focusNode,
+            scrollController: _vertical,
+            style: codeStyle,
+            cursorColor: syntax.base,
+            maxLines: null,
+            minLines: null,
+            expands: true,
+            keyboardType: TextInputType.multiline,
+            onTap: _definitionModeActive ? _onDefinitionTap : null,
+            mouseCursor: _defCursor,
+            decoration: const InputDecoration(
+              isCollapsed: true,
+              border: InputBorder.none,
+              contentPadding: EdgeInsets.only(bottom: _padBottom),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    // Gutter — scroll próprio (travado ao input) espelhando `_vertical`.
+    //
+    // `ListView.builder` (e não `Column`): com uma Column, um arquivo de 5k
+    // linhas materializava 5000 Rows+Texts A CADA rebuild — e rebuild acontece
+    // até quando o mouse cruza uma linha (o tooltip de diagnostic faz
+    // setState). Virtualizado, só as ~40 linhas visíveis são construídas, e
+    // `severityForLine` (que varre os diagnostics) roda só pra elas.
+    //
+    // `itemExtent: _lineHeight` é o que mantém o alinhamento 1:1 com o texto —
+    // mesma métrica que o campo usa por linha — e ainda dá scroll O(1) (o
+    // `jumpTo` do `_syncGutter` não precisa medir os itens anteriores). Com
+    // quebra, cada linha lógica tem a altura medida pelo [_wrap]
+    // (`itemExtentBuilder`): o número fica no topo da primeira linha visual e
+    // a soma das alturas continua igual à altura do conteúdo do campo.
+    // Largura fixa porque a ListView, ao contrário da Column dentro do
+    // SingleChildScrollView, não é intrínseca: sem isso o gutter esticaria e
+    // comeria o campo.
+    final gutter = Padding(
+      padding: const EdgeInsets.only(left: 14, right: 14),
+      child: SizedBox(
+        width: _iconSlot + _digitsWidth,
+        child: ListView.builder(
+          controller: _gutter,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.only(bottom: _padBottom),
+          itemExtent: wrap ? null : _lineHeight,
+          itemExtentBuilder: wrap ? (i, _) => _wrap.height(i) : null,
+          itemCount: lineCount,
+          itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
+        ),
+      ),
+    );
+
+    final divider = Container(
+      width: 1,
+      color: syntax.base.withValues(alpha: 0.15),
+    );
+
+    // Folga inferior DENTRO dos scrolls (`_padBottom`) — a última linha
+    // assenta acima da scrollbar horizontal.
+    final Widget body;
+    if (wrap) {
+      // Sem scroll horizontal: o campo ocupa a largura da pane e quebra. A
+      // tabela de alturas é medida AQUI, no layout do Row, porque o gutter
+      // (primeiro filho) faz layout antes do campo e já precisa dela.
+      body = LayoutBuilder(
+        builder: (context, constraints) {
+          final fieldWidth = (constraints.maxWidth - _gutterWidth - 30).clamp(
+            0.0,
+            double.infinity,
+          );
+          _wrapWidth = (fieldWidth - kEditorWrapCaretMargin).clamp(
+            1.0,
+            double.infinity,
+          );
+          _wrap.update(
+            widget.controller.text.split('\n'),
+            _wrapWidth,
+            codeStyle,
+            _lineHeight,
+          );
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              gutter,
+              divider,
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  child: field,
+                ),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      body = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          gutter,
+          divider,
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                // Largura mínima = viewport (menos o padding H). Sem isso, o
+                // IntrinsicWidth colapsa o campo a ~0 quando o arquivo está
+                // vazio → sem área pra clicar/digitar.
+                final minWidth = (constraints.maxWidth - 30).clamp(
+                  0.0,
+                  double.infinity,
+                );
+                return SingleChildScrollView(
+                  controller: _horizontal,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minWidth: minWidth),
+                    child: IntrinsicWidth(child: field),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      );
+    }
+
     // `_padTop` fica FORA do Scrollbar vertical: trilha do thumb, overview e
     // viewport do TextField compartilham a mesma altura (senão os ticks
     // desalinhavam do scroll por 14px no topo).
+    final column = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: _padTop),
+        Expanded(
+          child: Scrollbar(
+            controller: _vertical,
+            // Há dois scrollables verticais sob esta barra (gutter e campo).
+            // Aceitar o gutter faria o thumb trocar de geometria conforme a
+            // ordem das notificações, enquanto o overview segue o campo.
+            notificationPredicate: _isEditorVerticalScroll,
+            // O shadcn adiciona uma scrollbar vertical automática a cada
+            // Scrollable desktop. Gutter e TextField precisam de scrolls
+            // próprios para ficarem sincronizados, mas suas barras
+            // duplicariam a barra deste painel.
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Positioned.fill(
+                  child: ScrollConfiguration(
+                    behavior: const _CodeEditorScrollBehavior(),
+                    child: body,
+                  ),
+                ),
+                // Overview na mesma caixa da Scrollbar vertical (top/bottom
+                // 0), usando as métricas efetivas do mesmo TextField.
+                if (!scm.isEmpty &&
+                    _overviewContentExtent != null &&
+                    _overviewViewportExtent != null)
+                  Positioned(
+                    key: const ValueKey('git-scm-overview'),
+                    top: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: kOverviewGitColumnWidth,
+                    child: EditorOverviewRuler(
+                      lineCount: lineCount,
+                      lineHeight: _lineHeight,
+                      scrollContentExtent: _overviewContentExtent,
+                      scrollViewportExtent: _overviewViewportExtent,
+                      onJumpToLine: (line) => _reveal(line, select: false),
+                      wrap: wrap ? _wrap : null,
+                      columns: [
+                        OverviewRulerColumn(
+                          lane: OverviewRulerLane.git,
+                          width: kOverviewGitColumnWidth,
+                          marks: _scmOverviewMarks(
+                            scm,
+                            added: colors.online,
+                            modified: colors.accent,
+                            deleted: colors.gitDeleted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+    // Sem quebra não há scroll horizontal — nem a barra dele.
+    if (wrap) return column;
     return Scrollbar(
       controller: _horizontal,
       thumbVisibility: true,
       scrollbarOrientation: ScrollbarOrientation.bottom,
       notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: _padTop),
-          Expanded(
-            child: Scrollbar(
-              controller: _vertical,
-              // Há dois scrollables verticais sob esta barra (gutter e campo).
-              // Aceitar o gutter faria o thumb trocar de geometria conforme a
-              // ordem das notificações, enquanto o overview segue o campo.
-              notificationPredicate: _isEditorVerticalScroll,
-              // O shadcn adiciona uma scrollbar vertical automática a cada
-              // Scrollable desktop. Gutter e TextField precisam de scrolls
-              // próprios para ficarem sincronizados, mas suas barras
-              // duplicariam a barra deste painel.
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  Positioned.fill(
-                    child: ScrollConfiguration(
-                      behavior: const _CodeEditorScrollBehavior(),
-                      // Folga inferior DENTRO dos scrolls (`_padBottom`) — a
-                      // última linha assenta acima da scrollbar horizontal.
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Gutter — scroll próprio (travado ao input) espelhando
-                          // `_vertical`.
-                          //
-                          // `ListView.builder` (e não `Column`): com uma Column, um
-                          // arquivo de 5k linhas materializava 5000 Rows+Texts A
-                          // CADA rebuild — e rebuild acontece até quando o mouse
-                          // cruza uma linha (o tooltip de diagnostic faz setState).
-                          // Virtualizado, só as ~40 linhas visíveis são construídas,
-                          // e `severityForLine` (que varre os diagnostics) roda só
-                          // pra elas.
-                          //
-                          // `itemExtent: _lineHeight` é o que mantém o alinhamento
-                          // 1:1 com o texto — mesma métrica que o campo usa por
-                          // linha — e ainda dá scroll O(1) (o `jumpTo` do
-                          // `_syncGutter` não precisa medir os itens anteriores).
-                          // Largura fixa porque a ListView, ao contrário da Column
-                          // dentro do SingleChildScrollView, não é intrínseca:
-                          // sem isso o gutter esticaria e comeria o campo.
-                          Padding(
-                            padding: const EdgeInsets.only(left: 14, right: 14),
-                            child: SizedBox(
-                              width: _iconSlot + _digitsWidth,
-                              child: ListView.builder(
-                                controller: _gutter,
-                                physics: const NeverScrollableScrollPhysics(),
-                                padding: const EdgeInsets.only(
-                                  bottom: _padBottom,
-                                ),
-                                itemExtent: _lineHeight,
-                                itemCount: lineCount,
-                                itemBuilder: (context, i) =>
-                                    _gutterLine(i + 1, numStyle),
-                              ),
-                            ),
-                          ),
-                          Container(
-                            width: 1,
-                            color: syntax.base.withValues(alpha: 0.15),
-                          ),
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                // Largura mínima = viewport (menos o padding H).
-                                // Sem isso, o IntrinsicWidth colapsa o campo a ~0
-                                // quando o arquivo está vazio → sem área pra
-                                // clicar/digitar.
-                                final minWidth = (constraints.maxWidth - 30)
-                                    .clamp(0.0, double.infinity);
-                                return SingleChildScrollView(
-                                  controller: _horizontal,
-                                  scrollDirection: Axis.horizontal,
-                                  padding: const EdgeInsets.only(
-                                    left: 14,
-                                    right: 16,
-                                  ),
-                                  child: ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      minWidth: minWidth,
-                                    ),
-                                    child: IntrinsicWidth(
-                                      child:
-                                          NotificationListener<
-                                            ScrollMetricsNotification
-                                          >(
-                                            onNotification:
-                                                _updateOverviewMetrics,
-                                            child: Focus(
-                                              skipTraversal: true,
-                                              canRequestFocus: false,
-                                              onKeyEvent: _onEditorKey,
-                                              child: Actions(
-                                                actions: _indentActions,
-                                                child: TextField(
-                                                  controller: widget.controller,
-                                                  focusNode: widget.focusNode,
-                                                  scrollController: _vertical,
-                                                  style: codeStyle,
-                                                  cursorColor: syntax.base,
-                                                  maxLines: null,
-                                                  minLines: null,
-                                                  expands: true,
-                                                  keyboardType:
-                                                      TextInputType.multiline,
-                                                  onTap: _definitionModeActive
-                                                      ? _onDefinitionTap
-                                                      : null,
-                                                  mouseCursor: _defCursor,
-                                                  decoration:
-                                                      const InputDecoration(
-                                                        isCollapsed: true,
-                                                        border:
-                                                            InputBorder.none,
-                                                        contentPadding:
-                                                            EdgeInsets.only(
-                                                              bottom:
-                                                                  _padBottom,
-                                                            ),
-                                                      ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // Overview na mesma caixa da Scrollbar vertical (top/bottom
-                  // 0), usando as métricas efetivas do mesmo TextField.
-                  if (!scm.isEmpty &&
-                      _overviewContentExtent != null &&
-                      _overviewViewportExtent != null)
-                    Positioned(
-                      key: const ValueKey('git-scm-overview'),
-                      top: 0,
-                      right: 0,
-                      bottom: 0,
-                      width: kOverviewGitColumnWidth,
-                      child: EditorOverviewRuler(
-                        lineCount: lineCount,
-                        lineHeight: _lineHeight,
-                        scrollContentExtent: _overviewContentExtent,
-                        scrollViewportExtent: _overviewViewportExtent,
-                        onJumpToLine: (line) => _reveal(line, select: false),
-                        columns: [
-                          OverviewRulerColumn(
-                            lane: OverviewRulerLane.git,
-                            width: kOverviewGitColumnWidth,
-                            marks: _scmOverviewMarks(
-                              scm,
-                              added: colors.online,
-                              modified: colors.accent,
-                              deleted: colors.gitDeleted,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+      child: column,
     );
   }
 }
