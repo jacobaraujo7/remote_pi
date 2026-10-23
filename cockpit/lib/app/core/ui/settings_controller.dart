@@ -213,6 +213,9 @@ class SettingsController extends ChangeNotifier {
   void setFormatOnSave(bool value) =>
       _apply(_settings.copyWith(formatOnSave: value));
 
+  void setEditorWordWrap(bool value) =>
+      _apply(_settings.copyWith(editorWordWrap: value));
+
   void setCloseTabOnShellExit(bool value) =>
       _apply(_settings.copyWith(closeTabOnShellExit: value));
 

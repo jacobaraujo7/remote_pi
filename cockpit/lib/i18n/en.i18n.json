@@ -63,6 +63,7 @@
       "lastTab": "Last Tab",
       "previousWorkspace": "Previous Workspace",
       "nextWorkspace": "Next Workspace",
+      "toggleWordWrap": "Toggle Word Wrap",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
       "actualSize": "Actual Size",

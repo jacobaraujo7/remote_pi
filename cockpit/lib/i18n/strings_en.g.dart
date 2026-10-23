@@ -443,6 +443,9 @@ class Translations$core$menu$en {
 	/// en: 'Next Workspace'
 	String get nextWorkspace => 'Next Workspace';
 
+	/// en: 'Toggle Word Wrap'
+	String get toggleWordWrap => 'Toggle Word Wrap';
+
 	/// en: 'Zoom In'
 	String get zoomIn => 'Zoom In';
 
@@ -4014,6 +4017,7 @@ extension on Translations {
 			'core.menu.lastTab' => 'Last Tab',
 			'core.menu.previousWorkspace' => 'Previous Workspace',
 			'core.menu.nextWorkspace' => 'Next Workspace',
+			'core.menu.toggleWordWrap' => 'Toggle Word Wrap',
 			'core.menu.zoomIn' => 'Zoom In',
 			'core.menu.zoomOut' => 'Zoom Out',
 			'core.menu.actualSize' => 'Actual Size',
@@ -4475,9 +4479,9 @@ extension on Translations {
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
 			'cockpit.sshPrompts.trust' => 'Trust',
-			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'SSH key passphrase',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'SSH key passphrase',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Unlock ${keyPath} to connect "${connectionName}".',
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Kept in memory until Cockpit quits. To let agents use this connection, enable "Save passphrase" in the connection.',
 			'cockpit.sshPrompts.unlock' => 'Unlock',
@@ -4989,9 +4993,9 @@ extension on Translations {
 			'theme.error.invalidTheme' => 'This file is not a valid theme.',
 			'theme.error.reservedId' => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
-			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
 			_ => null,
 		} ?? switch (path) {
+			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
