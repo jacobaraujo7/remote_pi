@@ -268,13 +268,14 @@ dev_dependencies:
   # `dart run flutter_launcher_icons`.
   flutter_launcher_icons: ^0.14.4
 
-# Ícone do app mobile (plano 60, Wave E). Fonte = o ícone real do desktop; o
-# mesmo símbolo, gerado nos tamanhos de iOS/Android. `remove_alpha_ios` porque
+# Ícone do app mobile (plano 60, Wave E). Fonte = a arte de canto a canto (o
+# iOS e o Android aplicam a própria máscara). O ícone do macOS sai dela já no
+# formato da Apple, via `tool/macos_app_icon.py`. `remove_alpha_ios` porque
 # a App Store rejeita ícone com canal alfa.
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "macos/Runner/Assets.xcassets/AppIcon.appiconset/app_icon_1024.png"
+  image_path: "ios/Runner/Assets.xcassets/AppIcon.appiconset/Icon-App-1024x1024@1x.png"
   remove_alpha_ios: true
 
 # For information on the generic Dart part of this file, see the
