@@ -3389,6 +3389,14 @@ class Translations$settings$page$general$en {
 	/// en: 'Check again'
 	String get neovimRefresh => 'Check again';
 
+	/// en: 'Word wrap'
+	String get wordWrapTitle => 'Word wrap';
+
+	/// en: 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.'
+	String get wordWrapDesc => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.';
+
+	late final Translations$settings$page$general$wordWrap$en wordWrap = Translations$settings$page$general$wordWrap$en.internal(_root);
+
 	/// en: 'Show Cockpit terminal'
 	String get showCockpitTitle => 'Show Cockpit terminal';
 
@@ -3936,6 +3944,24 @@ class Translations$settings$page$automations$en {
 
 	/// en: 'Recommended'
 	String get recommendedSuffix => 'Recommended';
+}
+
+// Path: settings.page.general.wordWrap
+class Translations$settings$page$general$wordWrap$en {
+	Translations$settings$page$general$wordWrap$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Markdown and text'
+	String get byLanguage => 'Markdown and text';
+
+	/// en: 'All files'
+	String get always => 'All files';
+
+	/// en: 'Off'
+	String get off => 'Off';
 }
 
 // Path: settings.page.general.updateFrequency
@@ -4767,6 +4793,11 @@ extension on Translations {
 			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
 			'settings.page.general.neovimRefresh' => 'Check again',
+			'settings.page.general.wordWrapTitle' => 'Word wrap',
+			'settings.page.general.wordWrapDesc' => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown and text',
+			'settings.page.general.wordWrap.always' => 'All files',
+			'settings.page.general.wordWrap.off' => 'Off',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.launchAtStartupTitle' => 'Launch at login',
@@ -4988,13 +5019,13 @@ extension on Translations {
 			'fileOperation.error.invalidName' => 'Invalid name.',
 			'fileOperation.error.remoteDropUnsupported' => 'Dropping files into a remote workspace is not supported yet.',
 			'theme.error.io' => 'Could not read or write the theme file.',
+			_ => null,
+		} ?? switch (path) {
 			'theme.error.ioDetail' => ({required Object detail}) => 'Could not read or write the theme file: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',
 			'theme.error.invalidTheme' => 'This file is not a valid theme.',
 			'theme.error.reservedId' => 'This theme uses the id of a built-in theme. Change "id" in the file and import again.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Expected an object at "${field}".',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.missingField' => ({required Object field}) => 'Missing required field "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',

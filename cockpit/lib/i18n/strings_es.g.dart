@@ -1650,6 +1650,9 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	@override String get neovimChecking => 'Buscando Neovim…';
 	@override String get neovimNotFound => 'Neovim no se encontró en la PATH de tu shell.';
 	@override String get neovimRefresh => 'Comprobar de nuevo';
+	@override String get wordWrapTitle => 'Ajuste de línea';
+	@override String get wordWrapDesc => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.';
+	@override late final _Translations$settings$page$general$wordWrap$es wordWrap = _Translations$settings$page$general$wordWrap$es._(_root);
 	@override String get showCockpitTitle => 'Mostrar terminal de Cockpit';
 	@override String get showCockpitDesc => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.';
 	@override String get launchAtStartupTitle => 'Iniciar al arrancar';
@@ -1881,6 +1884,18 @@ class _Translations$settings$page$automations$es extends Translations$settings$p
 	@override String get discoveryFailed => 'No se pudieron descubrir los harnesses de automatización instalados.';
 	@override String staleModel({required Object model, required Object harness}) => 'El modelo "${model}" ya no está disponible para ${harness}. Se usará el predeterminado de la CLI; elige otro modelo en Configuración si lo necesitas.';
 	@override String get recommendedSuffix => 'Recomendado';
+}
+
+// Path: settings.page.general.wordWrap
+class _Translations$settings$page$general$wordWrap$es extends Translations$settings$page$general$wordWrap$en {
+	_Translations$settings$page$general$wordWrap$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get byLanguage => 'Markdown y texto';
+	@override String get always => 'Todos los archivos';
+	@override String get off => 'Desactivado';
 }
 
 // Path: settings.page.general.updateFrequency
@@ -2704,6 +2719,11 @@ extension on TranslationsEs {
 			'settings.page.general.neovimChecking' => 'Buscando Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim no se encontró en la PATH de tu shell.',
 			'settings.page.general.neovimRefresh' => 'Comprobar de nuevo',
+			'settings.page.general.wordWrapTitle' => 'Ajuste de línea',
+			'settings.page.general.wordWrapDesc' => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown y texto',
+			'settings.page.general.wordWrap.always' => 'Todos los archivos',
+			'settings.page.general.wordWrap.off' => 'Desactivado',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal de Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar al arrancar',
@@ -2925,13 +2945,13 @@ extension on TranslationsEs {
 			'fileOperation.error.invalidName' => 'Nombre inválido.',
 			'fileOperation.error.remoteDropUnsupported' => 'Soltar archivos en un workspace remoto todavía no está soportado.',
 			'theme.error.io' => 'No se pudo leer o escribir el archivo del tema.',
+			_ => null,
+		} ?? switch (path) {
 			'theme.error.ioDetail' => ({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este archivo no es JSON válido: ${detail}',
 			'theme.error.invalidTheme' => 'Este archivo no es un tema válido.',
 			'theme.error.reservedId' => 'Este tema usa el id de un tema nativo. Cambia el "id" en el archivo e impórtalo de nuevo.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Se esperaba un objeto en "${field}".',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.missingField' => ({required Object field}) => 'Falta el campo obligatorio "${field}".',
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
