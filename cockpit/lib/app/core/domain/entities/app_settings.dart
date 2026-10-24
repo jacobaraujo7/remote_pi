@@ -124,7 +124,7 @@ class AppSettings {
   final bool formatOnSave;
 
   /// Quebra de linha (soft wrap) no editor de arquivos, escolhida pelo usuário
-  /// (View → Toggle Word Wrap / ⌥Z). `null` = sem escolha: o editor usa o
+  /// (View → Toggle Word Wrap / ⌥Z, ou Settings). `null` = sem escolha: o editor usa o
   /// padrão da linguagem (ligado em markdown/texto puro, desligado no resto).
   final bool? editorWordWrap;
 

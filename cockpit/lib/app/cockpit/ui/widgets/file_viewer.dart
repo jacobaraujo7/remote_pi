@@ -157,11 +157,16 @@ class _FileViewerState extends State<FileViewer> {
   bool _wordWrapFor(bool? chosen) =>
       fileEditorWordWrap(chosen: chosen, language: _language);
 
-  /// ⌥Z / View → Toggle Word Wrap: grava o oposto do que está valendo agora
-  /// — vira escolha explícita, que passa a valer pra todo arquivo.
+  /// ⌥Z / View → Toggle Word Wrap: inverte a quebra do arquivo aberto (ver
+  /// [toggledEditorWordWrap]).
   void _toggleWordWrap() {
     final settings = context.read<SettingsController>();
-    settings.setEditorWordWrap(!_wordWrapFor(settings.settings.editorWordWrap));
+    settings.setEditorWordWrap(
+      toggledEditorWordWrap(
+        chosen: settings.settings.editorWordWrap,
+        language: _language,
+      ),
+    );
   }
 
   /// Webview inline disponível (macOS/Windows)? No Linux o preview de markdown
@@ -1397,3 +1402,16 @@ const _wrapByDefault = {'markdown', 'md', 'txt', 'text'};
 @visibleForTesting
 bool fileEditorWordWrap({required bool? chosen, required String? language}) =>
     chosen ?? _wrapByDefault.contains(language);
+
+/// Escolha gravada pelo ⌥Z num arquivo da [language]. Desligar grava `false`
+/// (nenhum arquivo quebra). Ligar num arquivo de texto corrido volta ao padrão
+/// da linguagem (`null`), e não liga o código junto; ligar num arquivo de
+/// código grava `true` (todo arquivo), único valor que quebra esse arquivo.
+@visibleForTesting
+bool? toggledEditorWordWrap({
+  required bool? chosen,
+  required String? language,
+}) {
+  if (fileEditorWordWrap(chosen: chosen, language: language)) return false;
+  return _wrapByDefault.contains(language) ? null : true;
+}

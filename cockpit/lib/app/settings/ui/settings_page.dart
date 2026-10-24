@@ -1258,8 +1258,8 @@ class _FileEditorEngineDropdown extends StatelessWidget {
 
 /// Quebra de linha do editor de arquivos. Os três valores são os mesmos de
 /// `AppSettings.editorWordWrap`: `null` = padrão da linguagem (markdown/texto
-/// quebram), `true` = todo arquivo, `false` = nenhum. O ⌥Z do editor grava
-/// `true`/`false`; daqui dá pra voltar ao padrão.
+/// quebram), `true` = todo arquivo, `false` = nenhum. O ⌥Z do editor também
+/// grava um dos três (ver `toggledEditorWordWrap`).
 class _WordWrapDropdown extends StatelessWidget {
   const _WordWrapDropdown({required this.value, required this.onChanged});
   final bool? value;
