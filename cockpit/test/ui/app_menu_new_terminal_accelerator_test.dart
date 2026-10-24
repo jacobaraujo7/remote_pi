@@ -106,4 +106,77 @@ void main() {
 
     expect(_findAction(menus, t.core.menu.goToFile)?.onSelected, isNull);
   });
+
+  test('Toggle Word Wrap carries ⌥Z/Alt+Z with no primary modifier', () {
+    final t = AppLocale.en.buildSync();
+    final menus = buildAppMenus(
+      t,
+      SettingsController(_FakeSettingsStore()),
+      EditorMenuBridge(),
+      WorkspaceMenuBridge(),
+    );
+    final wrap = _findAction(menus, t.core.menu.toggleWordWrap);
+
+    expect(wrap, isNotNull, reason: 'Toggle Word Wrap item must exist');
+    final activator = wrap!.accelerator!.resolve();
+    expect(activator.trigger, LogicalKeyboardKey.keyZ);
+    expect(activator.alt, isTrue);
+    expect(activator.meta, isFalse);
+    expect(activator.control, isFalse);
+    expect(activator.shift, isFalse);
+
+    // The file editor binds the key itself: a global Alt+Z would take it away
+    // from terminals outside macOS, so the menu must not register it.
+    expect(wrap.shortcutHandledExternally, isTrue);
+    expect(
+      menuShortcuts(
+        menus,
+      ).keys.any((a) => a.trigger == LogicalKeyboardKey.keyZ),
+      isFalse,
+    );
+  });
+
+  test('Toggle Word Wrap is enabled only while a file editor publishes it', () {
+    final t = AppLocale.en.buildSync();
+    final controller = SettingsController(_FakeSettingsStore());
+    final workspace = WorkspaceMenuBridge();
+    final editor = EditorMenuBridge();
+    final owner = Object();
+
+    MenuAction? wrapItem() => _findAction(
+      buildAppMenus(t, controller, editor, workspace),
+      t.core.menu.toggleWordWrap,
+    );
+
+    expect(wrapItem()?.onSelected, isNull, reason: 'no editor focused');
+
+    // `.http`/`.dbq` publish without a wrap callback: stays disabled.
+    editor.publish(
+      owner: owner,
+      canSave: false,
+      canDiscard: false,
+      canFormat: true,
+      onSave: () {},
+      onDiscard: () {},
+      onFormat: () {},
+    );
+    expect(wrapItem()?.onSelected, isNull);
+
+    var toggled = 0;
+    editor.publish(
+      owner: owner,
+      canSave: false,
+      canDiscard: false,
+      canFormat: true,
+      onSave: () {},
+      onDiscard: () {},
+      onFormat: () {},
+      onToggleWordWrap: () => toggled++,
+    );
+    wrapItem()!.onSelected!();
+    expect(toggled, 1);
+
+    editor.clear(owner);
+    expect(wrapItem()?.onSelected, isNull);
+  });
 }

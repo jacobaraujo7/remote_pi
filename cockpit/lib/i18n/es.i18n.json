@@ -63,6 +63,7 @@
       "lastTab": "Última Pestaña",
       "previousWorkspace": "Workspace Anterior",
       "nextWorkspace": "Siguiente Workspace",
+      "toggleWordWrap": "Alternar Ajuste de Línea",
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
       "actualSize": "Tamaño Real",
@@ -948,6 +949,13 @@
         "neovimChecking": "Buscando Neovim…",
         "neovimNotFound": "Neovim no se encontró en la PATH de tu shell.",
         "neovimRefresh": "Comprobar de nuevo",
+        "wordWrapTitle": "Ajuste de línea",
+        "wordWrapDesc": "Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown y texto",
+          "always": "Todos los archivos",
+          "off": "Desactivado"
+        },
         "showCockpitTitle": "Mostrar terminal de Cockpit",
         "showCockpitDesc": "Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.",
         "launchAtStartupTitle": "Iniciar al arrancar",

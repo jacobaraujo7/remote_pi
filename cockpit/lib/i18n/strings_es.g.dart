@@ -294,6 +294,7 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get lastTab => 'Última Pestaña';
 	@override String get previousWorkspace => 'Workspace Anterior';
 	@override String get nextWorkspace => 'Siguiente Workspace';
+	@override String get toggleWordWrap => 'Alternar Ajuste de Línea';
 	@override String get zoomIn => 'Acercar';
 	@override String get zoomOut => 'Alejar';
 	@override String get actualSize => 'Tamaño Real';
@@ -1649,6 +1650,9 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	@override String get neovimChecking => 'Buscando Neovim…';
 	@override String get neovimNotFound => 'Neovim no se encontró en la PATH de tu shell.';
 	@override String get neovimRefresh => 'Comprobar de nuevo';
+	@override String get wordWrapTitle => 'Ajuste de línea';
+	@override String get wordWrapDesc => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.';
+	@override late final _Translations$settings$page$general$wordWrap$es wordWrap = _Translations$settings$page$general$wordWrap$es._(_root);
 	@override String get showCockpitTitle => 'Mostrar terminal de Cockpit';
 	@override String get showCockpitDesc => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.';
 	@override String get launchAtStartupTitle => 'Iniciar al arrancar';
@@ -1882,6 +1886,18 @@ class _Translations$settings$page$automations$es extends Translations$settings$p
 	@override String get recommendedSuffix => 'Recomendado';
 }
 
+// Path: settings.page.general.wordWrap
+class _Translations$settings$page$general$wordWrap$es extends Translations$settings$page$general$wordWrap$en {
+	_Translations$settings$page$general$wordWrap$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get byLanguage => 'Markdown y texto';
+	@override String get always => 'Todos los archivos';
+	@override String get off => 'Desactivado';
+}
+
 // Path: settings.page.general.updateFrequency
 class _Translations$settings$page$general$updateFrequency$es extends Translations$settings$page$general$updateFrequency$en {
 	_Translations$settings$page$general$updateFrequency$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -1953,6 +1969,7 @@ extension on TranslationsEs {
 			'core.menu.lastTab' => 'Última Pestaña',
 			'core.menu.previousWorkspace' => 'Workspace Anterior',
 			'core.menu.nextWorkspace' => 'Siguiente Workspace',
+			'core.menu.toggleWordWrap' => 'Alternar Ajuste de Línea',
 			'core.menu.zoomIn' => 'Acercar',
 			'core.menu.zoomOut' => 'Alejar',
 			'core.menu.actualSize' => 'Tamaño Real',
@@ -2414,9 +2431,9 @@ extension on TranslationsEs {
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit nunca se ha conectado a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confía solo si esta fingerprint coincide con el servidor. Puedes verificarla en el servidor con:',
 			'cockpit.sshPrompts.trust' => 'Confiar',
-			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Frase de contraseña de la clave SSH',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Frase de contraseña de la clave SSH',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloquea ${keyPath} para conectar "${connectionName}".',
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Se mantiene en memoria hasta que Cockpit se cierre. Para que los agentes usen esta conexión, activa "Guardar frase de contraseña" en la conexión.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
@@ -2702,6 +2719,11 @@ extension on TranslationsEs {
 			'settings.page.general.neovimChecking' => 'Buscando Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim no se encontró en la PATH de tu shell.',
 			'settings.page.general.neovimRefresh' => 'Comprobar de nuevo',
+			'settings.page.general.wordWrapTitle' => 'Ajuste de línea',
+			'settings.page.general.wordWrapDesc' => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown y texto',
+			'settings.page.general.wordWrap.always' => 'Todos los archivos',
+			'settings.page.general.wordWrap.off' => 'Desactivado',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal de Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar al arrancar',
@@ -2923,14 +2945,14 @@ extension on TranslationsEs {
 			'fileOperation.error.invalidName' => 'Nombre inválido.',
 			'fileOperation.error.remoteDropUnsupported' => 'Soltar archivos en un workspace remoto todavía no está soportado.',
 			'theme.error.io' => 'No se pudo leer o escribir el archivo del tema.',
+			_ => null,
+		} ?? switch (path) {
 			'theme.error.ioDetail' => ({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este archivo no es JSON válido: ${detail}',
 			'theme.error.invalidTheme' => 'Este archivo no es un tema válido.',
 			'theme.error.reservedId' => 'Este tema usa el id de un tema nativo. Cambia el "id" en el archivo e impórtalo de nuevo.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Se esperaba un objeto en "${field}".',
 			'theme.error.missingField' => ({required Object field}) => 'Falta el campo obligatorio "${field}".',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
 			'theme.error.noVariants' => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".',

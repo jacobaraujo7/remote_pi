@@ -44,6 +44,7 @@ class AppSettings {
     this.lspCommands = const <String, String>{},
     this.lspFormatters = const <String, String>{},
     this.formatOnSave = false,
+    this.editorWordWrap,
     this.closeTabOnShellExit = false,
     this.fileEditorEngine = FileEditorEngine.cockpit,
     this.notificationsEnabled = true,
@@ -121,6 +122,11 @@ class AppSettings {
 
   /// Formatar automaticamente ao salvar (Cmd+S).
   final bool formatOnSave;
+
+  /// Quebra de linha (soft wrap) no editor de arquivos, escolhida pelo usuário
+  /// (View → Toggle Word Wrap / ⌥Z, ou Settings). `null` = sem escolha: o editor usa o
+  /// padrão da linguagem (ligado em markdown/texto puro, desligado no resto).
+  final bool? editorWordWrap;
 
   /// Fecha a aba quando o shell encerra sozinho (ex.: `exit`, Ctrl-D), em vez
   /// de deixar um terminal morto na tela. Só vale para abas de shell.
@@ -265,6 +271,8 @@ class AppSettings {
     Map<String, String>? lspCommands,
     Map<String, String>? lspFormatters,
     bool? formatOnSave,
+    bool? editorWordWrap,
+    bool clearEditorWordWrap = false,
     bool? closeTabOnShellExit,
     FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
@@ -315,6 +323,9 @@ class AppSettings {
       lspCommands: lspCommands ?? this.lspCommands,
       lspFormatters: lspFormatters ?? this.lspFormatters,
       formatOnSave: formatOnSave ?? this.formatOnSave,
+      editorWordWrap: clearEditorWordWrap
+          ? null
+          : (editorWordWrap ?? this.editorWordWrap),
       closeTabOnShellExit: closeTabOnShellExit ?? this.closeTabOnShellExit,
       fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
@@ -365,6 +376,8 @@ class AppSettings {
     if (lspCommands.isNotEmpty) 'lspCommands': lspCommands,
     if (lspFormatters.isNotEmpty) 'lspFormatters': lspFormatters,
     if (formatOnSave) 'formatOnSave': true,
+    // Só quando escolhido: ausência = padrão da linguagem.
+    if (editorWordWrap != null) 'editor.wordWrap': editorWordWrap,
     if (closeTabOnShellExit) 'closeTabOnShellExit': true,
     'editor.engine': fileEditorEngine.name,
     if (!notificationsEnabled) 'notificationsEnabled': false,
@@ -449,6 +462,7 @@ class AppSettings {
       lspCommands: _strMap(json['lspCommands']),
       lspFormatters: _strMap(json['lspFormatters']),
       formatOnSave: json['formatOnSave'] as bool? ?? false,
+      editorWordWrap: json['editor.wordWrap'] as bool?,
       closeTabOnShellExit: json['closeTabOnShellExit'] as bool? ?? false,
       fileEditorEngine: _enumByName(
         FileEditorEngine.values,

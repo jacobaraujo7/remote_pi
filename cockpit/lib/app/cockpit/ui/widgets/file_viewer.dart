@@ -154,6 +154,21 @@ class _FileViewerState extends State<FileViewer> {
         _ => null,
       };
 
+  bool _wordWrapFor(bool? chosen) =>
+      fileEditorWordWrap(chosen: chosen, language: _language);
+
+  /// ⌥Z / View → Toggle Word Wrap: inverte a quebra do arquivo aberto (ver
+  /// [toggledEditorWordWrap]).
+  void _toggleWordWrap() {
+    final settings = context.read<SettingsController>();
+    settings.setEditorWordWrap(
+      toggledEditorWordWrap(
+        chosen: settings.settings.editorWordWrap,
+        language: _language,
+      ),
+    );
+  }
+
   /// Webview inline disponível (macOS/Windows)? No Linux o preview de markdown
   /// segue no gpt_markdown e HTML não tem modo renderizado (plano 58).
   static final bool _webPreview = BrowserCapability.resolve().isInline;
@@ -451,6 +466,10 @@ class _FileViewerState extends State<FileViewer> {
           _refocusEditor();
         },
         onFormat: () => _format().whenComplete(_refocusEditor),
+        onToggleWordWrap: () {
+          _toggleWordWrap();
+          _refocusEditor();
+        },
       );
     } else {
       bridge.clear(this);
@@ -951,6 +970,11 @@ class _FileViewerState extends State<FileViewer> {
           shift: true,
         ): () =>
             _cloneLines(down: false),
+        // Word wrap (⌥Z/Alt+Z, como no VS Code) no escopo do editor: no macOS o
+        // menu nativo dispara antes; fora dele só o editor focado vê a tecla
+        // (um atalho global roubaria o Alt+Z dos terminais).
+        const SingleActivator(LogicalKeyboardKey.keyZ, alt: true):
+            _toggleWordWrap,
       },
       child: content,
     );
@@ -966,6 +990,11 @@ class _FileViewerState extends State<FileViewer> {
             controller: ctrl,
             focusNode: _focus,
             filePath: widget.session.path,
+            wordWrap: _wordWrapFor(
+              context.select<SettingsController, bool?>(
+                (c) => c.settings.editorWordWrap,
+              ),
+            ),
             revealLine: widget.session.revealLine,
             revealSelect: widget.session.revealSelect,
             revealTick: widget.session.revealTick,
@@ -1362,4 +1391,27 @@ class _ImageViewState extends State<_ImageView> {
       ),
     );
   }
+}
+
+/// Linguagens de texto corrido: sem escolha do usuário, quebram linha.
+const _wrapByDefault = {'markdown', 'md', 'txt', 'text'};
+
+/// Quebra de linha efetiva do editor de arquivos: a escolha do usuário
+/// ([chosen], global — `AppSettings.editorWordWrap`) ou, sem ela, o padrão da
+/// [language] do arquivo (ligado em markdown/texto puro, desligado no resto).
+@visibleForTesting
+bool fileEditorWordWrap({required bool? chosen, required String? language}) =>
+    chosen ?? _wrapByDefault.contains(language);
+
+/// Escolha gravada pelo ⌥Z num arquivo da [language]. Desligar grava `false`
+/// (nenhum arquivo quebra). Ligar num arquivo de texto corrido volta ao padrão
+/// da linguagem (`null`), e não liga o código junto; ligar num arquivo de
+/// código grava `true` (todo arquivo), único valor que quebra esse arquivo.
+@visibleForTesting
+bool? toggledEditorWordWrap({
+  required bool? chosen,
+  required String? language,
+}) {
+  if (fileEditorWordWrap(chosen: chosen, language: language)) return false;
+  return _wrapByDefault.contains(language) ? null : true;
 }

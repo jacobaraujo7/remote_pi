@@ -63,6 +63,7 @@
       "lastTab": "Last Tab",
       "previousWorkspace": "Previous Workspace",
       "nextWorkspace": "Next Workspace",
+      "toggleWordWrap": "Toggle Word Wrap",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
       "actualSize": "Actual Size",
@@ -948,6 +949,13 @@
         "neovimChecking": "Looking for Neovim…",
         "neovimNotFound": "Neovim was not found in your shell PATH.",
         "neovimRefresh": "Check again",
+        "wordWrapTitle": "Word wrap",
+        "wordWrapDesc": "Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown and text",
+          "always": "All files",
+          "off": "Off"
+        },
         "showCockpitTitle": "Show Cockpit terminal",
         "showCockpitDesc": "Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.",
         "launchAtStartupTitle": "Launch at login",

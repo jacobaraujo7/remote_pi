@@ -484,6 +484,14 @@ class _GeneralPanel extends StatelessWidget {
                           ],
                         ),
                       ),
+                      _Row(
+                        title: tr.wordWrapTitle,
+                        description: tr.wordWrapDesc,
+                        trailing: _WordWrapDropdown(
+                          value: s.editorWordWrap,
+                          onChanged: controller.setEditorWordWrap,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1243,6 +1251,46 @@ class _FileEditorEngineDropdown extends StatelessWidget {
           ],
         );
         if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
+/// Quebra de linha do editor de arquivos. Os três valores são os mesmos de
+/// `AppSettings.editorWordWrap`: `null` = padrão da linguagem (markdown/texto
+/// quebram), `true` = todo arquivo, `false` = nenhum. O ⌥Z do editor também
+/// grava um dos três (ver `toggledEditorWordWrap`).
+class _WordWrapDropdown extends StatelessWidget {
+  const _WordWrapDropdown({required this.value, required this.onChanged});
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.general.wordWrap;
+    final labels = <bool?, String>{
+      null: tr.byLanguage,
+      true: tr.always,
+      false: tr.off,
+    };
+    return _DropdownChip(
+      label: labels[value]!,
+      onTap: () async {
+        // `showAppMenu` devolve null ao fechar sem escolher, então o valor
+        // `null` (padrão da linguagem) viaja embrulhado num record.
+        final picked = await showAppMenu<(bool?,)>(
+          context,
+          minWidth: 180,
+          items: [
+            for (final e in labels.entries)
+              AppMenuItem(
+                value: (e.key,),
+                label: e.value,
+                selected: e.key == value,
+              ),
+          ],
+        );
+        if (picked != null) onChanged(picked.$1);
       },
     );
   }

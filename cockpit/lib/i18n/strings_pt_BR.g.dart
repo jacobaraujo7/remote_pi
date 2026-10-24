@@ -294,6 +294,7 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get lastTab => 'Última Aba';
 	@override String get previousWorkspace => 'Workspace Anterior';
 	@override String get nextWorkspace => 'Próximo Workspace';
+	@override String get toggleWordWrap => 'Alternar Quebra de Linha';
 	@override String get zoomIn => 'Aumentar Zoom';
 	@override String get zoomOut => 'Diminuir Zoom';
 	@override String get actualSize => 'Tamanho Real';
@@ -1649,6 +1650,9 @@ class _Translations$settings$page$general$pt_BR extends Translations$settings$pa
 	@override String get neovimChecking => 'Procurando o Neovim…';
 	@override String get neovimNotFound => 'O Neovim não foi encontrado na PATH do seu shell.';
 	@override String get neovimRefresh => 'Verificar novamente';
+	@override String get wordWrapTitle => 'Quebra de linha';
+	@override String get wordWrapDesc => 'Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.';
+	@override late final _Translations$settings$page$general$wordWrap$pt_BR wordWrap = _Translations$settings$page$general$wordWrap$pt_BR._(_root);
 	@override String get showCockpitTitle => 'Mostrar terminal do Cockpit';
 	@override String get showCockpitDesc => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.';
 	@override String get launchAtStartupTitle => 'Iniciar ao ligar';
@@ -1882,6 +1886,18 @@ class _Translations$settings$page$automations$pt_BR extends Translations$setting
 	@override String get recommendedSuffix => 'Recomendado';
 }
 
+// Path: settings.page.general.wordWrap
+class _Translations$settings$page$general$wordWrap$pt_BR extends Translations$settings$page$general$wordWrap$en {
+	_Translations$settings$page$general$wordWrap$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get byLanguage => 'Markdown e texto';
+	@override String get always => 'Todos os arquivos';
+	@override String get off => 'Desligada';
+}
+
 // Path: settings.page.general.updateFrequency
 class _Translations$settings$page$general$updateFrequency$pt_BR extends Translations$settings$page$general$updateFrequency$en {
 	_Translations$settings$page$general$updateFrequency$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
@@ -1953,6 +1969,7 @@ extension on TranslationsPtBr {
 			'core.menu.lastTab' => 'Última Aba',
 			'core.menu.previousWorkspace' => 'Workspace Anterior',
 			'core.menu.nextWorkspace' => 'Próximo Workspace',
+			'core.menu.toggleWordWrap' => 'Alternar Quebra de Linha',
 			'core.menu.zoomIn' => 'Aumentar Zoom',
 			'core.menu.zoomOut' => 'Diminuir Zoom',
 			'core.menu.actualSize' => 'Tamanho Real',
@@ -2414,9 +2431,9 @@ extension on TranslationsPtBr {
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
 			'cockpit.sshPrompts.trust' => 'Confiar',
-			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Senha da chave SSH',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Senha da chave SSH',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloqueie ${keyPath} para conectar "${connectionName}".',
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Mantida em memória até o Cockpit fechar. Para permitir que agentes usem esta conexão, ative "Salvar senha da chave" na conexão.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
@@ -2702,6 +2719,11 @@ extension on TranslationsPtBr {
 			'settings.page.general.neovimChecking' => 'Procurando o Neovim…',
 			'settings.page.general.neovimNotFound' => 'O Neovim não foi encontrado na PATH do seu shell.',
 			'settings.page.general.neovimRefresh' => 'Verificar novamente',
+			'settings.page.general.wordWrapTitle' => 'Quebra de linha',
+			'settings.page.general.wordWrapDesc' => 'Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown e texto',
+			'settings.page.general.wordWrap.always' => 'Todos os arquivos',
+			'settings.page.general.wordWrap.off' => 'Desligada',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal do Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar ao ligar',
@@ -2923,14 +2945,14 @@ extension on TranslationsPtBr {
 			'fileOperation.error.invalidName' => 'Nome inválido.',
 			'fileOperation.error.remoteDropUnsupported' => 'Soltar arquivos num workspace remoto ainda não é suportado.',
 			'theme.error.io' => 'Não foi possível ler ou gravar o arquivo do tema.',
+			_ => null,
+		} ?? switch (path) {
 			'theme.error.ioDetail' => ({required Object detail}) => 'Não foi possível ler ou gravar o arquivo do tema: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este arquivo não é um JSON válido: ${detail}',
 			'theme.error.invalidTheme' => 'Este arquivo não é um tema válido.',
 			'theme.error.reservedId' => 'Este tema usa o id de um tema nativo. Mude o "id" no arquivo e importe de novo.',
 			'theme.error.notAnObject' => ({required Object field}) => 'Esperava um objeto em "${field}".',
 			'theme.error.missingField' => ({required Object field}) => 'Falta o campo obrigatório "${field}".',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',

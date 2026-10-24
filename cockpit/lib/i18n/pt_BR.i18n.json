@@ -63,6 +63,7 @@
       "lastTab": "Última Aba",
       "previousWorkspace": "Workspace Anterior",
       "nextWorkspace": "Próximo Workspace",
+      "toggleWordWrap": "Alternar Quebra de Linha",
       "zoomIn": "Aumentar Zoom",
       "zoomOut": "Diminuir Zoom",
       "actualSize": "Tamanho Real",
@@ -948,6 +949,13 @@
         "neovimChecking": "Procurando o Neovim…",
         "neovimNotFound": "O Neovim não foi encontrado na PATH do seu shell.",
         "neovimRefresh": "Verificar novamente",
+        "wordWrapTitle": "Quebra de linha",
+        "wordWrapDesc": "Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown e texto",
+          "always": "Todos os arquivos",
+          "off": "Desligada"
+        },
         "showCockpitTitle": "Mostrar terminal do Cockpit",
         "showCockpitDesc": "Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.",
         "launchAtStartupTitle": "Iniciar ao ligar",
