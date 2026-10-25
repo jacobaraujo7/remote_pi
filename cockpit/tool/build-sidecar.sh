@@ -26,6 +26,12 @@ fi
 if [ -f "$OUT/bin/cockpit_server" ]; then
   mv "$OUT/bin/cockpit_server" "$OUT/bin/cockpit-server"
 fi
+# Dart >= 3.14 no Linux: o runtime em bin/ acha o snapshot por
+# lib/libdartaot<basename do exe>.so, então o .so acompanha o rename
+# (ver linux/rename_server_snapshot.cmake). Ausente em Dart < 3.14 e no macOS.
+if [ -f "$OUT/lib/libdartaotcockpit_server.so" ]; then
+  mv "$OUT/lib/libdartaotcockpit_server.so" "$OUT/lib/libdartaotcockpit-server.so"
+fi
 
 # A dylib do PTY vai pra lib/ (o exe resolve @executable_path/../lib).
 ext="$([ "$(uname -s)" = Darwin ] && echo dylib || echo so)"

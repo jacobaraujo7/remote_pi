@@ -81,6 +81,7 @@ List<MenuBarMenu> buildAppMenus(
       if (!isMobilePlatform)
         MenuAction(
           tr.newTerminal,
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.keyT),
           onSelected: workspace.hasWorkspace ? workspace.newTerminal : null,
         ),
       if (!isMobilePlatform) const MenuSeparator(),
@@ -89,6 +90,18 @@ List<MenuBarMenu> buildAppMenus(
           tr.openWorkspace,
           accelerator: const MenuAccelerator(LogicalKeyboardKey.keyO),
           onSelected: () => requestOpenProject?.call(),
+        ),
+      // ⌘P no menu nativo pelo mesmo motivo do ⌘1…⌘9: com o foco numa webview
+      // (preview de markdown/HTML, `.panel`) o teclado vai pro WKWebView e o
+      // `CallbackShortcuts` do shell nunca vê a tecla; o key equivalent do menu
+      // dispara assim mesmo. Fora do macOS quem trata é o próprio shell, daí o
+      // `shortcutHandledExternally` (senão a palette abriria duas vezes).
+      if (!isMobilePlatform)
+        MenuAction(
+          tr.goToFile,
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.keyP),
+          shortcutHandledExternally: true,
+          onSelected: workspace.hasWorkspace ? workspace.goToFile : null,
         ),
       const MenuSeparator(),
       // Save/Discard/Format só ficam ativos quando há uma aba de edição focada

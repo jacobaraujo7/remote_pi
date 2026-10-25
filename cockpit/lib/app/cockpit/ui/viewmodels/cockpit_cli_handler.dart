@@ -2,6 +2,8 @@ import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
 
+import 'package:cockpit_remote/cockpit_remote.dart' show RemoteRpcException;
+import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
@@ -32,6 +34,7 @@ import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/mongo_browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
@@ -736,6 +739,40 @@ class CockpitCliHandler {
         final cwd = (c.args['cwd'] ?? '').toString();
         final timeoutRaw = c.args['timeout'];
         final timeout = timeoutRaw is num ? timeoutRaw.toInt() : 60;
+        // Aba remota: o comando e o cwd são do HOST. Roda lá via `proc.run`
+        // (cockpit-server ≥ 2.1.13); antes executava aqui, com um cwd que
+        // não existe neste disco, e o `.panel` remoto recebia erro em tudo.
+        if (_isRemoteTab(c.tabId)) {
+          final session = _vm.session(c.tabId!);
+          final host = session == null
+              ? null
+              : _vm.remote.hostForWorkspace(session.projectId);
+          if (host == null) {
+            return const CockpitCommandResult.fail('remote host not found');
+          }
+          try {
+            final proc = await _vm.remoteHosts.procServiceFor(host);
+            final data = await proc.run(
+              command,
+              cwd: cwd,
+              timeoutSeconds: timeout <= 0 ? 60 : timeout,
+            );
+            return CockpitCommandResult.ok(data);
+          } on RemoteRpcException catch (e) {
+            return CockpitCommandResult.fail(switch (e.code) {
+              'cwd_not_found' => 'cwd not found on host: "$cwd"',
+              'unknown_method' =>
+                'the cockpit-server on this host is too old for exec '
+                    '(update it: curl -fsSL '
+                    'https://remote-pi.jacobmoura.work/cockpit-server.sh | bash)',
+              _ => 'exec failed on host: ${e.detail ?? e.code}',
+            });
+          } on RemoteHostException catch (e) {
+            return CockpitCommandResult.fail(
+              'host unreachable: ${e.kind.name}',
+            );
+          }
+        }
         if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
           return CockpitCommandResult.fail('cwd not found: "$cwd"');
         }
@@ -747,6 +784,68 @@ class CockpitCliHandler {
           profile: _vm.defaultTerminalProfile,
         );
         return CockpitCommandResult.ok(result.toJson());
+
+      // `cockpit panel screenshot [<label|tab-id|file.panel>] [--out x.png]`
+      // (plano 69): PNG da webview de um .panel aberto, pro agente ver o que
+      // escreveu. Sem --out grava em arquivo temporário e devolve o caminho.
+      case 'panel-screenshot':
+        final target = (c.args['target'] ?? '').toString();
+        final PaneItem? s;
+        if (target.isNotEmpty) {
+          if (target.endsWith('.panel')) {
+            s = _vm.allSessions
+                .whereType<FileViewerSession>()
+                .cast<PaneItem?>()
+                .firstWhere(
+                  (x) => (x as FileViewerSession).path == target,
+                  orElse: () => null,
+                );
+            if (s == null) {
+              return CockpitCommandResult.fail('no open tab for "$target"');
+            }
+          } else {
+            final resolved = _resolvePaneTarget(target);
+            if (resolved case Failure(:final error)) {
+              return CockpitCommandResult.fail(error);
+            }
+            s = (resolved as Success<PaneItem, String>).value;
+          }
+        } else {
+          final id = c.tabId;
+          s = (id == null || id.isEmpty) ? null : _vm.session(id);
+          if (s == null) {
+            return const CockpitCommandResult.fail(
+              'missing target (pass <label|tab-id|file.panel> or run from the panel)',
+            );
+          }
+        }
+        if (s is! FileViewerSession ||
+            !s.path.toLowerCase().endsWith('.panel')) {
+          return CockpitCommandResult.fail('tab "${s.id}" is not a .panel');
+        }
+        final web = PanelWebViews.of(s.id);
+        if (web == null) {
+          return CockpitCommandResult.fail(
+            'panel "${s.id}" has no web view yet (not visible or still loading)',
+          );
+        }
+        final png = await web.takeScreenshot();
+        if (png == null || png.isEmpty) {
+          return const CockpitCommandResult.fail('screenshot failed');
+        }
+        final out = (c.args['out'] ?? '').toString();
+        final file = out.isNotEmpty
+            ? File(out)
+            : File(
+                '${Directory.systemTemp.path}/cockpit-panel-${s.id}-'
+                '${DateTime.now().millisecondsSinceEpoch}.png',
+              );
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(png, flush: true);
+        return CockpitCommandResult.ok({
+          'path': file.path,
+          'bytes': png.length,
+        });
 
       // `cockpit list-tasks` — tasks do workspace do pane emissor (tabId,
       // default da CLI = a própria tab; fallback: workspace selecionado).

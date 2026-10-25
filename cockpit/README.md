@@ -61,6 +61,39 @@ cockpit-server --version
 
 Full page with troubleshooting: https://remote-pi.jacobmoura.work/cockpit/docs#remote
 
+## Seeing what the installed app is doing (Telemetry)
+
+The production build can show its own errors, warnings and performance
+metrics, without a debug build or a console:
+
+1. **Settings → General → Developer mode** (off by default).
+2. Open the **Telemetry** panel (right sidebar) and select the **Cockpit**
+   chip. Every boot of the app is a run; uncaught errors, isolate and zone
+   failures, and the warnings the code emits where it used to fail silently
+   show up there with a fingerprint and the file in `lib/` that raised them.
+3. The same data is available from a terminal tab with
+   `cockpit telemetry errors --app` (add `--app` to any telemetry verb, e.g.
+   `logs --app --level warn`, `runs --app`, `perf --app`).
+
+Nothing is sent anywhere: the store is a local SQLite file under the app's
+Application Support folder (`telemetry/__cockpit__.sqlite`), outside any
+workspace.
+
+Cost while Developer mode is on:
+
+- **Disk**: events are written straight to SQLite, capped at 256 MB and
+  7 days (oldest finished runs are vacuumed first). A busy session rarely
+  passes a few megabytes.
+- **Memory**: the only in-memory buffer is the performance ring of 256
+  entries, flushed to the store every 30 s. Error and warning events are not
+  held in RAM.
+- **CPU**: two 1 s timers aggregate frame timings while the window is active.
+  Not measurable on the terminal workload; turn Developer mode off if you are
+  profiling something else.
+
+Secrets are redacted on write (`Authorization`, cookies, tokens, JWTs). See
+[docs/telemetry.md](docs/telemetry.md) for the store layout and the CLI.
+
 ## Development
 
 Prerequisites: Flutter (version pinned in `.github/workflows/cockpit-release.yml`),

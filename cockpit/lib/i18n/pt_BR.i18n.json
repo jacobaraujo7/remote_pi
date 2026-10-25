@@ -44,6 +44,7 @@
       "file": "Arquivo",
       "newTerminal": "Novo Terminal",
       "openWorkspace": "Abrir Workspace",
+      "goToFile": "Ir para Arquivo…",
       "save": "Salvar",
       "discard": "Descartar",
       "format": "Formatar",
@@ -647,6 +648,7 @@
       "next": "Próximo (⏎)",
       "close": "Fechar (Esc)",
       "badPattern": "Padrão inválido",
+      "counter": "${current} de ${total}",
       "noResults": "Nenhum resultado"
     },
     "contentSearch": {
@@ -677,6 +679,15 @@
       "agentFinished": "Agente terminou",
       "open": "Abrir",
       "agentNeedsAction": "Agente precisa de você"
+    },
+    "terminalLink": {
+      "open": "Abrir",
+      "revealFinder": "Mostrar no Finder",
+      "revealExplorer": "Mostrar no Explorer",
+      "revealFolder": "Abrir pasta",
+      "copyPath": "Copiar caminho",
+      "openLink": "Abrir link",
+      "copyLink": "Copiar link"
     },
     "terminal": {
       "cwdFallbackWarning": "Aviso: a pasta \"${requested}\" não existe. Este terminal abriu em \"${path}\".",
@@ -1000,7 +1011,10 @@
         "engineDesc": "Usado por novas abas de terminal e buffers de saída de tasks. Abas abertas mantêm o motor atual.",
         "shellTitle": "Shell",
         "shellDesc": "Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.",
-        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui."
+        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.",
+        "sectionBehavior": "Comportamento",
+        "closeOnExitTitle": "Fechar a aba quando o shell encerrar",
+        "closeOnExitDesc": "Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto."
       },
       "appearance": {
         "sectionTheme": "Tema",

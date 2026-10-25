@@ -574,6 +574,12 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _taskTerminals.setDefaultEngine(engine);
   }
 
+  /// Espelha `AppSettings.closeTabOnShellExit`: quando ligado, uma aba de shell
+  /// fecha ao encerrar o processo sozinho (ver [_watchTerminalSession] /
+  /// `onProcessExit`). A `CockpitPage` empurra o valor (app-scoped → VM).
+  bool _closeTabOnShellExit = false;
+  void setCloseTabOnShellExit(bool value) => _closeTabOnShellExit = value;
+
   late final FileEditorFacade _fileEditorFacade;
 
   void setFileEditorEngine(FileEditorEngine engine) =>
@@ -5860,6 +5866,17 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     t.onTurnFinished = () => unawaited(notifications.turnFinished(t));
     // cwd vivo (OSC 7) mudou → persiste o layout pra restaurar o shell ali.
     t.onCwdChanged = () => _scheduleSave(projectId);
+    // Shell encerrou sozinho (`exit`, Ctrl-D, processo morto) e a preferência
+    // está ligada: fecha a aba em vez de deixar o terminal morto na tela — como
+    // a aba do Neovim fecha no `:q` (ver [_watchNeovimSession]). Desligada, a
+    // aba permanece (comportamento histórico).
+    t.onProcessExit = () {
+      if (!_closeTabOnShellExit) return;
+      if (_sessions[t.id] != t) return;
+      final paneId = leafOfTab(projectId, t.id);
+      if (paneId == null) return;
+      _closeTabIn(projectId, paneId, t.id, disposeAfterFrame: true);
+    };
     // Restauração: re-arma a trava de nome sem notificar (aba ainda não montada).
     if (manualLabel != null) t.restoreManualLabel(manualLabel);
     built = t;

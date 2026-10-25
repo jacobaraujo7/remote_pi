@@ -11,6 +11,7 @@ import 'package:flutter/scheduler.dart';
 class WorkspaceMenuBridge extends ChangeNotifier {
   bool _hasWorkspace = false;
   VoidCallback? _onNewTerminal;
+  VoidCallback? _onGoToFile;
   VoidCallback? _onSplitRight;
   VoidCallback? _onSplitDown;
   VoidCallback? _onToggleRail;
@@ -27,6 +28,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   bool get hasWorkspace => _hasWorkspace;
 
   void newTerminal() => _onNewTerminal?.call();
+  void goToFile() => _onGoToFile?.call();
   void splitRight() => _onSplitRight?.call();
   void splitDown() => _onSplitDown?.call();
   void toggleRail() => _onToggleRail?.call();
@@ -45,6 +47,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   void setWorkspace({
     required bool hasWorkspace,
     VoidCallback? onNewTerminal,
+    VoidCallback? onGoToFile,
     VoidCallback? onSplitRight,
     VoidCallback? onSplitDown,
     VoidCallback? onToggleRail,
@@ -59,6 +62,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
     VoidCallback? onFocusPaneDown,
   }) {
     _onNewTerminal = onNewTerminal;
+    _onGoToFile = onGoToFile;
     _onSplitRight = onSplitRight;
     _onSplitDown = onSplitDown;
     _onToggleRail = onToggleRail;

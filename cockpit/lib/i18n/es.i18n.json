@@ -44,6 +44,7 @@
       "file": "Archivo",
       "newTerminal": "Nueva Terminal",
       "openWorkspace": "Abrir Workspace",
+      "goToFile": "Ir a Archivo…",
       "save": "Guardar",
       "discard": "Descartar",
       "format": "Formatear",
@@ -647,6 +648,7 @@
       "next": "Siguiente (⏎)",
       "close": "Cerrar (Esc)",
       "badPattern": "Patrón inválido",
+      "counter": "${current} de ${total}",
       "noResults": "Sin resultados"
     },
     "contentSearch": {
@@ -677,6 +679,15 @@
       "agentFinished": "El agente terminó",
       "open": "Abrir",
       "agentNeedsAction": "El agente necesita tu acción"
+    },
+    "terminalLink": {
+      "open": "Abrir",
+      "revealFinder": "Mostrar en Finder",
+      "revealExplorer": "Mostrar en el Explorador",
+      "revealFolder": "Abrir carpeta contenedora",
+      "copyPath": "Copiar ruta",
+      "openLink": "Abrir enlace",
+      "copyLink": "Copiar enlace"
     },
     "terminal": {
       "cwdFallbackWarning": "Aviso: la carpeta \"${requested}\" no existe. Esta terminal se abrió en \"${path}\".",
@@ -1000,7 +1011,10 @@
         "engineDesc": "Usado por nuevas pestañas de terminal y buffers de salida de tasks. Las pestañas abiertas mantienen su motor actual.",
         "shellTitle": "Shell",
         "shellDesc": "Qué shell abren las nuevas pestañas de terminal. La flecha junto al + sigue abriendo cualquier otro, solo para esa pestaña.",
-        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí."
+        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí.",
+        "sectionBehavior": "Comportamiento",
+        "closeOnExitTitle": "Cerrar la pestaña cuando el shell termine",
+        "closeOnExitDesc": "Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto."
       },
       "appearance": {
         "sectionTheme": "Tema",

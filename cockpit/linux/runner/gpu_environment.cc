@@ -33,7 +33,10 @@ std::string configure_linux_gpu_environment() {
   unsetenv("VK_ICD_FILENAMES");
   unsetenv("GBM_BACKEND");
   unsetenv("LIBVA_DRIVER_NAME");
-  setenv("DRI_PRIME", "0", 1);
+  // Mesa rejeita DRI_PRIME=0 ("Should be > 0") e imprime o aviso em todo
+  // processo filho, inclusive no zenity do seletor de pasta, cuja saída vira o
+  // caminho do workspace. Sem a variável o Mesa já usa a GPU primária.
+  unsetenv("DRI_PRIME");
 
   // Selecting the integrated GPU is not enough to keep NVIDIA's EGL vendor
   // out of a Wayland client on hybrid systems. Default Cockpit to XWayland,

@@ -23,7 +23,8 @@ subprojects {
 subprojects {
     afterEvaluate {
         extensions.findByName("android")?.let { ext ->
-            (ext as com.android.build.gradle.BaseExtension).compileSdkVersion(36)
+            // AGP 9 removeu a BaseExtension legada; a DSL nova é CommonExtension.
+            (ext as com.android.build.api.dsl.CommonExtension).compileSdk = 36
         }
     }
 }

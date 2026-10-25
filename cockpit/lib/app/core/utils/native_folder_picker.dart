@@ -32,7 +32,18 @@ class NativeFolderPicker {
       initialDirectory: initialDirectory,
       dialogTitle: dialogTitle,
     );
-    return picked == null ? null : normalizePath(picked);
+    return picked == null ? null : normalizePath(lastPathLine(picked));
+  }
+
+  /// No Linux o `file_picker` lê o stdout do `zenity`/`kdialog`, e avisos de
+  /// driver (ex.: Mesa com `DRI_PRIME` inválido) saem no mesmo stdout, antes
+  /// do caminho. Fica só a última linha não vazia.
+  static String lastPathLine(String raw) {
+    final lines = raw
+        .split(RegExp(r'\r?\n'))
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty);
+    return lines.isEmpty ? raw : lines.last;
   }
 
   static Future<String?> _pickNative({

@@ -38,7 +38,7 @@ env:
   SIGNPATH_POLICY_SLUG: test-signing
   SIGNPATH_ARTIFACT_CONFIG_SLUG: installer
   RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-  FLUTTER_VERSION: "3.47.5"
+  FLUTTER_VERSION: "3.50.0-0.1.pre"
 
 jobs:
   meta:
@@ -106,7 +106,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: beta
           cache: true
       - name: Rust (native assets do anaki)
         run: |
@@ -149,7 +149,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: beta
           cache: true
 
       # O build hook do libghostty compila a dylib do ghostty (pubspec: hooks >
@@ -384,7 +384,7 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: beta
           cache: true
 
       # O build hook do libghostty compila a dylib do ghostty (pubspec: hooks >
@@ -593,7 +593,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: beta
           cache: true
 
       # Não existe SDK empacotado de Flutter pra linux-arm64 (flutter-action
@@ -749,11 +749,13 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          # AGP 9 (Flutter 3.50): o lint usa List.removeLast() (Java 21); com
+          # JDK 17 o lintVitalAnalyzeRelease cai com NoSuchMethodError.
+          java-version: "21"
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: stable
+          channel: beta
           cache: true
       # libghostty compila a lib do ghostty pro alvo Android com Zig (mesmo
       # hook e mesma versão fixa dos jobs desktop).

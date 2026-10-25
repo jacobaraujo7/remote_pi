@@ -1138,6 +1138,21 @@ class _TerminalPanel extends StatelessWidget {
                   ],
                 ),
               ),
+              _Section(
+                label: tr.sectionBehavior,
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: tr.closeOnExitTitle,
+                      description: tr.closeOnExitDesc,
+                      trailing: Switch(
+                        value: controller.settings.closeTabOnShellExit,
+                        onChanged: controller.setCloseTabOnShellExit,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Sem WSL instalado a lista tem só PowerShell e cmd. Dizer isso é
               // melhor que deixar o usuário achar que a detecção falhou.
               if (!profiles.any(

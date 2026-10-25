@@ -157,6 +157,11 @@ class RemoteHostsController extends ChangeNotifier {
   Future<RemoteDbService> dbServiceFor(RemoteHost host) =>
       _connectorFor(host).dbService();
 
+  /// Execução de processo no host (`cockpit exec` de aba remota). Conecta se
+  /// preciso.
+  Future<RemoteProcService> procServiceFor(RemoteHost host) =>
+      _connectorFor(host).procService();
+
   Future<void> addHost({
     required String name,
     required String sshTarget,

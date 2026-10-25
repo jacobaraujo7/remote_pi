@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
@@ -21,7 +22,8 @@ import 'package:flutter/material.dart'
         SystemMouseCursors,
         TextField,
         TextInputType;
-import 'package:flutter/services.dart' show HardwareKeyboard;
+import 'package:flutter/services.dart'
+    show HardwareKeyboard, KeyDownEvent, LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 
 /// Área **editável** de código com gutter de número de linha.
@@ -504,6 +506,77 @@ class _CodeEditorState extends State<CodeEditor> {
     ),
   };
 
+  // ---- Comentários (VS Code): Cmd+/ toggle · Cmd+K Cmd+C add · Cmd+K Cmd+U
+  // remove. O chord `Cmd+K` arma [_chordPending] por 2 s; a tecla seguinte
+  // (com ou sem o modificador, como no VS Code) resolve. Vive num `Focus`
+  // acima do TextField: a tecla sobe pela cadeia de foco depois que o campo
+  // não a consome, então nada do TextField muda. Sem sintaxe conhecida pra
+  // linguagem o atalho é engolido sem efeito (melhor que colar `//` em YAML).
+  bool _chordPending = false;
+  Timer? _chordTimer;
+
+  void _armChord() {
+    _chordTimer?.cancel();
+    _chordPending = true;
+    _chordTimer = Timer(const Duration(seconds: 2), _cancelChord);
+  }
+
+  void _cancelChord() {
+    _chordTimer?.cancel();
+    _chordTimer = null;
+    _chordPending = false;
+  }
+
+  KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final keys = HardwareKeyboard.instance;
+    final cmd =
+        (Platform.isMacOS && keys.isMetaPressed) || keys.isControlPressed;
+    final key = event.logicalKey;
+    if (_chordPending) {
+      _cancelChord();
+      if (key == LogicalKeyboardKey.keyC) {
+        _applyComment(_CommentOp.add);
+        return KeyEventResult.handled;
+      }
+      if (key == LogicalKeyboardKey.keyU) {
+        _applyComment(_CommentOp.remove);
+        return KeyEventResult.handled;
+      }
+      // Modificador solto entre as duas teclas não cancela o chord.
+      if (key == LogicalKeyboardKey.metaLeft ||
+          key == LogicalKeyboardKey.metaRight ||
+          key == LogicalKeyboardKey.controlLeft ||
+          key == LogicalKeyboardKey.controlRight) {
+        _armChord();
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+    if (!cmd) return KeyEventResult.ignored;
+    if (key == LogicalKeyboardKey.keyK && !keys.isShiftPressed) {
+      _armChord();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.slash) {
+      _applyComment(_CommentOp.toggle);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  void _applyComment(_CommentOp op) {
+    final syntax = commentSyntaxFor(widget.controller.language);
+    if (syntax == null) return;
+    final value = widget.controller.value;
+    final next = switch (op) {
+      _CommentOp.add => addLineComment(value, syntax),
+      _CommentOp.remove => removeLineComment(value, syntax),
+      _CommentOp.toggle => toggleLineComment(value, syntax),
+    };
+    if (next != value) widget.controller.value = next;
+  }
+
   /// Unidade detectada, invalidada quando o texto muda (arquivo trocado ou
   /// editado): recomputa sob demanda no próximo Tab.
   IndentUnit? _indentUnit;
@@ -552,6 +625,7 @@ class _CodeEditorState extends State<CodeEditor> {
 
   @override
   void dispose() {
+    _chordTimer?.cancel();
     widget.controller.removeListener(_onChanged);
     widget.controller.removeListener(_keepHorizontalOnSelection);
     _horizontal.removeListener(_onHorizontalScroll);
@@ -852,32 +926,39 @@ class _CodeEditorState extends State<CodeEditor> {
                                           >(
                                             onNotification:
                                                 _updateOverviewMetrics,
-                                            child: Actions(
-                                              actions: _indentActions,
-                                              child: TextField(
-                                                controller: widget.controller,
-                                                focusNode: widget.focusNode,
-                                                scrollController: _vertical,
-                                                style: codeStyle,
-                                                cursorColor: syntax.base,
-                                                maxLines: null,
-                                                minLines: null,
-                                                expands: true,
-                                                keyboardType:
-                                                    TextInputType.multiline,
-                                                onTap: _definitionModeActive
-                                                    ? _onDefinitionTap
-                                                    : null,
-                                                mouseCursor: _defCursor,
-                                                decoration:
-                                                    const InputDecoration(
-                                                      isCollapsed: true,
-                                                      border: InputBorder.none,
-                                                      contentPadding:
-                                                          EdgeInsets.only(
-                                                            bottom: _padBottom,
-                                                          ),
-                                                    ),
+                                            child: Focus(
+                                              skipTraversal: true,
+                                              canRequestFocus: false,
+                                              onKeyEvent: _onEditorKey,
+                                              child: Actions(
+                                                actions: _indentActions,
+                                                child: TextField(
+                                                  controller: widget.controller,
+                                                  focusNode: widget.focusNode,
+                                                  scrollController: _vertical,
+                                                  style: codeStyle,
+                                                  cursorColor: syntax.base,
+                                                  maxLines: null,
+                                                  minLines: null,
+                                                  expands: true,
+                                                  keyboardType:
+                                                      TextInputType.multiline,
+                                                  onTap: _definitionModeActive
+                                                      ? _onDefinitionTap
+                                                      : null,
+                                                  mouseCursor: _defCursor,
+                                                  decoration:
+                                                      const InputDecoration(
+                                                        isCollapsed: true,
+                                                        border:
+                                                            InputBorder.none,
+                                                        contentPadding:
+                                                            EdgeInsets.only(
+                                                              bottom:
+                                                                  _padBottom,
+                                                            ),
+                                                      ),
+                                                ),
                                               ),
                                             ),
                                           ),
@@ -957,3 +1038,5 @@ List<OverviewRulerMark> _scmOverviewMarks(
   ];
   return marks;
 }
+
+enum _CommentOp { add, remove, toggle }

@@ -24,6 +24,146 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.18] - 2026-10-19
+
+**Hover finally works inside web views, plus find-in-terminal.** Previews,
+`.panel` dashboards and the built-in browser now react to the mouse like a
+normal page: `:hover` styles, link cursors and tooltips follow the pointer.
+
+### Added
+
+- **Find in terminal** (⌘F on macOS, Ctrl+F elsewhere): a floating bar over
+  the terminal buffer with match highlighting, "N of M" counter, Enter and
+  Shift+Enter to step, Esc to close. Works on both the Ghostty and the xterm
+  engine.
+- **Go to File in the menu** (⌘P): also works while the focus is inside a
+  markdown or HTML preview.
+
+### Fixed
+
+- **Hover in web views (macOS)**: the native drop target used for Finder
+  drag-and-drop covered the whole window and stole the pointer from embedded
+  web views, so pages never saw mouse movement. It is now transparent to the
+  pointer unless a drag is in progress.
+- **Hover in web views (Windows)**: the WebView2 host now sends mouse leave
+  events and batches cursor moves per frame, so hover state and the cursor
+  reset when the pointer leaves the page.
+- **Markdown preview** fills the pane width instead of a centered 860px
+  column; long paths and URLs inside table cells wrap instead of forcing a
+  horizontal scroll.
+- **Linux**: new workspaces could get a broken path when the folder picker
+  output carried a Mesa `DRI_PRIME` warning.
+- **Linux**: the bundled `cockpit-server` could fail to start after the Dart
+  3.14 toolchain change (AOT snapshot resolved by executable name).
+
+### Changed
+
+- Built with Flutter 3.50 (beta channel, Dart 3.14); Android now builds with
+  AGP 9.3 and Gradle 9.5.
+
+## [2.1.15] - 2026-10-11
+
+**Four agent skills instead of one, installed on every machine (including
+remote hosts), and a design kit for `.panel` dashboards.** Pair with
+cockpit-server 2.1.15 so hosts get the skills too.
+
+### Added
+
+- **Skills split by purpose**: `cockpit-cli` (tabs, tasks, exec),
+  `cockpit-db` (SQL, Redis, Mongo, connections), `cockpit-telemetry` (the
+  error store) and `cockpit-design` (files the human reads: `.panel`, `.html`,
+  `.kanban`, `.notebook`, `.ckp`, `.http`, `.dbq`). Each is short, with
+  references read on demand, so the right one triggers for the right task.
+- **Skills everywhere**: `cockpit install-skill` installs all four into every
+  harness found on the machine (Claude Code, Codex, Pi), keeps a manifest per
+  skill (updates and removals are exact, your own files are left alone), and
+  the remote `cockpit-server` installs them on the host at boot.
+- **`cockpit panel new --template dashboard|list-detail|form <file>`**:
+  scaffolds a working `.panel` from a bundled template and opens it.
+- **`cockpit panel screenshot [<tab|file>] [--out x.png]`**: a PNG of an open
+  `.panel`, so an agent can look at what it built and iterate.
+- **`cockpit.css` page anatomy**: `.page`, `.toolbar`, `.kpis`, `.split`,
+  `.empty`, `.skeleton`, `.status-dot`, `.kv`, responsive in narrow panes.
+  The Gallery's "panel" template is now a real dashboard.
+
+## [2.1.14] - 2026-10-10
+
+**Copying from Linux terminals works, and remote `.panel` buttons reach the
+host.** No server update needed: cockpit-server 2.1.13 stays compatible.
+
+### Fixed
+
+- **Copy from programs in the terminal (OSC 52)**: tmux, neovim, `yank` and
+  Claude Code copy through the terminal when there is no `pbcopy`, which is
+  every Linux, local or remote. The Ghostty engine supported it but the app
+  never handled the request, so nothing reached the clipboard. Writes to the
+  system clipboard are now honored (text only, `standard` destination);
+  clipboard reads by terminal content stay disabled.
+- **Remote `.panel` `exec`**: the bridge launched the CLI with the panel's
+  folder as working directory, a host path that does not exist on this
+  machine, so the call failed before reaching the host. Remote panels now run
+  `exec` with `--cwd <host folder>` through the host as intended in 2.1.13.
+
+## [2.1.13] - 2026-10-09
+
+**Remote workspaces: `cockpit exec` and `.panel` buttons now run on the
+host.** Requires cockpit-server 2.1.13 on the host (same version as the app).
+
+### Fixed
+
+- **`exec` from a remote terminal or a remote `.panel`** used to run on the
+  Cockpit machine with the host's working directory, which does not exist
+  there, so every call failed or returned nothing. It now runs on the host
+  through the new `proc.run` RPC: login shell, host cwd, timeout, and the
+  `cockpit` CLI available to the command. An old server answers with a
+  message explaining how to update.
+- **Remote `.panel` showed the previous file**: when the preview tab was
+  reused, the panel rendered the previous file's text as HTML and ignored the
+  real content when it arrived. The tab now shows a spinner while loading and
+  applies a late reload.
+- **cockpit-server installer left a dead Claude hook**: the smoke test ran
+  the server from the staging folder and registered the hook with that path,
+  which disappears after the swap ("Stop hook error" in Claude Code). The
+  smoke test no longer registers hooks, and the installer removes stale
+  staging entries from `~/.claude/settings.json`.
+- **Narrow panes hid the `+` button**: the new-tab control and the profile
+  picker sit outside the scrollable tab strip, and the `+` responds on
+  mouse-down like tab selection (#232, moregola).
+
+## [2.1.12] - 2026-10-06
+
+**Comment toggling in the editor, a link menu in the terminal, ⌘T for a new
+terminal, and an opt-in to close a tab when its shell exits.**
+
+### Added
+
+- **Comment and uncomment** in the code editor, VS Code style: `⌘/` toggles,
+  `⌘K ⌘C` comments, `⌘K ⌘U` uncomments (`Ctrl` on Windows and Linux). The
+  token follows the file type (`//`, `#`, `--` for SQL in `.dbq` and HTML
+  comments for Markdown and HTML); unknown languages are left untouched.
+- **Terminal link menu**: right-click a path or URL in a terminal to Open,
+  Reveal in Finder/Explorer or Copy. ⌘-click still opens directly; a text file
+  opens in Cockpit's viewer, a binary (dmg, image, PDF) in the OS default app,
+  a URL in the browser. Works in both terminal engines (#234, cfbraun).
+- **⌘T / Ctrl+T** opens a new terminal tab in the active workspace, from
+  File → New Terminal (#233, cfbraun).
+- **Close tab when the shell exits** (Settings → Terminal → Behavior, off by
+  default): `exit` or Ctrl-D closes the tab instead of leaving a dead
+  terminal (#235, cfbraun).
+
+### Fixed
+
+- **Markdown preview tables** had centered header cells; cells are now
+  left-aligned by default, and explicit column alignment still applies.
+
+### Changed
+
+- Terminal engine (flterm) refreshed to tag `cockpit-pin-flterm-upstream-2026-10d`
+  with the link hooks above.
+- README explains how to inspect the installed app's own telemetry
+  (Developer mode → Telemetry → Cockpit) and what it costs in disk, memory
+  and CPU.
+
 ## [2.1.11] - 2026-10-03
 
 **Terminals in hidden tabs no longer cost frames, and the Windows app no
