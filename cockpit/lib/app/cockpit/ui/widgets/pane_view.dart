@@ -1695,7 +1695,7 @@ class _PaneBodyState extends State<_PaneBody> {
     super.dispose();
   }
 
-  /// Intercepta o atalho de **colar** no terminal pra suportar imagem.
+  /// Intercepta o atalho de colar para suportar arquivos e imagens.
   ///
   /// O `TerminalView` só cola texto; a imagem do clipboard nunca chegava ao
   /// harness. No Cmd+V (macOS) / Ctrl+V (Linux/Windows) delegamos pro
@@ -2105,23 +2105,13 @@ class _TerminalDropTarget extends StatefulWidget {
 class _TerminalDropTargetState extends State<_TerminalDropTarget> {
   bool _dragOver = false;
 
-  /// Cota um caminho pro shell: sem caracteres "perigosos" vai cru; senão é
-  /// envolto em aspas simples (escapando aspas simples internas com `'\''`).
-  static String _shellQuote(String path) {
-    final safe = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
-    if (safe.hasMatch(path)) return path;
-    return "'${path.replaceAll("'", r"'\''")}'";
-  }
-
   void _onDrop(List<XFile> files) {
     final paths = files
-        .map((f) => f.path)
-        .where((p) => p.isNotEmpty)
-        .map(_shellQuote)
+        .map((file) => file.path)
+        .where((path) => path.isNotEmpty)
         .toList();
     if (paths.isEmpty) return;
-    // Espaço final pra separar de um próximo argumento; o usuário pode apagar.
-    widget.session.insertText('${paths.join(' ')} ');
+    widget.session.pasteFilePaths(paths);
     widget.onDropped?.call();
   }
 

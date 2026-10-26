@@ -481,7 +481,18 @@ class TerminalSession extends PaneItem {
     Pasteboard.writeText(text);
   }
 
-  /// Cola do clipboard no terminal, com suporte a **imagem**.
+  /// Inserts file arguments identically for clipboard paste and drag/drop.
+  void pasteFilePaths(Iterable<String> files) {
+    final safe = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
+    final paths = files.where((path) => path.isNotEmpty).map((path) {
+      if (safe.hasMatch(path)) return path;
+      return "'${path.replaceAll("'", r"'\''")}'";
+    }).toList();
+    if (paths.isEmpty) return;
+    terminal.paste('${paths.join(' ')} ');
+  }
+
+  /// Cola arquivos, imagens ou texto do clipboard no terminal.
   ///
   /// Se há uma imagem no clipboard, manda o byte de Ctrl+V (`\x16`) pro harness
   /// em primeiro plano (claude/codex/pi) — todos eles, ao receber `\x16`, leem a
@@ -493,6 +504,21 @@ class TerminalSession extends PaneItem {
   /// imagem) e, no macOS, o caminho de IME engole o Ctrl+V cru (vira `pageDown`),
   /// então o `\x16` nunca era gerado e a imagem nunca chegava ao harness.
   Future<void> pasteFromClipboard() async {
+    // Explorer copies files as CF_HDROP, which is neither an image nor text.
+    // Prefer actual files over alternative clipboard representations.
+    if (const {
+      TargetPlatform.windows,
+      TargetPlatform.macOS,
+      TargetPlatform.linux,
+    }.contains(defaultTargetPlatform)) {
+      final files = (await Pasteboard.files())
+          .where((path) => path.isNotEmpty)
+          .toList();
+      if (files.isNotEmpty) {
+        pasteFilePaths(files);
+        return;
+      }
+    }
     final image = await Pasteboard.image;
     if (image != null && image.isNotEmpty) {
       _gateway.write(const [

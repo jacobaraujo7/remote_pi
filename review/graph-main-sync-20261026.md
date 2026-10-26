@@ -40,3 +40,13 @@ PRs de outros autores não são dependências desta atualização. A implementa�
 - Leitura de metadados no VM Service: 7 terminais, 7 boxes, zero terminais sem box. Nenhum conteúdo de terminal coletado.
 - Instância anterior encerrou durante tentativa de attach; sem causa confirmada. A nova instância foi iniciada com --no-pub --no-dds e permaneceu em execução após o hot reload.
 - Próximo passo: moregola avaliar Configurar box com botão direito na aba; novo relato de clipboard de arquivos será tratado em correção separada nesta mesma branch.
+
+## Correção posterior: colar arquivos do Explorador no terminal
+
+- Relato confirmado pelo usuário: copiar arquivo no Explorador e colar com Ctrl+V no terminal não funcionava; arrastar funcionava.
+- Causa: pasteFromClipboard consultava somente imagem e texto, ignorando a lista nativa de arquivos (CF_HDROP no Windows).
+- Correção: consultar Pasteboard.files em desktop antes de imagem/texto; clipboard e drop compartilham pasteFilePaths, preservando separação/aspas dos caminhos e o modo bracketed paste. Nenhum arquivo é enviado automaticamente e nenhum comando é executado pela colagem.
+- Validação: 9 testes de clipboard/status passaram; cobrem múltiplos arquivos, espaços, acentos, paridade com drop, bracketed paste, texto e fallback de imagem. Análise dos arquivos alterados e do teste sem apontamentos; diff sem erros de whitespace.
+- Hot reload confirmado na instância local (32 bibliotecas). Conferência manual de Ctrl+C no Explorador e Ctrl+V no terminal: moregola.
+- Auditoria REST repetida antes do envio: nenhum PR aberto de moregola ou da branch de grafos; main segue em 71eaec8c. Nenhum PR criado, alterado ou aprovado; eventual PR depende de BTN real.
+- Responsável pela correção: Codex nesta sessão. Destino: feature/grafo-terminals. Próximo passo: moregola avaliar a colagem no uso local; a correção de boxes permanece no commit 1bb82bd7.
