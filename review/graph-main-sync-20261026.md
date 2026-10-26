@@ -27,3 +27,16 @@ PRs de outros autores não são dependências desta atualização. A implementa�
 - Primeira tentativa Flutter de testes: falha de manifesto nativo durante build concorrente; repetição após build passou.
 - Build Windows debug: concluído. Execução por pwsh -NoProfile -File tool/run-windows.ps1 --no-pub.
 - Nova janela identificada pelo executável no worktree grafo-terminals; instância instalada continuou aberta. Inspeção visual não concluída: permissão Computer Use expirou. Conferência manual do botão Grafo: moregola.
+## Correção posterior: todo terminal é uma box
+
+- Demanda: terminais criados no modo terminal precisam ter box configurável, mesmo sem contexto.
+- Encaminhamento: continuar na feature/grafo-terminals; responsável: Codex nesta sessão; avaliação de uso: moregola.
+- Auditoria direta de PRs repetida: nenhum PR aberto de moregola ou da feature/grafo-terminals; main continua em 71eaec8c. Nenhum PR criado ou alterado; BTN obrigatório antes de eventual PR.
+- Criação central de TerminalSession registra a box imediatamente; restauração migra terminais legados. Configuração aceita função vazia. A aba oferece Configurar box no menu de contexto, usando o mesmo editor do grafo.
+- Criação pelo grafo reutiliza a box automática. Relançamento, handoff e reinício preservam a identidade e as conexões; o terminal histórico do handoff recebe sua própria box.
+- Restauração remapeia vínculos quando IDs de abas colidem e posterga a gravação da migração até completar a restauração.
+- Validação: análise dos cinco arquivos alterados sem apontamentos; 25 testes passaram, incluindo salvar box sem função/CLI e iniciar CLI sem função.
+- Build Windows debug concluído; instância local reaberta e hot reload confirmado. Mantido o override de flterm já usado localmente pela investigação de terminal-reparent; nenhum arquivo daquele pacote alterado aqui.
+- Leitura de metadados no VM Service: 7 terminais, 7 boxes, zero terminais sem box. Nenhum conteúdo de terminal coletado.
+- Instância anterior encerrou durante tentativa de attach; sem causa confirmada. A nova instância foi iniciada com --no-pub --no-dds e permaneceu em execução após o hot reload.
+- Próximo passo: moregola avaliar Configurar box com botão direito na aba; novo relato de clipboard de arquivos será tratado em correção separada nesta mesma branch.

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'graph_box_editor.dart';
+
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
@@ -174,13 +176,11 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
           id: sessions[i].id,
           title: sessions[i].displayTitle,
           role: '',
-          harness: sessions[i] is TerminalSession
-              ? switch ((sessions[i] as TerminalSession).activeHarness?.name) {
-                  'claudeCode' => 'claude',
-                  final name? => name,
-                  null => '',
-                }
-              : '',
+          harness: switch (sessions[i].activeHarness?.name) {
+            'claudeCode' => 'claude',
+            final name? => name,
+            null => '',
+          },
           model: '',
           position: _legacyPositions[sessions[i].id]!,
           tabId: sessions[i].id,
@@ -311,92 +311,16 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     }
   }
 
-  Future<_GraphBoxEditDraft?> _editBox(
+  Future<GraphBoxEditDraft?> _editBox(
     GraphBox box, {
     required bool canStart,
   }) async {
-    final role = TextEditingController(text: box.role);
-    final model = TextEditingController(text: box.model);
-    var harness = box.harness == 'claudeCode' ? 'claude' : box.harness;
-    if (!const {'claude', 'codex', 'pi'}.contains(harness)) harness = '';
     _editingText = true;
     try {
-      return await showDialog<_GraphBoxEditDraft>(
-        context: context,
-        barrierColor: context.colors.scrim,
-        builder: (dialogContext) => StatefulBuilder(
-          builder: (context, setDialogState) => AlertDialog(
-            title: const Text('Editar função e CLI'),
-            content: SizedBox(
-              width: 440,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Função'),
-                  TextField(controller: role, maxLines: 6),
-                  const SizedBox(height: 12),
-                  const Text('Ferramenta'),
-                  Row(
-                    children: [
-                      for (final option in const ['claude', 'codex', 'pi'])
-                        Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: OutlineButton(
-                            onPressed: () =>
-                                setDialogState(() => harness = option),
-                            child: Text(
-                              harness == option ? '● $option' : option,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text('Modelo (vazio = padrão da ferramenta)'),
-                  TextField(controller: model),
-                ],
-              ),
-            ),
-            actions: [
-              OutlineButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cancelar'),
-              ),
-              OutlineButton(
-                onPressed: () {
-                  if (role.text.trim().isEmpty) return;
-                  Navigator.of(dialogContext).pop((
-                    role: role.text.trim(),
-                    harness: harness,
-                    model: model.text.trim(),
-                    start: false,
-                  ));
-                },
-                child: const Text('Salvar'),
-              ),
-              if (canStart && harness.isNotEmpty)
-                PrimaryButton(
-                  onPressed: () {
-                    if (role.text.trim().isEmpty) return;
-                    Navigator.of(dialogContext).pop((
-                      role: role.text.trim(),
-                      harness: harness,
-                      model: model.text.trim(),
-                      start: true,
-                    ));
-                  },
-                  child: const Text('Salvar e iniciar CLI'),
-                ),
-            ],
-          ),
-        ),
-      );
+      return await showGraphBoxEditor(context, box, canStart: canStart);
     } finally {
       _editingText = false;
       if (mounted) _graphRevision.value++;
-      role.dispose();
-      model.dispose();
     }
   }
 
@@ -1600,13 +1524,6 @@ class _GraphLinkPainter extends CustomPainter {
       oldDelegate.selected != selected;
 }
 
-typedef _GraphBoxEditDraft = ({
-  String role,
-  String harness,
-  String model,
-  bool start,
-});
-
 typedef _GraphBoxDraft = ({
   String title,
   String role,
@@ -1679,7 +1596,7 @@ class _CreateBoxDialogState extends State<_CreateBoxDialog> {
       ),
       PrimaryButton(
         onPressed: () {
-          if (_title.text.trim().isEmpty || _role.text.trim().isEmpty) return;
+          if (_title.text.trim().isEmpty) return;
           Navigator.of(context).pop((
             title: _title.text.trim(),
             role: _role.text.trim(),

@@ -1,3 +1,5 @@
+import 'graph_box_editor.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -850,6 +852,11 @@ class _TabState extends State<_Tab> {
         // `cockpit` (`--tab-id`).
         if (terminal != null) ...[
           AppMenuItem(
+            value: 'configure-box',
+            label: 'Configurar box',
+            icon: Icons.settings_outlined,
+          ),
+          AppMenuItem(
             value: 'rename',
             label: tr.rename,
             icon: Icons.edit_outlined,
@@ -904,6 +911,53 @@ class _TabState extends State<_Tab> {
     );
     if (!mounted) return;
     switch (value) {
+      case 'configure-box':
+        if (terminal != null) {
+          final vm = context.read<CockpitViewModel>();
+          final boxId = vm.ensureGraphBoxForTab(
+            terminal,
+            vm.graphBoxForTab(terminal.id)?.position ?? const Offset(110, 130),
+          );
+          final box = vm.graphBoxForTab(terminal.id)!;
+          final draft = await showGraphBoxEditor(
+            context,
+            box,
+            canStart: terminal.activeHarness == null,
+          );
+          if (!mounted ||
+              draft == null ||
+              vm.session(terminal.id) != terminal) {
+            return;
+          }
+          final result = vm.configureGraphBox(
+            boxId: boxId,
+            role: draft.role,
+            harness: draft.harness,
+            model: draft.model,
+          );
+          String? error;
+          if (result case Failure(error: final message)) {
+            error = message;
+          } else if (draft.start) {
+            if (vm.relaunchGraphBox(boxId) case Failure(error: final message)) {
+              error = message;
+            }
+          }
+          if (!mounted || error == null) return;
+          await showDialog<void>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Não foi possível configurar o box'),
+              content: Text(error!),
+              actions: [
+                PrimaryButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+        }
       case 'pin':
         if (viewer != null) viewer.pin();
       case 'open-window':

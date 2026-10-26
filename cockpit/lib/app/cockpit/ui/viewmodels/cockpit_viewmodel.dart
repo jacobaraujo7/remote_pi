@@ -15,7 +15,6 @@ import 'dart:ui' show Offset;
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
-import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show PlatformException;
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 import 'package:window_manager/window_manager.dart';
@@ -655,8 +654,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   }) {
     final project = selectedProject;
     if (project == null) return const Failure('No workspace selected');
-    if (title.trim().isEmpty || role.trim().isEmpty) {
-      return const Failure('Title and role are required');
+    if (title.trim().isEmpty) {
+      return const Failure('Title is required');
     }
     if (!const {'claude', 'codex', 'pi'}.contains(harness)) {
       return const Failure('Unsupported agent');
@@ -675,16 +674,15 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         return Failure(error);
       case Success(:final value):
         final boxes = _graphBoxes.putIfAbsent(project.id, () => []);
-        boxes.add(
-          GraphBox(
-            id: _nid('box'),
-            title: title.trim(),
-            role: role.trim(),
-            harness: harness,
-            model: model,
-            position: position,
-            tabId: value,
-          ),
+        final index = boxes.indexWhere((box) => box.tabId == value);
+        boxes[index] = GraphBox(
+          id: boxes[index].id,
+          title: title.trim(),
+          role: role.trim(),
+          harness: harness,
+          model: model,
+          position: position,
+          tabId: value,
         );
         final modelArg = model.isEmpty ? '' : ' --model $model';
         _typeWhenReady(value, '$harness$modelArg');
@@ -788,7 +786,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final trimmedRole = role.trim();
     final normalizedHarness = harness == 'claudeCode' ? 'claude' : harness;
     final trimmedModel = model.trim();
-    if (trimmedRole.isEmpty) return const Failure('Function is required');
     if (normalizedHarness.isNotEmpty &&
         !const {'claude', 'codex', 'pi'}.contains(normalizedHarness)) {
       return const Failure('Unsupported agent');
@@ -854,6 +851,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final created = newTerminalTab(
       cwd: project.effectiveRoot,
       title: box.title,
+      graphBoxId: box.id,
     );
     switch (created) {
       case Failure(:final error):
@@ -884,6 +882,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final created = newTerminalTab(
       cwd: project.effectiveRoot,
       title: box.title,
+      graphBoxId: box.id,
     );
     switch (created) {
       case Failure(:final error):
@@ -911,9 +910,31 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   }
 
   String ensureGraphBoxForTab(PaneItem session, Offset position) {
+    final id = _ensureGraphBoxForTab(session, position: position);
+    notifyListeners();
+    _scheduleSave(session.projectId);
+    return id;
+  }
+
+  String _ensureGraphBoxForTab(PaneItem session, {Offset? position}) {
     final boxes = _graphBoxes.putIfAbsent(session.projectId, () => []);
     for (final box in boxes) {
       if (box.tabId == session.id) return box.id;
+    }
+    var slot = 0;
+    while (position == null) {
+      final candidate = Offset(
+        110.0 + (slot % 8) * 270,
+        130.0 + (slot ~/ 8) * 190,
+      );
+      if (boxes.every(
+        (box) =>
+            (box.position.dx - candidate.dx).abs() >= 270 ||
+            (box.position.dy - candidate.dy).abs() >= 190,
+      )) {
+        position = candidate;
+      }
+      slot++;
     }
     final box = GraphBox(
       id: _nid('box'),
@@ -931,8 +952,6 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       tabId: session.id,
     );
     boxes.add(box);
-    notifyListeners();
-    _scheduleSave(session.projectId);
     return box.id;
   }
 
@@ -5389,6 +5408,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     // Comando digitado no shell assim que ele sobe (ex.: `claude` no "Open in
     // Claude Code" do menu da pasta). `null` = só o shell.
     String? startupCommand,
+    String? graphBoxId,
   }) {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
@@ -5404,6 +5424,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       cwd,
       title: title ?? _sanitizeName(_basename(cwd)),
       startupCommand: startupCommand,
+      graphBoxId: graphBoxId,
     );
     if (title != null && title.trim().isNotEmpty) {
       s.setManualLabel(title);
@@ -6103,6 +6124,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       projectId,
       cwd,
       title: old.title,
+      graphBoxId: graphBoxForTab(old.id)?.id,
+      retainPreviousTerminalBox: false,
       // Mesmo formato do restore: RIS antes (limpa alt-screen residual), pop do
       // kitty depois (o push gravado no replay nunca teve o pop do processo
       // morto), prompt novo em linha fresca.
@@ -6299,6 +6322,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     String? replay,
     String? startupCommand,
     String? manualLabel,
+    String? graphBoxId,
+    bool retainPreviousTerminalBox = true,
     // Plano 50: `null` = o padrão efetivo (o que o `+` abre hoje). A fatia 3
     // (dropdown do `+`) passa um perfil específico sem mexer no padrão global.
     TerminalProfile? profile,
@@ -6394,6 +6419,26 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (manualLabel != null) t.restoreManualLabel(manualLabel);
     built = t;
     _sessions[t.id] = t;
+    _loadGraph(projectId, _savedLayouts[projectId]);
+    final boxes = _graphBoxes[projectId]!;
+    final boxIndex = graphBoxId == null
+        ? -1
+        : boxes.indexWhere((box) => box.id == graphBoxId);
+    if (boxIndex >= 0) {
+      final previousTabId = boxes[boxIndex].tabId;
+      boxes[boxIndex] = boxes[boxIndex].copyWith(tabId: t.id);
+      final previous = _sessions[previousTabId];
+      if (retainPreviousTerminalBox &&
+          previous is TerminalSession &&
+          previous.id != t.id) {
+        _ensureGraphBoxForTab(previous);
+      }
+    } else {
+      _ensureGraphBoxForTab(t);
+    }
+    // Restore may take more than the save debounce. Persist migration only
+    // after all sessions and the pane tree have been restored.
+    if (_restoringCount == 0) _scheduleSave(projectId);
     if (!remote) _warnTrackedWorkspaceEnv(t, projectId);
     if (openWatch != null && _restoringCount == 0) {
       PerformanceDiagnostics.instance.record(PerfMetric.terminalOpen, {
@@ -6819,6 +6864,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     } finally {
       _restoringCount--;
     }
+    _scheduleSave(id);
     notifyListeners();
   }
 
@@ -6847,7 +6893,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         const <String, dynamic>{};
     var tree = paneNodeFromJson(treeJson.cast<String, dynamic>());
     // ANTES de gerar id novo: `_nid` não pode colidir com os que vêm do disco.
-    _bumpSeqPast(sessionsJson.keys, tree);
+    _bumpSeqPast([
+      ...sessionsJson.keys,
+      for (final box in _graphBoxes[id] ?? const <GraphBox>[]) box.id,
+    ], tree);
 
     // Colisão entre workspaces: `_sessions` é um mapa GLOBAL, mas cada layout
     // guarda os ids da sua época (t3, t4...). Um workspace restaurado depois
@@ -6871,6 +6920,13 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         for (final e in sessionsJson.entries) remap[e.key] ?? e.key: e.value,
       };
       tree = _remapTabs(tree, remap);
+      final boxes = _graphBoxes[id];
+      if (boxes != null) {
+        for (var i = 0; i < boxes.length; i++) {
+          final tabId = remap[boxes[i].tabId];
+          if (tabId != null) boxes[i] = boxes[i].copyWith(tabId: tabId);
+        }
+      }
     }
 
     // Recria cada sessão (agente boota e reanexa; viewer re-lê o arquivo).
