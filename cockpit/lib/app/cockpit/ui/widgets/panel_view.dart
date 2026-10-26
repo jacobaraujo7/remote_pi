@@ -31,6 +31,19 @@ import 'package:url_launcher/url_launcher.dart' as launcher;
 /// Prefixo reservado da URL virtual das libs embarcadas (`/__cockpit__/x.js`).
 const kPanelLibPrefix = '__cockpit__/';
 
+/// Controllers das webviews de `.panel` abertas, por id de sessão. Alimenta o
+/// `cockpit panel screenshot`: o agente escreve o HTML às cegas e precisa ver
+/// o resultado pra iterar. Registrado no `onWebViewCreated`, removido no
+/// `dispose`.
+class PanelWebViews {
+  PanelWebViews._();
+  static final Map<String, InAppWebViewController> _byTab = {};
+  static void register(String tabId, InAppWebViewController web) =>
+      _byTab[tabId] = web;
+  static void unregister(String tabId) => _byTab.remove(tabId);
+  static InAppWebViewController? of(String tabId) => _byTab[tabId];
+}
+
 class PanelView extends StatefulWidget {
   const PanelView({super.key, required this.session, required this.onCall});
 
@@ -97,6 +110,7 @@ class _PanelViewState extends State<PanelView> {
 
   @override
   void dispose() {
+    PanelWebViews.unregister(widget.session.id);
     // Só o listener: a sessão pode já ter sido descartada pela VM (fechar a
     // aba descarta a sessão antes do widget), e o título do documento vale
     // também para a mesma aba em "Open as HTML" (caso e_7b16 da Telemetria).
@@ -132,7 +146,20 @@ class _PanelViewState extends State<PanelView> {
     final doc = _doc!;
     if (!doc.reload || doc.body == before) return;
     final web = _web;
-    if (web == null || !_loaded) return;
+    if (web == null || !_loaded) {
+      // Conteúdo mudou ANTES do webview terminar de carregar: caso da aba de
+      // preview reaproveitada num workspace remoto, que nasce com o corpo do
+      // arquivo anterior enquanto o `fs.read` viaja. Sem isto o painel ficava
+      // preso mostrando o arquivo errado (um docker-compose.yml como HTML).
+      _pendingReload = true;
+      return;
+    }
+    _reload(web, doc);
+  }
+
+  bool _pendingReload = false;
+
+  void _reload(InAppWebViewController web, PanelDocument doc) {
     if (Platform.isWindows) {
       // Mesma razão do `initialUrlRequest` no build: a página é servida pelo
       // scheme, então recarregar é navegar de novo pra URL base.
@@ -333,6 +360,7 @@ class _PanelViewState extends State<PanelView> {
             ),
             onWebViewCreated: (web) {
               _web = web;
+              PanelWebViews.register(widget.session.id, web);
               web.addJavaScriptHandler(
                 handlerName: 'cockpit',
                 callback: _handleCall,
@@ -344,6 +372,11 @@ class _PanelViewState extends State<PanelView> {
               final vars = _themeVars(context);
               _pushedTheme = vars;
               unawaited(_pushTheme(vars));
+              if (_pendingReload) {
+                _pendingReload = false;
+                final doc = _doc;
+                if (doc != null) _reload(web, doc);
+              }
             },
             onLoadResourceWithCustomScheme: _serveLocal,
             // Links externos abrem no browser do SO — a aba não navega pra fora.

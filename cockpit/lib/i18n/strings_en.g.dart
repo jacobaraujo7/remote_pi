@@ -179,6 +179,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$topbar$en topbar = Translations$cockpit$topbar$en.internal(_root);
 	late final Translations$cockpit$tasks$en tasks = Translations$cockpit$tasks$en.internal(_root);
 	late final Translations$cockpit$notifications$en notifications = Translations$cockpit$notifications$en.internal(_root);
+	late final Translations$cockpit$terminalLink$en terminalLink = Translations$cockpit$terminalLink$en.internal(_root);
 	late final Translations$cockpit$terminal$en terminal = Translations$cockpit$terminal$en.internal(_root);
 	late final Translations$cockpit$remoteHost$en remoteHost = Translations$cockpit$remoteHost$en.internal(_root);
 	late final Translations$cockpit$browserPane$en browserPane = Translations$cockpit$browserPane$en.internal(_root);
@@ -531,8 +532,14 @@ class Translations$core$menu$en {
 	/// en: 'New Terminal'
 	String get newTerminal => 'New Terminal';
 
+	/// en: 'New File'
+	String get newFile => 'New File';
+
 	/// en: 'Open Workspace'
 	String get openWorkspace => 'Open Workspace';
+
+	/// en: 'Go to File…'
+	String get goToFile => 'Go to File…';
 
 	/// en: 'Save'
 	String get save => 'Save';
@@ -587,6 +594,9 @@ class Translations$core$menu$en {
 
 	/// en: 'Next Workspace'
 	String get nextWorkspace => 'Next Workspace';
+
+	/// en: 'Toggle Word Wrap'
+	String get toggleWordWrap => 'Toggle Word Wrap';
 
 	/// en: 'Zoom In'
 	String get zoomIn => 'Zoom In';
@@ -1416,6 +1426,15 @@ class Translations$cockpit$fileViewer$en {
 
 	// Translations
 
+	/// en: 'Save as'
+	String get saveAs => 'Save as';
+
+	/// en: 'Could not save'
+	String get couldNotSave => 'Could not save';
+
+	/// en: 'untitled.txt'
+	String get untitledDefaultName => 'untitled.txt';
+
 	/// en: 'Can't open this file.'
 	String get cantOpen => 'Can\'t open this file.';
 
@@ -2200,6 +2219,9 @@ class Translations$cockpit$findBar$en {
 	/// en: 'Bad pattern'
 	String get badPattern => 'Bad pattern';
 
+	/// en: '${current} of ${total}'
+	String counter({required Object current, required Object total}) => '${current} of ${total}';
+
 	/// en: 'No results'
 	String get noResults => 'No results';
 }
@@ -2301,6 +2323,36 @@ class Translations$cockpit$notifications$en {
 
 	/// en: 'Agent needs your input'
 	String get agentNeedsAction => 'Agent needs your input';
+}
+
+// Path: cockpit.terminalLink
+class Translations$cockpit$terminalLink$en {
+	Translations$cockpit$terminalLink$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Open'
+	String get open => 'Open';
+
+	/// en: 'Reveal in Finder'
+	String get revealFinder => 'Reveal in Finder';
+
+	/// en: 'Show in Explorer'
+	String get revealExplorer => 'Show in Explorer';
+
+	/// en: 'Open containing folder'
+	String get revealFolder => 'Open containing folder';
+
+	/// en: 'Copy path'
+	String get copyPath => 'Copy path';
+
+	/// en: 'Open link'
+	String get openLink => 'Open link';
+
+	/// en: 'Copy link'
+	String get copyLink => 'Copy link';
 }
 
 // Path: cockpit.terminal
@@ -2901,6 +2953,9 @@ class Translations$settings$language$en {
 
 	/// en: 'Español'
 	String get spanish => 'Español';
+
+	/// en: '简体中文'
+	String get simplifiedChinese => '简体中文';
 }
 
 // Path: settings.page
@@ -3498,6 +3553,14 @@ class Translations$settings$page$general$en {
 	/// en: 'Check again'
 	String get neovimRefresh => 'Check again';
 
+	/// en: 'Word wrap'
+	String get wordWrapTitle => 'Word wrap';
+
+	/// en: 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.'
+	String get wordWrapDesc => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.';
+
+	late final Translations$settings$page$general$wordWrap$en wordWrap = Translations$settings$page$general$wordWrap$en.internal(_root);
+
 	/// en: 'Show Cockpit terminal'
 	String get showCockpitTitle => 'Show Cockpit terminal';
 
@@ -3661,6 +3724,15 @@ class Translations$settings$page$terminal$en {
 
 	/// en: 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.'
 	String get noWslMessage => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.';
+
+	/// en: 'Behavior'
+	String get sectionBehavior => 'Behavior';
+
+	/// en: 'Close tab when the shell exits'
+	String get closeOnExitTitle => 'Close tab when the shell exits';
+
+	/// en: 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.'
+	String get closeOnExitDesc => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.';
 }
 
 // Path: settings.page.appearance
@@ -4038,6 +4110,24 @@ class Translations$settings$page$automations$en {
 	String get recommendedSuffix => 'Recommended';
 }
 
+// Path: settings.page.general.wordWrap
+class Translations$settings$page$general$wordWrap$en {
+	Translations$settings$page$general$wordWrap$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Markdown and text'
+	String get byLanguage => 'Markdown and text';
+
+	/// en: 'All files'
+	String get always => 'All files';
+
+	/// en: 'Off'
+	String get off => 'Off';
+}
+
 // Path: settings.page.general.updateFrequency
 class Translations$settings$page$general$updateFrequency$en {
 	Translations$settings$page$general$updateFrequency$en.internal(this._root);
@@ -4097,7 +4187,9 @@ extension on Translations {
 			'core.menu.checkForUpdates' => 'Check for Updates…',
 			'core.menu.file' => 'File',
 			'core.menu.newTerminal' => 'New Terminal',
+			'core.menu.newFile' => 'New File',
 			'core.menu.openWorkspace' => 'Open Workspace',
+			'core.menu.goToFile' => 'Go to File…',
 			'core.menu.save' => 'Save',
 			'core.menu.discard' => 'Discard',
 			'core.menu.format' => 'Format',
@@ -4116,6 +4208,7 @@ extension on Translations {
 			'core.menu.lastTab' => 'Last Tab',
 			'core.menu.previousWorkspace' => 'Previous Workspace',
 			'core.menu.nextWorkspace' => 'Next Workspace',
+			'core.menu.toggleWordWrap' => 'Toggle Word Wrap',
 			'core.menu.zoomIn' => 'Zoom In',
 			'core.menu.zoomOut' => 'Zoom Out',
 			'core.menu.actualSize' => 'Actual Size',
@@ -4384,6 +4477,9 @@ extension on Translations {
 			'cockpit.fileTreePanel.importAction' => 'Copy',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Could not copy',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Open in ${harness}',
+			'cockpit.fileViewer.saveAs' => 'Save as',
+			'cockpit.fileViewer.couldNotSave' => 'Could not save',
+			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
@@ -4573,14 +4669,14 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
 			'cockpit.sshPrompts.trust' => 'Trust',
 			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'SSH key passphrase',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Unlock ${keyPath} to connect "${connectionName}".',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Kept in memory until Cockpit quits. To let agents use this connection, enable "Save passphrase" in the connection.',
 			'cockpit.sshPrompts.unlock' => 'Unlock',
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
@@ -4617,6 +4713,7 @@ extension on Translations {
 			'cockpit.findBar.next' => 'Next (⏎)',
 			'cockpit.findBar.close' => 'Close (Esc)',
 			'cockpit.findBar.badPattern' => 'Bad pattern',
+			'cockpit.findBar.counter' => ({required Object current, required Object total}) => '${current} of ${total}',
 			'cockpit.findBar.noResults' => 'No results',
 			'cockpit.contentSearch.sectionSearch' => 'SEARCH',
 			'cockpit.contentSearch.searchInFiles' => 'Search in files',
@@ -4639,6 +4736,13 @@ extension on Translations {
 			'cockpit.notifications.agentFinished' => 'Agent finished',
 			'cockpit.notifications.open' => 'Open',
 			'cockpit.notifications.agentNeedsAction' => 'Agent needs your input',
+			'cockpit.terminalLink.open' => 'Open',
+			'cockpit.terminalLink.revealFinder' => 'Reveal in Finder',
+			'cockpit.terminalLink.revealExplorer' => 'Show in Explorer',
+			'cockpit.terminalLink.revealFolder' => 'Open containing folder',
+			'cockpit.terminalLink.copyPath' => 'Copy path',
+			'cockpit.terminalLink.openLink' => 'Open link',
+			'cockpit.terminalLink.copyLink' => 'Copy link',
 			'cockpit.terminal.cwdFallbackWarning' => ({required Object requested, required Object path}) => 'Warning: the folder "${requested}" does not exist. This terminal opened in "${path}".',
 			'cockpit.terminal.workspaceEnvTracked' => ({required Object keys}) => 'Notice: .env.cockpit is tracked by git (it came with the repository). Injected: ${keys}',
 			'cockpit.remoteHost.addHost' => 'Add remote host',
@@ -4840,6 +4944,7 @@ extension on Translations {
 			'settings.language.english' => 'English',
 			'settings.language.portugueseBr' => 'Português (BR)',
 			'settings.language.spanish' => 'Español',
+			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
 			'settings.page.nav.general' => 'General',
@@ -4857,6 +4962,11 @@ extension on Translations {
 			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
 			'settings.page.general.neovimRefresh' => 'Check again',
+			'settings.page.general.wordWrapTitle' => 'Word wrap',
+			'settings.page.general.wordWrapDesc' => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown and text',
+			'settings.page.general.wordWrap.always' => 'All files',
+			'settings.page.general.wordWrap.off' => 'Off',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.launchAtStartupTitle' => 'Launch at login',
@@ -4906,6 +5016,9 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
+			'settings.page.terminal.sectionBehavior' => 'Behavior',
+			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
+			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
@@ -5070,6 +5183,8 @@ extension on Translations {
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
 			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',
@@ -5093,8 +5208,6 @@ extension on Translations {
 			'graphView.unresolvedPeer' => 'Claude recipient',
 			'graphView.unresolvedPeerHint' => 'Tab not identified yet',
 			'graphView.unresolvedPeerTooltip' => ({required Object address}) => 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.',
-			_ => null,
-		} ?? switch (path) {
 			'graphView.noRole' => 'No role defined',
 			'graphView.terminal' => 'Terminal',
 			'graphView.defaultModel' => 'Default model',

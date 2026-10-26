@@ -24,8 +24,8 @@ plugins {
     // `proguard-android.txt` ainda usado pelo flutter_inappwebview_android 1.1.3
     // e derruba o assembleRelease antes de assinar. Subir de volta só quando o
     // plugin migrar pra `proguard-android-optimize.txt`.
-    id("com.android.application") version "8.11.1" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.20" apply false
+    id("com.android.application") version "9.3.1" apply false
+    id("org.jetbrains.kotlin.android") version "2.4.20" apply false
 }
 
 include(":app")

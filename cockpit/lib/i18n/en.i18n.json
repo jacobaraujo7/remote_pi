@@ -43,7 +43,9 @@
       "checkForUpdates": "Check for Updates…",
       "file": "File",
       "newTerminal": "New Terminal",
+      "newFile": "New File",
       "openWorkspace": "Open Workspace",
+      "goToFile": "Go to File…",
       "save": "Save",
       "discard": "Discard",
       "format": "Format",
@@ -62,6 +64,7 @@
       "lastTab": "Last Tab",
       "previousWorkspace": "Previous Workspace",
       "nextWorkspace": "Next Workspace",
+      "toggleWordWrap": "Toggle Word Wrap",
       "zoomIn": "Zoom In",
       "zoomOut": "Zoom Out",
       "actualSize": "Actual Size",
@@ -357,6 +360,9 @@
       "openInAgent": "Open in ${harness}"
     },
     "fileViewer": {
+      "saveAs": "Save as",
+      "couldNotSave": "Could not save",
+      "untitledDefaultName": "untitled.txt",
       "cantOpen": "Can't open this file.",
       "couldNotLoadImage": "Could not load the image.",
       "preview": "Preview",
@@ -640,6 +646,7 @@
       "next": "Next (⏎)",
       "close": "Close (Esc)",
       "badPattern": "Bad pattern",
+      "counter": "${current} of ${total}",
       "noResults": "No results"
     },
     "contentSearch": {
@@ -670,6 +677,15 @@
       "agentFinished": "Agent finished",
       "open": "Open",
       "agentNeedsAction": "Agent needs your input"
+    },
+    "terminalLink": {
+      "open": "Open",
+      "revealFinder": "Reveal in Finder",
+      "revealExplorer": "Show in Explorer",
+      "revealFolder": "Open containing folder",
+      "copyPath": "Copy path",
+      "openLink": "Open link",
+      "copyLink": "Copy link"
     },
     "terminal": {
       "cwdFallbackWarning": "Warning: the folder \"${requested}\" does not exist. This terminal opened in \"${path}\".",
@@ -912,7 +928,8 @@
       "system": "System",
       "english": "English",
       "portugueseBr": "Português (BR)",
-      "spanish": "Español"
+      "spanish": "Español",
+      "simplifiedChinese": "简体中文"
     },
     "page": {
       "header": {
@@ -937,6 +954,13 @@
         "neovimChecking": "Looking for Neovim…",
         "neovimNotFound": "Neovim was not found in your shell PATH.",
         "neovimRefresh": "Check again",
+        "wordWrapTitle": "Word wrap",
+        "wordWrapDesc": "Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown and text",
+          "always": "All files",
+          "off": "Off"
+        },
         "showCockpitTitle": "Show Cockpit terminal",
         "showCockpitDesc": "Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.",
         "launchAtStartupTitle": "Launch at login",
@@ -993,7 +1017,10 @@
         "engineDesc": "Used by new terminal tabs and task output buffers. Open tabs keep their current engine.",
         "shellTitle": "Shell",
         "shellDesc": "Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.",
-        "noWslMessage": "No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here."
+        "noWslMessage": "No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.",
+        "sectionBehavior": "Behavior",
+        "closeOnExitTitle": "Close tab when the shell exits",
+        "closeOnExitDesc": "When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal."
       },
       "appearance": {
         "sectionTheme": "Theme",

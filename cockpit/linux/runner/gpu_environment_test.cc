@@ -8,13 +8,14 @@ int main() {
   setenv("__GLX_VENDOR_LIBRARY_NAME", "nvidia", 1);
   setenv("__NV_PRIME_RENDER_OFFLOAD", "1", 1);
   setenv("LIBVA_DRIVER_NAME", "nvidia", 1);
+  setenv("DRI_PRIME", "1", 1);
   unsetenv("COCKPIT_USE_NVIDIA");
   unsetenv("GDK_BACKEND");
   assert(configure_linux_gpu_environment() == "integrated-x11-default");
   assert(std::getenv("__GLX_VENDOR_LIBRARY_NAME") == nullptr);
   assert(std::getenv("__NV_PRIME_RENDER_OFFLOAD") == nullptr);
   assert(std::getenv("LIBVA_DRIVER_NAME") == nullptr);
-  assert(std::string(std::getenv("DRI_PRIME")) == "0");
+  assert(std::getenv("DRI_PRIME") == nullptr);
   assert(std::string(std::getenv("GDK_BACKEND")) == "x11");
 
   setenv("GDK_BACKEND", "wayland", 1);

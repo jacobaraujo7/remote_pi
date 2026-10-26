@@ -64,6 +64,7 @@ nossa) e quem é pacote externo:
 | **LSP** (diagnostics/formatação — a camada "IDE") | `lib/app/core/data/lsp/` (cliente JSON-RPC genérico + pool por (lang, raiz)) | **Nosso** — fala com servidores externos achados no PATH |
 | **Status de turno dos agentes** | `lib/app/cockpit/data/hooks/` (hooks do harness + `cockpit-hook` + socket) | **Nosso** — agentes rodam em terminais; ver `docs/turn-status-hooks.md` |
 | **Painéis `.panel`** (HTML vivo + ponte `window.cockpit`) | `lib/app/cockpit/ui/widgets/panel_view.dart` + `assets/panel/bridge.js` + verbo `exec` | **Nosso** — sobre a mesma webview do plano 58; cada `cockpit("<linha>")` spawna a CLI interna (paridade com o terminal); ver `../plan/67-cockpit-panel.md` |
+| **Drop nativo do SO** (arrastar arquivos do Finder/Explorer) | `plugins/desktop_drop/` | **Nosso** — `desktop_drop` 0.5.0 absorvido com 1 patch macOS (`hitTest` nil fora de drag, senão o WebKit das platform views perde o hover); nome mantido de propósito; plano 70 |
 | **Keep awake** | `packages/cockpit_keepawake/` (caffeinate / SetThreadExecutionState / systemd-inhibit) | **Nosso** — Dart puro, desktop-only |
 | **DB drivers** (SQLite/Postgres/MySQL/MSSQL/Mongo/Redis) | pacotes `anaki_*` (Rust/FFI, do Jacob) + `lib/app/cockpit/data/db/` (Isolate workers + serviços) | Externo-mas-nosso (mantido pelo Jacob fora do repo) |
 | **Git** | `lib/app/cockpit/data/filesystem/git_*` (roda o binário `git`) | Motor é o git do sistema; nosso é o parser/orquestração |
@@ -187,9 +188,13 @@ O cockpit é internacionalizado com [`slang`](https://pub.dev/packages/slang)
 (codegen tipado). **Feature sem tradução é feature incompleta** — não é polimento
 posterior, entra no mesmo PR.
 
-Idiomas: **en (base)** · **pt-BR** · **es**. As três `lib/i18n/*.i18n.json`
+Idiomas: **en (base)** · **pt-BR** · **es** · **zh** (chinês simplificado,
+contribuição externa desde 2026-10-25). As quatro `lib/i18n/*.i18n.json`
 precisam ter a **mesma árvore de chaves**; o `dart run slang` falha se um
-placeholder `${...}` divergir entre locales.
+placeholder `${...}` divergir entre locales. O `zh` é mantido em regime de
+melhor esforço: a equipe não revisa chinês, então numa feature nova a chave
+entra no `zh.i18n.json` com a melhor tradução possível (ou em inglês) e o
+`fallback_strategy: base_locale` cobre o que faltar.
 
 ### Como consumir
 
@@ -269,7 +274,7 @@ Nem toda string em inglês é bug de i18n. Ficam em inglês de propósito:
 
 1. Nenhum literal em `Text(...)`, `label:`, `title:`, `tooltip:`,
    `placeholder:`, `hint:`, `message:`.
-2. Chaves adicionadas nos **três** `lib/i18n/*.i18n.json`, mesma estrutura.
+2. Chaves adicionadas nos **quatro** `lib/i18n/*.i18n.json` (zh pode ficar em inglês, ver acima), mesma estrutura.
 3. `dart run slang` rodado e o `strings.g.dart` commitado junto.
 4. Erro que a UI exibe = tipo, não frase (seção acima).
 5. Widget test que monta a árvore precisa de `TranslationProvider` na raiz,

@@ -264,6 +264,10 @@ add_custom_command(
           "${CMAKE_BINARY_DIR}/server-out/bundle" "${COCKPIT_SERVER_DIR}"
   COMMAND "${CMAKE_COMMAND}" -E rename
           "${COCKPIT_SERVER_DIR}/bin/cockpit_server" "${COCKPIT_SERVER_EXE}"
+  # Dart >= 3.14: o snapshot lib/libdartaot<nome>.so segue o nome do exe
+  # (ver rename_server_snapshot.cmake); no-op em Dart mais antigo.
+  COMMAND "${CMAKE_COMMAND}" -DBUNDLE_DIR=${COCKPIT_SERVER_DIR}
+          -P "${CMAKE_CURRENT_SOURCE_DIR}/rename_server_snapshot.cmake"
   # A lib do PTY vai ao LADO do exe do servidor: é o 2º candidato do
   # openPtyDylib (o 1º é a env COCKPIT_PTY_DYLIB, que o sidecar preenche).
   # Reusa o artefato do plugin em vez de compilar o mesmo .c duas vezes.

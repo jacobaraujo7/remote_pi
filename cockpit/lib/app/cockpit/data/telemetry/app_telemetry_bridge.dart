@@ -115,11 +115,19 @@ class AppTelemetryBridge {
     TelemetryError? err;
     if (severity.isProblem) {
       final stackText = stack?.toString();
+      // A mensagem do `warn` diz o QUE o código tentou ("shell spawn failed:
+      // /bin/zsh"); o texto da exceção diz POR QUÊ (errno do fork, "No such
+      // file", "Resource temporarily unavailable"). Sem concatenar, o caso
+      // chegava na Telemetria sem causa (e_98aa, 2026-10).
+      final detail = error == null ? '' : error.toString().trim();
+      final full = detail.isEmpty || message.contains(detail)
+          ? message
+          : '$message ($detail)';
       err = TelemetryError(
         type: error == null
             ? (severity == TelemetrySeverity.warn ? 'Warning' : 'Error')
             : _typeOf(error),
-        message: message,
+        message: full,
         stack: stackText,
         frames: stackText == null ? const [] : _frames(stackText),
       );

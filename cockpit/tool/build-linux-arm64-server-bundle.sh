@@ -53,6 +53,11 @@ mkdir -p "$DEST"
 )
 mv "$TMP/dart/bundle"/* "$DEST"/
 mv "$DEST/bin/cockpit_server" "$DEST/bin/cockpit-server"
+# Dart >= 3.14 (host Linux): snapshot separado em lib/, nomeado pelo exe.
+# Cross-compilado do macOS o exe é auto-contido e o .so não existe.
+if [ -f "$DEST/lib/libdartaotcockpit_server.so" ]; then
+  mv "$DEST/lib/libdartaotcockpit_server.so" "$DEST/lib/libdartaotcockpit-server.so"
+fi
 
 # cockpit_pty is intentionally not a Dart native asset yet. Build the same C
 # source as the native sidecar, but against Zig's Linux aarch64 sysroot.

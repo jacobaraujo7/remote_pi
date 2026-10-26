@@ -43,7 +43,9 @@
       "checkForUpdates": "Verificar Atualizações…",
       "file": "Arquivo",
       "newTerminal": "Novo Terminal",
+      "newFile": "Novo Arquivo",
       "openWorkspace": "Abrir Workspace",
+      "goToFile": "Ir para Arquivo…",
       "save": "Salvar",
       "discard": "Descartar",
       "format": "Formatar",
@@ -62,6 +64,7 @@
       "lastTab": "Última Aba",
       "previousWorkspace": "Workspace Anterior",
       "nextWorkspace": "Próximo Workspace",
+      "toggleWordWrap": "Alternar Quebra de Linha",
       "zoomIn": "Aumentar Zoom",
       "zoomOut": "Diminuir Zoom",
       "actualSize": "Tamanho Real",
@@ -357,6 +360,9 @@
       "openInAgent": "Abrir no ${harness}"
     },
     "fileViewer": {
+      "saveAs": "Salvar como",
+      "couldNotSave": "Não foi possível salvar",
+      "untitledDefaultName": "sem-titulo.txt",
       "cantOpen": "Não é possível abrir este arquivo.",
       "couldNotLoadImage": "Não foi possível carregar a imagem.",
       "preview": "Pré-visualização",
@@ -640,6 +646,7 @@
       "next": "Próximo (⏎)",
       "close": "Fechar (Esc)",
       "badPattern": "Padrão inválido",
+      "counter": "${current} de ${total}",
       "noResults": "Nenhum resultado"
     },
     "contentSearch": {
@@ -670,6 +677,15 @@
       "agentFinished": "Agente terminou",
       "open": "Abrir",
       "agentNeedsAction": "Agente precisa de você"
+    },
+    "terminalLink": {
+      "open": "Abrir",
+      "revealFinder": "Mostrar no Finder",
+      "revealExplorer": "Mostrar no Explorer",
+      "revealFolder": "Abrir pasta",
+      "copyPath": "Copiar caminho",
+      "openLink": "Abrir link",
+      "copyLink": "Copiar link"
     },
     "terminal": {
       "cwdFallbackWarning": "Aviso: a pasta \"${requested}\" não existe. Este terminal abriu em \"${path}\".",
@@ -912,7 +928,8 @@
       "system": "Sistema",
       "english": "Inglês",
       "portugueseBr": "Português (BR)",
-      "spanish": "Espanhol"
+      "spanish": "Espanhol",
+      "simplifiedChinese": "简体中文"
     },
     "page": {
       "header": {
@@ -937,6 +954,13 @@
         "neovimChecking": "Procurando o Neovim…",
         "neovimNotFound": "O Neovim não foi encontrado na PATH do seu shell.",
         "neovimRefresh": "Verificar novamente",
+        "wordWrapTitle": "Quebra de linha",
+        "wordWrapDesc": "Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown e texto",
+          "always": "Todos os arquivos",
+          "off": "Desligada"
+        },
         "showCockpitTitle": "Mostrar terminal do Cockpit",
         "showCockpitDesc": "Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.",
         "launchAtStartupTitle": "Iniciar ao ligar",
@@ -993,7 +1017,10 @@
         "engineDesc": "Usado por novas abas de terminal e buffers de saída de tasks. Abas abertas mantêm o motor atual.",
         "shellTitle": "Shell",
         "shellDesc": "Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.",
-        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui."
+        "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.",
+        "sectionBehavior": "Comportamento",
+        "closeOnExitTitle": "Fechar a aba quando o shell encerrar",
+        "closeOnExitDesc": "Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto."
       },
       "appearance": {
         "sectionTheme": "Tema",

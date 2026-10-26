@@ -620,15 +620,15 @@ um parágrafo solto
   // dela deixar de casar com o parser, ele passa a produzir arquivos tortos —
   // e documentação errada é pior que documentação nenhuma.
   group('exemplo da skill', () {
-    test('o board de exemplo em cli/text/skill.md parseia como descrito', () {
-      final skill = File('cli/text/skill.md').readAsStringSync();
-      final start = skill.indexOf('## Board files');
-      expect(start, greaterThan(0), reason: 'seção do .kanban sumiu da skill');
-
+    test('o board de exemplo da skill cockpit-design parseia como descrito', () {
+      // Plano 69: o exemplo mora em cli/skills/cockpit-design/references/kanban.md.
+      final skill = File(
+        'cli/skills/cockpit-design/references/kanban.md',
+      ).readAsStringSync();
       final fence = RegExp(
         r'```markdown\n(.*?)```',
         dotAll: true,
-      ).firstMatch(skill.substring(start));
+      ).firstMatch(skill);
       expect(fence, isNotNull, reason: 'exemplo de .kanban sumiu da skill');
 
       final doc = KanbanDocument.parse(fence!.group(1)!);

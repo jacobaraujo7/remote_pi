@@ -14,22 +14,64 @@ cwd: .
   <script src="/__cockpit__/chart.js"></script>
   <script src="/__cockpit__/marked.js"></script>
   <style>
-    .pr { display: grid; grid-template-columns: 56px 1fr auto; gap: 12px; align-items: center; cursor: pointer; }
-    .pr:hover { border-color: var(--ckp-accent); }
-    .num { color: var(--ckp-text-muted); font-variant-numeric: tabular-nums; }
-    .body { max-width: 80ch; }
-    .body img { max-width: 100%; }
+    /* Painel sempre preto: sobrepõe os tokens que o app injeta inline no :root. */
+    :root {
+      --ckp-bg: #000 !important;
+      --ckp-bg-raised: #000 !important;
+      --ckp-code-bg: #111 !important;
+      --ckp-border: #1f1f1f !important;
+      --ckp-text: #ededed !important;
+      --ckp-text-secondary: #a1a1a1 !important;
+      --ckp-text-muted: #6f6f6f !important;
+      color-scheme: dark;
+    }
+    html, body { background: #000; }
+    body { padding: 28px 32px; max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 22px; letter-spacing: -0.02em; margin: 0; }
+    h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--ckp-text-muted); margin-bottom: 10px; }
+    .card { border-radius: 12px; padding: 16px 18px; }
+    .stat { justify-content: center; }
+    .stat .value { font-size: 44px; font-weight: 700; letter-spacing: -0.03em; }
+
+    /* Sem efeito de hover: nada muda quando o mouse passa por cima. */
+    button, .btn { background: #000; border-radius: 8px; padding: 5px 12px; }
+    button:hover, .btn:hover { border-color: var(--ckp-border); text-decoration: none; }
+    tbody tr:hover, tr:hover { background: transparent; }
+
+    /* Lista: um bloco só, linhas separadas por um fio. */
+    .list { border: 1px solid var(--ckp-border); border-radius: 12px; overflow: hidden; }
+    .pr { display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center;
+          cursor: pointer; padding: 14px 18px; border-bottom: 1px solid var(--ckp-border); }
+    .pr:last-child { border-bottom: 0; }
+    .pr b { font-weight: 600; font-size: 14px; }
+    .pr .muted { margin-top: 3px; font-size: 12px; }
+    .copy { padding: 3px 10px; font-size: 12px; }
+    .num { color: var(--ckp-text-muted); font-variant-numeric: tabular-nums;
+           font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .badge { padding: 2px 9px; background: transparent; border: 1px solid var(--ckp-border); }
+    .body { max-width: 80ch; line-height: 1.65; }
+    .body img { max-width: 100%; border-radius: 8px; }
+    td { padding: 7px 8px; }
+    tr:last-child td { border-bottom: 0; }
     canvas { max-height: 220px; }
+
+    /* Detalhe carregando: a tela abre na hora e os blocos pulsam até o gh responder. */
+    .skel { border-radius: 6px; background: #141414; animation: pulse 1.2s ease-in-out infinite; }
+    .skel.line { height: 12px; margin-bottom: 10px; }
+    @keyframes pulse { 50% { opacity: .45; } }
+    .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid #2a2a2a;
+            border-top-color: var(--ckp-text-secondary); animation: spin .7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <div v-scope="App()" @vue:mounted="init" v-cloak>
+  <div class="page" v-scope="App()" @vue:mounted="init" v-cloak>
 
     <!-- ===== Lista (rota "/") ===== -->
     <div v-if="!detail">
-      <div class="row between mb-16">
-        <h1 class="grow">Open pull requests</h1>
-        <span class="muted">{{ status }}</span>
+      <div class="toolbar">
+        <h1>Open pull requests</h1>
+        <span class="status">{{ status }}</span>
         <button @click="load" :disabled="loading">Refresh</button>
       </div>
 
@@ -41,46 +83,76 @@ cwd: .
         <div class="card"><canvas id="byAuthor"></canvas></div>
       </div>
 
-      <div class="col">
-        <div class="card pr" v-for="pr in prs" :key="pr.number"
+      <div class="list">
+        <div class="pr" v-for="pr in prs" :key="pr.number"
              @click="cockpit.route.go('/pr/' + pr.number)">
           <span class="num">#{{ pr.number }}</span>
           <div class="truncate">
             <div class="truncate"><b>{{ pr.title }}</b></div>
             <div class="muted">{{ pr.author.login }} · <code>{{ pr.headRefName }}</code> · updated {{ ago(pr.updatedAt) }}</div>
           </div>
-          <span class="badge" :class="pr.isDraft ? '' : 'ok'">{{ pr.isDraft ? 'draft' : 'open' }}</span>
+          <div class="row">
+            <span class="badge" :class="pr.isDraft ? '' : 'ok'">{{ pr.isDraft ? 'draft' : 'open' }}</span>
+            <button class="copy" :title="'Copy link to #' + pr.number" @click.stop="copy(pr)">{{ copied === pr.number ? 'Copied' : 'Copy' }}</button>
+          </div>
         </div>
       </div>
       <p v-if="!loading && !prs.length && !error" class="muted">No open pull requests.</p>
     </div>
 
     <!-- ===== Detalhe (rota "/pr/:id") ===== -->
+    <!-- `detail` nasce na hora com o que a lista já sabe; `detail.files` só
+         existe depois que o `gh pr view` volta, e é ele que troca o esqueleto. -->
     <div v-else>
       <div class="row between mb-16">
         <button @click="cockpit.route.go('/')">← Back</button>
-        <span class="muted grow">#{{ detail.number }} · {{ detail.author.login }} · <code>{{ detail.headRefName }}</code> → <code>{{ detail.baseRefName }}</code></span>
-        <span class="badge" :class="detail.isDraft ? '' : 'ok'">{{ detail.isDraft ? 'draft' : detail.reviewDecision || 'open' }}</span>
-        <a class="btn" :href="detail.url">Open on GitHub</a>
+        <span class="muted grow truncate">#{{ detail.number }}<span v-if="detail.author.login"> · {{ detail.author.login }}</span><span v-if="detail.headRefName"> · <code>{{ detail.headRefName }}</code></span><span v-if="detail.baseRefName"> → <code>{{ detail.baseRefName }}</code></span></span>
+        <span class="spin" v-if="detailLoading"></span>
+        <span class="badge" v-if="detail.url" :class="detail.isDraft ? '' : 'ok'">{{ detail.isDraft ? 'draft' : detail.reviewDecision || 'open' }}</span>
+        <button @click="copy(detail)" :disabled="!detail.url">{{ copied === detail.number ? 'Copied' : 'Copy link' }}</button>
+        <a class="btn" v-if="detail.url" :href="detail.url">Open on GitHub</a>
       </div>
-      <h1>{{ detail.title }}</h1>
-      <div class="row gap-16 muted mb-16">
-        <span class="ok">+{{ detail.additions }}</span>
-        <span class="error">−{{ detail.deletions }}</span>
-        <span>{{ detail.changedFiles }} files</span>
-        <span>{{ detail.commits.length }} commits</span>
+
+      <h1 class="mb-16" v-if="detail.title">{{ detail.title }}</h1>
+      <div class="skel mb-16" v-else-if="detailLoading" style="height: 26px; width: 60%"></div>
+
+      <div v-if="detail.files">
+        <div class="row gap-16 muted mb-16">
+          <span class="ok">+{{ detail.additions }}</span>
+          <span class="error">−{{ detail.deletions }}</span>
+          <span>{{ detail.changedFiles }} files</span>
+          <span>{{ detail.commits.length }} commits</span>
+        </div>
+        <div class="grid-2">
+          <div class="card body" v-html="marked.parse(detail.body || '_No description._')"></div>
+          <div class="card">
+            <h3>Files</h3>
+            <table>
+              <tr v-for="f in detail.files" :key="f.path">
+                <td class="mono truncate">{{ f.path }}</td>
+                <td class="right ok">+{{ f.additions }}</td>
+                <td class="right error">−{{ f.deletions }}</td>
+              </tr>
+            </table>
+          </div>
+        </div>
       </div>
-      <div class="grid-2">
-        <div class="card body" v-html="marked.parse(detail.body || '_No description._')"></div>
-        <div class="card">
-          <h3>Files</h3>
-          <table>
-            <tr v-for="f in detail.files" :key="f.path">
-              <td class="mono truncate">{{ f.path }}</td>
-              <td class="right ok">+{{ f.additions }}</td>
-              <td class="right error">−{{ f.deletions }}</td>
-            </tr>
-          </table>
+
+      <div v-else-if="detailLoading">
+        <div class="skel line mb-16" style="width: 220px"></div>
+        <div class="grid-2">
+          <div class="card">
+            <div class="skel line" style="width: 90%"></div>
+            <div class="skel line" style="width: 75%"></div>
+            <div class="skel line" style="width: 82%"></div>
+            <div class="skel line" style="width: 40%"></div>
+          </div>
+          <div class="card">
+            <h3>Files</h3>
+            <div class="skel line"></div>
+            <div class="skel line" style="width: 85%"></div>
+            <div class="skel line" style="width: 70%"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -91,9 +163,30 @@ cwd: .
   <script>
     function App() {
       let chart = null;
+      // Detalhes já buscados, por número: reabrir um PR mostra o conteúdo na
+      // hora e só revalida por trás.
+      const cache = {};
       return {
-        prs: [], detail: null, loading: false, status: '', error: '',
+        prs: [], detail: null, detailLoading: false,
+        loading: false, status: '', error: '', copied: null,
         get drafts() { return this.prs.filter(p => p.isDraft).length; },
+
+        // Copia o link do PR. `navigator.clipboard` exige contexto seguro, que
+        // o scheme ckp-panel pode não ter; cai no execCommand via textarea.
+        async copy(pr) {
+          const text = pr.url;
+          let ok = false;
+          try { await navigator.clipboard.writeText(text); ok = true; } catch (_) {}
+          if (!ok) {
+            const ta = document.createElement('textarea');
+            ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+            document.body.appendChild(ta); ta.select();
+            try { ok = document.execCommand('copy'); } catch (_) {}
+            ta.remove();
+          }
+          if (ok) { this.copied = pr.number; setTimeout(() => { if (this.copied === pr.number) this.copied = null; }, 1500); }
+          else this.error = 'Could not copy to clipboard';
+        },
 
         ago(iso) {
           const s = (Date.now() - new Date(iso)) / 1000;
@@ -105,15 +198,20 @@ cwd: .
         async init() {
           cockpit.on('route', () => this.route());
           cockpit.on('theme', () => this.draw());
-          await this.load();
+          // Rota primeiro: abrir direto em /pr/:id não espera a lista.
           this.route();
+          await this.load();
         },
 
         // Uma página só; o hash decide o que aparece.
         async route() {
           const m = cockpit.route.match('/pr/:id');
-          if (!m) { this.detail = null; await this.draw(); return; }
-          await this.open(m.id);
+          if (!m) {
+            this.detail = null; this.detailLoading = false; this.error = '';
+            await this.draw();
+            return;
+          }
+          await this.open(Number(m.id));
         },
 
         async load() {
@@ -129,33 +227,45 @@ cwd: .
           await this.draw();
         },
 
+        // Troca de tela imediata: `detail` recebe o cache ou a linha da lista
+        // e o `gh pr view` completa depois. Resposta de um PR que já não é o
+        // da tela (o usuário voltou ou abriu outro) é guardada mas não aplicada.
         async open(id) {
           this.error = '';
+          this.detail = cache[id] || this.prs.find(p => p.number === id) ||
+            { number: id, title: '', author: { login: '' } };
+          this.detailLoading = true;
+          window.scrollTo(0, 0);
           const r = await cockpit(
             'exec gh pr view ' + id + ' --json number,title,body,author,url,isDraft,' +
             'headRefName,baseRefName,additions,deletions,changedFiles,files,commits,reviewDecision');
+          if (r.ok) cache[id] = r.json;
+          if (!this.detail || this.detail.number !== id) return;
+          this.detailLoading = false;
           if (!r.ok) { this.error = r.error; return; }
           this.detail = r.json;
         },
 
-        // Chart.js lê as cores do tema pela ponte; redesenha na troca de tema.
+        // Chart.js lê os tokens efetivos do :root (o painel fixa o fundo preto).
         async draw() {
           await new Promise(requestAnimationFrame);
           const el = document.getElementById('byAuthor');
           if (!el) return;
           const by = {};
           for (const p of this.prs) by[p.author.login] = (by[p.author.login] || 0) + 1;
+          const css = getComputedStyle(document.documentElement);
+          const tok = n => css.getPropertyValue(n).trim();
           if (chart) chart.destroy();
           chart = new Chart(el, {
             type: 'bar',
             data: { labels: Object.keys(by),
               datasets: [{ label: 'PRs by author', data: Object.values(by),
-                backgroundColor: cockpit.theme['--ckp-accent'] }] },
+                backgroundColor: tok('--ckp-accent'), borderRadius: 6, maxBarThickness: 44 }] },
             options: { plugins: { legend: { display: false } },
               scales: {
-                x: { ticks: { color: cockpit.theme['--ckp-text-muted'] }, grid: { display: false } },
-                y: { ticks: { color: cockpit.theme['--ckp-text-muted'], precision: 0 },
-                     grid: { color: cockpit.theme['--ckp-border'] } } } },
+                x: { ticks: { color: tok('--ckp-text-muted') }, grid: { display: false } },
+                y: { ticks: { color: tok('--ckp-text-muted'), precision: 0 },
+                     grid: { color: tok('--ckp-border') } } } },
           });
         },
       };

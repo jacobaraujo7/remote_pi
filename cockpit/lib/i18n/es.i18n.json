@@ -43,7 +43,9 @@
       "checkForUpdates": "Buscar Actualizaciones…",
       "file": "Archivo",
       "newTerminal": "Nueva Terminal",
+      "newFile": "Nuevo Archivo",
       "openWorkspace": "Abrir Workspace",
+      "goToFile": "Ir a Archivo…",
       "save": "Guardar",
       "discard": "Descartar",
       "format": "Formatear",
@@ -62,6 +64,7 @@
       "lastTab": "Última Pestaña",
       "previousWorkspace": "Workspace Anterior",
       "nextWorkspace": "Siguiente Workspace",
+      "toggleWordWrap": "Alternar Ajuste de Línea",
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
       "actualSize": "Tamaño Real",
@@ -357,6 +360,9 @@
       "openInAgent": "Abrir en ${harness}"
     },
     "fileViewer": {
+      "saveAs": "Guardar como",
+      "couldNotSave": "No se pudo guardar",
+      "untitledDefaultName": "sin-titulo.txt",
       "cantOpen": "No se puede abrir este archivo.",
       "couldNotLoadImage": "No se pudo cargar la imagen.",
       "preview": "Vista previa",
@@ -640,6 +646,7 @@
       "next": "Siguiente (⏎)",
       "close": "Cerrar (Esc)",
       "badPattern": "Patrón inválido",
+      "counter": "${current} de ${total}",
       "noResults": "Sin resultados"
     },
     "contentSearch": {
@@ -670,6 +677,15 @@
       "agentFinished": "El agente terminó",
       "open": "Abrir",
       "agentNeedsAction": "El agente necesita tu acción"
+    },
+    "terminalLink": {
+      "open": "Abrir",
+      "revealFinder": "Mostrar en Finder",
+      "revealExplorer": "Mostrar en el Explorador",
+      "revealFolder": "Abrir carpeta contenedora",
+      "copyPath": "Copiar ruta",
+      "openLink": "Abrir enlace",
+      "copyLink": "Copiar enlace"
     },
     "terminal": {
       "cwdFallbackWarning": "Aviso: la carpeta \"${requested}\" no existe. Esta terminal se abrió en \"${path}\".",
@@ -912,7 +928,8 @@
       "system": "Sistema",
       "english": "Inglés",
       "portugueseBr": "Portugués (BR)",
-      "spanish": "Español"
+      "spanish": "Español",
+      "simplifiedChinese": "简体中文"
     },
     "page": {
       "header": {
@@ -937,6 +954,13 @@
         "neovimChecking": "Buscando Neovim…",
         "neovimNotFound": "Neovim no se encontró en la PATH de tu shell.",
         "neovimRefresh": "Comprobar de nuevo",
+        "wordWrapTitle": "Ajuste de línea",
+        "wordWrapDesc": "Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown y texto",
+          "always": "Todos los archivos",
+          "off": "Desactivado"
+        },
         "showCockpitTitle": "Mostrar terminal de Cockpit",
         "showCockpitDesc": "Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.",
         "launchAtStartupTitle": "Iniciar al arrancar",
@@ -993,7 +1017,10 @@
         "engineDesc": "Usado por nuevas pestañas de terminal y buffers de salida de tasks. Las pestañas abiertas mantienen su motor actual.",
         "shellTitle": "Shell",
         "shellDesc": "Qué shell abren las nuevas pestañas de terminal. La flecha junto al + sigue abriendo cualquier otro, solo para esa pestaña.",
-        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí."
+        "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí.",
+        "sectionBehavior": "Comportamiento",
+        "closeOnExitTitle": "Cerrar la pestaña cuando el shell termine",
+        "closeOnExitDesc": "Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto."
       },
       "appearance": {
         "sectionTheme": "Tema",

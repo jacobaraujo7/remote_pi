@@ -1064,6 +1064,12 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _taskTerminals.setDefaultEngine(engine);
   }
 
+  /// Espelha `AppSettings.closeTabOnShellExit`: quando ligado, uma aba de shell
+  /// fecha ao encerrar o processo sozinho (ver [_watchTerminalSession] /
+  /// `onProcessExit`). A `CockpitPage` empurra o valor (app-scoped → VM).
+  bool _closeTabOnShellExit = false;
+  void setCloseTabOnShellExit(bool value) => _closeTabOnShellExit = value;
+
   late final FileEditorFacade _fileEditorFacade;
 
   void setFileEditorEngine(FileEditorEngine engine) =>
@@ -2333,25 +2339,39 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// memória, sem arquivo no disco até o primeiro save. [connName] pré-seleciona
   /// a conexão no frontmatter. Plano 51.
   void openScratchDbq({String? connName, String? sql}) {
+    final body = sql ?? 'SELECT 1;';
+    final content = connName == null ? '$body\n' : '-- db: $connName\n$body\n';
+    _openScratch(
+      view: FileViewText(content, language: 'dbq'),
+      extension: '.dbq',
+    );
+  }
+
+  /// Abre um buffer de texto **untitled** (⌘N, como no VS Code): aba
+  /// `Untitled-N` vazia, sem arquivo até o primeiro save, que pede o nome.
+  /// O highlight nasce neutro; depois do save segue a extensão escolhida.
+  void openScratchText() {
+    _openScratch(view: const FileViewText(''), extension: '');
+  }
+
+  void _openScratch({required FileView view, required String extension}) {
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     final paneId = projectId == null ? null : _focused[projectId];
     if (projectId == null || tree == null || paneId == null) return;
 
-    // Numeração sequencial dos untitled abertos.
+    // Numeração sequencial dos untitled abertos (dbq e texto compartilham).
     final used = _sessions.values
         .whereType<FileViewerSession>()
         .where((s) => s.scratch)
         .length;
-    final body = sql ?? 'SELECT 1;';
-    final content = connName == null ? '$body\n' : '-- db: $connName\n$body\n';
     final scratch = FileViewerSession(
       id: _nid('v'),
       projectId: projectId,
       path: '', // sintético — sem arquivo até salvar
-      view: FileViewText(content, language: 'dbq'),
+      view: view,
       scratch: true,
-      scratchTitle: 'Untitled-${used + 1}.dbq',
+      scratchTitle: 'Untitled-${used + 1}$extension',
     );
     _sessions[scratch.id] = scratch;
     _addLeafTab(projectId, paneId, scratch.id);
@@ -2592,8 +2612,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return session;
   }
 
-  /// Salva um buffer scratch como arquivo real [fileName] na raiz do workspace
-  /// (o `.dbq` é anexado se faltar). Retarga a sessão, arma o watcher e limpa
+  /// Salva um buffer scratch como arquivo real [fileName] na raiz do workspace.
+  /// Num scratch `.dbq` a extensão é anexada se faltar; num untitled de texto
+  /// (⌘N) o nome vale como digitado. Retarga a sessão, arma o watcher e limpa
   /// o flag scratch → daí vira uma tab de arquivo normal. Plano 51.
   Future<Result<void, FileOperationError>> saveScratchAs(
     String sessionId,
@@ -2612,7 +2633,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         FileOperationError(FileOperationErrorKind.emptyName),
       );
     }
-    if (!name.toLowerCase().endsWith('.dbq')) name = '$name.dbq';
+    final isDbq = (s.scratchTitle ?? '').toLowerCase().endsWith('.dbq');
+    if (isDbq && !name.toLowerCase().endsWith('.dbq')) name = '$name.dbq';
     final invalid = files.validateName(name);
     if (invalid != null) return Failure(invalid);
     final root = _projectById(s.projectId)?.path;
@@ -6357,6 +6379,17 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     t.onTurnFinished = () => unawaited(notifications.turnFinished(t));
     // cwd vivo (OSC 7) mudou → persiste o layout pra restaurar o shell ali.
     t.onCwdChanged = () => _scheduleSave(projectId);
+    // Shell encerrou sozinho (`exit`, Ctrl-D, processo morto) e a preferência
+    // está ligada: fecha a aba em vez de deixar o terminal morto na tela — como
+    // a aba do Neovim fecha no `:q` (ver [_watchNeovimSession]). Desligada, a
+    // aba permanece (comportamento histórico).
+    t.onProcessExit = () {
+      if (!_closeTabOnShellExit) return;
+      if (_sessions[t.id] != t) return;
+      final paneId = leafOfTab(projectId, t.id);
+      if (paneId == null) return;
+      _closeTabIn(projectId, paneId, t.id, disposeAfterFrame: true);
+    };
     // Restauração: re-arma a trava de nome sem notificar (aba ainda não montada).
     if (manualLabel != null) t.restoreManualLabel(manualLabel);
     built = t;

@@ -14,8 +14,11 @@ import 'package:flutter/gestures.dart'
         DelayedMultiDragGestureRecognizer,
         GestureMultiDragStartCallback,
         ImmediateMultiDragGestureRecognizer,
+        GestureBinding,
         MultiDragGestureRecognizer,
-        PointerDeviceKind;
+        PointerDeviceKind,
+        PointerScrollEvent,
+        PointerSignalEvent;
 import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -119,6 +122,11 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
   /// fecha o painel precisa poder gravar o que estava sendo escrito — ver a
   /// nota em [_DetailPanel].
   final TextEditingController _notesCtrl = TextEditingController();
+
+  /// Rolagem horizontal do quadro. Com controller próprio dá pra desenhar a
+  /// barra (o `ShadcnScrollBehavior` não desenha scrollbar no eixo
+  /// horizontal) e pra traduzir a roda do mouse em deslocamento lateral.
+  final ScrollController _boardScroll = ScrollController();
   final FocusNode _notesFocus = FocusNode();
   final TextEditingController _detailTitleCtrl = TextEditingController();
   bool _editingDetailTitle = false;
@@ -152,6 +160,7 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
     _titleFocus.dispose();
     _notesCtrl.dispose();
     _notesFocus.dispose();
+    _boardScroll.dispose();
     _detailTitleCtrl.dispose();
     _commentCtrl.dispose();
     super.dispose();
@@ -795,9 +804,50 @@ class _KanbanBoardViewState extends State<KanbanBoardView> {
     );
   }
 
+  /// Roda do mouse (só eixo vertical) sobre o quadro: vira rolagem lateral.
+  ///
+  /// Registra no `PointerSignalResolver` em vez de rolar direto: o resolver
+  /// entrega o evento ao PRIMEIRO interessado na ordem do hit test, e a lista
+  /// da coluna sob o cursor se registra antes quando ainda tem o que rolar.
+  /// Assim a coluna rola enquanto puder; esgotada (ou curta), a roda passa a
+  /// mover o quadro, e colunas fora da janela ficam alcançáveis sem trackpad
+  /// nem Shift. Trackpad já manda `dx` e cai no scroll horizontal nativo.
+  void _onBoardPointerSignal(PointerSignalEvent event) {
+    if (event is! PointerScrollEvent) return;
+    if (event.kind != PointerDeviceKind.mouse) return;
+    if (!_boardScroll.hasClients) return;
+    final delta = event.scrollDelta;
+    if (delta.dx != 0 || delta.dy == 0) return;
+    final position = _boardScroll.position;
+    final target = (position.pixels + delta.dy).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    if (target == position.pixels) return;
+    GestureBinding.instance.pointerSignalResolver.register(event, (e) {
+      _boardScroll.jumpTo(target);
+      (e as PointerScrollEvent).respond(allowPlatformDefault: false);
+    });
+  }
+
   Widget _boardBody(BuildContext context) {
     final tr = context.t.cockpit.kanbanView;
+    return Listener(
+      onPointerSignal: _onBoardPointerSignal,
+      child: Scrollbar(
+        controller: _boardScroll,
+        thumbVisibility: true,
+        child: _boardScrollView(context, tr),
+      ),
+    );
+  }
+
+  Widget _boardScrollView(
+    BuildContext context,
+    Translations$cockpit$kanbanView$en tr,
+  ) {
     return SingleChildScrollView(
+      controller: _boardScroll,
       scrollDirection: Axis.horizontal,
       child: IntrinsicHeight(
         child: Row(

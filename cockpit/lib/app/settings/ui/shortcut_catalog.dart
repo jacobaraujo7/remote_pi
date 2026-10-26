@@ -41,6 +41,7 @@ List<ShortcutSection> buildShortcutCatalog() {
       AppShortcut('Open Workspace', [cmd, 'O']),
     ]),
     ShortcutSection('Workspace', <AppShortcut>[
+      AppShortcut('New Terminal', [cmd, 'T']),
       AppShortcut('Toggle Workspace Panel', [cmd, 'B']),
       AppShortcut('Toggle Files', [cmd, shift, 'B']),
       AppShortcut('Split Pane Right', [cmd, 'D']),
@@ -70,6 +71,10 @@ List<ShortcutSection> buildShortcutCatalog() {
         cmd,
         shift,
         'F',
+      ], note: 'When a file editor is focused.'),
+      AppShortcut('Toggle Word Wrap', [
+        alt,
+        'Z',
       ], note: 'When a file editor is focused.'),
     ]),
     ShortcutSection('View', <AppShortcut>[

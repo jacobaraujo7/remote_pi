@@ -5,6 +5,16 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('focus resumes activity without a restore event', () {
+    final activity = WindowActivityController();
+    addTearDown(activity.dispose);
+    activity
+      ..blur()
+      ..minimize()
+      ..focus();
+    expect(activity.isActive, isTrue);
+  });
+
   test('focus and restore coalesce into one active transition', () {
     final activity = WindowActivityController();
     addTearDown(activity.dispose);

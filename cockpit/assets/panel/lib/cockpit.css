@@ -121,3 +121,33 @@ label { display: block; color: var(--ckp-text-secondary); font-size: 12px; margi
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--ckp-border-strong); border-radius: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* ---- structure (plano 69): the page anatomy every panel shares ---------- */
+/* .page: content column with the right gutters; .toolbar: header row with
+   title left, status + actions right; .kpis: a row of .stat cards that wraps
+   cleanly; .split: list + detail; .empty/.skeleton: the two non-error states;
+   .status-dot: the small colored circle for ok/warn/error/running. */
+.page { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.toolbar { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.toolbar > h1, .toolbar > h2 { margin: 0; flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.toolbar .status { color: var(--ckp-text-muted); font-size: 12px; white-space: nowrap; }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); }
+.kpis .stat { padding: 10px 14px; }
+.split { display: grid; gap: 12px; grid-template-columns: minmax(220px, 1fr) 2fr; align-items: start; }
+.split > .list { display: flex; flex-direction: column; gap: 4px; max-height: 70vh; overflow: auto; }
+.split > .list > .item { padding: 6px 10px; border-radius: 6px; cursor: pointer; display: flex; gap: 8px; align-items: center; }
+.split > .list > .item:hover { background: var(--ckp-bg-raised); }
+.split > .list > .item.active { background: var(--ckp-accent-soft); color: var(--ckp-accent); }
+@media (max-width: 720px) { .split { grid-template-columns: 1fr; } .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+.empty { color: var(--ckp-text-muted); text-align: center; padding: 32px 16px; border: 1px dashed var(--ckp-border); border-radius: 8px; }
+.skeleton { background: linear-gradient(90deg, var(--ckp-bg-raised) 25%, var(--ckp-code-bg) 50%, var(--ckp-bg-raised) 75%); background-size: 200% 100%; animation: ckp-shimmer 1.2s infinite; border-radius: 4px; min-height: 14px; }
+@keyframes ckp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--ckp-text-muted); flex: none; }
+.status-dot.ok { background: var(--ckp-ok); }
+.status-dot.warn { background: var(--ckp-warn); }
+.status-dot.error { background: var(--ckp-error); }
+.status-dot.running { background: var(--ckp-warn); animation: ckp-pulse 1s infinite alternate; }
+@keyframes ckp-pulse { from { opacity: .35; } to { opacity: 1; } }
+.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; }
+.kv > dt { color: var(--ckp-text-muted); }
+.kv > dd { margin: 0; }

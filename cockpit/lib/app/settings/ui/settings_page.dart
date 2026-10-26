@@ -484,6 +484,14 @@ class _GeneralPanel extends StatelessWidget {
                           ],
                         ),
                       ),
+                      _Row(
+                        title: tr.wordWrapTitle,
+                        description: tr.wordWrapDesc,
+                        trailing: _WordWrapDropdown(
+                          value: s.editorWordWrap,
+                          onChanged: controller.setEditorWordWrap,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1138,6 +1146,21 @@ class _TerminalPanel extends StatelessWidget {
                   ],
                 ),
               ),
+              _Section(
+                label: tr.sectionBehavior,
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: tr.closeOnExitTitle,
+                      description: tr.closeOnExitDesc,
+                      trailing: Switch(
+                        value: controller.settings.closeTabOnShellExit,
+                        onChanged: controller.setCloseTabOnShellExit,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               // Sem WSL instalado a lista tem só PowerShell e cmd. Dizer isso é
               // melhor que deixar o usuário achar que a detecção falhou.
               if (!profiles.any(
@@ -1228,6 +1251,46 @@ class _FileEditorEngineDropdown extends StatelessWidget {
           ],
         );
         if (picked != null) onChanged(picked);
+      },
+    );
+  }
+}
+
+/// Quebra de linha do editor de arquivos. Os três valores são os mesmos de
+/// `AppSettings.editorWordWrap`: `null` = padrão da linguagem (markdown/texto
+/// quebram), `true` = todo arquivo, `false` = nenhum. O ⌥Z do editor também
+/// grava um dos três (ver `toggledEditorWordWrap`).
+class _WordWrapDropdown extends StatelessWidget {
+  const _WordWrapDropdown({required this.value, required this.onChanged});
+  final bool? value;
+  final ValueChanged<bool?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final tr = context.t.settings.page.general.wordWrap;
+    final labels = <bool?, String>{
+      null: tr.byLanguage,
+      true: tr.always,
+      false: tr.off,
+    };
+    return _DropdownChip(
+      label: labels[value]!,
+      onTap: () async {
+        // `showAppMenu` devolve null ao fechar sem escolher, então o valor
+        // `null` (padrão da linguagem) viaja embrulhado num record.
+        final picked = await showAppMenu<(bool?,)>(
+          context,
+          minWidth: 180,
+          items: [
+            for (final e in labels.entries)
+              AppMenuItem(
+                value: (e.key,),
+                label: e.value,
+                selected: e.key == value,
+              ),
+          ],
+        );
+        if (picked != null) onChanged(picked.$1);
       },
     );
   }
@@ -2464,7 +2527,7 @@ class _ThemeModeDropdown extends StatelessWidget {
 /// Opções de idioma da interface. `system` = seguir o locale do SO
 /// (`AppSettings.locale == null`); as demais mapeiam pro código raw persistido
 /// e repassado ao `slang` (`LocaleSettings.setLocaleRaw`).
-enum _LocaleOption { system, en, es, ptBr }
+enum _LocaleOption { system, en, es, ptBr, zh }
 
 class _LocaleDropdown extends StatelessWidget {
   const _LocaleDropdown({required this.value, required this.onChanged});
@@ -2478,12 +2541,14 @@ class _LocaleDropdown extends StatelessWidget {
     _LocaleOption.en: 'en',
     _LocaleOption.es: 'es',
     _LocaleOption.ptBr: 'pt-BR',
+    _LocaleOption.zh: 'zh',
   };
 
   _LocaleOption _optionOf(String? code) => switch (code) {
     'en' => _LocaleOption.en,
     'es' => _LocaleOption.es,
     'pt-BR' => _LocaleOption.ptBr,
+    'zh' => _LocaleOption.zh,
     _ => _LocaleOption.system,
   };
 
@@ -2498,6 +2563,7 @@ class _LocaleDropdown extends StatelessWidget {
       _LocaleOption.en: (label: tr.english, icon: Icons.language),
       _LocaleOption.es: (label: tr.spanish, icon: Icons.language),
       _LocaleOption.ptBr: (label: tr.portugueseBr, icon: Icons.language),
+      _LocaleOption.zh: (label: tr.simplifiedChinese, icon: Icons.language),
     };
     final current = _optionOf(value);
     final currentMeta = labels[current]!;

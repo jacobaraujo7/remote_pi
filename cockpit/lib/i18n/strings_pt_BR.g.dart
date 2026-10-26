@@ -131,6 +131,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$topbar$pt_BR topbar = _Translations$cockpit$topbar$pt_BR._(_root);
 	@override late final _Translations$cockpit$tasks$pt_BR tasks = _Translations$cockpit$tasks$pt_BR._(_root);
 	@override late final _Translations$cockpit$notifications$pt_BR notifications = _Translations$cockpit$notifications$pt_BR._(_root);
+	@override late final _Translations$cockpit$terminalLink$pt_BR terminalLink = _Translations$cockpit$terminalLink$pt_BR._(_root);
 	@override late final _Translations$cockpit$terminal$pt_BR terminal = _Translations$cockpit$terminal$pt_BR._(_root);
 	@override late final _Translations$cockpit$remoteHost$pt_BR remoteHost = _Translations$cockpit$remoteHost$pt_BR._(_root);
 	@override late final _Translations$cockpit$browserPane$pt_BR browserPane = _Translations$cockpit$browserPane$pt_BR._(_root);
@@ -336,7 +337,9 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get checkForUpdates => 'Verificar Atualizações…';
 	@override String get file => 'Arquivo';
 	@override String get newTerminal => 'Novo Terminal';
+	@override String get newFile => 'Novo Arquivo';
 	@override String get openWorkspace => 'Abrir Workspace';
+	@override String get goToFile => 'Ir para Arquivo…';
 	@override String get save => 'Salvar';
 	@override String get discard => 'Descartar';
 	@override String get format => 'Formatar';
@@ -355,6 +358,7 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get lastTab => 'Última Aba';
 	@override String get previousWorkspace => 'Workspace Anterior';
 	@override String get nextWorkspace => 'Próximo Workspace';
+	@override String get toggleWordWrap => 'Alternar Quebra de Linha';
 	@override String get zoomIn => 'Aumentar Zoom';
 	@override String get zoomOut => 'Diminuir Zoom';
 	@override String get actualSize => 'Tamanho Real';
@@ -693,6 +697,9 @@ class _Translations$cockpit$fileViewer$pt_BR extends Translations$cockpit$fileVi
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get saveAs => 'Salvar como';
+	@override String get couldNotSave => 'Não foi possível salvar';
+	@override String get untitledDefaultName => 'sem-titulo.txt';
 	@override String get cantOpen => 'Não é possível abrir este arquivo.';
 	@override String get couldNotLoadImage => 'Não foi possível carregar a imagem.';
 	@override String get preview => 'Pré-visualização';
@@ -1043,6 +1050,7 @@ class _Translations$cockpit$findBar$pt_BR extends Translations$cockpit$findBar$e
 	@override String get next => 'Próximo (⏎)';
 	@override String get close => 'Fechar (Esc)';
 	@override String get badPattern => 'Padrão inválido';
+	@override String counter({required Object current, required Object total}) => '${current} de ${total}';
 	@override String get noResults => 'Nenhum resultado';
 }
 
@@ -1101,6 +1109,22 @@ class _Translations$cockpit$notifications$pt_BR extends Translations$cockpit$not
 	@override String get agentFinished => 'Agente terminou';
 	@override String get open => 'Abrir';
 	@override String get agentNeedsAction => 'Agente precisa de você';
+}
+
+// Path: cockpit.terminalLink
+class _Translations$cockpit$terminalLink$pt_BR extends Translations$cockpit$terminalLink$en {
+	_Translations$cockpit$terminalLink$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get open => 'Abrir';
+	@override String get revealFinder => 'Mostrar no Finder';
+	@override String get revealExplorer => 'Mostrar no Explorer';
+	@override String get revealFolder => 'Abrir pasta';
+	@override String get copyPath => 'Copiar caminho';
+	@override String get openLink => 'Abrir link';
+	@override String get copyLink => 'Copiar link';
 }
 
 // Path: cockpit.terminal
@@ -1367,6 +1391,7 @@ class _Translations$settings$language$pt_BR extends Translations$settings$langua
 	@override String get english => 'Inglês';
 	@override String get portugueseBr => 'Português (BR)';
 	@override String get spanish => 'Espanhol';
+	@override String get simplifiedChinese => '简体中文';
 }
 
 // Path: settings.page
@@ -1693,6 +1718,9 @@ class _Translations$settings$page$general$pt_BR extends Translations$settings$pa
 	@override String get neovimChecking => 'Procurando o Neovim…';
 	@override String get neovimNotFound => 'O Neovim não foi encontrado na PATH do seu shell.';
 	@override String get neovimRefresh => 'Verificar novamente';
+	@override String get wordWrapTitle => 'Quebra de linha';
+	@override String get wordWrapDesc => 'Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.';
+	@override late final _Translations$settings$page$general$wordWrap$pt_BR wordWrap = _Translations$settings$page$general$wordWrap$pt_BR._(_root);
 	@override String get showCockpitTitle => 'Mostrar terminal do Cockpit';
 	@override String get showCockpitDesc => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.';
 	@override String get launchAtStartupTitle => 'Iniciar ao ligar';
@@ -1766,6 +1794,9 @@ class _Translations$settings$page$terminal$pt_BR extends Translations$settings$p
 	@override String get shellTitle => 'Shell';
 	@override String get shellDesc => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.';
 	@override String get noWslMessage => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.';
+	@override String get sectionBehavior => 'Comportamento';
+	@override String get closeOnExitTitle => 'Fechar a aba quando o shell encerrar';
+	@override String get closeOnExitDesc => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.';
 }
 
 // Path: settings.page.appearance
@@ -1923,6 +1954,18 @@ class _Translations$settings$page$automations$pt_BR extends Translations$setting
 	@override String get recommendedSuffix => 'Recomendado';
 }
 
+// Path: settings.page.general.wordWrap
+class _Translations$settings$page$general$wordWrap$pt_BR extends Translations$settings$page$general$wordWrap$en {
+	_Translations$settings$page$general$wordWrap$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get byLanguage => 'Markdown e texto';
+	@override String get always => 'Todos os arquivos';
+	@override String get off => 'Desligada';
+}
+
 // Path: settings.page.general.updateFrequency
 class _Translations$settings$page$general$updateFrequency$pt_BR extends Translations$settings$page$general$updateFrequency$en {
 	_Translations$settings$page$general$updateFrequency$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
@@ -1974,7 +2017,9 @@ extension on TranslationsPtBr {
 			'core.menu.checkForUpdates' => 'Verificar Atualizações…',
 			'core.menu.file' => 'Arquivo',
 			'core.menu.newTerminal' => 'Novo Terminal',
+			'core.menu.newFile' => 'Novo Arquivo',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
+			'core.menu.goToFile' => 'Ir para Arquivo…',
 			'core.menu.save' => 'Salvar',
 			'core.menu.discard' => 'Descartar',
 			'core.menu.format' => 'Formatar',
@@ -1993,6 +2038,7 @@ extension on TranslationsPtBr {
 			'core.menu.lastTab' => 'Última Aba',
 			'core.menu.previousWorkspace' => 'Workspace Anterior',
 			'core.menu.nextWorkspace' => 'Próximo Workspace',
+			'core.menu.toggleWordWrap' => 'Alternar Quebra de Linha',
 			'core.menu.zoomIn' => 'Aumentar Zoom',
 			'core.menu.zoomOut' => 'Diminuir Zoom',
 			'core.menu.actualSize' => 'Tamanho Real',
@@ -2261,6 +2307,9 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.importAction' => 'Copiar',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Não foi possível copiar',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Abrir no ${harness}',
+			'cockpit.fileViewer.saveAs' => 'Salvar como',
+			'cockpit.fileViewer.couldNotSave' => 'Não foi possível salvar',
+			'cockpit.fileViewer.untitledDefaultName' => 'sem-titulo.txt',
 			'cockpit.fileViewer.cantOpen' => 'Não é possível abrir este arquivo.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Não foi possível carregar a imagem.',
 			'cockpit.fileViewer.preview' => 'Pré-visualização',
@@ -2450,14 +2499,14 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
 			'cockpit.sshPrompts.trust' => 'Confiar',
 			'cockpit.sshPrompts.sshKeyPassphraseTitle' => 'Senha da chave SSH',
 			'cockpit.sshPrompts.unlockMessage' => ({required Object keyPath, required Object connectionName}) => 'Desbloqueie ${keyPath} para conectar "${connectionName}".',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.keptInMemoryHint' => 'Mantida em memória até o Cockpit fechar. Para permitir que agentes usem esta conexão, ative "Salvar senha da chave" na conexão.',
 			'cockpit.sshPrompts.unlock' => 'Desbloquear',
 			'cockpit.projectsRail.workspaces' => 'Workspaces',
@@ -2494,6 +2543,7 @@ extension on TranslationsPtBr {
 			'cockpit.findBar.next' => 'Próximo (⏎)',
 			'cockpit.findBar.close' => 'Fechar (Esc)',
 			'cockpit.findBar.badPattern' => 'Padrão inválido',
+			'cockpit.findBar.counter' => ({required Object current, required Object total}) => '${current} de ${total}',
 			'cockpit.findBar.noResults' => 'Nenhum resultado',
 			'cockpit.contentSearch.sectionSearch' => 'BUSCA',
 			'cockpit.contentSearch.searchInFiles' => 'Buscar nos arquivos',
@@ -2516,6 +2566,13 @@ extension on TranslationsPtBr {
 			'cockpit.notifications.agentFinished' => 'Agente terminou',
 			'cockpit.notifications.open' => 'Abrir',
 			'cockpit.notifications.agentNeedsAction' => 'Agente precisa de você',
+			'cockpit.terminalLink.open' => 'Abrir',
+			'cockpit.terminalLink.revealFinder' => 'Mostrar no Finder',
+			'cockpit.terminalLink.revealExplorer' => 'Mostrar no Explorer',
+			'cockpit.terminalLink.revealFolder' => 'Abrir pasta',
+			'cockpit.terminalLink.copyPath' => 'Copiar caminho',
+			'cockpit.terminalLink.openLink' => 'Abrir link',
+			'cockpit.terminalLink.copyLink' => 'Copiar link',
 			'cockpit.terminal.cwdFallbackWarning' => ({required Object requested, required Object path}) => 'Aviso: a pasta "${requested}" não existe. Este terminal abriu em "${path}".',
 			'cockpit.terminal.workspaceEnvTracked' => ({required Object keys}) => 'Aviso: o .env.cockpit está rastreado pelo git (veio com o repositório). Injetado: ${keys}',
 			'cockpit.remoteHost.addHost' => 'Adicionar host remoto',
@@ -2717,6 +2774,7 @@ extension on TranslationsPtBr {
 			'settings.language.english' => 'Inglês',
 			'settings.language.portugueseBr' => 'Português (BR)',
 			'settings.language.spanish' => 'Espanhol',
+			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Voltar',
 			'settings.page.header.title' => 'Configurações',
 			'settings.page.nav.general' => 'Geral',
@@ -2734,6 +2792,11 @@ extension on TranslationsPtBr {
 			'settings.page.general.neovimChecking' => 'Procurando o Neovim…',
 			'settings.page.general.neovimNotFound' => 'O Neovim não foi encontrado na PATH do seu shell.',
 			'settings.page.general.neovimRefresh' => 'Verificar novamente',
+			'settings.page.general.wordWrapTitle' => 'Quebra de linha',
+			'settings.page.general.wordWrapDesc' => 'Quebra as linhas longas na largura do painel. Alt+Z (⌥Z no macOS) alterna pelo editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown e texto',
+			'settings.page.general.wordWrap.always' => 'Todos os arquivos',
+			'settings.page.general.wordWrap.off' => 'Desligada',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal do Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantém um workspace sem pasta, só de terminal, fixado no topo da barra lateral. Desligar fecha seus terminais.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar ao ligar',
@@ -2783,6 +2846,9 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.',
 			'settings.page.terminal.noWslMessage' => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.',
+			'settings.page.terminal.sectionBehavior' => 'Comportamento',
+			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
+			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
@@ -2947,6 +3013,8 @@ extension on TranslationsPtBr {
 			'fileOperation.error.formatterTimeout' => 'O formatador excedeu o tempo limite.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'O formatador saiu com código ${code}.',
 			'fileOperation.error.formatterFailed' => 'Não foi possível executar o formatador.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'O nome não pode conter “/”.',
 			'fileOperation.error.invalidName' => 'Nome inválido.',
@@ -2970,8 +3038,6 @@ extension on TranslationsPtBr {
 			'graphView.unresolvedPeer' => 'Destinatário Claude',
 			'graphView.unresolvedPeerHint' => 'Aba ainda não identificada',
 			'graphView.unresolvedPeerTooltip' => ({required Object address}) => 'Mensagem observada para ${address}. O Cockpit ainda não identificou uma aba correspondente; nenhuma conexão entre terminais foi presumida.',
-			_ => null,
-		} ?? switch (path) {
 			'graphView.noRole' => 'Função não definida',
 			'graphView.terminal' => 'Terminal',
 			'graphView.defaultModel' => 'Modelo padrão',
