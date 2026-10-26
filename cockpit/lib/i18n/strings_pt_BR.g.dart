@@ -493,6 +493,7 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openInNewWindow => 'Abrir em nova janela';
 	@override String get rename => 'Renomear';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar com Neovim';
 	@override String get openAsBoard => 'Abrir como quadro';
 	@override String get resetTitle => 'Redefinir título';
 	@override String get copyId => 'Copiar Id';
@@ -2121,6 +2122,7 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openInNewWindow' => 'Abrir em nova janela',
 			'cockpit.paneView.rename' => 'Renomear',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar com Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como quadro',
 			'cockpit.paneView.resetTitle' => 'Redefinir título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2435,9 +2437,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
@@ -2949,9 +2951,9 @@ extension on TranslationsPtBr {
 			'fileOperation.error.formatterMissingPlaceholder' => 'O comando de formatação precisa incluir o placeholder %FILE%.',
 			'fileOperation.error.formatterTimeout' => 'O formatador excedeu o tempo limite.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'O formatador saiu com código ${code}.',
-			'fileOperation.error.formatterFailed' => 'Não foi possível executar o formatador.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterFailed' => 'Não foi possível executar o formatador.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'O nome não pode conter “/”.',
 			'fileOperation.error.invalidName' => 'Nome inválido.',

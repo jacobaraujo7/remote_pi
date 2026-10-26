@@ -20,8 +20,10 @@ import 'package:flutter_test/flutter_test.dart';
 Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   TestWidgetsFlutterBinding.ensureInitialized();
   SystemChannels.system.setMessageHandler((Object? message) async {
-    if (message is Map && message['type'] == 'fontsChange') return null;
-    return PaintingBinding.instance.handleSystemMessage(message!);
+    if (message is! Map || message['type'] != 'fontsChange') {
+      await PaintingBinding.instance.handleSystemMessage(message!);
+    }
+    return null;
   });
   await testMain();
 }

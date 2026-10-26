@@ -493,6 +493,7 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => '在新窗口中打开';
 	@override String get rename => '重命名';
 	@override String get openAsMarkdown => '以 Markdown 打开';
+	@override String get editInNeovim => '使用 Neovim 编辑';
 	@override String get openAsBoard => '以看板打开';
 	@override String get resetTitle => '重置标题';
 	@override String get copyId => '复制 ID';
@@ -2121,6 +2122,7 @@ extension on TranslationsZh {
 			'cockpit.paneView.openInNewWindow' => '在新窗口中打开',
 			'cockpit.paneView.rename' => '重命名',
 			'cockpit.paneView.openAsMarkdown' => '以 Markdown 打开',
+			'cockpit.paneView.editInNeovim' => '使用 Neovim 编辑',
 			'cockpit.paneView.openAsBoard' => '以看板打开',
 			'cockpit.paneView.resetTitle' => '重置标题',
 			'cockpit.paneView.copyId' => '复制 ID',
@@ -2435,9 +2437,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
-			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit 从未连接过 ${endpoint}。',
 			'cockpit.sshPrompts.trustHint' => '仅当此指纹与服务器匹配时才信任。你可以在服务器上用以下命令核对：',
@@ -2949,9 +2951,9 @@ extension on TranslationsZh {
 			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
 			'fileOperation.error.formatterTimeout' => '格式化器超时。',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',
-			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => '名称不能包含「/」。',
 			'fileOperation.error.invalidName' => '无效的名称。',
