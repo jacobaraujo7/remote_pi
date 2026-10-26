@@ -35,7 +35,7 @@ class TranslationsZh extends Translations with BaseTranslations<AppLocale, Trans
 
 	late final TranslationsZh _root = this; // ignore: unused_field
 
-	@override 
+	@override
 	TranslationsZh $copyWith({TranslationMetadata<AppLocale, Translations>? meta}) => TranslationsZh(meta: meta ?? this.$meta);
 
 	// Translations
@@ -2095,7 +2095,7 @@ extension on TranslationsZh {
 			'cockpit.cockpitPage.failedToRemoveWorktreeTitle' => '移除 worktree 失败',
 			'cockpit.cockpitPage.openLayoutTitle' => '打开布局',
 			'cockpit.cockpitPage.replaceLayoutTitle' => '替换当前布局？',
-			'cockpit.cockpitPage.replaceLayoutMessage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '将关闭 1 个标签页，其中有正在运行的进程。', other: '将关闭 ${n} 个标签页，其中有正在运行的进程。', ), 
+			'cockpit.cockpitPage.replaceLayoutMessage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '将关闭 1 个标签页，其中有正在运行的进程。', other: '将关闭 ${n} 个标签页，其中有正在运行的进程。', ),
 			'cockpit.cockpitPage.replaceLayoutConfirm' => '替换',
 			'cockpit.cockpitPage.restartServerTooltip' => '重启服务器',
 			'cockpit.cockpitPage.noLspAvailable' => '无可用 LSP',
@@ -2271,7 +2271,7 @@ extension on TranslationsZh {
 			'cockpit.realmDialogs.deleteSuffixOne' => ' 其工作区将移动到 Default。',
 			'cockpit.realmDialogs.deleteSuffixMany' => ({required Object count}) => ' 其 ${count} 个工作区将移动到 Default。',
 			'cockpit.realmDialogs.manageRealmsTitle' => '管理领域',
-			'cockpit.realmDialogs.workspaceCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个工作区', other: '${n} 个工作区', ), 
+			'cockpit.realmDialogs.workspaceCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个工作区', other: '${n} 个工作区', ),
 			'cockpit.dbRedisTable.deleteKeyTitle' => '删除键',
 			'cockpit.dbRedisTable.deleteKeyMessage' => ({required Object key}) => '从此 Redis 数据库中删除「${key}」？',
 			'cockpit.dbRedisTable.refresh' => '刷新',
@@ -2280,7 +2280,7 @@ extension on TranslationsZh {
 			'cockpit.dbRedisTable.columnValue' => '值',
 			'cockpit.dbRedisTable.columnType' => '类型',
 			'cockpit.dbRedisTable.columnTtl' => 'TTL',
-			'cockpit.dbRedisTable.keyCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个键', other: '${n} 个键', ), 
+			'cockpit.dbRedisTable.keyCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个键', other: '${n} 个键', ),
 			'cockpit.dbRedisTable.noKeys' => '此数据库中没有键。',
 			'cockpit.dbRedisTable.noKeysMatch' => ({required Object pattern}) => '没有匹配「${pattern}」的键。',
 			'cockpit.dbRedisTable.loadMore' => '加载更多',
@@ -2301,7 +2301,7 @@ extension on TranslationsZh {
 			'cockpit.dbQueryView.pickDatabaseHint' => '先在上方选择数据库，然后运行（⌘↵）。',
 			'cockpit.dbQueryView.runQueryHint' => '运行查询（⌘↵）后结果将显示在这里。',
 			'cockpit.dbQueryView.noRows' => '没有行。',
-			'cockpit.dbQueryView.rowsAffected' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '影响 1 行', other: '影响 ${n} 行', ), 
+			'cockpit.dbQueryView.rowsAffected' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '影响 1 行', other: '影响 ${n} 行', ),
 			'cockpit.dbQueryView.rowsFooter' => ({required Object n}) => '${n} 行',
 			'cockpit.dbQueryView.truncatedSuffix' => ' · 已截断（调高 -- limit）',
 			'cockpit.dbQueryView.table' => '表格',
@@ -2316,7 +2316,7 @@ extension on TranslationsZh {
 			'cockpit.httpView.running' => '运行中…',
 			'cockpit.httpView.noRequests' => '此文件中没有请求——写一个，如 GET https://example.com',
 			'cockpit.httpView.selectRequest' => '选择请求',
-			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个请求', other: '${n} 个请求', ), 
+			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个请求', other: '${n} 个请求', ),
 			'cockpit.httpView.runHint' => '运行请求（⌘↵）后响应将显示在这里。',
 			'cockpit.httpView.emptyBody' => '响应体为空。',
 			'cockpit.httpView.body' => 'JSON',
@@ -2350,7 +2350,7 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.manageLabels' => '标签',
 			'cockpit.kanbanView.labelsTitle' => '此看板中的标签',
 			'cockpit.kanbanView.labelNamePlaceholder' => '标签名称',
-			'cockpit.kanbanView.labelUsage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 张卡片', other: '${n} 张卡片', ), 
+			'cockpit.kanbanView.labelUsage' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 张卡片', other: '${n} 张卡片', ),
 			'cockpit.kanbanView.deleteLabel' => '删除标签',
 			'cockpit.kanbanView.newCard' => '新建卡片',
 			'cockpit.kanbanView.newCardTitle' => '新建卡片',
@@ -2370,7 +2370,7 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.advanceHold' => '移到下一列（长按：移到最后一列）',
 			'cockpit.kanbanView.advanceBack' => '移回上一列',
 			'cockpit.kanbanView.emptyColumn' => '没有卡片',
-			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 张卡片', other: '${n} 张卡片', ), 
+			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 张卡片', other: '${n} 张卡片', ),
 			'cockpit.kanbanView.notes' => '备注',
 			'cockpit.kanbanView.notesPlaceholder' => '写个备注',
 			'cockpit.kanbanView.comments' => '评论',
@@ -2401,7 +2401,7 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.deleteDocumentTitle' => '删除文档',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object collection, required Object id}) => '从「${collection}」中删除 _id 为 ${id} 的文档？',
 			'cockpit.dbMongoView.filterHint' => '筛选——JSON，如 {"status": "active"}',
-			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
+			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ),
 			'cockpit.dbMongoView.refresh' => '刷新',
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
@@ -2469,7 +2469,7 @@ extension on TranslationsZh {
 			'cockpit.projectsRail.pull' => '拉取',
 			'cockpit.projectsRail.push' => '推送',
 			'cockpit.projectsRail.createWorktree' => '创建 worktree',
-			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个 worktree', other: '${n} 个 worktree', ), 
+			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个 worktree', other: '${n} 个 worktree', ),
 			'cockpit.projectsRail.expandWorktrees' => '展开 worktree',
 			'cockpit.projectsRail.collapseWorktrees' => '折叠 worktree',
 			'cockpit.findBar.find' => '查找',

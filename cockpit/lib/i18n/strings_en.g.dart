@@ -701,6 +701,27 @@ class Translations$cockpit$tasksPanel$en {
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
 
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
+
+	/// en: 'Copy'
+	String get copy => 'Copy';
+
+	/// en: 'Copy All'
+	String get copyAll => 'Copy All';
+
+	/// en: 'Clear Console'
+	String get clearConsole => 'Clear Console';
+
 	/// en: 'Generate Compose tasks'
 	String get generateComposeTasks => 'Generate Compose tasks';
 
@@ -4152,6 +4173,13 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
+			'cockpit.tasksPanel.copy' => 'Copy',
+			'cockpit.tasksPanel.copyAll' => 'Copy All',
+			'cockpit.tasksPanel.clearConsole' => 'Clear Console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Generate Compose tasks',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Choose a Compose engine',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose or Podman Compose was not found.',
@@ -4513,6 +4541,8 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
@@ -4520,8 +4550,6 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
@@ -5027,6 +5055,8 @@ extension on Translations {
 			'fileOperation.error.noWorkspace' => 'No workspace selected.',
 			'fileOperation.error.cannotMoveIntoItself' => 'Cannot move a folder into itself.',
 			'fileOperation.error.clipboardEmpty' => 'Clipboard is empty.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.notScratchTab' => 'This tab is not a scratch file.',
 			'fileOperation.error.writeFailed' => 'Could not write the file.',
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
@@ -5034,8 +5064,6 @@ extension on Translations {
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
 			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',

@@ -410,6 +410,13 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get sectionTasks => 'TAREFAS';
 	@override String get noTasks => 'Nenhuma tarefa detectada neste projeto.';
 	@override String get createTasksJson => 'Criar tasks.json';
+	@override String get importWorkspaceTasks => 'Importar do workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'O workspace de origem não possui um arquivo de tasks.';
+	@override String get importFailed => 'Não foi possível importar as tasks. Tente novamente.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar tudo';
+	@override String get clearConsole => 'Limpar console';
 	@override String get generateComposeTasks => 'Gerar tasks do Compose';
 	@override String get selectComposeEngine => 'Escolha uma engine Compose';
 	@override String get noComposeEngine => 'Docker Compose ou Podman Compose não foi encontrado.';
@@ -2068,6 +2075,13 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREFAS',
 			'cockpit.tasksPanel.noTasks' => 'Nenhuma tarefa detectada neste projeto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Criar tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar do workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'O workspace de origem não possui um arquivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'Não foi possível importar as tasks. Tente novamente.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar tudo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpar console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Gerar tasks do Compose',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Escolha uma engine Compose',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose ou Podman Compose não foi encontrado.',
@@ -2429,6 +2443,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
@@ -2436,8 +2452,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
@@ -2943,6 +2957,8 @@ extension on TranslationsPtBr {
 			'fileOperation.error.noWorkspace' => 'Nenhum workspace selecionado.',
 			'fileOperation.error.cannotMoveIntoItself' => 'Não é possível mover uma pasta para dentro dela mesma.',
 			'fileOperation.error.clipboardEmpty' => 'A área de transferência está vazia.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.notScratchTab' => 'Esta aba não é um arquivo temporário.',
 			'fileOperation.error.writeFailed' => 'Não foi possível gravar o arquivo.',
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formatação vazio.',
@@ -2950,8 +2966,6 @@ extension on TranslationsPtBr {
 			'fileOperation.error.formatterTimeout' => 'O formatador excedeu o tempo limite.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'O formatador saiu com código ${code}.',
 			'fileOperation.error.formatterFailed' => 'Não foi possível executar o formatador.',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'O nome não pode conter “/”.',
 			'fileOperation.error.invalidName' => 'Nome inválido.',
