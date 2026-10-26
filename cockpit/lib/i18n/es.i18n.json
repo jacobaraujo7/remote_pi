@@ -43,6 +43,7 @@
       "checkForUpdates": "Buscar Actualizaciones…",
       "file": "Archivo",
       "newTerminal": "Nueva Terminal",
+      "newFile": "Nuevo Archivo",
       "openWorkspace": "Abrir Workspace",
       "goToFile": "Ir a Archivo…",
       "save": "Guardar",
@@ -63,6 +64,7 @@
       "lastTab": "Última Pestaña",
       "previousWorkspace": "Workspace Anterior",
       "nextWorkspace": "Siguiente Workspace",
+      "toggleWordWrap": "Alternar Ajuste de Línea",
       "zoomIn": "Acercar",
       "zoomOut": "Alejar",
       "actualSize": "Tamaño Real",
@@ -365,6 +367,9 @@
       "openInAgent": "Abrir en ${harness}"
     },
     "fileViewer": {
+      "saveAs": "Guardar como",
+      "couldNotSave": "No se pudo guardar",
+      "untitledDefaultName": "sin-titulo.txt",
       "cantOpen": "No se puede abrir este archivo.",
       "couldNotLoadImage": "No se pudo cargar la imagen.",
       "preview": "Vista previa",
@@ -930,7 +935,8 @@
       "system": "Sistema",
       "english": "Inglés",
       "portugueseBr": "Portugués (BR)",
-      "spanish": "Español"
+      "spanish": "Español",
+      "simplifiedChinese": "简体中文"
     },
     "page": {
       "header": {
@@ -955,6 +961,13 @@
         "neovimChecking": "Buscando Neovim…",
         "neovimNotFound": "Neovim no se encontró en la PATH de tu shell.",
         "neovimRefresh": "Comprobar de nuevo",
+        "wordWrapTitle": "Ajuste de línea",
+        "wordWrapDesc": "Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.",
+        "wordWrap": {
+          "byLanguage": "Markdown y texto",
+          "always": "Todos los archivos",
+          "off": "Desactivado"
+        },
         "showCockpitTitle": "Mostrar terminal de Cockpit",
         "showCockpitDesc": "Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.",
         "launchAtStartupTitle": "Iniciar al arrancar",

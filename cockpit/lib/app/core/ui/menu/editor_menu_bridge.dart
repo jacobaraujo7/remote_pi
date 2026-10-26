@@ -16,6 +16,8 @@ class EditorMenuBridge extends ChangeNotifier {
   bool _canSave = false;
   bool _canDiscard = false;
   bool _canFormat = false;
+  bool _canToggleWordWrap = false;
+  VoidCallback? _onToggleWordWrap;
   VoidCallback? _onSave;
   VoidCallback? _onDiscard;
   VoidCallback? _onFormat;
@@ -25,9 +27,14 @@ class EditorMenuBridge extends ChangeNotifier {
   bool get canDiscard => _canDiscard;
   bool get canFormat => _canFormat;
 
+  /// Só o editor de arquivos alterna a quebra de linha (View → Toggle Word
+  /// Wrap); `.http`/`.dbq` publicam sem ela.
+  bool get canToggleWordWrap => _canToggleWordWrap;
+
   void save() => _onSave?.call();
   void discard() => _onDiscard?.call();
   void format() => _onFormat?.call();
+  void toggleWordWrap() => _onToggleWordWrap?.call();
 
   /// Editor focado publica seu estado. Callbacks são sempre atualizados; só
   /// notifica (→ menu reconstrói) quando alguma capacidade muda.
@@ -39,19 +46,24 @@ class EditorMenuBridge extends ChangeNotifier {
     required VoidCallback onSave,
     required VoidCallback onDiscard,
     required VoidCallback onFormat,
+    VoidCallback? onToggleWordWrap,
   }) {
     _owner = owner;
     _onSave = onSave;
     _onDiscard = onDiscard;
     _onFormat = onFormat;
+    _onToggleWordWrap = onToggleWordWrap;
+    final canToggleWordWrap = onToggleWordWrap != null;
     if (canSave == _canSave &&
         canDiscard == _canDiscard &&
-        canFormat == _canFormat) {
+        canFormat == _canFormat &&
+        canToggleWordWrap == _canToggleWordWrap) {
       return;
     }
     _canSave = canSave;
     _canDiscard = canDiscard;
     _canFormat = canFormat;
+    _canToggleWordWrap = canToggleWordWrap;
     notifyListeners();
   }
 
@@ -59,9 +71,11 @@ class EditorMenuBridge extends ChangeNotifier {
   void clear(Object owner) {
     if (_owner != owner) return;
     _owner = null;
-    _onSave = _onDiscard = _onFormat = null;
-    if (!_canSave && !_canDiscard && !_canFormat) return;
-    _canSave = _canDiscard = _canFormat = false;
+    _onSave = _onDiscard = _onFormat = _onToggleWordWrap = null;
+    if (!_canSave && !_canDiscard && !_canFormat && !_canToggleWordWrap) {
+      return;
+    }
+    _canSave = _canDiscard = _canFormat = _canToggleWordWrap = false;
     // O clear típico vem do dispose() do FileViewer, no meio do finalizeTree
     // (árvore travada) — notificar síncrono aí crasha com "widget tree was
     // locked". Fora de idle, adia pro fim do frame.

@@ -383,6 +383,9 @@ class Translations$core$menu$en {
 	/// en: 'New Terminal'
 	String get newTerminal => 'New Terminal';
 
+	/// en: 'New File'
+	String get newFile => 'New File';
+
 	/// en: 'Open Workspace'
 	String get openWorkspace => 'Open Workspace';
 
@@ -442,6 +445,9 @@ class Translations$core$menu$en {
 
 	/// en: 'Next Workspace'
 	String get nextWorkspace => 'Next Workspace';
+
+	/// en: 'Toggle Word Wrap'
+	String get toggleWordWrap => 'Toggle Word Wrap';
 
 	/// en: 'Zoom In'
 	String get zoomIn => 'Zoom In';
@@ -1291,6 +1297,15 @@ class Translations$cockpit$fileViewer$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+
+	/// en: 'Save as'
+	String get saveAs => 'Save as';
+
+	/// en: 'Could not save'
+	String get couldNotSave => 'Could not save';
+
+	/// en: 'untitled.txt'
+	String get untitledDefaultName => 'untitled.txt';
 
 	/// en: 'Can't open this file.'
 	String get cantOpen => 'Can\'t open this file.';
@@ -2810,6 +2825,9 @@ class Translations$settings$language$en {
 
 	/// en: 'Español'
 	String get spanish => 'Español';
+
+	/// en: '简体中文'
+	String get simplifiedChinese => '简体中文';
 }
 
 // Path: settings.page
@@ -3407,6 +3425,14 @@ class Translations$settings$page$general$en {
 	/// en: 'Check again'
 	String get neovimRefresh => 'Check again';
 
+	/// en: 'Word wrap'
+	String get wordWrapTitle => 'Word wrap';
+
+	/// en: 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.'
+	String get wordWrapDesc => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.';
+
+	late final Translations$settings$page$general$wordWrap$en wordWrap = Translations$settings$page$general$wordWrap$en.internal(_root);
+
 	/// en: 'Show Cockpit terminal'
 	String get showCockpitTitle => 'Show Cockpit terminal';
 
@@ -3956,6 +3982,24 @@ class Translations$settings$page$automations$en {
 	String get recommendedSuffix => 'Recommended';
 }
 
+// Path: settings.page.general.wordWrap
+class Translations$settings$page$general$wordWrap$en {
+	Translations$settings$page$general$wordWrap$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Markdown and text'
+	String get byLanguage => 'Markdown and text';
+
+	/// en: 'All files'
+	String get always => 'All files';
+
+	/// en: 'Off'
+	String get off => 'Off';
+}
+
 // Path: settings.page.general.updateFrequency
 class Translations$settings$page$general$updateFrequency$en {
 	Translations$settings$page$general$updateFrequency$en.internal(this._root);
@@ -4015,6 +4059,7 @@ extension on Translations {
 			'core.menu.checkForUpdates' => 'Check for Updates…',
 			'core.menu.file' => 'File',
 			'core.menu.newTerminal' => 'New Terminal',
+			'core.menu.newFile' => 'New File',
 			'core.menu.openWorkspace' => 'Open Workspace',
 			'core.menu.goToFile' => 'Go to File…',
 			'core.menu.save' => 'Save',
@@ -4035,6 +4080,7 @@ extension on Translations {
 			'core.menu.lastTab' => 'Last Tab',
 			'core.menu.previousWorkspace' => 'Previous Workspace',
 			'core.menu.nextWorkspace' => 'Next Workspace',
+			'core.menu.toggleWordWrap' => 'Toggle Word Wrap',
 			'core.menu.zoomIn' => 'Zoom In',
 			'core.menu.zoomOut' => 'Zoom Out',
 			'core.menu.actualSize' => 'Actual Size',
@@ -4310,6 +4356,9 @@ extension on Translations {
 			'cockpit.fileTreePanel.importAction' => 'Copy',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Could not copy',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Open in ${harness}',
+			'cockpit.fileViewer.saveAs' => 'Save as',
+			'cockpit.fileViewer.couldNotSave' => 'Could not save',
+			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
 			'cockpit.fileViewer.cantOpen' => 'Can\'t open this file.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'Could not load the image.',
 			'cockpit.fileViewer.preview' => 'Preview',
@@ -4492,13 +4541,13 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -4774,6 +4823,7 @@ extension on Translations {
 			'settings.language.english' => 'English',
 			'settings.language.portugueseBr' => 'Português (BR)',
 			'settings.language.spanish' => 'Español',
+			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
 			'settings.page.nav.general' => 'General',
@@ -4791,6 +4841,11 @@ extension on Translations {
 			'settings.page.general.neovimChecking' => 'Looking for Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim was not found in your shell PATH.',
 			'settings.page.general.neovimRefresh' => 'Check again',
+			'settings.page.general.wordWrapTitle' => 'Word wrap',
+			'settings.page.general.wordWrapDesc' => 'Wrap long lines at the pane width. Alt+Z (⌥Z on macOS) toggles it from the editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown and text',
+			'settings.page.general.wordWrap.always' => 'All files',
+			'settings.page.general.wordWrap.off' => 'Off',
 			'settings.page.general.showCockpitTitle' => 'Show Cockpit terminal',
 			'settings.page.general.showCockpitDesc' => 'Keep a pathless, terminal-only workspace pinned at the top of the rail. Turning it off closes its terminals.',
 			'settings.page.general.launchAtStartupTitle' => 'Launch at login',
@@ -5000,6 +5055,8 @@ extension on Translations {
 			'fileOperation.error.noWorkspace' => 'No workspace selected.',
 			'fileOperation.error.cannotMoveIntoItself' => 'Cannot move a folder into itself.',
 			'fileOperation.error.clipboardEmpty' => 'Clipboard is empty.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.notScratchTab' => 'This tab is not a scratch file.',
 			'fileOperation.error.writeFailed' => 'Could not write the file.',
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
@@ -5011,8 +5068,6 @@ extension on Translations {
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',
 			'fileOperation.error.remoteDropUnsupported' => 'Dropping files into a remote workspace is not supported yet.',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.io' => 'Could not read or write the theme file.',
 			'theme.error.ioDetail' => ({required Object detail}) => 'Could not read or write the theme file: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',

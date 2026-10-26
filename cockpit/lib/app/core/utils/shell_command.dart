@@ -173,7 +173,11 @@ Future<ShellCommandResult> runShellCommand(
       includeParentEnvironment: true,
     );
   } on ProcessException catch (e) {
-    DiagnosticsLog.instance.warn('spawn', 'shell spawn failed: $exe', error: e);
+    DiagnosticsLog.instance.warn(
+      'spawn',
+      'shell spawn failed: $exe (errno ${e.errorCode})',
+      error: e,
+    );
     PerformanceDiagnostics.instance.record(PerfMetric.spawn, {
       PerfField.durationUs: spawnClock.elapsedMicroseconds,
       PerfField.failed: 1,

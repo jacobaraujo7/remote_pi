@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Handler de popover do app — substitui o `PopoverOverlayHandler` do shadcn em
@@ -106,6 +108,26 @@ class AppPopoverOverlayHandler extends OverlayHandler {
     final ValueNotifier<bool> isClosed = ValueNotifier(false);
     OverlayEntry? barrierEntry;
     late OverlayEntry overlayEntry;
+    Timer? closeDeadline;
+    var closeFinished = false;
+    void finishClose() {
+      if (closeFinished) return;
+      closeFinished = true;
+      closeDeadline?.cancel();
+      popoverEntry.remove();
+      popoverEntry.dispose();
+      if (!animationCompleter.isCompleted) animationCompleter.complete();
+    }
+
+    isClosed.addListener(() {
+      if (!isClosed.value || closeFinished) return;
+      // A muted ticker must not leave an invisible modal barrier mounted.
+      // Allow the normal fade to finish, then clean up independently of frames.
+      closeDeadline ??= Timer(
+        (showDuration ?? kDefaultDuration) + const Duration(milliseconds: 50),
+        finishClose,
+      );
+    });
     if (modal) {
       if (consumeOutsideTaps) {
         barrierEntry = OverlayEntry(
@@ -151,9 +173,7 @@ class AppPopoverOverlayHandler extends OverlayHandler {
                       : (dismissDuration ?? const Duration(milliseconds: 100)),
                   onEnd: (value) {
                     if (value == 0.0 && isClosed.value) {
-                      popoverEntry.remove();
-                      popoverEntry.dispose();
-                      animationCompleter.complete();
+                      finishClose();
                     }
                   },
                   builder: (innerContext, animation) {
@@ -193,8 +213,8 @@ class AppPopoverOverlayHandler extends OverlayHandler {
                         return animationCompleter.future;
                       },
                       onImmediateClose: () {
-                        popoverEntry.remove();
-                        completer.complete();
+                        finishClose();
+                        if (!completer.isCompleted) completer.complete();
                       },
                       onCloseWithResult: (value) {
                         if (isClosed.value) return Future.value();

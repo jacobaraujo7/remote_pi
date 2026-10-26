@@ -24,6 +24,38 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.20] - 2026-10-25
+
+### Changed
+- Terminal engine (flterm/libghostty) updated: compression scheduling no longer
+  busy-spins, IME geometry is pushed to the system only while a composition is
+  active (lower CPU while typing), and Ctrl+Tab / Ctrl+Shift+Tab are no longer
+  sent to the shell, leaving them free for app shortcuts.
+
+## [2.1.19] - 2026-10-25
+
+### Added
+- New Cockpit brand: a pi built from three split panes, with the Remote Pi
+  blue dot as the status indicator. New app icon on macOS, Windows, Linux,
+  iOS and Android, plus the in-app logo. Sources live in
+  `assets/branding/` (SVG, PNG and a README with the grid and colors).
+- Soft wrap in the file editor (View > Toggle Word Wrap, Alt+Z / Option+Z).
+  On by default for Markdown and plain text; code files keep the current
+  layout. A Settings > General > Word wrap selector picks between
+  "Markdown and text", "All files" and "Off".
+- Simplified Chinese (zh) locale, available in Settings > Language.
+  Maintained on a best-effort basis: strings that are not translated yet
+  fall back to English.
+
+### Fixed
+- macOS app icon now ships in Apple's icon grid shape, so Cockpit no
+  longer shows in the Dock as a larger full-bleed square.
+- Windows: the app could look frozen while agents kept running. Closed
+  popovers left an invisible modal barrier mounted when animation ticks
+  stopped (minimized or offstage window), swallowing clicks on project
+  and terminal tabs. The barrier is now removed on a deadline independent
+  of animation frames.
+
 ## [2.1.18] - 2026-10-19
 
 **Hover finally works inside web views, plus find-in-terminal.** Previews,

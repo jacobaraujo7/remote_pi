@@ -274,6 +274,7 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get checkForUpdates => 'Buscar Actualizaciones…';
 	@override String get file => 'Archivo';
 	@override String get newTerminal => 'Nueva Terminal';
+	@override String get newFile => 'Nuevo Archivo';
 	@override String get openWorkspace => 'Abrir Workspace';
 	@override String get goToFile => 'Ir a Archivo…';
 	@override String get save => 'Guardar';
@@ -294,6 +295,7 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get lastTab => 'Última Pestaña';
 	@override String get previousWorkspace => 'Workspace Anterior';
 	@override String get nextWorkspace => 'Siguiente Workspace';
+	@override String get toggleWordWrap => 'Alternar Ajuste de Línea';
 	@override String get zoomIn => 'Acercar';
 	@override String get zoomOut => 'Alejar';
 	@override String get actualSize => 'Tamaño Real';
@@ -639,6 +641,9 @@ class _Translations$cockpit$fileViewer$es extends Translations$cockpit$fileViewe
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get saveAs => 'Guardar como';
+	@override String get couldNotSave => 'No se pudo guardar';
+	@override String get untitledDefaultName => 'sin-titulo.txt';
 	@override String get cantOpen => 'No se puede abrir este archivo.';
 	@override String get couldNotLoadImage => 'No se pudo cargar la imagen.';
 	@override String get preview => 'Vista previa';
@@ -1330,6 +1335,7 @@ class _Translations$settings$language$es extends Translations$settings$language$
 	@override String get english => 'Inglés';
 	@override String get portugueseBr => 'Portugués (BR)';
 	@override String get spanish => 'Español';
+	@override String get simplifiedChinese => '简体中文';
 }
 
 // Path: settings.page
@@ -1656,6 +1662,9 @@ class _Translations$settings$page$general$es extends Translations$settings$page$
 	@override String get neovimChecking => 'Buscando Neovim…';
 	@override String get neovimNotFound => 'Neovim no se encontró en la PATH de tu shell.';
 	@override String get neovimRefresh => 'Comprobar de nuevo';
+	@override String get wordWrapTitle => 'Ajuste de línea';
+	@override String get wordWrapDesc => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.';
+	@override late final _Translations$settings$page$general$wordWrap$es wordWrap = _Translations$settings$page$general$wordWrap$es._(_root);
 	@override String get showCockpitTitle => 'Mostrar terminal de Cockpit';
 	@override String get showCockpitDesc => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.';
 	@override String get launchAtStartupTitle => 'Iniciar al arrancar';
@@ -1889,6 +1898,18 @@ class _Translations$settings$page$automations$es extends Translations$settings$p
 	@override String get recommendedSuffix => 'Recomendado';
 }
 
+// Path: settings.page.general.wordWrap
+class _Translations$settings$page$general$wordWrap$es extends Translations$settings$page$general$wordWrap$en {
+	_Translations$settings$page$general$wordWrap$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get byLanguage => 'Markdown y texto';
+	@override String get always => 'Todos los archivos';
+	@override String get off => 'Desactivado';
+}
+
 // Path: settings.page.general.updateFrequency
 class _Translations$settings$page$general$updateFrequency$es extends Translations$settings$page$general$updateFrequency$en {
 	_Translations$settings$page$general$updateFrequency$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -1940,6 +1961,7 @@ extension on TranslationsEs {
 			'core.menu.checkForUpdates' => 'Buscar Actualizaciones…',
 			'core.menu.file' => 'Archivo',
 			'core.menu.newTerminal' => 'Nueva Terminal',
+			'core.menu.newFile' => 'Nuevo Archivo',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
 			'core.menu.goToFile' => 'Ir a Archivo…',
 			'core.menu.save' => 'Guardar',
@@ -1960,6 +1982,7 @@ extension on TranslationsEs {
 			'core.menu.lastTab' => 'Última Pestaña',
 			'core.menu.previousWorkspace' => 'Workspace Anterior',
 			'core.menu.nextWorkspace' => 'Siguiente Workspace',
+			'core.menu.toggleWordWrap' => 'Alternar Ajuste de Línea',
 			'core.menu.zoomIn' => 'Acercar',
 			'core.menu.zoomOut' => 'Alejar',
 			'core.menu.actualSize' => 'Tamaño Real',
@@ -2235,6 +2258,9 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.importAction' => 'Copiar',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'No se pudo copiar',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Abrir en ${harness}',
+			'cockpit.fileViewer.saveAs' => 'Guardar como',
+			'cockpit.fileViewer.couldNotSave' => 'No se pudo guardar',
+			'cockpit.fileViewer.untitledDefaultName' => 'sin-titulo.txt',
 			'cockpit.fileViewer.cantOpen' => 'No se puede abrir este archivo.',
 			'cockpit.fileViewer.couldNotLoadImage' => 'No se pudo cargar la imagen.',
 			'cockpit.fileViewer.preview' => 'Vista previa',
@@ -2417,13 +2443,13 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
@@ -2699,6 +2725,7 @@ extension on TranslationsEs {
 			'settings.language.english' => 'Inglés',
 			'settings.language.portugueseBr' => 'Portugués (BR)',
 			'settings.language.spanish' => 'Español',
+			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Atrás',
 			'settings.page.header.title' => 'Configuración',
 			'settings.page.nav.general' => 'General',
@@ -2716,6 +2743,11 @@ extension on TranslationsEs {
 			'settings.page.general.neovimChecking' => 'Buscando Neovim…',
 			'settings.page.general.neovimNotFound' => 'Neovim no se encontró en la PATH de tu shell.',
 			'settings.page.general.neovimRefresh' => 'Comprobar de nuevo',
+			'settings.page.general.wordWrapTitle' => 'Ajuste de línea',
+			'settings.page.general.wordWrapDesc' => 'Ajusta las líneas largas al ancho del panel. Alt+Z (⌥Z en macOS) lo alterna desde el editor.',
+			'settings.page.general.wordWrap.byLanguage' => 'Markdown y texto',
+			'settings.page.general.wordWrap.always' => 'Todos los archivos',
+			'settings.page.general.wordWrap.off' => 'Desactivado',
 			'settings.page.general.showCockpitTitle' => 'Mostrar terminal de Cockpit',
 			'settings.page.general.showCockpitDesc' => 'Mantiene un workspace sin carpeta, solo de terminal, fijado en la parte superior de la barra lateral. Desactivarlo cierra sus terminales.',
 			'settings.page.general.launchAtStartupTitle' => 'Iniciar al arrancar',
@@ -2925,6 +2957,8 @@ extension on TranslationsEs {
 			'fileOperation.error.noWorkspace' => 'Ningún workspace seleccionado.',
 			'fileOperation.error.cannotMoveIntoItself' => 'No se puede mover una carpeta dentro de sí misma.',
 			'fileOperation.error.clipboardEmpty' => 'El portapapeles está vacío.',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.notScratchTab' => 'Esta pestaña no es un archivo temporal.',
 			'fileOperation.error.writeFailed' => 'No se pudo escribir el archivo.',
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formato vacío.',
@@ -2936,8 +2970,6 @@ extension on TranslationsEs {
 			'fileOperation.error.nameHasSlash' => 'El nombre no puede contener “/”.',
 			'fileOperation.error.invalidName' => 'Nombre inválido.',
 			'fileOperation.error.remoteDropUnsupported' => 'Soltar archivos en un workspace remoto todavía no está soportado.',
-			_ => null,
-		} ?? switch (path) {
 			'theme.error.io' => 'No se pudo leer o escribir el archivo del tema.',
 			'theme.error.ioDetail' => ({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este archivo no es JSON válido: ${detail}',
