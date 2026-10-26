@@ -11,6 +11,8 @@
 #include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/generated_plugin_registrant.h"
 
+void RegisterDocumentPlugins(flutter::PluginRegistry* registry);
+
 namespace {
 
 std::wstring Utf16FromUtf8(const std::string& utf8) {
@@ -119,11 +121,11 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   // Janelas de documento (desktop_multi_window): cada uma é um engine novo e
-  // nasce sem plugin nenhum — registra os gerados + o canal de título/tamanho.
+  // nasce sem plugins — registra apenas os permitidos + o canal de título/tamanho.
   DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
     auto* view_controller =
         reinterpret_cast<flutter::FlutterViewController*>(controller);
-    RegisterPlugins(view_controller->engine());
+    RegisterDocumentPlugins(view_controller->engine());
     RegisterDocumentWindowChannel(view_controller);
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
