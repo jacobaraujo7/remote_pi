@@ -46,6 +46,7 @@ class TranslationsEs extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$automation$es automation = _Translations$automation$es._(_root);
 	@override late final _Translations$fileOperation$es fileOperation = _Translations$fileOperation$es._(_root);
 	@override late final _Translations$theme$es theme = _Translations$theme$es._(_root);
+	@override late final _Translations$terminalAttachment$es terminalAttachment = _Translations$terminalAttachment$es._(_root);
 }
 
 // Path: core
@@ -181,6 +182,20 @@ class _Translations$theme$es extends Translations$theme$en {
 
 	// Translations
 	@override late final _Translations$theme$error$es error = _Translations$theme$error$es._(_root);
+}
+
+// Path: terminalAttachment
+class _Translations$terminalAttachment$es extends Translations$terminalAttachment$en {
+	_Translations$terminalAttachment$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String importing({required Object completed, required Object total}) => 'Copiando adjuntos: ${completed}/${total}';
+	@override String get nativeImage => 'Pegado de imagen solicitado al agente.';
+	@override String get referenced => 'Referencias locales insertadas.';
+	@override String get remoteUnavailable => 'Los archivos e imágenes aún no se admiten en terminales remotos. Pegue texto o transfiera el archivo al host.';
+	@override String failed({required Object detail}) => 'No se pudieron insertar algunos adjuntos: ${detail}';
 }
 
 // Path: core.bootstrapError
@@ -2966,6 +2981,11 @@ extension on TranslationsEs {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
 			'theme.error.noVariants' => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando adjuntos: ${completed}/${total}',
+			'terminalAttachment.nativeImage' => 'Pegado de imagen solicitado al agente.',
+			'terminalAttachment.referenced' => 'Referencias locales insertadas.',
+			'terminalAttachment.remoteUnavailable' => 'Los archivos e imágenes aún no se admiten en terminales remotos. Pegue texto o transfiera el archivo al host.',
+			'terminalAttachment.failed' => ({required Object detail}) => 'No se pudieron insertar algunos adjuntos: ${detail}',
 			_ => null,
 		};
 	}

@@ -1225,5 +1225,12 @@
       "unknownBase": "Tema base \"${value}\" desconocido en \"extends\".",
       "noVariants": "El tema no declara ningún variant. Añade \"dark\", \"light\" o ambos en \"variants\"."
     }
-  }
+  },
+  "terminalAttachment": {
+    "importing": "Copiando adjuntos: ${completed}/${total}",
+    "nativeImage": "Pegado de imagen solicitado al agente.",
+    "referenced": "Referencias locales insertadas.",
+    "remoteUnavailable": "Los archivos e imágenes aún no se admiten en terminales remotos. Pegue texto o transfiera el archivo al host.",
+    "failed": "No se pudieron insertar algunos adjuntos: ${detail}"
+}
 }

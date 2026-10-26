@@ -52,7 +52,13 @@ class AdaptiveTerminalPane extends StatelessWidget {
       textStyle: textStyle,
       theme: theme,
       hardwareKeyboardOnly: readOnly,
-      onKeyEvent: onKeyEvent ?? (_) => KeyEventResult.ignored,
+      onKeyEvent: (event) {
+        if (!readOnly && onPaste != null && isTerminalPasteEvent(event)) {
+          onPaste!();
+          return KeyEventResult.handled;
+        }
+        return onKeyEvent?.call(event) ?? KeyEventResult.ignored;
+      },
       onOpenFile: onOpenFile,
     ),
     final GhosttyTerminalController value => _GhosttyPane(
@@ -317,3 +323,14 @@ ghost.TerminalTheme _ghosttyTheme(
   fontSize: style.fontSize * uiScale,
   fontWeight: fontWeight,
 );
+
+/// The xterm callback and Ghostty shortcut map accept the same gestures.
+bool isTerminalPasteEvent(KeyEvent event) {
+  if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) {
+    return false;
+  }
+  final keyboard = HardwareKeyboard.instance;
+  return !keyboard.isAltPressed &&
+      !keyboard.isShiftPressed &&
+      (keyboard.isControlPressed != keyboard.isMetaPressed);
+}

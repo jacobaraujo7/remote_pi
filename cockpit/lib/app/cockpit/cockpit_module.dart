@@ -1,6 +1,9 @@
 import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/data/terminal/local_terminal_attachments.dart';
+import 'package:cockpit/app/cockpit/data/terminal/pasteboard_terminal_clipboard.dart';
+import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_connection_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/db_driver.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/nosql_runner.dart';
@@ -226,6 +229,13 @@ Future<Module> buildCockpitModule({
         // resolve o grafo — ver a regra de injeção no CLAUDE.md.
         ..addLazySingleton<TurnStatusSource>(
           (SidecarTerminalConnector sidecar) => sidecar,
+        )
+        ..addInstance<TerminalAttachmentService>(
+          const TerminalAttachmentService(
+            PasteboardTerminalClipboard(),
+            LocalTerminalAttachmentStore(),
+            LocalTerminalPathConverter(),
+          ),
         )
         ..addLazySingleton<TerminalGatewayFactory>(
           SidecarTerminalGatewayFactory.new,

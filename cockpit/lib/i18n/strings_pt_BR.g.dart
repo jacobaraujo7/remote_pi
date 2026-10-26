@@ -46,6 +46,7 @@ class TranslationsPtBr extends Translations with BaseTranslations<AppLocale, Tra
 	@override late final _Translations$automation$pt_BR automation = _Translations$automation$pt_BR._(_root);
 	@override late final _Translations$fileOperation$pt_BR fileOperation = _Translations$fileOperation$pt_BR._(_root);
 	@override late final _Translations$theme$pt_BR theme = _Translations$theme$pt_BR._(_root);
+	@override late final _Translations$terminalAttachment$pt_BR terminalAttachment = _Translations$terminalAttachment$pt_BR._(_root);
 }
 
 // Path: core
@@ -181,6 +182,20 @@ class _Translations$theme$pt_BR extends Translations$theme$en {
 
 	// Translations
 	@override late final _Translations$theme$error$pt_BR error = _Translations$theme$error$pt_BR._(_root);
+}
+
+// Path: terminalAttachment
+class _Translations$terminalAttachment$pt_BR extends Translations$terminalAttachment$en {
+	_Translations$terminalAttachment$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String importing({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}';
+	@override String get nativeImage => 'Colagem da imagem solicitada ao agente.';
+	@override String get referenced => 'Referências locais inseridas.';
+	@override String get remoteUnavailable => 'Arquivos e imagens ainda não são aceitos em terminais remotos. Cole texto ou transfira o arquivo para o host.';
+	@override String failed({required Object detail}) => 'Não foi possível inserir alguns anexos: ${detail}';
 }
 
 // Path: core.bootstrapError
@@ -2966,6 +2981,11 @@ extension on TranslationsPtBr {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}',
+			'terminalAttachment.nativeImage' => 'Colagem da imagem solicitada ao agente.',
+			'terminalAttachment.referenced' => 'Referências locais inseridas.',
+			'terminalAttachment.remoteUnavailable' => 'Arquivos e imagens ainda não são aceitos em terminais remotos. Cole texto ou transfira o arquivo para o host.',
+			'terminalAttachment.failed' => ({required Object detail}) => 'Não foi possível inserir alguns anexos: ${detail}',
 			_ => null,
 		};
 	}

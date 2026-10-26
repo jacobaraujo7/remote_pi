@@ -1,3 +1,5 @@
+import 'package:desktop_drop/desktop_drop.dart';
+import 'terminal_attachment_drop_target.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -48,13 +50,8 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/gestures.dart'
-    show
-        HitTestResult,
-        PointerScrollEvent,
-        PointerDeviceKind,
-        kPrimaryMouseButton;
+    show PointerScrollEvent, PointerDeviceKind, kPrimaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:material_symbols_icons/symbols.dart';
@@ -1626,28 +1623,6 @@ class _PaneBodyState extends State<_PaneBody> {
     super.dispose();
   }
 
-  /// Intercepta o atalho de **colar** no terminal pra suportar imagem.
-  ///
-  /// O `TerminalView` só cola texto; a imagem do clipboard nunca chegava ao
-  /// harness. No Cmd+V (macOS) / Ctrl+V (Linux/Windows) delegamos pro
-  /// [TerminalSession.pasteFromClipboard], que manda `\x16` quando há imagem.
-  /// No macOS o Ctrl+V cru é engolido pelo IME (vira `pageDown`), então lá o
-  /// atalho confiável de colar é o Cmd+V — por isso checamos a tecla certa por
-  /// plataforma. As demais teclas seguem o fluxo normal do terminal (`ignored`).
-  KeyEventResult _onTerminalKey(KeyEvent event, TerminalSession session) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.keyV) {
-      return KeyEventResult.ignored;
-    }
-    // Cmd+V no macOS (atalho confiável; o Ctrl+V cru é engolido pelo IME) e
-    // Ctrl+V no resto — mas também aceitamos Ctrl+V no macOS caso ele chegue.
-    final keys = HardwareKeyboard.instance;
-    final isPaste =
-        (Platform.isMacOS && keys.isMetaPressed) || keys.isControlPressed;
-    if (!isPaste) return KeyEventResult.ignored;
-    session.pasteFromClipboard();
-    return KeyEventResult.handled;
-  }
-
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -1883,8 +1858,9 @@ class _PaneBodyState extends State<_PaneBody> {
           ? TerminalStyle(fontSize: termSize)
           : TerminalStyle(fontSize: termSize, fontFamily: termFont);
       return _grantsKeyboardOnPointerDown(
-        _TerminalDropTarget(
+        TerminalAttachmentDropTarget(
           session: item,
+          active: widget.active,
           onDropped: _onFileDropped,
           child: ColoredBox(
             color: context.colors.panel,
@@ -1894,9 +1870,6 @@ class _PaneBodyState extends State<_PaneBody> {
                 terminal: item.terminal,
                 active: widget.active,
                 focusNode: _terminalFocus,
-                // Intercepta o atalho de colar pra suportar IMAGEM do clipboard
-                // (o paste padrão do xterm só cola texto). Ver `_onTerminalKey`.
-                onKeyEvent: (event) => _onTerminalKey(event, item),
                 onPaste: item.pasteFromClipboard,
                 // Cmd+clique num caminho de arquivo do buffer → abre no
                 // FileViewer, resolvido contra o cwd vivo do shell (OSC 7).
@@ -1995,113 +1968,6 @@ class _OpenTabDropTargetState extends State<_OpenTabDropTarget> {
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: context.colors.accentSoft,
-                    border: Border.all(color: context.colors.accent, width: 2),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// Drop nativo de arquivos/pastas no terminal
-// ============================================================================
-
-/// Envolve o terminal e aceita **drops nativos do SO** (Finder/Explorer): ao
-/// soltar arquivos ou pastas, injeta os **caminhos absolutos** no PTY como se
-/// tivessem sido digitados (caminhos com espaço/aspas são shell-quoted, e vários
-/// itens vêm separados por espaço). Mostra uma borda accent enquanto o item
-/// paira sobre a área — sinal de que vai aceitar o drop.
-class _TerminalDropTarget extends StatefulWidget {
-  const _TerminalDropTarget({
-    required this.session,
-    required this.child,
-    this.onDropped,
-  });
-
-  /// Chamado depois de injetar os caminhos: o dono do foco devolve o teclado
-  /// ao terminal (o drop nativo não gera pointer-down nenhum no Flutter).
-  final VoidCallback? onDropped;
-
-  final TerminalSession session;
-  final Widget child;
-
-  @override
-  State<_TerminalDropTarget> createState() => _TerminalDropTargetState();
-}
-
-class _TerminalDropTargetState extends State<_TerminalDropTarget> {
-  bool _dragOver = false;
-
-  /// Cota um caminho pro shell: sem caracteres "perigosos" vai cru; senão é
-  /// envolto em aspas simples (escapando aspas simples internas com `'\''`).
-  static String _shellQuote(String path) {
-    final safe = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
-    if (safe.hasMatch(path)) return path;
-    return "'${path.replaceAll("'", r"'\''")}'";
-  }
-
-  void _onDrop(List<XFile> files) {
-    final paths = files
-        .map((f) => f.path)
-        .where((p) => p.isNotEmpty)
-        .map(_shellQuote)
-        .toList();
-    if (paths.isEmpty) return;
-    // Espaço final pra separar de um próximo argumento; o usuário pode apagar.
-    widget.session.insertText('${paths.join(' ')} ');
-    widget.onDropped?.call();
-  }
-
-  /// Este DropTarget é o que está de fato sob o ponto do drop? Faz um hit-test
-  /// da posição global na árvore de render: `IndexedStack` só testa o filho
-  /// visível, então abas/workspaces empilhados atrás (mesmo rect) não entram no
-  /// caminho — desempata o broadcast do `desktop_drop` pro alvo certo.
-  bool _isHitTarget(Offset globalPosition) {
-    final ro = context.findRenderObject();
-    if (ro == null) return false;
-    final result = HitTestResult();
-    WidgetsBinding.instance.hitTestInView(
-      result,
-      globalPosition,
-      View.of(context).viewId,
-    );
-    return result.path.any((entry) => identical(entry.target, ro));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return DropTarget(
-      onDragEntered: (_) {
-        if (!_dragOver) setState(() => _dragOver = true);
-      },
-      onDragExited: (_) {
-        if (_dragOver) setState(() => _dragOver = false);
-      },
-      onDragDone: (detail) {
-        if (_dragOver) setState(() => _dragOver = false);
-        // `desktop_drop` emite `onDragDone` em TODO DropTarget cujo box contém
-        // o ponto do drop. Como as abas de um pane (e os workspaces) ficam num
-        // `IndexedStack` — todas montadas no MESMO rect, só a ativa pintada —, o
-        // caminho caía em todos os terminais empilhados. Gate por `_dragOver`
-        // (hover) não serve: o enter/exit também dispara em todas as abas
-        // empilhadas e é resetado no drop. Um `IndexedStack` só faz hit-test do
-        // filho VISÍVEL, então testamos se ESTE alvo está no caminho de hit do
-        // ponto — só a aba/worksapce realmente sob o cursor passa.
-        if (!_isHitTarget(detail.globalPosition)) return;
-        _onDrop(detail.files);
-      },
-      child: Stack(
-        children: [
-          widget.child,
-          if (_dragOver)
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
                     border: Border.all(color: context.colors.accent, width: 2),
                   ),
                 ),

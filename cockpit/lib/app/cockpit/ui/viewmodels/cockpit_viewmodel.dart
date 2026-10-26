@@ -11,6 +11,7 @@ import 'dart:io'
         Platform;
 import 'dart:math' show max;
 
+import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
@@ -146,6 +147,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     this._projects,
     this._fileSystem,
     this._terminalFactory,
+    this._terminalAttachments,
     this._sidecar,
     this._terminalProfiles,
     this._fileReader,
@@ -292,6 +294,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   final NeovimGateway _neovim;
   final FileSystemReader _fileSystem;
   final TerminalGatewayFactory _terminalFactory;
+  final TerminalAttachmentService _terminalAttachments;
 
   /// Fonte de turn-status das PTYs que nascem FORA do app (hoje: o sidecar
   /// local). O spawn continua indo pelo [_terminalFactory].
@@ -5831,6 +5834,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       };
     }
     final t = TerminalSession(
+      attachmentService: _terminalAttachments,
+      attachmentProjectRoot: _projectById(projectId)?.path ?? '',
+      attachmentsRemote: remote,
       id: id,
       projectId: projectId,
       workingDirectory: cwd,

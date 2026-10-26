@@ -1225,5 +1225,12 @@
       "unknownBase": "Unknown base theme \"${value}\" in \"extends\".",
       "noVariants": "The theme declares no variant. Add \"dark\", \"light\" or both under \"variants\"."
     }
-  }
+  },
+  "terminalAttachment": {
+    "importing": "Copying attachments: ${completed}/${total}",
+    "nativeImage": "Image paste requested from the agent.",
+    "referenced": "Local references inserted.",
+    "remoteUnavailable": "Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.",
+    "failed": "Some attachments could not be inserted: ${detail}"
+}
 }
