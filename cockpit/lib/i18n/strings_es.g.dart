@@ -493,6 +493,7 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
 	@override String get rename => 'Renombrar';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar con Neovim';
 	@override String get openAsBoard => 'Abrir como tablero';
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
@@ -2121,6 +2122,7 @@ extension on TranslationsEs {
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
 			'cockpit.paneView.rename' => 'Renombrar',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar con Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como tablero',
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2435,9 +2437,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit nunca se ha conectado a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confía solo si esta fingerprint coincide con el servidor. Puedes verificarla en el servidor con:',
@@ -2949,9 +2951,9 @@ extension on TranslationsEs {
 			'fileOperation.error.formatterMissingPlaceholder' => 'El comando de formato debe incluir el marcador %FILE%.',
 			'fileOperation.error.formatterTimeout' => 'El formateador agotó el tiempo de espera.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'El formateador terminó con el código ${code}.',
-			'fileOperation.error.formatterFailed' => 'No se pudo ejecutar el formateador.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterFailed' => 'No se pudo ejecutar el formateador.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'El nombre no puede contener “/”.',
 			'fileOperation.error.invalidName' => 'Nombre inválido.',

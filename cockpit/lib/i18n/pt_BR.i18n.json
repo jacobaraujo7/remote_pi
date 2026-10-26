@@ -233,6 +233,7 @@
       "openInNewWindow": "Abrir em nova janela",
       "rename": "Renomear",
       "openAsMarkdown": "Abrir como markdown",
+      "editInNeovim": "Editar com Neovim",
       "openAsBoard": "Abrir como quadro",
       "resetTitle": "Redefinir título",
       "copyId": "Copiar Id",

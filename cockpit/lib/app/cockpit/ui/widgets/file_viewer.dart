@@ -18,6 +18,7 @@ import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_text_edit.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_path_breadcrumb.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/preview_edit_button.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
@@ -530,6 +531,14 @@ class _FileViewerState extends State<FileViewer> {
   }
 
   void _toggleEditing() {
+    final host = documentHostOf(context);
+    if (!_editing &&
+        _hasPreview &&
+        host is CockpitViewModel &&
+        host.canEditPreviewInNeovim(widget.session.projectId)) {
+      unawaited(_editWithNeovim(host));
+      return;
+    }
     setState(() => _editing = !_editing);
     // Ao iniciar a edição, transforma preview em aba normal.
     if (_editing) {
@@ -537,6 +546,14 @@ class _FileViewerState extends State<FileViewer> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _focus.requestFocus();
       });
+    }
+  }
+
+  Future<void> _editWithNeovim(CockpitViewModel vm) async {
+    final opened = await vm.editPreviewInNeovim(widget.session.path);
+    if (!opened && mounted) {
+      setState(() => _editing = true);
+      widget.session.pin();
     }
   }
 
@@ -1018,6 +1035,11 @@ class _FileViewerState extends State<FileViewer> {
             hasPreview: _hasPreview,
             editing: editingNow,
             previewing: _hasPreview && !_editing,
+            editInNeovim:
+                documentHostOf(context) is CockpitViewModel &&
+                (documentHostOf(context) as CockpitViewModel)
+                    .canEditPreviewInNeovim(widget.session.projectId) &&
+                !editingNow,
             dirty: _dirty,
             saving: _saving,
             onToggle: _toggleEditing,
@@ -1146,6 +1168,7 @@ class _Toolbar extends StatelessWidget {
     required this.hasPreview,
     required this.editing,
     required this.previewing,
+    required this.editInNeovim,
     required this.dirty,
     required this.saving,
     required this.onToggle,
@@ -1163,6 +1186,7 @@ class _Toolbar extends StatelessWidget {
 
   /// Está mostrando o render (só faz sentido com [hasPreview]).
   final bool previewing;
+  final bool editInNeovim;
   final bool dirty;
   final bool saving;
   final VoidCallback onToggle;
@@ -1210,7 +1234,13 @@ class _Toolbar extends StatelessWidget {
                 ),
               ),
             ),
-          if (hasPreview) ...[
+          if (hasPreview && editInNeovim && previewing) ...[
+            const SizedBox(width: 4),
+            PreviewEditButton(
+              onPressed: onToggle,
+              label: context.t.cockpit.paneView.editInNeovim,
+            ),
+          ] else if (hasPreview) ...[
             const SizedBox(width: 4),
             _Segmented(
               leftLabel: context.t.cockpit.fileViewer.preview,

@@ -890,6 +890,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -4205,6 +4208,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -4519,9 +4523,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
@@ -5033,9 +5037,9 @@ extension on Translations {
 			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
-			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',

@@ -582,8 +582,37 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   late final FileEditorFacade _fileEditorFacade;
 
-  void setFileEditorEngine(FileEditorEngine engine) =>
-      _fileEditorFacade.engine = engine;
+  void setFileEditorEngine(FileEditorEngine engine) {
+    _fileEditorFacade
+      ..engine = engine
+      ..inlinePreviewAvailable = BrowserCapability.resolve().isInline;
+  }
+
+  bool get usesNeovimFileEditor =>
+      _fileEditorFacade.engine == FileEditorEngine.neovim;
+
+  bool canEditPreviewInNeovim(String projectId) =>
+      !_isRemoteWorkspace(projectId) &&
+      (usesNeovimFileEditor ||
+          _sessions.values.any(
+            (session) =>
+                session is NeovimSession && session.projectId == projectId,
+          ));
+
+  /// Abre a fonte no Neovim, preservando a aba de preview. Com o editor
+  /// Cockpit selecionado, usa apenas uma sessão Neovim já aberta.
+  Future<bool> editPreviewInNeovim(String path, {String? inPane}) async {
+    final projectId = _selectedProjectId;
+    if (projectId == null || _isRemoteWorkspace(projectId)) return false;
+    final paneId = inPane ?? _focused[projectId];
+    if (paneId == null) return false;
+    return _enqueueNeovimOpen(
+      projectId,
+      paneId,
+      path,
+      reuseOnly: !usesNeovimFileEditor,
+    );
+  }
 
   /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
   List<TerminalProfile> get terminalProfiles =>
@@ -1424,6 +1453,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     String paneId,
     String path, {
     int? line,
+    bool reuseOnly = false,
   }) async {
     final previous = _neovimTails[projectId] ?? Future<void>.value();
     final turn = Completer<void>();
@@ -1431,7 +1461,13 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _neovimTails[projectId] = tail;
     await previous;
     try {
-      return await _openInNeovim(projectId, paneId, path, line: line);
+      return await _openInNeovim(
+        projectId,
+        paneId,
+        path,
+        line: line,
+        reuseOnly: reuseOnly,
+      );
     } finally {
       turn.complete();
       if (identical(_neovimTails[projectId], tail)) {
@@ -1445,6 +1481,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     String paneId,
     String path, {
     int? line,
+    bool reuseOnly = false,
   }) async {
     final executable = await _neovim.executable();
     if (executable == null) {
@@ -1472,6 +1509,8 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         return true;
       }
     }
+
+    if (reuseOnly) return false;
 
     final currentTree = _trees[projectId];
     if (currentTree == null) return false;
