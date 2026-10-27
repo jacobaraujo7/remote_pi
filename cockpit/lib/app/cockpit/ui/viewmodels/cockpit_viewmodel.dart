@@ -1981,7 +1981,7 @@ class CockpitViewModel extends ChangeNotifier
     int? revealLine,
     bool asSource = false,
   }) async {
-    if (!asSource && path.toLowerCase().endsWith('.orchestration')) {
+    if (!asSource && OrchestrationDocument.isFilePath(path)) {
       final pid = _selectedProjectId;
       if (pid != null) await openOrchestration(path, projectId: pid);
       return null;

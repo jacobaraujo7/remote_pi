@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
-import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_ownership_migration.dart';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_restore_state.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,22 +50,15 @@ class Fixture {
           }
           return true;
         },
-        newPath: () => '/repo/new-${++paths}.orchestration',
+        newPath: () => '/repo/new-${++paths}.orc',
         validDestination: (file) => file.startsWith('/repo/new-'),
-        seed: () => OrchestrationDocument(
-          boxes: [
-            OrchestrationBox(
-              box: GraphBox(
-                id: 'fresh-${++seeds}',
-                title: 'Terminal 1',
-                role: '',
-                harness: '',
-                model: '',
-                position: Offset.zero,
-              ),
-            ),
-          ],
-        ),
+        seed: () {
+          seeds++;
+          var id = 0;
+          return OrchestrationDocument.defaultTerminals(
+            newId: () => 'fresh-$seeds-${++id}',
+          );
+        },
       );
   Future<Map<String, dynamic>> run() =>
       migration.migrate(persisted ?? original);
@@ -80,7 +72,7 @@ void main() {
       final before = copy(f.original);
       final result = await f.run();
       expect(f.operations.first, 'checkpoint');
-      expect(result['path'], '/repo/new-1.orchestration');
+      expect(result['path'], '/repo/new-1.orc');
       expect(result['bindings'], isEmpty);
       expect(result['sessions'], isEmpty);
       final restored = OrchestrationRestoreState.parse(
@@ -88,8 +80,12 @@ void main() {
         instanceId: 'app',
         projectId: 'repo',
       );
-      expect(restored.document!.boxes.single.box.harness, isEmpty);
-      expect(restored.document!.boxes.single.box.role, isEmpty);
+      expect(restored.document!.boxes.length, 3);
+      expect(
+        restored.document!.boxes.every((b) => b.box.harness.isEmpty),
+        isTrue,
+      );
+      expect(restored.document!.boxes.every((b) => b.box.role.isEmpty), isTrue);
       expect(f.files['/repo/old.orchestration'], 'old file must be preserved');
       expect(f.original, before);
       expect(f.persisted, result);
@@ -135,19 +131,18 @@ void main() {
   test(
     'keeps a conflicting file and checkpoints a fresh destination',
     () async {
-      final f = Fixture()
-        ..files['/repo/new-1.orchestration'] = 'unrelated file';
+      final f = Fixture()..files['/repo/new-1.orc'] = 'unrelated file';
       final result = await f.run();
-      expect(result['path'], '/repo/new-2.orchestration');
-      expect(f.files['/repo/new-1.orchestration'], 'unrelated file');
+      expect(result['path'], '/repo/new-2.orc');
+      expect(f.files['/repo/new-1.orc'], 'unrelated file');
       expect(f.writes, 1);
     },
   );
   test('exclusive create losing a race never overwrites the winner', () async {
     final f = Fixture()..createRace = true;
     final result = await f.run();
-    expect(result['path'], '/repo/new-2.orchestration');
-    expect(f.files['/repo/new-1.orchestration'], 'someone else created this');
+    expect(result['path'], '/repo/new-2.orc');
+    expect(f.files['/repo/new-1.orc'], 'someone else created this');
     expect(f.writes, 1);
   });
   test(

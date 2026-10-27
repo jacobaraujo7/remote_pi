@@ -38,6 +38,8 @@ Flags, output shapes and edge cases of every verb: **read `references/verbs.md`*
 before using a verb for the first time.
 
 Other skills, when the task is one of these:
+- Agent Orchestration `.orc` documents, Boxes/Graph and owned terminals:
+  **cockpit-orchestration** (distinct from `.ckp` pane layouts).
 - SQL / Redis / Mongo / `.dbq` / connections: **cockpit-db**.
 - Errors, logs, "why did it fail", instrumenting a project: **cockpit-telemetry**.
 - Writing a `.panel`, `.html`, `.kanban`, `.notebook`, `.ckp` or `.http` the

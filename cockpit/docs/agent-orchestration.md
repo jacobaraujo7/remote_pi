@@ -1,6 +1,6 @@
 # Agent Orchestration
 
-Open **Gallery → Agent Orchestration** to create `agents.orchestration` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
+Open **Gallery → Agent Orchestration** to create `agents.orc` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
 
 Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Contextual CLI and shortcut/hook routing are still under implementation; desktop cold-upgrade acceptance is pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
 
@@ -20,7 +20,7 @@ The JSON format has `version: 1`, an ordered `boxes` array, and planned `links` 
 
 Copying the document to another workspace/worktree creates independent blank shells for definitions without local bindings. Loading or editing the document never starts a configured CLI or sends a role prompt. Start CLI, compact and handoff remain explicit session actions. Session IDs, agent conversation IDs, processes, history, credentials and observed metrics are not exported.
 
-Each file has its own app instance, even within the same worktree. Opening the same file reveals its existing tab; opening another file creates another independent instance. The app never captures existing or newly opened workspace terminals. Only explicit creation inside the app and definitions loaded from that document create owned shells. Gallery activation starts a fresh document with one blank shell; loading a valid empty document leaves it empty. Worktrees where the app was never activated receive no automatic document.
+The canonical extension is `.orc`; existing `.orchestration` files remain readable. Each file has its own app instance, even within the same worktree. Opening the same file reveals its existing tab; opening another file creates another independent instance. The app never captures existing or newly opened workspace terminals. Only explicit creation inside the app and definitions loaded from that document create owned shells. Gallery activation starts a fresh document with three blank shells; loading a valid empty document leaves it empty. Worktrees where the app was never activated receive no automatic document.
 
 Closing an internal terminal with X removes its box and planned connections. Closing the app tab asks to end its owned terminals; cancel preserves them. Closing Cockpit preserves definitions and local restoration metadata. External removal of a live definition asks whether to close its terminal or restore the definition. Invalid files and failed saves preserve sessions and the last valid configuration and show an error; Reload retries.
 
@@ -32,7 +32,7 @@ Bindings, child session descriptors and the internal tree/focus belong to the lo
 
 Theme, fonts, terminal engines and platform infrastructure remain shared. App state is logically isolated by owner, not sandboxed from the operating system. No global Terminals/Boxes/Graph switch is added. Native platform controls remain unchanged.
 
-An open legacy app tab migrates to a new `agents-isolated-<suffix>.orchestration` file at the same worktree root. It starts with one blank owned shell and does not import old boxes, bindings, roles, outside terminals or conversations. Old files and the outer tab/split placement are preserved. Workspaces without an open legacy app tab do not get a new document automatically.
+An open legacy app tab migrates to a new `agents-isolated-<suffix>.orc` file at the same worktree root. It starts with three blank owned shells and does not import old boxes, bindings, roles, outside terminals or conversations. Old files and the outer tab/split placement are preserved. Workspaces without an open legacy app tab do not get a new document automatically.
 
 Migration reserves its destination in the local layout and verifies that checkpoint against disk before creating the file. Creation is exclusive; existing or uncertain partial files are preserved and a fresh destination is reserved. Interrupted creation can reuse a matching generated file without creating duplicates. The completed snapshot is checkpointed before owned shells are reconciled. A save/host failure shows an error and retains recovery data for Reload. Remote hosts need the `fs.create` capability; older hosts reject migration safely without falling back to an overwriting write. Ordinary file editing and layout saves retain their existing behavior.
 
@@ -52,3 +52,12 @@ Visual subscriptions and graph telemetry pause while the app tab is hidden; the 
 
 
 Hidden tab bodies keep their last valid dimensions while a dock or window is resized. Only displayed terminals track each new grid size; hidden terminals resize once when shown. Inactive workspaces follow the same rule. The cache is presentation-only and does not enter the portable file.
+
+## Agent skill
+
+The CLI bundles `cockpit-orchestration` alongside its existing skills. It explains
+`.orc`, the three unassigned default terminals, Boxes/Graph and internal tabs,
+passive configuration, portability, independent instances and lifecycle rules.
+`cockpit install-skill` distributes it through the existing harness installer;
+`cockpit install-skill --list` lists the bundled files without installing them.
+The skill is in `cli/skills/cockpit-orchestration/SKILL.md`.

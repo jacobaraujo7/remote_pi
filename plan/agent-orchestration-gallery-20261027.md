@@ -4,9 +4,9 @@
 
 This section supersedes the old approved-behavior paragraphs below; those are a historical record, not current requirements.
 
-- Each `.orchestration` file owns a separate dockable app tab, including multiple files in one worktree. Boxes/Graph above an internal multiplexer with tabs and splits below; normal workspace terminals/docks keep their current UI.
+- Each `.orc` file owns a separate dockable app tab, including multiple files in one worktree. Boxes/Graph above an internal multiplexer with tabs and splits below; normal workspace terminals/docks keep their current UI.
 - Never adopt, discover, configure, focus or collect notifications from outside terminals. Existing communication, metrics, hooks, subagents, badges and acknowledgements stay within their owner. Owned completions must not feed global badges, sounds or OS notifications.
-- Start from a new file, preserving old documents and all external sessions/layout. New Gallery documents seed one blank owned shell; opening an empty document must stay empty. Shell creation/reconciliation never starts a CLI.
+- Start from a new file, preserving old documents and all external sessions/layout. New Gallery documents seed three blank owned shells; opening an empty document must stay empty. Shell creation/reconciliation never starts a CLI.
 - Box single-click reveals/focuses its internal terminal; Graph selection reveals without keyboard focus, double-click/explicit action focuses. Internal tab dragging stays inside its owner; the entire app tab may move between outer docks.
 - Closing an internal terminal removes its definition/links. Closing the whole app tab asks to end all owned children; cancel preserves them. App shutdown preserves saved local restoration state rather than removing definitions. No native controller disposal before its view unmounts.
 - Local state owns identity, bindings, internal tree/focus, selection, inspector and overview/terminal proportions (Boxes: 60% terminal area; Graph: 35%). Portable JSON v1 remains definitions-only. Same-file concurrent opening/reconciliation must be idempotent.
@@ -58,6 +58,14 @@ This section supersedes the old approved-behavior paragraphs below; those are a 
 - Fetched main again: feature checkout is 0 behind / 16 ahead before committing this migration. #269 verified CLOSED/unmerged directly; #257 c083fd40, #267 d88bc8dc and #260 b0cd670f remain open with independent file/transport concerns to preserve.
 - CI now triggers on shared-package changes and runs these native/remote regressions on Windows, macOS ARM and Intel. Server-only dev dependency adds cockpit_remote for end-to-end tests; lockfile changes only this path dependency. No local flterm override, native build, user-profile migration, installation or PR push in this checkpoint. Real desktop upgrade validation remains pending.
 - PR audit repeated directly: #272 (moregola) remains draft and active successor; preserve independent #257 (cfbraun), #267 (pretodev) and #260 (SeniorHan TCP fallback). #269 remains closed/unmerged as selective reference. Codex owns remaining CLI/hooks/shortcuts/file links and verification; moregola owns Windows evaluation; Jacob owns review and actual macOS acceptance before merge. BTN does not apply.
+
+### User refinement — .orc and three blank terminals (2026-10-27)
+
+- User requested the shorter .orc extension, a default model with three role-free terminals, and a skill explaining the feature. .orc is now canonical: Gallery creates agents.orc (or a numbered free name), file opening recognizes both .orc and legacy .orchestration case-insensitively, and both have the app icon. New migration destinations use .orc while existing journals/files remain readable.
+- Centralized the default in OrchestrationDocument.defaultTerminals. Gallery content, runtime file creation and fresh legacy migration use the same three-terminal model: Terminal 1/2/3, independent stable IDs, directory '.', empty role/tool/model, no links or auto-started CLI. Valid empty/existing documents retain their own definitions/count. Updated migration fixture to exercise this actual default.
+- Created the bundled cockpit-orchestration skill using skill-creator guidance, with UI workflow, portable JSON, scope boundaries and lifecycle. quick_validate.py passed. Actual cargo run -- install-skill --list includes cockpit-orchestration/SKILL.md; no user skills/profile changed. Generic cockpit-cli routes orchestration questions to it; the .ckp command is explicitly distinguished.
+- Validation: 22 directed defaults/domain/migration tests passed, then the full Flutter workflow test step passed 171 tests including the new three-shell idempotence regression. Analysis found one prefer_initializing_formals info; switched to the supported private initializing formal, and the final Gallery/controller analysis passed with no issues. Final Gallery compile/test also passed (5 tests). No hook implementation edits yet this turn: the source audit mapped the pending owned hook routing and missing remote metric/identity fields; resume these after this refinement.
+- Codex owns remaining CLI/hooks/shortcuts/file-link integration and builds; moregola owns Windows evaluation; Jacob owns review and actual Mac validation before merge. #272 remains draft; no runtime installation or PR push here.
 
 ### Remaining implementation and acceptance
 

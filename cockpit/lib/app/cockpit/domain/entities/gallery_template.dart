@@ -1,3 +1,5 @@
+import 'orchestration_document.dart';
+
 /// Um "documento especial" do Cockpit que a aba Gallery sabe criar na raiz do
 /// workspace: extensão própria + conteúdo inicial que já abre na tab certa
 /// (`.dbq` → editor SQL, `.kanban` → quadro, `.ckp` → layout, `.http` →
@@ -7,7 +9,7 @@
 enum GalleryTemplate {
   orchestration(
     baseName: 'agents',
-    extension: 'orchestration',
+    extension: 'orc',
     iconAsset: 'assets/file_icons/cockpit-panel.svg',
     content: '{"version":1,"boxes":[],"links":[]}\n',
   ),
@@ -232,7 +234,7 @@ enum GalleryTemplate {
     required this.baseName,
     required this.extension,
     required this.iconAsset,
-    required this.content,
+    required this._content,
     this.relativeDir = '',
     this.fixedName = false,
     this.opensParent = false,
@@ -259,7 +261,14 @@ enum GalleryTemplate {
   final String iconAsset;
 
   /// Conteúdo inicial do arquivo.
-  final String content;
+  final String _content;
+  String get content {
+    if (this != GalleryTemplate.orchestration) return _content;
+    var id = 0;
+    return OrchestrationDocument.defaultTerminals(
+      newId: () => 'terminal-${++id}',
+    ).encode();
+  }
 
   /// `.env.cockpit` tem `baseName` vazio: o nome é só o "ponto + extensão".
   String get fileName =>

@@ -54,6 +54,31 @@ class Fixture {
 
 void main() {
   test(
+    'default document reconciles three blank definitions exactly once',
+    () async {
+      final f = Fixture();
+      var id = 0;
+      f.disk = OrchestrationDocument.defaultTerminals(
+        newId: () => 'default-${++id}',
+      ).encode();
+      await Future.wait(List.generate(5, (_) => f.controller.load()));
+      expect(f.spawns, 3);
+      expect(f.controller.bindings.length, 3);
+      expect(
+        f.controller.document!.boxes.every(
+          (b) =>
+              b.box.role.isEmpty &&
+              b.box.harness.isEmpty &&
+              b.box.model.isEmpty,
+        ),
+        isTrue,
+      );
+      expect(f.closed, isEmpty);
+      f.controller.dispose();
+    },
+  );
+
+  test(
     'startup recovery gates edits and retries missing sessions without duplicates',
     () async {
       final f = Fixture();

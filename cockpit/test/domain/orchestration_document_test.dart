@@ -4,6 +4,56 @@ import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart'
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 
 void main() {
+  test(
+    'recognizes .orc and legacy files without matching unrelated suffixes',
+    () {
+      for (final file in [
+        'agents.orc',
+        '/work/AGENTS.ORC',
+        r'C:\work\agents.orc',
+        'old.orchestration',
+        'OLD.ORCHESTRATION',
+      ]) {
+        expect(OrchestrationDocument.isFilePath(file), isTrue, reason: file);
+      }
+      for (final file in [
+        'agents.orc.bak',
+        '/folder.orc/file.txt',
+        'file.json',
+        'orc',
+      ]) {
+        expect(OrchestrationDocument.isFilePath(file), isFalse, reason: file);
+      }
+    },
+  );
+  test(
+    'fresh defaults use independent IDs but do not populate empty files',
+    () {
+      var id = 0;
+      final a = OrchestrationDocument.defaultTerminals(
+        newId: () => 'box-${++id}',
+      );
+      final b = OrchestrationDocument.defaultTerminals(
+        newId: () => 'box-${++id}',
+      );
+      expect(a.boxes.length, 3);
+      expect(b.boxes.length, 3);
+      expect(
+        {
+          ...a.boxes.map((b) => b.box.id),
+          ...b.boxes.map((b) => b.box.id),
+        }.length,
+        6,
+      );
+      expect(
+        OrchestrationDocument.parse(
+          const OrchestrationDocument().encode(),
+        ).boxes,
+        isEmpty,
+      );
+    },
+  );
+
   const box = GraphBox(
     id: 'stable',
     title: 'API',

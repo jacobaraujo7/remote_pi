@@ -13,20 +13,7 @@ extension OrchestrationWorkspace on CockpitViewModel {
   OrchestrationDocument _orchestrationSeed(
     String projectId, {
     bool importLegacy = false,
-  }) => OrchestrationDocument(
-    boxes: [
-      OrchestrationBox(
-        box: GraphBox(
-          id: newUid(),
-          title: 'Terminal 1',
-          role: '',
-          harness: '',
-          model: '',
-          position: OrchestrationController.autoPosition(0),
-        ),
-      ),
-    ],
-  );
+  }) => OrchestrationDocument.defaultTerminals(newId: newUid);
 
   Future<String> _readOrchestrationFile(String projectId, String file) async {
     final hostId = _projectById(projectId)?.remoteHostId;
@@ -297,13 +284,11 @@ extension OrchestrationWorkspace on CockpitViewModel {
 
     final migration = OrchestrationOwnershipMigration(
       seed: () => _orchestrationSeed(project.id),
-      newPath: () => paths.join(
-        root,
-        'agents-isolated-${newUid().substring(0, 8)}.orchestration',
-      ),
+      newPath: () =>
+          paths.join(root, 'agents-isolated-${newUid().substring(0, 8)}.orc'),
       validDestination: (file) =>
           paths.equals(paths.dirname(file), paths.normalize(root)) &&
-          paths.extension(file) == '.orchestration',
+          OrchestrationDocument.isFilePath(file),
       checkpoint: (next) async {
         ensureCurrent();
         owner.pendingRestoration = next;

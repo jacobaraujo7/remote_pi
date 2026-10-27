@@ -23,6 +23,8 @@ const Map<String, String> _extensionOverrides = {
   'notebook': 'cockpit-notebook',
   // Painel HTML vivo (plano 67): SVG nosso, janela com play.
   'panel': 'cockpit-panel',
+  'orc': 'cockpit-panel',
+  'orchestration': 'cockpit-panel',
 };
 
 String fileIconName(String fileName) {

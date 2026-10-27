@@ -20,6 +20,33 @@ class OrchestrationDocument {
     this.links = const [],
     this.extra = const {},
   });
+
+  /// Canonical short extension; the previous extension remains readable.
+  static bool isFilePath(String file) {
+    final lower = file.toLowerCase();
+    return lower.endsWith('.orc') || lower.endsWith('.orchestration');
+  }
+
+  /// A fresh app starts with three unassigned blank shells. Existing documents
+  /// (including explicitly empty ones) are never filled to this count on load.
+  factory OrchestrationDocument.defaultTerminals({
+    required String Function() newId,
+  }) => OrchestrationDocument(
+    boxes: [
+      for (var i = 0; i < 3; i++)
+        OrchestrationBox(
+          box: GraphBox(
+            id: newId(),
+            title: 'Terminal ${i + 1}',
+            role: '',
+            harness: '',
+            model: '',
+            position: Offset(80.0 + i * 280.0, 190),
+          ),
+        ),
+    ],
+  );
+
   final List<OrchestrationBox> boxes;
   final List<GraphLink> links;
   final Map<String, Object?> extra;
