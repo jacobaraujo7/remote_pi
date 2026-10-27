@@ -30,11 +30,13 @@ class WorkspaceGraphView extends StatefulWidget {
     required this.processMetrics,
     required this.onExit,
     required this.onOpenTab,
+    this.active = true,
     this.embedded = false,
     this.selectedBoxId,
     this.onSelectBox,
   });
 
+  final bool active;
   final bool embedded;
   final String? selectedBoxId;
   final ValueChanged<String>? onSelectBox;
@@ -70,12 +72,12 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
   @override
   void initState() {
     super.initState();
-    widget.vm.addListener(_onVmChanged);
+    if (!widget.embedded) widget.vm.addListener(_onVmChanged);
     _processMetricsService = GraphProcessMetricsService(
       hostProvider: widget.processMetrics,
     );
     _telemetryTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted || _editingText) return;
+      if (!mounted || !widget.active || _editingText) return;
       setState(() {
         _telemetry.clear();
         _latestTelemetry.clear();
@@ -87,10 +89,15 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
   @override
   void didUpdateWidget(covariant WorkspaceGraphView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.vm != widget.vm) {
+    if (oldWidget.vm != widget.vm || oldWidget.embedded != widget.embedded) {
       oldWidget.vm.removeListener(_onVmChanged);
-      widget.vm.addListener(_onVmChanged);
+      if (!widget.embedded) widget.vm.addListener(_onVmChanged);
       _graphRevision.value++;
+    }
+    if (!oldWidget.active && widget.active) {
+      _telemetry.clear();
+      _latestTelemetry.clear();
+      _processTelemetry.clear();
     }
     if (oldWidget.processMetrics != widget.processMetrics) {
       _processMetricsService = GraphProcessMetricsService(
@@ -110,7 +117,9 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
   }
 
   void _onVmChanged() {
-    if (!_editingText) _graphRevision.value++;
+    if (widget.active && !widget.embedded && !_editingText) {
+      _graphRevision.value++;
+    }
   }
 
   List<GraphBox> _visibleBoxes(CockpitViewModel vm) {

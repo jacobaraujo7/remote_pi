@@ -38,3 +38,6 @@ Boxes and Graph display the CLI detected in the bound terminal, independently of
 A selected box without a role prompts the user to configure it. In its inspector, **Ask agent for role** sends a metadata question to that terminal's running CLI when idle. It neither starts another CLI nor runs during work or an approval prompt. The response is a bounded JSON reply in an OS temporary file, correlated by a fresh request identifier. Local WSL paths use the existing converter. Remote replies use the original host's file service; their temporary file content is cleared afterward. No response paths or runtime identifiers go into the portable document.
 
 The suggested role appears as a preview. **Use suggestion** fills the editable role; **Save** confirms it. Discarding or closing the inspector does not save it. A changed document, terminal, CLI or conversation rejects a late reply. Missing/invalid replies show an error and leave manual configuration available.
+
+
+Visual subscriptions and graph telemetry pause while the app tab is hidden; the mounted view keeps its state. Returning refreshes metrics and reads current session state. Foreground notifications are grouped per frame, and unchanged session metadata does not rebuild the view. Background document synchronization continues to reconcile external changes.

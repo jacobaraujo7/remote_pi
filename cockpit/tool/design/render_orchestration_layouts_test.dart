@@ -49,6 +49,7 @@ class _VM extends ChangeNotifier implements CockpitViewModel {
   }
   final tabs = <String, TerminalSession>{};
   String? openedBox;
+  void simulateWorkspaceTraffic() => notifyListeners();
   @override
   void openBoxInTerminals(String boxId) {
     openedBox = boxId;
@@ -57,7 +58,12 @@ class _VM extends ChangeNotifier implements CockpitViewModel {
   @override
   OrchestrationPresentation presentation;
   @override
-  String? get selectedProjectId => 'demo';
+  String? get selectedProjectId {
+    projectReads++;
+    return 'demo';
+  }
+
+  int projectReads = 0;
   @override
   String get selectedDisplayTitle => 'Workspace de demonstração';
   @override
@@ -218,11 +224,15 @@ void main() {
       );
       final key = GlobalKey();
       final focus = FocusNode();
-      Widget overview() => OrchestrationView(
-        session: app,
-        vm: vm,
-        active: true,
-        processMetrics: _Metrics(),
+      final overviewActive = ValueNotifier(true);
+      Widget overview() => ValueListenableBuilder<bool>(
+        valueListenable: overviewActive,
+        builder: (_, active, _) => OrchestrationView(
+          session: app,
+          vm: vm,
+          active: active,
+          processMetrics: _Metrics(),
+        ),
       );
       Widget dockHeader(String label, Widget child) => Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -344,8 +354,26 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       }
+      // Hidden app tabs keep their state but must not rebuild on workspace
+      // traffic or run graph telemetry timers. Native sessions stay mounted.
+      final overviewState = tester.state(find.byType(OrchestrationView));
+      overviewActive.value = false;
+      await tester.pump();
+      expect(tester.state(find.byType(OrchestrationView)), same(overviewState));
+      final beforeTraffic = vm.projectReads;
+      vm.simulateWorkspaceTraffic();
+      vm.tabs.values.first.markUnseen();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 11));
+      expect(vm.projectReads, beforeTraffic);
+      overviewActive.value = true;
+      await tester.pump();
+      expect(vm.projectReads, greaterThan(beforeTraffic));
+
+      expect(tester.state(find.byType(OrchestrationView)), same(overviewState));
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
+      overviewActive.dispose();
       app.dispose();
       focus.dispose();
       await tester.runAsync(() async {

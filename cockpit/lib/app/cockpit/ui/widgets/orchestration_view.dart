@@ -39,17 +39,48 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   Timer? _timer;
   bool _refreshing = false;
   OrchestrationLiveSessions? _live;
-  OrchestrationLiveSessions get _liveSessions =>
-      _live ??= OrchestrationLiveSessions(
-        sources: [widget.vm, widget.session],
-        sessions: () => widget.vm.allSessions
-            .whereType<TerminalSession>()
-            .where((t) => t.projectId == widget.session.projectId),
-      );
+  OrchestrationLiveSessions get _liveSessions {
+    // Also replace listeners created before this performance update on hot reload.
+    if (_live != null &&
+        (_live!.schedule == null ||
+            _live!.sources.isNotEmpty != widget.active)) {
+      _live!.dispose();
+      _live = null;
+    }
+    return _live ??= OrchestrationLiveSessions(
+      sources: widget.active ? [widget.vm, widget.session] : const [],
+      sessionState: () => widget.active
+          ? [
+              for (final t
+                  in widget.vm.allSessions.whereType<TerminalSession>().where(
+                    (t) => t.projectId == widget.session.projectId,
+                  ))
+                (
+                  t.id,
+                  t.status,
+                  t.activeHarness,
+                  t.hasExited,
+                  t.unseenFinish,
+                  t.displayTitle,
+                ),
+            ]
+          : const [],
+      schedule: (callback) =>
+          WidgetsBinding.instance.scheduleFrameCallback((_) => callback()),
+      sessions: () => widget.active
+          ? widget.vm.allSessions.whereType<TerminalSession>().where(
+              (t) => t.projectId == widget.session.projectId,
+            )
+          : const [],
+    );
+  }
+
   @override
   void didUpdateWidget(covariant OrchestrationView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.vm != widget.vm || oldWidget.session != widget.session) {
+    if (oldWidget.vm != widget.vm ||
+        oldWidget.session != widget.session ||
+        oldWidget.active != widget.active) {
       _live?.dispose();
       _live = null;
       _metrics.clear();
@@ -351,6 +382,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                       ),
                       if (state.mode == OrchestrationViewMode.graph)
                         WorkspaceGraphView(
+                          active: widget.active,
                           vm: vm,
                           processMetrics:
                               widget.processMetrics ??
