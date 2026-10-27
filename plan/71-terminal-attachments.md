@@ -1,6 +1,6 @@
 # 71 — Colar e arrastar anexos no terminal
 
-Estado: implementação e aceite local concluídos; preparar PR para `main`.
+Estado: [PR #268](https://github.com/jacobaraujo7/remote_pi/pull/268) aberto para `main`; revisão de jacobaraujo7 solicitada.
 Branch: `feature/terminal-attachments`. Responsável: moregola / Codex.
 Revisor solicitado pelo usuário: jacobaraujo7.
 
@@ -82,10 +82,13 @@ SSH/container iniciado dentro de um shell local requer validação específica;
 sem confirmação de recebimento por RPC. Não declarar aceite universal a partir
 do teste de um único agente/sistema.
 
-Próximo passo: publicar PR para `main`, solicitar revisão de jacobaraujo7 e
-acompanhar os checks. Responsável: moregola / Codex; sem autorização de merge.
+Próximo passo: acompanhar checks e revisão de jacobaraujo7. Responsável pelo
+acompanhamento e ajustes: moregola / Codex; sem autorização de merge.
 
-Publicação: branch enviada para origin no commit 259f7c1b; PR ainda não criado.
+Publicação: branch enviada para origin; PR #268 criado e aberto, sem draft,
+com destino main e revisão de jacobaraujo7 confirmada pela API do GitHub.
 Análise direcionada de lib e dos seis testes do PR: zero problemas.
-Responsável pela próxima ação: Codex publica o PR e solicita revisão de
-jacobaraujo7, conforme a autorização e o escopo de BTN esclarecido pelo usuário.
+A integração retornou 403 ao criar o PR; GitHub CLI autenticado publicou
+o PR autorizado. Descrição remota conferida e idêntica ao texto preparado.
+Responsáveis: jacobaraujo7 para revisão solicitada; moregola / Codex para
+acompanhar os checks e responder aos achados.
