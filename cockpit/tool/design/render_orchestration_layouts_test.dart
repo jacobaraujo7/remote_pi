@@ -48,6 +48,12 @@ class _VM extends ChangeNotifier implements CockpitViewModel {
     }
   }
   final tabs = <String, TerminalSession>{};
+  String? openedBox;
+  @override
+  void openBoxInTerminals(String boxId) {
+    openedBox = boxId;
+  }
+
   @override
   OrchestrationPresentation presentation;
   @override
@@ -314,6 +320,11 @@ void main() {
         image.dispose();
       });
       if (entry.$1 == 'boxes-dock') {
+        await tester.tap(find.text('Design'));
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(vm.presentation.selectedBoxId, 'design');
+        expect(vm.openedBox, 'design');
+
         final terminalElement = tester.element(
           find.byType(AdaptiveTerminalPane),
         );

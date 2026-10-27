@@ -275,7 +275,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                         onReorder: (order) => vm.updatePresentation(
                           vm.presentation.copyWith(boxOrder: order),
                         ),
-                        onSelect: select,
+                        onSelect: (id) {
+                          select(id);
+                          vm.openBoxInTerminals(id);
+                        },
                         onOpen: vm.openBoxInTerminals,
                         onConfigure: (id) => select(id, configure: true),
                       ),

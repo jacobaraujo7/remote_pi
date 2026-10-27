@@ -41,3 +41,9 @@ Codex to finish final validation, push feature/agent-orchestration-gallery and p
 - First launch exposed that main lacked the isolated-root helper. The just-launched trial was stopped and corrected; no PR was published.
 
 - Final local run verified: build 20405802 compiled successfully; app responding from the dedicated install; two layouts were rewritten with `orchestrationBindings` under the isolated profile at 11:34 (local machine time), proving the migrated profile is actually in use. No Flutter error recorded after this boot. PR remains on hold for moregola's evaluation.
+
+## Evaluation adjustment — single-click navigation
+
+- User requested that clicking a Boxes row takes them to its terminal. Boxes now selects and reveals/focuses the bound real terminal on a single click; drag handles remain reorder-only, and Graph single-click selection remains independent.
+- Added the assertion to the actual app-component render test; existing drag regression remains applicable. Local build update pending; PR still on hold for evaluation.
+- The earlier crash report has not been reproduced: process remains alive and the app currently renders the orchestration and adjacent terminals. No new Flutter exception/dump was registered. The only native crash event found was the old PR269 app on close (coremessaging.dll, 0xc0000005, 11:28). No claim of a crash fix.

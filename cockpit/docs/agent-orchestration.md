@@ -22,7 +22,7 @@ One document is active per worktree. Opening a different `.orchestration` file r
 
 Closing a terminal with X removes its box and planned connections from the active document. Closing the app tab only hides the app. Closing Cockpit preserves definitions and local bindings. If an external edit removes a live terminal definition, the app asks whether to close it or keep it and restore the definition. Invalid files and failed saves preserve live sessions and show an error; Reload retries.
 
-New terminal uses the last available terminal dock outside the orchestration dock, or creates a split to its right. Single-click selects a box; double-click / Go to terminal reveals and focuses the real terminal tab. The inspector stays inside the app's pane, including its narrow overlay mode.
+New terminal uses the last available terminal dock outside the orchestration dock, or creates a split to its right. In Boxes, a single click selects the box and reveals/focuses its real terminal tab. The drag handle only reorders. Graph selection remains separate from terminal focus; double-click / Go to terminal focuses the real tab. The inspector stays inside the app's pane, including its narrow overlay mode.
 
 ## Local state and compatibility
 
