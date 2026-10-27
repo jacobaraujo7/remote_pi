@@ -30,6 +30,14 @@ const String storageSubdir = kDebugMode ? 'cockpit-debug' : 'cockpit';
 class StorageLocation {
   const StorageLocation._();
 
+  /// Dedicated root for disposable parallel runs. The launcher sets this only
+  /// for the isolated process; normal installations keep their existing paths.
+  static String? get _isolatedRoot {
+    final raw = Platform.environment['COCKPIT_ISOLATED_ROOT']?.trim();
+    if (raw == null || raw.isEmpty || !p.isAbsolute(raw)) return null;
+    return p.normalize(raw);
+  }
+
   /// Monta `<root>/<storageSubdir>` normalizado, com contexto injetável de
   /// `package:path` — puro, pra testar a montagem com separadores Windows
   /// mesmo rodando em macOS/Linux.
@@ -56,6 +64,7 @@ class StorageLocation {
   /// quando usa a localização padrão do sistema. O conteúdo é normalizado na
   /// leitura — pode ter sido gravado por versão antiga com separador diferente.
   static Future<String?> overrideRoot() async {
+    if (_isolatedRoot case final root?) return root;
     final path = _pointerPath;
     if (path == null) return null;
     try {
@@ -125,6 +134,7 @@ class StorageLocation {
   /// (default novo do Windows) → Documents (legado Windows e default atual de
   /// macOS/Linux). O migrador usa o primeiro que tiver boxes.
   static Future<List<String>> legacyHiveDirCandidates() async {
+    if (_isolatedRoot case final root?) return [dataDirUnder(root)];
     final dirs = <String>[];
     final override = await overrideRoot();
     if (override != null) dirs.add(dataDirUnder(override));
@@ -140,6 +150,9 @@ class StorageLocation {
   /// Diretório do cache de scrollback — **sempre local** (applicationSupport),
   /// não segue o override. Exposto pra que o reset o limpe.
   static Future<String> scrollbackDir() async {
+    if (_isolatedRoot case final root?) {
+      return p.join(root, 'terminal_scrollback');
+    }
     final support = await getApplicationSupportDirectory();
     return p.join(support.path, 'terminal_scrollback');
   }
