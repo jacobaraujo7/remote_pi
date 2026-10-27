@@ -1092,6 +1092,27 @@ class TurnStatusReceiver {
       return;
     }
     final paneId = json['paneId'];
+    if (json['type'] == 'metric') {
+      final tokens = json['ct'], window = json['cw'];
+      if (paneId is! String ||
+          paneId.isEmpty ||
+          tokens is! int ||
+          tokens < 0 ||
+          window is! int ||
+          window <= 0)
+        return;
+      onStatus(
+        TurnStatus(
+          paneId: paneId,
+          status: 'metric',
+          harness: 'claude',
+          sid: json['sid'] is String ? json['sid'] as String : null,
+          contextTokens: tokens,
+          contextWindow: window,
+        ),
+      );
+      return;
+    }
     final status = json['st'];
     if (paneId is! String || status is! String) return;
     onStatus(
@@ -1105,6 +1126,8 @@ class TurnStatusReceiver {
         subagentId: json['aid'] as String?,
         subagentType: json['at'] as String?,
         eventEpochMs: json['ts'] as int?,
+        graphRecipient: json['gm'] is String ? json['gm'] as String : null,
+        graphSelfName: json['gi'] is String ? json['gi'] as String : null,
       ),
     );
   }

@@ -19,16 +19,20 @@ class OrchestrationSession extends PaneItem {
     this.onFocus,
     this.onOpenFile,
     this.onBeforeDispose,
+    this.windowActivityChanges,
+    bool Function()? windowActive,
     OrchestrationBoxAction? onOpenShell,
     OrchestrationBoxAction? onStartCli,
     OrchestrationBoxAction? onHandoff,
     OrchestrationBoxAction? onSuggestRole,
     bool Function()? remoteDisconnected,
     VoidCallback? onPersist,
+    Future<Set<String>> Function(TerminalSession)? readAliases,
     OrchestrationPresentation presentation = const OrchestrationPresentation(),
   }) : terminals = OrchestrationMultiplexer(
          instanceId: id,
          projectId: projectId,
+         windowActive: windowActive,
        ) {
     context = OrchestrationContext(
       instanceId: id,
@@ -43,8 +47,15 @@ class OrchestrationSession extends PaneItem {
       onHandoff: onHandoff,
       onSuggestRole: onSuggestRole,
       onPersist: onPersist,
+      readAliases: readAliases,
     );
+    windowActivityChanges?.addListener(_onWindowActivity);
   }
+
+  void _onWindowActivity() {
+    if (!_disposed && !closing) terminals.refreshReadEligibility();
+  }
+
   @override
   final String id;
   @override
@@ -56,6 +67,7 @@ class OrchestrationSession extends PaneItem {
   final Future<Result<String, String>> Function(String tabId)? onCloseTerminal;
   final VoidCallback? onFocus;
   final Future<void> Function()? onBeforeDispose;
+  final Listenable? windowActivityChanges;
   final void Function(TerminalSession terminal, String path, {int? line})?
   onOpenFile;
   final Set<String> closingTerminals = {};
@@ -105,6 +117,7 @@ class OrchestrationSession extends PaneItem {
     if (_disposed) return;
     _disposed = true;
     closing = true;
+    windowActivityChanges?.removeListener(_onWindowActivity);
     context.dispose();
     // Capture local layout synchronously, before the global VM clears its
     // registry during shutdown; queue persistence before awaiting teardown.

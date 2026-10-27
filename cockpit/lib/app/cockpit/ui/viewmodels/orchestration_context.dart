@@ -4,6 +4,7 @@ import 'dart:ui' show Offset;
 import 'package:flutter/foundation.dart';
 import '../../../core/domain/result.dart';
 import '../../domain/entities/orchestration_document.dart';
+import '../../domain/contracts/terminal_status_server.dart';
 import '../../domain/entities/orchestration_presentation.dart';
 import '../../domain/entities/workspace_graph.dart';
 import '../../domain/value_objects/uid.dart';
@@ -34,7 +35,9 @@ class OrchestrationContext extends ChangeNotifier
     this.onHandoff,
     this.onSuggestRole,
     this.onPersist,
+    this.readAliases,
   }) {
+    _knownTerminals.addAll(terminals.sessions.keys);
     controller.addListener(_onDocument);
     terminals.addListener(_onTerminals);
   }
@@ -49,6 +52,7 @@ class OrchestrationContext extends ChangeNotifier
       onHandoff,
       onSuggestRole;
   final VoidCallback? onPersist;
+  final Future<Set<String>> Function(TerminalSession)? readAliases;
   bool _disposed = false;
   bool get disposed => _disposed;
   OrchestrationPresentation _presentation;
@@ -57,6 +61,12 @@ class OrchestrationContext extends ChangeNotifier
   final Map<String, GraphUnresolvedPeer> _peers = {};
   final GraphSubagentRegistry _children = GraphSubagentRegistry();
   String? _lastKeyboardTab;
+  final Map<String, Set<String>> _aliases = {};
+  final Set<String> _endedSessions = {};
+  final Set<String> _knownTerminals = {};
+  final Map<String, int> _activityEpoch = {};
+  final Set<(String, String?, String?)> _aliasReads = {};
+  final Map<String, DateTime> _lastAliasRead = {};
 
   @override
   String get selectedProjectId => projectId;
@@ -122,6 +132,18 @@ class OrchestrationContext extends ChangeNotifier
   }
 
   void _onTerminals() {
+    final current = terminals.sessions.keys.toSet();
+    for (final removed in _knownTerminals.difference(current)) {
+      _clearActivity(removed);
+      _endedSessions.remove(removed);
+      _activityEpoch.remove(removed);
+    }
+    for (final stopped in terminals.sessions.values.where((t) => t.hasExited)) {
+      if (_endedSessions.add(stopped.id)) _clearActivity(stopped.id);
+    }
+    _knownTerminals
+      ..clear()
+      ..addAll(current);
     final keyboard = terminals.keyboardTabId;
     if (keyboard != _lastKeyboardTab) {
       _lastKeyboardTab = keyboard;
@@ -434,6 +456,243 @@ class OrchestrationContext extends ChangeNotifier
   Future<Result<String, String>> suggestRole(String boxId) =>
       _act(boxId, onSuggestRole);
 
+  /// Route only an event whose exact terminal belongs to this instance. This
+  /// never touches a workspace inventory or the global notification controller.
+  bool applyHook(ClaudeStatusUpdate update) {
+    if (_disposed) return false;
+    final terminal = session(update.paneId);
+    if (terminal == null || terminal.hasExited) return false;
+    if (!const {
+      'working',
+      'waiting',
+      'idle',
+      'metric',
+      'subagent_start',
+      'subagent_stop',
+    }.contains(update.status)) {
+      return false;
+    }
+    final previousSid = terminal.claudeSessionId;
+    final incomingSid = update.sessionId;
+    final harnessChanged =
+        update.harness != null &&
+        AgentHarness.fromWire(update.harness) != terminal.agentHarness &&
+        !update.status.startsWith('subagent_') &&
+        update.status != 'metric';
+    final newSession =
+        harnessChanged ||
+        update.event == 'UserPromptSubmit' ||
+        update.event == 'SessionStart' ||
+        (incomingSid != null &&
+            incomingSid.isNotEmpty &&
+            incomingSid != previousSid &&
+            !update.status.startsWith('subagent_') &&
+            update.status != 'metric');
+    if (_endedSessions.contains(terminal.id) && !newSession) return false;
+    if (newSession) _endedSessions.remove(terminal.id);
+    if (update.status == 'metric') {
+      if (incomingSid != null &&
+          incomingSid.isNotEmpty &&
+          previousSid != null &&
+          incomingSid != previousSid) {
+        return false;
+      }
+      if (update.contextTokens != null && update.contextWindow != null) {
+        terminal.applyGraphMetrics(
+          update.contextTokens!,
+          update.contextWindow!,
+        );
+      }
+      return true;
+    }
+    if (update.status == 'subagent_start') {
+      final id = update.subagentId;
+      if (id != null && id.isNotEmpty) {
+        startSubagent(
+          GraphSubagent(
+            projectId: projectId,
+            ownerTabId: terminal.id,
+            agentId: id,
+            agentType: update.subagentType ?? '',
+            harness: update.harness ?? terminal.agentHarness.wire,
+            startedAt: update.eventAt ?? DateTime.now(),
+          ),
+        );
+      }
+      return true;
+    }
+    if (update.status == 'subagent_stop') {
+      final id = update.subagentId;
+      if (id != null) {
+        stopSubagent(terminal.id, id, update.eventAt ?? DateTime.now());
+      }
+      return true;
+    }
+    if (harnessChanged ||
+        (incomingSid != null &&
+            incomingSid.isNotEmpty &&
+            previousSid != null &&
+            incomingSid != previousSid)) {
+      _clearActivity(terminal.id);
+      terminal.transcriptPath = null;
+      terminal.clearGraphMetrics();
+    }
+    if (update.harness == 'claude') {
+      if (update.graphSelfName case final String ownAddress) {
+        registerIdentity(terminal.id, ownAddress);
+      }
+      if (update.graphRecipient case final String recipient) {
+        recordMessage(terminal.id, recipient, at: update.eventAt);
+      }
+    }
+    if (update.event == 'SessionEnd') {
+      _endedSessions.add(terminal.id);
+      if (_clearActivity(terminal.id)) _changed();
+    }
+    terminal.applyClaudeStatus(
+      status: switch (update.status) {
+        'working' => TerminalStatus.working,
+        'waiting' => TerminalStatus.waiting,
+        _ => TerminalStatus.idle,
+      },
+      isTurnStart: update.event == 'UserPromptSubmit',
+      sessionId: update.sessionId,
+      transcriptPath: update.transcriptPath,
+      harness: AgentHarness.fromWire(update.harness),
+    );
+    if (update.event == 'SessionEnd') {
+      terminal.observeRemoteHookHarness(null);
+    } else if (terminal.claudeSessionId != null &&
+        (update.harness == null ||
+            AgentHarness.values.any((h) => h.wire == update.harness))) {
+      terminal.observeRemoteHookHarness(terminal.agentHarness);
+    }
+    if (terminal.claudeSessionId != previousSid) onPersist?.call();
+    if (update.event != 'SessionEnd' &&
+        update.harness == 'claude' &&
+        (update.transcriptPath != null ||
+            terminal.claudeSessionId != previousSid)) {
+      unawaited(reconcileIdentities());
+    }
+    return true;
+  }
+
+  void registerIdentity(String tabId, String address) {
+    final alias = address.trim().toLowerCase();
+    if (_disposed ||
+        !terminals.contains(tabId) ||
+        alias.isEmpty ||
+        alias.length > 128) {
+      return;
+    }
+    _aliases.putIfAbsent(alias, () => {}).add(tabId);
+    if (_aliases.length > 256) _aliases.remove(_aliases.keys.first);
+    _resolvePeers(alias);
+  }
+
+  void recordMessage(String tabId, String address, {DateTime? at}) {
+    final recipient = address.trim();
+    if (_disposed ||
+        !terminals.contains(tabId) ||
+        recipient.isEmpty ||
+        recipient.length > 128) {
+      return;
+    }
+    final targets = _aliases[recipient.toLowerCase()];
+    if (targets?.length == 1 && terminals.contains(targets!.single)) {
+      if (targets.single != tabId) recordTraffic(tabId, targets.single, at: at);
+      return;
+    }
+    recordPeer(
+      GraphUnresolvedPeer(
+        projectId: projectId,
+        ownerTabId: tabId,
+        address: recipient,
+        observedAt: at ?? DateTime.now(),
+      ),
+    );
+    unawaited(reconcileIdentities());
+  }
+
+  void _resolvePeers(String alias) {
+    final targets = _aliases[alias];
+    if (targets == null || targets.length != 1) return;
+    final target = targets.single;
+    final matches = _peers.values
+        .where((p) => p.address.toLowerCase() == alias)
+        .toList();
+    for (final peer in matches) {
+      _peers.remove(peer.id);
+      if (peer.ownerTabId != target) {
+        recordTraffic(peer.ownerTabId, target, at: peer.observedAt);
+      }
+    }
+    if (matches.isNotEmpty) _changed();
+  }
+
+  /// Only known own transcripts are eligible. No global transcript discovery or
+  /// other app's aliases can resolve an address in this instance.
+  Future<void> reconcileIdentities() async {
+    final reader = readAliases;
+    if (_disposed || reader == null) return;
+    for (final terminal in terminals.sessions.values.toList()) {
+      if (terminal.agentHarness != AgentHarness.claude ||
+          terminal.hasExited ||
+          _endedSessions.contains(terminal.id) ||
+          terminal.transcriptPath == null ||
+          terminal.claudeSessionId == null) {
+        continue;
+      }
+      final key = (
+        terminal.id,
+        terminal.claudeSessionId,
+        terminal.transcriptPath,
+      );
+      final now = DateTime.now();
+      if (_aliasReads.contains(key) ||
+          now.difference(_lastAliasRead[terminal.id] ?? DateTime(1970)) <
+              const Duration(seconds: 5)) {
+        continue;
+      }
+      _aliasReads.add(key);
+      _lastAliasRead[terminal.id] = now;
+      final epoch = _activityEpoch[terminal.id] ?? 0;
+      try {
+        final aliases = await reader(terminal);
+        if (_disposed ||
+            !identical(session(terminal.id), terminal) ||
+            terminal.hasExited ||
+            terminal.claudeSessionId != key.$2 ||
+            terminal.transcriptPath != key.$3 ||
+            (_activityEpoch[terminal.id] ?? 0) != epoch) {
+          continue;
+        }
+        for (final alias in aliases) {
+          registerIdentity(terminal.id, alias);
+        }
+      } catch (_) {
+        // Identity remains unresolved; a later event can retry without changing
+        // the native session or fabricating a connection.
+      } finally {
+        _aliasReads.remove(key);
+      }
+    }
+  }
+
+  bool _clearActivity(String tabId) {
+    final before = _traffic.length + _peers.length;
+    _traffic.removeWhere((e) => e.fromTabId == tabId || e.toTabId == tabId);
+    _peers.removeWhere((_, peer) => peer.ownerTabId == tabId);
+    _aliases.removeWhere((_, tabs) {
+      tabs.remove(tabId);
+      return tabs.isEmpty;
+    });
+    _activityEpoch[tabId] = (_activityEpoch[tabId] ?? 0) + 1;
+    _lastAliasRead.remove(tabId);
+    final children = _children.clearOwner(tabId);
+    return children || before != _traffic.length + _peers.length;
+  }
+
   void recordTraffic(String from, String to, {DateTime? at}) {
     if (_disposed ||
         from == to ||
@@ -460,6 +719,7 @@ class OrchestrationContext extends ChangeNotifier
       return;
     }
     _peers[peer.id] = peer;
+    if (_peers.length > 64) _peers.remove(_peers.keys.first);
     _changed();
   }
 

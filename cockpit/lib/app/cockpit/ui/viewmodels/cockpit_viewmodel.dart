@@ -3785,6 +3785,10 @@ class CockpitViewModel extends ChangeNotifier
         subagentId: s.subagentId,
         subagentType: s.subagentType,
         eventAt: s.eventAt,
+        contextTokens: s.contextTokens,
+        contextWindow: s.contextWindow,
+        graphRecipient: s.graphRecipient,
+        graphSelfName: s.graphSelfName,
       ),
     );
 
@@ -6876,6 +6880,17 @@ class CockpitViewModel extends ChangeNotifier
   /// Status reportado por um `claude` rodando numa aba de terminal (via o
   /// socket do [TerminalStatusServer]). Roteia pela [ClaudeStatusUpdate.paneId].
   void _onClaudeStatus(ClaudeStatusUpdate u) {
+    final scoped = session(u.paneId);
+    if (scoped is TerminalSession && !scoped.owner.isWorkspace) {
+      final owner = _orchestrations[scoped.owner.instanceId];
+      if (owner != null &&
+          !owner.closing &&
+          !owner.disposed &&
+          identical(owner.terminals.session(scoped.id), scoped)) {
+        owner.context.applyHook(u);
+      }
+      return;
+    }
     final s = _sessions[u.paneId];
     if (s is! TerminalSession) return;
     if (u.harness == 'claude') {
@@ -7409,7 +7424,7 @@ class CockpitViewModel extends ChangeNotifier
         // cwd vivo salvo (OSC 7, absoluto) vence o `sub` — restaura onde o
         // usuário parou, mesmo fora do projeto.
         final termCwd = desc['cwd'] as String? ?? cwdOf();
-        _buildTerminal(
+        final restoredTerminal = _buildTerminal(
           id,
           project.id,
           termCwd,
@@ -7428,6 +7443,13 @@ class CockpitViewModel extends ChangeNotifier
             TerminalEngine.xterm,
           ),
         );
+        if (ownedBy != null && claudeSid != null && claudeSid.isNotEmpty) {
+          // Retain local restoration identity before the first startup hook;
+          // an early layout flush must not erase the saved conversation.
+          restoredTerminal.claudeSessionId = claudeSid;
+          restoredTerminal.agentHarness = harness;
+          restoredTerminal.transcriptPath = desc['transcriptPath'] as String?;
+        }
         return true;
       case 'viewer':
         final path = desc['path'] as String?;
@@ -7761,6 +7783,8 @@ class CockpitViewModel extends ChangeNotifier
         'sub': relativeUnder(s.workingDirectory, project.path),
         'title': s.title,
         'engine': s.terminal.engine.name,
+        if (!s.owner.isWorkspace && s.transcriptPath != null)
+          'transcriptPath': s.transcriptPath,
         // Rótulo manual travado (se houver): persiste com o descritor da aba,
         // que no restore é re-hidratado pela mesma chave de sessão → o nome
         // estável sobrevive ao reinício e à re-emissão de OSC-title do shell.

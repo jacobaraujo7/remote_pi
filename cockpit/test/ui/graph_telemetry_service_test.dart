@@ -1,8 +1,29 @@
 import 'dart:io';
+import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import '../support/attachment_terminal_gateway.dart';
 
 import 'package:cockpit/app/cockpit/ui/services/graph_telemetry_service.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+class _RemoteTerminal extends TerminalSession {
+  _RemoteTerminal()
+    : super(
+        id: 'remote',
+        projectId: 'remote-worktree',
+        workingDirectory: '/host',
+        attachmentsRemote: true,
+        gateway: AttachmentTerminalGateway(),
+        profile: const TerminalProfile(
+          id: 'shell',
+          label: 'Shell',
+          executable: 'sh',
+        ),
+      );
+  @override
+  HarnessKind? get activeHarness => HarnessKind.claudeCode;
+}
 
 void main() {
   late Directory directory;
@@ -46,6 +67,24 @@ void main() {
       expect(value.totalTokens?.value, 8400);
       expect(value.contextWindow?.value, 200000);
       expect(value.contextPercent, 0.6);
+    },
+  );
+
+  test(
+    'remote transcript never reads a same-named local file; own hook metrics still work',
+    () async {
+      final file = File('${directory.path}/host-path.jsonl');
+      await file.writeAsString(
+        '{"message":{"role":"assistant","usage":{"input_tokens":9999}}}',
+      );
+      final remote = _RemoteTerminal()..transcriptPath = file.path;
+      addTearDown(remote.dispose);
+      final absent = await const GraphTelemetryService().snapshot(remote);
+      expect(absent.contextTokens, isNull);
+      remote.applyGraphMetrics(40, 100);
+      final reported = await const GraphTelemetryService().snapshot(remote);
+      expect(reported.contextTokens?.value, 40);
+      expect(reported.contextWindow?.value, 100);
     },
   );
 

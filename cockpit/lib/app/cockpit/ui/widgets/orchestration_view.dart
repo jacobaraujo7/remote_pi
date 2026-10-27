@@ -163,7 +163,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
           ? ''
           : HarnessCatalog.specs[t!.activeHarness]!.label,
       unseen: t?.unseenFinish ?? false,
-      contextPercent: t == null || t.hasExited
+      contextPercent: t == null || t.hasExited || t.activeHarness == null
           ? null
           : _metrics[t.id]?.contextPercent,
     );

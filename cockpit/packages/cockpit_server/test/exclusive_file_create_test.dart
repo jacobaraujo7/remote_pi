@@ -47,6 +47,57 @@ void main() {
   }
 
   test(
+    'hook metrics and own identity survive the actual server/client transport',
+    () async {
+      final unused = _Unused();
+      final server = RemoteServer(
+        unused,
+        const NativeFileService(),
+        unused,
+        unused,
+      );
+      final path = '${temporary.path}/hooks.sock';
+      await server.bind(path);
+      addTearDown(server.close);
+      final connection = await RemoteConnection.connect(path);
+      addTearDown(connection.close);
+      final received = RemoteTerminalService(
+        connection,
+      ).turnStatus.take(2).toList();
+      Future<void> send(Map<String, Object?> payload) async {
+        final endpoint = await LocalEndpoint.connect(server.statusSocketPath!);
+        endpoint.socket.write(
+          '${jsonEncode({...payload, 'tok': server.statusToken})}\n',
+        );
+        await endpoint.socket.flush();
+        endpoint.socket.destroy();
+      }
+
+      await send({'paneId': 'own', 'type': 'metric', 'ct': -1, 'cw': 100});
+      await send({
+        'paneId': 'own',
+        'type': 'metric',
+        'ct': 42,
+        'cw': 100,
+        'sid': 'session',
+      });
+      await send({
+        'paneId': 'own',
+        'st': 'working',
+        'hn': 'claude',
+        'gi': 'self',
+        'gm': 'peer',
+      });
+      final updates = await received.timeout(const Duration(seconds: 5));
+      expect(updates.first.status, 'metric');
+      expect(updates.first.contextTokens, 42);
+      expect(updates.first.contextWindow, 100);
+      expect(updates.last.graphSelfName, 'self');
+      expect(updates.last.graphRecipient, 'peer');
+    },
+  );
+
+  test(
     'exclusive creation crosses the real TCP/protocol/client path without overwrite',
     () async {
       final files = await connect(const NativeFileService());

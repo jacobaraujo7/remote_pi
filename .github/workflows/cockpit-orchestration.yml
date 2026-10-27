@@ -63,6 +63,7 @@ jobs:
           lib/app/cockpit/domain/entities/terminal_owner.dart
           lib/app/cockpit/ui/viewmodels/orchestration_multiplexer.dart
           lib/app/cockpit/ui/viewmodels/orchestration_context.dart
+          lib/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart
           lib/app/cockpit/ui/widgets/orchestration_terminals_view.dart
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
           lib/app/cockpit/ui/viewmodels/session_notifications_controller.dart

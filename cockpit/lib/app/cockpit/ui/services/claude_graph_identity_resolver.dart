@@ -26,40 +26,55 @@ class ClaudeGraphIdentityResolver {
               .openRead()
               .transform(utf8.decoder)
               .transform(const LineSplitter())) {
-        if (!line.contains('ListAgents') && !line.contains('tool_result')) {
-          continue;
-        }
-        final Object? decoded;
-        try {
-          decoded = jsonDecode(line);
-        } on FormatException {
-          continue;
-        }
-        if (decoded is! Map) continue;
-        final message = decoded['message'];
-        if (message is! Map) continue;
-        final content = message['content'];
-        if (content is! List) continue;
-        for (final part in content) {
-          if (part is! Map) continue;
-          if (part['type'] == 'tool_use' && part['name'] == 'ListAgents') {
-            final id = part['id'];
-            if (id is String) uses.add(id);
-          } else if (part['type'] == 'tool_result' &&
-              uses.contains(part['tool_use_id'])) {
-            final value = part['content'];
-            final text = value is String ? value : jsonEncode(value);
-            final match = RegExp(
-              r'This session is ([A-Za-z0-9_-]{1,128})',
-            ).firstMatch(text);
-            if (match != null) aliases.add(match.group(1)!.toLowerCase());
-          }
-        }
+        _collectLine(line, uses, aliases);
       }
     } on FileSystemException {
       return aliases;
     }
     return aliases;
+  }
+
+  Future<Set<String>> readAliasesBytes(List<int> bytes) async {
+    if (bytes.length > 32 * 1024 * 1024) return {};
+    return Isolate.run(() {
+      final aliases = <String>{}, uses = <String>{};
+      for (final line in const LineSplitter().convert(
+        utf8.decode(bytes, allowMalformed: true),
+      )) {
+        _collectLine(line, uses, aliases);
+      }
+      return aliases;
+    });
+  }
+
+  static void _collectLine(String line, Set<String> uses, Set<String> aliases) {
+    if (!line.contains('ListAgents') && !line.contains('tool_result')) return;
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(line);
+    } on FormatException {
+      return;
+    }
+    if (decoded is! Map) return;
+    final message = decoded['message'];
+    if (message is! Map) return;
+    final content = message['content'];
+    if (content is! List) return;
+    for (final part in content) {
+      if (part is! Map) continue;
+      if (part['type'] == 'tool_use' && part['name'] == 'ListAgents') {
+        final id = part['id'];
+        if (id is String) uses.add(id);
+      } else if (part['type'] == 'tool_result' &&
+          uses.contains(part['tool_use_id'])) {
+        final value = part['content'];
+        final text = value is String ? value : jsonEncode(value);
+        final match = RegExp(
+          r'This session is ([A-Za-z0-9_-]{1,128})',
+        ).firstMatch(text);
+        if (match != null) aliases.add(match.group(1)!.toLowerCase());
+      }
+    }
   }
 
   /// Restored tabs persist the Claude session ID, while the transcript path

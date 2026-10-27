@@ -17,6 +17,11 @@ class SessionNotificationsController extends ChangeNotifier {
   final Notifier _notifier;
   final WindowActivityController _windowActivity;
 
+  // Read-only infrastructure for owned unread eligibility. Owned sessions never
+  // enter this controller's completion/notification path.
+  bool get windowActive => _windowFocused;
+  Listenable get windowActivityChanges => _windowActivity;
+
   // ---- contexto injetado pelo VM dono (mesma vida page-scoped) -------------
 
   /// Id da aba que o usuário está olhando (aba ativa da pane focada).

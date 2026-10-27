@@ -20,6 +20,10 @@ class RemoteTurnStatus {
     this.subagentId,
     this.subagentType,
     this.eventAt,
+    this.contextTokens,
+    this.contextWindow,
+    this.graphRecipient,
+    this.graphSelfName,
   });
 
   final String paneId;
@@ -31,6 +35,8 @@ class RemoteTurnStatus {
   final String? subagentId;
   final String? subagentType;
   final DateTime? eventAt;
+  final int? contextTokens, contextWindow;
+  final String? graphRecipient, graphSelfName;
 }
 
 /// Um comando da CLI do host à espera de resposta deste cliente.
@@ -102,6 +108,10 @@ class RemoteTerminalService implements TerminalService {
           harness: m.harness,
           subagentId: m.subagentId,
           subagentType: m.subagentType,
+          contextTokens: m.contextTokens,
+          contextWindow: m.contextWindow,
+          graphRecipient: m.graphRecipient,
+          graphSelfName: m.graphSelfName,
           eventAt: m.eventEpochMs == null
               ? null
               : DateTime.fromMillisecondsSinceEpoch(m.eventEpochMs!),

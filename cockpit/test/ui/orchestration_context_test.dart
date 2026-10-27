@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.dart';
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
@@ -22,7 +25,11 @@ OrchestrationBox _box(String id) => OrchestrationBox(
 );
 
 class _Document {
-  _Document(this.id) {
+  _Document(
+    this.id, {
+    Future<Set<String>> Function(TerminalSession)? readAliases,
+    bool remote = false,
+  }) {
     mux = OrchestrationMultiplexer(instanceId: id, projectId: 'same-worktree');
     controller = OrchestrationController(
       read: () async => disk,
@@ -40,6 +47,7 @@ class _Document {
           owner: mux.owner,
           projectId: 'same-worktree',
           workingDirectory: '/worktree',
+          attachmentsRemote: remote,
           gateway: AttachmentTerminalGateway(),
           profile: const TerminalProfile(
             id: 'shell',
@@ -62,6 +70,7 @@ class _Document {
       terminals: mux,
       title: () => '$id.orchestration',
       onPersist: () => saves++,
+      readAliases: readAliases,
       onOpenShell: (box) async {
         shells++;
         return Success(box);
@@ -97,6 +106,278 @@ class _Document {
 }
 
 void main() {
+  test(
+    'remote CLI comes from its own main hooks and clears on end, not configuration or child hooks',
+    () async {
+      final remote = _Document('remote', remote: true);
+      final local = _Document('local');
+      addTearDown(remote.dispose);
+      addTearDown(local.dispose);
+      await Future.wait([remote.controller.load(), local.controller.load()]);
+      final t = remote.mux.sessions.values.first;
+      expect(t.activeHarness, isNull);
+      remote.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'working',
+          event: 'UserPromptSubmit',
+          sessionId: 'codex-session',
+          harness: 'codex',
+        ),
+      );
+      expect(t.activeHarness, HarnessKind.codex);
+      remote.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'subagent_start',
+          subagentId: 'claude-child',
+          harness: 'claude',
+        ),
+      );
+      expect(t.activeHarness, HarnessKind.codex);
+      remote.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'idle',
+          event: 'SessionEnd',
+          harness: 'codex',
+        ),
+      );
+      expect(t.activeHarness, isNull);
+      final localTerminal = local.mux.sessions.values.first;
+      local.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: localTerminal.id,
+          status: 'working',
+          sessionId: 'local',
+          harness: 'claude',
+        ),
+      );
+      expect(
+        localTerminal.activeHarness,
+        isNull,
+      ); // local process monitor remains authoritative
+    },
+  );
+
+  test(
+    'hooks update only their owned terminal and unread state, never another document',
+    () async {
+      final a = _Document('a'), b = _Document('b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      await Future.wait([a.controller.load(), b.controller.load()]);
+      final t = a.mux.sessions.values.first;
+      final bSaved = b.saves, disk = a.disk;
+      final working = ClaudeStatusUpdate(
+        paneId: t.id,
+        status: 'working',
+        event: 'UserPromptSubmit',
+        sessionId: 'sid-a',
+        harness: 'claude',
+      );
+      expect(b.context.applyHook(working), isFalse);
+      expect(a.context.applyHook(working), isTrue);
+      expect(t.isWorking, isTrue);
+      a.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'metric',
+          sessionId: 'sid-a',
+          contextTokens: 100,
+          contextWindow: 200,
+        ),
+      );
+      expect(t.reportedContextTokens, 100);
+      a.context.applyHook(ClaudeStatusUpdate(paneId: t.id, status: 'waiting'));
+      expect(t.status, TerminalStatus.waiting);
+      a.context.applyHook(
+        ClaudeStatusUpdate(paneId: t.id, status: 'idle', event: 'Stop'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      expect(t.unseenFinish, isTrue);
+      expect(
+        b.mux.sessions.values.every((s) => !s.unseenFinish && !s.isWorking),
+        isTrue,
+      );
+      expect(b.saves, bSaved);
+      expect(a.disk, disk);
+      expect(
+        a.context.applyHook(
+          const ClaudeStatusUpdate(paneId: 'outside', status: 'working'),
+        ),
+        isFalse,
+      );
+      expect(
+        a.context.applyHook(
+          ClaudeStatusUpdate(paneId: t.id, status: 'future-event'),
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test(
+    'identical peer names in different apps cannot resolve each other',
+    () async {
+      final a = _Document('a'), b = _Document('b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      await Future.wait([a.controller.load(), b.controller.load()]);
+      final from = a.mux.sessions.values.first,
+          target = a.mux.sessions.values.last;
+      b.context.registerIdentity(b.mux.sessions.values.first.id, 'API');
+      a.context.recordMessage(from.id, 'API');
+      expect(a.context.graphTraffic, isEmpty);
+      expect(a.context.graphUnresolvedPeers.length, 1);
+      a.context.registerIdentity(target.id, 'api');
+      expect(a.context.graphTraffic.single.toTabId, target.id);
+      expect(a.context.graphUnresolvedPeers, isEmpty);
+      expect(b.context.graphTraffic, isEmpty);
+      a.context.registerIdentity(from.id, 'same');
+      a.context.registerIdentity(target.id, 'same');
+      a.context.recordMessage(from.id, 'same');
+      expect(a.context.graphUnresolvedPeers.single.address, 'same');
+      expect(a.context.graphTraffic.length, 1);
+    },
+  );
+
+  test(
+    'temporary children and conversation metrics reset only for the owning terminal',
+    () async {
+      final a = _Document('a');
+      addTearDown(a.dispose);
+      await a.controller.load();
+      final t = a.mux.sessions.values.first, other = a.mux.sessions.values.last;
+      a.context.applyHook(
+        ClaudeStatusUpdate(paneId: t.id, status: 'idle', sessionId: 'parent'),
+      );
+      a.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'metric',
+          sessionId: 'parent',
+          contextTokens: 10,
+          contextWindow: 100,
+        ),
+      );
+      for (final terminal in [t, other]) {
+        a.context.applyHook(
+          ClaudeStatusUpdate(
+            paneId: terminal.id,
+            status: 'subagent_start',
+            sessionId: 'child-conversation',
+            subagentId: 'child',
+            subagentType: 'reviewer',
+            eventAt: DateTime(2026),
+          ),
+        );
+      }
+      expect(t.claudeSessionId, 'parent');
+      expect(t.reportedContextTokens, 10);
+      expect(a.context.graphSubagents.length, 2);
+      a.context.applyHook(
+        ClaudeStatusUpdate(paneId: t.id, status: 'idle', event: 'SessionEnd'),
+      );
+      expect(a.context.graphSubagents.single.ownerTabId, other.id);
+      expect(
+        a.context.applyHook(
+          ClaudeStatusUpdate(
+            paneId: t.id,
+            status: 'subagent_start',
+            subagentId: 'late',
+          ),
+        ),
+        isFalse,
+      );
+      a.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'working',
+          event: 'UserPromptSubmit',
+          sessionId: 'new-conversation',
+        ),
+      );
+      expect(t.reportedContextTokens, isNull);
+      expect(
+        a.context.applyHook(
+          ClaudeStatusUpdate(
+            paneId: t.id,
+            status: 'metric',
+            sessionId: 'parent',
+            contextTokens: 999,
+            contextWindow: 1000,
+          ),
+        ),
+        isFalse,
+      );
+      expect(t.reportedContextTokens, isNull);
+    },
+  );
+
+  test(
+    'late transcript reply after SessionEnd cannot recreate an alias or edge',
+    () async {
+      final reply = Completer<Set<String>>();
+      var reads = 0;
+      final a = _Document(
+        'a',
+        readAliases: (_) {
+          reads++;
+          return reply.future;
+        },
+      );
+      addTearDown(a.dispose);
+      await a.controller.load();
+      final t = a.mux.sessions.values.first,
+          source = a.mux.sessions.values.last;
+      t.applyClaudeStatus(
+        status: TerminalStatus.idle,
+        sessionId: 'sid',
+        transcriptPath: '/only-owned.jsonl',
+        harness: AgentHarness.claude,
+      );
+      final pending = a.context.reconcileIdentities();
+      expect(reads, 1);
+      a.context.applyHook(
+        ClaudeStatusUpdate(paneId: t.id, status: 'idle', event: 'SessionEnd'),
+      );
+      reply.complete({'gone'});
+      await pending;
+      a.context.recordMessage(source.id, 'gone');
+      await Future<void>.delayed(Duration.zero);
+      expect(reads, 1);
+      expect(a.context.graphTraffic, isEmpty);
+      expect(a.context.graphUnresolvedPeers.single.address, 'gone');
+    },
+  );
+
+  test(
+    'detaching a terminal removes its aliases, traffic and temporary children',
+    () async {
+      final a = _Document('a');
+      addTearDown(a.dispose);
+      await a.controller.load();
+      final t = a.mux.sessions.values.first,
+          target = a.mux.sessions.values.last;
+      a.context.registerIdentity(t.id, 'self');
+      a.context.recordMessage(target.id, 'self');
+      a.context.applyHook(
+        ClaudeStatusUpdate(
+          paneId: t.id,
+          status: 'subagent_start',
+          subagentId: 'child',
+        ),
+      );
+      a.mux.detach(t.id);
+      await t.dispose();
+      expect(a.context.graphSubagents, isEmpty);
+      expect(a.context.graphTraffic, isEmpty);
+      a.context.recordMessage(target.id, 'self');
+      expect(a.context.graphUnresolvedPeers.single.address, 'self');
+    },
+  );
+
   test(
     'same IDs in two documents never share selection, terminal bindings or edits',
     () async {

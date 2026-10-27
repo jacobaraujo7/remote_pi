@@ -478,6 +478,10 @@ class TurnStatus extends RemoteMessage {
     this.subagentId,
     this.subagentType,
     this.eventEpochMs,
+    this.contextTokens,
+    this.contextWindow,
+    this.graphRecipient,
+    this.graphSelfName,
   });
   static const kType = 'turn.status';
 
@@ -496,6 +500,8 @@ class TurnStatus extends RemoteMessage {
   final String? subagentId;
   final String? subagentType;
   final int? eventEpochMs;
+  final int? contextTokens, contextWindow;
+  final String? graphRecipient, graphSelfName;
 
   factory TurnStatus.fromJson(Map<String, Object?> j) => TurnStatus(
     paneId: j['pane'] as String,
@@ -507,6 +513,10 @@ class TurnStatus extends RemoteMessage {
     subagentId: j['aid'] as String?,
     subagentType: j['at'] as String?,
     eventEpochMs: j['ts'] as int?,
+    contextTokens: j['ct'] as int?,
+    contextWindow: j['cw'] as int?,
+    graphRecipient: j['gm'] as String?,
+    graphSelfName: j['gi'] as String?,
   );
 
   @override
@@ -523,6 +533,10 @@ class TurnStatus extends RemoteMessage {
     if (subagentId != null) 'aid': subagentId,
     if (subagentType != null) 'at': subagentType,
     if (eventEpochMs != null) 'ts': eventEpochMs,
+    if (contextTokens != null) 'ct': contextTokens,
+    if (contextWindow != null) 'cw': contextWindow,
+    if (graphRecipient != null) 'gm': graphRecipient,
+    if (graphSelfName != null) 'gi': graphSelfName,
   };
 }
 

@@ -64,6 +64,7 @@ class OrchestrationRestoreState {
         'title',
         'label',
         'claude_sid',
+        'transcriptPath',
         'harness',
         'engine',
       ]) {

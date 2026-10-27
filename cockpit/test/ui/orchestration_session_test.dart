@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import '../support/attachment_terminal_gateway.dart';
 
 class _Gateway extends AttachmentTerminalGateway {
@@ -21,11 +22,14 @@ class _Gateway extends AttachmentTerminalGateway {
 OrchestrationSession _app(
   String id, {
   Future<void> Function()? beforeDispose,
+  WindowActivityController? activity,
 }) => OrchestrationSession(
   id: id,
   projectId: 'worktree',
   path: '/worktree/$id.orchestration',
   onBeforeDispose: beforeDispose,
+  windowActive: activity == null ? null : () => activity.isActive,
+  windowActivityChanges: activity,
   controller: OrchestrationController(
     read: () async => const OrchestrationDocument().encode(),
     write: (_) async {},
@@ -51,6 +55,24 @@ TerminalSession _terminal(OrchestrationSession owner, _Gateway gateway) =>
     );
 
 void main() {
+  test(
+    'window activity subscription acknowledges only the selected owned terminal and detaches on dispose',
+    () async {
+      final activity = WindowActivityController()..blur();
+      final app = _app('window', activity: activity);
+      final terminal = _terminal(app, _Gateway());
+      app.terminals.attach(terminal);
+      app.terminals.setActive(true);
+      app.terminals.turnFinished(terminal);
+      expect(terminal.unseenFinish, isTrue);
+      activity.focus();
+      expect(terminal.unseenFinish, isFalse);
+      await app.dispose();
+      activity.blur();
+      activity.dispose();
+    },
+  );
+
   test(
     'shutdown captures child metadata before releasing its registry',
     () async {

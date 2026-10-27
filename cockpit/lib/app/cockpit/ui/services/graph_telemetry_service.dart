@@ -86,7 +86,12 @@ class GraphTelemetryService {
         );
       }
       final path = pane.transcriptPath;
-      if (path == null || path.isEmpty) {
+      // A host path is never a file in the client's namespace. Remote hook
+      // metrics above remain supported; absent host data stays unavailable.
+      if (pane.attachmentsRemote ||
+          (Platform.isWindows && pane.profile.wslDistro != null) ||
+          path == null ||
+          path.isEmpty) {
         return GraphTelemetrySnapshot(
           activity: activity,
           activitySource: 'agent hook',

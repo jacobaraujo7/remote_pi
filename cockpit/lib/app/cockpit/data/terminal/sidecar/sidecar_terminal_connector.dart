@@ -69,6 +69,10 @@ class SidecarTerminalConnector implements TurnStatusSource {
           subagentId: s.subagentId,
           subagentType: s.subagentType,
           eventAt: s.eventAt,
+          contextTokens: s.contextTokens,
+          contextWindow: s.contextWindow,
+          graphRecipient: s.graphRecipient,
+          graphSelfName: s.graphSelfName,
         ),
       ),
     );

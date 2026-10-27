@@ -249,7 +249,23 @@ class TerminalSession extends PaneItem {
   TerminalStatus get status => _status;
 
   HarnessKind? _activeHarness;
-  HarnessKind? get activeHarness => _activeHarness;
+  HarnessKind? _remoteHookHarness;
+  HarnessKind? get activeHarness => _activeHarness ?? _remoteHookHarness;
+
+  /// A remote PID cannot be probed in this client's namespace. An owned
+  /// terminal's own hook can supply identity without inventing it from config.
+  void observeRemoteHookHarness(AgentHarness? harness) {
+    if (!attachmentsRemote) return;
+    final next = switch (harness) {
+      AgentHarness.claude => HarnessKind.claudeCode,
+      AgentHarness.codex => HarnessKind.codex,
+      AgentHarness.pi => HarnessKind.pi,
+      null => null,
+    };
+    if (_remoteHookHarness == next) return;
+    _remoteHookHarness = next;
+    notifyListeners();
+  }
 
   /// PID do shell/PTY local. Ausente quando o terminal roda em host remoto.
   int? get rootProcessId => _gateway.rootProcessId;
@@ -281,6 +297,14 @@ class TerminalSession extends PaneItem {
   int? reportedContextTokens;
   int? reportedContextWindow;
   DateTime? reportedContextAt;
+
+  void clearGraphMetrics() {
+    if (reportedContextAt == null) return;
+    reportedContextTokens = null;
+    reportedContextWindow = null;
+    reportedContextAt = null;
+    notifyListeners();
+  }
 
   void applyGraphMetrics(int tokens, int window) {
     if (tokens < 0 || window <= 0) return;

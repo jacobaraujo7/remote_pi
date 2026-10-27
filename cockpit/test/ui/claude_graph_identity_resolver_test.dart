@@ -51,6 +51,9 @@ void main() {
         file.path,
       );
       expect(aliases, {'massivo-42'});
+      final remoteAliases = await const ClaudeGraphIdentityResolver()
+          .readAliasesBytes(await file.readAsBytes());
+      expect(remoteAliases, aliases);
     },
   );
 }

@@ -27,6 +27,7 @@ Map<String, dynamic> snapshot() => {
       'cwd': '/worktree/src',
       'harness': 'codex',
       'claude_sid': 'local-conversation',
+      'transcriptPath': '/owned/conversation.jsonl',
       'engine': 'ghostty',
     },
   },
@@ -60,6 +61,10 @@ void main() {
       final restored = decode(snapshot());
       expect(restored.bindings, {'box': 'owned'});
       expect(restored.sessions['owned']!['claude_sid'], 'local-conversation');
+      expect(
+        restored.sessions['owned']!['transcriptPath'],
+        '/owned/conversation.jsonl',
+      );
       expect(restored.presentation.mode, OrchestrationViewMode.graph);
       expect(restored.presentation.graphTerminalFraction, .42);
       expect(

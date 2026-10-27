@@ -4,6 +4,28 @@ import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'optional metric and own identity fields survive transport and old payloads',
+    () {
+      const message = TurnStatus(
+        paneId: 'own',
+        status: 'metric',
+        contextTokens: 42,
+        contextWindow: 100,
+        graphSelfName: 'self',
+        graphRecipient: 'peer',
+      );
+      final decoded = RemoteMessage.fromJson(message.toJson()) as TurnStatus;
+      expect(decoded.contextTokens, 42);
+      expect(decoded.contextWindow, 100);
+      expect(decoded.graphSelfName, 'self');
+      expect(decoded.graphRecipient, 'peer');
+      final legacy = TurnStatus.fromJson({'pane': 'old', 'st': 'idle'});
+      expect(legacy.contextTokens, isNull);
+      expect(legacy.graphSelfName, isNull);
+    },
+  );
+
   test('remote turn status carries temporary child identity', () {
     const message = TurnStatus(
       paneId: 'tab-main',

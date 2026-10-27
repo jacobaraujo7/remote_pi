@@ -51,6 +51,9 @@ extension OrchestrationWorkspace on CockpitViewModel {
     bool startWatching = true,
     OrchestrationPresentation presentation = const OrchestrationPresentation(),
   }) {
+    final sourceProject = _projectById(projectId);
+    if (sourceProject == null) throw StateError('Worktree unavailable');
+    final sourceHostId = sourceProject.remoteHostId;
     late OrchestrationSession session;
     Future<void> saveLocal() {
       final layout = _serializeLayout(projectId);
@@ -131,7 +134,28 @@ extension OrchestrationWorkspace on CockpitViewModel {
         return hostId != null && _remoteHosts.isDisconnected(hostId);
       },
       onPersist: () => _scheduleSave(projectId),
+      readAliases: (terminal) async {
+        final file = terminal.transcriptPath;
+        if (file == null ||
+            session.disposed ||
+            session.closing ||
+            (Platform.isWindows && terminal.profile.wslDistro != null)) {
+          return {};
+        }
+        if (sourceHostId != null) {
+          final host = _remoteHosts.hosts
+              .where((h) => h.id == sourceHostId)
+              .first;
+          final files = await _remoteHosts.fileServiceFor(host);
+          return _graphIdentityResolver.readAliasesBytes(
+            await files.read(file, maxBytes: 32 * 1024 * 1024),
+          );
+        }
+        return _graphIdentityResolver.readAliases(file);
+      },
       onBeforeDispose: saveLocal,
+      windowActive: () => notifications.windowActive,
+      windowActivityChanges: notifications.windowActivityChanges,
       onFocus: () {
         final pane = leafOfTab(projectId, session.id);
         if (pane != null && selectedProjectId == projectId) focus(pane);
@@ -250,6 +274,7 @@ extension OrchestrationWorkspace on CockpitViewModel {
       owner.controller.beforeReconcile = null;
       _watchOrchestration(owner);
       owner.controller.startPolling();
+      unawaited(owner.context.reconcileIdentities());
     };
   }
 

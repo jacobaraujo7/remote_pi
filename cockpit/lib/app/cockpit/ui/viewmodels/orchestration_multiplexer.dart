@@ -9,10 +9,16 @@ import '../states/pane_node.dart';
 /// Detach returns a session without disposing it: the presenter must unmount
 /// its TerminalView before disposing the native controller.
 class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
-  OrchestrationMultiplexer({required this.instanceId, required this.projectId});
+  OrchestrationMultiplexer({
+    required this.instanceId,
+    required this.projectId,
+    this.windowActive,
+  });
 
   final String instanceId;
   final String projectId;
+  final bool Function()? windowActive;
+  bool get _mayRead => _active && (windowActive?.call() ?? true);
   TerminalOwner get owner => TerminalOwner.orchestration(instanceId);
   final Map<String, T> _sessions = {};
   Map<String, T> get sessions => UnmodifiableMapView(_sessions);
@@ -79,7 +85,7 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
       _focusedPaneId = pane.id;
       _keyboardTabId = session.id;
       _focusRevision++;
-      if (_active) session.clearUnseen();
+      if (_mayRead) session.clearUnseen();
     }
     notifyListeners();
   }
@@ -95,7 +101,7 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
       _focusedPaneId = pane.id;
       _keyboardTabId = tabId;
       _focusRevision++;
-      if (_active) _sessions[tabId]!.clearUnseen();
+      if (_mayRead) _sessions[tabId]!.clearUnseen();
     } else {
       _keyboardTabId = null;
     }
@@ -148,7 +154,7 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
     _focusedPaneId = fresh.id;
     _keyboardTabId = tabId;
     _focusRevision++;
-    if (_active) _sessions[tabId]!.clearUnseen();
+    if (_mayRead) _sessions[tabId]!.clearUnseen();
     notifyListeners();
     return true;
   }
@@ -157,16 +163,20 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
     _ensureAlive();
     if (_active == value) return;
     _active = value;
-    if (value && _keyboardTabId != null) {
+    refreshReadEligibility();
+    notifyListeners();
+  }
+
+  void refreshReadEligibility() {
+    if (!_disposed && _mayRead && _keyboardTabId != null) {
       _sessions[_keyboardTabId]?.clearUnseen();
     }
-    notifyListeners();
   }
 
   /// Local unread state only. No system notifier or global controller is used.
   void turnFinished(T session) {
     if (_disposed || !identical(_sessions[session.id], session)) return;
-    if (!_active || _keyboardTabId != session.id) session.markUnseen();
+    if (!_mayRead || _keyboardTabId != session.id) session.markUnseen();
   }
 
   bool move(String tabId, String destinationPaneId, {int? index}) {
@@ -207,7 +217,7 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
     _focusedPaneId = target.id;
     _keyboardTabId = tabId;
     _focusRevision++;
-    if (_active) _sessions[tabId]!.clearUnseen();
+    if (_mayRead) _sessions[tabId]!.clearUnseen();
     notifyListeners();
     return true;
   }

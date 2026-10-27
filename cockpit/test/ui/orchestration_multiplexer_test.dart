@@ -47,6 +47,34 @@ _Terminal _terminal(String doc, String id) =>
 
 void main() {
   test(
+    'blur/minimize marks owned unread and focus acknowledges only its selected terminal',
+    () {
+      var windowActive = false;
+      final a = OrchestrationMultiplexer<_Terminal>(
+        instanceId: 'a',
+        projectId: 'worktree',
+        windowActive: () => windowActive,
+      );
+      final first = _terminal('a', 'first'), second = _terminal('a', 'second');
+      a.attach(first);
+      a.attach(second);
+      a.setActive(true);
+      a.reveal(first.id, focus: true);
+      a.turnFinished(first);
+      a.turnFinished(second);
+      expect(first.unseenFinish, isTrue);
+      expect(second.unseenFinish, isTrue);
+      windowActive = true;
+      a.refreshReadEligibility();
+      expect(first.unseenFinish, isFalse);
+      expect(second.unseenFinish, isTrue);
+      a.dispose();
+      first.dispose();
+      second.dispose();
+    },
+  );
+
+  test(
     'split existing owned terminal preserves objects, direction and tab selection',
     () {
       final a = _mux('a');

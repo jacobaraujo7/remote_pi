@@ -2,7 +2,7 @@
 
 Open **Gallery → Agent Orchestration** to create `agents.orc` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
 
-Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Contextual CLI and shortcut/hook routing are still under implementation; desktop cold-upgrade acceptance is pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
+Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Owned hook/status/activity routing is integrated; contextual CLI, shortcut/menu routing and file-link handling are still under implementation; desktop cold-upgrade acceptance is pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
 
 ## Portable document
 
@@ -61,3 +61,27 @@ passive configuration, portability, independent instances and lifecycle rules.
 `cockpit install-skill` distributes it through the existing harness installer;
 `cockpit install-skill --list` lists the bundled files without installing them.
 The skill is in `cli/skills/cockpit-orchestration/SKILL.md`.
+
+## Owned live events
+
+Local, sidecar and remote hook events resolve the exact owned terminal before
+updating its app context. Status, context counters, child lifecycles, observed
+messages and aliases do not enter the workspace graph or notification controller.
+Same-named peers in another app cannot resolve a connection. Ambiguous own aliases
+remain unresolved. Pending transcript replies are discarded after conversation
+changes, SessionEnd, removal or disposal. Only known own transcripts are read;
+owned contexts never enumerate the workspace's terminals for identity discovery.
+
+Foreground badges acknowledge only the selected internal terminal while the app
+and native window are focused. Background/minimized completions stay unread in
+the app; they do not emit global badges, sound or OS notifications. Focus-source
+subscriptions detach when the app is disposed.
+
+Remote CLI labels can use their own main-session hooks, since a remote PID cannot
+be probed locally. Child hooks cannot replace the parent's CLI identity; SessionEnd
+clears it. Remote transcript paths are never opened as local files. Exact host hook
+metrics remain supported; absent host transcript data stays unavailable. WSL
+transcript fallback is likewise skipped on Windows instead of interpreting Linux
+paths in the client namespace. Local restoration keeps owned conversation identity
+and its known transcript path before the first startup hook; these fields remain
+outside portable .orc documents.
