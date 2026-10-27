@@ -81,6 +81,8 @@ jobs:
           flutter test --no-pub
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
+          test/ui/orchestration_live_sessions_test.dart
+          test/ui/agent_role_suggestion_service_test.dart
           test/ui/orchestration_terminal_target_test.dart
           test/domain/gallery_template_test.dart
           test/ui/gallery_panel_test.dart

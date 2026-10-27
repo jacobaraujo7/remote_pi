@@ -33,6 +33,63 @@ void main() {
       tool: '',
     ),
   ];
+  testWidgets('narrow boxes show live CLI and attention without refresh', (
+    tester,
+  ) async {
+    var tool = 'Codex';
+    var status = WorkspaceBoxStatus.waiting;
+    var unseen = true;
+    late StateSetter update;
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: ShadcnApp(
+          theme: buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: 360,
+                height: 500,
+                child: StatefulBuilder(
+                  builder: (_, setState) {
+                    update = setState;
+                    return WorkspaceBoxList(
+                      entries: [
+                        WorkspaceBoxEntry(
+                          box: entries.first.box,
+                          status: status,
+                          tool: tool,
+                          unseen: unseen,
+                        ),
+                      ],
+                      onSelect: (_) {},
+                      onOpen: (_) {},
+                      onConfigure: (_) {},
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Codex'), findsOneWidget);
+    expect(find.byIcon(Icons.notification_important_outlined), findsOneWidget);
+    update(() {
+      tool = 'Claude Code';
+      status = WorkspaceBoxStatus.idle;
+    });
+    await tester.pumpAndSettle();
+    expect(find.text('Claude Code'), findsOneWidget);
+    expect(find.byIcon(Icons.notifications_active_outlined), findsOneWidget);
+    update(() => unseen = false);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.notifications_active_outlined), findsNothing);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   test('search matches function and sorting is case independent', () {
     expect(filterWorkspaceBoxes(entries).map((e) => e.box.id), ['a', 'b']);
     expect(

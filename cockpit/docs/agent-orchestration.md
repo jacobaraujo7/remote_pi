@@ -28,4 +28,13 @@ New terminal uses the last available terminal dock outside the orchestration doc
 
 Bindings are keyed by worktree/project identity and document path in the local workspace layout. Renaming through the file tree updates that path. On first creation, the Gallery offers to import saved #269 graph configuration, box order, positions and links. Current terminal tabs are included either way without creating duplicates. Global Terminals/Boxes/Graph modes are not used. Existing terminal/dock visuals and native platform controls remain unchanged.
 
-Local files are watched; remote files use the existing remote file service and the app's Reload action. Relative directories must stay inside the worktree; absolute paths and `..` segments are rejected before creating shells. Source view remains available through Open as source.
+Local files are watched. Active document controllers also check for external changes every five seconds, through the captured local/remote file service, including after the app tab is closed. Reload remains available for an immediate retry. Relative directories must stay inside the worktree; absolute paths and `..` segments are rejected before creating shells. Source view remains available through Open as source.
+
+
+## Live feedback and role suggestions
+
+Boxes and Graph display the CLI detected in the bound terminal, independently of the configured tool. Narrow box rows keep the CLI below the name; the inspector shows it above configuration. Unknown detection is shown explicitly. Attention badges share the terminal's unseen-result flag and waiting status; opening the real terminal acknowledges results through the existing flow. New terminals join the live subscriptions immediately, without Reload. Context/process telemetry refreshes periodically; session status and CLI changes are event-driven.
+
+A selected box without a role prompts the user to configure it. In its inspector, **Ask agent for role** sends a metadata question to that terminal's running CLI when idle. It neither starts another CLI nor runs during work or an approval prompt. The response is a bounded JSON reply in an OS temporary file, correlated by a fresh request identifier. Local WSL paths use the existing converter. Remote replies use the original host's file service; their temporary file content is cleared afterward. No response paths or runtime identifiers go into the portable document.
+
+The suggested role appears as a preview. **Use suggestion** fills the editable role; **Save** confirms it. Discarding or closing the inspector does not save it. A changed document, terminal, CLI or conversation rejects a late reply. Missing/invalid replies show an error and leave manual configuration available.

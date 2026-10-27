@@ -1353,6 +1353,21 @@
     "importTitle": "Import existing configuration?",
     "importHelp": "Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.",
     "createWithoutImport": "Create without importing",
-    "importLegacy": "Import configuration"
+    "importLegacy": "Import configuration",
+    "noCli": "Ninguna CLI detectada",
+    "connectedCli": "CLI conectada",
+    "needsInput": "Necesita tu atención",
+    "newActivity": "Nuevo resultado",
+    "roleMissing": "Sin función definida. Consulta al agente conectado para sugerir una función.",
+    "askRole": "Consultar función al agente",
+    "askingRole": "Esperando al agente…",
+    "roleSuggestion": "Función sugerida — revisa antes de guardar",
+    "useSuggestion": "Usar sugerencia",
+    "discardSuggestion": "Descartar",
+    "roleNoAgent": "Ninguna CLI detectada en este terminal.",
+    "roleBusy": "Espera a que el agente esté inactivo para consultar.",
+    "roleChanged": "El terminal o documento cambió. Consulta de nuevo.",
+    "roleTimeout": "El agente no respondió a tiempo. Reintenta o completa la función manualmente.",
+    "roleInvalid": "El agente devolvió una función no válida."
   }
 }

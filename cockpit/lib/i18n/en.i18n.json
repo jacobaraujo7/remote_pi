@@ -1353,6 +1353,21 @@
     "importTitle": "Import existing configuration?",
     "importHelp": "Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.",
     "createWithoutImport": "Create without importing",
-    "importLegacy": "Import configuration"
+    "importLegacy": "Import configuration",
+    "noCli": "No CLI detected",
+    "connectedCli": "Connected CLI",
+    "needsInput": "Needs your input",
+    "newActivity": "New result",
+    "roleMissing": "No role defined. Ask the connected agent for a suggestion.",
+    "askRole": "Ask agent for role",
+    "askingRole": "Waiting for agent…",
+    "roleSuggestion": "Suggested role — review before saving",
+    "useSuggestion": "Use suggestion",
+    "discardSuggestion": "Discard",
+    "roleNoAgent": "No CLI detected in this terminal.",
+    "roleBusy": "Wait until the agent is idle before asking.",
+    "roleChanged": "The terminal or document changed. Ask again.",
+    "roleTimeout": "The agent did not return a suggestion in time. You can try again or fill the role manually.",
+    "roleInvalid": "The agent returned an invalid role suggestion."
   }
 }

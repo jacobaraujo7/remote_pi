@@ -1,4 +1,6 @@
 import 'dart:async';
+import '../../../core/domain/entities/harness.dart';
+import '../services/orchestration_live_sessions.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:path/path.dart' as path;
@@ -35,6 +37,29 @@ class OrchestrationView extends StatefulWidget {
 class _OrchestrationViewState extends State<OrchestrationView> {
   final Map<String, GraphTelemetrySnapshot> _metrics = {};
   Timer? _timer;
+  bool _refreshing = false;
+  OrchestrationLiveSessions? _live;
+  OrchestrationLiveSessions get _liveSessions =>
+      _live ??= OrchestrationLiveSessions(
+        sources: [widget.vm, widget.session],
+        sessions: () => widget.vm.allSessions
+            .whereType<TerminalSession>()
+            .where((t) => t.projectId == widget.session.projectId),
+      );
+  @override
+  void didUpdateWidget(covariant OrchestrationView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.vm != widget.vm || oldWidget.session != widget.session) {
+      _live?.dispose();
+      _live = null;
+      _metrics.clear();
+    }
+    if ((!oldWidget.active && widget.active) ||
+        oldWidget.session != widget.session) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,23 +68,43 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   }
 
   Future<void> _refresh() async {
-    if (!mounted ||
+    if (_refreshing ||
+        !mounted ||
         !widget.active ||
         widget.vm.selectedProjectId != widget.session.projectId) {
       return;
     }
-    for (final box in widget.session.controller.graphBoxes) {
-      final session = widget.vm.session(box.tabId ?? '');
-      if (session == null) continue;
-      final metric = await const GraphTelemetryService().snapshot(session);
-      if (!mounted) return;
-      setState(() => _metrics[session.id] = metric);
+    _refreshing = true;
+    final documentSession = widget.session;
+    final documentPath = documentSession.path;
+    try {
+      final next = <String, GraphTelemetrySnapshot>{};
+      for (final box in documentSession.controller.graphBoxes) {
+        final session = widget.vm.session(box.tabId ?? '');
+        if (session == null) continue;
+        next[session.id] = await const GraphTelemetryService().snapshot(
+          session,
+        );
+      }
+      if (!mounted ||
+          widget.session != documentSession ||
+          documentSession.path != documentPath) {
+        return;
+      }
+      setState(() {
+        _metrics
+          ..clear()
+          ..addAll(next);
+      });
+    } finally {
+      _refreshing = false;
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _live?.dispose();
     super.dispose();
   }
 
@@ -74,14 +119,18 @@ class _OrchestrationViewState extends State<OrchestrationView> {
           ? WorkspaceBoxStatus.disconnected
           : t.hasExited
           ? WorkspaceBoxStatus.closed
-          : t.activeHarness == null
-          ? WorkspaceBoxStatus.shell
           : switch (t.status) {
               TerminalStatus.working => WorkspaceBoxStatus.working,
               TerminalStatus.waiting => WorkspaceBoxStatus.waiting,
-              TerminalStatus.idle => WorkspaceBoxStatus.idle,
+              TerminalStatus.idle =>
+                t.activeHarness == null
+                    ? WorkspaceBoxStatus.shell
+                    : WorkspaceBoxStatus.idle,
             },
-      tool: t?.activeHarness?.name ?? box.harness,
+      tool: t?.activeHarness == null
+          ? ''
+          : HarnessCatalog.specs[t!.activeHarness]!.label,
+      unseen: t?.unseenFinish ?? false,
       contextPercent: t == null || t.hasExited
           ? null
           : _metrics[t.id]?.contextPercent,
@@ -92,19 +141,14 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   Widget build(BuildContext context) {
     final vm = widget.vm;
     return ListenableBuilder(
-      listenable: Listenable.merge([
-        vm,
-        widget.session,
-        ...vm.allSessions.whereType<TerminalSession>().where(
-          (t) => t.projectId == widget.session.projectId,
-        ),
-      ]),
+      listenable: _liveSessions,
       builder: (context, _) {
         // An offstage document must never project another worktree's selection.
         if (vm.selectedProjectId != widget.session.projectId) {
           return const SizedBox.shrink();
         }
         final controller = widget.session.controller;
+        controller.startPolling();
         final t = context.t.workspaceView;
         final tr = context.t.orchestration;
         final state = vm.presentation;
@@ -113,7 +157,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
             vm.selectWorkspaceBox(id, configure: configure);
         final entries = [for (final b in vm.graphBoxes) _entry(b)];
         Widget inspector() => WorkspaceBoxInspector(
-          key: ValueKey('inspector-${selected!.id}'),
+          key: ValueKey('inspector-${widget.session.path}-${selected!.id}'),
           vm: vm,
           box: selected,
           entry: _entry(selected),
@@ -124,6 +168,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                   .firstOrNull
                   ?.directory ??
               '.',
+          onSuggestRole: () => vm.suggestOrchestrationRole(
+            widget.session.projectId,
+            selected.id,
+          ),
           onSave: (name, role, tool, model, directory) =>
               vm.configureOrchestrationBox(
                 widget.session.projectId,
@@ -193,7 +241,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                   ),
                   IconButton.ghost(
                     icon: const Icon(Icons.refresh, size: 17),
-                    onPressed: () => controller.load(),
+                    onPressed: () async {
+                      await controller.load();
+                      await _refresh();
+                    },
                   ),
                   IconButton.ghost(
                     icon: const Icon(Icons.settings_outlined, size: 17),
@@ -204,6 +255,22 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                 ],
               ),
             ),
+            if (selected != null && selected.role.trim().isEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(tr.roleMissing, style: context.typo.label),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlineButton(
+                      onPressed: () => select(selected.id, configure: true),
+                      child: Text(t.configure),
+                    ),
+                  ],
+                ),
+              ),
             if (controller.busy) const LinearProgressIndicator(),
             if (controller.error != null || controller.dirty)
               Container(

@@ -414,3 +414,117 @@ extension OrchestrationWorkspace on CockpitViewModel {
         : Failure(controller.error!);
   }
 }
+
+final _agentRoleSuggestions = AgentRoleSuggestionService();
+
+extension OrchestrationRoleSuggestions on CockpitViewModel {
+  Future<Result<String, String>> suggestOrchestrationRole(
+    String projectId,
+    String boxId,
+  ) async {
+    final tr = slang.t.orchestration;
+    final doc = _orchestrations[projectId];
+    final terminal = _sessions[doc?.controller.bindings[boxId]];
+    if (doc == null ||
+        terminal is! TerminalSession ||
+        terminal.hasExited ||
+        terminal.activeHarness == null) {
+      return Failure(tr.roleNoAgent);
+    }
+    if (terminal.status != TerminalStatus.idle) return Failure(tr.roleBusy);
+    final documentPath = doc.path;
+    final cli = terminal.activeHarness;
+    final conversation = terminal.claudeSessionId;
+    bool current() =>
+        _orchestrations[projectId] == doc &&
+        doc.path == documentPath &&
+        doc.controller.bindings[boxId] == terminal.id &&
+        _sessions[terminal.id] == terminal &&
+        !terminal.hasExited &&
+        terminal.activeHarness == cli &&
+        (conversation == null || terminal.claudeSessionId == conversation);
+    try {
+      final role = await _agentRoleSuggestions.request(
+        key: '${identityHashCode(this)}|$projectId|$documentPath|$boxId',
+        requestId: newUid(),
+        language: slang.LocaleSettings.currentLocale.languageCode,
+        isCurrent: current,
+        prepare: () async {
+          final hostId = _projectById(projectId)?.remoteHostId;
+          final host = hostId == null
+              ? null
+              : _remoteHosts.hosts.where((h) => h.id == hostId).first;
+          final remote = host == null
+              ? null
+              : await _remoteHosts.fileServiceFor(host);
+          final id = newUid().replaceAll(RegExp('[^a-zA-Z0-9-]'), '');
+          final responsePath = remote == null
+              ? path.join(Directory.systemTemp.path, 'cockpit-role-$id.json')
+              : '/tmp/cockpit-role-$id.json';
+          if (remote == null) {
+            await File(responsePath).writeAsString('{}', flush: true);
+          } else {
+            await remote.write(responsePath, utf8.encode('{}'));
+          }
+          var agentPath = responsePath;
+          try {
+            if (remote == null) {
+              if (terminal.profile.wslDistro case final distro?) {
+                agentPath = await const LocalTerminalPathConverter().forWsl(
+                  responsePath,
+                  distro,
+                );
+              }
+            }
+          } catch (_) {
+            if (remote == null) await File(responsePath).delete();
+            rethrow;
+          }
+          return AgentRoleSuggestionChannel(
+            path: agentPath,
+            send: (prompt) async {
+              if (!current()) throw AgentRoleSuggestionFailure.changed;
+              if (terminal.status != TerminalStatus.idle) {
+                throw StateError(tr.roleBusy);
+              }
+              terminal.insertText('$prompt\r');
+            },
+            read: () async {
+              if (remote != null) {
+                return utf8.decode(
+                  await remote.read(responsePath, maxBytes: 4096),
+                );
+              }
+              final file = await File(responsePath).open();
+              try {
+                final bytes = await file.read(4097);
+                if (bytes.length > 4096) {
+                  throw AgentRoleSuggestionFailure.invalid;
+                }
+                return utf8.decode(bytes, allowMalformed: true);
+              } finally {
+                await file.close();
+              }
+            },
+            dispose: () async {
+              if (remote == null) {
+                await File(responsePath).delete();
+              } else {
+                await remote.write(responsePath, utf8.encode(''));
+              }
+            },
+          );
+        },
+      );
+      return current() ? Success(role) : Failure(tr.roleChanged);
+    } on AgentRoleSuggestionFailure catch (e) {
+      return Failure(switch (e) {
+        AgentRoleSuggestionFailure.changed => tr.roleChanged,
+        AgentRoleSuggestionFailure.timeout => tr.roleTimeout,
+        AgentRoleSuggestionFailure.invalid => tr.roleInvalid,
+      });
+    } catch (e) {
+      return Failure(e.toString());
+    }
+  }
+}

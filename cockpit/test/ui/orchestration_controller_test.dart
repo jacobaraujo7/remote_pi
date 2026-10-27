@@ -216,4 +216,44 @@ void main() {
       expect(OrchestrationDocument.parse(f.disk).boxes.first.box.id, 'b');
     },
   );
+  test(
+    'poll reloads external edits without refresh and preserves valid state on parse failure',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      f.disk = OrchestrationDocument(
+        boxes: [box('a'), box('b'), box('c')],
+        links: [],
+      ).encode();
+      await f.controller.poll();
+      expect(f.spawns, 3);
+      await f.controller.poll();
+      expect(f.spawns, 3);
+      f.disk = '{invalid';
+      await f.controller.poll();
+      expect(f.controller.document!.boxes.length, 3);
+      expect(f.controller.error, isNotNull);
+      f.disk = f.controller.document!.encode();
+      await f.controller.poll();
+      expect(f.controller.error, isNull);
+      expect(f.spawns, 3);
+      f.controller.dispose();
+    },
+  );
+  test(
+    'poll retries a failed save without replacing local configuration',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      f.failWrite = true;
+      await f.controller.update([box('a'), box('b'), box('draft')], []);
+      expect(f.controller.dirty, isTrue);
+      f.failWrite = false;
+      await f.controller.poll();
+      expect(f.controller.dirty, isFalse);
+      expect(OrchestrationDocument.parse(f.disk).boxes.last.box.id, 'draft');
+      expect(f.spawns, 2);
+      f.controller.dispose();
+    },
+  );
 }

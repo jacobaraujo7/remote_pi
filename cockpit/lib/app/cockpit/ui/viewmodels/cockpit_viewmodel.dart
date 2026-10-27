@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:path/path.dart' as path;
 import '../session/orchestration_session.dart';
 import '../services/orchestration_controller.dart';
+import '../services/agent_role_suggestion_service.dart';
+import '../../data/terminal/local_terminal_attachments.dart';
 import '../services/orchestration_terminal_target.dart';
 import '../../domain/entities/orchestration_document.dart';
 import 'dart:convert';

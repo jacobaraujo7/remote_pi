@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'graph_box_editor.dart';
+import 'workspace_box_list.dart';
+import '../../../core/domain/entities/harness.dart';
 
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
@@ -944,12 +946,18 @@ class _GraphBoxCard extends StatelessWidget {
     final tr = context.t.graphView;
     final rawStatus = disconnected
         ? 'disconnected'
-        : metric?.activity.name ??
-              switch (session) {
-                TerminalSession(:final status) => status.name,
-                null => 'stopped',
-                _ => 'idle',
-              };
+        : switch (session) {
+            TerminalSession(:final status, :final hasExited) =>
+              hasExited ? 'stopped' : status.name,
+            null => 'stopped',
+            _ => metric?.activity.name ?? 'idle',
+          };
+    final terminal = session is TerminalSession
+        ? session as TerminalSession
+        : null;
+    final cli = terminal?.activeHarness == null
+        ? context.t.orchestration.noCli
+        : HarnessCatalog.specs[terminal!.activeHarness]!.label;
     final status = switch (rawStatus) {
       'working' || 'streaming' => tr.working,
       'waiting' => tr.waiting,
@@ -983,7 +991,7 @@ class _GraphBoxCard extends StatelessWidget {
     final details = <String>[
       tr.tooltipSession,
       tr.tooltipIdentity(
-        tool: box.harness.isEmpty ? tr.terminal : box.harness,
+        tool: cli,
         model: box.model.isEmpty ? tr.defaultModel : box.model,
         status: status,
       ),
@@ -1065,11 +1073,15 @@ class _GraphBoxCard extends StatelessWidget {
                           ),
                         ),
                       ),
+                      WorkspaceAttentionBadge(
+                        unseen: session?.unseenFinish ?? false,
+                        waiting: rawStatus == 'waiting',
+                      ),
                     ],
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${box.harness.isEmpty ? tr.terminal : box.harness}${box.model.isEmpty ? '' : ' · ${box.model}'}',
+                    '$cli${box.model.isEmpty ? '' : ' · ${box.model}'}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.typo.label.copyWith(color: colors.text3),

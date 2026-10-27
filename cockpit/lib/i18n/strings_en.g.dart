@@ -624,6 +624,51 @@ class Translations$orchestration$en {
 
 	/// en: 'Import configuration'
 	String get importLegacy => 'Import configuration';
+
+	/// en: 'No CLI detected'
+	String get noCli => 'No CLI detected';
+
+	/// en: 'Connected CLI'
+	String get connectedCli => 'Connected CLI';
+
+	/// en: 'Needs your input'
+	String get needsInput => 'Needs your input';
+
+	/// en: 'New result'
+	String get newActivity => 'New result';
+
+	/// en: 'No role defined. Ask the connected agent for a suggestion.'
+	String get roleMissing => 'No role defined. Ask the connected agent for a suggestion.';
+
+	/// en: 'Ask agent for role'
+	String get askRole => 'Ask agent for role';
+
+	/// en: 'Waiting for agent…'
+	String get askingRole => 'Waiting for agent…';
+
+	/// en: 'Suggested role — review before saving'
+	String get roleSuggestion => 'Suggested role — review before saving';
+
+	/// en: 'Use suggestion'
+	String get useSuggestion => 'Use suggestion';
+
+	/// en: 'Discard'
+	String get discardSuggestion => 'Discard';
+
+	/// en: 'No CLI detected in this terminal.'
+	String get roleNoAgent => 'No CLI detected in this terminal.';
+
+	/// en: 'Wait until the agent is idle before asking.'
+	String get roleBusy => 'Wait until the agent is idle before asking.';
+
+	/// en: 'The terminal or document changed. Ask again.'
+	String get roleChanged => 'The terminal or document changed. Ask again.';
+
+	/// en: 'The agent did not return a suggestion in time. You can try again or fill the role manually.'
+	String get roleTimeout => 'The agent did not return a suggestion in time. You can try again or fill the role manually.';
+
+	/// en: 'The agent returned an invalid role suggestion.'
+	String get roleInvalid => 'The agent returned an invalid role suggestion.';
 }
 
 // Path: core.bootstrapError
@@ -5578,6 +5623,21 @@ extension on Translations {
 			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
 			'orchestration.createWithoutImport' => 'Create without importing',
 			'orchestration.importLegacy' => 'Import configuration',
+			'orchestration.noCli' => 'No CLI detected',
+			'orchestration.connectedCli' => 'Connected CLI',
+			'orchestration.needsInput' => 'Needs your input',
+			'orchestration.newActivity' => 'New result',
+			'orchestration.roleMissing' => 'No role defined. Ask the connected agent for a suggestion.',
+			'orchestration.askRole' => 'Ask agent for role',
+			'orchestration.askingRole' => 'Waiting for agent…',
+			'orchestration.roleSuggestion' => 'Suggested role — review before saving',
+			'orchestration.useSuggestion' => 'Use suggestion',
+			'orchestration.discardSuggestion' => 'Discard',
+			'orchestration.roleNoAgent' => 'No CLI detected in this terminal.',
+			'orchestration.roleBusy' => 'Wait until the agent is idle before asking.',
+			'orchestration.roleChanged' => 'The terminal or document changed. Ask again.',
+			'orchestration.roleTimeout' => 'The agent did not return a suggestion in time. You can try again or fill the role manually.',
+			'orchestration.roleInvalid' => 'The agent returned an invalid role suggestion.',
 			_ => null,
 		};
 	}

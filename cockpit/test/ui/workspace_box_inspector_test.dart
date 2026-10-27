@@ -53,7 +53,10 @@ class _InspectorVM implements CockpitViewModel {
   }
 
   @override
-  Future<Result<String, String>> openBoxShell(String id, {String? workspaceId}) async {
+  Future<Result<String, String>> openBoxShell(
+    String id, {
+    String? workspaceId,
+  }) async {
     started++;
     return Success(id);
   }
@@ -63,6 +66,55 @@ class _InspectorVM implements CockpitViewModel {
 }
 
 void main() {
+  testWidgets('agent role is a preview until explicitly accepted and saved', (
+    tester,
+  ) async {
+    final vm = _InspectorVM();
+    var asked = 0;
+    await tester.pumpWidget(
+      TranslationProvider(
+        child: ShadcnApp(
+          theme: buildTheme(brightness: Brightness.dark),
+          home: Scaffold(
+            child: WorkspaceBoxInspector(
+              vm: vm,
+              box: _box,
+              entry: const WorkspaceBoxEntry(
+                box: _box,
+                status: WorkspaceBoxStatus.idle,
+                tool: 'Codex',
+              ),
+              onClose: () {},
+              onSuggestRole: () async {
+                asked++;
+                return const Success('Revisar contratos da API');
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text(t.orchestration.askRole));
+    await tester.tap(find.text(t.orchestration.askRole));
+    await tester.pumpAndSettle();
+    expect(asked, 1);
+    expect(vm.saved, 0);
+    expect(vm.started, 0);
+    expect(find.text('Revisar contratos da API'), findsOneWidget);
+    await tester.ensureVisible(find.text(t.orchestration.useSuggestion));
+    await tester.tap(find.text(t.orchestration.useSuggestion));
+    await tester.pumpAndSettle();
+    expect(vm.saved, 0);
+    await tester.ensureVisible(find.text(t.workspaceView.save));
+    await tester.tap(find.text(t.workspaceView.save));
+    await tester.pumpAndSettle();
+    expect(vm.saved, 1);
+    expect(vm.role, 'Revisar contratos da API');
+    expect(vm.started, 0);
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
   for (final brightness in Brightness.values) {
     testWidgets(
       'inspector saves optional context without starting a tool / $brightness',

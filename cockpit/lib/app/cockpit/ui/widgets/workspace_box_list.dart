@@ -1,4 +1,5 @@
 import '../../../core/ui/widgets/app_menu.dart';
+import '../../../core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../../domain/entities/workspace_graph.dart';
 import '../../../core/ui/themes/themes.dart';
@@ -12,10 +13,12 @@ class WorkspaceBoxEntry {
     required this.status,
     required this.tool,
     this.contextPercent,
+    this.unseen = false,
   });
   final GraphBox box;
   final WorkspaceBoxStatus status;
   final String tool;
+  final bool unseen;
   final double? contextPercent;
 }
 
@@ -340,11 +343,62 @@ class _WorkspaceBoxListState extends State<WorkspaceBoxList> {
                                                   children: [
                                                     Expanded(
                                                       flex: 3,
-                                                      child: Text(
-                                                        entry.box.title,
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow
-                                                            .ellipsis,
+                                                      child: Row(
+                                                        children: [
+                                                          Expanded(
+                                                            child: Column(
+                                                              mainAxisAlignment:
+                                                                  MainAxisAlignment
+                                                                      .center,
+                                                              crossAxisAlignment:
+                                                                  CrossAxisAlignment
+                                                                      .start,
+                                                              children: [
+                                                                Text(
+                                                                  entry
+                                                                      .box
+                                                                      .title,
+                                                                  maxLines: 1,
+                                                                  overflow:
+                                                                      TextOverflow
+                                                                          .ellipsis,
+                                                                ),
+                                                                if (!medium)
+                                                                  Text(
+                                                                    entry
+                                                                            .tool
+                                                                            .isEmpty
+                                                                        ? context
+                                                                              .t
+                                                                              .orchestration
+                                                                              .noCli
+                                                                        : entry
+                                                                              .tool,
+                                                                    maxLines: 1,
+                                                                    overflow:
+                                                                        TextOverflow
+                                                                            .ellipsis,
+                                                                    style: context
+                                                                        .typo
+                                                                        .label
+                                                                        .copyWith(
+                                                                          color: context
+                                                                              .colors
+                                                                              .text3,
+                                                                        ),
+                                                                  ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                          WorkspaceAttentionBadge(
+                                                            unseen:
+                                                                entry.unseen,
+                                                            waiting:
+                                                                entry.status ==
+                                                                WorkspaceBoxStatus
+                                                                    .waiting,
+                                                          ),
+                                                        ],
                                                       ),
                                                     ),
                                                     Expanded(
@@ -383,7 +437,10 @@ class _WorkspaceBoxListState extends State<WorkspaceBoxList> {
                                                         flex: 2,
                                                         child: Text(
                                                           entry.tool.isEmpty
-                                                              ? t.noTool
+                                                              ? context
+                                                                    .t
+                                                                    .orchestration
+                                                                    .noCli
                                                               : entry.tool,
                                                           maxLines: 1,
                                                           overflow: TextOverflow
@@ -453,6 +510,38 @@ class _WorkspaceBoxListState extends State<WorkspaceBoxList> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class WorkspaceAttentionBadge extends StatelessWidget {
+  const WorkspaceAttentionBadge({
+    super.key,
+    required this.unseen,
+    required this.waiting,
+  });
+  final bool unseen, waiting;
+  @override
+  Widget build(BuildContext context) {
+    if (!unseen && !waiting) return const SizedBox.shrink();
+    final label = waiting
+        ? context.t.orchestration.needsInput
+        : context.t.orchestration.newActivity;
+    return AppTooltip(
+      message: label,
+      child: Semantics(
+        label: label,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Icon(
+            waiting
+                ? Icons.notification_important_outlined
+                : Icons.notifications_active_outlined,
+            size: 15,
+            color: waiting ? context.colors.warn : context.colors.accent,
+          ),
+        ),
       ),
     );
   }

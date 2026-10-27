@@ -43,6 +43,31 @@ class OrchestrationController extends ChangeNotifier {
   bool dirty = false;
   bool busy = false;
   bool _disposed = false;
+  String? _lastDiskText;
+  Timer? _pollTimer;
+  bool _polling = false;
+  void startPolling({Duration interval = const Duration(seconds: 5)}) {
+    if (_disposed) return;
+    _pollTimer ??= Timer.periodic(interval, (_) => poll());
+  }
+
+  Future<void> poll() async {
+    if (_disposed || _polling || busy) return;
+    _polling = true;
+    try {
+      if (dirty) {
+        await load();
+        return;
+      }
+      final text = await read();
+      if (!_disposed && (text != _lastDiskText || error != null)) await load();
+    } catch (e) {
+      if (!_disposed) reportError(e);
+    } finally {
+      _polling = false;
+    }
+  }
+
   Future<void> _queue = Future.value();
   Future<void> _run(Future<void> Function() action) {
     if (_disposed) return Future.value();
@@ -82,6 +107,7 @@ class OrchestrationController extends ChangeNotifier {
   }
 
   void switchDocument(Map<String, String> nextBindings) {
+    _lastDiskText = null;
     document = null;
     pendingRemovals.clear();
     error = null;
@@ -97,7 +123,9 @@ class OrchestrationController extends ChangeNotifier {
       await _save();
       return;
     }
-    final next = OrchestrationDocument.parse(await read());
+    final diskText = await read();
+    final next = OrchestrationDocument.parse(diskText);
+    _lastDiskText = diskText;
     final live = {for (final t in terminals()) t.id};
     for (final old in document?.boxes ?? const <OrchestrationBox>[]) {
       if (!next.boxes.any((b) => b.box.id == old.box.id) &&
@@ -211,7 +239,9 @@ class OrchestrationController extends ChangeNotifier {
         }
       });
   Future<void> _save() async {
-    await write(document!.encode());
+    final encoded = document!.encode();
+    await write(encoded);
+    _lastDiskText = encoded;
     dirty = false;
   }
 
@@ -220,6 +250,7 @@ class OrchestrationController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _pollTimer?.cancel();
     unawaited(settle().whenComplete(() => _instances.remove(this)));
     super.dispose();
   }

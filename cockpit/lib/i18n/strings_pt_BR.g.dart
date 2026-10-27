@@ -346,6 +346,21 @@ class _Translations$orchestration$pt_BR extends Translations$orchestration$en {
 	@override String get importHelp => 'Encontramos boxes do PR #269. Você pode incluir suas funções, ferramentas, ordem, posições e conexões no novo documento. Os terminais atuais serão incluídos em ambos os casos.';
 	@override String get createWithoutImport => 'Criar sem importar';
 	@override String get importLegacy => 'Importar configuração';
+	@override String get noCli => 'Nenhuma CLI detectada';
+	@override String get connectedCli => 'CLI conectada';
+	@override String get needsInput => 'Precisa da sua atenção';
+	@override String get newActivity => 'Novo resultado';
+	@override String get roleMissing => 'Sem função definida. Consulte o agente conectado para sugerir uma função.';
+	@override String get askRole => 'Consultar agente sobre a função';
+	@override String get askingRole => 'Aguardando o agente…';
+	@override String get roleSuggestion => 'Função sugerida — revise antes de salvar';
+	@override String get useSuggestion => 'Usar sugestão';
+	@override String get discardSuggestion => 'Descartar';
+	@override String get roleNoAgent => 'Nenhuma CLI detectada neste terminal.';
+	@override String get roleBusy => 'Aguarde o agente ficar ocioso para consultar.';
+	@override String get roleChanged => 'O terminal ou documento mudou. Consulte novamente.';
+	@override String get roleTimeout => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.';
+	@override String get roleInvalid => 'O agente retornou uma sugestão de função inválida.';
 }
 
 // Path: core.bootstrapError
@@ -3260,6 +3275,21 @@ extension on TranslationsPtBr {
 			'orchestration.importHelp' => 'Encontramos boxes do PR #269. Você pode incluir suas funções, ferramentas, ordem, posições e conexões no novo documento. Os terminais atuais serão incluídos em ambos os casos.',
 			'orchestration.createWithoutImport' => 'Criar sem importar',
 			'orchestration.importLegacy' => 'Importar configuração',
+			'orchestration.noCli' => 'Nenhuma CLI detectada',
+			'orchestration.connectedCli' => 'CLI conectada',
+			'orchestration.needsInput' => 'Precisa da sua atenção',
+			'orchestration.newActivity' => 'Novo resultado',
+			'orchestration.roleMissing' => 'Sem função definida. Consulte o agente conectado para sugerir uma função.',
+			'orchestration.askRole' => 'Consultar agente sobre a função',
+			'orchestration.askingRole' => 'Aguardando o agente…',
+			'orchestration.roleSuggestion' => 'Função sugerida — revise antes de salvar',
+			'orchestration.useSuggestion' => 'Usar sugestão',
+			'orchestration.discardSuggestion' => 'Descartar',
+			'orchestration.roleNoAgent' => 'Nenhuma CLI detectada neste terminal.',
+			'orchestration.roleBusy' => 'Aguarde o agente ficar ocioso para consultar.',
+			'orchestration.roleChanged' => 'O terminal ou documento mudou. Consulte novamente.',
+			'orchestration.roleTimeout' => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.',
+			'orchestration.roleInvalid' => 'O agente retornou uma sugestão de função inválida.',
 			_ => null,
 		};
 	}

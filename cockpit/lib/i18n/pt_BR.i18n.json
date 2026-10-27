@@ -1353,6 +1353,21 @@
     "importTitle": "Importar configuração existente?",
     "importHelp": "Encontramos boxes do PR #269. Você pode incluir suas funções, ferramentas, ordem, posições e conexões no novo documento. Os terminais atuais serão incluídos em ambos os casos.",
     "createWithoutImport": "Criar sem importar",
-    "importLegacy": "Importar configuração"
+    "importLegacy": "Importar configuração",
+    "noCli": "Nenhuma CLI detectada",
+    "connectedCli": "CLI conectada",
+    "needsInput": "Precisa da sua atenção",
+    "newActivity": "Novo resultado",
+    "roleMissing": "Sem função definida. Consulte o agente conectado para sugerir uma função.",
+    "askRole": "Consultar agente sobre a função",
+    "askingRole": "Aguardando o agente…",
+    "roleSuggestion": "Função sugerida — revise antes de salvar",
+    "useSuggestion": "Usar sugestão",
+    "discardSuggestion": "Descartar",
+    "roleNoAgent": "Nenhuma CLI detectada neste terminal.",
+    "roleBusy": "Aguarde o agente ficar ocioso para consultar.",
+    "roleChanged": "O terminal ou documento mudou. Consulte novamente.",
+    "roleTimeout": "O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.",
+    "roleInvalid": "O agente retornou uma sugestão de função inválida."
   }
 }

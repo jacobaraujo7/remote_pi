@@ -19,7 +19,9 @@ class WorkspaceBoxInspector extends StatefulWidget {
     this.projectId,
     this.directory = '.',
     this.onSave,
+    this.onSuggestRole,
   });
+  final Future<Result<String, String>> Function()? onSuggestRole;
   final CockpitViewModel vm;
   final GraphBox box;
   final WorkspaceBoxEntry entry;
@@ -54,6 +56,8 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
   late final TextEditingController _directory = TextEditingController(
     text: widget.directory,
   );
+  bool _askingRole = false;
+  String? _suggestion;
   bool _dirty = false;
   String? _message;
   bool _error = false;
@@ -79,6 +83,26 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
           ? 'claude'
           : widget.box.harness;
     }
+  }
+
+  Future<void> _suggestRole() async {
+    if (_askingRole || widget.onSuggestRole == null) return;
+    setState(() {
+      _askingRole = true;
+      _message = null;
+    });
+    final result = await widget.onSuggestRole!();
+    if (!mounted) return;
+    setState(() {
+      _askingRole = false;
+      switch (result) {
+        case Success(:final value):
+          _suggestion = value;
+        case Failure(:final error):
+          _error = true;
+          _message = error;
+      }
+    });
   }
 
   void _feedback(Result<String, String> result) {
@@ -247,6 +271,10 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                         ),
                       ],
                     ),
+                    Text(
+                      '${context.t.orchestration.connectedCli}: ${widget.entry.tool.isEmpty ? context.t.orchestration.noCli : widget.entry.tool}',
+                      style: context.typo.label,
+                    ),
                     label(t.configuration),
                     TextField(
                       controller: _name,
@@ -259,6 +287,53 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                       maxLines: 5,
                       onChanged: (_) => _dirty = true,
                     ),
+                    if (widget.onSuggestRole != null) ...[
+                      if (box.role.trim().isEmpty)
+                        Text(
+                          context.t.orchestration.roleMissing,
+                          style: context.typo.label,
+                        ),
+                      OutlineButton(
+                        onPressed:
+                            _askingRole ||
+                                widget.entry.tool.isEmpty ||
+                                widget.entry.status != WorkspaceBoxStatus.idle
+                            ? null
+                            : _suggestRole,
+                        child: Text(
+                          _askingRole
+                              ? context.t.orchestration.askingRole
+                              : context.t.orchestration.askRole,
+                        ),
+                      ),
+                      if (_suggestion case final suggestion?) ...[
+                        label(context.t.orchestration.roleSuggestion),
+                        Text(suggestion),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          children: [
+                            OutlineButton(
+                              onPressed: () => setState(() {
+                                _role.text = suggestion;
+                                _dirty = true;
+                                _suggestion = null;
+                              }),
+                              child: Text(
+                                context.t.orchestration.useSuggestion,
+                              ),
+                            ),
+                            OutlineButton(
+                              onPressed: () =>
+                                  setState(() => _suggestion = null),
+                              child: Text(
+                                context.t.orchestration.discardSuggestion,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
                     label(t.tool),
                     Wrap(
                       spacing: 4,
