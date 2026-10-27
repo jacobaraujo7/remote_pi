@@ -51,6 +51,7 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$graphView$en graphView = Translations$graphView$en.internal(_root);
 	late final Translations$theme$en theme = Translations$theme$en.internal(_root);
 	late final Translations$workspaceView$en workspaceView = Translations$workspaceView$en.internal(_root);
+	late final Translations$terminalAttachment$en terminalAttachment = Translations$terminalAttachment$en.internal(_root);
 }
 
 // Path: core
@@ -553,6 +554,30 @@ class Translations$workspaceView$en {
 
 	/// en: 'Show inspector'
 	String get showInspector => 'Show inspector';
+}
+
+// Path: terminalAttachment
+class Translations$terminalAttachment$en {
+	Translations$terminalAttachment$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Copying attachments: ${completed}/${total}'
+	String importing({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}';
+
+	/// en: 'Image paste requested from the agent.'
+	String get nativeImage => 'Image paste requested from the agent.';
+
+	/// en: 'Local references inserted.'
+	String get referenced => 'Local references inserted.';
+
+	/// en: 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.'
+	String get remoteUnavailable => 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.';
+
+	/// en: 'Some attachments could not be inserted: ${detail}'
+	String failed({required Object detail}) => 'Some attachments could not be inserted: ${detail}';
 }
 
 // Path: core.bootstrapError
@@ -5472,6 +5497,11 @@ extension on Translations {
 			'workspaceView.handoffSummary' => 'Summary',
 			'workspaceView.copyRole' => 'Copy function',
 			'workspaceView.showInspector' => 'Show inspector',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}',
+			'terminalAttachment.nativeImage' => 'Image paste requested from the agent.',
+			'terminalAttachment.referenced' => 'Local references inserted.',
+			'terminalAttachment.remoteUnavailable' => 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.',
+			'terminalAttachment.failed' => ({required Object detail}) => 'Some attachments could not be inserted: ${detail}',
 			_ => null,
 		};
 	}

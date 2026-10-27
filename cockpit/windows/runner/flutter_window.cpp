@@ -120,6 +120,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  terminal_clipboard_ = CreateTerminalClipboardChannel(flutter_controller_->engine()->messenger());
   // Janelas de documento (desktop_multi_window): cada uma é um engine novo e
   // nasce sem plugins — registra apenas os permitidos + o canal de título/tamanho.
   DesktopMultiWindowSetWindowCreatedCallback([](void* controller) {
@@ -143,6 +144,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  terminal_clipboard_.reset();
   if (flutter_controller_) {
     flutter_controller_ = nullptr;
   }

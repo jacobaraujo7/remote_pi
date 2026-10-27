@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cockpit/app/cockpit/domain/contracts/terminal_attachments.dart';
+import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/core/terminal/secret_redactor.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_harness_monitor.dart';
@@ -37,6 +40,9 @@ class TerminalSession extends PaneItem {
     required this.workingDirectory,
     required this._gateway,
     required this.profile,
+    this.attachmentService,
+    this.attachmentProjectRoot = '',
+    this.attachmentsRemote = false,
     String? title,
     Map<String, String> spawnEnv = const <String, String>{},
     Iterable<String> redactSecrets = const <String>[],
@@ -487,66 +493,98 @@ class TerminalSession extends PaneItem {
     Pasteboard.writeText(text);
   }
 
-  /// Inserts file arguments identically for clipboard paste and drag/drop.
-  void pasteFilePaths(Iterable<String> files) {
-    final safe = RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$');
-    final paths = files.where((path) => path.isNotEmpty).map((path) {
-      if (safe.hasMatch(path)) return path;
-      return "'${path.replaceAll("'", r"'\''")}'";
-    }).toList();
-    if (paths.isEmpty) return;
-    terminal.paste('${paths.join(' ')} ');
+  final TerminalAttachmentService? attachmentService;
+  final String attachmentProjectRoot;
+  final bool attachmentsRemote;
+  TerminalAttachmentFeedback? attachmentFeedback;
+  Future<void> _attachmentQueue = Future<void>.value();
+
+  void clearAttachmentFeedback() {
+    if (_disposed) return;
+    attachmentFeedback = null;
+    notifyListeners();
   }
 
-  /// Cola arquivos, imagens ou texto do clipboard no terminal.
-  ///
-  /// Se há uma imagem no clipboard, manda o byte de Ctrl+V (`\x16`) pro harness
-  /// em primeiro plano (claude/codex/pi) — todos eles, ao receber `\x16`, leem a
-  /// imagem do clipboard e a anexam (claude mostra `[Image #1]`, o pi grava num
-  /// `.png` temporário). Sem imagem, faz o paste de texto normal (respeitando o
-  /// bracketed paste mode).
-  ///
-  /// Por que existe: o `TerminalView` só cola texto (via `Clipboard`, que não lê
-  /// imagem) e, no macOS, o caminho de IME engole o Ctrl+V cru (vira `pageDown`),
-  /// então o `\x16` nunca era gerado e a imagem nunca chegava ao harness.
-  Future<void> pasteFromClipboard() async {
-    // Explorer copies files as CF_HDROP, which is neither an image nor text.
-    // Prefer actual files over alternative clipboard representations.
-    if (const {
-      TargetPlatform.windows,
-      TargetPlatform.macOS,
-      TargetPlatform.linux,
-    }.contains(defaultTargetPlatform)) {
-      final files = (await Pasteboard.files())
-          .where((path) => path.isNotEmpty)
-          .toList();
-      if (files.isNotEmpty) {
-        pasteFilePaths(files);
-        return;
-      }
+  void _reportAttachment(TerminalAttachmentFeedback feedback) {
+    if (_disposed) return;
+    attachmentFeedback = feedback;
+    if (kDebugMode && feedback.notice != TerminalAttachmentNotice.importing) {
+      DiagnosticsLog.instance.log(
+        'terminal-attachments',
+        'tab=$id engine=${terminal.engine.name} result=${feedback.notice.name}',
+      );
     }
-    final image = await Pasteboard.image;
-    if (image != null && image.isNotEmpty) {
-      _gateway.write(const [
-        0x16,
-      ]); // Ctrl+V: o harness lê a imagem do clipboard.
-      return;
-    }
-    final text = await Pasteboard.text;
-    if (text != null && text.isNotEmpty) {
-      terminal.paste(text);
-      return;
-    }
-    // Windows: `Pasteboard.image` só lê `CF_DIB`; muitos apps (browsers, algumas
-    // ferramentas de captura) põem a imagem só como PNG/formato registrado →
-    // devolve `null` e o `\x16` nunca ia, então a imagem não chegava no harness.
-    // Sem texto no clipboard, é provável ser uma imagem que não conseguimos ler
-    // — manda `\x16` mesmo assim pro harness (claude/codex/pi) ler o clipboard
-    // ele mesmo. macOS/Linux não precisam: lá o `Pasteboard.image` já funciona.
-    if (defaultTargetPlatform == TargetPlatform.windows) {
-      _gateway.write(const [0x16]);
-    }
+    notifyListeners();
   }
+
+  /// Capture the target now, never look up the active terminal after an await.
+  Future<void> _enqueueAttachment(
+    Future<TerminalClipboardContent> Function() read,
+  ) {
+    final service = attachmentService;
+    if (_disposed || service == null) return Future<void>.value();
+    final target = TerminalAttachmentTarget(
+      // The system workspace has no project path. Keep its imports in the
+      // terminal's own spawn directory, captured with the target at the gesture.
+      projectRoot: attachmentProjectRoot.isNotEmpty
+          ? attachmentProjectRoot
+          : (_gateway.spawnDirectory?.path ?? workingDirectory),
+      profile: profile,
+      remote: attachmentsRemote,
+      isWindows: defaultTargetPlatform == TargetPlatform.windows,
+      harness: activeHarness,
+    );
+    // Start the clipboard read at the gesture, before waiting for earlier copies.
+    final content = read().then<(TerminalClipboardContent?, Object?)>(
+      (value) => (value, null),
+      onError: (Object error) => (null, error),
+    );
+    _attachmentQueue = _attachmentQueue.then((_) async {
+      if (_disposed) return;
+      try {
+        final (snapshot, error) = await content;
+        if (_disposed) return;
+        if (error != null) throw error;
+        if (kDebugMode) {
+          DiagnosticsLog.instance.log(
+            'terminal-attachments',
+            'tab=$id engine=${terminal.engine.name} profile=${profile.id} '
+                'harness=${target.harness?.name ?? "none"} remote=${target.remote} '
+                'files=${snapshot!.files.length} imageBytes=${snapshot.image?.length ?? 0} '
+                'textLength=${snapshot.text?.length ?? 0}',
+          );
+        }
+        await service.deliver(
+          content: snapshot!,
+          target: target,
+          isAlive: () => !_disposed,
+          nativeTargetIsCurrent: () => activeHarness == target.harness,
+          paste: (text) {
+            if (!_disposed) terminal.paste(text);
+          },
+          sendKeys: (keys) {
+            if (!_disposed) _gateway.write(keys);
+          },
+          feedback: _reportAttachment,
+        );
+      } catch (error) {
+        _reportAttachment(
+          TerminalAttachmentFeedback(
+            TerminalAttachmentNotice.failed,
+            detail: '$error',
+          ),
+        );
+      }
+    });
+    return _attachmentQueue;
+  }
+
+  Future<void> pasteFromClipboard() =>
+      _enqueueAttachment(() => attachmentService!.clipboard.read());
+
+  Future<void> importDroppedPaths(List<String> paths) => _enqueueAttachment(
+    () async => TerminalClipboardContent(files: List.unmodifiable(paths)),
+  );
 
   /// Acumula a saída no registro de scrollback, rastreando alt-screen (não grava
   /// estado de TUI) e limitando o tamanho. Agenda o flush em disco (~1s).

@@ -1329,5 +1329,12 @@
     "handoffSummary": "Summary",
     "copyRole": "Copy function",
     "showInspector": "Show inspector"
+  },
+  "terminalAttachment": {
+    "importing": "Copying attachments: ${completed}/${total}",
+    "nativeImage": "Image paste requested from the agent.",
+    "referenced": "Local references inserted.",
+    "remoteUnavailable": "Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.",
+    "failed": "Some attachments could not be inserted: ${detail}"
   }
 }

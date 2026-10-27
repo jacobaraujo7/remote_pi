@@ -1329,5 +1329,12 @@
     "handoffSummary": "Resumo",
     "copyRole": "Copiar função",
     "showInspector": "Mostrar inspector"
+  },
+  "terminalAttachment": {
+    "importing": "Copiando anexos: ${completed}/${total}",
+    "nativeImage": "Colagem da imagem solicitada ao agente.",
+    "referenced": "Referências locais inseridas.",
+    "remoteUnavailable": "Arquivos e imagens ainda não são aceitos em terminais remotos. Cole texto ou transfira o arquivo para o host.",
+    "failed": "Não foi possível inserir alguns anexos: ${detail}"
   }
 }

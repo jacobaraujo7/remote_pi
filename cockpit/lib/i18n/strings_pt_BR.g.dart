@@ -49,6 +49,7 @@ class TranslationsPtBr extends Translations with BaseTranslations<AppLocale, Tra
 	@override late final _Translations$graphView$pt_BR graphView = _Translations$graphView$pt_BR._(_root);
 	@override late final _Translations$theme$pt_BR theme = _Translations$theme$pt_BR._(_root);
 	@override late final _Translations$workspaceView$pt_BR workspaceView = _Translations$workspaceView$pt_BR._(_root);
+	@override late final _Translations$terminalAttachment$pt_BR terminalAttachment = _Translations$terminalAttachment$pt_BR._(_root);
 }
 
 // Path: core
@@ -309,6 +310,20 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get handoffSummary => 'Resumo';
 	@override String get copyRole => 'Copiar função';
 	@override String get showInspector => 'Mostrar inspector';
+}
+
+// Path: terminalAttachment
+class _Translations$terminalAttachment$pt_BR extends Translations$terminalAttachment$en {
+	_Translations$terminalAttachment$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String importing({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}';
+	@override String get nativeImage => 'Colagem da imagem solicitada ao agente.';
+	@override String get referenced => 'Referências locais inseridas.';
+	@override String get remoteUnavailable => 'Arquivos e imagens ainda não são aceitos em terminais remotos. Cole texto ou transfira o arquivo para o host.';
+	@override String failed({required Object detail}) => 'Não foi possível inserir alguns anexos: ${detail}';
 }
 
 // Path: core.bootstrapError
@@ -3192,6 +3207,11 @@ extension on TranslationsPtBr {
 			'workspaceView.handoffSummary' => 'Resumo',
 			'workspaceView.copyRole' => 'Copiar função',
 			'workspaceView.showInspector' => 'Mostrar inspector',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}',
+			'terminalAttachment.nativeImage' => 'Colagem da imagem solicitada ao agente.',
+			'terminalAttachment.referenced' => 'Referências locais inseridas.',
+			'terminalAttachment.remoteUnavailable' => 'Arquivos e imagens ainda não são aceitos em terminais remotos. Cole texto ou transfira o arquivo para o host.',
+			'terminalAttachment.failed' => ({required Object detail}) => 'Não foi possível inserir alguns anexos: ${detail}',
 			_ => null,
 		};
 	}

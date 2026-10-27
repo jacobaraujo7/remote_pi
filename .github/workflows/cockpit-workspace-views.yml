@@ -78,6 +78,7 @@ jobs:
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
+          test/data/workspace_presentation_persistence_test.dart
           test/domain/workspace_presentation_test.dart
           test/domain/workspace_graph_test.dart
           test/domain/graph_subagent_wire_test.dart
@@ -89,14 +90,21 @@ jobs:
           test/ui/graph_telemetry_service_test.dart
           test/ui/graph_process_metrics_service_test.dart
           test/ui/claude_graph_identity_resolver_test.dart
-          test/session/terminal_clipboard_test.dart
+          test/session/terminal_attachments_test.dart
+          test/ui/terminal_attachment_drop_target_test.dart
+          test/ui/terminal_attachment_shortcuts_test.dart
           test/session/terminal_status_test.dart
       - name: Build Windows app
         if: runner.os == 'Windows'
         run: flutter build windows --debug --no-pub
       - name: Build macOS app without release publishing
         if: runner.os == 'macOS'
-        env:
-          CODE_SIGNING_ALLOWED: 'NO'
-          CODE_SIGNING_REQUIRED: 'NO'
-        run: flutter build macos --debug --no-pub
+        shell: bash
+        run: |
+          flutter build macos --debug --no-pub --config-only
+          xcodebuild -workspace macos/Runner.xcworkspace -scheme Runner \
+            -configuration Debug -derivedDataPath build/macos \
+            -destination 'generic/platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build

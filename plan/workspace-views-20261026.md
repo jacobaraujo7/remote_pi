@@ -29,7 +29,7 @@ Branch: `feature/grafo-terminals`. Responsável pela implementação: Codex, com
 | Windows / matriz manual Ghostty+xterm de texto, arquivo, imagem, busca e fechamento | Pendente integral | moregola / Jacob | Executar matriz com sessões reais e registrar evidências |
 | macOS Apple Silicon e Intel / análise, testes, build | Workflow preparado; sem resultado confirmado nesta publicação | Codex / Jacob | Consultar os jobs da branch |
 | macOS / execução real, menus nativos, Cmd+C/V/F, trackpad, Retina, tela cheia e minimizar/restaurar | Pendente; usuário informou não haver Mac disponível | moregola / Jacob | Disponibilizar Mac e executar ambos os motores; CI/build não substituem esse aceite |
-| PR desta feature | Não criado | moregola | Informar card BTN real antes de criar PR, conforme instrução vigente nesta conversa |
+| PR desta feature | Preparado para publicação com imagens e review de jacobaraujo7 | Codex / moregola | Publicar e acompanhar os checks; usuário esclareceu que BTN é obrigatório somente para cliente EMS |
 
 ## Inventário e integração
 
@@ -49,3 +49,14 @@ Esta branch contém trabalho revisável; o aceite integral Windows/macOS continu
 - Validação: 17 testes passaram (persistência, ordem filtrada, arrasto contínuo para cima/baixo sem selecionar/abrir/configurar, layout claro/escuro e ciclo de vida Ghostty/xterm); análise dos cinco arquivos alterados sem problemas e diff sem erros de whitespace.
 - Auditoria direta de PRs repetida antes desta implementação: nenhum PR aberto de moregola ou de reordenação de boxes. #257 permanece sob responsabilidade de cfbraun, com encaminhamento independente já descrito; nenhum dos arquivos desta atualização implementa seu fluxo de status/Ctrl-Tab. Não houve incorporação de PR ou mudança de alvo.
 - Responsável: Codex pela implementação; moregola/Jacob pelo aceite manual. Próximo passo: atualizar `feature/grafo-terminals` localmente e validar a alça no app. Execução real em macOS permanece pendente.
+
+## Preparação do PR com imagens
+
+- Usuário restringiu explicitamente a regra BTN aos projetos do cliente EMS. Cockpit é tratado sem essa exigência; nenhum card foi inventado.
+- Main `b13257f1` incorporada à feature: #268 agora está integrado. Resolução preserva pipeline de anexos da main, foco de prévias e hosts estáveis da feature. Testes antigos de clipboard simples foram substituídos pela cobertura mais ampla de anexos da main.
+- Proteção adicional: ao reordenar boxes ou mudar visualização, o documento entra imediatamente no store, permitindo que o flush do fechamento preserve a mudança sem aguardar o timer de 500 ms do layout.
+- Teste em disco: flush imediato e abertura de store novo preservaram ordem, seleção e modo nos três modos, mantendo dois workspaces independentes. Isso não equivale à execução manual de fechar/reabrir a janela, que foi interrompida por Escape.
+- Imagens em `cockpit/review/workspace-layouts/`: renderizações dos widgets reais com dados fictícios e fontes offline. Sem chrome do desktop e sem evidência de macOS. Script reproduzível em `cockpit/tool/design/render_workspace_layouts_test.dart`.
+- Validação local: 58 regressões após integração; 16 testes na rodada adicional de persistência/lista/ciclo de vida; três renders de componentes. Análise dirigida sem problemas.
+- CI anterior (`523195ff`, run 40425724068): Windows passou; testes/análise macOS passaram e build falhou por certificado Developer ID ausente. Workflow ajustado para passar configurações de assinatura diretamente ao xcodebuild e construir universal sem certificado de distribuição. Resultado do novo SHA ainda pendente.
+- Reviewer solicitado: Jacob (`jacobaraujo7`). #257 segue independente com cfbraun; verificar eventuais conflitos de foco/status antes de merge. Responsáveis pelo aceite manual Windows/macOS e revisão: moregola/Jacob.
