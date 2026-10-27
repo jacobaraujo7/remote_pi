@@ -103,6 +103,56 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
     return true;
   }
 
+  void releaseKeyboard() {
+    _ensureAlive();
+    if (_keyboardTabId == null) return;
+    _keyboardTabId = null;
+    notifyListeners();
+  }
+
+  /// Repositions an existing owned session without changing its controller.
+  bool splitTab(
+    String tabId,
+    SplitDir direction, {
+    String? anchorPaneId,
+    bool before = false,
+  }) {
+    _ensureAlive();
+    final source = paneOf(tabId);
+    final root = _tree;
+    final anchor = root == null
+        ? null
+        : findLeaf(root, anchorPaneId ?? _focusedPaneId ?? '');
+    if (source == null || anchor == null) return false;
+    if (source.id == anchor.id && source.tabs.length == 1) return false;
+    final remaining = source.tabs.where((id) => id != tabId).toList();
+    final removed = remaining.isEmpty
+        ? removeLeaf(root!, source.id)
+        : updateLeaf(
+            root!,
+            source.id,
+            (p) => p.copyWith(
+              tabs: remaining,
+              active: source.active == tabId ? remaining.last : source.active,
+            ),
+          );
+    final fresh = LeafPane(id: _newId(), tabs: [tabId], active: tabId);
+    _tree = splitLeaf(
+      removed,
+      anchor.id,
+      direction,
+      fresh,
+      splitId: _newId(),
+      before: before,
+    );
+    _focusedPaneId = fresh.id;
+    _keyboardTabId = tabId;
+    _focusRevision++;
+    if (_active) _sessions[tabId]!.clearUnseen();
+    notifyListeners();
+    return true;
+  }
+
   void setActive(bool value) {
     _ensureAlive();
     if (_active == value) return;

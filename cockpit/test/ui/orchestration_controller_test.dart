@@ -16,7 +16,7 @@ OrchestrationBox box(String id) => OrchestrationBox(
 );
 
 class Fixture {
-  Fixture({String prefix = 'local'}) {
+  Fixture({String prefix = 'local', Future<void> Function()? flushLocalState}) {
     controller = OrchestrationController(
       read: () async => disk,
       write: (text) async {
@@ -25,6 +25,7 @@ class Fixture {
       },
       terminals: () => [...live],
       newBoxId: () => 'discovered-${++ids}',
+      flushLocalState: flushLocalState,
       createShell: (b) async {
         if (b.box.id == failBox) throw StateError('disconnected host');
         final id = '$prefix-${++spawns}';
@@ -32,6 +33,7 @@ class Fixture {
         return id;
       },
       closeTerminal: (id) async {
+        if (failClose) throw StateError('cannot close disconnected terminal');
         closed.add(id);
         live.removeWhere((t) => t.id == id);
       },
@@ -42,6 +44,7 @@ class Fixture {
     links: [const GraphLink(from: 'a', to: 'b')],
   ).encode();
   bool failWrite = false;
+  bool failClose = false;
   String? failBox;
   int spawns = 0, ids = 0;
   final live = <OrchestrationTerminal>[];
@@ -50,6 +53,139 @@ class Fixture {
 }
 
 void main() {
+  test(
+    'startup recovery gates edits and retries missing sessions without duplicates',
+    () async {
+      final f = Fixture();
+      var attempts = 0;
+      f.controller.beforeReconcile = () async {
+        attempts++;
+        if (attempts == 1) throw StateError('host disconnected');
+        f.live.add(const OrchestrationTerminal('recovered', 'a', 'src'));
+        f.controller.restoreSnapshot(
+          savedDocument: OrchestrationDocument.parse(f.disk),
+          savedBindings: {'a': 'recovered'},
+        );
+        f.controller.beforeReconcile = null;
+      };
+      await f.controller.addBox(box('blocked'));
+      expect(f.spawns, 0);
+      expect(f.controller.error, contains('disconnected'));
+      await f.controller.load();
+      expect(f.controller.bindings['a'], 'recovered');
+      expect(f.spawns, 1);
+      await f.controller.load();
+      expect(f.spawns, 1);
+      f.controller.dispose();
+    },
+  );
+
+  test(
+    'dirty startup snapshot is saved before missing shells are reconciled',
+    () async {
+      final f = Fixture();
+      final saved = OrchestrationDocument(boxes: [box('saved')]);
+      f.controller.restoreSnapshot(
+        savedDocument: saved,
+        savedBindings: {},
+        wasDirty: true,
+      );
+      f.failWrite = true;
+      await f.controller.load();
+      expect(f.controller.dirty, isTrue);
+      expect(f.spawns, 0);
+      f.failWrite = false;
+      await f.controller.load();
+      expect(f.controller.dirty, isFalse);
+      expect(f.spawns, 1);
+      expect(OrchestrationDocument.parse(f.disk).boxes.single.box.id, 'saved');
+      await f.controller.load();
+      expect(f.spawns, 1);
+      f.controller.dispose();
+    },
+  );
+
+  test(
+    'exit flush captures local presentation after queued portable changes settle',
+    () async {
+      late final Fixture f;
+      final saved = <String>[];
+      f = Fixture(
+        flushLocalState: () async {
+          saved.add(f.disk);
+        },
+      );
+      await f.controller.load();
+      final update = f.controller.update([box('b'), box('a')], []);
+      await OrchestrationController.flushAll();
+      await update;
+      expect(saved.length, 1);
+      expect(OrchestrationDocument.parse(saved.single).boxes.first.box.id, 'b');
+      f.controller.dispose();
+    },
+  );
+
+  test(
+    'concurrent restart requests replace one binding once and retain box links',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      final before = f.disk, original = f.controller.bindings['a']!;
+      await Future.wait(
+        List.generate(
+          5,
+          (_) => f.controller.restartShell('a', expectedTabId: original),
+        ),
+      );
+      expect(f.spawns, 3);
+      expect(f.closed, [original]);
+      expect(f.controller.bindings['a'], isNot(original));
+      expect(f.disk, before);
+      expect(f.controller.document!.links.length, 1);
+      f.controller.dispose();
+    },
+  );
+  test(
+    'restart close failure keeps both owned terminals represented',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      final original = f.controller.bindings['a']!;
+      f.failClose = true;
+      await f.controller.restartShell('a', expectedTabId: original);
+      expect(f.controller.error, contains('cannot close'));
+      expect(f.controller.document!.boxes.length, 3);
+      expect(
+        f.controller.bindings.values.toSet(),
+        f.live.map((t) => t.id).toSet(),
+      );
+      expect(f.controller.document!.links.single.from, 'a');
+      expect(f.controller.bindings['a'], isNot(original));
+      f.controller.dispose();
+    },
+  );
+  test(
+    'handoff preserves previous terminal as another box and original planned connections',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      final original = f.controller.bindings['a'];
+      await f.controller.handoff('a', historyTitle: 'Previous');
+      expect(f.spawns, 3);
+      expect(f.closed, isEmpty);
+      expect(f.controller.document!.boxes.length, 3);
+      expect(f.controller.document!.boxes.last.box.title, 'Previous');
+      expect(
+        f.controller.bindings[f.controller.document!.boxes.last.box.id],
+        original,
+      );
+      expect(f.controller.bindings['a'], isNot(original));
+      expect(f.controller.document!.links.single.from, 'a');
+      expect(f.disk, isNot(contains('local-')));
+      f.controller.dispose();
+    },
+  );
+
   test(
     'same portable file creates separate shells in separate worktrees',
     () async {

@@ -310,6 +310,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
 
   @override
   Widget build(BuildContext context) {
+    if (!widget.active) return const SizedBox.shrink();
     final colors = context.colors;
     return ListenableBuilder(
       listenable: _graphRevision,

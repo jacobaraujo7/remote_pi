@@ -61,10 +61,14 @@ jobs:
           lib/app/cockpit/domain/entities/orchestration_document.dart
           lib/app/cockpit/domain/entities/terminal_owner.dart
           lib/app/cockpit/ui/viewmodels/orchestration_multiplexer.dart
+          lib/app/cockpit/ui/viewmodels/orchestration_context.dart
+          lib/app/cockpit/ui/widgets/orchestration_terminals_view.dart
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
           lib/app/cockpit/ui/viewmodels/session_notifications_controller.dart
           lib/app/cockpit/ui/widgets/terminal_session_view.dart
           lib/app/cockpit/ui/services/orchestration_controller.dart
+          lib/app/cockpit/ui/services/layout_scrollback_keys.dart
+          lib/app/cockpit/ui/services/orchestration_restore_state.dart
           lib/app/cockpit/ui/services/orchestration_terminal_target.dart
           lib/app/cockpit/ui/viewmodels/orchestration_workspace.dart
           lib/app/cockpit/ui/widgets/orchestration_view.dart
@@ -86,7 +90,12 @@ jobs:
           flutter test --no-pub
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
+          test/ui/layout_scrollback_keys_test.dart
+          test/ui/orchestration_restore_state_test.dart
           test/ui/orchestration_multiplexer_test.dart
+          test/ui/orchestration_context_test.dart
+          test/ui/orchestration_session_test.dart
+          test/ui/orchestration_terminals_view_test.dart
           test/ui/session_notifications_controller_test.dart
           test/ui/terminal_session_view_test.dart
           test/ui/orchestration_live_sessions_test.dart

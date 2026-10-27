@@ -684,6 +684,25 @@ class TerminalSession extends PaneItem {
     );
   }
 
+  Future<void>? _stopProcess;
+
+  /// Stop without disposing the controller while its view is mounted. The
+  /// owning app can abort closing on failure and safely retry later.
+  Future<void> stopProcess() {
+    final pending = _stopProcess;
+    if (pending != null) return pending;
+    late final Future<void> operation;
+    operation = Future<void>.sync(_gateway.kill).catchError((
+      Object e,
+      StackTrace st,
+    ) {
+      if (identical(_stopProcess, operation)) _stopProcess = null;
+      Error.throwWithStackTrace(e, st);
+    });
+    _stopProcess = operation;
+    return operation;
+  }
+
   @override
   Future<void> dispose() async {
     _disposed = true;
@@ -700,7 +719,7 @@ class TerminalSession extends PaneItem {
     ); // best-effort: persiste o estado final (inclui app-quit).
     await _sub?.cancel();
     _coalescer.dispose();
-    await _gateway.kill();
+    await stopProcess();
     terminal.dispose();
     super.dispose();
   }

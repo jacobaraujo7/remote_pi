@@ -850,10 +850,7 @@ class _TabState extends State<_Tab> {
         // Só em abas de terminal: o id (pane id) copiável pra usar na CLI
         // `cockpit` (`--tab-id`).
         if (terminal != null) ...[
-          if (context.read<CockpitViewModel>().orchestrationFor(
-                terminal.projectId,
-              ) !=
-              null)
+          if (!terminal.owner.isWorkspace)
             AppMenuItem(
               value: 'configure-box',
               label: context.t.workspaceView.configure,
@@ -1628,8 +1625,8 @@ class _PaneBodyState extends State<_PaneBody> {
     if (item is OrchestrationSession) {
       return OrchestrationView(
         session: item,
-        vm: context.read<CockpitViewModel>(),
         active: widget.active,
+        focused: widget.focused,
       );
     }
     // Viewer de diff (read-only, split): comparação com o HEAD do git.

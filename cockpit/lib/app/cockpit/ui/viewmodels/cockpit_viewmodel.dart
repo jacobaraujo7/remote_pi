@@ -3,9 +3,10 @@ import 'dart:async';
 import 'package:path/path.dart' as path;
 import '../session/orchestration_session.dart';
 import '../services/orchestration_controller.dart';
+import '../services/layout_scrollback_keys.dart';
+import '../services/orchestration_restore_state.dart';
 import '../services/agent_role_suggestion_service.dart';
 import '../../data/terminal/local_terminal_attachments.dart';
-import '../services/orchestration_terminal_target.dart';
 import '../../domain/entities/orchestration_document.dart';
 import 'dart:convert';
 import 'dart:io'
@@ -495,7 +496,6 @@ class CockpitViewModel extends ChangeNotifier
   final Map<String, Map<String, Map<String, String>>> _orchestrationBindings =
       {};
   final Map<String, String> _orchestrationLastTerminalPane = {};
-  final Set<String> _publishingOrchestration = {};
   final Map<String, OrchestrationPresentation> _presentations = {};
 
   OrchestrationPresentation presentationFor(String projectId) =>
@@ -548,16 +548,13 @@ class CockpitViewModel extends ChangeNotifier
   }
 
   void configureBoxForTab(String tabId) {
-    final box = graphBoxForTab(tabId);
-    if (box != null) {
-      final pid = _sessions[tabId]?.projectId;
-      final app = _orchestrations[pid];
-      if (pid != null && app != null) {
-        final pane = leafOfTab(pid, app.id);
-        if (pane != null) selectTab(pane, app.id);
-      }
-      selectWorkspaceBox(box.id, configure: true);
-    }
+    final terminal = session(tabId);
+    final instanceId = terminal?.owner.instanceId;
+    if (instanceId == null) return;
+    final owner = _orchestrations[instanceId];
+    final box = owner?.context.graphBoxForTab(tabId);
+    if (owner == null || box == null) return;
+    owner.context.selectWorkspaceBox(box.id, configure: true);
   }
 
   @override
@@ -852,7 +849,7 @@ class CockpitViewModel extends ChangeNotifier
   // The graph stores the role, while the agent needs to receive it as a prompt.
   // Wait for the configured harness to own the PTY and finish its current turn.
   void _queueGraphRole(String tabId, String role, String harness) {
-    final session = _sessions[tabId];
+    final session = this.session(tabId);
     if (session is! TerminalSession || role.trim().isEmpty) return;
     _pendingGraphRoles[tabId] = (role: role.trim(), harness: harness);
     _graphRoleTimers.remove(tabId)?.cancel();
@@ -865,7 +862,7 @@ class CockpitViewModel extends ChangeNotifier
   }
 
   void _scheduleGraphRole(String tabId) {
-    final session = _sessions[tabId];
+    final session = this.session(tabId);
     final pending = _pendingGraphRoles[tabId];
     if (session is! TerminalSession ||
         pending == null ||
@@ -877,7 +874,7 @@ class CockpitViewModel extends ChangeNotifier
       tabId,
       () => Timer(const Duration(milliseconds: 900), () {
         _graphRoleTimers.remove(tabId);
-        final current = _sessions[tabId];
+        final current = this.session(tabId);
         final latest = _pendingGraphRoles[tabId];
         if (current is! TerminalSession ||
             latest == null ||
@@ -910,7 +907,7 @@ class CockpitViewModel extends ChangeNotifier
     _pendingGraphRoles.remove(tabId);
     _graphRoleTimers.remove(tabId)?.cancel();
     final listener = _graphRoleListeners.remove(tabId);
-    final session = _sessions[tabId];
+    final session = this.session(tabId);
     if (listener != null && session is TerminalSession) {
       session.removeListener(listener);
     }
@@ -1399,7 +1396,16 @@ class CockpitViewModel extends ChangeNotifier
   List<LaunchableApp> get availableApps =>
       List<LaunchableApp>.unmodifiable(_availableApps);
   @override
-  PaneItem? session(String id) => _sessions[id];
+  PaneItem? session(String id) {
+    final normal = _sessions[id];
+    if (normal != null) return normal;
+    for (final owner in _orchestrations.values) {
+      if (owner.disposed || owner.closing) continue;
+      final child = owner.terminals.session(id);
+      if (child != null) return child;
+    }
+    return null;
+  }
 
   /// Todas as sessões abertas (qualquer workspace) — usado pela CLI interna
   /// ([CockpitCliHandler]) pra list-panes/resolução por label.
@@ -3445,13 +3451,6 @@ class CockpitViewModel extends ChangeNotifier
     GalleryTemplate template, {
     bool importLegacyOrchestration = false,
   }) async {
-    if (template == GalleryTemplate.orchestration) {
-      final current = _orchestrations[_selectedProjectId];
-      if (current != null) {
-        await openOrchestration(current.path, projectId: current.projectId);
-        return Success(current.path);
-      }
-    }
     final root = treeRootPath;
     final galleryProjectId = _selectedProjectId;
     final seed =
@@ -3665,7 +3664,7 @@ class CockpitViewModel extends ChangeNotifier
             : '$to${s.path.substring(from.length)}';
         final bindings = _orchestrationBindings[s.projectId];
         final old = bindings?.remove(s.path);
-        s.path = next;
+        s.retarget(next);
         if (old != null) bindings![next] = old;
         _watchOrchestration(s);
         _scheduleSave(s.projectId);
@@ -5699,25 +5698,7 @@ class CockpitViewModel extends ChangeNotifier
     if (projectId == null || tree == null) {
       return const Failure('no active workspace to create the terminal in');
     }
-    final orchestration = _orchestrations[projectId];
-    final orchestrationPane = orchestration == null
-        ? null
-        : leafOfTab(projectId, orchestration.id);
-    String? target = inPane;
-    if (target == null && orchestrationPane != null) {
-      final destination = orchestrationTerminalTarget(
-        tree: tree,
-        orchestrationTabId: orchestration!.id,
-        terminalIds: _sessions.values
-            .whereType<TerminalSession>()
-            .where((t) => t.projectId == projectId)
-            .map((t) => t.id)
-            .toSet(),
-        lastTerminalPaneId: _orchestrationLastTerminalPane[projectId],
-      );
-      target = destination.paneId;
-      splitDir ??= destination.split;
-    }
+    final target = inPane;
     final anchorId = target ?? _focused[projectId] ?? leaves(tree).first.id;
     final leaf = findLeaf(tree, anchorId) ?? leaves(tree).first;
 
@@ -6003,7 +5984,7 @@ class CockpitViewModel extends ChangeNotifier
   void _typeWhenReady(String tabId, String command) {
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 700)).then((_) {
-        final s = _sessions[tabId];
+        final s = session(tabId);
         if (s is TerminalSession) s.insertText('$command\r');
       }),
     );
@@ -6339,7 +6320,7 @@ class CockpitViewModel extends ChangeNotifier
   }
 
   void closeTab(String paneId, String agentId) {
-    final projectId = _selectedProjectId;
+    final projectId = _sessions[agentId]?.projectId;
     if (projectId == null) return;
     _closeTabIn(projectId, paneId, agentId);
   }
@@ -6362,7 +6343,7 @@ class CockpitViewModel extends ChangeNotifier
     final tree = _trees[projectId];
     if (tree == null) return;
     final leaf = findLeaf(tree, paneId);
-    if (leaf == null) return;
+    if (leaf == null || !leaf.tabs.contains(tabId)) return;
     final tabs = leaf.tabs.where((t) => t != tabId).toList();
     if (tabs.isEmpty) {
       if (leaves(tree).length == 1) {
@@ -6632,12 +6613,23 @@ class CockpitViewModel extends ChangeNotifier
     String? startupCommand,
     String? manualLabel,
     String? graphBoxId,
+    OrchestrationSession? ownedBy,
+    String? ownedPane,
     bool retainPreviousTerminalBox = true,
     // Plano 50: `null` = o padrão efetivo (o que o `+` abre hoje). A fatia 3
     // (dropdown do `+`) passa um perfil específico sem mexer no padrão global.
     TerminalProfile? profile,
     TerminalEngine? engine,
   }) {
+    if (ownedBy != null &&
+        (ownedBy.disposed ||
+            ownedBy.closing ||
+            ownedBy.projectId != projectId ||
+            !identical(_orchestrations[ownedBy.id], ownedBy))) {
+      throw StateError(
+        'Orchestration is closing or no longer owns this session',
+      );
+    }
     final openWatch = PerformanceDiagnostics.instance.enabled
         ? (Stopwatch()..start())
         : null;
@@ -6666,6 +6658,7 @@ class CockpitViewModel extends ChangeNotifier
       attachmentProjectRoot: _projectById(projectId)?.path ?? '',
       attachmentsRemote: remote,
       id: id,
+      owner: ownedBy?.terminals.owner ?? const TerminalOwner.workspace(),
       projectId: projectId,
       workingDirectory: cwd,
       gateway: gateway,
@@ -6713,7 +6706,9 @@ class CockpitViewModel extends ChangeNotifier
     );
     // claude rodando na aba reporta fim de turno via socket → mesma notificação
     // do agente (badge se não for a aba ativa; OS notification se desfocado).
-    t.onTurnFinished = () => unawaited(notifications.turnFinished(t));
+    t.onTurnFinished = ownedBy == null
+        ? () => unawaited(notifications.turnFinished(t))
+        : () => ownedBy.terminals.turnFinished(t);
     // cwd vivo (OSC 7) mudou → persiste o layout pra restaurar o shell ali.
     t.onCwdChanged = () => _scheduleSave(projectId);
     // Shell encerrou sozinho (`exit`, Ctrl-D, processo morto) e a preferência
@@ -6722,6 +6717,15 @@ class CockpitViewModel extends ChangeNotifier
     // aba permanece (comportamento histórico).
     t.onProcessExit = () {
       if (!_closeTabOnShellExit) return;
+      if (ownedBy != null) {
+        if (!ownedBy.disposed &&
+            !ownedBy.closing &&
+            !ownedBy.closingTerminals.contains(t.id) &&
+            identical(ownedBy.terminals.session(t.id), t)) {
+          unawaited(_closeOwnedTerminal(ownedBy, t.id));
+        }
+        return;
+      }
       if (_sessions[t.id] != t) return;
       final paneId = leafOfTab(projectId, t.id);
       if (paneId == null) return;
@@ -6730,6 +6734,15 @@ class CockpitViewModel extends ChangeNotifier
     // Restauração: re-arma a trava de nome sem notificar (aba ainda não montada).
     if (manualLabel != null) t.restoreManualLabel(manualLabel);
     built = t;
+    if (ownedBy != null) {
+      if (ownedBy.disposed || ownedBy.closing) {
+        unawaited(t.dispose());
+        throw StateError('Orchestration is closing');
+      }
+      ownedBy.terminals.attach(t, inPane: ownedPane, focus: false);
+      if (!remote) _warnTrackedWorkspaceEnv(t, projectId);
+      return t;
+    }
     _sessions[t.id] = t;
     _loadGraph(projectId, _savedLayouts[projectId]);
     final boxes = _graphBoxes[projectId]!;
@@ -6747,9 +6760,6 @@ class CockpitViewModel extends ChangeNotifier
       }
     } else {
       _ensureGraphBoxForTab(t);
-    }
-    if (graphBoxId != null) {
-      _orchestrations[projectId]?.controller.bindings[graphBoxId] = t.id;
     }
     // Restore may take more than the save debounce. Persist migration only
     // after all sessions and the pane tree have been restored.
@@ -7027,23 +7037,8 @@ class CockpitViewModel extends ChangeNotifier
   /// de scrollback é compartilhado — logs de terminal sob o `projectId` real,
   /// logs de task sob `__tasks__/<taskId>` —, mas o prune casa por nome de
   /// arquivo, então o keep-set é a união das duas chaves.
-  Set<String> _terminalIdsIn(Iterable<Map<String, dynamic>?> docs) {
-    final ids = <String>{};
-    for (final doc in docs) {
-      if (doc == null) continue;
-      final sessions = doc['sessions'];
-      if (sessions is! Map) continue;
-      sessions.forEach((key, desc) {
-        if (desc is! Map) return;
-        if (desc['type'] == 'terminal' && key is String) {
-          ids.add(key);
-        } else if (desc['type'] == 'task_output' && desc['taskId'] is String) {
-          ids.add(desc['taskId'] as String);
-        }
-      });
-    }
-    return ids;
-  }
+  Set<String> _terminalIdsIn(Iterable<Map<String, dynamic>?> docs) =>
+      layoutScrollbackKeys(docs);
 
   /// [_disposeSession] com a destruição adiada pro fim do frame, para quem
   /// fecha a aba com a view dela ainda montada (ver [_closeTabIn]). A sessão
@@ -7053,7 +7048,11 @@ class CockpitViewModel extends ChangeNotifier
   Future<void> _disposeSessionAfterFrame(String id) async {
     final session = _detachSession(id);
     await _endOfFrame();
-    if (session is! OrchestrationSession) session?.dispose();
+    if (session is OrchestrationSession) {
+      await session.dispose();
+    } else {
+      session?.dispose();
+    }
   }
 
   // A tree update removes the pane immediately, but Flutter detaches the
@@ -7064,21 +7063,17 @@ class CockpitViewModel extends ChangeNotifier
   /// devolve, sem destruir.
   PaneItem? _detachSession(String id) {
     final orchestrationItem = _sessions[id];
-    if (orchestrationItem is TerminalSession &&
-        orchestrationItem is! NeovimSession) {
-      final owner = _orchestrations[orchestrationItem.projectId];
-      if (owner != null) {
-        _graphBoxes[orchestrationItem.projectId]?.removeWhere(
-          (b) => b.tabId == id,
-        );
-        unawaited(owner.controller.forgetTerminal(id));
+    if (orchestrationItem is OrchestrationSession) {
+      for (final child in orchestrationItem.terminals.sessions.values) {
+        _clearGraphRole(child.id);
       }
+      _orchestrations.removeWhere(
+        (_, owner) => identical(owner, orchestrationItem),
+      );
     }
     _clearGraphRole(id);
     _graphSubagents.clearOwner(id);
-    if (orchestrationItem is! OrchestrationSession) {
-      _fileWatchers.remove(id)?.cancel();
-    }
+    _fileWatchers.remove(id)?.cancel();
     _fileWatchSeq.remove(id);
     final s = _sessions.remove(id);
     if (s != null) {
@@ -7192,13 +7187,10 @@ class CockpitViewModel extends ChangeNotifier
     } finally {
       _restoringCount--;
     }
-    final activeDocument = doc['orchestrationActive'];
-    if (_orchestrations[id] == null && activeDocument is String) {
-      final hidden = _makeOrchestration(id, activeDocument);
-      _sessions.remove(hidden.id);
+    for (final owner
+        in _orchestrations.values.where((o) => o.projectId == id).toList()) {
+      await owner.controller.load();
     }
-    final orchestration = _orchestrations[id];
-    if (orchestration != null) await orchestration.controller.load();
     _scheduleSave(id);
     notifyListeners();
   }
@@ -7280,7 +7272,12 @@ class CockpitViewModel extends ChangeNotifier
       // do workspace: o PTY falhava no spawn e não havia mais volta sem editar
       // o `projects.json` na mão. Falhou, a aba é descartada no sanitize.
       try {
-        if (await _restoreSession(entry.key, desc, project)) {
+        if (await _restoreSession(
+          entry.key,
+          desc,
+          project,
+          reservedIds: sessionsJson.keys.toSet(),
+        )) {
           created.add(entry.key);
         }
       } catch (error, stack) {
@@ -7305,8 +7302,15 @@ class CockpitViewModel extends ChangeNotifier
   Future<bool> _restoreSession(
     String id,
     Map<String, dynamic> desc,
-    Project project,
-  ) async {
+    Project project, {
+    OrchestrationSession? ownedBy,
+    Set<String> reservedIds = const {},
+  }) async {
+    if (ownedBy != null && desc['type'] != 'terminal') {
+      throw const FormatException(
+        'An orchestration can restore only terminals',
+      );
+    }
     String cwdOf() {
       final sub = desc['sub'] as String? ?? '';
       return sub.isEmpty ? project.path : '${project.path}/$sub';
@@ -7406,6 +7410,7 @@ class CockpitViewModel extends ChangeNotifier
           project.id,
           termCwd,
           title: desc['title'] as String?,
+          ownedBy: ownedBy,
           replay: raw == null ? null : 'c$raw\x1b[<9u\r\n',
           startupCommand: claudeSid == null || claudeSid.isEmpty
               ? null
@@ -7478,7 +7483,14 @@ class CockpitViewModel extends ChangeNotifier
       case 'orchestration':
         final file = desc['path'] as String?;
         if (file == null) return false;
-        _makeOrchestration(project.id, file, id: id);
+        final owner = _makeOrchestration(
+          project.id,
+          file,
+          id: id,
+          startWatching: false,
+        );
+        owner.pendingRestoration = Map<String, dynamic>.from(desc);
+        _prepareOrchestrationRestore(owner, project, reservedIds);
         return true;
       case 'notebook':
         final nbPath = desc['path'] as String?;
@@ -7626,8 +7638,6 @@ class CockpitViewModel extends ChangeNotifier
       // Toggle de worktrees do rail (V37) — mora no mesmo doc do layout, então
       // sobrevive à sessão sem inventar outro store.
       kWorktreesExpandedKey: worktreesExpanded(projectId),
-      'orchestrationActive': _orchestrations[projectId]?.path,
-      'orchestrationBindings': _orchestrationBindings[projectId] ?? {},
       'presentation': presentationFor(projectId).toJson(),
       'graph': {
         'boxes': [
@@ -7663,7 +7673,8 @@ class CockpitViewModel extends ChangeNotifier
     for (final entry in sessionsJson.entries) {
       final desc = Map<String, dynamic>.from(entry.value as Map);
       // worktree não replica viewers/diffs nem a instância de editor do pai.
-      if (desc['type'] == 'viewer' ||
+      if (desc['type'] == 'orchestration' ||
+          desc['type'] == 'viewer' ||
           desc['type'] == 'diff' ||
           desc['type'] == 'neovim' ||
           desc['type'] == 'file_engine') {
@@ -7801,7 +7812,29 @@ class CockpitViewModel extends ChangeNotifier
       return <String, dynamic>{'type': 'browser', 'url': s.url};
     }
     if (s is OrchestrationSession) {
-      return <String, dynamic>{'type': 'orchestration', 'path': s.path};
+      final pending = s.pendingRestoration;
+      if (pending != null) {
+        return {...pending, 'path': s.path};
+      }
+      return <String, dynamic>{
+        'type': 'orchestration',
+        'ownershipVersion': 2,
+        'path': s.path,
+        'presentation': s.context.presentation.toJson(),
+        'bindings': {...s.controller.bindings},
+        'dirty': s.controller.dirty,
+        if (s.controller.pendingRemovals.isNotEmpty)
+          'pendingRemovals': OrchestrationDocument(
+            boxes: s.controller.pendingRemovals.values.toList(),
+          ).encode(),
+        'multiplexer': s.terminals.serialize(),
+        if (s.controller.document != null)
+          'document': s.controller.document!.encode(),
+        'sessions': {
+          for (final child in s.terminals.sessions.values)
+            child.id: _sessionToJson(child, project),
+        },
+      };
     }
     if (s is NotebookSession) {
       return <String, dynamic>{'type': 'notebook', 'path': s.path};
@@ -7837,7 +7870,6 @@ class CockpitViewModel extends ChangeNotifier
   /// sairia vazio — quebrando o posicionamento por subpasta (e a clonagem de
   /// layout pro worktree).
   void _scheduleSave(String projectId) {
-    if (_restoringCount == 0) _syncOrchestrationDocument(projectId);
     // O Cockpit é efêmero (sessão só enquanto o app vive) — nunca persiste
     // layout. Chokepoint único: cobre resize, cwd, criação/fechamento de aba.
     if (isSystemTerminal(projectId)) return;

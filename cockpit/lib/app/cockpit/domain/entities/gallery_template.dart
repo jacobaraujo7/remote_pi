@@ -6,7 +6,8 @@
 /// Título/descrição são i18n na UI; aqui só o que é dado.
 enum GalleryTemplate {
   orchestration(
-    baseName: 'agents', extension: 'orchestration', fixedName: true,
+    baseName: 'agents',
+    extension: 'orchestration',
     iconAsset: 'assets/file_icons/cockpit-panel.svg',
     content: '{"version":1,"boxes":[],"links":[]}\n',
   ),

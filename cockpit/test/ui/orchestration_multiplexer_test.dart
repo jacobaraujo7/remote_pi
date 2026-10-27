@@ -46,6 +46,43 @@ _Terminal _terminal(String doc, String id) =>
     _Terminal(id, TerminalOwner.orchestration(doc));
 
 void main() {
+  test(
+    'split existing owned terminal preserves objects, direction and tab selection',
+    () {
+      final a = _mux('a');
+      final one = _terminal('a', 'one'), two = _terminal('a', 'two');
+      a.attach(one);
+      a.attach(two);
+      final original = a.paneOf(one.id)!.id;
+      expect(
+        a.splitTab(
+          two.id,
+          SplitDir.horizontal,
+          anchorPaneId: original,
+          before: true,
+        ),
+        isTrue,
+      );
+      final root = a.tree! as SplitPane;
+      expect(root.dir, SplitDir.horizontal);
+      expect((root.a as LeafPane).tabs, [two.id]);
+      expect((root.b as LeafPane).tabs, [one.id]);
+      expect(a.session(two.id), same(two));
+      expect(a.keyboardTabId, two.id);
+      final before = a.serialize();
+      expect(
+        a.splitTab(one.id, SplitDir.vertical, anchorPaneId: 'foreign'),
+        isFalse,
+      );
+      expect(a.serialize(), before);
+      a.releaseKeyboard();
+      expect(a.keyboardTabId, isNull);
+      a.dispose();
+      one.dispose();
+      two.dispose();
+    },
+  );
+
   test('rejects workspace, other document and other worktree ownership', () {
     final a = _mux('a');
     final own = _terminal('a', 'own');

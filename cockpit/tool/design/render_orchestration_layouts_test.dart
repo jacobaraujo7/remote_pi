@@ -1,4 +1,9 @@
 import 'dart:convert';
+import 'package:flutter_modular/flutter_modular.dart';
+import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
+import 'package:cockpit/app/core/ui/settings_controller.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/cockpit/domain/entities/terminal_owner.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 // Run: flutter test tool/design/render_workspace_layouts_test.dart
@@ -27,11 +32,25 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import '../../test/support/attachment_terminal_gateway.dart';
 
+class _Settings extends SettingsStore {
+  @override
+  Future<AppSettings> load() async => _settings;
+  @override
+  Future<void> save(AppSettings settings) async {}
+}
+
+class _PreviewSettings extends SettingsController {
+  _PreviewSettings() : super(_Settings());
+  @override
+  AppSettings get settings => _settings;
+}
+
 class _VM extends ChangeNotifier implements CockpitViewModel {
   _VM(this.presentation) {
     for (final box in graphBoxes) {
       final tab = TerminalSession(
         id: box.tabId!,
+        owner: const TerminalOwner.orchestration('app'),
         projectId: 'demo',
         workingDirectory: '/workspace/demo',
         gateway: AttachmentTerminalGateway(),
@@ -151,6 +170,7 @@ class _Metrics implements ProcessMetricsProvider {
 const _settings = AppSettings(
   interfaceFont: 'Preview UI',
   codeFont: 'Preview Mono',
+  terminalFont: 'Preview Mono',
 );
 Future<void> _loadFonts() async {
   final config = jsonDecode(
@@ -214,14 +234,21 @@ void main() {
         newBoxId: () => throw StateError('unexpected discovery'),
         bindings: {for (final box in vm.graphBoxes) box.id: box.tabId!},
       );
-      await controller.load();
-      expect(controller.error, isNull);
       final app = OrchestrationSession(
         id: 'app',
         projectId: 'demo',
         path: '/workspace/demo/agents.orchestration',
         controller: controller,
+        presentation: vm.presentation,
       );
+      for (final tab in vm.tabs.values) {
+        app.terminals.attach(tab, focus: false);
+      }
+      await controller.load();
+      app.context.openBoxInTerminals('backend');
+      expect(controller.error, isNull);
+      final external = createTerminalController(TerminalEngine.xterm);
+      external.write('Terminal externo ao orquestrador\r\n/workspace/demo > ');
       final key = GlobalKey();
       final focus = FocusNode();
       final overviewActive = ValueNotifier(true);
@@ -229,8 +256,8 @@ void main() {
         valueListenable: overviewActive,
         builder: (_, active, _) => OrchestrationView(
           session: app,
-          vm: vm,
           active: active,
+          focused: active,
           processMetrics: _Metrics(),
         ),
       );
@@ -248,61 +275,69 @@ void main() {
         ],
       );
       await tester.pumpWidget(
-        TranslationProvider(
-          child: ShadcnApp(
-            theme: buildTheme(brightness: Brightness.dark, settings: _settings),
-            builder: (context, child) {
-              final tokens = buildTokens(
+        ModularApp(
+          module: createModule(register: (_) {}),
+          provide: (scope) => scope
+            ..addChangeNotifier<SettingsController>(() => _PreviewSettings()),
+          child: TranslationProvider(
+            child: ShadcnApp(
+              theme: buildTheme(
                 brightness: Brightness.dark,
                 settings: _settings,
-              );
-              return CockpitTheme(
-                colors: tokens.colors,
-                typo: tokens.typo,
-                syntax: tokens.syntax,
-                terminal: tokens.terminal,
-                child: child!,
-              );
-            },
-            home: Scaffold(
-              child: RepaintBoundary(
-                key: key,
-                child: entry.$4 < 800
-                    ? overview()
-                    : StablePaneHost(
-                        tree: const SplitPane(
-                          id: 'split',
-                          dir: SplitDir.vertical,
-                          frac: .64,
-                          a: LeafPane(
-                            id: 'orchestration',
-                            tabs: ['app'],
-                            active: 'app',
+              ),
+              builder: (context, child) {
+                final tokens = buildTokens(
+                  brightness: Brightness.dark,
+                  settings: _settings,
+                );
+                return CockpitTheme(
+                  colors: tokens.colors,
+                  typo: tokens.typo,
+                  syntax: tokens.syntax,
+                  terminal: tokens.terminal,
+                  child: child!,
+                );
+              },
+              home: Scaffold(
+                child: RepaintBoundary(
+                  key: key,
+                  child: entry.$4 < 800
+                      ? overview()
+                      : StablePaneHost(
+                          tree: const SplitPane(
+                            id: 'split',
+                            dir: SplitDir.vertical,
+                            frac: .64,
+                            a: LeafPane(
+                              id: 'orchestration',
+                              tabs: ['app'],
+                              active: 'app',
+                            ),
+                            b: LeafPane(
+                              id: 'terminals',
+                              tabs: ['api', 'ui', 'qa'],
+                              active: 'api',
+                            ),
                           ),
-                          b: LeafPane(
-                            id: 'terminals',
-                            tabs: ['api', 'ui', 'qa'],
-                            active: 'api',
-                          ),
-                        ),
-                        onResize: (_, _) {},
-                        paneBuilder: (pane, visible) =>
-                            pane.id == 'orchestration'
-                            ? dockHeader('Agent Orchestration  ×', overview())
-                            : dockHeader(
-                                'Backend  ×     Design     Review     +',
-                                AdaptiveTerminalPane(
-                                  terminal: vm.tabs['api']!.terminal,
-                                  focusNode: focus,
-                                  active: true,
-                                  textStyle: const xterm.TerminalStyle(
-                                    fontFamily: 'Preview Mono',
+                          onResize: (_, _) {},
+                          paneBuilder: (pane, visible) =>
+                              pane.id == 'orchestration'
+                              ? dockHeader('Agent Orchestration  ×', overview())
+                              : dockHeader(
+                                  'Backend  ×     Design     Review     +',
+                                  AdaptiveTerminalPane(
+                                    terminal: external,
+                                    focusNode: focus,
+                                    active: true,
+                                    textStyle: const xterm.TerminalStyle(
+                                      fontFamily: 'Preview Mono',
+                                    ),
+                                    theme: xterm.TerminalThemes.defaultTheme,
+                                    onKeyEvent: (_) => KeyEventResult.ignored,
                                   ),
-                                  theme: xterm.TerminalThemes.defaultTheme,
-                                  onKeyEvent: (_) => KeyEventResult.ignored,
                                 ),
-                              ),
-                      ),
+                        ),
+                ),
               ),
             ),
           ),
@@ -312,10 +347,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
       expect(find.text('Novo terminal'), findsOneWidget);
-      // App mode switching changes only its own pane; no second terminal view.
+      // One selected owned terminal plus the independent external terminal.
       expect(
         find.byType(AdaptiveTerminalPane),
-        entry.$4 < 800 ? findsNothing : findsOneWidget,
+        entry.$4 < 800 ? findsOneWidget : findsNWidgets(2),
       );
       await tester.runAsync(() async {
         final boundary =
@@ -330,26 +365,39 @@ void main() {
         image.dispose();
       });
       if (entry.$1 == 'boxes-dock') {
-        await tester.tap(find.text('Design'));
+        await tester.tap(find.text('Design').first);
         await tester.pump(const Duration(milliseconds: 350));
-        expect(vm.presentation.selectedBoxId, 'design');
-        expect(vm.openedBox, 'design');
+        expect(app.context.presentation.selectedBoxId, 'design');
+        expect(app.terminals.keyboardTabId, 'ui');
 
         final terminalElement = tester.element(
-          find.byType(AdaptiveTerminalPane),
+          find.descendant(
+            of: find.byKey(const ValueKey(('app', 'ui'))),
+            matching: find.byType(AdaptiveTerminalPane),
+          ),
         );
         await tester.tap(find.text('Grafo'));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 50));
-        expect(vm.presentation.mode, OrchestrationViewMode.graph);
+        expect(app.context.presentation.mode, OrchestrationViewMode.graph);
         expect(
-          tester.element(find.byType(AdaptiveTerminalPane)),
+          tester.element(
+            find.descendant(
+              of: find.byKey(const ValueKey(('app', 'ui'))),
+              matching: find.byType(AdaptiveTerminalPane),
+            ),
+          ),
           same(terminalElement),
         );
         await tester.tap(find.text('Boxes'));
         await tester.pump();
         expect(
-          tester.element(find.byType(AdaptiveTerminalPane)),
+          tester.element(
+            find.descendant(
+              of: find.byKey(const ValueKey(('app', 'ui'))),
+              matching: find.byType(AdaptiveTerminalPane),
+            ),
+          ),
           same(terminalElement),
         );
         expect(tester.takeException(), isNull);
@@ -368,19 +416,19 @@ void main() {
       expect(vm.projectReads, beforeTraffic);
       overviewActive.value = true;
       await tester.pump();
-      expect(vm.projectReads, greaterThan(beforeTraffic));
+      expect(
+        vm.projectReads,
+        beforeTraffic,
+      ); // no global project lookup even on reactivation
 
       expect(tester.state(find.byType(OrchestrationView)), same(overviewState));
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
       overviewActive.dispose();
-      app.dispose();
       focus.dispose();
+      external.dispose();
       await tester.runAsync(() async {
-        for (final tab in vm.tabs.values) {
-          tab.dispose();
-        }
-        await Future<void>.delayed(Duration.zero);
+        await app.dispose();
       });
       vm.dispose();
     });

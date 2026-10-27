@@ -19,6 +19,7 @@ class OrchestrationController extends ChangeNotifier {
     required this.closeTerminal,
     required this.terminals,
     required this.newBoxId,
+    this.flushLocalState,
     Map<String, String>? bindings,
   }) : bindings = {...?bindings} {
     _instances.add(this);
@@ -27,9 +28,15 @@ class OrchestrationController extends ChangeNotifier {
   static Future<void> flushAll() async {
     for (final controller in _instances.toList()) {
       await controller.settle();
+      if (!controller._disposed) await controller.flushLocalState?.call();
     }
   }
 
+  final Future<void> Function()? flushLocalState;
+
+  /// Local startup restoration must settle before file reconciliation. Retried
+  /// loads use this same gate after a temporary host/native failure.
+  Future<void> Function()? beforeReconcile;
   final Future<String> Function() read;
   final Future<void> Function(String) write;
   final Future<String> Function(OrchestrationBox) createShell;
@@ -46,6 +53,7 @@ class OrchestrationController extends ChangeNotifier {
   String? _lastDiskText;
   Timer? _pollTimer;
   bool _polling = false;
+  bool _reconcileSavedSnapshot = false;
   void startPolling({Duration interval = const Duration(seconds: 5)}) {
     if (_disposed) return;
     _pollTimer ??= Timer.periodic(interval, (_) => poll());
@@ -74,6 +82,7 @@ class OrchestrationController extends ChangeNotifier {
     final done = _queue.then((_) async {
       busy = true;
       try {
+        await beforeReconcile?.call();
         await action();
         error = null;
       } catch (e) {
@@ -106,6 +115,28 @@ class OrchestrationController extends ChangeNotifier {
     }
   }
 
+  /// Seed validated local state only at startup, before polling/reconciliation.
+  /// The caller restores owned native sessions separately; this never spawns.
+  void restoreSnapshot({
+    required OrchestrationDocument? savedDocument,
+    required Map<String, String> savedBindings,
+    OrchestrationDocument? savedPendingRemovals,
+    bool wasDirty = false,
+  }) {
+    if (_disposed || document != null || bindings.isNotEmpty) {
+      throw StateError('Controller restoration must precede loading');
+    }
+    document = savedDocument;
+    bindings.addAll(savedBindings);
+    pendingRemovals.addAll({
+      for (final b in savedPendingRemovals?.boxes ?? const <OrchestrationBox>[])
+        b.box.id: b,
+    });
+    dirty = wasDirty;
+    _reconcileSavedSnapshot = true;
+    notifyListeners();
+  }
+
   void switchDocument(Map<String, String> nextBindings) {
     _lastDiskText = null;
     document = null;
@@ -121,8 +152,11 @@ class OrchestrationController extends ChangeNotifier {
     // A failed save is retried rather than overwritten by an old watcher echo.
     if (dirty && document != null) {
       await _save();
-      return;
+      // Ordinary failed-write retries remain write-only. Startup is different:
+      // some saved shells may still be absent after a partial recovery.
+      if (!_reconcileSavedSnapshot) return;
     }
+    _reconcileSavedSnapshot = false;
     final diskText = await read();
     final next = OrchestrationDocument.parse(diskText);
     _lastDiskText = diskText;
@@ -160,6 +194,14 @@ class OrchestrationController extends ChangeNotifier {
     if (pendingRemovals.containsKey(box.box.id)) {
       throw StateError('Box removal is pending confirmation');
     }
+    // Validate the complete prospective document before allocating a PTY.
+    OrchestrationDocument.parse(
+      OrchestrationDocument(
+        boxes: [...doc.boxes, box],
+        links: doc.links,
+        extra: doc.extra,
+      ).encode(),
+    );
     final current = bindings[box.box.id];
     if (current == null || !terminals().any((t) => t.id == current)) {
       bindings[box.box.id] = await createShell(box);
@@ -169,6 +211,96 @@ class OrchestrationController extends ChangeNotifier {
       links: doc.links,
       extra: doc.extra,
     );
+    dirty = true;
+    await _save();
+  });
+
+  /// Replacing an exited session is serialized with file reconciliation.
+  /// An expected binding makes repeated concurrent restart requests idempotent.
+  Future<void> restartShell(String boxId, {required String expectedTabId}) =>
+      _run(() async {
+        if (bindings[boxId] != expectedTabId) return;
+        final box = document?.boxes.where((b) => b.box.id == boxId).firstOrNull;
+        if (box == null) throw StateError('Box not found');
+        final replacement = await createShell(box);
+        bindings[boxId] = replacement;
+        try {
+          await closeTerminal(expectedTabId);
+        } catch (e, st) {
+          // A disconnect may prevent the old session from closing after the
+          // replacement exists. Keep both represented instead of orphaning it.
+          final doc = document!;
+          if (terminals().any((t) => t.id == expectedTabId)) {
+            final historyId = newBoxId();
+            bindings[historyId] = expectedTabId;
+            document = OrchestrationDocument(
+              boxes: [
+                ...doc.boxes,
+                OrchestrationBox(
+                  box: GraphBox(
+                    id: historyId,
+                    title: '${box.box.title} (${doc.boxes.length + 1})',
+                    role: box.box.role,
+                    harness: box.box.harness,
+                    model: box.box.model,
+                    position: autoPosition(doc.boxes.length),
+                  ),
+                  directory: box.directory,
+                ),
+              ],
+              links: doc.links,
+              extra: doc.extra,
+            );
+            dirty = true;
+            await _save();
+          }
+          Error.throwWithStackTrace(e, st);
+        }
+      });
+
+  Future<void> handoff(String boxId, {required String historyTitle}) =>
+      _run(() async {
+        final doc = document;
+        final box = doc?.boxes.where((b) => b.box.id == boxId).firstOrNull;
+        if (doc == null || box == null) throw StateError('Box not found');
+        final previous = bindings[boxId];
+        final replacement = await createShell(box);
+        bindings[boxId] = replacement;
+        if (previous != null && terminals().any((t) => t.id == previous)) {
+          final historyId = newBoxId();
+          bindings[historyId] = previous;
+          document = OrchestrationDocument(
+            boxes: [
+              ...doc.boxes,
+              OrchestrationBox(
+                box: GraphBox(
+                  id: historyId,
+                  title: historyTitle,
+                  role: box.box.role,
+                  harness: box.box.harness,
+                  model: box.box.model,
+                  position: autoPosition(doc.boxes.length),
+                ),
+                directory: box.directory,
+              ),
+            ],
+            links: doc.links,
+            extra: doc.extra,
+          );
+          dirty = true;
+          await _save();
+        }
+      });
+
+  /// Compute against the latest queued document, so simultaneous inspector,
+  /// reorder and graph edits cannot overwrite each other's stale snapshots.
+  Future<void> mutate(
+    OrchestrationDocument Function(OrchestrationDocument current) edit,
+  ) => _run(() async {
+    final doc = document;
+    if (doc == null) throw StateError('Document unavailable');
+    final next = OrchestrationDocument.parse(edit(doc).encode());
+    document = next;
     dirty = true;
     await _save();
   });

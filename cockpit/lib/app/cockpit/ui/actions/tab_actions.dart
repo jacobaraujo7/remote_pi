@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
+import '../session/orchestration_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -20,6 +21,21 @@ Future<bool> requestCloseTab(
   PaneItem? item,
   VoidCallback onClose,
 ) async {
+  if (item is OrchestrationSession) {
+    final tr = context.t.orchestration;
+    final confirmed = await showConfirmDialog(
+      context,
+      title: item.title,
+      message: '${tr.closeTerminal}: ${item.terminals.sessions.length}',
+      confirmLabel: tr.closeTerminal,
+      danger: true,
+    );
+    if (!confirmed || !context.mounted) return false;
+    final result = await item.prepareClose();
+    if (result is Failure || !context.mounted) return false;
+    onClose();
+    return true;
+  }
   if (item is NeovimSession) {
     final modified = await item.hasModifiedBuffers();
     if (!context.mounted) return false;

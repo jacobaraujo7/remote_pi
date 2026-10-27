@@ -10,25 +10,27 @@ import '../../domain/contracts/process_metrics_provider.dart';
 import '../services/graph_telemetry_service.dart';
 import '../session/orchestration_session.dart';
 import '../session/terminal_session.dart';
-import '../viewmodels/cockpit_viewmodel.dart';
+import '../states/pane_node.dart';
+import 'orchestration_terminals_view.dart';
+import 'pane_divider.dart';
 import '../../../core/ui/themes/themes.dart';
 import '../../../../i18n/strings.g.dart';
 import 'workspace_box_list.dart';
 import 'workspace_box_inspector.dart';
 import 'workspace_graph_view.dart';
 
-/// A normal dockable document. This widget never owns a TerminalView.
+/// A document owns its overview and stable internal terminal multiplexer.
 class OrchestrationView extends StatefulWidget {
   const OrchestrationView({
     super.key,
     required this.session,
-    required this.vm,
     required this.active,
+    this.focused = false,
     this.processMetrics,
   });
   final OrchestrationSession session;
-  final CockpitViewModel vm;
   final bool active;
+  final bool focused;
   final ProcessMetricsProvider? processMetrics;
   @override
   State<OrchestrationView> createState() => _OrchestrationViewState();
@@ -48,13 +50,12 @@ class _OrchestrationViewState extends State<OrchestrationView> {
       _live = null;
     }
     return _live ??= OrchestrationLiveSessions(
-      sources: widget.active ? [widget.vm, widget.session] : const [],
+      sources: widget.active
+          ? [widget.session.context, widget.session.terminals]
+          : const [],
       sessionState: () => widget.active
           ? [
-              for (final t
-                  in widget.vm.allSessions.whereType<TerminalSession>().where(
-                    (t) => t.projectId == widget.session.projectId,
-                  ))
+              for (final t in widget.session.terminals.sessions.values)
                 (
                   t.id,
                   t.status,
@@ -67,19 +68,16 @@ class _OrchestrationViewState extends State<OrchestrationView> {
           : const [],
       schedule: (callback) =>
           WidgetsBinding.instance.scheduleFrameCallback((_) => callback()),
-      sessions: () => widget.active
-          ? widget.vm.allSessions.whereType<TerminalSession>().where(
-              (t) => t.projectId == widget.session.projectId,
-            )
-          : const [],
+      sessions: () =>
+          widget.active ? widget.session.terminals.sessions.values : const [],
     );
   }
 
   @override
   void didUpdateWidget(covariant OrchestrationView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.vm != widget.vm ||
-        oldWidget.session != widget.session ||
+    widget.session.terminals.setActive(widget.active && widget.focused);
+    if (oldWidget.session != widget.session ||
         oldWidget.active != widget.active) {
       _live?.dispose();
       _live = null;
@@ -94,6 +92,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   @override
   void initState() {
     super.initState();
+    widget.session.terminals.setActive(widget.active && widget.focused);
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
@@ -102,7 +101,9 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     if (_refreshing ||
         !mounted ||
         !widget.active ||
-        widget.vm.selectedProjectId != widget.session.projectId) {
+        (widget.session.context.presentation.mode ==
+                OrchestrationViewMode.graph &&
+            !widget.session.context.presentation.inspectorOpen)) {
       return;
     }
     _refreshing = true;
@@ -111,7 +112,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     try {
       final next = <String, GraphTelemetrySnapshot>{};
       for (final box in documentSession.controller.graphBoxes) {
-        final session = widget.vm.session(box.tabId ?? '');
+        final session = widget.session.context.session(box.tabId ?? '');
         if (session == null) continue;
         next[session.id] = await const GraphTelemetryService().snapshot(
           session,
@@ -140,11 +141,11 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   }
 
   WorkspaceBoxEntry _entry(GraphBox box) {
-    final s = widget.vm.session(box.tabId ?? '');
+    final s = widget.session.context.session(box.tabId ?? '');
     final t = s is TerminalSession ? s : null;
     return WorkspaceBoxEntry(
       box: box,
-      status: widget.vm.selectedRemoteDisconnected
+      status: widget.session.context.selectedRemoteDisconnected
           ? WorkspaceBoxStatus.disconnected
           : t == null
           ? WorkspaceBoxStatus.disconnected
@@ -170,14 +171,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
 
   @override
   Widget build(BuildContext context) {
-    final vm = widget.vm;
+    final vm = widget.session.context;
     return ListenableBuilder(
       listenable: _liveSessions,
       builder: (context, _) {
-        // An offstage document must never project another worktree's selection.
-        if (vm.selectedProjectId != widget.session.projectId) {
-          return const SizedBox.shrink();
-        }
         final controller = widget.session.controller;
         controller.startPolling();
         final t = context.t.workspaceView;
@@ -199,20 +196,15 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                   .firstOrNull
                   ?.directory ??
               '.',
-          onSuggestRole: () => vm.suggestOrchestrationRole(
-            widget.session.projectId,
+          onSuggestRole: () => vm.suggestRole(selected.id),
+          onSave: (name, role, tool, model, directory) => vm.configureBox(
             selected.id,
+            title: name,
+            role: role,
+            harness: tool,
+            model: model,
+            directory: directory,
           ),
-          onSave: (name, role, tool, model, directory) =>
-              vm.configureOrchestrationBox(
-                widget.session.projectId,
-                selected.id,
-                title: name,
-                role: role,
-                harness: tool,
-                model: model,
-                directory: directory,
-              ),
           onClose: () =>
               vm.updatePresentation(state.copyWith(inspectorOpen: false)),
         );
@@ -264,10 +256,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                   PrimaryButton(
                     onPressed: controller.busy || vm.selectedRemoteDisconnected
                         ? null
-                        : () => vm.newTerminalTab(
-                            cwd: vm.projectRootOf(widget.session.projectId)!,
-                            workspaceId: widget.session.projectId,
-                          ),
+                        : () => vm.newTerminal(),
                     child: Text(tr.newTerminal),
                   ),
                   IconButton.ghost(
@@ -380,25 +369,27 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                         onOpen: vm.openBoxInTerminals,
                         onConfigure: (id) => select(id, configure: true),
                       ),
-                      if (state.mode == OrchestrationViewMode.graph)
-                        WorkspaceGraphView(
-                          active: widget.active,
-                          vm: vm,
-                          processMetrics:
-                              widget.processMetrics ??
-                              context.read<ProcessMetricsProvider>(),
-                          embedded: true,
-                          selectedBoxId: selected?.id,
-                          onSelectBox: select,
-                          onExit: () =>
-                              vm.setWorkspaceView(OrchestrationViewMode.boxes),
-                          onOpenTab: (id) {
-                            final box = vm.graphBoxForTab(id);
-                            if (box != null) vm.openBoxInTerminals(box.id);
-                          },
-                        )
-                      else
-                        const SizedBox.shrink(),
+                      WorkspaceGraphView(
+                        active:
+                            widget.active &&
+                            state.mode == OrchestrationViewMode.graph,
+                        vm: vm,
+                        processMetrics:
+                            widget.processMetrics ??
+                            context.read<ProcessMetricsProvider>(),
+                        embedded: true,
+                        selectedBoxId: selected?.id,
+                        onSelectBox: (id) {
+                          select(id);
+                          vm.revealBox(id, focus: false);
+                        },
+                        onExit: () =>
+                            vm.setWorkspaceView(OrchestrationViewMode.boxes),
+                        onOpenTab: (id) {
+                          final box = vm.graphBoxForTab(id);
+                          if (box != null) vm.openBoxInTerminals(box.id);
+                        },
+                      ),
                     ],
                   );
                   return IgnorePointer(
@@ -407,7 +398,62 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                       children: [
                         Row(
                           children: [
-                            Expanded(child: overview),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  SizedBox(
+                                    height:
+                                        (constraints.maxHeight - 6).clamp(
+                                          0.0,
+                                          double.infinity,
+                                        ) *
+                                        (1 - state.terminalFraction),
+                                    child: Listener(
+                                      behavior: HitTestBehavior.translucent,
+                                      onPointerDown: (_) => widget
+                                          .session
+                                          .terminals
+                                          .releaseKeyboard(),
+                                      child: overview,
+                                    ),
+                                  ),
+                                  SizedBox(
+                                    height: 6,
+                                    child: PaneDivider(
+                                      dir: SplitDir.horizontal,
+                                      onDelta: (delta) {
+                                        final fraction =
+                                            (vm.presentation.terminalFraction -
+                                                    delta /
+                                                        constraints.maxHeight)
+                                                .clamp(.15, .85);
+                                        vm.updatePresentation(
+                                          state.mode ==
+                                                  OrchestrationViewMode.boxes
+                                              ? vm.presentation.copyWith(
+                                                  boxesTerminalFraction:
+                                                      fraction,
+                                                )
+                                              : vm.presentation.copyWith(
+                                                  graphTerminalFraction:
+                                                      fraction,
+                                                ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: OrchestrationTerminalsView(
+                                      session: widget.session,
+                                      active: widget.active,
+                                      focused:
+                                          widget.focused &&
+                                          !(showInspector && !wide),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                             if (showInspector && wide) ...[
                               GestureDetector(
                                 behavior: HitTestBehavior.opaque,
