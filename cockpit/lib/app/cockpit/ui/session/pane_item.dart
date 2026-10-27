@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../../domain/entities/terminal_owner.dart';
+export '../../domain/entities/terminal_owner.dart';
 
 /// Base de uma aba do multiplexador — um agente (`AgentSession`) ou um terminal
 /// (`TerminalSession`). A VM guarda todas as abas como [PaneItem]; a UI decide
@@ -6,6 +8,9 @@ import 'package:flutter/foundation.dart';
 abstract class PaneItem extends ChangeNotifier {
   String get id;
   String get projectId;
+
+  /// Normal tabs remain workspace-owned unless explicitly created by an app.
+  TerminalOwner get owner => const TerminalOwner.workspace();
 
   /// Título **dinâmico** da aba — derivado automaticamente (OSC-title do
   /// terminal, nome do agente, nome do arquivo). Segue vivo mesmo quando há

@@ -59,6 +59,11 @@ jobs:
           lib/app/bootstrapper.dart
           lib/app/cockpit/domain/entities/orchestration_presentation.dart
           lib/app/cockpit/domain/entities/orchestration_document.dart
+          lib/app/cockpit/domain/entities/terminal_owner.dart
+          lib/app/cockpit/ui/viewmodels/orchestration_multiplexer.dart
+          lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
+          lib/app/cockpit/ui/viewmodels/session_notifications_controller.dart
+          lib/app/cockpit/ui/widgets/terminal_session_view.dart
           lib/app/cockpit/ui/services/orchestration_controller.dart
           lib/app/cockpit/ui/services/orchestration_terminal_target.dart
           lib/app/cockpit/ui/viewmodels/orchestration_workspace.dart
@@ -81,6 +86,9 @@ jobs:
           flutter test --no-pub
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
+          test/ui/orchestration_multiplexer_test.dart
+          test/ui/session_notifications_controller_test.dart
+          test/ui/terminal_session_view_test.dart
           test/ui/orchestration_live_sessions_test.dart
           test/ui/neovim_settings_viewmodel_test.dart
           test/ui/agent_role_suggestion_service_test.dart

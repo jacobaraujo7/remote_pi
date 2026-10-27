@@ -142,6 +142,8 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/remote_workspace_controller.da
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 
+import 'workspace_graph_context.dart';
+
 part 'orchestration_workspace.dart';
 
 /// Controlador do shell: projetos, árvore de splits **por projeto**, sessões de
@@ -154,7 +156,8 @@ part 'orchestration_workspace.dart';
 ///
 /// As operações de pane agem no **projeto ativo** ([_selectedProjectId]) — o
 /// `IndexedStack` garante que só o projeto ativo é interativo.
-class CockpitViewModel extends ChangeNotifier implements DocumentHost {
+class CockpitViewModel extends ChangeNotifier
+    implements DocumentHost, WorkspaceGraphContext {
   CockpitViewModel(
     this._projects,
     this._fileSystem,
@@ -532,6 +535,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (mode == OrchestrationViewMode.graph) reconcileClaudeGraphIdentities(id);
   }
 
+  @override
   void selectWorkspaceBox(String boxId, {bool configure = false}) {
     final id = _selectedProjectId;
     if (id == null || !graphBoxes.any((b) => b.id == boxId)) return;
@@ -556,6 +560,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
   }
 
+  @override
   void openBoxInTerminals(String boxId) {
     final box = graphBoxes.where((b) => b.id == boxId).firstOrNull;
     final projectId = _selectedProjectId;
@@ -565,6 +570,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     selectTab(paneId, box.tabId!);
   }
 
+  @override
   Future<Result<String, String>> openBoxShell(
     String boxId, {
     String? workspaceId,
@@ -614,16 +620,21 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   final Set<String> _graphDiscoveryKeys = {};
   final GraphSubagentRegistry _graphSubagents = GraphSubagentRegistry();
 
+  @override
   List<GraphBox> get graphBoxes =>
       List.unmodifiable(_graphBoxes[_selectedProjectId] ?? const <GraphBox>[]);
+  @override
   List<GraphLink> get graphLinks =>
       List.unmodifiable(_graphLinks[_selectedProjectId] ?? const <GraphLink>[]);
+  @override
   List<GraphObservedLink> get graphTraffic => List.unmodifiable(
     _graphTraffic[_selectedProjectId] ?? const <GraphObservedLink>[],
   );
+  @override
   List<GraphUnresolvedPeer> get graphUnresolvedPeers => List.unmodifiable(
     _graphUnresolvedPeers[_selectedProjectId] ?? const <GraphUnresolvedPeer>[],
   );
+  @override
   List<GraphSubagent> get graphSubagents =>
       List.unmodifiable(_graphSubagents.forProject(_selectedProjectId));
 
@@ -749,6 +760,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     if (resolved.isNotEmpty) notifyListeners();
   }
 
+  @override
   GraphBox? graphBoxForTab(String tabId) {
     final owner = _sessions[tabId]?.projectId;
     for (final box in _graphBoxes[owner] ?? const <GraphBox>[]) {
@@ -788,6 +800,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     ];
   }
 
+  @override
   Result<String, String> createGraphBox({
     required String title,
     required String role,
@@ -903,6 +916,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
   }
 
+  @override
   void moveGraphBox(String boxId, Offset position) {
     final projectId = _selectedProjectId;
     if (projectId == null) return;
@@ -915,6 +929,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _scheduleSave(projectId);
   }
 
+  @override
   Result<String, String> configureGraphBox({
     required String boxId,
     String? title,
@@ -971,6 +986,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return '$harness$modelArg';
   }
 
+  @override
   Result<String, String> relaunchGraphBox(String boxId, {String? workspaceId}) {
     final project = _projectById(workspaceId ?? _selectedProjectId);
     if (project == null) return const Failure('No workspace selected');
@@ -1019,6 +1035,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   /// Starts a fresh terminal for a handoff, retaining the box's stable ID and
   /// every graph link. The previous terminal remains available as history.
+  @override
   Result<String, String> startGraphHandoff(
     String boxId, {
     String? workspaceId,
@@ -1052,6 +1069,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
   }
 
+  @override
   void addGraphLink(String from, String to) {
     final projectId = _selectedProjectId;
     if (projectId == null || from == to) return;
@@ -1064,6 +1082,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _scheduleSave(projectId);
   }
 
+  @override
   String ensureGraphBoxForTab(PaneItem session, Offset position) {
     final id = _ensureGraphBoxForTab(session, position: position);
     notifyListeners();
@@ -1110,6 +1129,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     return box.id;
   }
 
+  @override
   void removeGraphLink(String from, String to) {
     final projectId = _selectedProjectId;
     if (projectId == null) return;
@@ -1350,8 +1370,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     _scheduleSave(rootId);
   }
 
+  @override
   String? get selectedProjectId => _selectedProjectId;
   Project? get selectedProject => _projectById(_selectedProjectId);
+  @override
   bool get selectedRemoteDisconnected {
     final hostId = selectedProject?.remoteHostId;
     return hostId != null && _remoteHosts.isDisconnected(hostId);
@@ -1360,6 +1382,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// Título pro topbar: `"<workspace> · <worktree>"` quando um fork está
   /// selecionado (separador middle-dot U+00B7); só o nome do workspace caso
   /// contrário. `null` quando nada está selecionado.
+  @override
   String? get selectedDisplayTitle {
     final p = selectedProject;
     if (p == null) return null;
@@ -1375,6 +1398,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   bool get treeVisible => _treeVisible;
   List<LaunchableApp> get availableApps =>
       List<LaunchableApp>.unmodifiable(_availableApps);
+  @override
   PaneItem? session(String id) => _sessions[id];
 
   /// Todas as sessões abertas (qualquer workspace) — usado pela CLI interna

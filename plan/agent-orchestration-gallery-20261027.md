@@ -1,6 +1,41 @@
 # Agent Orchestration — Gallery app
 
-## Approved behavior
+## Current scope — per-document ownership correction (2026-10-27)
+
+This section supersedes the old approved-behavior paragraphs below; those are a historical record, not current requirements.
+
+- Each `.orchestration` file owns a separate dockable app tab, including multiple files in one worktree. Boxes/Graph above an internal multiplexer with tabs and splits below; normal workspace terminals/docks keep their current UI.
+- Never adopt, discover, configure, focus or collect notifications from outside terminals. Existing communication, metrics, hooks, subagents, badges and acknowledgements stay within their owner. Owned completions must not feed global badges, sounds or OS notifications.
+- Start from a new file, preserving old documents and all external sessions/layout. New Gallery documents seed one blank owned shell; opening an empty document must stay empty. Shell creation/reconciliation never starts a CLI.
+- Box single-click reveals/focuses its internal terminal; Graph selection reveals without keyboard focus, double-click/explicit action focuses. Internal tab dragging stays inside its owner; the entire app tab may move between outer docks.
+- Closing an internal terminal removes its definition/links. Closing the whole app tab asks to end all owned children; cancel preserves them. App shutdown preserves saved local restoration state rather than removing definitions. No native controller disposal before its view unmounts.
+- Local state owns identity, bindings, internal tree/focus, selection, inspector and overview/terminal proportions (Boxes: 60% terminal area; Graph: 35%). Portable JSON v1 remains definitions-only. Same-file concurrent opening/reconciliation must be idempotent.
+
+### Refreshed PR/dependency audit
+
+- Direct repository inventory: #272 (moregola) is the active successor; converted to draft on 2026-10-27 while correcting architecture. GitHub connector lacked draft permission; authenticated gh succeeded. Exact published head a8301fcb52d652a8e4c5a197229e82e1074f1329 has green CLI checks on Linux/macOS/Windows and native orchestration checks on Windows/macOS ARM/macOS Intel. These do not validate the new ownership correction.
+- #269 is already CLOSED, unmerged, head b071ff76ad950168361b9cd65b2bcb2436e4b68a; preserve its current state. Do not claim full successor coverage without revalidation. Owner: moregola/Jacob; next: relate final corrected #272 coverage and remaining acceptance explicitly.
+- #257 (cfbraun): independent status/Ctrl-Tab/focus work, overlapping VM/page/pane state; preserve, no whole-branch import. Jacob coordinates overlap before merge.
+- #267 (pretodev): independent editor/preview routing, overlapping VM/pane view; preserve, no whole-branch import. Jacob coordinates overlap before merge.
+- Fetched origin/main again: existing feature checkout has zero commits behind main (14 ahead before this correction), clean before edits. No develop/qa/RC promotion applies to this personal repository. BTN not required.
+
+### Implementation checkpoint (not an integrated delivery)
+
+- Implemented explicit immutable terminal ownership; workspace remains the default for existing terminal constructors.
+- Added an independent owned multiplexer with checked registration, tabs/splits/moves, separate keyboard selection, local unread handling, transactional layout restoration and detach-before-dispose semantics.
+- Global notifications ignore owned terminals completely; no global mark-as-read or sound/OS alert side effect.
+- Removed controller inventory discovery; added explicit serialized addBox creation with retained bindings on failed saves. Removed the old notification-to-discovery feedback callback.
+- Extracted TerminalSessionView from the existing pane body, preserving padding, theme/fonts, native engines, clipboard/file drops and focus. Both presenters will use this renderer.
+- Added WorkspaceGraphContext (no global terminal inventory) and moved Graph/inspector to that interface, accepting asynchronous owned actions. Graph no longer synthesizes boxes from unrepresented workspace sessions. The old VM still provides this contract temporarily; the per-instance implementation is the next integration step.
+- Validation: 114 tests passed using the exact updated workflow test list (26 files), including the real TerminalSessionView on Ghostty/xterm, inner split movement without remount, hidden-grid resize stability, scoped unread/ownership and existing component fixtures. The initial new widget test waited on fake-clock teardown; running gateway disposal with tester.runAsync fixed the harness, then both engines and the complete suite passed. Analysis of the 29 workflow/source-test targets is clean. git diff --check passed.
+- Existing pinned flterm dependency is unchanged (cockpit-pin-flterm-upstream-2026-10e); no pubspec_overrides.yaml exists. Discarded only Flutter-generated registrant reorderings after validation. No clean app build, new runtime installation or remote checks for this checkpoint yet.
+- IMPORTANT: ownership is not yet wired through the app's existing global VM/Graph/inspector/CLI/restore paths. The legacy seed and global graph session inventory remain until that integration. Do not install or publish this checkpoint as the corrected app.
+
+### Remaining implementation and acceptance
+
+Codex owns scoped app/controller integration, internal terminal UI and focus/drag routing, per-document open/create/rename/restore/migration, explicit close confirmation/teardown, contextual CLI routing, hook/graph isolation, regression coverage and clean builds. Continue in this checkout/branch; do not modify the user's running app/profile or adopt external terminals. Update #272 description/images from the final actual diff and request renewed Jacob review. moregola owns Windows acceptance; Jacob owns review and mandatory real macOS acceptance before merge (no Mac available locally). Mac CI alone is not manual acceptance. No flterm local dependency override may be required.
+
+## Historical approved behavior
 
 A normal Gallery document tab (`agents.orchestration`, versioned JSON) with Boxes/Graph and its own inspector, alongside unchanged terminal/dock visuals. One active document and app tab per worktree; alternate documents reuse the tab. Copying a document creates independent blank shells; configured CLIs only start explicitly. Newly created terminals are discovered in the owning worktree even while the view tab is closed. X removes definitions; external removal of live definitions requires Close or Keep and restore.
 

@@ -36,6 +36,7 @@ enum TerminalStatus { idle, working, waiting }
 class TerminalSession extends PaneItem {
   TerminalSession({
     required this.id,
+    this.owner = const TerminalOwner.workspace(),
     required this.projectId,
     required this.workingDirectory,
     required this._gateway,
@@ -267,6 +268,9 @@ class TerminalSession extends PaneItem {
   /// Perfil que subiu esta aba (login shell, PowerShell, `Ubuntu (WSL)`…).
   /// Guardado pra fatia 3 (dropdown do `+`) e pra restauração da aba no perfil
   /// em que ela nasceu.
+  @override
+  final TerminalOwner owner;
+
   final TerminalProfile profile;
 
   /// Session-id e transcript do agente rodando nesta aba, capturados dos hooks.

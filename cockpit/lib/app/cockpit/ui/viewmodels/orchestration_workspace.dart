@@ -195,11 +195,6 @@ extension OrchestrationWorkspace on CockpitViewModel {
         final layout = _serializeLayout(projectId);
         if (layout.isNotEmpty) unawaited(_layoutStore.save(projectId, layout));
         notifyListeners();
-        if (_orchestrationTerminals(
-          projectId,
-        ).any((t) => !controller.bindings.containsValue(t.id))) {
-          unawaited(controller.discover());
-        }
       } finally {
         _publishingOrchestration.remove(projectId);
       }

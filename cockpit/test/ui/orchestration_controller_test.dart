@@ -83,18 +83,56 @@ void main() {
       f.controller.dispose();
     },
   );
+  test('loading never captures existing or newly opened tabs', () async {
+    final f = Fixture();
+    f.live.add(const OrchestrationTerminal('manual', 'shell', '.'));
+    final disk = f.disk;
+    await f.controller.load();
+    f.live.add(const OrchestrationTerminal('new', 'other', 'packages'));
+    await Future.wait([f.controller.load(), f.controller.load()]);
+    expect(f.controller.document!.boxes.map((b) => b.box.id), ['a', 'b']);
+    expect(f.disk, disk);
+    expect(f.controller.bindings.values, isNot(contains('manual')));
+    expect(f.controller.bindings.values, isNot(contains('new')));
+    expect(f.spawns, 2);
+    f.controller.dispose();
+  });
   test(
-    'discovers existing/new terminals and persists their order once',
+    'explicit new box creates one blank shell despite concurrent requests',
     () async {
       final f = Fixture();
-      f.live.add(const OrchestrationTerminal('manual', 'shell', '.'));
       await f.controller.load();
-      expect(f.controller.document!.boxes.length, 3);
-      f.live.add(const OrchestrationTerminal('new', 'other', 'packages'));
-      await Future.wait([f.controller.discover(), f.controller.discover()]);
-      expect(f.controller.document!.boxes.length, 4);
-      expect(f.spawns, 2);
+      await Future.wait(List.generate(6, (_) => f.controller.addBox(box('c'))));
+      expect(f.spawns, 3);
+      expect(f.controller.document!.boxes.map((b) => b.box.id), [
+        'a',
+        'b',
+        'c',
+      ]);
+      expect(OrchestrationDocument.parse(f.disk).boxes.length, 3);
       expect(f.disk, isNot(contains('tabId')));
+      f.controller.dispose();
+    },
+  );
+  test(
+    'new box failed save retains binding and never duplicates its shell',
+    () async {
+      final f = Fixture();
+      await f.controller.load();
+      f.failWrite = true;
+      await f.controller.addBox(box('c'));
+      expect(f.spawns, 3);
+      expect(f.controller.dirty, isTrue);
+      expect(f.controller.error, contains('read-only'));
+      await f.controller.addBox(box('c'));
+      expect(f.spawns, 3);
+      // Repeating add retries the save without creating another shell.
+      expect(f.controller.dirty, isTrue);
+      f.failWrite = false;
+      await f.controller.load();
+      expect(f.controller.dirty, isFalse);
+      expect(f.spawns, 3);
+      expect(OrchestrationDocument.parse(f.disk).boxes.length, 3);
       f.controller.dispose();
     },
   );
@@ -173,7 +211,7 @@ void main() {
     },
   );
   test(
-    'switching documents preserves live sessions and discovers unrepresented ones',
+    'switching legacy bindings preserves sessions without capturing unrepresented ones',
     () async {
       final f = Fixture();
       await f.controller.load();

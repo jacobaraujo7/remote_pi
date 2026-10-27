@@ -63,6 +63,9 @@ class SessionNotificationsController extends ChangeNotifier {
   /// (`waiting`: permissão/pergunta/plano) — o `onTurnFinished` do terminal
   /// dispara nos dois. O status corrente da sessão decide qual [SoundEvent] é.
   Future<void> turnFinished(PaneItem s) async {
+    // Owned terminals route completion to their app, including its own unread
+    // state. Never produce global badges, sounds or OS notifications for them.
+    if (!s.owner.isWorkspace) return;
     final actionRequired =
         s is TerminalSession && s.status == TerminalStatus.waiting;
     final event = actionRequired

@@ -2,7 +2,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter/services.dart'
     show Clipboard, ClipboardData, LogicalKeyboardKey;
 import '../../domain/entities/workspace_graph.dart';
-import '../../ui/viewmodels/cockpit_viewmodel.dart';
+import '../../ui/viewmodels/workspace_graph_context.dart';
 import '../../ui/session/terminal_session.dart';
 import '../../../core/domain/result.dart';
 import '../../../core/ui/themes/themes.dart';
@@ -22,7 +22,7 @@ class WorkspaceBoxInspector extends StatefulWidget {
     this.onSuggestRole,
   });
   final Future<Result<String, String>> Function()? onSuggestRole;
-  final CockpitViewModel vm;
+  final WorkspaceGraphContext vm;
   final GraphBox box;
   final WorkspaceBoxEntry entry;
   final VoidCallback onClose;
@@ -125,7 +125,7 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
             _model.text,
             _directory.text,
           )
-        : widget.vm.configureGraphBox(
+        : await widget.vm.configureGraphBox(
             boxId: widget.box.id,
             title: _name.text,
             role: _role.text,
@@ -177,7 +177,10 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
       controller.dispose();
     }
     if (!mounted || summary == null || summary.isEmpty) return;
-    final result = widget.vm.startGraphHandoff(boxId, workspaceId: projectId);
+    final result = await widget.vm.startGraphHandoff(
+      boxId,
+      workspaceId: projectId,
+    );
     if (result case Success()) {
       await Clipboard.setData(ClipboardData(text: summary));
       if (!mounted) return;
@@ -414,8 +417,8 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                             widget.vm.selectedRemoteDisconnected ||
                                 box.harness.isEmpty
                             ? null
-                            : () => _feedback(
-                                widget.vm.relaunchGraphBox(
+                            : () async => _feedback(
+                                await widget.vm.relaunchGraphBox(
                                   box.id,
                                   workspaceId: widget.projectId,
                                 ),

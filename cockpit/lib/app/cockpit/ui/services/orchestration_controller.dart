@@ -9,7 +9,7 @@ class OrchestrationTerminal {
   final String id, title, directory;
 }
 
-/// One serialized reconciliation queue per worktree, independent of the UI's
+/// One serialized reconciliation queue per document, independent of the UI's
 /// currently selected project. No tool command is part of this interface.
 class OrchestrationController extends ChangeNotifier {
   OrchestrationController({
@@ -146,44 +146,33 @@ class OrchestrationController extends ChangeNotifier {
         live.add(id);
       }
     }
-    await _discover();
   });
-  Future<void> _discover() async {
-    final doc = document;
-    if (doc == null) return;
-    final bound = bindings.values.toSet();
-    final boxes = [...doc.boxes];
-    for (final t in terminals()) {
-      if (bound.contains(t.id)) continue;
-      final id = newBoxId();
-      boxes.add(
-        OrchestrationBox(
-          box: GraphBox(
-            id: id,
-            title: t.title,
-            role: '',
-            harness: '',
-            model: '',
-            position: autoPosition(boxes.length),
-          ),
-          directory: t.directory,
-        ),
-      );
-      bindings[id] = t.id;
-      bound.add(t.id);
-    }
-    if (boxes.length != doc.boxes.length) {
-      document = OrchestrationDocument(
-        boxes: boxes,
-        links: doc.links,
-        extra: doc.extra,
-      );
-      dirty = true;
-      await _save();
-    }
-  }
 
-  Future<void> discover() => _run(_discover);
+  /// Explicit creation is the only way to register a new box. Inventory events
+  /// must never turn an unrelated workspace terminal into document content.
+  Future<void> addBox(OrchestrationBox box) => _run(() async {
+    final doc = document;
+    if (doc == null) throw StateError('Document unavailable');
+    if (doc.boxes.any((b) => b.box.id == box.box.id)) {
+      if (dirty) await _save();
+      return;
+    }
+    if (pendingRemovals.containsKey(box.box.id)) {
+      throw StateError('Box removal is pending confirmation');
+    }
+    final current = bindings[box.box.id];
+    if (current == null || !terminals().any((t) => t.id == current)) {
+      bindings[box.box.id] = await createShell(box);
+    }
+    document = OrchestrationDocument(
+      boxes: [...doc.boxes, box],
+      links: doc.links,
+      extra: doc.extra,
+    );
+    dirty = true;
+    await _save();
+  });
+
   Future<void> update(List<OrchestrationBox> boxes, List<GraphLink> links) =>
       _run(() async {
         final doc = document;

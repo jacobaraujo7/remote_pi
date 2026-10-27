@@ -9,7 +9,7 @@ import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.da
 import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
-import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/workspace_graph_context.dart';
 import 'package:cockpit/app/cockpit/ui/services/graph_telemetry_service.dart';
 import 'package:cockpit/app/cockpit/ui/services/graph_process_metrics_service.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
@@ -21,8 +21,8 @@ import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Canvas de workspace. O terminal continua montado no sibling Offstage da
-/// CockpitPage; esta view somente projeta seu estado em boxes.
+/// Canvas for the boxes supplied by its context. Terminal presentation is
+/// owned by the surrounding multiplexer, never created by this graph.
 class WorkspaceGraphView extends StatefulWidget {
   const WorkspaceGraphView({
     super.key,
@@ -40,7 +40,7 @@ class WorkspaceGraphView extends StatefulWidget {
   final bool embedded;
   final String? selectedBoxId;
   final ValueChanged<String>? onSelectBox;
-  final CockpitViewModel vm;
+  final WorkspaceGraphContext vm;
   final ProcessMetricsProvider processMetrics;
   final VoidCallback onExit;
   final void Function(String tabId) onOpenTab;
@@ -55,8 +55,6 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
   bool _editingText = false;
   final Map<String, Future<GraphTelemetrySnapshot>> _telemetry = {};
   final Map<String, Offset> _dragPositions = {};
-  Map<String, Offset> _legacyPositions = {};
-  String? _legacyLayoutKey;
   final Map<String, Offset> _subagentPositions = {};
   final Map<String, GraphTelemetrySnapshot> _latestTelemetry = {};
   final Map<String, Future<ProcessMetricsSnapshot>> _processTelemetry = {};
@@ -122,88 +120,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     }
   }
 
-  List<GraphBox> _visibleBoxes(CockpitViewModel vm) {
-    final saved = vm.graphBoxes;
-    final bound = saved.map((b) => b.tabId).toSet();
-    final sessions = vm.allSessions
-        .where((s) => s.projectId == vm.selectedProjectId)
-        .whereType<TerminalSession>()
-        .where((s) => !bound.contains(s.id))
-        .toList();
-    final layoutKey =
-        '${vm.selectedProjectId}|'
-        '${saved.map((b) => '${b.id}:${b.position.dx},${b.position.dy}').join(';')}|'
-        '${sessions.map((s) => s.id).join(';')}';
-    if (_legacyLayoutKey != layoutKey) {
-      final occupied = <Rect>[
-        for (final box in saved)
-          Rect.fromLTWH(
-            (_dragPositions[box.id] ?? box.position).dx,
-            (_dragPositions[box.id] ?? box.position).dy,
-            _boxSize.width,
-            _boxSize.height,
-          ),
-      ];
-      final next = <String, Offset>{};
-      for (final session in sessions) {
-        if (_dragPositions[session.id] case final Offset dragged) {
-          next[session.id] = dragged;
-          occupied.add(
-            Rect.fromLTWH(
-              dragged.dx,
-              dragged.dy,
-              _boxSize.width,
-              _boxSize.height,
-            ),
-          );
-          continue;
-        }
-        Offset? free;
-        for (var row = 0; row < 8 && free == null; row++) {
-          for (var col = 0; col < 8; col++) {
-            final candidate = Offset(110.0 + col * 270, 130.0 + row * 190);
-            final area = Rect.fromLTWH(
-              candidate.dx,
-              candidate.dy,
-              _boxSize.width,
-              _boxSize.height,
-            ).inflate(12);
-            if (occupied.every((rect) => !rect.overlaps(area))) {
-              free = candidate;
-              break;
-            }
-          }
-        }
-        free ??= Offset(
-          110.0 + (next.length % 8) * 270,
-          130.0 + (next.length ~/ 8) * 190,
-        );
-        next[session.id] = free;
-        occupied.add(
-          Rect.fromLTWH(free.dx, free.dy, _boxSize.width, _boxSize.height),
-        );
-      }
-      _legacyPositions = next;
-      _legacyLayoutKey = layoutKey;
-    }
-    return [
-      ...saved,
-      for (var i = 0; i < sessions.length; i++)
-        GraphBox(
-          id: sessions[i].id,
-          title: sessions[i].displayTitle,
-          role: '',
-          harness: switch (sessions[i].activeHarness?.name) {
-            'claudeCode' => 'claude',
-            final name? => name,
-            null => '',
-          },
-          model: '',
-          position: _legacyPositions[sessions[i].id]!,
-          tabId: sessions[i].id,
-        ),
-    ];
-  }
+  List<GraphBox> _visibleBoxes(WorkspaceGraphContext vm) => vm.graphBoxes;
 
   void _dragBox(GraphBox box, Offset delta) {
     final current = _dragPositions[box.id] ?? box.position;
@@ -269,7 +186,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     );
     if (!mounted || request == null) return;
     final count = widget.vm.graphBoxes.length;
-    final created = widget.vm.createGraphBox(
+    final created = await widget.vm.createGraphBox(
       title: request.title,
       role: request.role,
       harness: request.harness,
@@ -375,7 +292,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     );
     if (!mounted || brief == null || brief.isEmpty) return;
     if (session is TerminalSession) {
-      final created = widget.vm.startGraphHandoff(box.id);
+      final created = await widget.vm.startGraphHandoff(box.id);
       if (created case Success(:final value)) {
         await Clipboard.setData(ClipboardData(text: brief));
         if (!mounted) return;
@@ -754,7 +671,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                               session,
                               box.position,
                             );
-                      final configured = widget.vm.configureGraphBox(
+                      final configured = await widget.vm.configureGraphBox(
                         boxId: id,
                         role: draft.role,
                         harness: draft.harness,
@@ -767,7 +684,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                       }
                       setState(() => _selected = id);
                       if (draft.start) {
-                        final started = widget.vm.relaunchGraphBox(id);
+                        final started = await widget.vm.relaunchGraphBox(id);
                         if (started case Success(:final value)) {
                           widget.onOpenTab(value);
                         } else if (started case Failure(:final error)) {
@@ -789,7 +706,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                     onCompact: () => _compact(selectedBox!),
                     onHandoff: () => _handoff(selectedBox!),
                     onStart: () async {
-                      final result = widget.vm.relaunchGraphBox(
+                      final result = await widget.vm.relaunchGraphBox(
                         selectedBox!.id,
                       );
                       if (result case Success(:final value)) {
