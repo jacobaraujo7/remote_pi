@@ -50,6 +50,7 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$graphSubagent$en graphSubagent = Translations$graphSubagent$en.internal(_root);
 	late final Translations$graphView$en graphView = Translations$graphView$en.internal(_root);
 	late final Translations$theme$en theme = Translations$theme$en.internal(_root);
+	late final Translations$workspaceView$en workspaceView = Translations$workspaceView$en.internal(_root);
 }
 
 // Path: core
@@ -378,6 +379,180 @@ class Translations$theme$en {
 
 	// Translations
 	late final Translations$theme$error$en error = Translations$theme$error$en.internal(_root);
+}
+
+// Path: workspaceView
+class Translations$workspaceView$en {
+	Translations$workspaceView$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Terminals'
+	String get terminals => 'Terminals';
+
+	/// en: 'Boxes'
+	String get boxes => 'Boxes';
+
+	/// en: 'Graph'
+	String get graph => 'Graph';
+
+	/// en: 'New terminal'
+	String get newTerminal => 'New terminal';
+
+	/// en: 'Configure box'
+	String get configure => 'Configure box';
+
+	/// en: 'Close inspector'
+	String get closeInspector => 'Close inspector';
+
+	/// en: 'Search name or function'
+	String get search => 'Search name or function';
+
+	/// en: 'All states'
+	String get allStates => 'All states';
+
+	/// en: 'Box'
+	String get name => 'Box';
+
+	/// en: 'State'
+	String get state => 'State';
+
+	/// en: 'Tool'
+	String get tool => 'Tool';
+
+	/// en: 'Function'
+	String get role => 'Function';
+
+	/// en: 'Context'
+	String get context => 'Context';
+
+	/// en: 'Function (optional)'
+	String get optionalRole => 'Function (optional)';
+
+	/// en: 'Model (empty = default)'
+	String get model => 'Model (empty = default)';
+
+	/// en: 'None'
+	String get noTool => 'None';
+
+	/// en: 'Shell'
+	String get shell => 'Shell';
+
+	/// en: 'Working'
+	String get working => 'Working';
+
+	/// en: 'Waiting'
+	String get waiting => 'Waiting';
+
+	/// en: 'Idle'
+	String get idle => 'Idle';
+
+	/// en: 'Closed'
+	String get closed => 'Closed';
+
+	/// en: 'Disconnected'
+	String get disconnected => 'Disconnected';
+
+	/// en: 'Unavailable'
+	String get unavailable => 'Unavailable';
+
+	/// en: 'Add a function'
+	String get noRole => 'Add a function';
+
+	/// en: 'No boxes yet'
+	String get noBoxes => 'No boxes yet';
+
+	/// en: 'No boxes match your search'
+	String get noMatches => 'No boxes match your search';
+
+	/// en: 'Select a box to preview its terminal'
+	String get selectBox => 'Select a box to preview its terminal';
+
+	/// en: 'This box has no terminal session'
+	String get noSession => 'This box has no terminal session';
+
+	/// en: 'Start terminal'
+	String get startShell => 'Start terminal';
+
+	/// en: 'Open in Terminals'
+	String get openTerminal => 'Open in Terminals';
+
+	/// en: 'Save'
+	String get save => 'Save';
+
+	/// en: 'Configuration saved'
+	String get saved => 'Configuration saved';
+
+	/// en: 'Start CLI'
+	String get startCli => 'Start CLI';
+
+	/// en: 'Compact context'
+	String get compact => 'Compact context';
+
+	/// en: 'Prepare handoff'
+	String get handoff => 'Prepare handoff';
+
+	/// en: 'Handoff summary'
+	String get handoffTitle => 'Handoff summary';
+
+	/// en: 'Describe the current state and next steps. The summary will be copied for the new session.'
+	String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
+
+	/// en: 'New session ready. Paste the copied summary when the tool is ready.'
+	String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+
+	/// en: 'Connections'
+	String get connections => 'Connections';
+
+	/// en: 'No connections'
+	String get noConnections => 'No connections';
+
+	/// en: 'Cancel'
+	String get cancel => 'Cancel';
+
+	/// en: 'Unable to update box'
+	String get error => 'Unable to update box';
+
+	/// en: 'Planned connection'
+	String get planned => 'Planned connection';
+
+	/// en: 'Observed activity'
+	String get observed => 'Observed activity';
+
+	/// en: 'Temporary subagent'
+	String get temporary => 'Temporary subagent';
+
+	/// en: 'Connect boxes'
+	String get linkBoxes => 'Connect boxes';
+
+	/// en: 'Select source and target'
+	String get selectEndpoints => 'Select source and target';
+
+	/// en: 'Reset zoom'
+	String get zoomFit => 'Reset zoom';
+
+	/// en: 'Session'
+	String get session => 'Session';
+
+	/// en: 'Configuration'
+	String get configuration => 'Configuration';
+
+	/// en: 'Enter a box name'
+	String get nameRequired => 'Enter a box name';
+
+	/// en: 'Remove connection'
+	String get removeLink => 'Remove connection';
+
+	/// en: 'Summary'
+	String get handoffSummary => 'Summary';
+
+	/// en: 'Copy function'
+	String get copyRole => 'Copy function';
+
+	/// en: 'Show inspector'
+	String get showInspector => 'Show inspector';
 }
 
 // Path: core.bootstrapError
@@ -5242,6 +5417,61 @@ extension on Translations {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
+			'workspaceView.terminals' => 'Terminals',
+			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.graph' => 'Graph',
+			'workspaceView.newTerminal' => 'New terminal',
+			'workspaceView.configure' => 'Configure box',
+			'workspaceView.closeInspector' => 'Close inspector',
+			'workspaceView.search' => 'Search name or function',
+			'workspaceView.allStates' => 'All states',
+			'workspaceView.name' => 'Box',
+			'workspaceView.state' => 'State',
+			'workspaceView.tool' => 'Tool',
+			'workspaceView.role' => 'Function',
+			'workspaceView.context' => 'Context',
+			'workspaceView.optionalRole' => 'Function (optional)',
+			'workspaceView.model' => 'Model (empty = default)',
+			'workspaceView.noTool' => 'None',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => 'Working',
+			'workspaceView.waiting' => 'Waiting',
+			'workspaceView.idle' => 'Idle',
+			'workspaceView.closed' => 'Closed',
+			'workspaceView.disconnected' => 'Disconnected',
+			'workspaceView.unavailable' => 'Unavailable',
+			'workspaceView.noRole' => 'Add a function',
+			'workspaceView.noBoxes' => 'No boxes yet',
+			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.selectBox' => 'Select a box to preview its terminal',
+			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.startShell' => 'Start terminal',
+			'workspaceView.openTerminal' => 'Open in Terminals',
+			'workspaceView.save' => 'Save',
+			'workspaceView.saved' => 'Configuration saved',
+			'workspaceView.startCli' => 'Start CLI',
+			'workspaceView.compact' => 'Compact context',
+			'workspaceView.handoff' => 'Prepare handoff',
+			'workspaceView.handoffTitle' => 'Handoff summary',
+			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
+			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.connections' => 'Connections',
+			'workspaceView.noConnections' => 'No connections',
+			'workspaceView.cancel' => 'Cancel',
+			'workspaceView.error' => 'Unable to update box',
+			'workspaceView.planned' => 'Planned connection',
+			'workspaceView.observed' => 'Observed activity',
+			'workspaceView.temporary' => 'Temporary subagent',
+			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.selectEndpoints' => 'Select source and target',
+			'workspaceView.zoomFit' => 'Reset zoom',
+			'workspaceView.session' => 'Session',
+			'workspaceView.configuration' => 'Configuration',
+			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.removeLink' => 'Remove connection',
+			'workspaceView.handoffSummary' => 'Summary',
+			'workspaceView.copyRole' => 'Copy function',
+			'workspaceView.showInspector' => 'Show inspector',
 			_ => null,
 		};
 	}

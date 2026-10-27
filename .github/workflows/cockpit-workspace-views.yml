@@ -1,0 +1,102 @@
+name: cockpit-workspace-views
+
+on:
+  pull_request:
+    paths:
+      - 'cockpit/lib/**'
+      - 'cockpit/test/**'
+      - 'cockpit/pubspec.*'
+      - '.github/workflows/cockpit-workspace-views.yml'
+  push:
+    branches: [main, feature/grafo-terminals]
+    paths:
+      - 'cockpit/lib/**'
+      - 'cockpit/test/**'
+      - 'cockpit/pubspec.*'
+      - '.github/workflows/cockpit-workspace-views.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-views-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: cockpit
+
+env:
+  FLUTTER_VERSION: '3.50.0-0.1.pre'
+
+jobs:
+  native-validation:
+    name: Workspace views / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, macos-15-intel]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: beta
+          cache: true
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+      - name: Rust build prerequisites
+        shell: bash
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            rustup target add aarch64-apple-darwin x86_64-apple-darwin aarch64-unknown-linux-gnu
+          fi
+      - name: Resolve versioned dependencies
+        run: flutter pub get
+      - name: Analyze workspace presentation
+        run: >-
+          flutter analyze --no-pub
+          lib/app/cockpit/domain/entities/workspace_presentation.dart
+          lib/app/cockpit/domain/entities/workspace_graph.dart
+          lib/app/cockpit/ui/session/terminal_session.dart
+          lib/app/cockpit/ui/widgets/workspace_graph_view.dart
+          lib/app/cockpit/ui/widgets/stable_pane_host.dart
+          lib/app/cockpit/ui/widgets/stable_tab_stack.dart
+          lib/app/cockpit/ui/widgets/workspace_box_list.dart
+          lib/app/cockpit/ui/widgets/workspace_box_inspector.dart
+          lib/app/cockpit/ui/widgets/workspace_experience.dart
+          lib/app/cockpit/ui/widgets/cockpit_topbar.dart
+          lib/app/cockpit/ui/widgets/pane_view.dart
+          lib/app/cockpit/ui/cockpit_page.dart
+          lib/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart
+      - name: Native terminal lifecycle and workspace regressions
+        run: >-
+          flutter test --no-pub
+          test/domain/workspace_presentation_test.dart
+          test/domain/workspace_graph_test.dart
+          test/domain/graph_subagent_wire_test.dart
+          test/ui/stable_pane_host_test.dart
+          test/ui/stable_terminal_views_test.dart
+          test/ui/workspace_box_list_test.dart
+          test/ui/workspace_box_inspector_test.dart
+          test/ui/terminal_presentation_visibility_test.dart
+          test/ui/graph_telemetry_service_test.dart
+          test/ui/graph_process_metrics_service_test.dart
+          test/ui/claude_graph_identity_resolver_test.dart
+          test/session/terminal_clipboard_test.dart
+          test/session/terminal_status_test.dart
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        run: flutter build windows --debug --no-pub
+      - name: Build macOS app without release publishing
+        if: runner.os == 'macOS'
+        env:
+          CODE_SIGNING_ALLOWED: 'NO'
+          CODE_SIGNING_REQUIRED: 'NO'
+        run: flutter build macos --debug --no-pub

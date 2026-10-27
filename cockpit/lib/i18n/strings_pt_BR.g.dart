@@ -48,6 +48,7 @@ class TranslationsPtBr extends Translations with BaseTranslations<AppLocale, Tra
 	@override late final _Translations$graphSubagent$pt_BR graphSubagent = _Translations$graphSubagent$pt_BR._(_root);
 	@override late final _Translations$graphView$pt_BR graphView = _Translations$graphView$pt_BR._(_root);
 	@override late final _Translations$theme$pt_BR theme = _Translations$theme$pt_BR._(_root);
+	@override late final _Translations$workspaceView$pt_BR workspaceView = _Translations$workspaceView$pt_BR._(_root);
 }
 
 // Path: core
@@ -244,6 +245,70 @@ class _Translations$theme$pt_BR extends Translations$theme$en {
 
 	// Translations
 	@override late final _Translations$theme$error$pt_BR error = _Translations$theme$error$pt_BR._(_root);
+}
+
+// Path: workspaceView
+class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
+	_Translations$workspaceView$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get terminals => 'Terminais';
+	@override String get boxes => 'Boxes';
+	@override String get graph => 'Grafo';
+	@override String get newTerminal => 'Novo terminal';
+	@override String get configure => 'Configurar box';
+	@override String get closeInspector => 'Fechar inspector';
+	@override String get search => 'Buscar nome ou função';
+	@override String get allStates => 'Todos os estados';
+	@override String get name => 'Box';
+	@override String get state => 'Estado';
+	@override String get tool => 'Ferramenta';
+	@override String get role => 'Função';
+	@override String get context => 'Contexto';
+	@override String get optionalRole => 'Função (opcional)';
+	@override String get model => 'Modelo (vazio = padrão)';
+	@override String get noTool => 'Nenhuma';
+	@override String get shell => 'Shell';
+	@override String get working => 'Trabalhando';
+	@override String get waiting => 'Aguardando';
+	@override String get idle => 'Ocioso';
+	@override String get closed => 'Encerrado';
+	@override String get disconnected => 'Desconectado';
+	@override String get unavailable => 'Indisponível';
+	@override String get noRole => 'Adicionar função';
+	@override String get noBoxes => 'Nenhuma box ainda';
+	@override String get noMatches => 'Nenhuma box corresponde à busca';
+	@override String get selectBox => 'Selecione uma box para visualizar o terminal';
+	@override String get noSession => 'Esta box está sem sessão de terminal';
+	@override String get startShell => 'Iniciar terminal';
+	@override String get openTerminal => 'Abrir em Terminais';
+	@override String get save => 'Salvar';
+	@override String get saved => 'Configuração salva';
+	@override String get startCli => 'Iniciar CLI';
+	@override String get compact => 'Compactar contexto';
+	@override String get handoff => 'Preparar handoff';
+	@override String get handoffTitle => 'Resumo de handoff';
+	@override String get handoffHelp => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.';
+	@override String get handoffReady => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.';
+	@override String get connections => 'Conexões';
+	@override String get noConnections => 'Sem conexões';
+	@override String get cancel => 'Cancelar';
+	@override String get error => 'Não foi possível atualizar a box';
+	@override String get planned => 'Conexão planejada';
+	@override String get observed => 'Atividade observada';
+	@override String get temporary => 'Subagente temporário';
+	@override String get linkBoxes => 'Ligar boxes';
+	@override String get selectEndpoints => 'Selecione origem e destino';
+	@override String get zoomFit => 'Redefinir zoom';
+	@override String get session => 'Sessão';
+	@override String get configuration => 'Configuração';
+	@override String get nameRequired => 'Informe o nome da box';
+	@override String get removeLink => 'Remover conexão';
+	@override String get handoffSummary => 'Resumo';
+	@override String get copyRole => 'Copiar função';
+	@override String get showInspector => 'Mostrar inspector';
 }
 
 // Path: core.bootstrapError
@@ -3072,6 +3137,61 @@ extension on TranslationsPtBr {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',
+			'workspaceView.terminals' => 'Terminais',
+			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.graph' => 'Grafo',
+			'workspaceView.newTerminal' => 'Novo terminal',
+			'workspaceView.configure' => 'Configurar box',
+			'workspaceView.closeInspector' => 'Fechar inspector',
+			'workspaceView.search' => 'Buscar nome ou função',
+			'workspaceView.allStates' => 'Todos os estados',
+			'workspaceView.name' => 'Box',
+			'workspaceView.state' => 'Estado',
+			'workspaceView.tool' => 'Ferramenta',
+			'workspaceView.role' => 'Função',
+			'workspaceView.context' => 'Contexto',
+			'workspaceView.optionalRole' => 'Função (opcional)',
+			'workspaceView.model' => 'Modelo (vazio = padrão)',
+			'workspaceView.noTool' => 'Nenhuma',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => 'Trabalhando',
+			'workspaceView.waiting' => 'Aguardando',
+			'workspaceView.idle' => 'Ocioso',
+			'workspaceView.closed' => 'Encerrado',
+			'workspaceView.disconnected' => 'Desconectado',
+			'workspaceView.unavailable' => 'Indisponível',
+			'workspaceView.noRole' => 'Adicionar função',
+			'workspaceView.noBoxes' => 'Nenhuma box ainda',
+			'workspaceView.noMatches' => 'Nenhuma box corresponde à busca',
+			'workspaceView.selectBox' => 'Selecione uma box para visualizar o terminal',
+			'workspaceView.noSession' => 'Esta box está sem sessão de terminal',
+			'workspaceView.startShell' => 'Iniciar terminal',
+			'workspaceView.openTerminal' => 'Abrir em Terminais',
+			'workspaceView.save' => 'Salvar',
+			'workspaceView.saved' => 'Configuração salva',
+			'workspaceView.startCli' => 'Iniciar CLI',
+			'workspaceView.compact' => 'Compactar contexto',
+			'workspaceView.handoff' => 'Preparar handoff',
+			'workspaceView.handoffTitle' => 'Resumo de handoff',
+			'workspaceView.handoffHelp' => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.',
+			'workspaceView.handoffReady' => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.',
+			'workspaceView.connections' => 'Conexões',
+			'workspaceView.noConnections' => 'Sem conexões',
+			'workspaceView.cancel' => 'Cancelar',
+			'workspaceView.error' => 'Não foi possível atualizar a box',
+			'workspaceView.planned' => 'Conexão planejada',
+			'workspaceView.observed' => 'Atividade observada',
+			'workspaceView.temporary' => 'Subagente temporário',
+			'workspaceView.linkBoxes' => 'Ligar boxes',
+			'workspaceView.selectEndpoints' => 'Selecione origem e destino',
+			'workspaceView.zoomFit' => 'Redefinir zoom',
+			'workspaceView.session' => 'Sessão',
+			'workspaceView.configuration' => 'Configuração',
+			'workspaceView.nameRequired' => 'Informe o nome da box',
+			'workspaceView.removeLink' => 'Remover conexão',
+			'workspaceView.handoffSummary' => 'Resumo',
+			'workspaceView.copyRole' => 'Copiar função',
+			'workspaceView.showInspector' => 'Mostrar inspector',
 			_ => null,
 		};
 	}

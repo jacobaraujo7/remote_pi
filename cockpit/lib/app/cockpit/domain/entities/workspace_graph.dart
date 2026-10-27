@@ -22,6 +22,7 @@ class GraphBox {
   final String? tabId;
 
   GraphBox copyWith({
+    String? title,
     Offset? position,
     String? tabId,
     String? role,
@@ -29,7 +30,7 @@ class GraphBox {
     String? model,
   }) => GraphBox(
     id: id,
-    title: title,
+    title: title ?? this.title,
     role: role ?? this.role,
     harness: harness ?? this.harness,
     model: model ?? this.model,

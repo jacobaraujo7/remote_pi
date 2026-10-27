@@ -28,8 +28,14 @@ class WorkspaceGraphView extends StatefulWidget {
     required this.processMetrics,
     required this.onExit,
     required this.onOpenTab,
+    this.embedded = false,
+    this.selectedBoxId,
+    this.onSelectBox,
   });
 
+  final bool embedded;
+  final String? selectedBoxId;
+  final ValueChanged<String>? onSelectBox;
   final CockpitViewModel vm;
   final ProcessMetricsProvider processMetrics;
   final VoidCallback onExit;
@@ -236,10 +242,12 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
           _linkMode = false;
           _selected = targetId;
         });
+        widget.onSelectBox?.call(targetId);
       }
       return;
     }
     setState(() => _selected = box.id);
+    widget.onSelectBox?.call(box.id);
   }
 
   Future<void> _createBox() async {
@@ -378,6 +386,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     return ListenableBuilder(
       listenable: _graphRevision,
       builder: (context, _) {
+        final selectedBoxId = widget.selectedBoxId ?? _selected;
         final boxes = [
           for (final box in _visibleBoxes(widget.vm))
             if (_dragPositions[box.id] case final Offset position)
@@ -389,7 +398,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
         final unresolvedPeers = widget.vm.graphUnresolvedPeers;
         GraphBox? selectedBox;
         for (final box in boxes) {
-          if (box.id == _selected) selectedBox = box;
+          if (box.id == selectedBoxId) selectedBox = box;
         }
         final selectedSession = selectedBox == null
             ? null
@@ -485,7 +494,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                                             .id,
                                       ),
                                 ],
-                                selected: _selected,
+                                selected: selectedBoxId,
                                 normal: colors.border2,
                                 highlighted: colors.accent,
                                 temporaryColor: colors.warn,
@@ -611,47 +620,74 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                   ),
                 ),
               ),
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                child: WindowTitleBar(
-                  children: [
-                    const WindowControls(),
-                    const SizedBox(width: 12),
-                    Text(
-                      widget.vm.selectedDisplayTitle ?? 'Cockpit',
-                      style: context.typo.title.copyWith(
-                        fontSize: 14,
-                        color: colors.text,
+              if (!widget.embedded)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  top: 0,
+                  child: WindowTitleBar(
+                    children: [
+                      const WindowControls(),
+                      const SizedBox(width: 12),
+                      Text(
+                        widget.vm.selectedDisplayTitle ?? 'Cockpit',
+                        style: context.typo.title.copyWith(
+                          fontSize: 14,
+                          color: colors.text,
+                        ),
                       ),
-                    ),
-                    const Spacer(),
-                    PrimaryButton(
-                      onPressed: _createBox,
-                      child: const Text('+ Criar box'),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlineButton(
-                      onPressed: () => setState(() {
-                        _linkMode = !_linkMode;
-                        _linkFrom = null;
-                      }),
-                      child: Text(
-                        _linkMode
-                            ? 'Selecione origem e destino'
-                            : 'Ligar boxes',
+                      const Spacer(),
+                      PrimaryButton(
+                        onPressed: _createBox,
+                        child: const Text('+ Criar box'),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    OutlineButton(
-                      onPressed: widget.onExit,
-                      child: const Text('Voltar aos terminais'),
-                    ),
-                    const WindowControlsTrailing(),
-                  ],
+                      const SizedBox(width: 8),
+                      OutlineButton(
+                        onPressed: () => setState(() {
+                          _linkMode = !_linkMode;
+                          _linkFrom = null;
+                        }),
+                        child: Text(
+                          _linkMode
+                              ? 'Selecione origem e destino'
+                              : 'Ligar boxes',
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlineButton(
+                        onPressed: widget.onExit,
+                        child: const Text('Voltar aos terminais'),
+                      ),
+                      const WindowControlsTrailing(),
+                    ],
+                  ),
                 ),
-              ),
+              if (widget.embedded)
+                Positioned(
+                  top: 10,
+                  right: 12,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      OutlineButton(
+                        onPressed: () => setState(() {
+                          _linkMode = !_linkMode;
+                          _linkFrom = null;
+                        }),
+                        child: Text(
+                          _linkMode
+                              ? context.t.workspaceView.selectEndpoints
+                              : context.t.workspaceView.linkBoxes,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlineButton(
+                        onPressed: () => _transform.value = Matrix4.identity(),
+                        child: Text(context.t.workspaceView.zoomFit),
+                      ),
+                    ],
+                  ),
+                ),
               if (widget.vm.selectedRemoteDisconnected)
                 Positioned(
                   left: 20,
@@ -670,7 +706,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                   temporary: colors.warn,
                 ),
               ),
-              if (selectedBox != null)
+              if (!widget.embedded && selectedBox != null)
                 Positioned(
                   right: 20,
                   top: 66,

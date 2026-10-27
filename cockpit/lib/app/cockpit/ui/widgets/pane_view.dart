@@ -1,5 +1,5 @@
-import 'graph_box_editor.dart';
-import 'package:cockpit/app/core/domain/result.dart';
+import 'stable_tab_stack.dart';
+import 'package:cockpit/app/cockpit/domain/entities/workspace_presentation.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -75,8 +75,12 @@ class PaneView extends StatelessWidget {
     required this.onCreateTab,
     required this.onSplit,
     required this.onFillEmpty,
+    this.preview = false,
+    this.previewTabId,
   });
 
+  final bool preview;
+  final String? previewTabId;
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
@@ -95,7 +99,7 @@ class PaneView extends StatelessWidget {
     final tabs = pane.tabs;
     // Índice da aba ativa em [tabs] (fallback 0 se, transitoriamente, o active
     // ainda não constar na lista — ex.: durante um move/close).
-    final rawIndex = tabs.indexOf(pane.active);
+    final rawIndex = tabs.indexOf(previewTabId ?? pane.active);
     final activeIndex = rawIndex < 0 ? 0 : rawIndex;
 
     // `Listener` (ponteiro cru), NÃO `GestureDetector`: um clique **dentro do
@@ -113,18 +117,73 @@ class PaneView extends StatelessWidget {
     // saía na aba anterior. Listener não participa da arena: sempre recebe.
     return Listener(
       behavior: HitTestBehavior.translucent,
-      onPointerDown: (_) => vm.focus(pane.id),
+      onPointerDown: (_) {
+        if (preview) {
+          vm.focusPreview(vm.session(previewTabId ?? '')?.projectId ?? '');
+        } else {
+          vm.focus(pane.id);
+        }
+      },
       child: Container(
         color: colors.panel,
         child: Column(
           children: [
-            _TabStrip(
-              pane: pane,
-              vm: vm,
-              focused: focused,
-              visible: active,
-              onCreateTab: onCreateTab,
-              onSplit: onSplit,
+            SizedBox(
+              height: 40,
+              width: double.infinity,
+              child: Stack(
+                children: [
+                  ExcludeFocus(
+                    excluding: preview,
+                    child: Offstage(
+                      offstage: preview,
+                      child: _TabStrip(
+                        pane: pane,
+                        vm: vm,
+                        focused: focused,
+                        visible: active,
+                        onCreateTab: onCreateTab,
+                        onSplit: onSplit,
+                      ),
+                    ),
+                  ),
+                  if (preview)
+                    Positioned.fill(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                              ),
+                              child: Text(
+                                vm.session(previewTabId ?? '')?.displayTitle ??
+                                    '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: context.typo.label,
+                              ),
+                            ),
+                          ),
+                          _StripButton(
+                            icon: Icons.settings_outlined,
+                            tooltip: context.t.workspaceView.configure,
+                            onTap: () =>
+                                vm.configureBoxForTab(previewTabId ?? ''),
+                          ),
+                          _StripButton(
+                            icon: Icons.open_in_full,
+                            tooltip: context.t.workspaceView.openTerminal,
+                            onTap: () {
+                              final box = vm.graphBoxForTab(previewTabId ?? '');
+                              if (box != null) vm.openBoxInTerminals(box.id);
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
             ),
             Expanded(
               child: tabs.isEmpty
@@ -135,9 +194,8 @@ class PaneView extends StatelessWidget {
                   // *view*: scroll do transcript, viewport/seleção do terminal,
                   // foco e o rascunho digitado no composer. (As sessões/dados já
                   // persistem na VM; aqui preservamos a apresentação.)
-                  : IndexedStack(
+                  : StableTabStack(
                       index: activeIndex,
-                      sizing: StackFit.expand,
                       children: [
                         for (final id in tabs)
                           _keyedBody(id, shown: tabs[activeIndex]),
@@ -913,50 +971,7 @@ class _TabState extends State<_Tab> {
     switch (value) {
       case 'configure-box':
         if (terminal != null) {
-          final vm = context.read<CockpitViewModel>();
-          final boxId = vm.ensureGraphBoxForTab(
-            terminal,
-            vm.graphBoxForTab(terminal.id)?.position ?? const Offset(110, 130),
-          );
-          final box = vm.graphBoxForTab(terminal.id)!;
-          final draft = await showGraphBoxEditor(
-            context,
-            box,
-            canStart: terminal.activeHarness == null,
-          );
-          if (!mounted ||
-              draft == null ||
-              vm.session(terminal.id) != terminal) {
-            return;
-          }
-          final result = vm.configureGraphBox(
-            boxId: boxId,
-            role: draft.role,
-            harness: draft.harness,
-            model: draft.model,
-          );
-          String? error;
-          if (result case Failure(error: final message)) {
-            error = message;
-          } else if (draft.start) {
-            if (vm.relaunchGraphBox(boxId) case Failure(error: final message)) {
-              error = message;
-            }
-          }
-          if (!mounted || error == null) return;
-          await showDialog<void>(
-            context: context,
-            builder: (dialogContext) => AlertDialog(
-              title: const Text('Não foi possível configurar o box'),
-              content: Text(error!),
-              actions: [
-                PrimaryButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(),
-                  child: const Text('OK'),
-                ),
-              ],
-            ),
-          );
+          context.read<CockpitViewModel>().configureBoxForTab(terminal.id);
         }
       case 'pin':
         if (viewer != null) viewer.pin();
@@ -1654,7 +1669,12 @@ class _PaneBodyState extends State<_PaneBody> {
   void _onFileDropped() {
     if (!_wantsTerminalFocus) return;
     if (!isMobilePlatform) unawaited(windowManager.focus());
-    context.read<CockpitViewModel>().focus(widget.paneId);
+    final vm = context.read<CockpitViewModel>();
+    if (vm.presentation.mode == WorkspaceViewMode.terminals) {
+      vm.focus(widget.paneId);
+    } else {
+      vm.focusPreview(widget.item.projectId);
+    }
     _requestTerminalFocusSoon();
   }
 

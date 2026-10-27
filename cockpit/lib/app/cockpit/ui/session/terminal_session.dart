@@ -135,7 +135,11 @@ class TerminalSession extends PaneItem {
             // Fim do stream = processo encerrado (o PTY local fecha a porta no
             // exit; o sidecar fecha no `PtyExitEvent`). No `dispose` fomos nós
             // que matamos — aí não é notícia pra ninguém.
-            if (!_disposed) onProcessExit?.call();
+            if (!_disposed) {
+              _processEnded = true;
+              notifyListeners();
+              onProcessExit?.call();
+            }
           },
         );
     terminal.onOutput = (data) {
@@ -201,6 +205,8 @@ class TerminalSession extends PaneItem {
   VoidCallback? onProcessExit;
 
   bool _disposed = false;
+  bool _processEnded = false;
+  bool get hasExited => _processEnded;
 
   int? _viewportColumns;
   int? _viewportRows;

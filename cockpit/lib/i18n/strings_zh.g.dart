@@ -46,6 +46,7 @@ class TranslationsZh extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$automation$zh automation = _Translations$automation$zh._(_root);
 	@override late final _Translations$fileOperation$zh fileOperation = _Translations$fileOperation$zh._(_root);
 	@override late final _Translations$theme$zh theme = _Translations$theme$zh._(_root);
+	@override late final _Translations$workspaceView$zh workspaceView = _Translations$workspaceView$zh._(_root);
 }
 
 // Path: core
@@ -181,6 +182,70 @@ class _Translations$theme$zh extends Translations$theme$en {
 
 	// Translations
 	@override late final _Translations$theme$error$zh error = _Translations$theme$error$zh._(_root);
+}
+
+// Path: workspaceView
+class _Translations$workspaceView$zh extends Translations$workspaceView$en {
+	_Translations$workspaceView$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get terminals => '终端';
+	@override String get boxes => '会话';
+	@override String get graph => '关系图';
+	@override String get newTerminal => '新建终端';
+	@override String get configure => '配置会话';
+	@override String get closeInspector => 'Close inspector';
+	@override String get search => 'Search name or function';
+	@override String get allStates => 'All states';
+	@override String get name => '名称';
+	@override String get state => '状态';
+	@override String get tool => '工具';
+	@override String get role => '功能';
+	@override String get context => '上下文';
+	@override String get optionalRole => '功能（可选）';
+	@override String get model => 'Model (empty = default)';
+	@override String get noTool => '无';
+	@override String get shell => 'Shell';
+	@override String get working => '工作中';
+	@override String get waiting => '等待中';
+	@override String get idle => '空闲';
+	@override String get closed => '已结束';
+	@override String get disconnected => '已断开';
+	@override String get unavailable => 'Unavailable';
+	@override String get noRole => 'Add a function';
+	@override String get noBoxes => 'No boxes yet';
+	@override String get noMatches => 'No boxes match your search';
+	@override String get selectBox => 'Select a box to preview its terminal';
+	@override String get noSession => 'This box has no terminal session';
+	@override String get startShell => 'Start terminal';
+	@override String get openTerminal => 'Open in Terminals';
+	@override String get save => '保存';
+	@override String get saved => 'Configuration saved';
+	@override String get startCli => 'Start CLI';
+	@override String get compact => 'Compact context';
+	@override String get handoff => 'Prepare handoff';
+	@override String get handoffTitle => 'Handoff summary';
+	@override String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
+	@override String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+	@override String get connections => 'Connections';
+	@override String get noConnections => 'No connections';
+	@override String get cancel => '取消';
+	@override String get error => 'Unable to update box';
+	@override String get planned => 'Planned connection';
+	@override String get observed => 'Observed activity';
+	@override String get temporary => 'Temporary subagent';
+	@override String get linkBoxes => 'Connect boxes';
+	@override String get selectEndpoints => 'Select source and target';
+	@override String get zoomFit => 'Reset zoom';
+	@override String get session => '会话';
+	@override String get configuration => '配置';
+	@override String get nameRequired => 'Enter a box name';
+	@override String get removeLink => 'Remove connection';
+	@override String get handoffSummary => 'Summary';
+	@override String get copyRole => 'Copy function';
+	@override String get showInspector => 'Show inspector';
 }
 
 // Path: core.bootstrapError
@@ -2966,6 +3031,61 @@ extension on TranslationsZh {
 			'theme.error.badColor' => ({required Object field, required Object value}) => '「${field}」处的「${value}」不是颜色。请使用 #RGB、#RRGGBB 或 #RRGGBBAA。',
 			'theme.error.unknownBase' => ({required Object value}) => '「extends」中的基础主题「${value}」未知。',
 			'theme.error.noVariants' => '主题未声明任何变体。请在「variants」下添加「dark」「light」或两者。',
+			'workspaceView.terminals' => '终端',
+			'workspaceView.boxes' => '会话',
+			'workspaceView.graph' => '关系图',
+			'workspaceView.newTerminal' => '新建终端',
+			'workspaceView.configure' => '配置会话',
+			'workspaceView.closeInspector' => 'Close inspector',
+			'workspaceView.search' => 'Search name or function',
+			'workspaceView.allStates' => 'All states',
+			'workspaceView.name' => '名称',
+			'workspaceView.state' => '状态',
+			'workspaceView.tool' => '工具',
+			'workspaceView.role' => '功能',
+			'workspaceView.context' => '上下文',
+			'workspaceView.optionalRole' => '功能（可选）',
+			'workspaceView.model' => 'Model (empty = default)',
+			'workspaceView.noTool' => '无',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => '工作中',
+			'workspaceView.waiting' => '等待中',
+			'workspaceView.idle' => '空闲',
+			'workspaceView.closed' => '已结束',
+			'workspaceView.disconnected' => '已断开',
+			'workspaceView.unavailable' => 'Unavailable',
+			'workspaceView.noRole' => 'Add a function',
+			'workspaceView.noBoxes' => 'No boxes yet',
+			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.selectBox' => 'Select a box to preview its terminal',
+			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.startShell' => 'Start terminal',
+			'workspaceView.openTerminal' => 'Open in Terminals',
+			'workspaceView.save' => '保存',
+			'workspaceView.saved' => 'Configuration saved',
+			'workspaceView.startCli' => 'Start CLI',
+			'workspaceView.compact' => 'Compact context',
+			'workspaceView.handoff' => 'Prepare handoff',
+			'workspaceView.handoffTitle' => 'Handoff summary',
+			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
+			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.connections' => 'Connections',
+			'workspaceView.noConnections' => 'No connections',
+			'workspaceView.cancel' => '取消',
+			'workspaceView.error' => 'Unable to update box',
+			'workspaceView.planned' => 'Planned connection',
+			'workspaceView.observed' => 'Observed activity',
+			'workspaceView.temporary' => 'Temporary subagent',
+			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.selectEndpoints' => 'Select source and target',
+			'workspaceView.zoomFit' => 'Reset zoom',
+			'workspaceView.session' => '会话',
+			'workspaceView.configuration' => '配置',
+			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.removeLink' => 'Remove connection',
+			'workspaceView.handoffSummary' => 'Summary',
+			'workspaceView.copyRole' => 'Copy function',
+			'workspaceView.showInspector' => 'Show inspector',
 			_ => null,
 		};
 	}

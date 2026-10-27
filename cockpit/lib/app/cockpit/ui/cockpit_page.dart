@@ -1,3 +1,7 @@
+import 'widgets/stable_tab_stack.dart';
+import 'package:cockpit/app/cockpit/domain/entities/workspace_presentation.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/stable_pane_host.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/workspace_experience.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 
 import 'dart:async' show StreamSubscription, unawaited;
@@ -36,7 +40,6 @@ import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/remote_disconnected_banner.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/terminal_key_bar.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/workspace_graph_view.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
 import 'package:cockpit/app/core/ui/automation_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -86,34 +89,6 @@ class CockpitPage extends StatefulWidget {
 
 class _CockpitPageState extends State<CockpitPage> {
   CockpitViewModel get _vm => context.read<CockpitViewModel>();
-  bool _graphMode = false;
-  FocusNode? _focusBeforeGraph;
-
-  void _enterGraph() {
-    _focusBeforeGraph = FocusManager.instance.primaryFocus;
-    setState(() => _graphMode = true);
-    final projectId = _vm.selectedProjectId;
-    if (projectId != null) _vm.reconcileClaudeGraphIdentities(projectId);
-  }
-
-  void _exitGraph() {
-    final previous = _focusBeforeGraph;
-    setState(() => _graphMode = false);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && previous?.canRequestFocus == true) {
-        previous!.requestFocus();
-      }
-    });
-  }
-
-  void _openGraphTab(String tabId) {
-    final projectId = _vm.selectedProjectId;
-    if (projectId == null) return;
-    final leafId = _vm.leafOfTab(projectId, tabId);
-    if (leafId == null) return;
-    _vm.selectTab(leafId, tabId);
-    setState(() => _graphMode = false);
-  }
 
   /// Arraste de largura em curso (qualquer um dos dois painéis). Enquanto
   /// vale `true`, a área inteira do shell mostra o cursor de resize: o
@@ -779,6 +754,10 @@ class _CockpitPageState extends State<CockpitPage> {
     final narrow =
         isMobilePlatform &&
         MediaQuery.sizeOf(context).width < _drawerBreakpoint;
+    final presentation = context
+        .select<CockpitViewModel, WorkspacePresentation>(
+          (vm) => vm.presentation,
+        );
     final railVisibleEff = narrow ? _leftDrawer : shell.railVisible;
     final treeVisibleEff =
         (narrow ? _rightDrawer : shell.treeVisible) && shell.hasFileTree;
@@ -797,122 +776,134 @@ class _CockpitPageState extends State<CockpitPage> {
             child: Stack(
               children: [
                 Positioned.fill(
-                  child: ExcludeFocus(
-                    excluding: _graphMode,
-                    child: Offstage(
-                      offstage: _graphMode,
-                      child: Column(
-                        children: [
-                          CockpitTopbar(
-                            projectName: shell.title ?? 'Cockpit',
-                            onToggleGraph: shell.title == null
-                                ? null
-                                : _enterGraph,
-                            // No modo estreito os toggles abrem/fecham os drawers; no largo
-                            // seguem alternando a visibilidade inline da VM.
-                            railVisible: railVisibleEff,
-                            treeVisible: treeVisibleEff,
-                            onToggleRail: narrow
-                                ? () =>
-                                      setState(() => _leftDrawer = !_leftDrawer)
-                                : _vm.toggleRail,
-                            onToggleTree: narrow
-                                ? () => setState(
-                                    () => _rightDrawer = !_rightDrawer,
-                                  )
-                                : _vm.toggleTree,
-                            // Remoto TEM árvore (a pasta do host); só o Cockpit
-                            // (systemTerminal) não. `activeHasFileTree` cobre os dois —
-                            // `!isPathless` desabilitava indevidamente o remoto (path='').
-                            filesEnabled: shell.hasFileTree,
-                          ),
-                          // Host remoto fora do ar: faixa com o estado + botão de
-                          // reconectar. Não ocupa espaço em workspace local.
-                          const RemoteDisconnectedBanner(),
-                          Expanded(
-                            // Cursor de resize enquanto o arraste dura, na área inteira:
-                            // o ponteiro passa da faixa de 8px no primeiro overshoot e
-                            // o cursor tem que continuar o mesmo até soltar.
-                            child: MouseRegion(
-                              cursor: _resizingPanel
-                                  ? SystemMouseCursors.resizeLeftRight
-                                  : MouseCursor.defer,
-                              child: _PanelScaffold(
-                                narrow: narrow,
-                                railOpen: railVisibleEff,
-                                treeOpen: treeVisibleEff,
-                                onDismiss: _dismissDrawers,
-                                swapped: swapped,
-                                rail: _RailPanel(
-                                  width: _railWidth,
-                                  handleOnLeft: swapped,
-                                  onDismiss: _dismissDrawers,
-                                  onResizeStart: () =>
-                                      _beginPanelDrag(_railWidth),
-                                  // Invertido, arrastar para a ESQUERDA é que alarga — o
-                                  // painel cresce sempre em direção ao centro.
-                                  onResize: (dx) => setState(() {
-                                    _railWidth = _panelDrag.update(
-                                      swapped ? -dx : dx,
-                                      min: _railMin,
-                                      max: _railMax,
-                                    );
-                                  }),
-                                  onResizeEnd: _endPanelDrag,
-                                ),
-                                center: _CenterPanel(centerKey: _centerKey),
-                                tree: _TreePanel(
-                                  handleOnLeft: !swapped,
-                                  treeWidth: _treeWidth,
-                                  tasksHeight: _tasksHeight,
-                                  sourceControlViewMode: _sourceControlViewMode,
-                                  searchFocusSignal: _searchFocusSignal,
-                                  onDismiss: _dismissDrawers,
-                                  onResizeTreeStart: () =>
-                                      _beginPanelDrag(_treeWidth),
-                                  onResizeTree: (dx) => setState(() {
-                                    _treeWidth = _panelDrag.update(
-                                      swapped ? dx : -dx,
-                                      min: _treeMin,
-                                      max: _treeMax,
-                                    );
-                                  }),
-                                  onResizeTreeEnd: _endPanelDrag,
-                                  onTasksResize: (dy) => setState(() {
-                                    _tasksHeight = (_tasksHeight - dy).clamp(
-                                      _tasksMin,
-                                      _tasksMax,
-                                    );
-                                  }),
-                                  onTasksResizeEnd: () => context
-                                      .read<SettingsController>()
-                                      .setTasksPanelHeight(_tasksHeight),
+                  child: Column(
+                    children: [
+                      CockpitTopbar(
+                        projectName: shell.title ?? 'Cockpit',
+                        viewMode: presentation.mode,
+                        onViewChanged: shell.title == null
+                            ? null
+                            : (mode) {
+                                FocusManager.instance.primaryFocus?.unfocus();
+                                _vm.setWorkspaceView(mode);
+                              },
+                        onNewTerminal: shell.title == null
+                            ? null
+                            : () {
+                                final result = _vm.newTerminalTab(
+                                  cwd: _vm.treeRootPath,
+                                );
+                                if (result case Success(:final value)) {
+                                  final box = _vm.graphBoxForTab(value);
+                                  if (box != null) {
+                                    _vm.selectWorkspaceBox(box.id);
+                                  }
+                                }
+                              },
+                        onConfigure: _vm.selectedWorkspaceBox == null
+                            ? null
+                            : () => _vm.updatePresentation(
+                                _vm.presentation.copyWith(
+                                  inspectorOpen:
+                                      !_vm.presentation.inspectorOpen,
                                 ),
                               ),
+                        inspectorOpen: presentation.inspectorOpen,
+                        // No modo estreito os toggles abrem/fecham os drawers; no largo
+                        // seguem alternando a visibilidade inline da VM.
+                        railVisible: railVisibleEff,
+                        treeVisible: treeVisibleEff,
+                        onToggleRail: narrow
+                            ? () => setState(() => _leftDrawer = !_leftDrawer)
+                            : _vm.toggleRail,
+                        onToggleTree: narrow
+                            ? () => setState(() => _rightDrawer = !_rightDrawer)
+                            : _vm.toggleTree,
+                        // Remoto TEM árvore (a pasta do host); só o Cockpit
+                        // (systemTerminal) não. `activeHasFileTree` cobre os dois —
+                        // `!isPathless` desabilitava indevidamente o remoto (path='').
+                        filesEnabled: shell.hasFileTree,
+                      ),
+                      // Host remoto fora do ar: faixa com o estado + botão de
+                      // reconectar. Não ocupa espaço em workspace local.
+                      const RemoteDisconnectedBanner(),
+                      Expanded(
+                        // Cursor de resize enquanto o arraste dura, na área inteira:
+                        // o ponteiro passa da faixa de 8px no primeiro overshoot e
+                        // o cursor tem que continuar o mesmo até soltar.
+                        child: MouseRegion(
+                          cursor: _resizingPanel
+                              ? SystemMouseCursors.resizeLeftRight
+                              : MouseCursor.defer,
+                          child: _PanelScaffold(
+                            narrow: narrow,
+                            railOpen: railVisibleEff,
+                            treeOpen: treeVisibleEff,
+                            onDismiss: _dismissDrawers,
+                            swapped: swapped,
+                            rail: _RailPanel(
+                              width: _railWidth,
+                              handleOnLeft: swapped,
+                              onDismiss: _dismissDrawers,
+                              onResizeStart: () => _beginPanelDrag(_railWidth),
+                              // Invertido, arrastar para a ESQUERDA é que alarga — o
+                              // painel cresce sempre em direção ao centro.
+                              onResize: (dx) => setState(() {
+                                _railWidth = _panelDrag.update(
+                                  swapped ? -dx : dx,
+                                  min: _railMin,
+                                  max: _railMax,
+                                );
+                              }),
+                              onResizeEnd: _endPanelDrag,
+                            ),
+                            center: WorkspaceExperience(
+                              vm: _vm,
+                              processMetrics: context
+                                  .read<ProcessMetricsProvider>(),
+                              terminals: _CenterPanel(centerKey: _centerKey),
+                            ),
+                            tree: _TreePanel(
+                              handleOnLeft: !swapped,
+                              treeWidth: _treeWidth,
+                              tasksHeight: _tasksHeight,
+                              sourceControlViewMode: _sourceControlViewMode,
+                              searchFocusSignal: _searchFocusSignal,
+                              onDismiss: _dismissDrawers,
+                              onResizeTreeStart: () =>
+                                  _beginPanelDrag(_treeWidth),
+                              onResizeTree: (dx) => setState(() {
+                                _treeWidth = _panelDrag.update(
+                                  swapped ? dx : -dx,
+                                  min: _treeMin,
+                                  max: _treeMax,
+                                );
+                              }),
+                              onResizeTreeEnd: _endPanelDrag,
+                              onTasksResize: (dy) => setState(() {
+                                _tasksHeight = (_tasksHeight - dy).clamp(
+                                  _tasksMin,
+                                  _tasksMax,
+                                );
+                              }),
+                              onTasksResizeEnd: () => context
+                                  .read<SettingsController>()
+                                  .setTasksPanelHeight(_tasksHeight),
                             ),
                           ),
-                          if (isMobilePlatform &&
-                              MediaQuery.viewInsetsOf(context).bottom > 0 &&
-                              shell.terminalActive)
-                            TerminalKeyBar(
-                              onKeys: _vm.sendKeysToActiveTerminal,
-                              onCopy: _vm.copyFromActiveTerminal,
-                              onPaste: _vm.pasteToActiveTerminal,
-                            ),
-                        ],
+                        ),
                       ),
-                    ),
+                      if (isMobilePlatform &&
+                          MediaQuery.viewInsetsOf(context).bottom > 0 &&
+                          shell.terminalActive)
+                        TerminalKeyBar(
+                          onKeys: _vm.sendKeysToActiveTerminal,
+                          onCopy: _vm.copyFromActiveTerminal,
+                          onPaste: _vm.pasteToActiveTerminal,
+                        ),
+                    ],
                   ),
                 ),
-                if (_graphMode)
-                  Positioned.fill(
-                    child: WorkspaceGraphView(
-                      vm: _vm,
-                      processMetrics: context.read<ProcessMetricsProvider>(),
-                      onExit: _exitGraph,
-                      onOpenTab: _openGraphTab,
-                    ),
-                  ),
               ],
             ),
           ),
@@ -1082,9 +1073,8 @@ class _CenterPanelState extends State<_CenterPanel> {
           // (rasterizar o ASCII + compor a textura) a cada remount. Aqui o
           // atlas sobrevive à troca e é reaproveitado por todos os terminais.
           : TerminalScope(
-              child: IndexedStack(
+              child: StableTabStack(
                 index: _activeIndex(vm),
-                sizing: StackFit.expand,
                 children: [
                   // Um multiplexador por projeto — todos montados, só
                   // o ativo pintado → estado preservado ao trocar.
@@ -1117,6 +1107,9 @@ typedef _ProjectPaneState = ({
   bool active,
   int focusGen,
   bool profilePicker,
+  bool preview,
+  String? previewTabId,
+  bool previewFocused,
 });
 
 class _ProjectMultiplexer extends StatelessWidget {
@@ -1134,23 +1127,25 @@ class _ProjectMultiplexer extends StatelessWidget {
         active: active,
         focusGen: active ? vm.tabFocusGen : 0,
         profilePicker: active && vm.showTerminalProfilePicker,
+        preview:
+            vm.presentationFor(projectId).mode != WorkspaceViewMode.terminals,
+        previewTabId: vm.previewTabFor(projectId),
+        previewFocused: vm.previewFocused(projectId),
       );
     });
     final tree = state.tree;
     if (tree == null) return const SizedBox.shrink();
     final vm = context.read<CockpitViewModel>();
-    return _renderNode(context, vm, projectId, tree, active: state.active);
-  }
-
-  Widget _renderNode(
-    BuildContext context,
-    CockpitViewModel vm,
-    String projectId,
-    PaneNode node, {
-    required bool active,
-  }) {
-    if (node is LeafPane) {
-      return PaneDropZone(
+    final previewPaneId = state.previewTabId == null
+        ? null
+        : vm.leafOfTab(projectId, state.previewTabId!);
+    return StablePaneHost(
+      tree: tree,
+      preview: state.preview,
+      previewPaneId: previewPaneId,
+      onResize: (id, delta) => vm.resizeSplitBy(id, delta),
+      dividerBuilder: (dir, onDelta) => PaneDivider(dir: dir, onDelta: onDelta),
+      paneBuilder: (node, visible) => PaneDropZone(
         key: ValueKey('drop-${node.id}'),
         paneId: node.id,
         vm: vm,
@@ -1158,11 +1153,16 @@ class _ProjectMultiplexer extends StatelessWidget {
           key: ValueKey(node.id),
           pane: node,
           vm: vm,
-          focused: active && node.id == vm.focusedPaneId(projectId),
-          active: active,
+          preview: state.preview,
+          previewTabId: state.preview && visible ? state.previewTabId : null,
+          focused:
+              state.active &&
+              visible &&
+              (state.preview
+                  ? state.previewFocused
+                  : node.id == state.focusedPaneId),
+          active: state.active && visible,
           onCreateTab: () => vm.newTerminalInPane(node.id),
-          // Aba placeholder "Novo": o novo pane vira outro placeholder (que
-          // cai direto em terminal). As demais abrem na raiz do workspace.
           onSplit: (dir) {
             if (vm.paneActiveIsEmpty(node.id)) {
               vm.splitPaneEmpty(node.id, dir);
@@ -1172,83 +1172,7 @@ class _ProjectMultiplexer extends StatelessWidget {
           },
           onFillEmpty: (emptyId) => vm.fillEmpty(node.id, emptyId, ''),
         ),
-      );
-    }
-    final split = node as SplitPane;
-    final isRow = split.dir == SplitDir.vertical;
-    // Largura da região de arraste (a linha visual continua 1px, centralizada).
-    const handle = 12.0;
-
-    // Panes dimensionados por PESO (flex), NÃO por LayoutBuilder. Crítico: um
-    // LayoutBuilder envolvendo os panes reconstrói a subárvore a cada mudança de
-    // constraint (abrir/fechar/redimensionar pane), e a TerminalView do flterm
-    // faz attach de view no initState — reconstruir = novo attach antes do
-    // detach do antigo → "already has an active view", e no restore (mount
-    // simultâneo) cruza a State entre panes → terminais ESPELHADOS. Com Flex os
-    // panes são filhos diretos e estáveis; só o RenderFlex recalcula tamanhos.
-    final fa = (split.frac * 100000).round().clamp(1, 99999);
-    final fb = 100000 - fa;
-    final panes = Flex(
-      direction: isRow ? Axis.horizontal : Axis.vertical,
-      children: [
-        Expanded(
-          flex: fa,
-          child: _renderNode(context, vm, projectId, split.a, active: active),
-        ),
-        Expanded(
-          flex: fb,
-          child: _renderNode(context, vm, projectId, split.b, active: active),
-        ),
-      ],
-    );
-
-    return Stack(
-      children: [
-        // Base: as duas panes adjacentes (a linha vem do handle por cima).
-        panes,
-        // Overlay do divisor. O LayoutBuilder AQUI é seguro: envolve só o handle
-        // (stateless, barato de remontar), NUNCA os panes — precisa do tamanho
-        // total pra posicionar a linha e converter o arraste px→fração.
-        Positioned.fill(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final total = isRow
-                  ? constraints.maxWidth
-                  : constraints.maxHeight;
-              final pos = total * split.frac;
-              final divider = PaneDivider(
-                dir: split.dir,
-                onDelta: (delta) {
-                  if (total <= 0) return;
-                  // Delta incremental → fração, acumulado sobre o frac ATUAL da
-                  // árvore. `total` é estável durante o arraste.
-                  vm.resizeSplitBy(split.id, delta / total);
-                },
-              );
-              return Stack(
-                children: [
-                  if (isRow)
-                    Positioned(
-                      left: pos - handle / 2,
-                      width: handle,
-                      top: 0,
-                      bottom: 0,
-                      child: divider,
-                    )
-                  else
-                    Positioned(
-                      top: pos - handle / 2,
-                      height: handle,
-                      left: 0,
-                      right: 0,
-                      child: divider,
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 }

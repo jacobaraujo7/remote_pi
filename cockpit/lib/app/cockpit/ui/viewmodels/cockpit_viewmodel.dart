@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/entities/workspace_presentation.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io'
@@ -472,6 +473,126 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   final Map<String, Map<String, dynamic>?> _savedLayouts =
       <String, Map<String, dynamic>?>{};
 
+  final Map<String, WorkspacePresentation> _presentations = {};
+  final Set<String> _focusedPreviews = {};
+
+  WorkspacePresentation presentationFor(String projectId) =>
+      _presentations[projectId] ?? const WorkspacePresentation();
+  WorkspacePresentation get presentation => _selectedProjectId == null
+      ? const WorkspacePresentation()
+      : presentationFor(_selectedProjectId!);
+
+  GraphBox? get selectedWorkspaceBox {
+    if (presentation.mode == WorkspaceViewMode.terminals) {
+      if (presentation.inspectorOpen) {
+        final configured = graphBoxes
+            .where((b) => b.id == presentation.selectedBoxId)
+            .firstOrNull;
+        if (configured != null) return configured;
+      }
+      final box = graphBoxForTab(focusedTabId ?? '');
+      if (box != null) return box;
+    }
+    return graphBoxes
+            .where((b) => b.id == presentation.selectedBoxId)
+            .firstOrNull ??
+        graphBoxes
+            .where((b) => session(b.tabId ?? '') is TerminalSession)
+            .firstOrNull ??
+        graphBoxes.firstOrNull;
+  }
+
+  String? previewTabFor(String projectId) {
+    final state = presentationFor(projectId);
+    final boxes = _graphBoxes[projectId] ?? const <GraphBox>[];
+    final box =
+        boxes.where((b) => b.id == state.selectedBoxId).firstOrNull ??
+        boxes
+            .where((b) => session(b.tabId ?? '') is TerminalSession)
+            .firstOrNull ??
+        boxes.firstOrNull;
+    return session(box?.tabId ?? '') is TerminalSession ? box?.tabId : null;
+  }
+
+  bool previewFocused(String projectId) => _focusedPreviews.contains(projectId);
+  void focusPreview(String projectId) {
+    if (_focusedPreviews.add(projectId)) notifyListeners();
+  }
+
+  void updatePresentation(WorkspacePresentation value) {
+    final id = _selectedProjectId;
+    if (id == null) return;
+    _presentations[id] = value;
+    _scheduleSave(id);
+    notifyListeners();
+  }
+
+  void setWorkspaceView(WorkspaceViewMode mode) {
+    final id = _selectedProjectId;
+    if (id == null) return;
+    final box = selectedWorkspaceBox;
+    _focusedPreviews.remove(id);
+    updatePresentation(
+      presentation.copyWith(mode: mode, selectedBoxId: box?.id),
+    );
+    if (mode == WorkspaceViewMode.graph) reconcileClaudeGraphIdentities(id);
+  }
+
+  void selectWorkspaceBox(String boxId, {bool configure = false}) {
+    final id = _selectedProjectId;
+    if (id == null || !graphBoxes.any((b) => b.id == boxId)) return;
+    _focusedPreviews.remove(id);
+    updatePresentation(
+      presentation.copyWith(
+        selectedBoxId: boxId,
+        inspectorOpen: configure ? true : null,
+      ),
+    );
+  }
+
+  void configureBoxForTab(String tabId) {
+    final box = graphBoxForTab(tabId);
+    if (box != null) selectWorkspaceBox(box.id, configure: true);
+  }
+
+  void openBoxInTerminals(String boxId) {
+    final box = graphBoxes.where((b) => b.id == boxId).firstOrNull;
+    final projectId = _selectedProjectId;
+    if (box == null || projectId == null) return;
+    final paneId = leafOfTab(projectId, box.tabId ?? '');
+    if (paneId == null) return;
+    updatePresentation(
+      presentation.copyWith(
+        mode: WorkspaceViewMode.terminals,
+        selectedBoxId: box.id,
+      ),
+    );
+    selectTab(paneId, box.tabId!);
+  }
+
+  Future<Result<String, String>> openBoxShell(String boxId) async {
+    final box = graphBoxes.where((b) => b.id == boxId).firstOrNull;
+    final project = selectedProject;
+    if (box == null || project == null) return const Failure('Box not found');
+    final existing = session(box.tabId ?? '');
+    if (existing is TerminalSession) {
+      if (!existing.hasExited) return Success(existing.id);
+      final paneId = leafOfTab(project.id, existing.id);
+      if (paneId != null) {
+        await restartTerminal(paneId, existing.id, resumeAgent: false);
+        final restored = graphBoxes.where((b) => b.id == boxId).firstOrNull;
+        return restored?.tabId == null
+            ? const Failure('Box not found')
+            : Success(restored!.tabId!);
+      }
+    }
+    return newTerminalTab(
+      cwd: project.effectiveRoot,
+      title: box.title,
+      graphBoxId: box.id,
+    );
+  }
+
   final Map<String, List<GraphBox>> _graphBoxes = {};
   final Map<String, ({String role, String harness})> _pendingGraphRoles = {};
   final Map<String, VoidCallback> _graphRoleListeners = {};
@@ -632,6 +753,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   }
 
   void _loadGraph(String projectId, Map<String, dynamic>? doc) {
+    _presentations.putIfAbsent(
+      projectId,
+      () => WorkspacePresentation.fromJson(doc?['presentation']),
+    );
     if (_graphBoxes.containsKey(projectId)) return;
     final graph = doc?['graph'];
     final map = graph is Map ? graph : const {};
@@ -774,6 +899,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
 
   Result<String, String> configureGraphBox({
     required String boxId,
+    String? title,
     required String role,
     required String harness,
     required String model,
@@ -783,6 +909,10 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final boxes = _graphBoxes[projectId];
     final index = boxes?.indexWhere((box) => box.id == boxId) ?? -1;
     if (boxes == null || index < 0) return const Failure('Box not found');
+    final trimmedTitle = title?.trim();
+    if (trimmedTitle != null && trimmedTitle.isEmpty) {
+      return const Failure('Title is required');
+    }
     final trimmedRole = role.trim();
     final normalizedHarness = harness == 'claudeCode' ? 'claude' : harness;
     final trimmedModel = model.trim();
@@ -795,6 +925,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       return const Failure('Invalid model identifier');
     }
     final updated = boxes[index].copyWith(
+      title: trimmedTitle,
       role: trimmedRole,
       harness: normalizedHarness,
       model: trimmedModel,
@@ -802,6 +933,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     boxes[index] = updated;
     final tabId = updated.tabId;
     if (tabId != null && tabId.isNotEmpty) {
+      if (trimmedTitle != null) _sessions[tabId]?.setManualLabel(trimmedTitle);
       _clearGraphRole(tabId);
       _queueGraphRole(tabId, trimmedRole, normalizedHarness);
     }
@@ -834,7 +966,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     }
     final tabId = box.tabId;
     final existing = tabId == null ? null : _sessions[tabId];
-    if (existing is TerminalSession) {
+    if (existing is TerminalSession && !existing.hasExited) {
       if (_graphHarnessMatches(existing, box.harness)) {
         return Success(existing.id);
       }
@@ -845,7 +977,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       _queueGraphRole(existing.id, box.role, box.harness);
       return Success(existing.id);
     }
-    if (existing != null) {
+    if (existing != null && existing is! TerminalSession) {
       return const Failure('This box is not backed by a terminal');
     }
     final created = newTerminalTab(
@@ -3459,7 +3591,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// `null` quando não há projeto/pane/aba, e também quando a aba é o
   /// placeholder de pane vazia — que não é fechável.
   (String paneId, String tabId, PaneItem item)? focusedTab() {
-    final paneId = _focusedLeaf()?.$1;
+    final previewId = _selectedProjectId;
+    final previewTab =
+        previewId != null && presentation.mode != WorkspaceViewMode.terminals
+        ? previewTabFor(previewId)
+        : null;
+    final paneId = previewTab != null
+        ? leafOfTab(previewId!, previewTab)
+        : _focusedLeaf()?.$1;
     final tabId = focusedTabId;
     if (paneId == null || tabId == null) return null;
     final item = _sessions[tabId];
@@ -3476,6 +3615,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final pid = _selectedProjectId;
     final tree = pid == null ? null : _trees[pid];
     if (pid == null || tree == null) return null;
+    if (presentationFor(pid).mode != WorkspaceViewMode.terminals) {
+      return previewTabFor(pid);
+    }
     // Sem foco explícito (ex.: logo após o boot), a primeira folha é o que o
     // usuário vê — mesmo fallback que o resto da VM usa.
     final paneId = _focused[pid] ?? leaves(tree).firstOrNull?.id;
@@ -5195,6 +5337,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final s = _sessions[sessionId];
     if (s == null) return;
     s.setManualLabel(label);
+    final boxes = _graphBoxes[s.projectId];
+    if (boxes != null) {
+      for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].tabId == sessionId) {
+          boxes[i] = boxes[i].copyWith(title: label);
+        }
+      }
+    }
     if (s is FileViewerSession) unawaited(_writeKanbanBoardTitle(s, label));
     _scheduleSave(s.projectId);
     notifyListeners();
@@ -5205,6 +5355,14 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final s = _sessions[sessionId];
     if (s == null) return;
     s.clearManualLabel();
+    final boxes = _graphBoxes[s.projectId];
+    if (boxes != null) {
+      for (var i = 0; i < boxes.length; i++) {
+        if (boxes[i].tabId == sessionId) {
+          boxes[i] = boxes[i].copyWith(title: s.displayTitle);
+        }
+      }
+    }
     if (s is FileViewerSession) unawaited(_writeKanbanBoardTitle(s, null));
     _scheduleSave(s.projectId);
     notifyListeners();
@@ -5232,10 +5390,20 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// quando esta geração avança. Foi o que aconteceu com a troca de realm.
   void _requestPaneKeyboard() => _tabFocusGen++;
 
+  void _syncInspectorToActiveTab() {
+    final id = _selectedProjectId;
+    if (id == null || presentation.mode != WorkspaceViewMode.terminals) return;
+    final box = graphBoxForTab(focusedTabId ?? '');
+    if (box != null) {
+      _presentations[id] = presentation.copyWith(selectedBoxId: box.id);
+    }
+  }
+
   void focus(String paneId) {
     final id = _selectedProjectId;
     if (id == null || _focused[id] == paneId) return;
     _focused[id] = paneId;
+    _syncInspectorToActiveTab();
     _requestPaneKeyboard();
     _clearFocusedNotification();
     notifyListeners();
@@ -5250,6 +5418,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       updateLeaf(tree, paneId, (p) => p.copyWith(active: agentId)),
     );
     _focused[_selectedProjectId!] = paneId;
+    _syncInspectorToActiveTab();
     _requestPaneKeyboard();
     _clearFocusedNotification();
     // Selecionar uma tab de FileView revela o arquivo na árvore: destaca +
@@ -5390,6 +5559,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     );
     if (replaceEmpty) _disposeSession(leaf.active);
     _focused[projectId] = leaf.id;
+    _syncInspectorToActiveTab();
     notifyListeners();
   }
 
@@ -5455,6 +5625,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       );
       _focused[projectId] = newLeaf.id;
     }
+    _syncInspectorToActiveTab();
     notifyListeners();
     return Success(s.id);
   }
@@ -6104,7 +6275,11 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   /// keyed pelo id, então o State antigo (listeners do terminal velho) é
   /// descartado em vez de apontar pra um controller já disposto. O id também é
   /// o `COCKPIT_TAB_ID` do processo, que de fato é outro.
-  Future<void> restartTerminal(String paneId, String tabId) async {
+  Future<void> restartTerminal(
+    String paneId,
+    String tabId, {
+    bool resumeAgent = true,
+  }) async {
     final old = _sessions[tabId];
     final tree = _activeTree;
     if (old is! TerminalSession || tree == null) return;
@@ -6115,7 +6290,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     final cwd = old.currentDirectory ?? old.workingDirectory;
     final snapshot = old.scrollbackSnapshot;
     final sid = old.claudeSessionId;
-    final startup = sid == null || sid.isEmpty
+    final startup = !resumeAgent || sid == null || sid.isEmpty
         ? null
         : old.agentHarness.resumeCommand(sid);
 
@@ -6535,6 +6710,9 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
   String? get _focusedAgentId {
     final pid = _selectedProjectId;
     if (pid == null) return null;
+    if (presentationFor(pid).mode != WorkspaceViewMode.terminals) {
+      return previewTabFor(pid);
+    }
     final tree = _trees[pid];
     if (tree == null) return null;
     final paneId = _focused[pid];
@@ -7280,6 +7458,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       // Toggle de worktrees do rail (V37) — mora no mesmo doc do layout, então
       // sobrevive à sessão sem inventar outro store.
       kWorktreesExpandedKey: worktreesExpanded(projectId),
+      'presentation': presentationFor(projectId).toJson(),
       'graph': {
         'boxes': [
           for (final box in _graphBoxes[projectId] ?? const <GraphBox>[])

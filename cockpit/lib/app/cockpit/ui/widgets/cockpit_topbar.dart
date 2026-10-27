@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/entities/workspace_presentation.dart';
 import 'dart:io';
 
 import 'package:cockpit/app/core/ui/menu/app_menu_bar.dart';
@@ -23,7 +24,11 @@ class CockpitTopbar extends StatelessWidget {
     required this.treeVisible,
     required this.onToggleRail,
     required this.onToggleTree,
-    this.onToggleGraph,
+    this.viewMode = WorkspaceViewMode.terminals,
+    this.onViewChanged,
+    this.onNewTerminal,
+    this.onConfigure,
+    this.inspectorOpen = false,
     this.filesEnabled = true,
   });
 
@@ -32,11 +37,22 @@ class CockpitTopbar extends StatelessWidget {
   final bool treeVisible;
   final VoidCallback onToggleRail;
   final VoidCallback onToggleTree;
-  final VoidCallback? onToggleGraph;
+  final WorkspaceViewMode viewMode;
+  final ValueChanged<WorkspaceViewMode>? onViewChanged;
+  final VoidCallback? onNewTerminal;
+  final VoidCallback? onConfigure;
+  final bool inspectorOpen;
 
   /// Habilita o botão de árvore de arquivos. `false` no workspace de sistema
   /// "Cockpit" (sem pasta → sem árvore): o botão fica visível porém inerte.
   final bool filesEnabled;
+
+  String _modeLabel(BuildContext context, WorkspaceViewMode mode) =>
+      switch (mode) {
+        WorkspaceViewMode.terminals => context.t.workspaceView.terminals,
+        WorkspaceViewMode.boxes => context.t.workspaceView.boxes,
+        WorkspaceViewMode.graph => context.t.workspaceView.graph,
+      };
 
   @override
   Widget build(BuildContext context) {
@@ -68,18 +84,83 @@ class CockpitTopbar extends StatelessWidget {
           onTap: onToggleRail,
         ),
         const SizedBox(width: 8),
-        Text(
-          projectName,
-          style: context.typo.title.copyWith(fontSize: 14, color: colors.text),
+        Flexible(
+          child: Text(
+            projectName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: context.typo.title.copyWith(
+              fontSize: 14,
+              color: colors.text,
+            ),
+          ),
         ),
         const Spacer(),
-        if (onToggleGraph != null) ...[
-          _IconBtn(
-            icon: Icons.account_tree_outlined,
-            tooltip: 'Visão macro',
-            onTap: onToggleGraph!,
+        if (onViewChanged != null) ...[
+          for (final mode in WorkspaceViewMode.values)
+            Padding(
+              padding: const EdgeInsets.only(right: 4),
+              child: AppTooltip(
+                message: _modeLabel(context, mode),
+                child: Semantics(
+                  button: true,
+                  selected: mode == viewMode,
+                  child: OutlineButton(
+                    onPressed: () => onViewChanged!(mode),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          switch (mode) {
+                            WorkspaceViewMode.terminals => Icons.terminal,
+                            WorkspaceViewMode.boxes => Icons.list_alt,
+                            WorkspaceViewMode.graph =>
+                              Icons.account_tree_outlined,
+                          },
+                          size: 16,
+                          color: mode == viewMode
+                              ? colors.accent
+                              : colors.text3,
+                        ),
+                        if (MediaQuery.sizeOf(context).width >= 1050) ...[
+                          const SizedBox(width: 6),
+                          Text(_modeLabel(context, mode)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(width: 8),
+        ],
+        if (onNewTerminal != null) ...[
+          AppTooltip(
+            message: context.t.workspaceView.newTerminal,
+            child: PrimaryButton(
+              onPressed: onNewTerminal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add, size: 16),
+                  if (MediaQuery.sizeOf(context).width >= 1200) ...[
+                    const SizedBox(width: 6),
+                    Text(context.t.workspaceView.newTerminal),
+                  ],
+                ],
+              ),
+            ),
           ),
           const SizedBox(width: 8),
+        ],
+        if (onConfigure != null) ...[
+          _IconBtn(
+            icon: Icons.tune,
+            tooltip: context.t.workspaceView.configure,
+            active: inspectorOpen,
+            onTap: onConfigure!,
+          ),
+          const SizedBox(width: 4),
         ],
         _IconBtn(
           icon: Icons.view_sidebar_outlined,
