@@ -1085,6 +1085,7 @@ class _ProjectMultiplexer extends StatelessWidget {
     final vm = context.read<CockpitViewModel>();
     return StablePaneHost(
       tree: tree,
+      active: state.active,
       preview: false,
       onResize: (id, delta) => vm.resizeSplitBy(id, delta),
       dividerBuilder: (dir, onDelta) => PaneDivider(dir: dir, onDelta: onDelta),

@@ -172,7 +172,7 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     final Widget terminalView = ghost.TerminalView(
       // Identity is per session. StablePaneHost keeps this subtree under the
       // same parent even when its tab moves to another dock.
-      key: GlobalObjectKey(widget.terminal.controller),
+      key: ObjectKey(widget.terminal.controller),
       controller: widget.terminal.controller,
       scrollController: widget.terminal.scrollController,
       presentationActive: widget.active,

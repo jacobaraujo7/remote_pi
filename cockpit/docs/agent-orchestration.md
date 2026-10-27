@@ -41,3 +41,6 @@ The suggested role appears as a preview. **Use suggestion** fills the editable r
 
 
 Visual subscriptions and graph telemetry pause while the app tab is hidden; the mounted view keeps its state. Returning refreshes metrics and reads current session state. Foreground notifications are grouped per frame, and unchanged session metadata does not rebuild the view. Background document synchronization continues to reconcile external changes.
+
+
+Hidden tab bodies keep their last valid dimensions while a dock or window is resized. Only displayed terminals track each new grid size; hidden terminals resize once when shown. Inactive workspaces follow the same rule. The cache is presentation-only and does not enter the portable file.

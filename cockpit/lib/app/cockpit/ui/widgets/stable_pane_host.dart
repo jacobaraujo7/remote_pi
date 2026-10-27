@@ -11,6 +11,7 @@ class StablePaneHost extends StatelessWidget {
     required this.tree,
     required this.paneBuilder,
     required this.onResize,
+    this.active = true,
     this.preview = false,
     this.previewPaneId,
     this.dividerBuilder,
@@ -26,6 +27,7 @@ class StablePaneHost extends StatelessWidget {
   tabBodyBuilder;
   final double tabStripHeight;
   final PaneNode tree;
+  final bool active;
   final bool preview;
   final String? previewPaneId;
   final Widget Function(LeafPane pane, bool visible) paneBuilder;
@@ -40,6 +42,7 @@ class StablePaneHost extends StatelessWidget {
         previewPaneId,
         tabBodyBuilder != null,
         tabStripHeight,
+        active,
       ),
       children: [
         for (final pane in leaves(tree))
@@ -82,7 +85,8 @@ class StablePaneHost extends StatelessWidget {
     final selected = pane.tabs.contains(pane.active)
         ? pane.active
         : pane.tabs.firstOrNull;
-    final visible = tabId == selected && (!preview || pane.id == previewPaneId);
+    final visible =
+        active && tabId == selected && (!preview || pane.id == previewPaneId);
     return LayoutId(
       key: ValueKey(('tab-body', tabId)),
       id: ('tab-body', tabId),
@@ -150,6 +154,8 @@ Map<String, Rect> paneRectangles(PaneNode tree, Size size) {
 }
 
 class _PaneLayout extends MultiChildLayoutDelegate {
+  final bool? active;
+  Map<String, Size>? _bodySizes;
   final bool detachedBodies;
   final double tabStripHeight;
   _PaneLayout(
@@ -158,6 +164,7 @@ class _PaneLayout extends MultiChildLayoutDelegate {
     this.previewPaneId,
     this.detachedBodies,
     this.tabStripHeight,
+    this.active,
   );
   final PaneNode tree;
   final bool preview;
@@ -168,6 +175,7 @@ class _PaneLayout extends MultiChildLayoutDelegate {
     // terminal controller must never be resized to an invalid zero grid.
     final safeSize = Size(math.max(1, size.width), math.max(1, size.height));
     final rects = paneRectangles(tree, safeSize);
+    final bodySizes = _bodySizes ??= {};
     for (final pane in leaves(tree)) {
       final rect = preview && pane.id == previewPaneId
           ? Offset.zero & safeSize
@@ -181,11 +189,24 @@ class _PaneLayout extends MultiChildLayoutDelegate {
           math.max(1, rect.height - top),
         );
         for (final tabId in pane.tabs) {
-          layoutChild(('tab-body', tabId), BoxConstraints.tight(bodySize));
+          final selected = pane.tabs.contains(pane.active)
+              ? pane.active
+              : pane.tabs.firstOrNull;
+          final visible =
+              active == true &&
+              tabId == selected &&
+              (!preview || pane.id == previewPaneId);
+          // Offstage still lays out its child. Freezing a hidden body's last
+          // valid constraints avoids reflowing every PTY/history on each drag.
+          final measured = visible ? bodySize : (bodySizes[tabId] ?? bodySize);
+          bodySizes[tabId] = measured;
+          layoutChild(('tab-body', tabId), BoxConstraints.tight(measured));
           positionChild(('tab-body', tabId), rect.topLeft + Offset(0, top));
         }
       }
     }
+    final liveTabs = {for (final pane in leaves(tree)) ...pane.tabs};
+    bodySizes.removeWhere((id, _) => !liveTabs.contains(id));
     if (!preview) {
       for (final split in paneSplits(tree)) {
         final bounds = rects[split.id]!;
@@ -210,12 +231,15 @@ class _PaneLayout extends MultiChildLayoutDelegate {
   }
 
   @override
-  bool shouldRelayout(_PaneLayout old) =>
-      old.detachedBodies != detachedBodies ||
-      old.tabStripHeight != tabStripHeight ||
-      old.tree != tree ||
-      old.preview != preview ||
-      old.previewPaneId != previewPaneId;
+  bool shouldRelayout(_PaneLayout old) {
+    _bodySizes = old._bodySizes;
+    return old.active != active ||
+        old.detachedBodies != detachedBodies ||
+        old.tabStripHeight != tabStripHeight ||
+        old.tree != tree ||
+        old.preview != preview ||
+        old.previewPaneId != previewPaneId;
+  }
 }
 
 class _SplitHandle extends StatelessWidget {

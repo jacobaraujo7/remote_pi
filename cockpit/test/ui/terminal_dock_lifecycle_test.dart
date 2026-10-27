@@ -66,6 +66,7 @@ class _DockVm extends Fake implements CockpitViewModel {
 }
 
 void main() {
+  resizeTests();
   for (final engine in TerminalEngine.values) {
     testWidgets(
       '${engine.name}: terminal moves into orchestration dock without reattachment',
@@ -222,6 +223,125 @@ void main() {
         await tester.pumpWidget(const SizedBox());
         terminal.dispose();
         moved.dispose();
+      },
+    );
+  }
+}
+
+void resizeTests() {
+  for (final engine in TerminalEngine.values) {
+    testWidgets(
+      '${engine.name}: resizing a dock does not resize hidden terminal grids',
+      (tester) async {
+        final controllers = {
+          for (final id in ['visible', 'hidden', 'hidden2'])
+            id: createTerminalController(engine),
+        };
+        final resizes = {for (final id in controllers.keys) id: <(int, int)>[]};
+        for (final entry in controllers.entries) {
+          entry.value.onResize = (cols, rows) =>
+              resizes[entry.key]!.add((cols, rows));
+          entry.value.write(
+            List.generate(100, (i) => 'history $i').join('\r\n'),
+          );
+        }
+        final layout = ValueNotifier((
+          fraction: .4,
+          tab: 'visible',
+          shown: true,
+        ));
+        await tester.pumpWidget(
+          ModularApp(
+            module: createModule(register: (_) {}),
+            provide: (scope) => scope
+              ..addChangeNotifier<SettingsController>(
+                () => SettingsController(_Settings()),
+              ),
+            child: ShadcnApp(
+              home: ValueListenableBuilder(
+                valueListenable: layout,
+                builder: (_, config, _) => StablePaneHost(
+                  active: config.shown,
+                  tree: SplitPane(
+                    id: 'split',
+                    dir: SplitDir.vertical,
+                    frac: config.fraction,
+                    a: LeafPane(
+                      id: 'terminals',
+                      tabs: controllers.keys.toList(),
+                      active: config.tab,
+                    ),
+                    b: const LeafPane(
+                      id: 'app-dock',
+                      tabs: ['app'],
+                      active: 'app',
+                    ),
+                  ),
+                  onResize: (_, _) {},
+                  paneBuilder: (_, _) =>
+                      const ColoredBox(color: Color(0xff151515)),
+                  tabBodyBuilder: (_, id, visible) => id == 'app'
+                      ? const SizedBox()
+                      : _Body(
+                          key: ValueKey(id),
+                          terminal: controllers[id]!,
+                          active: visible,
+                        ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        for (final calls in resizes.values) {
+          calls.clear();
+        }
+        for (var i = 1; i <= 20; i++) {
+          layout.value = (fraction: .4 + i * .01, tab: 'visible', shown: true);
+          await tester.pump();
+        }
+        expect(resizes['visible'], isNotEmpty);
+        expect(
+          resizes['hidden']!.length,
+          0,
+          reason: 'hidden PTYs must not reflow while a dock divider moves',
+        );
+        expect(resizes['hidden2']!.length, 0);
+        layout.value = (fraction: .6, tab: 'hidden', shown: true);
+        await tester.pump();
+        expect(
+          resizes['hidden']!.length,
+          1,
+          reason: 'resize once when revealed',
+        );
+        expect(resizes['hidden']!.last, resizes['visible']!.last);
+        for (final calls in resizes.values) {
+          calls.clear();
+        }
+        layout.value = (fraction: .5, tab: 'hidden', shown: false);
+        await tester.pump();
+        tester.view.physicalSize = const Size(1000, 700);
+        addTearDown(tester.view.resetPhysicalSize);
+        await tester.pump();
+        for (final calls in resizes.values) {
+          expect(calls, isEmpty);
+        }
+        layout.value = (fraction: .5, tab: 'hidden', shown: true);
+        await tester.pump();
+        expect(resizes['hidden']!.length, 1);
+        expect(resizes['visible'], isEmpty);
+        expect(resizes['hidden2'], isEmpty);
+
+        expect(
+          controllers['hidden']!.plainLines().join('\n'),
+          contains('history 0'),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        for (final terminal in controllers.values) {
+          terminal.dispose();
+        }
+        layout.dispose();
       },
     );
   }
