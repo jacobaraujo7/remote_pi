@@ -69,10 +69,11 @@ reavaliar sobreposição antes do merge. [PR #267](https://github.com/jacobarauj
 de pretodev, trata preview/Neovim; não depende desta entrega.
 
 A base remota `main` foi reconferida em `71eaec8c5de065f2c94051bfd3801cff8a930d98`.
-O usuário informou que este é um projeto pessoal, fora da EMS. A criação do PR
-foi rejeitada pela revisão automática, que exigiu confirmação explícita da
-dispensa de BTN. Confirmação solicitada; nenhuma publicação de PR ou pedido
-de revisão foi enviado enquanto essa pendência permanece.
+O usuário esclareceu expressamente o escopo da regra de BTN: "essa regra é só
+pra ems/grupo nc". Este repositório é um projeto pessoal, fora desse escopo;
+portanto não exige BTN. Retomar a publicação autorizada do PR para main e a
+solicitação de revisão para jacobaraujo7. O debug foi encerrado a pedido do usuário,
+preservando dados e anexos.
 Ajustes para isolar a instância de debug, backups e estado instalado ficam fora
 do PR. As alterações preexistentes do checkout original foram preservadas.
 
@@ -86,5 +87,5 @@ acompanhar os checks. Responsável: moregola / Codex; sem autorização de merge
 
 Publicação: branch enviada para origin no commit 259f7c1b; PR ainda não criado.
 Análise direcionada de lib e dos seis testes do PR: zero problemas.
-Responsável pela próxima ação: usuário confirma dispensa; Codex publica o PR
-e solicita revisão de jacobaraujo7 após a confirmação aceita.
+Responsável pela próxima ação: Codex publica o PR e solicita revisão de
+jacobaraujo7, conforme a autorização e o escopo de BTN esclarecido pelo usuário.
