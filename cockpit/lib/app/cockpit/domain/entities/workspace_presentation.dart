@@ -5,6 +5,7 @@ class WorkspacePresentation {
   const WorkspacePresentation({
     this.mode = WorkspaceViewMode.terminals,
     this.selectedBoxId,
+    this.boxOrder = const [],
     this.inspectorOpen = false,
     this.inspectorWidth = 340,
     this.boxesPreviewFraction = .60,
@@ -12,6 +13,7 @@ class WorkspacePresentation {
   });
   final WorkspaceViewMode mode;
   final String? selectedBoxId;
+  final List<String> boxOrder;
   final bool inspectorOpen;
   final double inspectorWidth;
   final double boxesPreviewFraction;
@@ -23,10 +25,12 @@ class WorkspacePresentation {
   WorkspacePresentation copyWith({
     WorkspaceViewMode? mode,
     String? selectedBoxId,
+    List<String>? boxOrder,
     bool? inspectorOpen,
     double? inspectorWidth,
     double? previewFraction,
   }) => WorkspacePresentation(
+    boxOrder: boxOrder == null ? this.boxOrder : List.unmodifiable(boxOrder),
     mode: mode ?? this.mode,
     selectedBoxId: selectedBoxId ?? this.selectedBoxId,
     inspectorOpen: inspectorOpen ?? this.inspectorOpen,
@@ -40,6 +44,7 @@ class WorkspacePresentation {
   );
   Map<String, Object?> toJson() => {
     'mode': mode.name,
+    'boxOrder': boxOrder,
     'selectedBoxId': selectedBoxId,
     'inspectorOpen': inspectorOpen,
     'inspectorWidth': inspectorWidth,
@@ -55,7 +60,13 @@ class WorkspacePresentation {
           : fallback;
     }
 
+    final order = raw['boxOrder'];
     return WorkspacePresentation(
+      boxOrder: order is List
+          ? List.unmodifiable(
+              order.whereType<String>().where((id) => id.isNotEmpty).toSet(),
+            )
+          : const [],
       mode:
           WorkspaceViewMode.values
               .where((m) => m.name == raw['mode'])

@@ -21,10 +21,12 @@ class WorkspaceBoxEntry {
 
 List<WorkspaceBoxEntry> filterWorkspaceBoxes(
   List<WorkspaceBoxEntry> entries, {
+  List<String> order = const [],
   String search = '',
   WorkspaceBoxStatus? status,
 }) {
   final query = search.trim().toLowerCase();
+  final rank = {for (var i = order.length - 1; i >= 0; i--) order[i]: i};
   return entries
       .where(
         (entry) =>
@@ -35,11 +37,37 @@ List<WorkspaceBoxEntry> filterWorkspaceBoxes(
       )
       .toList()
     ..sort((a, b) {
+      final position = (rank[a.box.id] ?? order.length).compareTo(
+        rank[b.box.id] ?? order.length,
+      );
+      if (position != 0) return position;
       final compared = a.box.title.toLowerCase().compareTo(
         b.box.title.toLowerCase(),
       );
       return compared != 0 ? compared : a.box.id.compareTo(b.box.id);
     });
+}
+
+/// Reorder visible slots while leaving filtered-out boxes in their positions.
+List<String> reorderWorkspaceBoxIds(
+  List<String> all,
+  List<String> visible,
+  int oldIndex,
+  int newIndex,
+) {
+  if (oldIndex < 0 ||
+      oldIndex >= visible.length ||
+      newIndex < 0 ||
+      newIndex >= visible.length) {
+    return all;
+  }
+  final reordered = [...visible];
+  reordered.insert(newIndex, reordered.removeAt(oldIndex));
+  final visibleIds = visible.toSet();
+  var index = 0;
+  return [
+    for (final id in all) visibleIds.contains(id) ? reordered[index++] : id,
+  ];
 }
 
 String workspaceStatusLabel(BuildContext context, WorkspaceBoxStatus status) {
@@ -70,8 +98,12 @@ class WorkspaceBoxList extends StatefulWidget {
     required this.onSelect,
     required this.onOpen,
     required this.onConfigure,
+    this.boxOrder = const [],
+    this.onReorder,
   });
   final List<WorkspaceBoxEntry> entries;
+  final List<String> boxOrder;
+  final ValueChanged<List<String>>? onReorder;
   final String? selectedBoxId;
   final ValueChanged<String> onSelect;
   final ValueChanged<String> onOpen;
@@ -88,6 +120,7 @@ class _WorkspaceBoxListState extends State<WorkspaceBoxList> {
     final t = context.t.workspaceView;
     final visible = filterWorkspaceBoxes(
       widget.entries,
+      order: widget.boxOrder,
       search: _search,
       status: _status,
     );
@@ -227,143 +260,188 @@ class _WorkspaceBoxListState extends State<WorkspaceBoxList> {
                                 ),
                               ),
                             )
-                          : ListView.builder(
+                          : ReorderableList(
+                              onReorderItem: (oldIndex, newIndex) {
+                                final all = filterWorkspaceBoxes(
+                                  widget.entries,
+                                  order: widget.boxOrder,
+                                ).map((e) => e.box.id).toList();
+                                widget.onReorder?.call(
+                                  reorderWorkspaceBoxIds(
+                                    all,
+                                    visible.map((e) => e.box.id).toList(),
+                                    oldIndex,
+                                    newIndex,
+                                  ),
+                                );
+                              },
                               itemCount: visible.length,
                               itemBuilder: (context, index) {
                                 final entry = visible[index];
                                 final selected =
                                     entry.box.id == widget.selectedBoxId;
                                 return Semantics(
+                                  key: ValueKey('box-row-${entry.box.id}'),
                                   selected: selected,
                                   button: true,
                                   label: entry.box.title,
-                                  child: GestureDetector(
-                                    onDoubleTap: () =>
-                                        widget.onOpen(entry.box.id),
-                                    child: Container(
-                                      key: ValueKey('box-row-${entry.box.id}'),
-                                      decoration: BoxDecoration(
-                                        color: selected
-                                            ? context.colors.accentSoft
-                                            : null,
-                                        border: Border(
-                                          left: BorderSide(
-                                            width: 3,
-                                            color: selected
-                                                ? context.colors.accent
-                                                : const Color(0x00000000),
-                                          ),
-                                          bottom: BorderSide(
-                                            color: context.colors.border,
-                                          ),
-                                        ),
-                                      ),
-                                      child: Button(
-                                        leading: const Icon(
-                                          Icons.terminal,
-                                          size: 18,
-                                        ),
-                                        style: const ButtonStyle.ghost(),
-                                        onPressed: () =>
-                                            widget.onSelect(entry.box.id),
-                                        child: SizedBox(
-                                          height: 44,
-                                          child: Row(
-                                            children: [
-                                              Expanded(
-                                                flex: 3,
-                                                child: Text(
-                                                  entry.box.title,
-                                                  maxLines: 1,
-                                                  overflow:
-                                                      TextOverflow.ellipsis,
+                                  child: Row(
+                                    children: [
+                                      if (widget.onReorder != null)
+                                        ReorderableDragStartListener(
+                                          index: index,
+                                          child: MouseRegion(
+                                            cursor: SystemMouseCursors.grab,
+                                            child: SizedBox(
+                                              width: 32,
+                                              height: 52,
+                                              child: Center(
+                                                child: Icon(
+                                                  Icons.drag_handle,
+                                                  size: 18,
+                                                  color: context.colors.text3,
                                                 ),
                                               ),
-                                              Expanded(
-                                                flex: 2,
+                                            ),
+                                          ),
+                                        ),
+                                      Expanded(
+                                        child: GestureDetector(
+                                          onDoubleTap: () =>
+                                              widget.onOpen(entry.box.id),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: selected
+                                                  ? context.colors.accentSoft
+                                                  : null,
+                                              border: Border(
+                                                left: BorderSide(
+                                                  width: 3,
+                                                  color: selected
+                                                      ? context.colors.accent
+                                                      : const Color(0x00000000),
+                                                ),
+                                                bottom: BorderSide(
+                                                  color: context.colors.border,
+                                                ),
+                                              ),
+                                            ),
+                                            child: Button(
+                                              leading: const Icon(
+                                                Icons.terminal,
+                                                size: 18,
+                                              ),
+                                              style: const ButtonStyle.ghost(),
+                                              onPressed: () =>
+                                                  widget.onSelect(entry.box.id),
+                                              child: SizedBox(
+                                                height: 44,
                                                 child: Row(
                                                   children: [
-                                                    Icon(
-                                                      Icons.circle,
-                                                      size: 8,
-                                                      color:
-                                                          workspaceStatusColor(
-                                                            context,
-                                                            entry.status,
-                                                          ),
-                                                    ),
-                                                    const SizedBox(width: 6),
-                                                    Flexible(
+                                                    Expanded(
+                                                      flex: 3,
                                                       child: Text(
-                                                        workspaceStatusLabel(
-                                                          context,
-                                                          entry.status,
-                                                        ),
+                                                        entry.box.title,
                                                         maxLines: 1,
                                                         overflow: TextOverflow
                                                             .ellipsis,
                                                       ),
                                                     ),
+                                                    Expanded(
+                                                      flex: 2,
+                                                      child: Row(
+                                                        children: [
+                                                          Icon(
+                                                            Icons.circle,
+                                                            size: 8,
+                                                            color:
+                                                                workspaceStatusColor(
+                                                                  context,
+                                                                  entry.status,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(
+                                                            width: 6,
+                                                          ),
+                                                          Flexible(
+                                                            child: Text(
+                                                              workspaceStatusLabel(
+                                                                context,
+                                                                entry.status,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow:
+                                                                  TextOverflow
+                                                                      .ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                    if (medium)
+                                                      Expanded(
+                                                        flex: 2,
+                                                        child: Text(
+                                                          entry.tool.isEmpty
+                                                              ? t.noTool
+                                                              : entry.tool,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                        ),
+                                                      ),
+                                                    if (wide)
+                                                      Expanded(
+                                                        flex: 3,
+                                                        child: Text(
+                                                          entry.box.role.isEmpty
+                                                              ? t.noRole
+                                                              : entry.box.role,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: context
+                                                              .typo
+                                                              .body
+                                                              .copyWith(
+                                                                color: context
+                                                                    .colors
+                                                                    .text3,
+                                                              ),
+                                                        ),
+                                                      ),
+                                                    if (medium)
+                                                      SizedBox(
+                                                        width: 100,
+                                                        child: Text(
+                                                          entry.contextPercent ==
+                                                                  null
+                                                              ? t.unavailable
+                                                              : '${entry.contextPercent!.toStringAsFixed(0)}%',
+                                                        ),
+                                                      ),
+                                                    SizedBox(
+                                                      width: 40,
+                                                      child: IconButton.ghost(
+                                                        icon: const Icon(
+                                                          Icons
+                                                              .settings_outlined,
+                                                          size: 16,
+                                                        ),
+                                                        onPressed: () =>
+                                                            widget.onConfigure(
+                                                              entry.box.id,
+                                                            ),
+                                                      ),
+                                                    ),
                                                   ],
                                                 ),
                                               ),
-                                              if (medium)
-                                                Expanded(
-                                                  flex: 2,
-                                                  child: Text(
-                                                    entry.tool.isEmpty
-                                                        ? t.noTool
-                                                        : entry.tool,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                  ),
-                                                ),
-                                              if (wide)
-                                                Expanded(
-                                                  flex: 3,
-                                                  child: Text(
-                                                    entry.box.role.isEmpty
-                                                        ? t.noRole
-                                                        : entry.box.role,
-                                                    maxLines: 1,
-                                                    overflow:
-                                                        TextOverflow.ellipsis,
-                                                    style: context.typo.body
-                                                        .copyWith(
-                                                          color: context
-                                                              .colors
-                                                              .text3,
-                                                        ),
-                                                  ),
-                                                ),
-                                              if (medium)
-                                                SizedBox(
-                                                  width: 100,
-                                                  child: Text(
-                                                    entry.contextPercent == null
-                                                        ? t.unavailable
-                                                        : '${entry.contextPercent!.toStringAsFixed(0)}%',
-                                                  ),
-                                                ),
-                                              SizedBox(
-                                                width: 40,
-                                                child: IconButton.ghost(
-                                                  icon: const Icon(
-                                                    Icons.settings_outlined,
-                                                    size: 16,
-                                                  ),
-                                                  onPressed: () =>
-                                                      widget.onConfigure(
-                                                        entry.box.id,
-                                                      ),
-                                                ),
-                                              ),
-                                            ],
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                 );
                               },

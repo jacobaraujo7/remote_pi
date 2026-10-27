@@ -48,6 +48,87 @@ void main() {
     );
     expect(filterWorkspaceBoxes(entries, search: 'missing'), isEmpty);
   });
+  test('custom ordering survives rename and ignores stale IDs', () {
+    expect(
+      filterWorkspaceBoxes(
+        entries,
+        order: ['deleted', 'b', 'a'],
+      ).map((e) => e.box.id),
+      ['b', 'a'],
+    );
+    expect(filterWorkspaceBoxes(entries, order: ['b']).map((e) => e.box.id), [
+      'b',
+      'a',
+    ]);
+    expect(
+      reorderWorkspaceBoxIds(['a', 'hidden', 'b', 'c'], ['a', 'b', 'c'], 0, 2),
+      ['b', 'hidden', 'c', 'a'],
+    );
+    expect(
+      reorderWorkspaceBoxIds(['a', 'hidden', 'b', 'c'], ['a', 'b', 'c'], 2, 0),
+      ['c', 'hidden', 'a', 'b'],
+    );
+  });
+  testWidgets(
+    'dragging the handle reorders without selecting or opening a terminal',
+    (tester) async {
+      var order = <String>[];
+      var selections = 0;
+      var opens = 0;
+      var configurations = 0;
+      late StateSetter rebuild;
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  rebuild = setState;
+                  return WorkspaceBoxList(
+                    entries: entries,
+                    boxOrder: order,
+                    onReorder: (value) => rebuild(() => order = value),
+                    onSelect: (_) => selections++,
+                    onOpen: (_) => opens++,
+                    onConfigure: (_) => configurations++,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      Future<void> dragHandle(Finder handle, double dy) async {
+        final gesture = await tester.startGesture(tester.getCenter(handle));
+        await gesture.moveBy(Offset(0, dy.sign * 20));
+        await tester.pump();
+        for (var step = 0; step < 10; step++) {
+          await gesture.moveBy(Offset(0, dy / 10));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await tester.pump(const Duration(milliseconds: 350));
+        await gesture.up();
+      }
+
+      final handles = find.byType(ReorderableDragStartListener);
+      await dragHandle(handles.first, 100);
+      await tester.pumpAndSettle();
+      expect(order, ['b', 'a']);
+      expect(
+        tester.getTopLeft(find.byKey(const ValueKey('box-row-b'))).dy,
+        lessThan(tester.getTopLeft(find.byKey(const ValueKey('box-row-a'))).dy),
+      );
+      await dragHandle(find.byType(ReorderableDragStartListener).last, -100);
+      await tester.pumpAndSettle();
+      expect(order, ['a', 'b']);
+      expect(selections, 0);
+      expect(opens, 0);
+      expect(configurations, 0);
+      expect(tester.takeException(), isNull);
+    },
+  );
   for (final brightness in Brightness.values) {
     for (final width in [540.0, 1440.0]) {
       testWidgets('list actions and layout at $width / $brightness', (

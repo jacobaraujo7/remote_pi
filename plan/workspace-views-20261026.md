@@ -40,3 +40,12 @@ Consulta direta ao GitHub antes do desenvolvimento e novamente antes da publica�
 - [PR #268](https://github.com/jacobaraujo7/remote_pi/pull/268): moregola, anexos de terminal; apareceu durante a implementação e foi integrado à main em `b13257f1`. Seu commit funcional `259f7c1b` ainda não é ancestral desta feature. Encaminhamento: incorporar a alteração de anexos na integração seguinte, preservando hosts, foco, estado de sessão e traduções desta feature; evitar duplicar o pipeline. Responsáveis: moregola / Jacob. Nenhum BTN consta no corpo consultado; registrar essa ausência sem inventar identificador ou alterar o PR alheio a esta publicação.
 
 Esta branch contém trabalho revisável; o aceite integral Windows/macOS continua condicionado às pendências acima. Não houve publicação de release nem alteração da main por esta sessão.
+
+## Atualização: ordem manual das boxes
+
+- Pedido: arrastar boxes verticalmente para escolher a ordem da lista Boxes; terminais/docks e coordenadas do Grafo mantidos.
+- Implementação: alça de arrasto à esquerda de cada linha, ordem por IDs persistida em `presentation.boxOrder` por workspace. Primeira abertura mantém ordenação por nome; novas boxes sem posição manual aparecem ao final. Renomear não troca os IDs usados na ordem.
+- Filtros e busca respeitam a ordem manual; ao reordenar um subconjunto, boxes ocultas conservam suas posições relativas e seus slots. IDs removidos são ignorados.
+- Validação: 17 testes passaram (persistência, ordem filtrada, arrasto contínuo para cima/baixo sem selecionar/abrir/configurar, layout claro/escuro e ciclo de vida Ghostty/xterm); análise dos cinco arquivos alterados sem problemas e diff sem erros de whitespace.
+- Auditoria direta de PRs repetida antes desta implementação: nenhum PR aberto de moregola ou de reordenação de boxes. #257 permanece sob responsabilidade de cfbraun, com encaminhamento independente já descrito; nenhum dos arquivos desta atualização implementa seu fluxo de status/Ctrl-Tab. Não houve incorporação de PR ou mudança de alvo.
+- Responsável: Codex pela implementação; moregola/Jacob pelo aceite manual. Próximo passo: atualizar `feature/grafo-terminals` localmente e validar a alça no app. Execução real em macOS permanece pendente.

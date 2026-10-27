@@ -163,6 +163,10 @@ class _WorkspaceExperienceState extends State<WorkspaceExperience> {
                       )
                     : WorkspaceBoxList(
                         key: ValueKey('workspace-boxes-$projectId'),
+                        boxOrder: state.boxOrder,
+                        onReorder: (order) => vm.updatePresentation(
+                          vm.presentation.copyWith(boxOrder: order),
+                        ),
                         entries: [for (final box in vm.graphBoxes) _entry(box)],
                         selectedBoxId: selected?.id,
                         onSelect: (id) {

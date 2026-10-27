@@ -2,6 +2,24 @@ import 'package:cockpit/app/cockpit/domain/entities/workspace_presentation.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('manual order survives mode changes and restoration', () {
+    final order = ['second', 'first'];
+    final state = const WorkspacePresentation()
+        .copyWith(boxOrder: order)
+        .copyWith(mode: WorkspaceViewMode.graph);
+    order.clear();
+    expect(WorkspacePresentation.fromJson(state.toJson()).boxOrder, [
+      'second',
+      'first',
+    ]);
+    expect(
+      WorkspacePresentation.fromJson({
+        'boxOrder': ['a', 3, 'a', '', 'b'],
+      }).boxOrder,
+      ['a', 'b'],
+    );
+    expect(WorkspacePresentation.fromJson(null).boxOrder, isEmpty);
+  });
   test('legacy workspace starts in terminals with collapsed inspector', () {
     final state = WorkspacePresentation.fromJson(null);
     expect(state.mode, WorkspaceViewMode.terminals);
