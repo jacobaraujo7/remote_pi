@@ -67,3 +67,9 @@ Esta branch contém trabalho revisável; o aceite integral Windows/macOS continu
 - Branch preparada e publicada com main integrada, três imagens e descrição revisável em `cockpit/review/workspace-layouts/pr-description.md`.
 - Duas tentativas de `gh pr create --reviewer jacobaraujo7` foram rejeitadas pela revisão automática de permissões antes da execução, por exigir BTN globalmente. A segunda tentativa incluiu a autorização explícita e a verificação de repositório pessoal fora da EMS. Nenhum PR foi criado e nenhum pedido de review foi enviado.
 - Responsável pelo próximo passo: moregola, para resolver a divergência da regra global de permissões ou publicar manualmente; Codex retoma criação/review após liberação. Não tentar outra ferramenta para contornar a rejeição.
+
+## PR publicado
+
+- [PR #269](https://github.com/jacobaraujo7/remote_pi/pull/269), feature/grafo-terminals → main, aberto com três imagens renderizadas dos novos layouts e descrição das mudanças/limitações.
+- Review solicitado formalmente a Jacob (`jacobaraujo7`). Responsável pela revisão: Jacob; acompanhamento: moregola/Codex. Próximo passo: revisar checks do head atual e executar aceite manual pendente, especialmente macOS.
+- A regra pessoal foi atualizada no AGENTS.md por autorização explícita do usuário: BTN é exigido somente para projetos EMS; remote_pi/Cockpit está explicitamente fora do escopo. O bloqueio anterior foi resolvido após a atualização das instruções.
