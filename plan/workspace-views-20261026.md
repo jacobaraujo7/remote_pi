@@ -73,3 +73,10 @@ Esta branch contém trabalho revisável; o aceite integral Windows/macOS continu
 - [PR #269](https://github.com/jacobaraujo7/remote_pi/pull/269), feature/grafo-terminals → main, aberto com três imagens renderizadas dos novos layouts e descrição das mudanças/limitações.
 - Review solicitado formalmente a Jacob (`jacobaraujo7`). Responsável pela revisão: Jacob; acompanhamento: moregola/Codex. Próximo passo: revisar checks do head atual e executar aceite manual pendente, especialmente macOS.
 - A regra pessoal foi atualizada no AGENTS.md por autorização explícita do usuário: BTN é exigido somente para projetos EMS; remote_pi/Cockpit está explicitamente fora do escopo. O bloqueio anterior foi resolvido após a atualização das instruções.
+
+## Correção dos checks da CLI
+
+- Head auditado: `e68f97fe`. Os três jobs de cockpit-cli falharam em `cargo fmt --check`, nos mesmos dois blocos de `cli/src/hook.rs`; os jobs de workspace-views ainda estavam executando, sem falha confirmada naquele momento.
+- Aplicado rustfmt e removidas quatro referências redundantes em `try_run`, apontadas ao executar o estágio seguinte de Clippy. Nenhum contrato de hook foi alterado.
+- Local Windows: `cargo fmt --check` passou; `cargo clippy --all-targets -- -D warnings` passou; `cargo test` passou (37 testes). Wire Unix e universal macOS continuam dependentes dos respectivos runners.
+- Responsável: Codex. Próximo passo: conferir a nova execução dos checks do PR #269 no SHA com a correção.

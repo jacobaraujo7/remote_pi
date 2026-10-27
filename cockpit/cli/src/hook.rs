@@ -129,7 +129,7 @@ fn try_run(harness: &str, decoded: &Value) -> Option<()> {
         return None;
     }
 
-    let event = str_field(&decoded, "hook_event_name");
+    let event = str_field(decoded, "hook_event_name");
     let status = wire_status_for(&event, decoded)?;
     if status.starts_with("subagent_") && str_field(decoded, "agent_id").is_empty() {
         return None;
@@ -144,8 +144,8 @@ fn try_run(harness: &str, decoded: &Value) -> Option<()> {
         // evitando o spinner eterno. Cada hook é um processo separado abrindo
         // seu próprio socket, sem ordem garantida entre eles.
         "ev": event,
-        "sid": str_field(&decoded, "session_id"),
-        "tx": str_field(&decoded, "transcript_path"),
+        "sid": str_field(decoded, "session_id"),
+        "tx": str_field(decoded, "transcript_path"),
         // Quem emitiu o evento. O app precisa disso pra retomar a sessão com o
         // comando certo (`claude --resume <id>` vs `codex resume <id>`) — o
         // session-id sozinho não diz de quem é.
@@ -181,7 +181,7 @@ fn try_run(harness: &str, decoded: &Value) -> Option<()> {
     // Só o Codex manda `turn_id`. Transportamos quando existe: identifica o
     // turno sem depender da ordem de chegada dos hooks (o `ev` continua sendo
     // o que o app consome hoje).
-    let turn = str_field(&decoded, "turn_id");
+    let turn = str_field(decoded, "turn_id");
     if !turn.is_empty() {
         payload["tid"] = json!(turn);
     }
@@ -219,9 +219,10 @@ fn claude_self_name(response: Option<&Value>) -> Option<String> {
         other => other.to_string(),
     };
     let suffix = text.split("This session is ").nth(1)?;
-    let name = suffix.split_whitespace().next()?.trim_matches(|c: char| {
-        !c.is_ascii_alphanumeric() && c != '-' && c != '_'
-    });
+    let name = suffix
+        .split_whitespace()
+        .next()?
+        .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '-' && c != '_');
     if name.is_empty() || name.len() > 128 {
         return None;
     }
@@ -309,9 +310,16 @@ mod tests {
 
     #[test]
     fn claude_list_agents_extracts_only_own_address() {
-        let response = json!("This session is planner-42 [active]\n\nOther sessions:\n  backend-17");
-        assert_eq!(claude_self_name(Some(&response)).as_deref(), Some("planner-42"));
-        assert_eq!(claude_self_name(Some(&json!("Other sessions: backend-17"))), None);
+        let response =
+            json!("This session is planner-42 [active]\n\nOther sessions:\n  backend-17");
+        assert_eq!(
+            claude_self_name(Some(&response)).as_deref(),
+            Some("planner-42")
+        );
+        assert_eq!(
+            claude_self_name(Some(&json!("Other sessions: backend-17"))),
+            None
+        );
     }
 
     #[test]
