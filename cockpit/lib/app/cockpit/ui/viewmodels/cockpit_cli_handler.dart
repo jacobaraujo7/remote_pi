@@ -178,6 +178,10 @@ class CockpitCliHandler {
           );
         }
         s.insertText(text);
+        final source = c.args['sourceTabId'];
+        if (source is String && source.isNotEmpty) {
+          _vm.recordGraphTraffic(source, id);
+        }
         return const CockpitCommandResult.ok();
 
       case 'list-panes':
@@ -378,6 +382,11 @@ class CockpitCliHandler {
               'Neovim has modified buffers; close it from the UI to confirm',
             );
           }
+        }
+        if (_vm.graphBoxForTab(s.id) != null) {
+          return const CockpitCommandResult.fail(
+            'This terminal belongs to a graph box. Close it in the Cockpit UI to choose whether to keep or remove the box.',
+          );
         }
         // O fechamento roda DEPOIS da resposta (`afterResponse`): fechar a
         // própria aba emissora mata o PTY — e com ele o shell e o processo
@@ -722,7 +731,14 @@ class CockpitCliHandler {
             'tab "${s.id}" (${_paneKind(s)}) has no readable output',
           );
         }
-        return CockpitCommandResult.ok(readTerminalWindow(term, c.args));
+        final window = readTerminalWindow(term, c.args);
+        if ((window['lines'] as int? ?? 0) > 0) {
+          final source = c.args['sourceTabId'];
+          if (source is String && source.isNotEmpty) {
+            _vm.recordGraphTraffic(s.id, source);
+          }
+        }
+        return CockpitCommandResult.ok(window);
 
       // `cockpit exec <command...>` (plano 67) — roda uma linha de shell na
       // máquina do app e devolve stdout/stderr/exit code. O shell é o **perfil

@@ -9,6 +9,13 @@ class ClaudeStatusUpdate {
     this.sessionId,
     this.transcriptPath,
     this.harness,
+    this.contextTokens,
+    this.contextWindow,
+    this.subagentId,
+    this.subagentType,
+    this.graphRecipient,
+    this.graphSelfName,
+    this.eventAt,
   });
 
   /// Id da aba (vem do env `COCKPIT_PANE_ID` injetado na PTV — roteamento).
@@ -33,6 +40,21 @@ class ClaudeStatusUpdate {
   /// instalador grava no comando do hook; `null` em helpers antigos (que só
   /// existiam para o Claude — ver [AgentHarness.fromWire]).
   final String? harness;
+
+  /// Exact context values supplied by the Claude Code status-line payload.
+  final int? contextTokens;
+  final int? contextWindow;
+
+  /// Child lifecycle identity from SubagentStart/SubagentStop hooks.
+  final String? subagentId;
+  final String? subagentType;
+
+  /// Claude SendMessage recipient address, without message content.
+  final String? graphRecipient;
+
+  /// Claude ListAgents address for the terminal's own session.
+  final String? graphSelfName;
+  final DateTime? eventAt;
 }
 
 /// Harness que roda numa aba de terminal. O Cockpit precisa distinguir para

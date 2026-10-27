@@ -45,8 +45,12 @@ class TranslationsEs extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$settings$es settings = _Translations$settings$es._(_root);
 	@override late final _Translations$automation$es automation = _Translations$automation$es._(_root);
 	@override late final _Translations$fileOperation$es fileOperation = _Translations$fileOperation$es._(_root);
+	@override late final _Translations$graphSubagent$es graphSubagent = _Translations$graphSubagent$es._(_root);
+	@override late final _Translations$graphView$es graphView = _Translations$graphView$es._(_root);
 	@override late final _Translations$theme$es theme = _Translations$theme$es._(_root);
+	@override late final _Translations$workspaceView$es workspaceView = _Translations$workspaceView$es._(_root);
 	@override late final _Translations$terminalAttachment$es terminalAttachment = _Translations$terminalAttachment$es._(_root);
+	@override late final _Translations$orchestration$es orchestration = _Translations$orchestration$es._(_root);
 }
 
 // Path: core
@@ -174,6 +178,67 @@ class _Translations$fileOperation$es extends Translations$fileOperation$en {
 	@override late final _Translations$fileOperation$error$es error = _Translations$fileOperation$error$es._(_root);
 }
 
+// Path: graphSubagent
+class _Translations$graphSubagent$es extends Translations$graphSubagent$en {
+	_Translations$graphSubagent$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get badge => 'SUBAGENTE TEMPORAL';
+	@override String get nameFallback => 'Subagente';
+	@override String get active => '● en ejecución';
+	@override String get disconnected => '◌ host desconectado';
+	@override String tooltip({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Subagente temporal: ${type}\nID: ${id}\nHerramienta: ${harness}\nControlado por la pestaña ${tab}\nIniciado: ${time}\nTokens/contexto: no disponibles en este hook\nFuente: hook SubagentStart';
+}
+
+// Path: graphView
+class _Translations$graphView$es extends Translations$graphView$en {
+	_Translations$graphView$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get legend => 'LEYENDA';
+	@override String get working => 'Trabajando';
+	@override String get waiting => 'Esperando';
+	@override String get idle => 'Inactivo';
+	@override String get starting => 'Iniciando';
+	@override String get ended => 'Finalizado';
+	@override String get disconnected => 'Host desconectado';
+	@override String get unknown => 'Desconocido';
+	@override String get planned => 'Vínculo planificado';
+	@override String get observed => 'Intercambio observado';
+	@override String get temporary => 'Subagente temporal';
+	@override String get unresolvedPeer => 'Destinatario Claude';
+	@override String get unresolvedPeerHint => 'Pestaña aún no identificada';
+	@override String unresolvedPeerTooltip({required Object address}) => 'Mensaje observado para ${address}. Cockpit aún no identificó una pestaña correspondiente; no se supuso ninguna conexión entre terminales.';
+	@override String get noRole => 'Función sin definir';
+	@override String get terminal => 'Terminal';
+	@override String get defaultModel => 'Modelo predeterminado';
+	@override String context({required Object percent}) => 'Contexto ${percent}%';
+	@override String get contextUnavailable => 'Contexto no disponible';
+	@override String get compactHint => 'Se sugiere compactar';
+	@override String get handoffHint => 'Prepara un handoff';
+	@override String get connections => 'Conexiones';
+	@override String get noConnections => 'Sin conexiones planificadas';
+	@override String get openTerminal => 'Abrir terminal';
+	@override String get controlledBy => 'Controlado por el terminal principal';
+	@override String tokens({required Object count}) => 'Tokens: ${count}';
+	@override String get metrics => 'MÉTRICAS';
+	@override String source({required Object value}) => 'Fuente: ${value}';
+	@override String updated({required Object value}) => 'Actualizado: ${value}';
+	@override String get tooltipSession => 'SESIÓN';
+	@override String get tooltipContext => 'CONTEXTO Y TOKENS';
+	@override String get tooltipMachine => 'MÁQUINA';
+	@override String tooltipIdentity({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}';
+	@override String tooltipUsage({required Object used, required Object window}) => '${used} / ${window} tokens de contexto';
+	@override String tooltipCpu({required Object value}) => 'CPU ${value}%';
+	@override String tooltipRam({required Object value}) => 'RAM ${value} MiB';
+	@override String tooltipSourceUpdated({required Object source, required Object time}) => '${source} · ${time}';
+	@override String tooltipReason({required Object reason}) => 'No disponible: ${reason}';
+}
+
 // Path: theme
 class _Translations$theme$es extends Translations$theme$en {
 	_Translations$theme$es._(TranslationsEs root) : this._root = root, super.internal(root);
@@ -182,6 +247,70 @@ class _Translations$theme$es extends Translations$theme$en {
 
 	// Translations
 	@override late final _Translations$theme$error$es error = _Translations$theme$error$es._(_root);
+}
+
+// Path: workspaceView
+class _Translations$workspaceView$es extends Translations$workspaceView$en {
+	_Translations$workspaceView$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get terminals => 'Terminales';
+	@override String get boxes => 'Boxes';
+	@override String get graph => 'Grafo';
+	@override String get newTerminal => 'Nuevo terminal';
+	@override String get configure => 'Configurar box';
+	@override String get closeInspector => 'Cerrar inspector';
+	@override String get search => 'Buscar nombre o función';
+	@override String get allStates => 'Todos los estados';
+	@override String get name => 'Box';
+	@override String get state => 'Estado';
+	@override String get tool => 'Herramienta';
+	@override String get role => 'Función';
+	@override String get context => 'Contexto';
+	@override String get optionalRole => 'Función (opcional)';
+	@override String get model => 'Modelo (vacío = predeterminado)';
+	@override String get noTool => 'Ninguna';
+	@override String get shell => 'Shell';
+	@override String get working => 'Trabajando';
+	@override String get waiting => 'Esperando';
+	@override String get idle => 'Inactivo';
+	@override String get closed => 'Finalizado';
+	@override String get disconnected => 'Desconectado';
+	@override String get unavailable => 'No disponible';
+	@override String get noRole => 'Añadir función';
+	@override String get noBoxes => 'Todavía no hay boxes';
+	@override String get noMatches => 'Ninguna box coincide';
+	@override String get selectBox => 'Selecciona una box para ver el terminal';
+	@override String get noSession => 'Esta box no tiene sesión de terminal';
+	@override String get startShell => 'Iniciar terminal';
+	@override String get openTerminal => 'Abrir en Terminales';
+	@override String get save => 'Guardar';
+	@override String get saved => 'Configuración guardada';
+	@override String get startCli => 'Iniciar CLI';
+	@override String get compact => 'Compactar contexto';
+	@override String get handoff => 'Preparar handoff';
+	@override String get handoffTitle => 'Resumen de handoff';
+	@override String get handoffHelp => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.';
+	@override String get handoffReady => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.';
+	@override String get connections => 'Conexiones';
+	@override String get noConnections => 'Sin conexiones';
+	@override String get cancel => 'Cancelar';
+	@override String get error => 'No se pudo actualizar la box';
+	@override String get planned => 'Conexión planificada';
+	@override String get observed => 'Actividad observada';
+	@override String get temporary => 'Subagente temporal';
+	@override String get linkBoxes => 'Conectar boxes';
+	@override String get selectEndpoints => 'Selecciona origen y destino';
+	@override String get zoomFit => 'Restablecer zoom';
+	@override String get session => 'Sesión';
+	@override String get configuration => 'Configuración';
+	@override String get nameRequired => 'Introduce un nombre';
+	@override String get removeLink => 'Eliminar conexión';
+	@override String get handoffSummary => 'Resumen';
+	@override String get copyRole => 'Copiar función';
+	@override String get showInspector => 'Mostrar inspector';
 }
 
 // Path: terminalAttachment
@@ -196,6 +325,27 @@ class _Translations$terminalAttachment$es extends Translations$terminalAttachmen
 	@override String get referenced => 'Referencias locales insertadas.';
 	@override String get remoteUnavailable => 'Los archivos e imágenes aún no se admiten en terminales remotos. Pegue texto o transfiera el archivo al host.';
 	@override String failed({required Object detail}) => 'No se pudieron insertar algunos adjuntos: ${detail}';
+}
+
+// Path: orchestration
+class _Translations$orchestration$es extends Translations$orchestration$en {
+	_Translations$orchestration$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get newTerminal => 'New terminal';
+	@override String get reload => 'Reload';
+	@override String get savePending => 'Unsaved changes';
+	@override String get removed => 'A definition was removed from the file. Close its terminal?';
+	@override String get closeTerminal => 'Close terminal';
+	@override String get restoreDefinition => 'Keep terminal and restore definition';
+	@override String get directory => 'Directory relative to worktree';
+	@override String get openTerminal => 'Go to terminal';
+	@override String get importTitle => 'Import existing configuration?';
+	@override String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
+	@override String get createWithoutImport => 'Create without importing';
+	@override String get importLegacy => 'Import configuration';
 }
 
 // Path: core.bootstrapError
@@ -1190,6 +1340,7 @@ class _Translations$cockpit$gallery$es extends Translations$cockpit$gallery$en {
 	@override late final _Translations$cockpit$gallery$notebook$es notebook = _Translations$cockpit$gallery$notebook$es._(_root);
 	@override late final _Translations$cockpit$gallery$workspaceEnv$es workspaceEnv = _Translations$cockpit$gallery$workspaceEnv$es._(_root);
 	@override late final _Translations$cockpit$gallery$panel$es panel = _Translations$cockpit$gallery$panel$es._(_root);
+	@override late final _Translations$cockpit$gallery$orchestration$es orchestration = _Translations$cockpit$gallery$orchestration$es._(_root);
 }
 
 // Path: cockpit.notebook
@@ -1600,6 +1751,17 @@ class _Translations$cockpit$gallery$panel$es extends Translations$cockpit$galler
 	// Translations
 	@override String get title => 'Panel';
 	@override String get description => 'Una página HTML con puente a la app: sus botones ejecutan comandos de la CLI de Cockpit y del shell en esta máquina. Un playground para dashboards rápidos.';
+}
+
+// Path: cockpit.gallery.orchestration
+class _Translations$cockpit$gallery$orchestration$es extends Translations$cockpit$gallery$orchestration$en {
+	_Translations$cockpit$gallery$orchestration$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get title => 'Agent Orchestration';
+	@override String get description => 'Gestiona terminales y sus conexiones en un documento portátil por worktree.';
 }
 
 // Path: cockpit.notebook.format
@@ -2602,6 +2764,8 @@ extension on TranslationsEs {
 			'cockpit.gallery.workspaceEnv.description' => 'Variables inyectadas en cada terminal de este workspace. Pon tokens o credenciales de API aquí en vez de pegarlos en el prompt del agente. Queda fuera de git.',
 			'cockpit.gallery.panel.title' => 'Panel',
 			'cockpit.gallery.panel.description' => 'Una página HTML con puente a la app: sus botones ejecutan comandos de la CLI de Cockpit y del shell en esta máquina. Un playground para dashboards rápidos.',
+			'cockpit.gallery.orchestration.title' => 'Agent Orchestration',
+			'cockpit.gallery.orchestration.description' => 'Gestiona terminales y sus conexiones en un documento portátil por worktree.',
 			'cockpit.notebook.notes' => 'Notas',
 			'cockpit.notebook.newNote' => 'Nueva nota',
 			'cockpit.notebook.searchPlaceholder' => 'Buscar notas',
@@ -2963,14 +3127,57 @@ extension on TranslationsEs {
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formato vacío.',
 			'fileOperation.error.formatterMissingPlaceholder' => 'El comando de formato debe incluir el marcador %FILE%.',
 			'fileOperation.error.formatterTimeout' => 'El formateador agotó el tiempo de espera.',
-			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'El formateador terminó con el código ${code}.',
-			'fileOperation.error.formatterFailed' => 'No se pudo ejecutar el formateador.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'El formateador terminó con el código ${code}.',
+			'fileOperation.error.formatterFailed' => 'No se pudo ejecutar el formateador.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'El nombre no puede contener “/”.',
 			'fileOperation.error.invalidName' => 'Nombre inválido.',
 			'fileOperation.error.remoteDropUnsupported' => 'Soltar archivos en un workspace remoto todavía no está soportado.',
+			'graphSubagent.badge' => 'SUBAGENTE TEMPORAL',
+			'graphSubagent.nameFallback' => 'Subagente',
+			'graphSubagent.active' => '● en ejecución',
+			'graphSubagent.disconnected' => '◌ host desconectado',
+			'graphSubagent.tooltip' => ({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Subagente temporal: ${type}\nID: ${id}\nHerramienta: ${harness}\nControlado por la pestaña ${tab}\nIniciado: ${time}\nTokens/contexto: no disponibles en este hook\nFuente: hook SubagentStart',
+			'graphView.legend' => 'LEYENDA',
+			'graphView.working' => 'Trabajando',
+			'graphView.waiting' => 'Esperando',
+			'graphView.idle' => 'Inactivo',
+			'graphView.starting' => 'Iniciando',
+			'graphView.ended' => 'Finalizado',
+			'graphView.disconnected' => 'Host desconectado',
+			'graphView.unknown' => 'Desconocido',
+			'graphView.planned' => 'Vínculo planificado',
+			'graphView.observed' => 'Intercambio observado',
+			'graphView.temporary' => 'Subagente temporal',
+			'graphView.unresolvedPeer' => 'Destinatario Claude',
+			'graphView.unresolvedPeerHint' => 'Pestaña aún no identificada',
+			'graphView.unresolvedPeerTooltip' => ({required Object address}) => 'Mensaje observado para ${address}. Cockpit aún no identificó una pestaña correspondiente; no se supuso ninguna conexión entre terminales.',
+			'graphView.noRole' => 'Función sin definir',
+			'graphView.terminal' => 'Terminal',
+			'graphView.defaultModel' => 'Modelo predeterminado',
+			'graphView.context' => ({required Object percent}) => 'Contexto ${percent}%',
+			'graphView.contextUnavailable' => 'Contexto no disponible',
+			'graphView.compactHint' => 'Se sugiere compactar',
+			'graphView.handoffHint' => 'Prepara un handoff',
+			'graphView.connections' => 'Conexiones',
+			'graphView.noConnections' => 'Sin conexiones planificadas',
+			'graphView.openTerminal' => 'Abrir terminal',
+			'graphView.controlledBy' => 'Controlado por el terminal principal',
+			'graphView.tokens' => ({required Object count}) => 'Tokens: ${count}',
+			'graphView.metrics' => 'MÉTRICAS',
+			'graphView.source' => ({required Object value}) => 'Fuente: ${value}',
+			'graphView.updated' => ({required Object value}) => 'Actualizado: ${value}',
+			'graphView.tooltipSession' => 'SESIÓN',
+			'graphView.tooltipContext' => 'CONTEXTO Y TOKENS',
+			'graphView.tooltipMachine' => 'MÁQUINA',
+			'graphView.tooltipIdentity' => ({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}',
+			'graphView.tooltipUsage' => ({required Object used, required Object window}) => '${used} / ${window} tokens de contexto',
+			'graphView.tooltipCpu' => ({required Object value}) => 'CPU ${value}%',
+			'graphView.tooltipRam' => ({required Object value}) => 'RAM ${value} MiB',
+			'graphView.tooltipSourceUpdated' => ({required Object source, required Object time}) => '${source} · ${time}',
+			'graphView.tooltipReason' => ({required Object reason}) => 'No disponible: ${reason}',
 			'theme.error.io' => 'No se pudo leer o escribir el archivo del tema.',
 			'theme.error.ioDetail' => ({required Object detail}) => 'No se pudo leer o escribir el archivo del tema: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'Este archivo no es JSON válido: ${detail}',
@@ -2981,11 +3188,78 @@ extension on TranslationsEs {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
 			'theme.error.noVariants' => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".',
+			'workspaceView.terminals' => 'Terminales',
+			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.graph' => 'Grafo',
+			'workspaceView.newTerminal' => 'Nuevo terminal',
+			'workspaceView.configure' => 'Configurar box',
+			'workspaceView.closeInspector' => 'Cerrar inspector',
+			'workspaceView.search' => 'Buscar nombre o función',
+			'workspaceView.allStates' => 'Todos los estados',
+			'workspaceView.name' => 'Box',
+			'workspaceView.state' => 'Estado',
+			'workspaceView.tool' => 'Herramienta',
+			'workspaceView.role' => 'Función',
+			'workspaceView.context' => 'Contexto',
+			'workspaceView.optionalRole' => 'Función (opcional)',
+			'workspaceView.model' => 'Modelo (vacío = predeterminado)',
+			'workspaceView.noTool' => 'Ninguna',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => 'Trabajando',
+			'workspaceView.waiting' => 'Esperando',
+			'workspaceView.idle' => 'Inactivo',
+			'workspaceView.closed' => 'Finalizado',
+			'workspaceView.disconnected' => 'Desconectado',
+			'workspaceView.unavailable' => 'No disponible',
+			'workspaceView.noRole' => 'Añadir función',
+			'workspaceView.noBoxes' => 'Todavía no hay boxes',
+			'workspaceView.noMatches' => 'Ninguna box coincide',
+			'workspaceView.selectBox' => 'Selecciona una box para ver el terminal',
+			'workspaceView.noSession' => 'Esta box no tiene sesión de terminal',
+			'workspaceView.startShell' => 'Iniciar terminal',
+			'workspaceView.openTerminal' => 'Abrir en Terminales',
+			'workspaceView.save' => 'Guardar',
+			'workspaceView.saved' => 'Configuración guardada',
+			'workspaceView.startCli' => 'Iniciar CLI',
+			'workspaceView.compact' => 'Compactar contexto',
+			'workspaceView.handoff' => 'Preparar handoff',
+			'workspaceView.handoffTitle' => 'Resumen de handoff',
+			'workspaceView.handoffHelp' => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.',
+			'workspaceView.handoffReady' => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.',
+			'workspaceView.connections' => 'Conexiones',
+			'workspaceView.noConnections' => 'Sin conexiones',
+			'workspaceView.cancel' => 'Cancelar',
+			'workspaceView.error' => 'No se pudo actualizar la box',
+			'workspaceView.planned' => 'Conexión planificada',
+			'workspaceView.observed' => 'Actividad observada',
+			'workspaceView.temporary' => 'Subagente temporal',
+			'workspaceView.linkBoxes' => 'Conectar boxes',
+			'workspaceView.selectEndpoints' => 'Selecciona origen y destino',
+			'workspaceView.zoomFit' => 'Restablecer zoom',
+			'workspaceView.session' => 'Sesión',
+			'workspaceView.configuration' => 'Configuración',
+			'workspaceView.nameRequired' => 'Introduce un nombre',
+			'workspaceView.removeLink' => 'Eliminar conexión',
+			'workspaceView.handoffSummary' => 'Resumen',
+			'workspaceView.copyRole' => 'Copiar función',
+			'workspaceView.showInspector' => 'Mostrar inspector',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando adjuntos: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Pegado de imagen solicitado al agente.',
 			'terminalAttachment.referenced' => 'Referencias locales insertadas.',
 			'terminalAttachment.remoteUnavailable' => 'Los archivos e imágenes aún no se admiten en terminales remotos. Pegue texto o transfiera el archivo al host.',
 			'terminalAttachment.failed' => ({required Object detail}) => 'No se pudieron insertar algunos adjuntos: ${detail}',
+			'orchestration.newTerminal' => 'New terminal',
+			'orchestration.reload' => 'Reload',
+			'orchestration.savePending' => 'Unsaved changes',
+			'orchestration.removed' => 'A definition was removed from the file. Close its terminal?',
+			'orchestration.closeTerminal' => 'Close terminal',
+			'orchestration.restoreDefinition' => 'Keep terminal and restore definition',
+			'orchestration.directory' => 'Directory relative to worktree',
+			'orchestration.openTerminal' => 'Go to terminal',
+			'orchestration.importTitle' => 'Import existing configuration?',
+			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
+			'orchestration.createWithoutImport' => 'Create without importing',
+			'orchestration.importLegacy' => 'Import configuration',
 			_ => null,
 		};
 	}

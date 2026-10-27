@@ -190,6 +190,29 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
         );
       }
       if (isCmd) return await _dispatchCommand(decoded);
+      if (decoded['type'] == 'metric') {
+        final paneId = (decoded['paneId'] ?? '').toString();
+        final tokens = decoded['ct'];
+        final window = decoded['cw'];
+        if (paneId.isEmpty ||
+            tokens is! int ||
+            tokens < 0 ||
+            window is! int ||
+            window <= 0) {
+          return (null, null);
+        }
+        _onUpdate?.call(
+          ClaudeStatusUpdate(
+            paneId: paneId,
+            status: 'metric',
+            sessionId: (decoded['sid'] ?? '').toString(),
+            harness: 'claude',
+            contextTokens: tokens,
+            contextWindow: window,
+          ),
+        );
+        return (null, null);
+      }
       // Caminho de status (default / `type` ausente): fire-and-forget.
       final paneId = (decoded['paneId'] ?? '').toString();
       final status = (decoded['st'] ?? '').toString();
@@ -206,6 +229,21 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
           sessionId: sid.isEmpty ? null : sid,
           transcriptPath: tx.isEmpty ? null : tx,
           harness: hn.isEmpty ? null : hn,
+          subagentId: decoded['aid'] is String
+              ? decoded['aid'] as String
+              : null,
+          subagentType: decoded['at'] is String
+              ? decoded['at'] as String
+              : null,
+          graphRecipient: decoded['gm'] is String
+              ? decoded['gm'] as String
+              : null,
+          graphSelfName: decoded['gi'] is String
+              ? decoded['gi'] as String
+              : null,
+          eventAt: decoded['ts'] is int
+              ? DateTime.fromMillisecondsSinceEpoch(decoded['ts'] as int)
+              : null,
         ),
       );
       return (null, null);

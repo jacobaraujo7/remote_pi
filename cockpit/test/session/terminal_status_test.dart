@@ -16,6 +16,9 @@ class _NoopGateway implements TerminalGateway {
   @override
   int? get rootProcessId => null;
 
+  @override
+  int? get wslProcessId => null;
+
   final _out = StreamController<List<int>>();
 
   @override

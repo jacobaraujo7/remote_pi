@@ -475,6 +475,9 @@ class TurnStatus extends RemoteMessage {
     this.sid,
     this.transcriptPath,
     this.harness,
+    this.subagentId,
+    this.subagentType,
+    this.eventEpochMs,
   });
   static const kType = 'turn.status';
 
@@ -490,6 +493,9 @@ class TurnStatus extends RemoteMessage {
   final String? sid;
   final String? transcriptPath;
   final String? harness;
+  final String? subagentId;
+  final String? subagentType;
+  final int? eventEpochMs;
 
   factory TurnStatus.fromJson(Map<String, Object?> j) => TurnStatus(
     paneId: j['pane'] as String,
@@ -498,6 +504,9 @@ class TurnStatus extends RemoteMessage {
     sid: j['sid'] as String?,
     transcriptPath: j['tx'] as String?,
     harness: j['hn'] as String?,
+    subagentId: j['aid'] as String?,
+    subagentType: j['at'] as String?,
+    eventEpochMs: j['ts'] as int?,
   );
 
   @override
@@ -511,6 +520,9 @@ class TurnStatus extends RemoteMessage {
     if (sid != null) 'sid': sid,
     if (transcriptPath != null) 'tx': transcriptPath,
     if (harness != null) 'hn': harness,
+    if (subagentId != null) 'aid': subagentId,
+    if (subagentType != null) 'at': subagentType,
+    if (eventEpochMs != null) 'ts': eventEpochMs,
   };
 }
 

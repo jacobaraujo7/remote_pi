@@ -57,6 +57,9 @@ class SidecarTerminalGateway implements TerminalGateway {
   int? get rootProcessId => _local?.rootProcessId ?? _rootPid;
 
   @override
+  int? get wslProcessId => null;
+
+  @override
   Stream<List<int>> get output => _output.stream;
 
   @override

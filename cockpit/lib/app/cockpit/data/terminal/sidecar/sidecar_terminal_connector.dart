@@ -66,6 +66,9 @@ class SidecarTerminalConnector implements TurnStatusSource {
           sessionId: s.sid,
           transcriptPath: s.transcriptPath,
           harness: s.harness,
+          subagentId: s.subagentId,
+          subagentType: s.subagentType,
+          eventAt: s.eventAt,
         ),
       ),
     );

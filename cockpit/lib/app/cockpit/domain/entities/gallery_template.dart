@@ -5,6 +5,11 @@
 /// Tasks, `.env.cockpit` → variáveis injetadas nos terminais do workspace).
 /// Título/descrição são i18n na UI; aqui só o que é dado.
 enum GalleryTemplate {
+  orchestration(
+    baseName: 'agents', extension: 'orchestration', fixedName: true,
+    iconAsset: 'assets/file_icons/cockpit-panel.svg',
+    content: '{"version":1,"boxes":[],"links":[]}\n',
+  ),
   dbQuery(
     baseName: 'query',
     extension: 'dbq',

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_attachments.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/core/data/diagnostics/performance_diagnostics.dart';
@@ -140,7 +141,11 @@ class TerminalSession extends PaneItem {
             // Fim do stream = processo encerrado (o PTY local fecha a porta no
             // exit; o sidecar fecha no `PtyExitEvent`). No `dispose` fomos nós
             // que matamos — aí não é notícia pra ninguém.
-            if (!_disposed) onProcessExit?.call();
+            if (!_disposed) {
+              _processEnded = true;
+              notifyListeners();
+              onProcessExit?.call();
+            }
           },
         );
     terminal.onOutput = (data) {
@@ -206,6 +211,8 @@ class TerminalSession extends PaneItem {
   VoidCallback? onProcessExit;
 
   bool _disposed = false;
+  bool _processEnded = false;
+  bool get hasExited => _processEnded;
 
   int? _viewportColumns;
   int? _viewportRows;
@@ -243,6 +250,16 @@ class TerminalSession extends PaneItem {
   HarnessKind? _activeHarness;
   HarnessKind? get activeHarness => _activeHarness;
 
+  /// PID do shell/PTY local. Ausente quando o terminal roda em host remoto.
+  int? get rootProcessId => _gateway.rootProcessId;
+  bool get processMetricsAreRemote => _gateway is RemoteProcessMetricsGateway;
+  Future<ProcessMetricsSnapshot> readRemoteProcessMetrics() =>
+      (_gateway as RemoteProcessMetricsGateway).readRemoteProcessMetrics();
+
+  /// Linux PID in the selected WSL distro. Never inferred from the Windows
+  /// `wsl.exe` PID because the two namespaces are unrelated.
+  int? get wslProcessId => _gateway.wslProcessId;
+
   /// `true` enquanto o harness está processando um turno (acende o spinner).
   @override
   bool get isWorking => _status == TerminalStatus.working;
@@ -256,6 +273,18 @@ class TerminalSession extends PaneItem {
   /// Servem pra retomar a sessão no restore da aba e pra ler o `.jsonl`.
   String? claudeSessionId;
   String? transcriptPath;
+
+  int? reportedContextTokens;
+  int? reportedContextWindow;
+  DateTime? reportedContextAt;
+
+  void applyGraphMetrics(int tokens, int window) {
+    if (tokens < 0 || window <= 0) return;
+    reportedContextTokens = tokens;
+    reportedContextWindow = window;
+    reportedContextAt = DateTime.now();
+    notifyListeners();
+  }
 
   /// Qual harness emitiu o [claudeSessionId]. Sem isso o restore montaria
   /// sempre `claude --resume <id>` — que falha com "No conversation found" se o

@@ -7,11 +7,16 @@ import 'package:meta/meta.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 import 'package:cockpit_protocol/cockpit_protocol.dart';
 
+import 'host_process_metrics.dart';
 import 'pty_output_coalescer.dart';
 
 class _RpcUnknown implements Exception {
   const _RpcUnknown(this.method);
   final String method;
+}
+
+class _RpcSessionNotFound implements Exception {
+  const _RpcSessionNotFound();
 }
 
 /// Falha tipada de um RPC sem exceção de domínio própria (`proc.run`):
@@ -811,6 +816,15 @@ class _Connection {
           return null;
         }(),
         'fs.home' => {'home': await _files.home()},
+        'process.metrics' => () async {
+          final id = p['session'] as String;
+          final sessions = await _terminals.sessions();
+          final matches = sessions.where((session) => session.id == id);
+          if (matches.isEmpty || matches.first.exitCode != null) {
+            throw const _RpcSessionNotFound();
+          }
+          return readHostProcessMetrics(matches.first.pid);
+        }(),
         'git.status' => (await _git.status(p['repo'] as String)).toJson(),
         'git.diff' => {
           'diff': await _git.diff(
@@ -952,6 +966,8 @@ class _Connection {
           detail: e.method,
         ),
       );
+    } on _RpcSessionNotFound {
+      _send(RpcResponse(rid: req.rid, ok: false, code: 'session_not_found'));
     } catch (e) {
       _send(
         RpcResponse(rid: req.rid, ok: false, code: 'internal', detail: '$e'),
@@ -1076,6 +1092,9 @@ class TurnStatusReceiver {
         sid: json['sid'] as String?,
         transcriptPath: json['tx'] as String?,
         harness: json['hn'] as String?,
+        subagentId: json['aid'] as String?,
+        subagentType: json['at'] as String?,
+        eventEpochMs: json['ts'] as int?,
       ),
     );
   }

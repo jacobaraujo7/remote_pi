@@ -23,6 +23,9 @@ class PtyTerminalGateway implements TerminalGateway {
   int? get rootProcessId => _pty?.pid;
 
   @override
+  int? get wslProcessId => null;
+
+  @override
   void start({
     required String workingDirectory,
     required TerminalProfile profile,

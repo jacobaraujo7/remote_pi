@@ -46,7 +46,9 @@ class TranslationsZh extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$automation$zh automation = _Translations$automation$zh._(_root);
 	@override late final _Translations$fileOperation$zh fileOperation = _Translations$fileOperation$zh._(_root);
 	@override late final _Translations$theme$zh theme = _Translations$theme$zh._(_root);
+	@override late final _Translations$workspaceView$zh workspaceView = _Translations$workspaceView$zh._(_root);
 	@override late final _Translations$terminalAttachment$zh terminalAttachment = _Translations$terminalAttachment$zh._(_root);
+	@override late final _Translations$orchestration$zh orchestration = _Translations$orchestration$zh._(_root);
 }
 
 // Path: core
@@ -184,6 +186,70 @@ class _Translations$theme$zh extends Translations$theme$en {
 	@override late final _Translations$theme$error$zh error = _Translations$theme$error$zh._(_root);
 }
 
+// Path: workspaceView
+class _Translations$workspaceView$zh extends Translations$workspaceView$en {
+	_Translations$workspaceView$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get terminals => '终端';
+	@override String get boxes => '会话';
+	@override String get graph => '关系图';
+	@override String get newTerminal => '新建终端';
+	@override String get configure => '配置会话';
+	@override String get closeInspector => 'Close inspector';
+	@override String get search => 'Search name or function';
+	@override String get allStates => 'All states';
+	@override String get name => '名称';
+	@override String get state => '状态';
+	@override String get tool => '工具';
+	@override String get role => '功能';
+	@override String get context => '上下文';
+	@override String get optionalRole => '功能（可选）';
+	@override String get model => 'Model (empty = default)';
+	@override String get noTool => '无';
+	@override String get shell => 'Shell';
+	@override String get working => '工作中';
+	@override String get waiting => '等待中';
+	@override String get idle => '空闲';
+	@override String get closed => '已结束';
+	@override String get disconnected => '已断开';
+	@override String get unavailable => 'Unavailable';
+	@override String get noRole => 'Add a function';
+	@override String get noBoxes => 'No boxes yet';
+	@override String get noMatches => 'No boxes match your search';
+	@override String get selectBox => 'Select a box to preview its terminal';
+	@override String get noSession => 'This box has no terminal session';
+	@override String get startShell => 'Start terminal';
+	@override String get openTerminal => 'Open in Terminals';
+	@override String get save => '保存';
+	@override String get saved => 'Configuration saved';
+	@override String get startCli => 'Start CLI';
+	@override String get compact => 'Compact context';
+	@override String get handoff => 'Prepare handoff';
+	@override String get handoffTitle => 'Handoff summary';
+	@override String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
+	@override String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+	@override String get connections => 'Connections';
+	@override String get noConnections => 'No connections';
+	@override String get cancel => '取消';
+	@override String get error => 'Unable to update box';
+	@override String get planned => 'Planned connection';
+	@override String get observed => 'Observed activity';
+	@override String get temporary => 'Temporary subagent';
+	@override String get linkBoxes => 'Connect boxes';
+	@override String get selectEndpoints => 'Select source and target';
+	@override String get zoomFit => 'Reset zoom';
+	@override String get session => '会话';
+	@override String get configuration => '配置';
+	@override String get nameRequired => 'Enter a box name';
+	@override String get removeLink => 'Remove connection';
+	@override String get handoffSummary => 'Summary';
+	@override String get copyRole => 'Copy function';
+	@override String get showInspector => 'Show inspector';
+}
+
 // Path: terminalAttachment
 class _Translations$terminalAttachment$zh extends Translations$terminalAttachment$en {
 	_Translations$terminalAttachment$zh._(TranslationsZh root) : this._root = root, super.internal(root);
@@ -196,6 +262,27 @@ class _Translations$terminalAttachment$zh extends Translations$terminalAttachmen
 	@override String get referenced => '已插入本地引用。';
 	@override String get remoteUnavailable => '远程终端暂不支持文件和图片。请粘贴文本或将文件传输到主机。';
 	@override String failed({required Object detail}) => '部分附件无法插入：${detail}';
+}
+
+// Path: orchestration
+class _Translations$orchestration$zh extends Translations$orchestration$en {
+	_Translations$orchestration$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get newTerminal => 'New terminal';
+	@override String get reload => 'Reload';
+	@override String get savePending => 'Unsaved changes';
+	@override String get removed => 'A definition was removed from the file. Close its terminal?';
+	@override String get closeTerminal => 'Close terminal';
+	@override String get restoreDefinition => 'Keep terminal and restore definition';
+	@override String get directory => 'Directory relative to worktree';
+	@override String get openTerminal => 'Go to terminal';
+	@override String get importTitle => 'Import existing configuration?';
+	@override String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
+	@override String get createWithoutImport => 'Create without importing';
+	@override String get importLegacy => 'Import configuration';
 }
 
 // Path: core.bootstrapError
@@ -1190,6 +1277,7 @@ class _Translations$cockpit$gallery$zh extends Translations$cockpit$gallery$en {
 	@override late final _Translations$cockpit$gallery$notebook$zh notebook = _Translations$cockpit$gallery$notebook$zh._(_root);
 	@override late final _Translations$cockpit$gallery$workspaceEnv$zh workspaceEnv = _Translations$cockpit$gallery$workspaceEnv$zh._(_root);
 	@override late final _Translations$cockpit$gallery$panel$zh panel = _Translations$cockpit$gallery$panel$zh._(_root);
+	@override late final _Translations$cockpit$gallery$orchestration$zh orchestration = _Translations$cockpit$gallery$orchestration$zh._(_root);
 }
 
 // Path: cockpit.notebook
@@ -1600,6 +1688,17 @@ class _Translations$cockpit$gallery$panel$zh extends Translations$cockpit$galler
 	// Translations
 	@override String get title => '面板';
 	@override String get description => '带应用桥接的 HTML 页面：它的按钮可在这台机器上运行 Cockpit CLI 和 shell 命令。快速做仪表盘的游乐场。';
+}
+
+// Path: cockpit.gallery.orchestration
+class _Translations$cockpit$gallery$orchestration$zh extends Translations$cockpit$gallery$orchestration$en {
+	_Translations$cockpit$gallery$orchestration$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get title => 'Agent Orchestration';
+	@override String get description => '通过可移植的工作树文档管理终端和连接。';
 }
 
 // Path: cockpit.notebook.format
@@ -2602,6 +2701,8 @@ extension on TranslationsZh {
 			'cockpit.gallery.workspaceEnv.description' => '注入此工作区每个终端的变量。API 令牌或登录凭据放这里，不要粘贴到智能体的提示里。不会进入 git。',
 			'cockpit.gallery.panel.title' => '面板',
 			'cockpit.gallery.panel.description' => '带应用桥接的 HTML 页面：它的按钮可在这台机器上运行 Cockpit CLI 和 shell 命令。快速做仪表盘的游乐场。',
+			'cockpit.gallery.orchestration.title' => 'Agent Orchestration',
+			'cockpit.gallery.orchestration.description' => '通过可移植的工作树文档管理终端和连接。',
 			'cockpit.notebook.notes' => '笔记',
 			'cockpit.notebook.newNote' => '新建笔记',
 			'cockpit.notebook.searchPlaceholder' => '搜索笔记',
@@ -2963,10 +3064,10 @@ extension on TranslationsZh {
 			'fileOperation.error.formatterEmptyCommand' => '格式化器命令为空。',
 			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
 			'fileOperation.error.formatterTimeout' => '格式化器超时。',
-			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',
-			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',
+			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => '名称不能包含「/」。',
 			'fileOperation.error.invalidName' => '无效的名称。',
@@ -2981,11 +3082,78 @@ extension on TranslationsZh {
 			'theme.error.badColor' => ({required Object field, required Object value}) => '「${field}」处的「${value}」不是颜色。请使用 #RGB、#RRGGBB 或 #RRGGBBAA。',
 			'theme.error.unknownBase' => ({required Object value}) => '「extends」中的基础主题「${value}」未知。',
 			'theme.error.noVariants' => '主题未声明任何变体。请在「variants」下添加「dark」「light」或两者。',
+			'workspaceView.terminals' => '终端',
+			'workspaceView.boxes' => '会话',
+			'workspaceView.graph' => '关系图',
+			'workspaceView.newTerminal' => '新建终端',
+			'workspaceView.configure' => '配置会话',
+			'workspaceView.closeInspector' => 'Close inspector',
+			'workspaceView.search' => 'Search name or function',
+			'workspaceView.allStates' => 'All states',
+			'workspaceView.name' => '名称',
+			'workspaceView.state' => '状态',
+			'workspaceView.tool' => '工具',
+			'workspaceView.role' => '功能',
+			'workspaceView.context' => '上下文',
+			'workspaceView.optionalRole' => '功能（可选）',
+			'workspaceView.model' => 'Model (empty = default)',
+			'workspaceView.noTool' => '无',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => '工作中',
+			'workspaceView.waiting' => '等待中',
+			'workspaceView.idle' => '空闲',
+			'workspaceView.closed' => '已结束',
+			'workspaceView.disconnected' => '已断开',
+			'workspaceView.unavailable' => 'Unavailable',
+			'workspaceView.noRole' => 'Add a function',
+			'workspaceView.noBoxes' => 'No boxes yet',
+			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.selectBox' => 'Select a box to preview its terminal',
+			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.startShell' => 'Start terminal',
+			'workspaceView.openTerminal' => 'Open in Terminals',
+			'workspaceView.save' => '保存',
+			'workspaceView.saved' => 'Configuration saved',
+			'workspaceView.startCli' => 'Start CLI',
+			'workspaceView.compact' => 'Compact context',
+			'workspaceView.handoff' => 'Prepare handoff',
+			'workspaceView.handoffTitle' => 'Handoff summary',
+			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
+			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.connections' => 'Connections',
+			'workspaceView.noConnections' => 'No connections',
+			'workspaceView.cancel' => '取消',
+			'workspaceView.error' => 'Unable to update box',
+			'workspaceView.planned' => 'Planned connection',
+			'workspaceView.observed' => 'Observed activity',
+			'workspaceView.temporary' => 'Temporary subagent',
+			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.selectEndpoints' => 'Select source and target',
+			'workspaceView.zoomFit' => 'Reset zoom',
+			'workspaceView.session' => '会话',
+			'workspaceView.configuration' => '配置',
+			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.removeLink' => 'Remove connection',
+			'workspaceView.handoffSummary' => 'Summary',
+			'workspaceView.copyRole' => 'Copy function',
+			'workspaceView.showInspector' => 'Show inspector',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => '正在复制附件：${completed}/${total}',
 			'terminalAttachment.nativeImage' => '已请求代理粘贴图片。',
 			'terminalAttachment.referenced' => '已插入本地引用。',
 			'terminalAttachment.remoteUnavailable' => '远程终端暂不支持文件和图片。请粘贴文本或将文件传输到主机。',
 			'terminalAttachment.failed' => ({required Object detail}) => '部分附件无法插入：${detail}',
+			'orchestration.newTerminal' => 'New terminal',
+			'orchestration.reload' => 'Reload',
+			'orchestration.savePending' => 'Unsaved changes',
+			'orchestration.removed' => 'A definition was removed from the file. Close its terminal?',
+			'orchestration.closeTerminal' => 'Close terminal',
+			'orchestration.restoreDefinition' => 'Keep terminal and restore definition',
+			'orchestration.directory' => 'Directory relative to worktree',
+			'orchestration.openTerminal' => 'Go to terminal',
+			'orchestration.importTitle' => 'Import existing configuration?',
+			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
+			'orchestration.createWithoutImport' => 'Create without importing',
+			'orchestration.importLegacy' => 'Import configuration',
 			_ => null,
 		};
 	}

@@ -88,11 +88,12 @@ terminal (COCKPIT_TAB_ID is unset). Use `cockpit list-tabs`.",
 
 /// Uma escrita na PTY da aba. Encerra com exit 1 se o app recusar.
 fn write_once(tab_id: &str, text: &str) {
+    let source = self_tab_id();
     let resp = transport::request(
         json!({
             "cmd": "write",
             "tabId": tab_id,
-            "args": {"data": b64().encode(text.as_bytes())},
+            "args": {"data": b64().encode(text.as_bytes()), "sourceTabId": source},
         }),
         DEFAULT_TIMEOUT,
     );
@@ -923,6 +924,11 @@ pub fn read(cmd: &str, args: &[String]) -> ! {
     }
     if parsed.from_start {
         cmd_args.insert("fromStart".into(), json!(true));
+    }
+    // A leitura de outra aba também é tráfego entre terminais: os dados
+    // fluem da aba lida para a aba que executou este comando.
+    if let Some(source) = self_tab_id() {
+        cmd_args.insert("sourceTabId".into(), json!(source));
     }
     let mut req = json!({"cmd": cmd, "args": Value::Object(cmd_args)});
     // Sem alvo posicional, o server cai na própria tab ($COCKPIT_TAB_ID).

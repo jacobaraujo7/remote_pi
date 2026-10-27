@@ -1,3 +1,5 @@
+import 'widgets/stable_tab_stack.dart';
+import 'widgets/stable_pane_host.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 
 import 'dart:async' show StreamSubscription, unawaited;
@@ -1025,9 +1027,8 @@ class _CenterPanelState extends State<_CenterPanel> {
           // (rasterizar o ASCII + compor a textura) a cada remount. Aqui o
           // atlas sobrevive à troca e é reaproveitado por todos os terminais.
           : TerminalScope(
-              child: IndexedStack(
+              child: StableTabStack(
                 index: _activeIndex(vm),
-                sizing: StackFit.expand,
                 children: [
                   // Um multiplexador por projeto — todos montados, só
                   // o ativo pintado → estado preservado ao trocar.
@@ -1082,18 +1083,12 @@ class _ProjectMultiplexer extends StatelessWidget {
     final tree = state.tree;
     if (tree == null) return const SizedBox.shrink();
     final vm = context.read<CockpitViewModel>();
-    return _renderNode(context, vm, projectId, tree, active: state.active);
-  }
-
-  Widget _renderNode(
-    BuildContext context,
-    CockpitViewModel vm,
-    String projectId,
-    PaneNode node, {
-    required bool active,
-  }) {
-    if (node is LeafPane) {
-      return PaneDropZone(
+    return StablePaneHost(
+      tree: tree,
+      preview: false,
+      onResize: (id, delta) => vm.resizeSplitBy(id, delta),
+      dividerBuilder: (dir, onDelta) => PaneDivider(dir: dir, onDelta: onDelta),
+      paneBuilder: (node, visible) => PaneDropZone(
         key: ValueKey('drop-${node.id}'),
         paneId: node.id,
         vm: vm,
@@ -1101,8 +1096,8 @@ class _ProjectMultiplexer extends StatelessWidget {
           key: ValueKey(node.id),
           pane: node,
           vm: vm,
-          focused: active && node.id == vm.focusedPaneId(projectId),
-          active: active,
+          focused: state.active && node.id == vm.focusedPaneId(projectId),
+          active: state.active && visible,
           onCreateTab: () => vm.newTerminalInPane(node.id),
           // Aba placeholder "Novo": o novo pane vira outro placeholder (que
           // cai direto em terminal). As demais abrem na raiz do workspace.
@@ -1115,88 +1110,11 @@ class _ProjectMultiplexer extends StatelessWidget {
           },
           onFillEmpty: (emptyId) => vm.fillEmpty(node.id, emptyId, ''),
         ),
-      );
-    }
-    final split = node as SplitPane;
-    final isRow = split.dir == SplitDir.vertical;
-    // Largura da região de arraste (a linha visual continua 1px, centralizada).
-    const handle = 12.0;
-
-    // Panes dimensionados por PESO (flex), NÃO por LayoutBuilder. Crítico: um
-    // LayoutBuilder envolvendo os panes reconstrói a subárvore a cada mudança de
-    // constraint (abrir/fechar/redimensionar pane), e a TerminalView do flterm
-    // faz attach de view no initState — reconstruir = novo attach antes do
-    // detach do antigo → "already has an active view", e no restore (mount
-    // simultâneo) cruza a State entre panes → terminais ESPELHADOS. Com Flex os
-    // panes são filhos diretos e estáveis; só o RenderFlex recalcula tamanhos.
-    final fa = (split.frac * 100000).round().clamp(1, 99999);
-    final fb = 100000 - fa;
-    final panes = Flex(
-      direction: isRow ? Axis.horizontal : Axis.vertical,
-      children: [
-        Expanded(
-          flex: fa,
-          child: _renderNode(context, vm, projectId, split.a, active: active),
-        ),
-        Expanded(
-          flex: fb,
-          child: _renderNode(context, vm, projectId, split.b, active: active),
-        ),
-      ],
-    );
-
-    return Stack(
-      children: [
-        // Base: as duas panes adjacentes (a linha vem do handle por cima).
-        panes,
-        // Overlay do divisor. O LayoutBuilder AQUI é seguro: envolve só o handle
-        // (stateless, barato de remontar), NUNCA os panes — precisa do tamanho
-        // total pra posicionar a linha e converter o arraste px→fração.
-        Positioned.fill(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final total = isRow
-                  ? constraints.maxWidth
-                  : constraints.maxHeight;
-              final pos = total * split.frac;
-              final divider = PaneDivider(
-                dir: split.dir,
-                onDelta: (delta) {
-                  if (total <= 0) return;
-                  // Delta incremental → fração, acumulado sobre o frac ATUAL da
-                  // árvore. `total` é estável durante o arraste.
-                  vm.resizeSplitBy(split.id, delta / total);
-                },
-              );
-              return Stack(
-                children: [
-                  if (isRow)
-                    Positioned(
-                      left: pos - handle / 2,
-                      width: handle,
-                      top: 0,
-                      bottom: 0,
-                      child: divider,
-                    )
-                  else
-                    Positioned(
-                      top: pos - handle / 2,
-                      height: handle,
-                      left: 0,
-                      right: 0,
-                      child: divider,
-                    ),
-                ],
-              );
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
 
-/// Painel direito: árvore de arquivos, busca, DB e Tasks.
 /// Card da Gallery clicado: o VM cria o arquivo na raiz e abre a tab; a
 /// falha (tipada) vira diálogo aqui, onde há contexto pra traduzir.
 Future<void> _createFromGallery(
@@ -1204,7 +1122,37 @@ Future<void> _createFromGallery(
   CockpitViewModel vm,
   GalleryTemplate template,
 ) async {
-  final result = await vm.createFromTemplate(template);
+  var importLegacy = false;
+  if (template == GalleryTemplate.orchestration && vm.hasLegacyOrchestration) {
+    final tr = context.t.orchestration;
+    final choice = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(tr.importTitle),
+        content: Text(tr.importHelp),
+        actions: [
+          OutlineButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(context.t.workspaceView.cancel),
+          ),
+          OutlineButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(tr.createWithoutImport),
+          ),
+          PrimaryButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(tr.importLegacy),
+          ),
+        ],
+      ),
+    );
+    if (choice == null || !context.mounted) return;
+    importLegacy = choice;
+  }
+  final result = await vm.createFromTemplate(
+    template,
+    importLegacyOrchestration: importLegacy,
+  );
   if (!context.mounted) return;
   if (result case Failure(:final error)) {
     await showConfirmDialog(

@@ -15,6 +15,9 @@ class FakeTerminalGateway implements TerminalGateway {
 
   @override
   int? get rootProcessId => null;
+
+  @override
+  int? get wslProcessId => null;
   @override
   void acknowledgeOutput() {}
 

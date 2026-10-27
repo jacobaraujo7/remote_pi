@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cockpit/app/cockpit/ui/services/orchestration_controller.dart';
 import 'dart:io' show Platform;
 import 'dart:ui' show AppExitResponse;
 
@@ -92,6 +93,9 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         // espera esta resposta para encerrar, e um flush lento vira app que
         // não morre.
         try {
+          await OrchestrationController.flushAll().timeout(
+            const Duration(seconds: 2),
+          );
           await JsonStateStore.flushAll().timeout(const Duration(seconds: 2));
         } on TimeoutException {
           DiagnosticsLog.instance.log('exit', 'flush estourou 2s — saindo');
@@ -647,6 +651,7 @@ class WindowStateKeeperState extends State<WindowStateKeeper>
     // então o guard só entra em vigor depois dela.
     await _closeStep('bounds', _persistBoundsNow);
     _closing = true;
+    await _closeStep('orchestration', OrchestrationController.flushAll);
     await _closeStep('flush', JsonStateStore.flushAll);
     try {
       DiagnosticsLog.instance.markCleanExit();

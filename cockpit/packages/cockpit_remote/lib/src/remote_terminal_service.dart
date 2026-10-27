@@ -17,6 +17,9 @@ class RemoteTurnStatus {
     this.sid,
     this.transcriptPath,
     this.harness,
+    this.subagentId,
+    this.subagentType,
+    this.eventAt,
   });
 
   final String paneId;
@@ -25,6 +28,9 @@ class RemoteTurnStatus {
   final String? sid;
   final String? transcriptPath;
   final String? harness;
+  final String? subagentId;
+  final String? subagentType;
+  final DateTime? eventAt;
 }
 
 /// Um comando da CLI do host à espera de resposta deste cliente.
@@ -51,6 +57,15 @@ class RemoteTerminalService implements TerminalService {
   RemoteTerminalService(this._connection);
 
   final RemoteConnection _connection;
+
+  /// Metrics are collected by the host that owns the PTY PID. The client
+  /// never interprets a remote PID in its local process namespace.
+  Future<Map<String, Object?>> processMetrics(String sessionId) async {
+    final data = await _connection.call('process.metrics', {
+      'session': sessionId,
+    });
+    return (data as Map).cast<String, Object?>();
+  }
 
   /// Comandos da CLI `cockpit` rodando **no host**, encaminhados pelo servidor
   /// (direção inversa do RPC). O host não executa nada: quem tem abas,
@@ -85,6 +100,11 @@ class RemoteTerminalService implements TerminalService {
           sid: m.sid,
           transcriptPath: m.transcriptPath,
           harness: m.harness,
+          subagentId: m.subagentId,
+          subagentType: m.subagentType,
+          eventAt: m.eventEpochMs == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(m.eventEpochMs!),
         ),
       );
 

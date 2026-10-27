@@ -44,6 +44,7 @@ class GalleryPanel extends StatelessWidget {
     Translations$cockpit$gallery$en tr,
     GalleryTemplate t,
   ) => switch (t) {
+    GalleryTemplate.orchestration => tr.orchestration.title,
     GalleryTemplate.dbQuery => tr.dbQuery.title,
     GalleryTemplate.kanban => tr.kanban.title,
     GalleryTemplate.layout => tr.layout.title,
@@ -59,6 +60,7 @@ class GalleryPanel extends StatelessWidget {
     Translations$cockpit$gallery$en tr,
     GalleryTemplate t,
   ) => switch (t) {
+    GalleryTemplate.orchestration => tr.orchestration.description,
     GalleryTemplate.dbQuery => tr.dbQuery.description,
     GalleryTemplate.kanban => tr.kanban.description,
     GalleryTemplate.layout => tr.layout.description,

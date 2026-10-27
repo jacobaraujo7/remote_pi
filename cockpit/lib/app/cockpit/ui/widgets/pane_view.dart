@@ -1,3 +1,6 @@
+import 'stable_tab_stack.dart';
+import 'orchestration_view.dart';
+import '../session/orchestration_session.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'terminal_attachment_drop_target.dart';
 import 'dart:async';
@@ -130,9 +133,8 @@ class PaneView extends StatelessWidget {
                   // *view*: scroll do transcript, viewport/seleção do terminal,
                   // foco e o rascunho digitado no composer. (As sessões/dados já
                   // persistem na VM; aqui preservamos a apresentação.)
-                  : IndexedStack(
+                  : StableTabStack(
                       index: activeIndex,
-                      sizing: StackFit.expand,
                       children: [
                         for (final id in tabs)
                           _keyedBody(id, shown: tabs[activeIndex]),
@@ -831,6 +833,15 @@ class _TabState extends State<_Tab> {
         // Só em abas de terminal: o id (pane id) copiável pra usar na CLI
         // `cockpit` (`--tab-id`).
         if (terminal != null) ...[
+          if (context.read<CockpitViewModel>().orchestrationFor(
+                terminal.projectId,
+              ) !=
+              null)
+            AppMenuItem(
+              value: 'configure-box',
+              label: context.t.workspaceView.configure,
+              icon: Icons.settings_outlined,
+            ),
           AppMenuItem(
             value: 'rename',
             label: tr.rename,
@@ -886,6 +897,10 @@ class _TabState extends State<_Tab> {
     );
     if (!mounted) return;
     switch (value) {
+      case 'configure-box':
+        if (terminal != null) {
+          context.read<CockpitViewModel>().configureBoxForTab(terminal.id);
+        }
       case 'pin':
         if (viewer != null) viewer.pin();
       case 'open-window':
@@ -1627,6 +1642,13 @@ class _PaneBodyState extends State<_PaneBody> {
   Widget build(BuildContext context) {
     final item = widget.item;
 
+    if (item is OrchestrationSession) {
+      return OrchestrationView(
+        session: item,
+        vm: context.read<CockpitViewModel>(),
+        active: widget.active,
+      );
+    }
     // Viewer de diff (read-only, split): comparação com o HEAD do git.
     if (item is DiffViewerSession) {
       final vm = context.read<CockpitViewModel>();

@@ -45,6 +45,8 @@ import 'package:cockpit/app/cockpit/data/telemetry/telemetry_store_registry.dart
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
 import 'package:cockpit/app/cockpit/data/http/http_request_runner_impl.dart';
 import 'package:cockpit/app/cockpit/data/process/process_tree_provider_factory.dart';
+import 'package:cockpit/app/cockpit/data/process/process_metrics_provider.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
 import 'package:cockpit/app/cockpit/data/terminal/file_terminal_scrollback_store.dart';
 import 'package:cockpit/app/cockpit/data/remote/json_remote_hosts_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/remote_hosts_store.dart';
@@ -288,6 +290,7 @@ Future<Module> buildCockpitModule({
           // tipados a partir dos binds acima; WindowActivityController vem
           // direto do bootstrap porque não atravessa os injectors da rota.
           provide: (s) => s
+            ..add<ProcessMetricsProvider>(() => createProcessMetricsProvider())
             // Estado git extraído do CockpitViewModel (mesma vida da rota);
             // o VM o recebe no construtor e injeta o contexto de shell.
             ..addChangeNotifier<GitController>(

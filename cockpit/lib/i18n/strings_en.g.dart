@@ -47,8 +47,12 @@ class Translations with BaseTranslations<AppLocale, Translations> {
 	late final Translations$settings$en settings = Translations$settings$en.internal(_root);
 	late final Translations$automation$en automation = Translations$automation$en.internal(_root);
 	late final Translations$fileOperation$en fileOperation = Translations$fileOperation$en.internal(_root);
+	late final Translations$graphSubagent$en graphSubagent = Translations$graphSubagent$en.internal(_root);
+	late final Translations$graphView$en graphView = Translations$graphView$en.internal(_root);
 	late final Translations$theme$en theme = Translations$theme$en.internal(_root);
+	late final Translations$workspaceView$en workspaceView = Translations$workspaceView$en.internal(_root);
 	late final Translations$terminalAttachment$en terminalAttachment = Translations$terminalAttachment$en.internal(_root);
+	late final Translations$orchestration$en orchestration = Translations$orchestration$en.internal(_root);
 }
 
 // Path: core
@@ -222,6 +226,153 @@ class Translations$fileOperation$en {
 	late final Translations$fileOperation$error$en error = Translations$fileOperation$error$en.internal(_root);
 }
 
+// Path: graphSubagent
+class Translations$graphSubagent$en {
+	Translations$graphSubagent$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'TEMPORARY SUBAGENT'
+	String get badge => 'TEMPORARY SUBAGENT';
+
+	/// en: 'Subagent'
+	String get nameFallback => 'Subagent';
+
+	/// en: '● running'
+	String get active => '● running';
+
+	/// en: '◌ host disconnected'
+	String get disconnected => '◌ host disconnected';
+
+	/// en: 'Temporary subagent: ${type} ID: ${id} Tool: ${harness} Controlled by tab ${tab} Started: ${time} Tokens/context: unavailable from this hook Source: SubagentStart hook'
+	String tooltip({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Temporary subagent: ${type}\nID: ${id}\nTool: ${harness}\nControlled by tab ${tab}\nStarted: ${time}\nTokens/context: unavailable from this hook\nSource: SubagentStart hook';
+}
+
+// Path: graphView
+class Translations$graphView$en {
+	Translations$graphView$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'LEGEND'
+	String get legend => 'LEGEND';
+
+	/// en: 'Working'
+	String get working => 'Working';
+
+	/// en: 'Waiting'
+	String get waiting => 'Waiting';
+
+	/// en: 'Idle'
+	String get idle => 'Idle';
+
+	/// en: 'Starting'
+	String get starting => 'Starting';
+
+	/// en: 'Ended'
+	String get ended => 'Ended';
+
+	/// en: 'Host disconnected'
+	String get disconnected => 'Host disconnected';
+
+	/// en: 'Unknown'
+	String get unknown => 'Unknown';
+
+	/// en: 'Planned link'
+	String get planned => 'Planned link';
+
+	/// en: 'Observed exchange'
+	String get observed => 'Observed exchange';
+
+	/// en: 'Temporary subagent'
+	String get temporary => 'Temporary subagent';
+
+	/// en: 'Claude recipient'
+	String get unresolvedPeer => 'Claude recipient';
+
+	/// en: 'Tab not identified yet'
+	String get unresolvedPeerHint => 'Tab not identified yet';
+
+	/// en: 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.'
+	String unresolvedPeerTooltip({required Object address}) => 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.';
+
+	/// en: 'No role defined'
+	String get noRole => 'No role defined';
+
+	/// en: 'Terminal'
+	String get terminal => 'Terminal';
+
+	/// en: 'Default model'
+	String get defaultModel => 'Default model';
+
+	/// en: 'Context ${percent}%'
+	String context({required Object percent}) => 'Context ${percent}%';
+
+	/// en: 'Context unavailable'
+	String get contextUnavailable => 'Context unavailable';
+
+	/// en: 'Compaction suggested'
+	String get compactHint => 'Compaction suggested';
+
+	/// en: 'Prepare a handoff'
+	String get handoffHint => 'Prepare a handoff';
+
+	/// en: 'Connections'
+	String get connections => 'Connections';
+
+	/// en: 'No planned connections'
+	String get noConnections => 'No planned connections';
+
+	/// en: 'Open terminal'
+	String get openTerminal => 'Open terminal';
+
+	/// en: 'Controlled by the parent terminal'
+	String get controlledBy => 'Controlled by the parent terminal';
+
+	/// en: 'Tokens: ${count}'
+	String tokens({required Object count}) => 'Tokens: ${count}';
+
+	/// en: 'METRICS'
+	String get metrics => 'METRICS';
+
+	/// en: 'Source: ${value}'
+	String source({required Object value}) => 'Source: ${value}';
+
+	/// en: 'Updated: ${value}'
+	String updated({required Object value}) => 'Updated: ${value}';
+
+	/// en: 'SESSION'
+	String get tooltipSession => 'SESSION';
+
+	/// en: 'CONTEXT AND TOKENS'
+	String get tooltipContext => 'CONTEXT AND TOKENS';
+
+	/// en: 'MACHINE'
+	String get tooltipMachine => 'MACHINE';
+
+	/// en: '${tool} · ${model} · ${status}'
+	String tooltipIdentity({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}';
+
+	/// en: '${used} / ${window} context tokens'
+	String tooltipUsage({required Object used, required Object window}) => '${used} / ${window} context tokens';
+
+	/// en: 'CPU ${value}%'
+	String tooltipCpu({required Object value}) => 'CPU ${value}%';
+
+	/// en: 'RAM ${value} MiB'
+	String tooltipRam({required Object value}) => 'RAM ${value} MiB';
+
+	/// en: '${source} · ${time}'
+	String tooltipSourceUpdated({required Object source, required Object time}) => '${source} · ${time}';
+
+	/// en: 'Unavailable: ${reason}'
+	String tooltipReason({required Object reason}) => 'Unavailable: ${reason}';
+}
+
 // Path: theme
 class Translations$theme$en {
 	Translations$theme$en.internal(this._root);
@@ -230,6 +381,180 @@ class Translations$theme$en {
 
 	// Translations
 	late final Translations$theme$error$en error = Translations$theme$error$en.internal(_root);
+}
+
+// Path: workspaceView
+class Translations$workspaceView$en {
+	Translations$workspaceView$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Terminals'
+	String get terminals => 'Terminals';
+
+	/// en: 'Boxes'
+	String get boxes => 'Boxes';
+
+	/// en: 'Graph'
+	String get graph => 'Graph';
+
+	/// en: 'New terminal'
+	String get newTerminal => 'New terminal';
+
+	/// en: 'Configure box'
+	String get configure => 'Configure box';
+
+	/// en: 'Close inspector'
+	String get closeInspector => 'Close inspector';
+
+	/// en: 'Search name or function'
+	String get search => 'Search name or function';
+
+	/// en: 'All states'
+	String get allStates => 'All states';
+
+	/// en: 'Box'
+	String get name => 'Box';
+
+	/// en: 'State'
+	String get state => 'State';
+
+	/// en: 'Tool'
+	String get tool => 'Tool';
+
+	/// en: 'Function'
+	String get role => 'Function';
+
+	/// en: 'Context'
+	String get context => 'Context';
+
+	/// en: 'Function (optional)'
+	String get optionalRole => 'Function (optional)';
+
+	/// en: 'Model (empty = default)'
+	String get model => 'Model (empty = default)';
+
+	/// en: 'None'
+	String get noTool => 'None';
+
+	/// en: 'Shell'
+	String get shell => 'Shell';
+
+	/// en: 'Working'
+	String get working => 'Working';
+
+	/// en: 'Waiting'
+	String get waiting => 'Waiting';
+
+	/// en: 'Idle'
+	String get idle => 'Idle';
+
+	/// en: 'Closed'
+	String get closed => 'Closed';
+
+	/// en: 'Disconnected'
+	String get disconnected => 'Disconnected';
+
+	/// en: 'Unavailable'
+	String get unavailable => 'Unavailable';
+
+	/// en: 'Add a function'
+	String get noRole => 'Add a function';
+
+	/// en: 'No boxes yet'
+	String get noBoxes => 'No boxes yet';
+
+	/// en: 'No boxes match your search'
+	String get noMatches => 'No boxes match your search';
+
+	/// en: 'Select a box to preview its terminal'
+	String get selectBox => 'Select a box to preview its terminal';
+
+	/// en: 'This box has no terminal session'
+	String get noSession => 'This box has no terminal session';
+
+	/// en: 'Start terminal'
+	String get startShell => 'Start terminal';
+
+	/// en: 'Open in Terminals'
+	String get openTerminal => 'Open in Terminals';
+
+	/// en: 'Save'
+	String get save => 'Save';
+
+	/// en: 'Configuration saved'
+	String get saved => 'Configuration saved';
+
+	/// en: 'Start CLI'
+	String get startCli => 'Start CLI';
+
+	/// en: 'Compact context'
+	String get compact => 'Compact context';
+
+	/// en: 'Prepare handoff'
+	String get handoff => 'Prepare handoff';
+
+	/// en: 'Handoff summary'
+	String get handoffTitle => 'Handoff summary';
+
+	/// en: 'Describe the current state and next steps. The summary will be copied for the new session.'
+	String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
+
+	/// en: 'New session ready. Paste the copied summary when the tool is ready.'
+	String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+
+	/// en: 'Connections'
+	String get connections => 'Connections';
+
+	/// en: 'No connections'
+	String get noConnections => 'No connections';
+
+	/// en: 'Cancel'
+	String get cancel => 'Cancel';
+
+	/// en: 'Unable to update box'
+	String get error => 'Unable to update box';
+
+	/// en: 'Planned connection'
+	String get planned => 'Planned connection';
+
+	/// en: 'Observed activity'
+	String get observed => 'Observed activity';
+
+	/// en: 'Temporary subagent'
+	String get temporary => 'Temporary subagent';
+
+	/// en: 'Connect boxes'
+	String get linkBoxes => 'Connect boxes';
+
+	/// en: 'Select source and target'
+	String get selectEndpoints => 'Select source and target';
+
+	/// en: 'Reset zoom'
+	String get zoomFit => 'Reset zoom';
+
+	/// en: 'Session'
+	String get session => 'Session';
+
+	/// en: 'Configuration'
+	String get configuration => 'Configuration';
+
+	/// en: 'Enter a box name'
+	String get nameRequired => 'Enter a box name';
+
+	/// en: 'Remove connection'
+	String get removeLink => 'Remove connection';
+
+	/// en: 'Summary'
+	String get handoffSummary => 'Summary';
+
+	/// en: 'Copy function'
+	String get copyRole => 'Copy function';
+
+	/// en: 'Show inspector'
+	String get showInspector => 'Show inspector';
 }
 
 // Path: terminalAttachment
@@ -254,6 +579,51 @@ class Translations$terminalAttachment$en {
 
 	/// en: 'Some attachments could not be inserted: ${detail}'
 	String failed({required Object detail}) => 'Some attachments could not be inserted: ${detail}';
+}
+
+// Path: orchestration
+class Translations$orchestration$en {
+	Translations$orchestration$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'New terminal'
+	String get newTerminal => 'New terminal';
+
+	/// en: 'Reload'
+	String get reload => 'Reload';
+
+	/// en: 'Unsaved changes'
+	String get savePending => 'Unsaved changes';
+
+	/// en: 'A definition was removed from the file. Close its terminal?'
+	String get removed => 'A definition was removed from the file. Close its terminal?';
+
+	/// en: 'Close terminal'
+	String get closeTerminal => 'Close terminal';
+
+	/// en: 'Keep terminal and restore definition'
+	String get restoreDefinition => 'Keep terminal and restore definition';
+
+	/// en: 'Directory relative to worktree'
+	String get directory => 'Directory relative to worktree';
+
+	/// en: 'Go to terminal'
+	String get openTerminal => 'Go to terminal';
+
+	/// en: 'Import existing configuration?'
+	String get importTitle => 'Import existing configuration?';
+
+	/// en: 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.'
+	String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
+
+	/// en: 'Create without importing'
+	String get createWithoutImport => 'Create without importing';
+
+	/// en: 'Import configuration'
+	String get importLegacy => 'Import configuration';
 }
 
 // Path: core.bootstrapError
@@ -2461,6 +2831,7 @@ class Translations$cockpit$gallery$en {
 	late final Translations$cockpit$gallery$notebook$en notebook = Translations$cockpit$gallery$notebook$en.internal(_root);
 	late final Translations$cockpit$gallery$workspaceEnv$en workspaceEnv = Translations$cockpit$gallery$workspaceEnv$en.internal(_root);
 	late final Translations$cockpit$gallery$panel$en panel = Translations$cockpit$gallery$panel$en.internal(_root);
+	late final Translations$cockpit$gallery$orchestration$en orchestration = Translations$cockpit$gallery$orchestration$en.internal(_root);
 }
 
 // Path: cockpit.notebook
@@ -3290,6 +3661,21 @@ class Translations$cockpit$gallery$panel$en {
 
 	/// en: 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.'
 	String get description => 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.';
+}
+
+// Path: cockpit.gallery.orchestration
+class Translations$cockpit$gallery$orchestration$en {
+	Translations$cockpit$gallery$orchestration$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Agent Orchestration'
+	String get title => 'Agent Orchestration';
+
+	/// en: 'Manage terminal boxes and their connections in a portable worktree document.'
+	String get description => 'Manage terminal boxes and their connections in a portable worktree document.';
 }
 
 // Path: cockpit.notebook.format
@@ -4696,6 +5082,8 @@ extension on Translations {
 			'cockpit.gallery.workspaceEnv.description' => 'Variables injected into every terminal of this workspace. Put API tokens or logins here instead of pasting them into the agent\'s prompt. Kept out of git.',
 			'cockpit.gallery.panel.title' => 'Panel',
 			'cockpit.gallery.panel.description' => 'An HTML page with a bridge to the app: its buttons run Cockpit CLI and shell commands on this machine. A playground for quick dashboards.',
+			'cockpit.gallery.orchestration.title' => 'Agent Orchestration',
+			'cockpit.gallery.orchestration.description' => 'Manage terminal boxes and their connections in a portable worktree document.',
 			'cockpit.notebook.notes' => 'Notes',
 			'cockpit.notebook.newNote' => 'New note',
 			'cockpit.notebook.searchPlaceholder' => 'Search notes',
@@ -5057,14 +5445,57 @@ extension on Translations {
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
 			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
-			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
-			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
+			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => 'Name cannot contain “/”.',
 			'fileOperation.error.invalidName' => 'Invalid name.',
 			'fileOperation.error.remoteDropUnsupported' => 'Dropping files into a remote workspace is not supported yet.',
+			'graphSubagent.badge' => 'TEMPORARY SUBAGENT',
+			'graphSubagent.nameFallback' => 'Subagent',
+			'graphSubagent.active' => '● running',
+			'graphSubagent.disconnected' => '◌ host disconnected',
+			'graphSubagent.tooltip' => ({required Object type, required Object id, required Object harness, required Object tab, required Object time}) => 'Temporary subagent: ${type}\nID: ${id}\nTool: ${harness}\nControlled by tab ${tab}\nStarted: ${time}\nTokens/context: unavailable from this hook\nSource: SubagentStart hook',
+			'graphView.legend' => 'LEGEND',
+			'graphView.working' => 'Working',
+			'graphView.waiting' => 'Waiting',
+			'graphView.idle' => 'Idle',
+			'graphView.starting' => 'Starting',
+			'graphView.ended' => 'Ended',
+			'graphView.disconnected' => 'Host disconnected',
+			'graphView.unknown' => 'Unknown',
+			'graphView.planned' => 'Planned link',
+			'graphView.observed' => 'Observed exchange',
+			'graphView.temporary' => 'Temporary subagent',
+			'graphView.unresolvedPeer' => 'Claude recipient',
+			'graphView.unresolvedPeerHint' => 'Tab not identified yet',
+			'graphView.unresolvedPeerTooltip' => ({required Object address}) => 'Message observed for ${address}. Cockpit has not identified a matching tab, so no terminal connection was assumed.',
+			'graphView.noRole' => 'No role defined',
+			'graphView.terminal' => 'Terminal',
+			'graphView.defaultModel' => 'Default model',
+			'graphView.context' => ({required Object percent}) => 'Context ${percent}%',
+			'graphView.contextUnavailable' => 'Context unavailable',
+			'graphView.compactHint' => 'Compaction suggested',
+			'graphView.handoffHint' => 'Prepare a handoff',
+			'graphView.connections' => 'Connections',
+			'graphView.noConnections' => 'No planned connections',
+			'graphView.openTerminal' => 'Open terminal',
+			'graphView.controlledBy' => 'Controlled by the parent terminal',
+			'graphView.tokens' => ({required Object count}) => 'Tokens: ${count}',
+			'graphView.metrics' => 'METRICS',
+			'graphView.source' => ({required Object value}) => 'Source: ${value}',
+			'graphView.updated' => ({required Object value}) => 'Updated: ${value}',
+			'graphView.tooltipSession' => 'SESSION',
+			'graphView.tooltipContext' => 'CONTEXT AND TOKENS',
+			'graphView.tooltipMachine' => 'MACHINE',
+			'graphView.tooltipIdentity' => ({required Object tool, required Object model, required Object status}) => '${tool} · ${model} · ${status}',
+			'graphView.tooltipUsage' => ({required Object used, required Object window}) => '${used} / ${window} context tokens',
+			'graphView.tooltipCpu' => ({required Object value}) => 'CPU ${value}%',
+			'graphView.tooltipRam' => ({required Object value}) => 'RAM ${value} MiB',
+			'graphView.tooltipSourceUpdated' => ({required Object source, required Object time}) => '${source} · ${time}',
+			'graphView.tooltipReason' => ({required Object reason}) => 'Unavailable: ${reason}',
 			'theme.error.io' => 'Could not read or write the theme file.',
 			'theme.error.ioDetail' => ({required Object detail}) => 'Could not read or write the theme file: ${detail}',
 			'theme.error.malformedJson' => ({required Object detail}) => 'This file is not valid JSON: ${detail}',
@@ -5075,11 +5506,78 @@ extension on Translations {
 			'theme.error.badColor' => ({required Object value, required Object field}) => '"${value}" at "${field}" is not a color. Use #RGB, #RRGGBB or #RRGGBBAA.',
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
+			'workspaceView.terminals' => 'Terminals',
+			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.graph' => 'Graph',
+			'workspaceView.newTerminal' => 'New terminal',
+			'workspaceView.configure' => 'Configure box',
+			'workspaceView.closeInspector' => 'Close inspector',
+			'workspaceView.search' => 'Search name or function',
+			'workspaceView.allStates' => 'All states',
+			'workspaceView.name' => 'Box',
+			'workspaceView.state' => 'State',
+			'workspaceView.tool' => 'Tool',
+			'workspaceView.role' => 'Function',
+			'workspaceView.context' => 'Context',
+			'workspaceView.optionalRole' => 'Function (optional)',
+			'workspaceView.model' => 'Model (empty = default)',
+			'workspaceView.noTool' => 'None',
+			'workspaceView.shell' => 'Shell',
+			'workspaceView.working' => 'Working',
+			'workspaceView.waiting' => 'Waiting',
+			'workspaceView.idle' => 'Idle',
+			'workspaceView.closed' => 'Closed',
+			'workspaceView.disconnected' => 'Disconnected',
+			'workspaceView.unavailable' => 'Unavailable',
+			'workspaceView.noRole' => 'Add a function',
+			'workspaceView.noBoxes' => 'No boxes yet',
+			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.selectBox' => 'Select a box to preview its terminal',
+			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.startShell' => 'Start terminal',
+			'workspaceView.openTerminal' => 'Open in Terminals',
+			'workspaceView.save' => 'Save',
+			'workspaceView.saved' => 'Configuration saved',
+			'workspaceView.startCli' => 'Start CLI',
+			'workspaceView.compact' => 'Compact context',
+			'workspaceView.handoff' => 'Prepare handoff',
+			'workspaceView.handoffTitle' => 'Handoff summary',
+			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
+			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.connections' => 'Connections',
+			'workspaceView.noConnections' => 'No connections',
+			'workspaceView.cancel' => 'Cancel',
+			'workspaceView.error' => 'Unable to update box',
+			'workspaceView.planned' => 'Planned connection',
+			'workspaceView.observed' => 'Observed activity',
+			'workspaceView.temporary' => 'Temporary subagent',
+			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.selectEndpoints' => 'Select source and target',
+			'workspaceView.zoomFit' => 'Reset zoom',
+			'workspaceView.session' => 'Session',
+			'workspaceView.configuration' => 'Configuration',
+			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.removeLink' => 'Remove connection',
+			'workspaceView.handoffSummary' => 'Summary',
+			'workspaceView.copyRole' => 'Copy function',
+			'workspaceView.showInspector' => 'Show inspector',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Image paste requested from the agent.',
 			'terminalAttachment.referenced' => 'Local references inserted.',
 			'terminalAttachment.remoteUnavailable' => 'Files and images are not supported in remote terminals yet. Paste text or transfer the file to the host.',
 			'terminalAttachment.failed' => ({required Object detail}) => 'Some attachments could not be inserted: ${detail}',
+			'orchestration.newTerminal' => 'New terminal',
+			'orchestration.reload' => 'Reload',
+			'orchestration.savePending' => 'Unsaved changes',
+			'orchestration.removed' => 'A definition was removed from the file. Close its terminal?',
+			'orchestration.closeTerminal' => 'Close terminal',
+			'orchestration.restoreDefinition' => 'Keep terminal and restore definition',
+			'orchestration.directory' => 'Directory relative to worktree',
+			'orchestration.openTerminal' => 'Go to terminal',
+			'orchestration.importTitle' => 'Import existing configuration?',
+			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
+			'orchestration.createWithoutImport' => 'Create without importing',
+			'orchestration.importLegacy' => 'Import configuration',
 			_ => null,
 		};
 	}
