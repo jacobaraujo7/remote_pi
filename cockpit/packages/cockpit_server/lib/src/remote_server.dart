@@ -808,6 +808,16 @@ class _Connection {
             ),
           ),
         },
+        'fs.create' => () async {
+          final files = _files;
+          if (files is! ExclusiveFileCreator) throw _RpcUnknown(req.method);
+          return {
+            'created': await (files as ExclusiveFileCreator).createNew(
+              p['path'] as String,
+              base64Decode(p['b64'] as String),
+            ),
+          };
+        }(),
         'fs.write' => () async {
           await _files.write(
             p['path'] as String,

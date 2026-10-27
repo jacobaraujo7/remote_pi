@@ -5,6 +5,7 @@ import '../session/orchestration_session.dart';
 import '../services/orchestration_controller.dart';
 import '../services/layout_scrollback_keys.dart';
 import '../services/orchestration_restore_state.dart';
+import '../services/orchestration_ownership_migration.dart';
 import '../services/agent_role_suggestion_service.dart';
 import '../../data/terminal/local_terminal_attachments.dart';
 import '../../domain/entities/orchestration_document.dart';
@@ -17,7 +18,9 @@ import 'dart:io'
         FileSystemEntity,
         FileSystemEntityType,
         FileSystemException,
-        Platform;
+        Platform,
+        PathExistsException,
+        PathNotFoundException;
 import 'dart:math' show max;
 import 'dart:ui' show Offset;
 
@@ -130,7 +133,8 @@ import 'package:cockpit_remote/cockpit_remote.dart' show RemoteCliCommand;
 import 'package:cockpit/app/cockpit/data/filesystem/unified_diff_parser.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_host.dart';
 import 'package:cockpit/app/cockpit/domain/entities/remote_workspace_pin.dart';
-import 'package:cockpit_core/cockpit_core.dart' show GitException, GitRunResult;
+import 'package:cockpit_core/cockpit_core.dart'
+    show GitException, GitRunResult, FileException, FileErrorKind;
 import 'package:cockpit_remote/cockpit_remote.dart'
     show RemoteGitService, RemoteRpcException, RemoteTurnStatus;
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
@@ -7820,6 +7824,8 @@ class CockpitViewModel extends ChangeNotifier
         'type': 'orchestration',
         'ownershipVersion': 2,
         'path': s.path,
+        if (s.ownershipMigration != null)
+          'ownershipMigration': s.ownershipMigration,
         'presentation': s.context.presentation.toJson(),
         'bindings': {...s.controller.bindings},
         'dirty': s.controller.dirty,

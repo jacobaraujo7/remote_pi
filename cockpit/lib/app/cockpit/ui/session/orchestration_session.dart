@@ -62,6 +62,7 @@ class OrchestrationSession extends PaneItem {
   // Retain the original local snapshot until all saved sessions/layout are
   // restored. An invalid file or disconnected host must not erase recovery data.
   Map<String, dynamic>? pendingRestoration;
+  Map<String, dynamic>? ownershipMigration;
   bool closing = false;
   bool _disposed = false;
   bool get disposed => _disposed;

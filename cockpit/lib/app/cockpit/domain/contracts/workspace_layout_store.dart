@@ -24,3 +24,9 @@ abstract class WorkspaceLayoutStore {
   /// o que estava carregado apagava o scrollback dos terminais deles.
   Future<Map<String, Map<String, dynamic>>> loadAll();
 }
+
+/// Optional stronger boundary for migrations that must checkpoint before
+/// creating processes. Unlike ordinary coalesced saves, failure is observable.
+abstract interface class WorkspaceLayoutCheckpointStore {
+  Future<void> checkpoint(String projectId, Map<String, dynamic> document);
+}

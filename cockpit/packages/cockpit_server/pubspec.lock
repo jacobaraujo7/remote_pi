@@ -150,6 +150,13 @@ packages:
       relative: true
     source: path
     version: "0.1.0"
+  cockpit_remote:
+    dependency: "direct dev"
+    description:
+      path: "../cockpit_remote"
+      relative: true
+    source: path
+    version: "0.1.0"
   code_assets:
     dependency: transitive
     description:

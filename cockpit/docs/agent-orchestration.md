@@ -2,7 +2,7 @@
 
 Open **Gallery → Agent Orchestration** to create `agents.orchestration` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
 
-Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration is wired and covered by directed tests; legacy-profile migration, contextual CLI and shortcut/hook routing are still under implementation. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
+Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Contextual CLI and shortcut/hook routing are still under implementation; desktop cold-upgrade acceptance is pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
 
 ## Portable document
 
@@ -28,9 +28,13 @@ New terminal opens within this app's internal multiplexer, without changing the 
 
 ## Local state and compatibility
 
-Bindings, child session descriptors and the internal tree/focus belong to the local app instance, under its worktree layout. Selection, view mode, inspector width and terminal-area fractions are local: defaults are 60% for Boxes and 35% for Graph. They do not enter the portable file. Renaming through the file tree retargets the existing instance. Legacy documents and external sessions must be preserved; the ownership correction starts with a new file instead of importing old bindings. Version-2 restoration validates all bindings and pane placements before creating processes, retains snapshots on failure, and retries only missing sessions. Local startup metadata may resume saved CLI conversations; portable-file loading never does. Legacy-profile migration and actual desktop restoration acceptance remain pending before a profile upgrade is ready.
+Bindings, child session descriptors and the internal tree/focus belong to the local app instance, under its worktree layout. Selection, view mode, inspector width and terminal-area fractions are local: defaults are 60% for Boxes and 35% for Graph. They do not enter the portable file. Renaming through the file tree retargets the existing instance. Legacy documents and external sessions must be preserved; the ownership correction starts with a new file instead of importing old bindings. Version-2 restoration validates all bindings and pane placements before creating processes, retains snapshots on failure, and retries only missing sessions. Local startup metadata may resume saved CLI conversations; portable-file loading never does. Legacy-profile migration is implemented; actual desktop cold-upgrade/restoration acceptance remains pending before a profile upgrade is ready.
 
 Theme, fonts, terminal engines and platform infrastructure remain shared. App state is logically isolated by owner, not sandboxed from the operating system. No global Terminals/Boxes/Graph switch is added. Native platform controls remain unchanged.
+
+An open legacy app tab migrates to a new `agents-isolated-<suffix>.orchestration` file at the same worktree root. It starts with one blank owned shell and does not import old boxes, bindings, roles, outside terminals or conversations. Old files and the outer tab/split placement are preserved. Workspaces without an open legacy app tab do not get a new document automatically.
+
+Migration reserves its destination in the local layout and verifies that checkpoint against disk before creating the file. Creation is exclusive; existing or uncertain partial files are preserved and a fresh destination is reserved. Interrupted creation can reuse a matching generated file without creating duplicates. The completed snapshot is checkpointed before owned shells are reconciled. A save/host failure shows an error and retains recovery data for Reload. Remote hosts need the `fs.create` capability; older hosts reject migration safely without falling back to an overwriting write. Ordinary file editing and layout saves retain their existing behavior.
 
 Local files are watched. Active document controllers also check for external changes every five seconds, through the captured local/remote file service, while the app instance remains open, including when its tab is hidden. Reload remains available for an immediate retry. Relative directories must stay inside the worktree; absolute paths and `..` segments are rejected before creating shells. Source view remains available through Open as source.
 

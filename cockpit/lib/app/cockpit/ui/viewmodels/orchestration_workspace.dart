@@ -173,6 +173,7 @@ extension OrchestrationWorkspace on CockpitViewModel {
     Set<String> reservedIds,
   ) {
     OrchestrationRestoreState? state;
+    var migrateLegacy = owner.pendingRestoration?['ownershipVersion'] == null;
     owner.controller.beforeReconcile = () async {
       if (owner.disposed || owner.closing) {
         throw StateError('Orchestration is closing');
@@ -184,7 +185,15 @@ extension OrchestrationWorkspace on CockpitViewModel {
         );
       }
       if (state == null) {
+        if (migrateLegacy) {
+          await _migrateOrchestrationOwnership(owner, project);
+          migrateLegacy = false;
+        }
         final raw = Map<String, dynamic>.from(owner.pendingRestoration!);
+        final migration = raw['ownershipMigration'];
+        owner.ownershipMigration = migration is Map
+            ? Map<String, dynamic>.from(migration)
+            : null;
         var parsed = OrchestrationRestoreState.parse(
           raw,
           instanceId: owner.id,
@@ -255,6 +264,98 @@ extension OrchestrationWorkspace on CockpitViewModel {
       _watchOrchestration(owner);
       owner.controller.startPolling();
     };
+  }
+
+  Future<void> _migrateOrchestrationOwnership(
+    OrchestrationSession owner,
+    Project project,
+  ) async {
+    final layouts = _layoutStore;
+    if (layouts is! WorkspaceLayoutCheckpointStore) {
+      throw StateError('This layout store cannot verify migration checkpoints');
+    }
+    final root = projectRootOf(project.id);
+    if (root == null || root.isEmpty) throw StateError('Worktree unavailable');
+    final paths = path.Context(
+      style: project.isRemoteTerminal ? path.Style.posix : path.style,
+    );
+    // Capture the original host: no operation may follow the selected project.
+    final hostId = project.remoteHostId;
+    final host = hostId == null
+        ? null
+        : _remoteHosts.hosts.where((h) => h.id == hostId).first;
+    final remoteFiles = host == null
+        ? null
+        : await _remoteHosts.fileServiceFor(host);
+    void ensureCurrent() {
+      if (owner.disposed ||
+          owner.closing ||
+          !identical(_orchestrations[owner.id], owner)) {
+        throw StateError('Orchestration closed during migration');
+      }
+    }
+
+    final migration = OrchestrationOwnershipMigration(
+      seed: () => _orchestrationSeed(project.id),
+      newPath: () => paths.join(
+        root,
+        'agents-isolated-${newUid().substring(0, 8)}.orchestration',
+      ),
+      validDestination: (file) =>
+          paths.equals(paths.dirname(file), paths.normalize(root)) &&
+          paths.extension(file) == '.orchestration',
+      checkpoint: (next) async {
+        ensureCurrent();
+        owner.pendingRestoration = next;
+        owner.retarget(next['path'] as String);
+        final layout = _serializeLayout(project.id);
+        if (layout.isEmpty) throw StateError('Workspace layout unavailable');
+        await (layouts as WorkspaceLayoutCheckpointStore).checkpoint(
+          project.id,
+          layout,
+        );
+      },
+      read: (file) async {
+        ensureCurrent();
+        if (remoteFiles != null) {
+          try {
+            return utf8.decode(await remoteFiles.read(file));
+          } on FileException catch (e) {
+            if (e.kind == FileErrorKind.notFound) return null;
+            rethrow;
+          }
+        }
+        try {
+          return await File(file).readAsString();
+        } on PathNotFoundException {
+          return null;
+        }
+      },
+      createNew: (file, text) async {
+        ensureCurrent();
+        if (remoteFiles != null) {
+          return remoteFiles.createNew(file, utf8.encode(text));
+        }
+        final target = File(file);
+        try {
+          await target.create(exclusive: true);
+        } on PathExistsException {
+          return false;
+        } on FileSystemException {
+          if (await FileSystemEntity.type(file, followLinks: false) !=
+              FileSystemEntityType.notFound) {
+            return false;
+          }
+          rethrow;
+        }
+        await target.writeAsString(text, flush: true);
+        return true;
+      },
+    );
+    owner.pendingRestoration = await migration.migrate(
+      owner.pendingRestoration!,
+    );
+    _bumpFileTree();
   }
 
   Future<Result<String, String>> _closeOwnedTerminal(

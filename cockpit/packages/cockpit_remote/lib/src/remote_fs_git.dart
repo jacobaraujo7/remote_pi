@@ -7,7 +7,7 @@ import 'remote_connection.dart';
 
 /// [FileService] via protocolo (Wave 3). Reidrata as exceptions tipadas a
 /// partir do `code` do servidor, pra UI tratar igual ao caminho local.
-class RemoteFileService implements FileService {
+class RemoteFileService implements FileService, ExclusiveFileCreator {
   RemoteFileService(this._connection);
 
   final RemoteConnection _connection;
@@ -31,6 +31,24 @@ class RemoteFileService implements FileService {
   Future<String> home() async {
     final data = await _call('fs.home', const {});
     return data['home'] as String? ?? '';
+  }
+
+  @override
+  Future<bool> createNew(String path, Uint8List bytes) async {
+    // A distinct method fails closed on older hosts; never fall back to write,
+    // which could silently overwrite a pre-existing file.
+    final data = await _call('fs.create', {
+      'path': path,
+      'b64': base64Encode(bytes),
+    });
+    final created = data['created'];
+    if (created is! bool) {
+      throw const FileException(
+        FileErrorKind.io,
+        'Invalid exclusive-create response',
+      );
+    }
+    return created;
   }
 
   @override

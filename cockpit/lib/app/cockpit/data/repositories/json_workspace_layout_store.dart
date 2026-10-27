@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/workspace_layout_store.dart';
 import 'package:cockpit/app/core/data/setup/json_state_store.dart';
@@ -7,7 +8,8 @@ import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 /// `projectId`** — mesmo formato que a Box antiga guardava, então a migração
 /// Hive→JSON preserva os valores byte a byte. Serializar pra String também
 /// mantém o contrato de devolver sempre um `Map<String, dynamic>` limpo.
-class JsonWorkspaceLayoutStore implements WorkspaceLayoutStore {
+class JsonWorkspaceLayoutStore
+    implements WorkspaceLayoutStore, WorkspaceLayoutCheckpointStore {
   JsonWorkspaceLayoutStore(this._store);
 
   final JsonStateStore _store;
@@ -29,6 +31,26 @@ class JsonWorkspaceLayoutStore implements WorkspaceLayoutStore {
   @override
   Future<void> save(String projectId, Map<String, dynamic> document) =>
       _store.put(projectId, jsonEncode(document));
+
+  @override
+  Future<void> checkpoint(
+    String projectId,
+    Map<String, dynamic> document,
+  ) async {
+    final expected = jsonEncode(document);
+    await _store.put(projectId, expected);
+    // Ordinary JsonStateStore saves intentionally log errors and retain the
+    // in-memory value. A migration needs evidence from disk before proceeding.
+    final persisted = jsonDecode(await File(_store.path).readAsString());
+    if (persisted is! Map ||
+        persisted['data'] is! Map ||
+        (persisted['data'] as Map)[projectId] != expected) {
+      throw FileSystemException(
+        'Layout checkpoint was not persisted',
+        _store.path,
+      );
+    }
+  }
 
   @override
   Future<void> remove(String projectId) => _store.delete(projectId);
