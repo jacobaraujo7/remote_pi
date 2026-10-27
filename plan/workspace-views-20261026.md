@@ -80,3 +80,5 @@ Esta branch contém trabalho revisável; o aceite integral Windows/macOS continu
 - Aplicado rustfmt e removidas quatro referências redundantes em `try_run`, apontadas ao executar o estágio seguinte de Clippy. Nenhum contrato de hook foi alterado.
 - Local Windows: `cargo fmt --check` passou; `cargo clippy --all-targets -- -D warnings` passou; `cargo test` passou (37 testes). Wire Unix e universal macOS continuam dependentes dos respectivos runners.
 - Responsável: Codex. Próximo passo: conferir a nova execução dos checks do PR #269 no SHA com a correção.
+
+- A main avançou para `a69fe71b` durante a correção dos checks (teste macOS de anexos e traduções zh). O conflito de traduções bloqueou novos runs de pull_request. Main incorporada preservando os dois grupos i18n e regenerando os arquivos; a nova cobertura de anexos da main foi mantida.

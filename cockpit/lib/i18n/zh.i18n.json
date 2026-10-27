@@ -1282,5 +1282,12 @@
     "handoffSummary": "Summary",
     "copyRole": "Copy function",
     "showInspector": "Show inspector"
+  },
+  "terminalAttachment": {
+    "importing": "正在复制附件：${completed}/${total}",
+    "nativeImage": "已请求代理粘贴图片。",
+    "referenced": "已插入本地引用。",
+    "remoteUnavailable": "远程终端暂不支持文件和图片。请粘贴文本或将文件传输到主机。",
+    "failed": "部分附件无法插入：${detail}"
   }
 }

@@ -23,7 +23,13 @@ void main() {
     test(
       'partial batch failure keeps both successful files in ${engine.name}',
       () async {
-        final root = await Directory.systemTemp.createTemp('cockpit-partial-');
+        // macOS: systemTemp fica em /var, symlink de /private/var; a store
+        // resolve o root, entao o teste precisa comparar o caminho resolvido.
+        final root = Directory(
+          await (await Directory.systemTemp.createTemp(
+            'cockpit-partial-',
+          )).resolveSymbolicLinks(),
+        );
         final first = File(p.join(root.path, 'first.txt'));
         final missing = File(p.join(root.path, 'removed.txt'));
         final last = File(p.join(root.path, 'last.txt'));
@@ -150,7 +156,11 @@ void main() {
     test(
       'pathless workspace persists screenshot and dropped files in spawn directory in ${engine.name}',
       () async {
-        final root = await Directory.systemTemp.createTemp('cockpit-pathless-');
+        final root = Directory(
+          await (await Directory.systemTemp.createTemp(
+            'cockpit-pathless-',
+          )).resolveSymbolicLinks(),
+        );
         final source = File(p.join(root.path, 'source.png'));
         final pixels = Uint8List.fromList([137, 80, 78, 71]);
         await source.writeAsBytes(pixels);

@@ -47,6 +47,7 @@ class TranslationsZh extends Translations with BaseTranslations<AppLocale, Trans
 	@override late final _Translations$fileOperation$zh fileOperation = _Translations$fileOperation$zh._(_root);
 	@override late final _Translations$theme$zh theme = _Translations$theme$zh._(_root);
 	@override late final _Translations$workspaceView$zh workspaceView = _Translations$workspaceView$zh._(_root);
+	@override late final _Translations$terminalAttachment$zh terminalAttachment = _Translations$terminalAttachment$zh._(_root);
 }
 
 // Path: core
@@ -246,6 +247,20 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get handoffSummary => 'Summary';
 	@override String get copyRole => 'Copy function';
 	@override String get showInspector => 'Show inspector';
+}
+
+// Path: terminalAttachment
+class _Translations$terminalAttachment$zh extends Translations$terminalAttachment$en {
+	_Translations$terminalAttachment$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String importing({required Object completed, required Object total}) => '正在复制附件：${completed}/${total}';
+	@override String get nativeImage => '已请求代理粘贴图片。';
+	@override String get referenced => '已插入本地引用。';
+	@override String get remoteUnavailable => '远程终端暂不支持文件和图片。请粘贴文本或将文件传输到主机。';
+	@override String failed({required Object detail}) => '部分附件无法插入：${detail}';
 }
 
 // Path: core.bootstrapError
@@ -3086,6 +3101,11 @@ extension on TranslationsZh {
 			'workspaceView.handoffSummary' => 'Summary',
 			'workspaceView.copyRole' => 'Copy function',
 			'workspaceView.showInspector' => 'Show inspector',
+			'terminalAttachment.importing' => ({required Object completed, required Object total}) => '正在复制附件：${completed}/${total}',
+			'terminalAttachment.nativeImage' => '已请求代理粘贴图片。',
+			'terminalAttachment.referenced' => '已插入本地引用。',
+			'terminalAttachment.remoteUnavailable' => '远程终端暂不支持文件和图片。请粘贴文本或将文件传输到主机。',
+			'terminalAttachment.failed' => ({required Object detail}) => '部分附件无法插入：${detail}',
 			_ => null,
 		};
 	}
