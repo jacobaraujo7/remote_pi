@@ -88,6 +88,7 @@ jobs:
           test/domain/graph_subagent_wire_test.dart
           test/ui/stable_pane_host_test.dart
           test/ui/stable_terminal_views_test.dart
+          test/ui/terminal_dock_lifecycle_test.dart
           test/ui/workspace_box_list_test.dart
           test/ui/workspace_box_inspector_test.dart
           test/ui/graph_telemetry_service_test.dart

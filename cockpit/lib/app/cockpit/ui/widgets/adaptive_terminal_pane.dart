@@ -170,18 +170,11 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     );
 
     final Widget terminalView = ghost.TerminalView(
-      // IDENTIDADE GLOBAL e estável por sessão (o controller é único por aba).
-      // Quando a árvore de panes reestrutura (split envolve a folha num
-      // SplitPane, fechar um pane remove um nó), a subárvore da TerminalView
-      // MUDA de posição na árvore de widgets. Sem GlobalKey o Flutter RE-INFLA
-      // a TerminalView na posição nova (novo initState → attachView) antes do
-      // dispose/detach da antiga → "already has an active view", e no mount
-      // simultâneo do restore cruza a State entre panes → espelho. Com a
-      // GlobalKey o Flutter MOVE o mesmo Element (preserva o ViewAttachment/
-      // lease do controller) em vez de recriar. Junto ao [TerminalUnzoomBox]
-      // sem LayoutBuilder, mata crash e espelho.
+      // Identity is per session. StablePaneHost keeps this subtree under the
+      // same parent even when its tab moves to another dock.
       key: GlobalObjectKey(widget.terminal.controller),
       controller: widget.terminal.controller,
+      scrollController: widget.terminal.scrollController,
       presentationActive: widget.active,
       focusNode: widget.focusNode,
       showKeyboard: !readOnly,

@@ -1088,6 +1088,23 @@ class _ProjectMultiplexer extends StatelessWidget {
       preview: false,
       onResize: (id, delta) => vm.resizeSplitBy(id, delta),
       dividerBuilder: (dir, onDelta) => PaneDivider(dir: dir, onDelta: onDelta),
+      tabBodyBuilder: (node, tabId, visible) => PaneDropZone(
+        paneId: node.id,
+        vm: vm,
+        stripHeight: 0,
+        child: Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => vm.focus(node.id),
+          child: buildPaneTabBody(
+            vm: vm,
+            paneId: node.id,
+            tabId: tabId,
+            focused: state.active && node.id == state.focusedPaneId && visible,
+            active: state.active && visible,
+            onFillEmpty: () => vm.fillEmpty(node.id, tabId, ''),
+          ),
+        ),
+      ),
       paneBuilder: (node, visible) => PaneDropZone(
         key: ValueKey('drop-${node.id}'),
         paneId: node.id,
@@ -1095,6 +1112,7 @@ class _ProjectMultiplexer extends StatelessWidget {
         child: PaneView(
           key: ValueKey(node.id),
           pane: node,
+          detachedBody: true,
           vm: vm,
           focused: state.active && node.id == vm.focusedPaneId(projectId),
           active: state.active && visible,

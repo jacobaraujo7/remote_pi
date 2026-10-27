@@ -26,8 +26,9 @@ class ClaudeGraphIdentityResolver {
               .openRead()
               .transform(utf8.decoder)
               .transform(const LineSplitter())) {
-        if (!line.contains('ListAgents') && !line.contains('tool_result'))
+        if (!line.contains('ListAgents') && !line.contains('tool_result')) {
           continue;
+        }
         final Object? decoded;
         try {
           decoded = jsonDecode(line);

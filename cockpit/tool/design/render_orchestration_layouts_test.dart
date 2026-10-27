@@ -349,7 +349,9 @@ void main() {
       app.dispose();
       focus.dispose();
       await tester.runAsync(() async {
-        for (final tab in vm.tabs.values) tab.dispose();
+        for (final tab in vm.tabs.values) {
+          tab.dispose();
+        }
         await Future<void>.delayed(Duration.zero);
       });
       vm.dispose();

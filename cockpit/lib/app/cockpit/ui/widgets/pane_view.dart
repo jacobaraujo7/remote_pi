@@ -73,8 +73,10 @@ class PaneView extends StatelessWidget {
     required this.onCreateTab,
     required this.onSplit,
     required this.onFillEmpty,
+    this.detachedBody = false,
   });
 
+  final bool detachedBody;
   final LeafPane pane;
   final CockpitViewModel vm;
   final bool focused;
@@ -125,7 +127,7 @@ class PaneView extends StatelessWidget {
               onSplit: onSplit,
             ),
             Expanded(
-              child: tabs.isEmpty
+              child: detachedBody || tabs.isEmpty
                   ? const SizedBox.shrink()
                   // IndexedStack mantém TODAS as abas montadas e só pinta a
                   // ativa. Sem isso, trocar de aba remove o _PaneBody da anterior
@@ -151,21 +153,37 @@ class PaneView extends StatelessWidget {
   /// troca e reordenação de abas. Só a aba ativa recebe `focused`; do contrário
   /// vários terminais montados disputariam o foco do teclado.
   Widget _keyedBody(String tabId, {required String shown}) {
-    final session = vm.session(tabId);
-    if (session == null) return SizedBox.shrink(key: ValueKey('body-$tabId'));
-    return _PaneBody(
-      key: ValueKey('body-$tabId'),
-      item: session,
+    return buildPaneTabBody(
+      vm: vm,
       paneId: pane.id,
-      // Compara com a aba efetivamente exibida (índice resolvido), não com o
-      // `active` cru: um id transitoriamente inválido nunca deixa a pane
-      // inteira inativa (terminal em branco).
+      tabId: tabId,
       focused: active && focused && tabId == shown,
       active: active && tabId == shown,
-      focusGen: vm.tabFocusGen,
       onFillEmpty: () => onFillEmpty(tabId),
     );
   }
+}
+
+/// The workspace host owns tab bodies independently of their current dock.
+Widget buildPaneTabBody({
+  required CockpitViewModel vm,
+  required String paneId,
+  required String tabId,
+  required bool focused,
+  required bool active,
+  required VoidCallback onFillEmpty,
+}) {
+  final session = vm.session(tabId);
+  if (session == null) return SizedBox.shrink(key: ValueKey('body-$tabId'));
+  return _PaneBody(
+    key: ValueKey('body-$tabId'),
+    item: session,
+    paneId: paneId,
+    focused: focused,
+    active: active,
+    focusGen: vm.tabFocusGen,
+    onFillEmpty: onFillEmpty,
+  );
 }
 
 /// Largura fixa de uma aba — também usada pra calcular o auto-scroll do ativo.
@@ -2062,8 +2080,10 @@ class PaneDropZone extends StatefulWidget {
     required this.paneId,
     required this.vm,
     required this.child,
+    this.stripHeight = 40,
   });
 
+  final double stripHeight;
   final String paneId;
   final CockpitViewModel vm;
   final Widget child;
@@ -2073,7 +2093,6 @@ class PaneDropZone extends StatefulWidget {
 }
 
 class _PaneDropZoneState extends State<PaneDropZone> {
-  static const double _stripHeight = 40;
   static const double _edge = 0.25; // fração da borda que vira split
 
   _DropZone? _zone;
@@ -2096,13 +2115,13 @@ class _PaneDropZoneState extends State<PaneDropZone> {
     if (box == null || !box.hasSize) return _DropZone.center;
     final local = box.globalToLocal(global);
     final size = box.size;
-    if (local.dy <= _stripHeight) return _DropZone.strip;
+    if (local.dy <= widget.stripHeight) return _DropZone.strip;
 
     final bw = size.width;
-    final bh = size.height - _stripHeight;
+    final bh = size.height - widget.stripHeight;
     if (bw <= 0 || bh <= 0) return _DropZone.center;
     final fx = (local.dx / bw).clamp(0.0, 1.0);
-    final fy = ((local.dy - _stripHeight) / bh).clamp(0.0, 1.0);
+    final fy = ((local.dy - widget.stripHeight) / bh).clamp(0.0, 1.0);
 
     // Profundidade dentro de cada borda; a mais rasa (< _edge) vence.
     var best = _DropZone.center;

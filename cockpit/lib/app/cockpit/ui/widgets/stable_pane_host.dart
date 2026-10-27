@@ -14,9 +14,17 @@ class StablePaneHost extends StatelessWidget {
     this.preview = false,
     this.previewPaneId,
     this.dividerBuilder,
+    this.tabBodyBuilder,
+    this.tabStripHeight = 40,
   });
   final Widget Function(SplitDir dir, ValueChanged<double> onDelta)?
   dividerBuilder;
+
+  /// Bodies are siblings of pane chrome, keyed by tab rather than dock. Moving
+  /// a tab changes only geometry; native terminal views never deactivate.
+  final Widget Function(LeafPane pane, String tabId, bool visible)?
+  tabBodyBuilder;
+  final double tabStripHeight;
   final PaneNode tree;
   final bool preview;
   final String? previewPaneId;
@@ -26,7 +34,13 @@ class StablePaneHost extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomMultiChildLayout(
-      delegate: _PaneLayout(tree, preview, previewPaneId),
+      delegate: _PaneLayout(
+        tree,
+        preview,
+        previewPaneId,
+        tabBodyBuilder != null,
+        tabStripHeight,
+      ),
       children: [
         for (final pane in leaves(tree))
           LayoutId(
@@ -46,6 +60,9 @@ class StablePaneHost extends StatelessWidget {
               ),
             ),
           ),
+        if (tabBodyBuilder != null)
+          for (final pane in leaves(tree))
+            for (final tabId in pane.tabs) _tabHost(pane, tabId),
         if (!preview)
           for (final split in paneSplits(tree))
             LayoutId(
@@ -58,6 +75,30 @@ class StablePaneHost extends StatelessWidget {
               ),
             ),
       ],
+    );
+  }
+
+  Widget _tabHost(LeafPane pane, String tabId) {
+    final selected = pane.tabs.contains(pane.active)
+        ? pane.active
+        : pane.tabs.firstOrNull;
+    final visible = tabId == selected && (!preview || pane.id == previewPaneId);
+    return LayoutId(
+      key: ValueKey(('tab-body', tabId)),
+      id: ('tab-body', tabId),
+      child: ExcludeFocus(
+        excluding: !visible,
+        child: IgnorePointer(
+          ignoring: !visible,
+          child: Offstage(
+            offstage: !visible,
+            child: TickerMode(
+              enabled: visible,
+              child: tabBodyBuilder!(pane, tabId, visible),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -109,7 +150,15 @@ Map<String, Rect> paneRectangles(PaneNode tree, Size size) {
 }
 
 class _PaneLayout extends MultiChildLayoutDelegate {
-  _PaneLayout(this.tree, this.preview, this.previewPaneId);
+  final bool detachedBodies;
+  final double tabStripHeight;
+  _PaneLayout(
+    this.tree,
+    this.preview,
+    this.previewPaneId,
+    this.detachedBodies,
+    this.tabStripHeight,
+  );
   final PaneNode tree;
   final bool preview;
   final String? previewPaneId;
@@ -125,6 +174,17 @@ class _PaneLayout extends MultiChildLayoutDelegate {
           : rects[pane.id]!;
       layoutChild(pane.id, BoxConstraints.tight(rect.size));
       positionChild(pane.id, rect.topLeft);
+      if (detachedBodies) {
+        final top = math.min(tabStripHeight, rect.height);
+        final bodySize = Size(
+          math.max(1, rect.width),
+          math.max(1, rect.height - top),
+        );
+        for (final tabId in pane.tabs) {
+          layoutChild(('tab-body', tabId), BoxConstraints.tight(bodySize));
+          positionChild(('tab-body', tabId), rect.topLeft + Offset(0, top));
+        }
+      }
     }
     if (!preview) {
       for (final split in paneSplits(tree)) {
@@ -151,6 +211,8 @@ class _PaneLayout extends MultiChildLayoutDelegate {
 
   @override
   bool shouldRelayout(_PaneLayout old) =>
+      old.detachedBodies != detachedBodies ||
+      old.tabStripHeight != tabStripHeight ||
       old.tree != tree ||
       old.preview != preview ||
       old.previewPaneId != previewPaneId;

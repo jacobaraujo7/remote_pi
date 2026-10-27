@@ -27,6 +27,9 @@ class _TerminalGateway implements TerminalGateway {
   int? get rootProcessId => null;
 
   @override
+  int? get wslProcessId => null;
+
+  @override
   SpawnDirectory? get spawnDirectory => null;
 
   @override
