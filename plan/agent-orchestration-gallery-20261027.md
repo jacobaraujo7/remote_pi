@@ -30,3 +30,14 @@ moregola: user acceptance of the new daily workflow on Windows. Jacob: code revi
 ## Next step
 
 Codex to finish final validation, push feature/agent-orchestration-gallery and prepare the PR with these images and an explicit validation matrix. Keep #269 open until coverage and platform acceptance are complete. moregola then evaluates the new flow; Jacob reviews the successor.
+
+## User evaluation before publication
+
+- User requested a local run with the latest sessions before any PR. PR publication is on hold for that evaluation; no successor PR has been created.
+- Implementation committed locally as d8f7978f; isolated-storage helper selectively restored from #269 as 20405802 for the local trial.
+- Windows directed analysis is clean; 98 targeted tests passed plus 5 storage-path tests. Windows native debug build passed before the storage-helper restoration; refreshed build in progress.
+- Latest PR269 profile was copied only after the user confirmed closing that app: 13 project records, 3 realms, 24 layout records, 34 saved terminal descriptors and 11 agent resume identifiers. Source profile remains unchanged.
+- Trial install: %LOCALAPPDATA%/Programs/Cockpit Agent Orchestration; dedicated profile: %LOCALAPPDATA%/Cockpit-Agent-Orchestration. Shortcut in Desktop and Start menu. Codex to verify writes use that profile before handing over; moregola owns flow evaluation.
+- First launch exposed that main lacked the isolated-root helper. The just-launched trial was stopped and corrected; no PR was published.
+
+- Final local run verified: build 20405802 compiled successfully; app responding from the dedicated install; two layouts were rewritten with `orchestrationBindings` under the isolated profile at 11:34 (local machine time), proving the migrated profile is actually in use. No Flutter error recorded after this boot. PR remains on hold for moregola's evaluation.
