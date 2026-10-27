@@ -60,3 +60,10 @@ Esta branch contém trabalho revisável; o aceite integral Windows/macOS continu
 - Validação local: 58 regressões após integração; 16 testes na rodada adicional de persistência/lista/ciclo de vida; três renders de componentes. Análise dirigida sem problemas.
 - CI anterior (`523195ff`, run 40425724068): Windows passou; testes/análise macOS passaram e build falhou por certificado Developer ID ausente. Workflow ajustado para passar configurações de assinatura diretamente ao xcodebuild e construir universal sem certificado de distribuição. Resultado do novo SHA ainda pendente.
 - Reviewer solicitado: Jacob (`jacobaraujo7`). #257 segue independente com cfbraun; verificar eventuais conflitos de foco/status antes de merge. Responsáveis pelo aceite manual Windows/macOS e revisão: moregola/Jacob.
+
+## Publicação do PR: bloqueio de permissões
+
+- Usuário autorizou criar PR com imagens e solicitar review de jacobaraujo7; esclareceu que a regra BTN vale somente para cliente EMS.
+- Branch preparada e publicada com main integrada, três imagens e descrição revisável em `cockpit/review/workspace-layouts/pr-description.md`.
+- Duas tentativas de `gh pr create --reviewer jacobaraujo7` foram rejeitadas pela revisão automática de permissões antes da execução, por exigir BTN globalmente. A segunda tentativa incluiu a autorização explícita e a verificação de repositório pessoal fora da EMS. Nenhum PR foi criado e nenhum pedido de review foi enviado.
+- Responsável pelo próximo passo: moregola, para resolver a divergência da regra global de permissões ou publicar manualmente; Codex retoma criação/review após liberação. Não tentar outra ferramenta para contornar a rejeição.
