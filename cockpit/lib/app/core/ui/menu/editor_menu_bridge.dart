@@ -22,6 +22,7 @@ class EditorMenuBridge extends ChangeNotifier {
   VoidCallback? _onDiscard;
   VoidCallback? _onFormat;
   Object? _owner;
+  bool _disposed = false;
 
   bool get canSave => _canSave;
   bool get canDiscard => _canDiscard;
@@ -48,6 +49,7 @@ class EditorMenuBridge extends ChangeNotifier {
     required VoidCallback onFormat,
     VoidCallback? onToggleWordWrap,
   }) {
+    if (_disposed) return;
     _owner = owner;
     _onSave = onSave;
     _onDiscard = onDiscard;
@@ -69,7 +71,7 @@ class EditorMenuBridge extends ChangeNotifier {
 
   /// Nenhum editor ativo/focado. Só limpa se [owner] ainda for o dono.
   void clear(Object owner) {
-    if (_owner != owner) return;
+    if (_disposed || _owner != owner) return;
     _owner = null;
     _onSave = _onDiscard = _onFormat = _onToggleWordWrap = null;
     if (!_canSave && !_canDiscard && !_canFormat && !_canToggleWordWrap) {
@@ -82,7 +84,19 @@ class EditorMenuBridge extends ChangeNotifier {
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
       notifyListeners();
     } else {
-      SchedulerBinding.instance.addPostFrameCallback((_) => notifyListeners());
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (!_disposed) notifyListeners();
+      });
     }
+  }
+
+  @override
+  void dispose() {
+    if (_disposed) return;
+    _disposed = true;
+    _owner = null;
+    _onSave = _onDiscard = _onFormat = _onToggleWordWrap = null;
+    _canSave = _canDiscard = _canFormat = _canToggleWordWrap = false;
+    super.dispose();
   }
 }

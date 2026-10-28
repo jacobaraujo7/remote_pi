@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/filesystem/disk_file_change_watcher.dart';
@@ -8,6 +9,8 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/document/running_instance.dart';
 import 'package:cockpit/app/cockpit/ui/document/standalone_document_host.dart';
+import 'worktree_document_host.dart';
+import 'dart:typed_data';
 import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
@@ -236,30 +239,59 @@ class DocumentWindowRoot extends StatelessWidget {
 /// mídia). `.dbq`/`.http` abrem como texto aqui: query e request precisam
 /// das conexões do workspace, que a janela solta não tem. Relê o arquivo
 /// quando ele muda no disco (edição em outra janela ou por agente).
-class DocumentScreen extends StatefulWidget {
-  const DocumentScreen({super.key, required this.path, this.terminalProfiles});
-
+class DocumentScreen extends StatelessWidget {
+  const DocumentScreen({
+    super.key,
+    required this.path,
+    this.terminalProfiles,
+    this.host,
+    this.projectId = '',
+    this.sessionId = 'doc',
+    this.revealLine,
+    this.active = true,
+    this.focused = true,
+    this.onPanelCall,
+    this.onSession,
+  });
   final String path;
-
-  /// Ver [DocumentWindowRoot.terminalProfiles].
   final TerminalProfileResolver? terminalProfiles;
+  final WorktreeDocumentHost? host;
+  final String projectId, sessionId;
+  final int? revealLine;
+  final bool active, focused;
+  final Future<Map<String, Object?>> Function(String, String)? onPanelCall;
+  final ValueChanged<FileViewerSession?>? onSession;
 
   @override
-  State<DocumentScreen> createState() => _DocumentScreenState();
+  Widget build(BuildContext context) =>
+      _DocumentScreenBody(key: ValueKey((host, path, sessionId)), config: this);
 }
 
-class _DocumentScreenState extends State<DocumentScreen>
+/// Rebinding a path/host unmounts the old viewer before disposing its session.
+class _DocumentScreenBody extends StatefulWidget {
+  const _DocumentScreenBody({super.key, required this.config});
+  final DocumentScreen config;
+  @override
+  State<_DocumentScreenBody> createState() => _DocumentScreenState();
+}
+
+class _DocumentScreenState extends State<_DocumentScreenBody>
     with WidgetsBindingObserver {
+  DocumentScreen get config => widget.config;
   static const _reader = FileReaderImpl();
   static const _changes = DiskFileChangeWatcher();
 
-  late final StandaloneDocumentHost _host = StandaloneDocumentHost(
-    workspaceRoot: StandaloneDocumentHost.findWorkspaceRoot(widget.path),
-    changes: _changes,
-  );
+  late final StandaloneDocumentHost _host =
+      config.host ??
+      StandaloneDocumentHost(
+        workspaceRoot: StandaloneDocumentHost.findWorkspaceRoot(config.path),
+        changes: _changes,
+      );
   FileViewerSession? _session;
   NotebookSession? _notebook;
   bool _missing = false;
+  Object? _loadError;
+  int _loadGeneration = 0;
 
   /// Live-reload do arquivo (o caderno vigia a própria pasta pelo host).
   /// Rename atômico, rajada de eventos e stream do SO que morre ficam com o
@@ -272,51 +304,86 @@ class _DocumentScreenState extends State<DocumentScreen>
   DateTime? _loadedAt;
 
   bool get _isNotebook =>
-      widget.path.toLowerCase().endsWith('.notebook') &&
-      FileSystemEntity.isDirectorySync(widget.path);
+      config.path.toLowerCase().endsWith('.notebook') &&
+      (config.host != null || FileSystemEntity.isDirectorySync(config.path));
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     if (_isNotebook) {
-      _notebook = NotebookSession(id: 'doc', projectId: '', path: widget.path);
+      _notebook = NotebookSession(
+        id: config.sessionId,
+        projectId: config.projectId,
+        path: config.path,
+      );
     } else {
       unawaited(_load());
-      _watch = _changes.watchFile(widget.path).listen((_) => _load());
+      _watch = _host.changes.watchFile(config.path).listen((_) {
+        if (config.active) unawaited(_load());
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _DocumentScreenBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.config.active && config.active) _reloadIfChanged();
+    final line = config.revealLine;
+    if (line != null && line != oldWidget.config.revealLine) {
+      _session?.reveal(line, select: false);
     }
   }
 
   Future<void> _load() async {
-    if (!File(widget.path).existsSync()) {
-      if (mounted) setState(() => _missing = true);
-      return;
-    }
-    final view = await _reader.read(widget.path);
-    _loadedAt = _mtime();
-    if (!mounted) return;
-    final current = _session;
-    if (current != null) {
-      // `adoptDisk` notifica a sessão: o quadro do `.kanban` só reprocessa no
-      // listener dela, e um `setState` aqui em cima não chega até ele.
-      current.adoptDisk(view);
-      if (_missing) setState(() => _missing = false);
-      return;
-    }
-    setState(() {
-      _missing = false;
-      _session = FileViewerSession(
-        id: 'doc',
-        projectId: '',
-        path: widget.path,
+    final generation = ++_loadGeneration;
+    try {
+      if (config.host == null && !File(config.path).existsSync()) {
+        if (mounted) setState(() => _missing = true);
+        return;
+      }
+      final view =
+          await (config.host?.readView(config.path) ??
+              _reader.read(config.path));
+      if (!mounted || generation != _loadGeneration) return;
+      _loadedAt = _mtime();
+      final current = _session;
+      if (current != null) {
+        current.adoptDisk(view);
+        if (_missing || _loadError != null) {
+          setState(() {
+            _missing = false;
+            _loadError = null;
+          });
+        }
+        return;
+      }
+      final session = FileViewerSession(
+        id: config.sessionId,
+        projectId: config.projectId,
+        path: config.path,
         view: view,
       );
-    });
+      if (config.revealLine case final line?) {
+        session.reveal(line, select: false);
+      }
+      setState(() {
+        _missing = false;
+        _loadError = null;
+        _session = session;
+      });
+      config.onSession?.call(session);
+    } on Object catch (error) {
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loadError = error);
+      }
+    }
   }
 
   DateTime? _mtime() {
+    if (config.host != null) return null;
     try {
-      return File(widget.path).lastModifiedSync();
+      return File(config.path).lastModifiedSync();
     } on FileSystemException {
       return null;
     }
@@ -325,8 +392,13 @@ class _DocumentScreenState extends State<DocumentScreen>
   /// Relê se o arquivo mudou desde a última leitura (mtime diferente). O
   /// caderno não tem um mtime só: pede a recarga dele inteiro.
   void _reloadIfChanged() {
+    if (!config.active) return;
     if (_notebook case final notebook?) {
       notebook.requestReload();
+      return;
+    }
+    if (config.host != null) {
+      unawaited(_load());
       return;
     }
     final now = _mtime();
@@ -345,7 +417,23 @@ class _DocumentScreenState extends State<DocumentScreen>
   }
 
   Future<bool> _save(String content) async {
-    final ok = await _host.writeTextAt(widget.path, content);
+    final view = _session?.view;
+    final encoding = switch (view) {
+      FileViewText(:final encoding) ||
+      FileViewMarkdown(:final encoding) ||
+      FileViewSvg(:final encoding) => encoding,
+      _ => utf8,
+    };
+    List<int> bytes;
+    try {
+      bytes = encoding.encode(content);
+    } on ArgumentError {
+      // Match native FileReaderImpl: new characters may require UTF-8.
+      bytes = utf8.encode(content);
+    }
+    final ok = config.host == null
+        ? await _host.writeTextAt(config.path, content)
+        : await _host.writeBytesAt(config.path, Uint8List.fromList(bytes));
     if (ok) await _load();
     return ok;
   }
@@ -354,10 +442,19 @@ class _DocumentScreenState extends State<DocumentScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     unawaited(_watch?.cancel());
+    config.onSession?.call(null);
     _session?.dispose();
     _notebook?.dispose();
     super.dispose();
   }
+
+  Future<Map<String, Object?>> _refuseUnboundPanelCall(
+    String line,
+    String cwd,
+  ) async => const {
+    'ok': false,
+    'error': 'Originating terminal is unavailable',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -366,19 +463,20 @@ class _DocumentScreenState extends State<DocumentScreen>
     if (_notebook case final notebook?) {
       body = NotebookView(
         session: notebook,
-        active: true,
-        focused: true,
+        active: config.active,
+        focused: config.active && config.focused,
         workspaceRoot: _host.workspaceRoot,
       );
     } else if (_missing) {
       body = Center(
         child: Text(
-          tr.fileNotFound(path: widget.path),
+          tr.fileNotFound(path: config.path),
           style: context.typo.body.copyWith(color: context.colors.text3),
         ),
       );
     } else if (_session case final session?) {
-      if (session.view is FileViewAudio || session.view is FileViewVideo) {
+      if (config.host == null &&
+          (session.view is FileViewAudio || session.view is FileViewVideo)) {
         // media_kit não pode ser inicializado num segundo engine (ver
         // runDocumentWindow); mídia abre na janela principal.
         body = Center(
@@ -387,59 +485,95 @@ class _DocumentScreenState extends State<DocumentScreen>
             style: context.typo.body.copyWith(color: context.colors.text3),
           ),
         );
-      } else if (widget.path.toLowerCase().endsWith('.kanban')) {
+      } else if (config.path.toLowerCase().endsWith('.kanban')) {
         body = KanbanBoardView(
           session: session,
-          active: true,
-          focused: true,
+          active: config.active,
+          focused: config.active && config.focused,
           workspaceRoot: _host.workspaceRoot,
           onSave: _save,
           onReload: _load,
           onViewModeChanged: (_) {},
         );
-      } else if (widget.path.toLowerCase().endsWith('.ckp')) {
+      } else if (config.path.toLowerCase().endsWith('.ckp')) {
         // Layout: a janela solta MOSTRA o que o arquivo faria, mas não tem
         // workspace nenhum para aplicar. O botão despacha para o app, que
         // resolve o destino e pede a confirmação (ver `apply-layout` no
         // cockpit_cli_handler).
         final view = session.view;
         body = LayoutPreviewView(
-          path: widget.path,
+          path: config.path,
           source: view is FileViewText ? view.text : '',
           hostOs: Platform.operatingSystem,
-          primary: LayoutApplyAction(
-            label: context.t.cockpit.layoutPreview.applyInCockpit,
-            onApply: () =>
-                unawaited(RunningInstance.forwardApplyLayout(widget.path)),
-          ),
+          primary: config.host != null
+              ? null
+              : LayoutApplyAction(
+                  label: context.t.cockpit.layoutPreview.applyInCockpit,
+                  onApply: () => unawaited(
+                    RunningInstance.forwardApplyLayout(config.path),
+                  ),
+                ),
         );
-      } else if (widget.path.toLowerCase().endsWith('.panel')) {
+      } else if (config.path.toLowerCase().endsWith('.panel') &&
+          config.host?.remote != true) {
         // Painel vivo também na janela solta. A ponte spawna a CLI `cockpit`
         // como na aba; a CLI fala com o app principal pelo socket, então
         // `exec`, `db`, `send`... funcionam daqui. Sem workspace próprio, os
         // verbos que dependem de aba usam o que o humano tem selecionado.
         body = PanelView(
           session: session,
-          onCall: (line, cwd) => runPanelCommandLine(
-            line,
-            cwd: cwd,
-            environment: RunningInstance.cliEnvironment,
-            // Lido na chamada (não no build): o padrão pode mudar nas
-            // configurações com a janela aberta.
-            profile: widget.terminalProfiles?.effectiveDefault(
-              context
-                  .read<SettingsController>()
-                  .settings
-                  .defaultTerminalProfileId,
-            ),
-          ),
+          onCall:
+              config.onPanelCall ??
+              (config.host != null
+                  ? _refuseUnboundPanelCall
+                  : (line, cwd) => runPanelCommandLine(
+                      line,
+                      cwd: cwd,
+                      environment: RunningInstance.cliEnvironment,
+                      // Lido na chamada (não no build): o padrão pode mudar nas
+                      // configurações com a janela aberta.
+                      profile: config.terminalProfiles?.effectiveDefault(
+                        context
+                            .read<SettingsController>()
+                            .settings
+                            .defaultTerminalProfileId,
+                      ),
+                    )),
         );
       } else {
-        body = FileViewer(session: session, onSave: _save);
+        body = FileViewer(
+          session: session,
+          onSave: _save,
+          active: config.active,
+          focused: config.active && config.focused,
+          allowLocalFileSystem: config.host?.remote != true,
+        );
       }
     } else {
-      body = const Center(child: CircularProgressIndicator());
+      body = _loadError == null
+          ? const Center(child: CircularProgressIndicator())
+          : const SizedBox.shrink();
     }
-    return DocumentHostScope(host: _host, child: body);
+    return DocumentHostScope(
+      host: _host,
+      child: Column(
+        children: [
+          if (_loadError case final error?)
+            Padding(
+              padding: const EdgeInsets.all(8),
+              child: Row(
+                children: [
+                  Expanded(child: Text(error.toString())),
+                  OutlineButton(
+                    onPressed: _load,
+                    child: Text(context.t.core.bootstrapError.retry),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(child: body),
+        ],
+      ),
+    );
   }
 }

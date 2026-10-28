@@ -53,6 +53,7 @@ class FileViewer extends StatefulWidget {
     required this.onSave,
     this.active = true,
     this.focused = true,
+    this.allowLocalFileSystem = true,
   });
 
   final FileViewerSession session;
@@ -67,6 +68,10 @@ class FileViewer extends StatefulWidget {
   /// `true` quando esta aba está ativa **e** a pane focada — aí o editor recebe
   /// o foco do teclado automaticamente (digitar direto ao selecionar a aba).
   final bool focused;
+
+  /// Remote documents use their explicit DocumentHost only, including reloads.
+  /// Native web previews and external file-based formatters require local IO.
+  final bool allowLocalFileSystem;
 
   @override
   State<FileViewer> createState() => _FileViewerState();
@@ -173,7 +178,8 @@ class _FileViewerState extends State<FileViewer> {
 
   /// Webview inline disponível (macOS/Windows)? No Linux o preview de markdown
   /// segue no gpt_markdown e HTML não tem modo renderizado (plano 58).
-  static final bool _webPreview = BrowserCapability.resolve().isInline;
+  static final bool _inlineBrowser = BrowserCapability.resolve().isInline;
+  bool get _webPreview => widget.allowLocalFileSystem && _inlineBrowser;
 
   /// Arquivo `.html`/`.htm` — ganha preview renderizado quando há webview.
   bool get _isHtml {
@@ -594,6 +600,7 @@ class _FileViewerState extends State<FileViewer> {
   /// Comando de formatador externo (`%FILE%`) configurado pra linguagem deste
   /// arquivo, ou `null`. Lido das Configurações (app-scoped).
   String? _externalFormatter() {
+    if (!widget.allowLocalFileSystem) return null;
     final lang = languageForPath(widget.session.path)?.id;
     if (lang == null) return null;
     return context.read<SettingsController>().settings.lspFormatters[lang];
@@ -775,6 +782,7 @@ class _FileViewerState extends State<FileViewer> {
 
   /// Roda o formatador externo no arquivo em disco e relê o buffer.
   Future<void> _runExternalFormatter(String command) async {
+    if (!widget.allowLocalFileSystem) return;
     final result = await runFormatterCommand(command, widget.session.path);
     if (!mounted) return;
     await result.fold((_) => _reloadFromDisk(), (_) async {});
@@ -783,8 +791,10 @@ class _FileViewerState extends State<FileViewer> {
   /// Relê o conteúdo do disco para o buffer (após o formatador externo).
   Future<void> _reloadFromDisk() async {
     try {
-      final fresh = await File(widget.session.path).readAsString();
-      if (!mounted) return;
+      final fresh = widget.allowLocalFileSystem
+          ? await File(widget.session.path).readAsString()
+          : await _vm?.readTextAt(widget.session.path);
+      if (!mounted || fresh == null) return;
       final ctrl = _ctrl;
       if (ctrl == null || ctrl.text == fresh) return;
       _applyToBuffer(fresh);

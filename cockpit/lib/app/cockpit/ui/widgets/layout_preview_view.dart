@@ -35,7 +35,7 @@ class LayoutPreviewView extends StatelessWidget {
     required this.path,
     required this.source,
     required this.hostOs,
-    required this.primary,
+    this.primary,
     this.alternatives = const [],
   });
 
@@ -51,7 +51,7 @@ class LayoutPreviewView extends StatelessWidget {
   final String hostOs;
 
   /// Ação principal do botão.
-  final LayoutApplyAction primary;
+  final LayoutApplyAction? primary;
 
   /// Outros destinos, no menu ao lado do botão. Vazio = sem menu.
   final List<LayoutApplyAction> alternatives;
@@ -78,11 +78,12 @@ class LayoutPreviewView extends StatelessWidget {
               ),
             },
           ),
-          _ApplyBar(
-            primary: primary,
-            alternatives: alternatives,
-            enabled: parsed is Success<LayoutSpec, String>,
-          ),
+          if (primary case final action?)
+            _ApplyBar(
+              primary: action,
+              alternatives: alternatives,
+              enabled: parsed is Success<LayoutSpec, String>,
+            ),
         ],
       ),
     );
