@@ -366,8 +366,10 @@ class OrchestrationController extends ChangeNotifier {
     dirty = false;
   }
 
+  // Keep newly created nodes below the graph controls/legend, like the
+  // default document. Saved positions are never passed through this function.
   static Offset autoPosition(int index) =>
-      Offset(80 + (index % 4) * 270.0, 80 + (index ~/ 4) * 190.0);
+      Offset(80 + (index % 4) * 270.0, 190 + (index ~/ 4) * 190.0);
   @override
   void dispose() {
     _disposed = true;
