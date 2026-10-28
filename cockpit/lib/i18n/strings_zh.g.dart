@@ -631,6 +631,10 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => '工作树';
 	@override String get diffBinaryFile => '二进制文件——没有文本差异。';
 	@override String get diffNoChanges => '没有更改。';
+	@override String get diffSideBySide => '并排显示';
+	@override String get diffInline => '行内显示';
+	@override String get diffModifiedContent => '修改后的内容';
+	@override String get diffDeletedContent => '文件已删除，修改后的内容为空。';
 	@override String diffError({required Object detail}) => '无法读取差异：${detail}';
 	@override String get galleryTooltip => '画廊';
 	@override String get sectionGallery => '画廊';
@@ -2250,6 +2254,10 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.diffWorkingTree' => '工作树',
 			'cockpit.fileTreePanel.diffBinaryFile' => '二进制文件——没有文本差异。',
 			'cockpit.fileTreePanel.diffNoChanges' => '没有更改。',
+			'cockpit.fileTreePanel.diffSideBySide' => '并排显示',
+			'cockpit.fileTreePanel.diffInline' => '行内显示',
+			'cockpit.fileTreePanel.diffModifiedContent' => '修改后的内容',
+			'cockpit.fileTreePanel.diffDeletedContent' => '文件已删除，修改后的内容为空。',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => '无法读取差异：${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => '画廊',
 			'cockpit.fileTreePanel.sectionGallery' => '画廊',
@@ -2447,12 +2455,12 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit 从未连接过 ${endpoint}。',
 			'cockpit.sshPrompts.trustHint' => '仅当此指纹与服务器匹配时才信任。你可以在服务器上用以下命令核对：',
@@ -2961,12 +2969,12 @@ extension on TranslationsZh {
 			'fileOperation.error.notScratchTab' => '此标签页不是草稿文件。',
 			'fileOperation.error.writeFailed' => '无法写入文件。',
 			'fileOperation.error.formatterEmptyCommand' => '格式化器命令为空。',
+			_ => null,
+		} ?? switch (path) {
 			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
 			'fileOperation.error.formatterTimeout' => '格式化器超时。',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',
 			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
 			'fileOperation.error.nameHasSlash' => '名称不能包含「/」。',
 			'fileOperation.error.invalidName' => '无效的名称。',
