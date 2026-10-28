@@ -13,6 +13,7 @@ import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../support/attachment_terminal_gateway.dart';
 
@@ -37,12 +38,13 @@ class _Fixture {
       ],
       closeTerminal: (_) async {},
       createShell: (box) async {
+        final gateway = AttachmentTerminalGateway();
         final t = TerminalSession(
           id: '$id-${box.box.id}',
           owner: app.terminals.owner,
           projectId: 'same-worktree',
           workingDirectory: '/worktree',
-          gateway: AttachmentTerminalGateway(),
+          gateway: gateway,
           profile: const TerminalProfile(
             id: 'shell',
             label: 'Shell',
@@ -50,6 +52,7 @@ class _Fixture {
           ),
           engine: engine,
         );
+        gateways[t.id] = gateway;
         app.terminals.attach(t, focus: false);
         return t.id;
       },
@@ -76,12 +79,109 @@ class _Fixture {
       ],
     ).encode();
   }
+  final gateways = <String, AttachmentTerminalGateway>{};
   String disk = '';
   late final OrchestrationSession app;
 }
 
+Widget _keyboardHost(Widget child) => ModularApp(
+  module: createModule(register: (_) {}),
+  provide: (scope) => scope
+    ..addChangeNotifier<SettingsController>(
+      () => SettingsController(_Settings()),
+    ),
+  child: ShadcnApp(
+    builder: (context, child) {
+      final tokens = buildTokens(
+        brightness: Brightness.dark,
+        settings: const AppSettings(),
+      );
+      return CockpitTheme(
+        colors: tokens.colors,
+        typo: tokens.typo,
+        syntax: tokens.syntax,
+        terminal: tokens.terminal,
+        child: child!,
+      );
+    },
+    home: child,
+  ),
+);
+
 void main() {
   for (final engine in TerminalEngine.values) {
+    testWidgets(
+      '${engine.name}: Ctrl-Tab stays internal and input reaches the selected terminal',
+      (tester) async {
+        tester.view.physicalSize = const Size(1200, 600);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        final a = _Fixture('keyboard-a', engine),
+            b = _Fixture('keyboard-b', engine);
+        addTearDown(() async {
+          await Future.wait([a.app.dispose(), b.app.dispose()]);
+        });
+        await Future.wait([a.app.controller.load(), b.app.controller.load()]);
+        a.app.context.openBoxInTerminals('one');
+        b.app.context.openBoxInTerminals('one');
+        await tester.pumpWidget(
+          _keyboardHost(
+            Row(
+              children: [
+                Expanded(
+                  child: OrchestrationTerminalsView(
+                    session: a.app,
+                    active: true,
+                    focused: true,
+                  ),
+                ),
+                Expanded(
+                  child: OrchestrationTerminalsView(
+                    session: b.app,
+                    active: true,
+                    focused: false,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        final otherTree = b.app.terminals.tree;
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(a.app.terminals.keyboardTabId, 'keyboard-a-two');
+        expect(a.app.context.selectedWorkspaceBox?.id, 'two');
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        expect(a.gateways['keyboard-a-two']!.text, '\r');
+        expect(a.gateways['keyboard-a-one']!.text, isEmpty);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(a.app.terminals.keyboardTabId, 'keyboard-a-one');
+        expect(b.app.terminals.tree, same(otherTree));
+        expect(b.app.terminals.keyboardTabId, 'keyboard-b-one');
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        expect(a.gateways['keyboard-a-one']!.text, '\r');
+        expect(a.gateways['keyboard-a-two']!.text, '\r');
+        for (final gateway in b.gateways.values) {
+          expect(gateway.text, isEmpty);
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+      },
+    );
+
     testWidgets(
       '${engine.name}: internal drag never crosses owners or outer dock targets',
       (tester) async {

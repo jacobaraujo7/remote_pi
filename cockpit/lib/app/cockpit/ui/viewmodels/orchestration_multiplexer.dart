@@ -68,7 +68,10 @@ class OrchestrationMultiplexer<T extends PaneItem> extends ChangeNotifier {
       _tree = updateLeaf(
         root!,
         target.id,
-        (p) => p.copyWith(tabs: [...p.tabs, session.id], active: session.id),
+        (p) => p.copyWith(
+          tabs: [...p.tabs, session.id],
+          active: focus ? session.id : p.active,
+        ),
       );
     } else {
       _tree = splitLeaf(

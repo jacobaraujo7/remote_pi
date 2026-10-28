@@ -47,6 +47,23 @@ _Terminal _terminal(String doc, String id) =>
 
 void main() {
   test(
+    'a background attachment preserves the active tab and keyboard owner',
+    () {
+      final a = _mux('background');
+      final first = _terminal('background', 'one');
+      final second = _terminal('background', 'two');
+      a.attach(first);
+      final pane = a.focusedPaneId!;
+      a.attach(second, focus: false);
+      expect(findLeaf(a.tree!, pane)!.active, first.id);
+      expect(a.keyboardTabId, first.id);
+      a.dispose();
+      first.dispose();
+      second.dispose();
+    },
+  );
+
+  test(
     'blur/minimize marks owned unread and focus acknowledges only its selected terminal',
     () {
       var windowActive = false;

@@ -81,6 +81,12 @@ Future<bool> requestCloseTab(
 /// isso o atalho apagaria a única pane e deixaria o workspace sem nada.
 Future<void> closeActiveTab(BuildContext context) async {
   final vm = context.read<CockpitViewModel>();
+  final owner = vm.activeOrchestration;
+  final ownedTab = owner?.terminals.keyboardTabId;
+  if (owner != null && ownedTab != null) {
+    await owner.closeTerminal(ownedTab);
+    return;
+  }
   final target = vm.focusedTab();
   if (target == null) return;
   final (paneId, tabId, item) = target;

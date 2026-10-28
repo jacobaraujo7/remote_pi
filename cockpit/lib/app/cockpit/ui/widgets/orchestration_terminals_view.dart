@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import '../../../core/domain/result.dart';
+import 'package:flutter/services.dart';
 import '../../../core/ui/themes/themes.dart';
 import '../../../../i18n/strings.g.dart';
 import '../session/orchestration_session.dart';
@@ -30,7 +30,7 @@ class OrchestrationTerminalsView extends StatelessWidget {
 
   void _focus(String tabId) {
     session.onFocus?.call();
-    session.terminals.reveal(tabId);
+    session.context.focusTerminalTab(tabId);
   }
 
   Widget _dropZone(String paneId, Widget child) => Builder(
@@ -180,6 +180,19 @@ class OrchestrationTerminalsView extends StatelessWidget {
                 onFocus: () => _focus(tabId),
                 onOpenFile: (path, {line}) =>
                     session.onOpenFile?.call(terminal, path, line: line),
+                ownerShortcuts: {
+                  const SingleActivator(
+                    LogicalKeyboardKey.tab,
+                    control: true,
+                  ): () =>
+                      session.context.cycleTerminalTab(1),
+                  const SingleActivator(
+                    LogicalKeyboardKey.tab,
+                    control: true,
+                    shift: true,
+                  ): () =>
+                      session.context.cycleTerminalTab(-1),
+                },
               ),
             );
           },
@@ -246,12 +259,7 @@ class OrchestrationTerminalsView extends StatelessWidget {
                   onPressed: session.closing
                       ? null
                       : () async {
-                          final result = await session.onCloseTerminal?.call(
-                            tabId,
-                          );
-                          if (result case Failure(:final error)) {
-                            session.controller.reportError(error);
-                          }
+                          await session.closeTerminal(tabId);
                         },
                 ),
               ],

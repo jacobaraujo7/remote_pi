@@ -74,6 +74,8 @@ jobs:
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
           lib/app/cockpit/ui/viewmodels/session_notifications_controller.dart
           lib/app/cockpit/ui/widgets/terminal_session_view.dart
+          lib/app/cockpit/ui/widgets/adaptive_terminal_pane.dart
+          lib/app/cockpit/ui/actions/tab_actions.dart
           lib/app/cockpit/ui/services/orchestration_controller.dart
           lib/app/cockpit/ui/services/layout_scrollback_keys.dart
           lib/app/cockpit/ui/services/orchestration_restore_state.dart

@@ -9,6 +9,7 @@ import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/orchestration_cli_handler.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +24,21 @@ class _Panel extends PaneItem {
   String get workingDirectory => '/worktree';
   @override
   String get title => 'Panel';
+}
+
+class _MenuVm extends Fake implements CockpitViewModel {
+  (String, String, PaneItem)? focused;
+  int normalCreations = 0;
+  @override
+  (String, String, PaneItem)? focusedTab() => focused;
+  @override
+  dynamic noSuchMethod(Invocation invocation) {
+    if (invocation.memberName == #newTabIn) {
+      normalCreations++;
+      return null;
+    }
+    return super.noSuchMethod(invocation);
+  }
 }
 
 class _App {
@@ -167,6 +183,44 @@ void main() {
       args: args,
     ),
   ))!;
+
+  test(
+    'native new/split menu stays bound to the original app across an async focus switch',
+    () async {
+      final vm = _MenuVm()..focused = ('outer', a.app.id, a.app);
+      vm.newTerminalForFocusedTab();
+      vm.focused = ('other', b.app.id, b.app);
+      await a.controller.settle();
+      await Future<void>.delayed(Duration.zero);
+      expect(a.spawned, 3);
+      expect(b.spawned, 2);
+      expect(vm.normalCreations, 0);
+      expect(vm.splitFocusedOrchestration(SplitDir.vertical), isTrue);
+      await b.controller.settle();
+      await Future<void>.delayed(Duration.zero);
+      expect(a.spawned, 3);
+      expect(b.spawned, 3);
+      expect(leaves(b.app.terminals.tree!).length, 2);
+      expect(vm.normalCreations, 0);
+    },
+  );
+
+  test(
+    'menu retains normal terminal creation, while a closing app cannot fall back to outer docks',
+    () async {
+      final vm = _MenuVm()..focused = ('outer', normal.id, normal);
+      vm.newTerminalForFocusedTab();
+      expect(vm.normalCreations, 1);
+      expect(vm.splitFocusedOrchestration(SplitDir.vertical), isFalse);
+      vm.focused = ('outer', a.app.id, a.app);
+      a.app.closing = true;
+      vm.newTerminalForFocusedTab();
+      expect(vm.splitFocusedOrchestration(SplitDir.vertical), isTrue);
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.normalCreations, 1);
+      expect(a.spawned, 2);
+    },
+  );
 
   test(
     'list only enumerates its own registry, even with another global focus',

@@ -2498,6 +2498,12 @@ class CockpitViewModel extends ChangeNotifier
     if (paneId == null) return null;
     final activeId = findLeaf(tree, paneId)?.active;
     final s = activeId == null ? null : _sessions[activeId];
+    if (s is OrchestrationSession) {
+      final tabId = s.terminals.keyboardTabId;
+      return s.disposed || s.closing || tabId == null
+          ? null
+          : s.terminals.session(tabId);
+    }
     return s is TerminalSession ? s : null;
   }
 
@@ -5580,6 +5586,13 @@ class CockpitViewModel extends ChangeNotifier
   /// ⌘1…⌘8. No-op se o índice está fora do range (⌘5 numa pane de 3 abas não
   /// faz nada) ou se não há pane focada.
   void selectTabByIndex(int index) {
+    final owner = activeOrchestration;
+    if (owner != null) {
+      if (!owner.disposed && !owner.closing) {
+        owner.context.selectTerminalTabByIndex(index);
+      }
+      return;
+    }
     final focused = _focusedLeaf();
     if (focused == null) return;
     final (paneId, leaf) = focused;
@@ -5590,6 +5603,13 @@ class CockpitViewModel extends ChangeNotifier
   /// Seleciona a **última** aba da pane focada — o atalho ⌘9, na convenção de
   /// browsers/iTerm ("pula pra última", não pra 9ª). No-op se a pane não tem aba.
   void selectLastTab() {
+    final owner = activeOrchestration;
+    if (owner != null) {
+      if (!owner.disposed && !owner.closing) {
+        owner.context.selectLastTerminalTab();
+      }
+      return;
+    }
     final focused = _focusedLeaf();
     if (focused == null) return;
     final (paneId, leaf) = focused;
@@ -5615,6 +5635,13 @@ class CockpitViewModel extends ChangeNotifier
   /// No-op se há só uma pane ou não existe vizinha naquela direção (fica onde
   /// está, sem ciclar). Deriva a vizinhança da árvore via [neighborLeaf].
   void focusPaneToward(PaneMove move) {
+    final owner = activeOrchestration;
+    if (owner != null) {
+      if (!owner.disposed && !owner.closing) {
+        owner.context.focusTerminalPaneToward(move);
+      }
+      return;
+    }
     final projectId = _selectedProjectId;
     final tree = _activeTree;
     if (projectId == null || tree == null) return;

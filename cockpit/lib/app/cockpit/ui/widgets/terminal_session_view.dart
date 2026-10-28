@@ -23,12 +23,14 @@ class TerminalSessionView extends StatefulWidget {
     required this.focusRevision,
     required this.onFocus,
     required this.onOpenFile,
+    this.ownerShortcuts = const {},
   });
   final TerminalSession session;
   final bool active;
   final bool focused;
   final int focusRevision;
   final VoidCallback onFocus;
+  final Map<ShortcutActivator, VoidCallback> ownerShortcuts;
   final void Function(String path, {int? line}) onOpenFile;
   @override
   State<TerminalSessionView> createState() => _TerminalSessionViewState();
@@ -102,6 +104,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
             padding: const EdgeInsets.fromLTRB(10, 8, 0, 8),
             child: AdaptiveTerminalPane(
               terminal: widget.session.terminal,
+              ownerShortcuts: widget.ownerShortcuts,
               active: widget.active,
               focusNode: _focus,
               onPaste: widget.session.pasteFromClipboard,

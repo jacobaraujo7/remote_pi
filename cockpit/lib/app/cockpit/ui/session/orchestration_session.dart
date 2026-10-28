@@ -89,6 +89,25 @@ class OrchestrationSession extends PaneItem {
     notifyListeners();
   }
 
+  /// Shared by the inner X, keyboard/menu close and deferred CLI close.
+  Future<Result<String, String>> closeTerminal(String tabId) async {
+    if (_disposed || closing || !terminals.contains(tabId)) {
+      return const Failure('Terminal is no longer available in this app');
+    }
+    final close = onCloseTerminal;
+    if (close == null) return const Failure('Terminal close is unavailable');
+    try {
+      final result = await close(tabId);
+      if (result case Failure(:final error) when !_disposed) {
+        controller.reportError(error);
+      }
+      return result;
+    } on Object catch (error) {
+      if (!_disposed) controller.reportError(error);
+      return Failure(error.toString());
+    }
+  }
+
   /// Called only after the user confirms closing this app. Stop processes
   /// before removing the outer tab; a failed kill leaves the app recoverable.
   Future<Result<String, String>> prepareClose() async {

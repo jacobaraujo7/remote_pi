@@ -353,6 +353,53 @@ class OrchestrationContext extends ChangeNotifier
     model: model,
   );
 
+  /// Native tab and keyboard commands share the graph/inspector selection.
+  void focusTerminalTab(String tabId) {
+    if (_disposed || !terminals.contains(tabId)) return;
+    final box = graphBoxes.where((b) => b.tabId == tabId).firstOrNull;
+    if (box != null) {
+      revealBox(box.id);
+    } else {
+      terminals.reveal(tabId);
+    }
+  }
+
+  LeafPane? _focusedTerminalPane() {
+    final tree = terminals.tree;
+    if (_disposed || tree == null) return null;
+    return findLeaf(tree, terminals.focusedPaneId ?? '') ??
+        leaves(tree).firstOrNull;
+  }
+
+  void selectTerminalTabByIndex(int index) {
+    final pane = _focusedTerminalPane();
+    if (pane == null || index < 0 || index >= pane.tabs.length) return;
+    focusTerminalTab(pane.tabs[index]);
+  }
+
+  void selectLastTerminalTab() {
+    final pane = _focusedTerminalPane();
+    if (pane != null && pane.tabs.isNotEmpty) focusTerminalTab(pane.tabs.last);
+  }
+
+  void cycleTerminalTab(int delta) {
+    final pane = _focusedTerminalPane();
+    if (pane == null || pane.tabs.isEmpty) return;
+    final index = pane.tabs.indexOf(pane.active);
+    focusTerminalTab(
+      pane.tabs[((index < 0 ? 0 : index) + delta) % pane.tabs.length],
+    );
+  }
+
+  void focusTerminalPaneToward(PaneMove move) {
+    final tree = terminals.tree;
+    final pane = _focusedTerminalPane();
+    if (tree == null || pane == null) return;
+    final target = neighborLeaf(tree, pane.id, move);
+    final next = target == null ? null : findLeaf(tree, target)?.active;
+    if (next != null) focusTerminalTab(next);
+  }
+
   Future<Result<String, String>> newTerminal({
     String? title,
     String? inPane,
@@ -371,6 +418,7 @@ class OrchestrationContext extends ChangeNotifier
       model: '',
       position: OrchestrationController.autoPosition(graphBoxes.length),
       directory: directory,
+      reveal: false,
     );
     if (result case Success(:final value) when !_disposed) {
       final target =
@@ -386,6 +434,7 @@ class OrchestrationContext extends ChangeNotifier
           terminals.move(value, target);
         }
       }
+      focusTerminalTab(value);
     }
     return result;
   }
@@ -398,6 +447,7 @@ class OrchestrationContext extends ChangeNotifier
     required String model,
     required Offset position,
     String directory = '.',
+    bool reveal = true,
   }) async {
     if (_disposed) return const Failure('Document closed');
     final invalid = _validate(title, harness, model);
@@ -420,7 +470,9 @@ class OrchestrationContext extends ChangeNotifier
       ),
     );
     final tabId = controller.bindings[id];
-    if (tabId != null && terminals.contains(tabId)) revealBox(id);
+    if (reveal && tabId != null && terminals.contains(tabId)) {
+      revealBox(id);
+    }
     return _result(tabId ?? id);
   }
 

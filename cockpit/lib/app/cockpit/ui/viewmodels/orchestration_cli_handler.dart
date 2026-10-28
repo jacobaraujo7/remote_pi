@@ -298,29 +298,13 @@ class OrchestrationCliHandler {
         return CockpitCommandResult.ok({'closed': target.id}, () {
           if (_available &&
               identical(owner.terminals.session(target.id), target)) {
-            unawaited(_close(close, target.id));
+            unawaited(owner.closeTerminal(target.id));
           }
         });
       default:
         return CockpitCommandResult.fail(
           'Command "${c.cmd}" is not available inside an orchestration app',
         );
-    }
-  }
-
-  Future<void> _close(
-    Future<Result<String, String>> Function(String) close,
-    String id,
-  ) async {
-    try {
-      final result = await close(id);
-      if (result case Failure(:final error) when _available) {
-        owner.controller.reportError(error);
-      }
-    } on Object catch (error) {
-      if (_available) {
-        owner.controller.reportError(error);
-      }
     }
   }
 

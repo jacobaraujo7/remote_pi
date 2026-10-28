@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
@@ -106,6 +107,62 @@ class _Document {
 }
 
 void main() {
+  test(
+    'internal navigation updates only its own selection, and splitting preserves the selected source tab',
+    () async {
+      final a = _Document('navigation-a'), b = _Document('navigation-b');
+      addTearDown(a.dispose);
+      addTearDown(b.dispose);
+      await Future.wait([a.controller.load(), b.controller.load()]);
+      final first = a.controller.bindings['shared']!;
+      final second = a.controller.bindings['second']!;
+      final beforeB = b.mux.tree;
+      a.context.selectTerminalTabByIndex(1);
+      expect(a.mux.keyboardTabId, second);
+      expect(a.context.selectedWorkspaceBox?.id, 'second');
+      a.context.cycleTerminalTab(1);
+      expect(a.mux.keyboardTabId, first);
+      a.context.selectLastTerminalTab();
+      expect(a.mux.keyboardTabId, second);
+      a.context.focusTerminalTab(first);
+      final sourcePane = a.mux.paneOf(first)!.id;
+      final result = await a.context.newTerminal(split: SplitDir.vertical);
+      expect(result, isA<Success<String, String>>());
+      expect(findLeaf(a.mux.tree!, sourcePane)!.active, first);
+      final newId = (result as Success<String, String>).value;
+      expect(a.mux.keyboardTabId, newId);
+      a.context.focusTerminalPaneToward(PaneMove.left);
+      expect(a.mux.keyboardTabId, first);
+      expect(a.context.selectedWorkspaceBox?.id, 'shared');
+      a.context.selectTerminalTabByIndex(99);
+      expect(a.mux.keyboardTabId, first);
+      expect(b.mux.tree, same(beforeB));
+      expect(b.created, 2);
+      expect(a.starts + b.starts, 0);
+    },
+  );
+
+  test(
+    'external new definitions create a blank shell without selecting it or moving keyboard input',
+    () async {
+      final a = _Document('external-definition');
+      addTearDown(a.dispose);
+      await a.controller.load();
+      a.context.selectTerminalTabByIndex(0);
+      final selected = a.mux.keyboardTabId;
+      final pane = a.mux.focusedPaneId!;
+      a.disk = OrchestrationDocument(
+        boxes: [_box('shared'), _box('second'), _box('external')],
+      ).encode();
+      await a.controller.load();
+      expect(a.created, 3);
+      expect(a.mux.keyboardTabId, selected);
+      expect(findLeaf(a.mux.tree!, pane)!.active, selected);
+      expect(a.context.selectedWorkspaceBox?.id, 'shared');
+      expect(a.starts, 0);
+    },
+  );
+
   test(
     'remote CLI comes from its own main hooks and clears on end, not configuration or child hooks',
     () async {

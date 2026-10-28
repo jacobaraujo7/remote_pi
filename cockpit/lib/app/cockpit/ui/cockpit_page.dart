@@ -465,7 +465,7 @@ class _CockpitPageState extends State<CockpitPage> {
     if (vm == null) return;
     _workspaceMenu?.setWorkspace(
       hasWorkspace: vm.selectedProject != null,
-      onNewTerminal: () => vm.newTabIn(''),
+      onNewTerminal: vm.newTerminalForFocusedTab,
       onNewFile: vm.openScratchText,
       onGoToFile: _openFileFinder,
       onSplitRight: () => _splitFocused(SplitDir.vertical),
@@ -487,6 +487,7 @@ class _CockpitPageState extends State<CockpitPage> {
   /// mesma regra do menu de split da pane.
   void _splitFocused(SplitDir dir) {
     final vm = _vm;
+    if (vm.splitFocusedOrchestration(dir)) return;
     final projectId = vm.selectedProject?.id;
     if (projectId == null) return;
     final paneId = vm.focusedPaneId(projectId);

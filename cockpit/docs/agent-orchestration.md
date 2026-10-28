@@ -91,6 +91,6 @@ CLI terminal controls now identify the originating tab independently of their
 destination. From an owned shell, listing, reading, sending, creating/splitting
 and closing operate inside that document's registry; they cannot select an
 unrelated dock or app. Project data tools retain the original worktree/host.
-Contextual menus/shortcuts, file-link opening and telemetry wrapper integration
-are still part of the isolated-owner implementation work before the next runtime
-trial; passing component/transport tests is not macOS desktop acceptance.
+Contextual new/split/selection/direction/close commands now use the app registry,
+with private Ctrl-Tab navigation through both terminal engines. File-link opening
+and telemetry wrapper integration remain before the next runtime trial; passing component/transport tests is not macOS desktop acceptance.

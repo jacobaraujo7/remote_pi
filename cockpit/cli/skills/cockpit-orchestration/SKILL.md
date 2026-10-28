@@ -23,6 +23,8 @@ editing files, starting tools or creating sessions.
 - The top area offers **Boxes | Graph**, with internal terminal tabs and splits
   below. Move the whole app tab between outer docks to keep the orchestration
   beside ordinary workspace terminals. Internal terminal tabs stay in their app.
+- Inside a terminal, Ctrl-Tab / Ctrl-Shift-Tab cycles that internal pane.
+  Contextual New Terminal/Split and tab-selection menu actions stay in the app.
 - In Boxes, a row click reveals/focuses its terminal. Use the drag handle to
   reorder rows. In Graph, one click selects/reveals; double-click or **Go to
   terminal** gives keyboard focus. Configuration stays in the app's inspector.

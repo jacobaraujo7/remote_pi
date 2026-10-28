@@ -1,6 +1,42 @@
 part of 'cockpit_viewmodel.dart';
 
 extension OrchestrationWorkspace on CockpitViewModel {
+  OrchestrationSession? get activeOrchestration {
+    final item = focusedTab()?.$3;
+    return item is OrchestrationSession ? item : null;
+  }
+
+  /// Contextual menu action; outer dock buttons keep their existing factory.
+  void newTerminalForFocusedTab() {
+    final owner = activeOrchestration;
+    if (owner == null) {
+      newTabIn('');
+      return;
+    }
+    _newOwnedTerminalFromMenu(owner);
+  }
+
+  bool splitFocusedOrchestration(SplitDir direction) {
+    final owner = activeOrchestration;
+    if (owner == null) return false;
+    _newOwnedTerminalFromMenu(owner, split: direction);
+    return true;
+  }
+
+  void _newOwnedTerminalFromMenu(
+    OrchestrationSession owner, {
+    SplitDir? split,
+  }) {
+    if (owner.disposed || owner.closing) return;
+    unawaited(
+      owner.context.newTerminal(split: split).then((result) {
+        if (result case Failure(:final error) when !owner.disposed) {
+          owner.controller.reportError(error);
+        }
+      }),
+    );
+  }
+
   OrchestrationSession? orchestrationById(String id) => _orchestrations[id];
 
   String _orchestrationBoxCwd(String projectId, String boxId) =>
