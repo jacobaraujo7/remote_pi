@@ -181,28 +181,20 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     }
   }
 
-  void _select(GraphBox box, List<GraphBox> boxes) {
+  void _select(GraphBox box) {
     if (_linkMode) {
       final from = _linkFrom;
       if (from == null) {
         setState(() => _linkFrom = box.id);
-      } else {
-        final source = boxes.firstWhere((b) => b.id == from);
-        final a = widget.vm.session(source.tabId ?? '');
-        final b = widget.vm.session(box.tabId ?? '');
-        final sourceId = a == null
-            ? source.id
-            : widget.vm.ensureGraphBoxForTab(a, source.position);
-        final targetId = b == null
-            ? box.id
-            : widget.vm.ensureGraphBoxForTab(b, box.position);
-        widget.vm.addGraphLink(sourceId, targetId);
+      } else if (from != box.id) {
+        // Planned edges belong to document definitions, even without a shell.
+        widget.vm.addGraphLink(from, box.id);
         setState(() {
           _linkFrom = null;
           _linkMode = false;
-          _selected = targetId;
+          _selected = box.id;
         });
-        widget.onSelectBox?.call(targetId);
+        widget.onSelectBox?.call(box.id);
       }
       return;
     }
@@ -500,7 +492,8 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                               },
                               selected:
                                   _selected == box.id || _linkFrom == box.id,
-                              onTap: () => _select(box, boxes),
+                              connecting: _linkMode,
+                              onTap: () => _select(box),
                               onOpen: () {
                                 final tabId = box.tabId;
                                 if (tabId != null && tabId.isNotEmpty) {
@@ -845,6 +838,7 @@ class _GraphBoxCard extends StatelessWidget {
     required this.telemetry,
     required this.processTelemetry,
     required this.selected,
+    required this.connecting,
     required this.onTap,
     required this.onOpen,
     required this.onDrag,
@@ -857,6 +851,7 @@ class _GraphBoxCard extends StatelessWidget {
   final Future<GraphTelemetrySnapshot>? telemetry;
   final Future<ProcessMetricsSnapshot>? processTelemetry;
   final bool selected;
+  final bool connecting;
   final VoidCallback onTap;
   final VoidCallback onOpen;
   final ValueChanged<Offset> onDrag;
@@ -963,9 +958,10 @@ class _GraphBoxCard extends StatelessWidget {
       if (process?.unavailableReason case final reason?)
         tr.tooltipReason(reason: reason),
     ].join('\n');
-    return AppTooltip(
-      message: details,
-      showOnFocus: true,
+    Widget withTooltip({required Widget child}) => connecting
+        ? child
+        : AppTooltip(message: details, showOnFocus: true, child: child);
+    return withTooltip(
       child: FocusableActionDetector(
         actions: {
           ActivateIntent: CallbackAction<ActivateIntent>(
@@ -977,10 +973,11 @@ class _GraphBoxCard extends StatelessWidget {
         },
         child: GestureDetector(
           onTap: onTap,
-          onDoubleTap: onOpen,
-          onPanUpdate: (event) => onDrag(event.delta),
-          onPanEnd: (_) => onDragEnd(),
-          onPanCancel: onDragEnd,
+          // Endpoint selection must not wait for or trigger terminal opening.
+          onDoubleTap: connecting ? null : onOpen,
+          onPanUpdate: connecting ? null : (event) => onDrag(event.delta),
+          onPanEnd: connecting ? null : (_) => onDragEnd(),
+          onPanCancel: connecting ? null : onDragEnd,
           child: DecoratedBox(
             decoration: BoxDecoration(
               color: colors.panel2,

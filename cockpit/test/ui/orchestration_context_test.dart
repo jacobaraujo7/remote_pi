@@ -1,3 +1,10 @@
+import 'package:shadcn_flutter/shadcn_flutter.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'package:cockpit/app/cockpit/ui/widgets/workspace_graph_view.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/process_metrics_provider.dart';
+import 'package:cockpit/app/cockpit/domain/entities/process_metrics_snapshot.dart';
+import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'dart:async';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/core/domain/entities/harness.dart';
@@ -30,6 +37,7 @@ class _Document {
     this.id, {
     Future<Set<String>> Function(TerminalSession)? readAliases,
     bool remote = false,
+    bool attachTerminals = true,
   }) {
     mux = OrchestrationMultiplexer(instanceId: id, projectId: 'same-worktree');
     controller = OrchestrationController(
@@ -43,6 +51,7 @@ class _Document {
           OrchestrationTerminal(t.id, t.displayTitle, '.'),
       ],
       createShell: (box) async {
+        if (!attachTerminals) return '$id-session-${++created}';
         final t = TerminalSession(
           id: '$id-session-${++created}',
           owner: mux.owner,
@@ -106,7 +115,106 @@ class _Document {
   }
 }
 
+class _NoProcessMetrics implements ProcessMetricsProvider {
+  @override
+  Future<ProcessMetricsSnapshot> read(int pid) async => ProcessMetricsSnapshot(
+    pid: pid,
+    cpuPercent: null,
+    rssBytes: null,
+    collectedAt: DateTime.fromMillisecondsSinceEpoch(0),
+    source: 'test',
+  );
+}
+
 void main() {
+  testWidgets(
+    'graph clicks persist a planned connection only in its document',
+    (tester) async {
+      final a = _Document('graph-a', attachTerminals: false),
+          b = _Document('graph-b', attachTerminals: false);
+      addTearDown(() async {
+        await tester.pumpWidget(const SizedBox());
+        // This UI fixture has no native sessions; dispose its pure state here.
+        for (final doc in [a, b]) {
+          doc.context.dispose();
+          doc.controller.dispose();
+          doc.mux.dispose();
+        }
+        await tester.pump();
+      });
+      a.disk = OrchestrationDocument(
+        boxes: [
+          for (final (i, id) in ['shared', 'second'].indexed)
+            OrchestrationBox(
+              box: _box(id).box.copyWith(position: Offset(80 + i * 300, 190)),
+            ),
+        ],
+      ).encode();
+      await a.controller.load();
+      await b.controller.load();
+      final otherDisk = b.disk;
+      final opened = <String>[];
+      tester.view.physicalSize = const Size(1100, 700);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: ListenableBuilder(
+                listenable: a.context,
+                builder: (context, _) => WorkspaceGraphView(
+                  vm: a.context,
+                  processMetrics: _NoProcessMetrics(),
+                  embedded: true,
+                  selectedBoxId: a.context.selectedWorkspaceBox?.id,
+                  onSelectBox: (id) {
+                    a.context.selectWorkspaceBox(id);
+                    a.context.revealBox(id, focus: false);
+                  },
+                  onExit: () {},
+                  onOpenTab: opened.add,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.text(t.workspaceView.linkBoxes),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+      await tester.tap(find.text('shared'), kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 16));
+      // Repeating the source must neither cancel linking nor open its terminal.
+      await tester.tap(find.text('shared'), kind: PointerDeviceKind.mouse);
+      // Pausing on the source must not open a tooltip over the target click.
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.tap(find.text('second'), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      await a.controller.settle();
+      expect(a.context.graphLinks.map((l) => (l.from, l.to)), [
+        ('shared', 'second'),
+      ]);
+      expect(OrchestrationDocument.parse(a.disk).links.length, 1);
+      expect(b.disk, otherDisk);
+      expect(a.created, 2);
+      expect(a.starts + b.starts, 0);
+      expect(opened, isEmpty);
+      await tester.tap(find.text('second'), kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(milliseconds: 80));
+      await tester.tap(find.text('second'), kind: PointerDeviceKind.mouse);
+      await tester.pumpAndSettle();
+      expect(opened, [a.controller.bindings['second']]);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
   test(
     'internal navigation updates only its own selection, and splitting preserves the selected source tab',
     () async {
