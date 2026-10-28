@@ -71,6 +71,12 @@ fn server(reply: &'static str) -> (u16, thread::JoinHandle<Option<Value>>) {
         loop {
             match listener.accept() {
                 Ok((mut stream, _)) => {
+                    // Windows accepted sockets inherit the listener mode.
+                    // The fixture polls accept, then reads one blocking request.
+                    stream.set_nonblocking(false).unwrap();
+                    stream
+                        .set_write_timeout(Some(Duration::from_secs(2)))
+                        .unwrap();
                     stream
                         .set_read_timeout(Some(Duration::from_secs(2)))
                         .unwrap();

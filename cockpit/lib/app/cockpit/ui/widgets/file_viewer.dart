@@ -34,6 +34,10 @@ import 'package:flutter_modular/flutter_modular.dart';
 // SelectableScroll, código em volta do Text) — em volta do scroll a seleção
 // escorrega ao rolar com Interface size != 14; ver [SelectableScroll].
 // SelectionContainer.disabled (via shadcn/widgets) tira o gutter da seleção.
+// Keep the SDK facade compatible with shadcn's Material localizations on
+// pre-extraction Flutter. A direct material_ui import breaks selection on
+// the supported stable SDK; migrate with the app's Material theme bridge.
+// ignore: deprecated_member_use
 import 'package:flutter/material.dart' show SelectionArea;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
