@@ -173,6 +173,7 @@ jobs:
           test/data/telemetry/app_telemetry_bridge_test.dart
           test/data/telemetry/otlp_and_config_test.dart
           test/data/telemetry/sqlite_telemetry_store_test.dart
+          test/data/telemetry/telemetry_store_registry_test.dart
           test/data/telemetry/telemetry_cli_handler_test.dart
           test/data/telemetry/telemetry_ingest_test.dart
           test/data/telemetry/telemetry_line_parser_test.dart
