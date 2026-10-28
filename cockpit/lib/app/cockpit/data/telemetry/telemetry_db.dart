@@ -200,16 +200,21 @@ class TelemetryDb {
   /// Insere em transação. Redige segredos e calcula fingerprint quando o
   /// evento tem erro e veio sem. Devolve os ids gerados (na ordem).
   List<String> append(List<Map<String, Object?>> events) {
+    if (events.isEmpty) return [];
     final ids = <String>[];
+    // 32 rows x 13 bindings stays below SQLite's legacy 999-variable limit.
+    // Reuse each statement shape and avoid a separate insert and ID query per row.
+    const batchSize = 32;
+    final statements = <int, PreparedStatement>{};
     _db.execute('BEGIN');
     try {
-      final stmt = _db.prepare(
-        '''INSERT INTO events(run_id, ts, stream, severity, body, attrs, error,
-           fingerprint, trace_id, span_id, request_id, raw_offset, repeat)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)''',
-      );
-      try {
-        for (final e in events) {
+      for (var start = 0; start < events.length; start += batchSize) {
+        final count = events.length - start < batchSize
+            ? events.length - start
+            : batchSize;
+        final parameters = <Object?>[];
+        for (var index = start; index < start + count; index++) {
+          final e = events[index];
           final attrsRaw = e['attrs'] as String?;
           String? attrs;
           if (attrsRaw != null && attrsRaw.isNotEmpty) {
@@ -231,7 +236,7 @@ class TelemetryDb {
             err = jsonEncode(em);
             fp ??= fingerprintOf(TelemetryError.fromJson(em));
           }
-          stmt.execute([
+          parameters.addAll([
             e['run_id'],
             e['ts'],
             e['stream'],
@@ -246,15 +251,31 @@ class TelemetryDb {
             e['raw_offset'],
             e['repeat'] ?? 1,
           ]);
-          ids.add(eventId(_db.lastInsertRowId));
         }
-      } finally {
-        stmt.close();
+        final stmt = statements.putIfAbsent(
+          count,
+          () => _db.prepare(
+            '''INSERT INTO events(run_id, ts, stream, severity, body, attrs, error,
+               fingerprint, trace_id, span_id, request_id, raw_offset, repeat)
+               VALUES ${List.filled(count, '(?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',')}
+               RETURNING id''',
+          ),
+        );
+        // RETURNING order is unspecified. AUTOINCREMENT ids order the input
+        // rows, even when FTS triggers run or earlier events were deleted.
+        final rowids = [
+          for (final row in stmt.select(parameters)) row['id'] as int,
+        ]..sort();
+        ids.addAll(rowids.map(eventId));
       }
       _db.execute('COMMIT');
     } catch (_) {
       _db.execute('ROLLBACK');
       rethrow;
+    } finally {
+      for (final stmt in statements.values) {
+        stmt.close();
+      }
     }
     return ids;
   }
