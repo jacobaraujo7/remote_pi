@@ -80,6 +80,83 @@ extension OrchestrationWorkspace on CockpitViewModel {
     }
   }
 
+  Future<Result<OrchestrationFilePresentation, String>> _openOwnedFile(
+    OrchestrationSession owner,
+    TerminalSession terminal,
+    String raw, {
+    int? line,
+  }) async {
+    final project = _projectById(owner.projectId);
+    if (project == null) return const Failure('Worktree unavailable');
+    final root = project.effectiveRoot;
+    final hostId = project.remoteHostId;
+    final sourceHost = hostId == null
+        ? null
+        : _remoteHosts.hosts.where((h) => h.id == hostId).firstOrNull;
+    final cwd = terminal.currentDirectory ?? terminal.workingDirectory;
+    bool available() =>
+        !owner.disposed &&
+        !owner.closing &&
+        identical(_orchestrations[owner.id], owner) &&
+        _projectById(owner.projectId)?.effectiveRoot == root &&
+        _projectById(owner.projectId)?.remoteHostId == hostId &&
+        (hostId == null ||
+            (sourceHost != null && !_remoteHosts.isDisconnected(hostId)));
+    if (!available()) {
+      return const Failure('Originating document or host is unavailable');
+    }
+    final files = hostId == null
+        ? const LocalDocumentFiles()
+        : CapturedDocumentFiles(() async {
+            if (!available()) {
+              throw StateError('Originating host is unavailable');
+            }
+            return _remoteHosts.fileServiceFor(sourceHost!);
+          });
+    final changes = hostId == null
+        ? _fileChanges
+        : ServiceDocumentWatcher(
+            files,
+            active: () =>
+                available() && owner.fileVisible && owner.presentationVisible,
+          );
+    final host = WorktreeDocumentHost(
+      workspaceRoot: root,
+      changes: changes,
+      files: files,
+      remote: hostId != null,
+      available: available,
+    );
+    final resolved = await host.resolve(raw, cwd: cwd);
+    if (!available()) {
+      return const Failure('Originating document or host is unavailable');
+    }
+    return Success(
+      OrchestrationFilePresentation(
+        id: 'of-${newUid()}',
+        path: resolved,
+        terminalId: terminal.id,
+        host: host,
+        line: line,
+        onPanelCall: (command, directory) async {
+          if (!available() ||
+              terminal.hasExited ||
+              !identical(owner.terminals.session(terminal.id), terminal)) {
+            return const {
+              'ok': false,
+              'error': 'Originating terminal is unavailable',
+            };
+          }
+          return runPanelCommand(
+            command,
+            sessionId: terminal.id,
+            cwd: directory,
+          );
+        },
+      ),
+    );
+  }
+
   OrchestrationSession _makeOrchestration(
     String projectId,
     String file, {
@@ -197,6 +274,8 @@ extension OrchestrationWorkspace on CockpitViewModel {
         if (pane != null && selectedProjectId == projectId) focus(pane);
       },
       onCloseTerminal: (tabId) => _closeOwnedTerminal(session, tabId),
+      onOpenFile: (terminal, file, {line}) =>
+          _openOwnedFile(session, terminal, file, line: line),
       onOpenShell: (boxId) => _openOwnedShell(session, boxId),
       onStartCli: (boxId) => _startOwnedCli(session, boxId),
       onHandoff: (boxId) => _handoffOwned(session, boxId),

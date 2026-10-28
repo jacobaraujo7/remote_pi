@@ -81,6 +81,10 @@ class _App {
       projectId: 'worktree',
       path: '/worktree/$id.orc',
       controller: controller,
+      onOpenFile: (terminal, path, {line}) async {
+        opened.add((terminal.id, path));
+        return const Failure('fixture document unavailable');
+      },
       onCloseTerminal: (id) async {
         if (failClose) return const Failure('disconnected');
         await controller.forgetTerminal(id);
@@ -94,6 +98,7 @@ class _App {
   final gateways = <String, AttachmentTerminalGateway>{};
   int spawned = 0;
   bool failClose = false;
+  final opened = <(String, String)>[];
   String disk = OrchestrationDocument(
     boxes: [
       for (final id in ['one', 'two'])
@@ -221,6 +226,30 @@ void main() {
       expect(a.spawned, 2);
     },
   );
+
+  test('open routes only to the caller-owned document presentation', () async {
+    final result = await call(
+      'open',
+      target: a.second,
+      args: {'path': 'note.txt'},
+    );
+    expect(result.ok, isFalse);
+    expect(a.opened, [(a.second, 'note.txt')]);
+    expect(b.opened, isEmpty);
+    expect(delegated, isEmpty);
+    expect(
+      (await call('open', target: b.first, args: {'path': 'foreign.txt'})).ok,
+      isFalse,
+    );
+    expect(
+      (await call('open', target: normal.id, args: {'path': 'global.txt'})).ok,
+      isFalse,
+    );
+    expect((await call('open', args: {'path': ''})).ok, isFalse);
+    expect(a.opened, hasLength(1));
+    expect(b.opened, isEmpty);
+    expect(delegated, isEmpty);
+  });
 
   test(
     'list only enumerates its own registry, even with another global focus',

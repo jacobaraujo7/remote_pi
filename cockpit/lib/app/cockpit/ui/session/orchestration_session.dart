@@ -6,6 +6,7 @@ import '../services/orchestration_controller.dart';
 import '../viewmodels/orchestration_context.dart';
 import '../viewmodels/orchestration_multiplexer.dart';
 import 'pane_item.dart';
+import 'orchestration_file_presentation.dart';
 import 'terminal_session.dart';
 
 /// The single outer tab owns an independent terminal registry and graph context.
@@ -47,6 +48,7 @@ class OrchestrationSession extends PaneItem {
       onHandoff: onHandoff,
       onSuggestRole: onSuggestRole,
       onPersist: onPersist,
+      onRevealTerminals: showTerminals,
       readAliases: readAliases,
     );
     windowActivityChanges?.addListener(_onWindowActivity);
@@ -68,8 +70,107 @@ class OrchestrationSession extends PaneItem {
   final VoidCallback? onFocus;
   final Future<void> Function()? onBeforeDispose;
   final Listenable? windowActivityChanges;
-  final void Function(TerminalSession terminal, String path, {int? line})?
+  final Future<Result<OrchestrationFilePresentation, String>> Function(
+    TerminalSession terminal,
+    String path, {
+    int? line,
+  })?
   onOpenFile;
+  OrchestrationFilePresentation? filePresentation;
+  bool fileVisible = false;
+  bool _presentationActive = false;
+  bool presentationVisible = false;
+  int _fileOpenGeneration = 0;
+
+  void setPresentationActive(bool value, {bool visible = true}) {
+    presentationVisible = visible;
+    _presentationActive = value;
+    if (!_disposed) terminals.setActive(value && !fileVisible);
+  }
+
+  void showFile() {
+    if (_disposed || closing || filePresentation == null) return;
+    fileVisible = true;
+    terminals.releaseKeyboard();
+    terminals.setActive(false);
+    notifyListeners();
+  }
+
+  void showTerminals() {
+    if (_disposed || closing || !fileVisible) return;
+    fileVisible = false;
+    terminals.setActive(_presentationActive);
+    notifyListeners();
+  }
+
+  bool closeFile({bool discard = false, bool focus = true}) {
+    if (_disposed || closing) return false;
+    final previous = filePresentation;
+    if (previous == null) return true;
+    if (previous.dirty && !discard) return false;
+    _fileOpenGeneration++;
+    filePresentation = null;
+    fileVisible = false;
+    terminals.setActive(_presentationActive);
+    if (focus && terminals.contains(previous.terminalId)) {
+      context.focusTerminalTab(previous.terminalId);
+    }
+    notifyListeners();
+    return true;
+  }
+
+  Future<Result<String, String>> openFile(
+    String terminalId,
+    String path, {
+    int? line,
+  }) async {
+    final terminal = terminals.session(terminalId);
+    final open = onOpenFile;
+    if (_disposed ||
+        closing ||
+        terminal == null ||
+        terminal.hasExited ||
+        open == null) {
+      return const Failure('Originating terminal is unavailable');
+    }
+    final generation = ++_fileOpenGeneration;
+    try {
+      final result = await open(terminal, path, line: line);
+      if (_disposed ||
+          closing ||
+          generation != _fileOpenGeneration ||
+          !identical(terminals.session(terminalId), terminal) ||
+          terminal.hasExited) {
+        return const Failure('Originating terminal is unavailable');
+      }
+      if (result case Failure(:final error)) {
+        controller.reportError(error);
+        return Failure(error);
+      }
+      final next =
+          (result as Success<OrchestrationFilePresentation, String>).value;
+      final current = filePresentation;
+      if (current?.path == next.path && current?.terminalId == terminalId) {
+        if (line != null) current?.viewer?.reveal(line, select: false);
+      } else {
+        if (current?.dirty == true) {
+          const error =
+              'Save or discard the current document before opening another file';
+          controller.reportError(error);
+          return const Failure(error);
+        }
+        filePresentation = next;
+      }
+      showFile();
+      return Success(next.path);
+    } on Object catch (error) {
+      if (!_disposed && !closing && generation == _fileOpenGeneration) {
+        controller.reportError(error);
+      }
+      return Failure(error.toString());
+    }
+  }
+
   final Set<String> closingTerminals = {};
   // Retain the original local snapshot until all saved sessions/layout are
   // restored. An invalid file or disconnected host must not erase recovery data.
@@ -113,6 +214,11 @@ class OrchestrationSession extends PaneItem {
   Future<Result<String, String>> prepareClose() async {
     if (_disposed) return Success(id);
     if (closing) return const Failure('Orchestration is already closing');
+    if (filePresentation?.dirty == true) {
+      return const Failure(
+        'Save or discard the owned document before closing this app',
+      );
+    }
     closing = true;
     try {
       await controller.settle();

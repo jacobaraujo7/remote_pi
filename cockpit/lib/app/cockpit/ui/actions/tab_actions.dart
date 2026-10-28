@@ -22,6 +22,15 @@ Future<bool> requestCloseTab(
   VoidCallback onClose,
 ) async {
   if (item is OrchestrationSession) {
+    final file = item.filePresentation;
+    if (file?.dirty == true) {
+      final allowed = await requestCloseTab(context, file!.viewer, () {
+        if (identical(item.filePresentation, file)) {
+          item.closeFile(discard: true);
+        }
+      });
+      if (!allowed || !context.mounted) return false;
+    }
     final tr = context.t.orchestration;
     final confirmed = await showConfirmDialog(
       context,
@@ -82,6 +91,15 @@ Future<bool> requestCloseTab(
 Future<void> closeActiveTab(BuildContext context) async {
   final vm = context.read<CockpitViewModel>();
   final owner = vm.activeOrchestration;
+  final file = owner?.filePresentation;
+  if (owner != null && file != null && owner.fileVisible) {
+    await requestCloseTab(context, file.viewer, () {
+      if (identical(owner.filePresentation, file)) {
+        owner.closeFile(discard: true);
+      }
+    });
+    return;
+  }
   final ownedTab = owner?.terminals.keyboardTabId;
   if (owner != null && ownedTab != null) {
     await owner.closeTerminal(ownedTab);

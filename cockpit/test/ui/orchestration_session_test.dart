@@ -1,3 +1,10 @@
+import 'dart:async';
+import 'package:cockpit/app/cockpit/ui/document/worktree_document_host.dart';
+import 'package:cockpit/app/cockpit/ui/services/orchestration_document_files.dart';
+import 'package:cockpit/app/cockpit/data/filesystem/disk_file_change_watcher.dart';
+import 'package:cockpit/app/cockpit/ui/session/orchestration_file_presentation.dart';
+import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_controller.dart';
 import 'package:cockpit/app/cockpit/ui/session/orchestration_session.dart';
@@ -23,11 +30,18 @@ OrchestrationSession _app(
   String id, {
   Future<void> Function()? beforeDispose,
   WindowActivityController? activity,
+  Future<Result<OrchestrationFilePresentation, String>> Function(
+    TerminalSession,
+    String, {
+    int? line,
+  })?
+  openFile,
 }) => OrchestrationSession(
   id: id,
   projectId: 'worktree',
   path: '/worktree/$id.orchestration',
   onBeforeDispose: beforeDispose,
+  onOpenFile: openFile,
   windowActive: activity == null ? null : () => activity.isActive,
   windowActivityChanges: activity,
   controller: OrchestrationController(
@@ -54,7 +68,92 @@ TerminalSession _terminal(OrchestrationSession owner, _Gateway gateway) =>
       ),
     );
 
+OrchestrationFilePresentation _document(String path, String terminal) =>
+    OrchestrationFilePresentation(
+      id: path,
+      path: path,
+      terminalId: terminal,
+      host: WorktreeDocumentHost(
+        workspaceRoot: '/worktree',
+        changes: const DiskFileChangeWatcher(),
+        files: const LocalDocumentFiles(),
+        remote: false,
+        available: () => true,
+      ),
+    );
+
 void main() {
+  test('newer file open wins over a late earlier callback', () async {
+    final old = Completer<Result<OrchestrationFilePresentation, String>>();
+    final app = _app(
+      'files',
+      openFile: (terminal, path, {line}) async => path == '/old'
+          ? await old.future
+          : Success(_document(path, terminal.id)),
+    );
+    final terminal = _terminal(app, _Gateway());
+    app.terminals.attach(terminal);
+    final earlier = app.openFile(terminal.id, '/old');
+    expect(
+      await app.openFile(terminal.id, '/new'),
+      isA<Success<String, String>>(),
+    );
+    old.complete(Success(_document('/old', terminal.id)));
+    expect(await earlier, isA<Failure<String, String>>());
+    expect(app.filePresentation!.path, '/new');
+    await app.dispose();
+  });
+
+  test(
+    'hidden drafts prevent replacement and parent shutdown until explicitly discarded',
+    () async {
+      final app = _app(
+        'draft',
+        openFile: (terminal, path, {line}) async =>
+            Success(_document(path, terminal.id)),
+      );
+      final gateway = _Gateway();
+      final terminal = _terminal(app, gateway);
+      app.terminals.attach(terminal);
+      app.setPresentationActive(true);
+      await app.openFile(terminal.id, '/draft');
+      final document = app.filePresentation!;
+      final draft = FileViewerSession(
+        id: 'draft-file',
+        projectId: app.projectId,
+        path: '/draft',
+        view: const FileViewText('unsaved'),
+      )..setDirty(true);
+      document.viewer = draft;
+      app.showTerminals();
+      expect(app.fileVisible, isFalse);
+      expect(
+        await app.openFile(terminal.id, '/replacement'),
+        isA<Failure<String, String>>(),
+      );
+      expect(app.filePresentation, same(document));
+      expect(app.closeFile(), isFalse);
+      expect(await app.prepareClose(), isA<Failure<String, String>>());
+      expect(gateway.stopped, 0);
+      expect(app.closeFile(discard: true), isTrue);
+      expect(await app.prepareClose(), isA<Success<String, String>>());
+      await app.dispose();
+      draft.dispose();
+    },
+  );
+
+  test('closing the app rejects a pending file callback', () async {
+    final gate = Completer<Result<OrchestrationFilePresentation, String>>();
+    final app = _app('closed', openFile: (_, path, {line}) => gate.future);
+    final terminal = _terminal(app, _Gateway());
+    app.terminals.attach(terminal);
+    final opening = app.openFile(terminal.id, '/late');
+    await app.dispose();
+    gate.complete(Success(_document('/late', terminal.id)));
+    expect(await opening, isA<Failure<String, String>>());
+    expect(app.filePresentation, isNull);
+  });
+
   test(
     'window activity subscription acknowledges only the selected owned terminal and detaches on dispose',
     () async {

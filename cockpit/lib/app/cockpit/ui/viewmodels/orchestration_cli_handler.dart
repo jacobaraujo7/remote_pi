@@ -224,6 +224,22 @@ class OrchestrationCliHandler {
             'tabs': owner.terminals.sessions.length,
           },
         ]);
+      case 'open':
+        final target = _target(c);
+        if (target == null) {
+          return const CockpitCommandResult.fail(
+            'Terminal is not in this orchestration',
+          );
+        }
+        final file = c.args['path'];
+        if (file is! String || file.isEmpty) {
+          return const CockpitCommandResult.fail('Missing document path');
+        }
+        final result = await owner.openFile(target.id, file);
+        return switch (result) {
+          Success(:final value) => CockpitCommandResult.ok({'path': value}),
+          Failure(:final error) => CockpitCommandResult.fail(error),
+        };
       case 'new-tab':
         if (![null, '', 'right', 'down'].contains(c.args['split'])) {
           return const CockpitCommandResult.fail('Invalid split direction');

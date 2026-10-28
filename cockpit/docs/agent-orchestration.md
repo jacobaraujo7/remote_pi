@@ -92,8 +92,15 @@ destination. From an owned shell, listing, reading, sending, creating/splitting
 and closing operate inside that document's registry; they cannot select an
 unrelated dock or app. Project data tools retain the original worktree/host.
 Contextual new/split/selection/direction/close commands now use the app registry,
-with private Ctrl-Tab navigation through both terminal engines. File-link opening
-remains under implementation; passing component/transport tests is not macOS desktop acceptance.
+with private Ctrl-Tab navigation through both terminal engines. Terminal file links
+and scoped CLI `open` use a private document presentation in the lower area. The
+original terminal host remains mounted with rendering/input suspended while hidden;
+returning to a box restores only its own terminal. Files use the originating
+worktree/host/cwd captured before asynchronous operations, including reconnect.
+Unsaved documents survive switching back to terminals and block replacement or
+parent closure until Save/Discard/Cancel. Remote files use source-safe rendering;
+remote live panel assets and media are not supported by the existing renderer.
+Passing component/transport tests is not macOS desktop acceptance.
 
 Telemetry wrapper open/ingest/close uses the original workspace and document owner,
 independently of the selected project or a requested destination. Another .orc or

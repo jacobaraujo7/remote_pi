@@ -11,7 +11,7 @@ import '../services/graph_telemetry_service.dart';
 import '../session/orchestration_session.dart';
 import '../session/terminal_session.dart';
 import '../states/pane_node.dart';
-import 'orchestration_terminals_view.dart';
+import 'orchestration_document_area.dart';
 import 'pane_divider.dart';
 import '../../../core/ui/themes/themes.dart';
 import '../../../../i18n/strings.g.dart';
@@ -51,7 +51,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     }
     return _live ??= OrchestrationLiveSessions(
       sources: widget.active
-          ? [widget.session.context, widget.session.terminals]
+          ? [widget.session.context, widget.session.terminals, widget.session]
           : const [],
       sessionState: () => widget.active
           ? [
@@ -77,7 +77,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   @override
   void didUpdateWidget(covariant OrchestrationView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    widget.session.terminals.setActive(widget.active && widget.focused);
+    widget.session.setPresentationActive(
+      widget.active && widget.focused,
+      visible: widget.active,
+    );
     if (oldWidget.session != widget.session ||
         oldWidget.active != widget.active) {
       _live?.dispose();
@@ -93,7 +96,10 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   @override
   void initState() {
     super.initState();
-    widget.session.terminals.setActive(widget.active && widget.focused);
+    widget.session.setPresentationActive(
+      widget.active && widget.focused,
+      visible: widget.active,
+    );
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
@@ -447,7 +453,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                                     ),
                                   ),
                                   Expanded(
-                                    child: OrchestrationTerminalsView(
+                                    child: OrchestrationDocumentArea(
                                       session: widget.session,
                                       active: widget.active,
                                       focused:

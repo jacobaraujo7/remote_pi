@@ -35,6 +35,7 @@ class OrchestrationContext extends ChangeNotifier
     this.onHandoff,
     this.onSuggestRole,
     this.onPersist,
+    this.onRevealTerminals,
     this.readAliases,
   }) {
     _knownTerminals.addAll(terminals.sessions.keys);
@@ -52,6 +53,7 @@ class OrchestrationContext extends ChangeNotifier
       onHandoff,
       onSuggestRole;
   final VoidCallback? onPersist;
+  final VoidCallback? onRevealTerminals;
   final Future<Set<String>> Function(TerminalSession)? readAliases;
   bool _disposed = false;
   bool get disposed => _disposed;
@@ -209,6 +211,7 @@ class OrchestrationContext extends ChangeNotifier
     if (_disposed) return;
     final box = graphBoxes.where((b) => b.id == boxId).firstOrNull;
     if (box == null) return;
+    onRevealTerminals?.call();
     selectWorkspaceBox(boxId);
     terminals.reveal(box.tabId ?? '', focus: focus);
   }
@@ -356,6 +359,7 @@ class OrchestrationContext extends ChangeNotifier
   /// Native tab and keyboard commands share the graph/inspector selection.
   void focusTerminalTab(String tabId) {
     if (_disposed || !terminals.contains(tabId)) return;
+    onRevealTerminals?.call();
     final box = graphBoxes.where((b) => b.tabId == tabId).firstOrNull;
     if (box != null) {
       revealBox(box.id);

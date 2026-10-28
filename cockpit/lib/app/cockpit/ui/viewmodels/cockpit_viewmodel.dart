@@ -2,6 +2,9 @@ import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.d
 import 'dart:async';
 import 'package:path/path.dart' as path;
 import '../session/orchestration_session.dart';
+import '../session/orchestration_file_presentation.dart';
+import '../document/worktree_document_host.dart';
+import '../services/orchestration_document_files.dart';
 import '../services/orchestration_controller.dart';
 import '../services/layout_scrollback_keys.dart';
 import '../services/orchestration_restore_state.dart';

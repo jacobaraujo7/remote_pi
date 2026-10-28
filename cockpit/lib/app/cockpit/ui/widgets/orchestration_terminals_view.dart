@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -179,7 +180,7 @@ class OrchestrationTerminalsView extends StatelessWidget {
                 focusRevision: mux.focusRevision,
                 onFocus: () => _focus(tabId),
                 onOpenFile: (path, {line}) =>
-                    session.onOpenFile?.call(terminal, path, line: line),
+                    unawaited(session.openFile(terminal.id, path, line: line)),
                 ownerShortcuts: {
                   const SingleActivator(
                     LogicalKeyboardKey.tab,

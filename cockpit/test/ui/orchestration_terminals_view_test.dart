@@ -1,3 +1,14 @@
+import 'package:cockpit/i18n/strings.g.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:cockpit_core/cockpit_core.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
+import 'package:cockpit/app/cockpit/ui/document/worktree_document_host.dart';
+import 'package:cockpit/app/cockpit/ui/session/orchestration_file_presentation.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/orchestration_document_area.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/terminal_session_view.dart';
+import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/workspace_graph.dart';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_controller.dart';
@@ -25,7 +36,16 @@ class _Settings extends SettingsStore {
 }
 
 class _Fixture {
-  _Fixture(String id, TerminalEngine engine) {
+  _Fixture(
+    String id,
+    TerminalEngine engine, {
+    Future<Result<OrchestrationFilePresentation, String>> Function(
+      TerminalSession,
+      String, {
+      int? line,
+    })?
+    openFile,
+  }) {
     final controller = OrchestrationController(
       read: () async => disk,
       write: (text) async {
@@ -62,6 +82,7 @@ class _Fixture {
       projectId: 'same-worktree',
       path: '/worktree/$id.orchestration',
       controller: controller,
+      onOpenFile: openFile,
     );
     disk = OrchestrationDocument(
       boxes: [
@@ -89,26 +110,148 @@ Widget _keyboardHost(Widget child) => ModularApp(
   provide: (scope) => scope
     ..addChangeNotifier<SettingsController>(
       () => SettingsController(_Settings()),
+    )
+    ..addChangeNotifier<EditorMenuBridge>(() => EditorMenuBridge()),
+  child: TranslationProvider(
+    child: ShadcnApp(
+      theme: buildTheme(brightness: Brightness.dark),
+      builder: (context, child) {
+        final tokens = buildTokens(
+          brightness: Brightness.dark,
+          settings: const AppSettings(),
+        );
+        return CockpitTheme(
+          colors: tokens.colors,
+          typo: tokens.typo,
+          syntax: tokens.syntax,
+          terminal: tokens.terminal,
+          child: child!,
+        );
+      },
+      home: child,
     ),
-  child: ShadcnApp(
-    builder: (context, child) {
-      final tokens = buildTokens(
-        brightness: Brightness.dark,
-        settings: const AppSettings(),
-      );
-      return CockpitTheme(
-        colors: tokens.colors,
-        typo: tokens.typo,
-        syntax: tokens.syntax,
-        terminal: tokens.terminal,
-        child: child!,
-      );
-    },
-    home: child,
   ),
 );
 
 void main() {
+  for (final engine in TerminalEngine.values) {
+    testWidgets(
+      'owned file presentation preserves $engine terminal identity and keyboard',
+      (tester) async {
+        final host = WorktreeDocumentHost(
+          workspaceRoot: '/worktree',
+          changes: _FileChanges(),
+          files: _DocumentFiles(),
+          remote: true,
+          available: () => true,
+        );
+        final fixture = _Fixture(
+          'file-${engine.name}',
+          engine,
+          openFile: (terminal, file, {line}) async => Success(
+            OrchestrationFilePresentation(
+              id: 'private-file',
+              path: file,
+              terminalId: terminal.id,
+              host: host,
+              line: line,
+            ),
+          ),
+        );
+        await fixture.app.controller.load();
+        fixture.app.setPresentationActive(true);
+        fixture.app.context.focusTerminalTab('${fixture.app.id}-one');
+        await tester.pumpWidget(
+          _keyboardHost(
+            OrchestrationDocumentArea(
+              session: fixture.app,
+              active: true,
+              focused: true,
+            ),
+          ),
+        );
+        await tester.pump();
+        fixture.app.terminals.splitTab(
+          '${fixture.app.id}-two',
+          SplitDir.vertical,
+          anchorPaneId: fixture.app.terminals
+              .paneOf('${fixture.app.id}-one')!
+              .id,
+        );
+        fixture.app.context.focusTerminalTab('${fixture.app.id}-one');
+        await tester.pump();
+        final originalTree = fixture.app.terminals.tree;
+        final originalModels = fixture.app.terminals.sessions.values.toList();
+        final states = {
+          for (final terminal in originalModels)
+            terminal.id: tester.state(
+              find.byKey(
+                ValueKey((fixture.app.id, terminal.id)),
+                skipOffstage: false,
+              ),
+            ),
+        };
+        final source = originalModels.first.id;
+        expect(
+          await fixture.app.openFile(source, '/worktree/note.txt'),
+          isA<Success<String, String>>(),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 50));
+        expect(fixture.app.terminals.active, isFalse);
+        expect(
+          find.byType(TerminalSessionView, skipOffstage: false),
+          findsNWidgets(2),
+        );
+        for (final terminal in originalModels) {
+          expect(
+            tester.state(
+              find.byKey(
+                ValueKey((fixture.app.id, terminal.id)),
+                skipOffstage: false,
+              ),
+            ),
+            same(states[terminal.id]),
+          );
+        }
+        fixture.app.context.revealBox('two', focus: false);
+        await tester.pump();
+        expect(fixture.app.fileVisible, isFalse);
+        expect(fixture.app.filePresentation, isNotNull);
+        expect(fixture.app.terminals.keyboardTabId, isNull);
+        fixture.app.showFile();
+        await tester.pump();
+        await tester.tap(
+          find.byKey(ValueKey('owned-file-close-${fixture.app.id}')),
+        );
+        await tester.pump();
+        await tester.pump();
+        expect(fixture.app.filePresentation, isNull);
+        expect(fixture.app.terminals.active, isTrue);
+        expect(fixture.app.terminals.sessions.values.toList(), originalModels);
+        expect(fixture.app.terminals.tree!.id, originalTree!.id);
+        for (final terminal in originalModels) {
+          expect(
+            tester.state(
+              find.byKey(
+                ValueKey((fixture.app.id, terminal.id)),
+                skipOffstage: false,
+              ),
+            ),
+            same(states[terminal.id]),
+          );
+        }
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+        expect(fixture.gateways[source]!.text, '\r');
+        expect(fixture.gateways['${fixture.app.id}-two']!.text, isEmpty);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        addTearDown(() => fixture.app.dispose());
+      },
+    );
+  }
+
   for (final engine in TerminalEngine.values) {
     testWidgets(
       '${engine.name}: Ctrl-Tab stays internal and input reaches the selected terminal',
@@ -301,4 +444,23 @@ void main() {
       },
     );
   }
+}
+
+class _DocumentFiles implements FileService {
+  @override
+  Future<Uint8List> read(String path, {int maxBytes = 8 * 1024 * 1024}) async =>
+      Uint8List.fromList(utf8.encode('owned file'));
+  @override
+  Future<void> write(String path, Uint8List bytes) async {}
+  @override
+  Future<List<FileEntry>> list(String path) async => [];
+  @override
+  Future<String> home() async => '/worktree';
+}
+
+class _FileChanges implements FileChangeWatcher {
+  @override
+  Stream<void> watchFile(String path) => const Stream.empty();
+  @override
+  Stream<void> watchFolder(String path) => const Stream.empty();
 }
