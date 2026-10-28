@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/data/telemetry/sqlite_telemetry_store.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_ingest_impl.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_store_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/telemetry_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/telemetry_cli_handler.dart';
@@ -83,6 +84,79 @@ void main() {
     expect(closed['run'], run);
     return run;
   }
+
+  test('wrapper mutations require the original orchestration owner', () async {
+    Future<CockpitCommandResult> owned(
+      String verb,
+      String? owner,
+      Map<String, dynamic> args,
+    ) => cli.handle(
+      CockpitCommand(
+        cmd: verb,
+        callerTabId: 'source-A',
+        tabId: 'forged-destination',
+        args: args,
+      ),
+      project,
+      '/ws/shop',
+      terminalOwnerId: owner,
+    );
+    final opened = await owned('telemetry-open', 'orc-A', {
+      'command': 'owned test',
+    });
+    expect(opened.ok, isTrue);
+    final id = (opened.data as Map)['run'] as String;
+    final session = ingest.session(id, workspaceId: project.id)!;
+    expect(session.ownerId, 'orc-A');
+    expect(session.paneId, 'source-A');
+    for (final foreign in ['orc-B', null]) {
+      expect(
+        (await owned('telemetry-ingest', foreign, {
+          'run': id,
+          'lines': ['foreign'],
+        })).ok,
+        isFalse,
+      );
+      expect(
+        (await owned('telemetry-close', foreign, {'run': id})).ok,
+        isFalse,
+      );
+      expect(ingest.session(id, workspaceId: project.id), same(session));
+    }
+    expect(
+      (await owned('telemetry-ingest', 'orc-A', {
+        'run': id,
+        'lines': ['own'],
+      })).ok,
+      isTrue,
+    );
+    expect((await owned('telemetry-close', 'orc-A', {'run': id})).ok, isTrue);
+    final store = await registry.forWorkspace(project.id);
+    final logs = await store.events(TelemetryQuery(runId: id));
+    expect(logs.map((e) => e.body), ['own']);
+  });
+
+  test('owner disappearing during open closes the new run', () async {
+    var available = true;
+    final opening = cli.handle(
+      CockpitCommand(
+        cmd: 'telemetry-open',
+        callerTabId: 'A1',
+        args: {'command': 'late'},
+      ),
+      project,
+      '/ws/shop',
+      terminalOwnerId: 'orc-A',
+      originAvailable: () => available,
+    );
+    available = false;
+    expect((await opening).ok, isFalse);
+    final store = await registry.forWorkspace(project.id);
+    final runs = await store.runs();
+    expect(runs, hasLength(1));
+    expect(runs.single.isLive, isFalse);
+    expect(ingest.session(runs.single.id, workspaceId: project.id), isNull);
+  });
 
   test('wrapper: open/ingest/close e resumo de erros', () async {
     final open = await call('telemetry-open', {

@@ -6,6 +6,9 @@ import 'package:cockpit/app/cockpit/data/telemetry/telemetry_workspace_config.da
 import 'package:cockpit/app/cockpit/domain/entities/telemetry_event.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// This suite uses a real loopback server, independently of Flutter's HTTP mock.
+class _LoopbackHttp extends HttpOverrides {}
+
 class _Sink implements OtlpSink {
   final got = <String, List<TelemetryEvent>>{};
 
@@ -25,7 +28,7 @@ class _Sink implements OtlpSink {
 }
 
 Future<int> post(String endpoint, String path, Object body) async {
-  final c = HttpClient();
+  final c = _LoopbackHttp().createHttpClient(null)..findProxy = (_) => 'DIRECT';
   final req = await c.postUrl(Uri.parse('$endpoint$path'));
   req.headers.contentType = ContentType.json;
   req.write(jsonEncode(body));
@@ -166,7 +169,8 @@ void main() {
     );
 
     test('método/tipo errados não derrubam o servidor', () async {
-      final c = HttpClient();
+      final c = _LoopbackHttp().createHttpClient(null)
+        ..findProxy = (_) => 'DIRECT';
       final r1 = await (await c.getUrl(
         Uri.parse('${rx.endpoint}/v1/logs'),
       )).close();

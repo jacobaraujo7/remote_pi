@@ -45,6 +45,110 @@ void main() {
   });
   tearDown(() => registry.closeAll());
 
+  test('colliding store run IDs preserve app and workspace sessions', () async {
+    final sessions = await Future.wait([
+      ingest.openAppRun(version: 'acceptance'),
+      ingest.openWrapperRun(
+        cwd: '/ws/shop/app',
+        command: 'worker A',
+        workspaceId: 'ws-mono',
+        ownerId: 'orc-A',
+        paneId: 'A1',
+      ),
+      ingest.openWrapperRun(
+        cwd: '/ws/site',
+        command: 'worker B',
+        workspaceId: 'ws-single',
+        ownerId: 'orc-B',
+        paneId: 'B1',
+      ),
+    ]);
+    final live = sessions.cast<TelemetryIngestSession>();
+    expect(live.map((s) => s.runId).toSet(), hasLength(1));
+    expect(ingest.session(live.first.runId), isNull);
+    final routingKeys = <String>{};
+    for (final session in live) {
+      expect(
+        ingest.session(session.runId, workspaceId: session.workspaceId),
+        same(session),
+      );
+      final attributes = session.childEnvironment['OTEL_RESOURCE_ATTRIBUTES']!;
+      final key = attributes.split(',').first.substring('cockpit.run='.length);
+      routingKeys.add(key);
+      expect(ingest.runFor(runId: key), key);
+      ingest.addEvents(key, [
+        TelemetryEvent(
+          runId: key,
+          ts: DateTime.now(),
+          stream: TelemetryStream.out,
+          severity: TelemetrySeverity.info,
+          body: session.workspaceId,
+        ),
+      ]);
+    }
+    expect(routingKeys, hasLength(3));
+    expect(ingest.runFor(runId: live.first.runId), isNull);
+    expect(ingest.runFor(runId: 'unknown', serviceName: 'worker A'), isNull);
+    for (final session in live) {
+      await session.close();
+      final store = await registry.forWorkspace(session.workspaceId);
+      final events = await store.events(TelemetryQuery(runId: session.runId));
+      expect(events.map((e) => e.body), [session.workspaceId]);
+      expect(events.single.runId, session.runId);
+      expect(
+        ingest.session(session.runId, workspaceId: session.workspaceId),
+        isNull,
+      );
+    }
+  });
+
+  test('explicit workspace wins over a nested registered root', () async {
+    ingest.registerWorkspace(
+      const TelemetryWorkspace(
+        id: 'nested',
+        name: 'nested',
+        path: '/ws/shop/app/nested',
+        roots: ['/ws/shop/app/nested'],
+      ),
+    );
+    final session = (await ingest.openWrapperRun(
+      cwd: '/ws/shop/app/nested',
+      command: 'owned',
+      workspaceId: 'ws-mono',
+      ownerId: 'orc-A',
+      paneId: 'A1',
+    ))!;
+    expect(session.workspaceId, 'ws-mono');
+    expect(session.ownerId, 'orc-A');
+    expect(session.paneId, 'A1');
+    expect(
+      await ingest.openWrapperRun(
+        cwd: '/ws/site',
+        command: 'foreign',
+        workspaceId: 'ws-mono',
+      ),
+      isNull,
+    );
+    await session.close();
+  });
+
+  test('owned error notices retain document and terminal identity', () async {
+    final notice = ingest.notices.first;
+    final session = (await ingest.openWrapperRun(
+      cwd: '/ws/shop/app',
+      command: 'owned',
+      workspaceId: 'ws-mono',
+      ownerId: 'orc-A',
+      paneId: 'A1',
+    ))!;
+    session.add('Error: owned failure\n');
+    await session.close(exitCode: 1);
+    final received = await notice;
+    expect(received.workspaceId, 'ws-mono');
+    expect(received.ownerId, 'orc-A');
+    expect(received.paneId, 'A1');
+  });
+
   const appTask = TaskDefinition(
     id: 'flutter:run',
     label: 'app',

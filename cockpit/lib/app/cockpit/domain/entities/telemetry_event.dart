@@ -184,6 +184,7 @@ class TelemetryEvent {
   String? get probe => attrs['probe']?.toString();
 
   TelemetryEvent copyWith({
+    String? runId,
     String? id,
     String? fingerprint,
     int? repeat,
@@ -191,7 +192,7 @@ class TelemetryEvent {
     TelemetryError? error,
   }) => TelemetryEvent(
     id: id ?? this.id,
-    runId: runId,
+    runId: runId ?? this.runId,
     ts: ts,
     stream: stream,
     severity: severity,

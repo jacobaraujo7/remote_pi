@@ -14,7 +14,7 @@ import 'line_parser/frames.dart';
 
 /// Quem resolve um run vivo e recebe eventos por ele.
 abstract class OtlpSink {
-  /// `runId` exato ou `null`.
+  /// Opaque live routing key, or null when the resource is unknown/ambiguous.
   String? runFor({String? runId, String? serviceName});
   void addEvents(String runId, List<TelemetryEvent> events);
   List<String> projectRootsOf(String runId);

@@ -178,9 +178,26 @@ class CockpitCliHandler {
     if (TelemetryCliHandler.handles(c.cmd)) {
       // `--app` (plano 68): store do próprio Cockpit, sem workspace.
       if (c.args['app'] == true) return _telemetry.handle(c, null, '');
+      final telemetryOrigin = originPane ?? _vm.session(c.tabId ?? '');
+      final ownerId = telemetryOrigin?.owner.instanceId;
+      bool originAvailable() {
+        if (ownerId == null) return true;
+        final owner = _vm.orchestrationById(ownerId);
+        return owner != null &&
+            !owner.disposed &&
+            !owner.closing &&
+            identical(_vm.session(telemetryOrigin!.id), telemetryOrigin);
+      }
+
       return _projectCommand(
         c,
-        (project, root) => _telemetry.handle(c, project, root),
+        (project, root) => _telemetry.handle(
+          c,
+          project,
+          root,
+          terminalOwnerId: ownerId,
+          originAvailable: originAvailable,
+        ),
       );
     }
     switch (c.cmd) {

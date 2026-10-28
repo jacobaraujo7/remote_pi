@@ -2,7 +2,7 @@
 
 Open **Gallery → Agent Orchestration** to create `agents.orc` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
 
-Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Owned hook/status/activity routing is integrated; contextual CLI, shortcut/menu routing and file-link handling are still under implementation; desktop cold-upgrade acceptance is pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
+Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Owned hook/status/activity routing, contextual CLI, shortcut/menu routing and scoped telemetry wrappers are integrated; file-link handling and desktop cold-upgrade acceptance are pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
 
 ## Portable document
 
@@ -93,4 +93,14 @@ and closing operate inside that document's registry; they cannot select an
 unrelated dock or app. Project data tools retain the original worktree/host.
 Contextual new/split/selection/direction/close commands now use the app registry,
 with private Ctrl-Tab navigation through both terminal engines. File-link opening
-and telemetry wrapper integration remain before the next runtime trial; passing component/transport tests is not macOS desktop acceptance.
+remains under implementation; passing component/transport tests is not macOS desktop acceptance.
+
+Telemetry wrapper open/ingest/close uses the original workspace and document owner,
+independently of the selected project or a requested destination. Another .orc or
+ordinary workspace terminal cannot ingest into or close that owned run. Closing
+an origin during asynchronous run creation closes the newly opened run too.
+Store-local run IDs remain unchanged; active lookups include the workspace so an
+owned run cannot replace the app diagnostic run. OTLP child resource attributes
+carry a qualified routing key, and ambiguous legacy IDs/service names are refused.
+Error notices retain their originating document/terminal identity. None of this
+runtime identity is written to the portable .orc.

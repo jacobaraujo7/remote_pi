@@ -153,7 +153,10 @@ String normalizeProjectPath(String file, List<String> projectRoots) {
     final nf = p.normalize(f);
     for (final r in projectRoots) {
       final nr = p.normalize(r);
-      if (p.isWithin(nr, nf)) return p.relative(nf, from: nr);
+      if (p.isWithin(nr, nf)) {
+        // Stored locations/fingerprints must be stable across desktop hosts.
+        return p.relative(nf, from: nr).replaceAll('\\', '/');
+      }
     }
     return f;
   }

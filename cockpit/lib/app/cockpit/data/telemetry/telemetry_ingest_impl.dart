@@ -3,6 +3,7 @@
 // lotes. Task e wrapper usam a mesma sessão; só muda quem chama `add`.
 
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show pid;
 
 import 'package:path/path.dart' as p;
@@ -32,7 +33,7 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
   final _workspaces = <String, TelemetryWorkspace>{};
   final _configs = <String, TelemetryWorkspaceConfig>{};
   final _proxies = <String, HttpTelemetryProxy>{};
-  final _live = <String, _Session>{};
+  final _live = <(String, String), _Session>{};
   final _notices = StreamController<TelemetryErrorNotice>.broadcast();
   OtlpReceiver? _otlp;
 
@@ -106,30 +107,34 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
 
   @override
   String? runFor({String? runId, String? serviceName}) {
-    if (runId != null && _live.containsKey(runId)) return runId;
+    if (runId != null) return _session(runId)?.routingKey;
     if (serviceName == null) return null;
-    for (final s in _live.values) {
-      if (s.run.name == serviceName || s.run.key == 'name:$serviceName') {
-        return s.runId;
-      }
-    }
-    return null;
+    final matches = _live.values
+        .where(
+          (s) => s.run.name == serviceName || s.run.key == 'name:$serviceName',
+        )
+        .toList();
+    return matches.length == 1 ? matches.single.routingKey : null;
   }
 
   @override
   void addEvents(String runId, List<TelemetryEvent> events) =>
-      _live[runId]?.addEvents(events);
+      _session(runId)?.addEvents(events);
 
   @override
   List<String> projectRootsOf(String runId) =>
-      _live[runId]?.config.projectRoots ?? const [];
+      _session(runId)?.config.projectRoots ?? const [];
 
   /// Workspace cuja root contém [cwd]; empate → root mais específica.
-  ({TelemetryWorkspace ws, String project})? resolve(String cwd) {
+  ({TelemetryWorkspace ws, String project})? resolve(
+    String cwd, {
+    String? workspaceId,
+  }) {
     final ncwd = p.normalize(cwd);
     TelemetryWorkspace? best;
     String? bestRoot;
     for (final ws in _workspaces.values) {
+      if (workspaceId != null && ws.id != workspaceId) continue;
       final roots = ws.roots.isEmpty ? [ws.path] : ws.roots;
       for (final r in roots) {
         final nr = p.normalize(r);
@@ -149,12 +154,23 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
   }
 
   @override
-  TelemetryIngestSession? session(String runId) => _live[runId];
+  TelemetryIngestSession? session(String runId, {String? workspaceId}) =>
+      _session(runId, workspaceId: workspaceId);
+
+  _Session? _session(String runId, {String? workspaceId}) {
+    if (workspaceId != null) return _live[(workspaceId, runId)];
+    final matches = _live.values
+        .where((s) => s.routingKey == runId || s.runId == runId)
+        .toList();
+    return matches.length == 1 ? matches.single : null;
+  }
 
   @override
   Future<TelemetryIngestSession?> openWrapperRun({
     required String cwd,
     required String command,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? paneId,
     int? pid,
@@ -163,6 +179,8 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
     command: command,
     name: name,
     source: TelemetryRunSource.wrapper,
+    workspaceId: workspaceId,
+    ownerId: ownerId,
     paneId: paneId,
     pid: pid,
   );
@@ -201,6 +219,7 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
     const config = TelemetryParserConfig();
     final s = _Session(
       store: store,
+      workspaceId: kTelemetryAppWorkspaceId,
       run: run,
       parser: _parsers.create(runId: run.id, config: config),
       vmParser: () => _parsers.create(runId: run.id, config: config),
@@ -208,11 +227,11 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
       ignore: const [],
       otlpEndpoint: otlpEndpoint,
       project: 'Cockpit',
-      onClosed: () => _live.remove(run.id),
+      onClosed: () => _live.remove((kTelemetryAppWorkspaceId, run.id)),
       // Sem push: o run do app não tem pane de agente.
       onErrors: (_) {},
     );
-    _live[run.id] = s;
+    _live[(kTelemetryAppWorkspaceId, run.id)] = s;
     return s;
   }
 
@@ -220,13 +239,15 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
     required String cwd,
     required String command,
     required TelemetryRunSource source,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? taskKey,
     String? paneId,
     int? pid,
   }) async {
     if (cwd.isEmpty) return null;
-    final hit = resolve(cwd);
+    final hit = resolve(cwd, workspaceId: workspaceId);
     if (hit == null) return null;
     final store = await _registry.forWorkspace(hit.ws.id);
     final run = await store.openRun(
@@ -249,6 +270,8 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
     );
     final s = _Session(
       store: store,
+      workspaceId: hit.ws.id,
+      ownerId: ownerId,
       run: run,
       parser: _parsers.create(runId: run.id, config: config),
       vmParser: () => _parsers.create(runId: run.id, config: config),
@@ -256,7 +279,7 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
       ignore: wsCfg.ignore,
       otlpEndpoint: otlpEndpoint,
       project: hit.project,
-      onClosed: () => _live.remove(run.id),
+      onClosed: () => _live.remove((hit.ws.id, run.id)),
       onErrors: (fps) {
         if (_notices.isClosed) return;
         _notices.add(
@@ -265,12 +288,13 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
             runId: run.id,
             project: hit.project,
             paneId: paneId,
+            ownerId: ownerId,
             fingerprints: fps,
           ),
         );
       },
     );
-    _live[run.id] = s;
+    _live[(hit.ws.id, run.id)] = s;
     return s;
   }
 }
@@ -278,6 +302,8 @@ class TelemetryIngestImpl implements TelemetryIngest, OtlpSink {
 class _Session implements TelemetryIngestSession {
   _Session({
     required this.store,
+    required this.workspaceId,
+    this.ownerId,
     required this.run,
     required this.parser,
     required this.vmParser,
@@ -288,6 +314,15 @@ class _Session implements TelemetryIngestSession {
     required this.onClosed,
     required this.onErrors,
   });
+
+  @override
+  final String workspaceId;
+  @override
+  final String? ownerId;
+  @override
+  String? get paneId => run.paneId;
+  String get routingKey =>
+      '${base64Url.encode(utf8.encode(workspaceId)).replaceAll('=', '')}:$runId';
 
   final TelemetryStore store;
   final TelemetryRun run;
@@ -329,7 +364,7 @@ class _Session implements TelemetryIngestSession {
     'COCKPIT_RUN_ID': run.id,
     'OTEL_SERVICE_NAME': run.name ?? run.command,
     'OTEL_RESOURCE_ATTRIBUTES':
-        'cockpit.run=${run.id},cockpit.project=$project',
+        'cockpit.run=$routingKey,cockpit.project=$project',
     if (otlpEndpoint.isNotEmpty) 'OTEL_EXPORTER_OTLP_ENDPOINT': otlpEndpoint,
   };
 
@@ -415,7 +450,7 @@ class _Session implements TelemetryIngestSession {
   @override
   void addEvents(List<TelemetryEvent> events) {
     if (_closed || events.isEmpty) return;
-    _pending.addAll(events);
+    _pending.addAll(events.map((e) => e.copyWith(runId: run.id)));
     _scheduleFlush();
   }
 

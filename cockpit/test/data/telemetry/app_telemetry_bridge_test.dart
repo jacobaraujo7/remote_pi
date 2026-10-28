@@ -13,6 +13,12 @@ class _FakeSession implements TelemetryIngestSession {
 
   @override
   String get runId => 'r_test';
+  @override
+  String get workspaceId => kTelemetryAppWorkspaceId;
+  @override
+  String? get ownerId => null;
+  @override
+  String? get paneId => null;
 
   @override
   Map<String, String> get childEnvironment => const {};
@@ -40,13 +46,16 @@ class _FakeIngest implements TelemetryIngest {
   Future<TelemetryIngestSession?> openWrapperRun({
     required String cwd,
     required String command,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? paneId,
     int? pid,
   }) async => null;
 
   @override
-  TelemetryIngestSession? session(String runId) => session_;
+  TelemetryIngestSession? session(String runId, {String? workspaceId}) =>
+      session_;
 
   @override
   Future<TelemetryIngestSession?> openAppRun({required String version}) async =>

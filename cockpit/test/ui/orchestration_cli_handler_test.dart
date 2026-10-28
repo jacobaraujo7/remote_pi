@@ -462,6 +462,25 @@ void main() {
   );
 
   test(
+    'telemetry wrapper keeps the true caller and cannot use app storage',
+    () async {
+      for (final verb in [
+        'telemetry-open',
+        'telemetry-ingest',
+        'telemetry-close',
+      ]) {
+        expect((await call(verb, args: {'run': 'r_1'})).ok, isTrue);
+        expect(delegated.last.tabId, a.first);
+        expect(delegated.last.callerTabId, a.first);
+        expect(delegated.last.args['workspace'], 'worktree');
+        expect((await call(verb, args: {'app': true})).ok, isFalse);
+        expect((await call(verb, args: {'workspace': 'other'})).ok, isFalse);
+      }
+      expect(delegated, hasLength(3));
+    },
+  );
+
+  test(
     'data tools are pinned to the sender worktree and global UI commands are refused',
     () async {
       expect((await call('db-list')).ok, isTrue);

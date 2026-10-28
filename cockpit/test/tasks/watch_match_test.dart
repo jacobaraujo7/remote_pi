@@ -72,7 +72,7 @@ class _NoTelemetry implements TelemetryIngest {
   void registerWorkspace(TelemetryWorkspace workspace) {}
 
   @override
-  TelemetryIngestSession? session(String runId) => null;
+  TelemetryIngestSession? session(String runId, {String? workspaceId}) => null;
 
   @override
   Future<TelemetryIngestSession?> openAppRun({required String version}) async =>
@@ -89,6 +89,8 @@ class _NoTelemetry implements TelemetryIngest {
   Future<TelemetryIngestSession?> openWrapperRun({
     required String cwd,
     required String command,
+    String? workspaceId,
+    String? ownerId,
     String? name,
     String? paneId,
     int? pid,
