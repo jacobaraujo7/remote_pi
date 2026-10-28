@@ -8,6 +8,7 @@ on:
       - 'cockpit/tool/design/**'
       - 'cockpit/pubspec.*'
       - 'cockpit/packages/**'
+      - 'cockpit/cli/**'
       - '.github/workflows/cockpit-orchestration.yml'
   workflow_dispatch:
 
@@ -54,6 +55,8 @@ jobs:
           fi
       - name: Resolve versioned dependencies
         run: flutter pub get
+      - name: CLI caller routing contract
+        run: cargo test --manifest-path cli/Cargo.toml
       - name: Analyze workspace presentation
         run: >-
           flutter analyze --no-pub
@@ -63,6 +66,9 @@ jobs:
           lib/app/cockpit/domain/entities/terminal_owner.dart
           lib/app/cockpit/ui/viewmodels/orchestration_multiplexer.dart
           lib/app/cockpit/ui/viewmodels/orchestration_context.dart
+          lib/app/cockpit/ui/viewmodels/orchestration_cli_handler.dart
+          lib/app/cockpit/ui/viewmodels/cockpit_cli_handler.dart
+          lib/app/cockpit/data/hooks/terminal_status_server_impl.dart
           lib/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart
           lib/app/cockpit/ui/widgets/orchestration_terminals_view.dart
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
@@ -100,6 +106,8 @@ jobs:
           test/core/data/json_stores_test.dart
           test/ui/orchestration_multiplexer_test.dart
           test/ui/orchestration_context_test.dart
+          test/ui/orchestration_cli_handler_test.dart
+          test/data/terminal_status_server_command_test.dart
           test/ui/orchestration_session_test.dart
           test/ui/orchestration_terminals_view_test.dart
           test/ui/session_notifications_controller_test.dart
@@ -128,12 +136,13 @@ jobs:
       - name: Resolve server regression dependencies
         working-directory: cockpit/packages/cockpit_server
         run: dart pub get
-      - name: Exclusive file creation through native and remote adapters
+      - name: Server routing, transport and native file creation
         working-directory: cockpit/packages/cockpit_server
         run: >-
           dart test
           test/exclusive_file_create_test.dart
           test/local_transport_test.dart
+          test/cli_forward_test.dart
           ../cockpit_engine/test/native_file_create_test.dart
       - name: Build Windows app
         if: runner.os == 'Windows'

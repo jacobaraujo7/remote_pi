@@ -196,6 +196,9 @@ no socket found in ~/.cockpit). Is the app running?",
         );
     }
     req["type"] = json!("cmd");
+    if let Some(caller) = crate::util::self_tab_id() {
+        req["callerTabId"] = json!(caller);
+    }
     if let Ok(tok) = std::env::var("COCKPIT_STATUS_TOKEN") {
         req["tok"] = json!(tok);
     } else if let Some((_, Some(tok))) = endpoint_from_file() {

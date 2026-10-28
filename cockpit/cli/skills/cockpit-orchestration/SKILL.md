@@ -44,6 +44,20 @@ belong to this app instance. Temporary children are linked to their parent termi
 and are not permanent terminal definitions. Do not use a workspace-wide tab list
 to populate or resolve an orchestration document.
 
+## Existing CLI inside an owned terminal
+
+Use `cockpit list-tabs --json` to identify this app's terminals, then the existing
+`send --tab-id`, `read-tab`, `new-tab` and `close-tab` commands. `read-tab`/`close-tab` names resolve
+inside the same app; ambiguous names require an exact returned terminal ID.
+`new-tab --split h` opens a side-by-side internal split. A new terminal has no
+role or configured agent until the user chooses them.
+
+The CLI carries its originating tab independently of its destination. Do not
+change `COCKPIT_TAB_ID` to impersonate another terminal or use a global tab list
+to populate this document. A closed or unknown origin is rejected rather than selecting another
+workspace. Project data tools use the sender's worktree and host. Commands that
+replace global layouts or manage other workspaces are outside this app's scope.
+
 ## Portable file
 
 To create a file directly, use unique stable box IDs and relative worktree

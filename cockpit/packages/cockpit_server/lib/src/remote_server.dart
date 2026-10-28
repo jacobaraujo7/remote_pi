@@ -204,7 +204,11 @@ class RemoteServer {
     // O comando vai para o cliente DONO da aba. Dois clientes no mesmo host
     // (desktop e iPad) compartilham este servidor, e responder pelo último que
     // conectou fazia o comando de um agente cair no outro dispositivo.
-    final tabId = (request['tabId'] ?? '').toString();
+    final caller = request['callerTabId'];
+    if (caller != null && (caller is! String || caller.isEmpty)) {
+      return <String, Object?>{'ok': false, 'error': 'invalid callerTabId'};
+    }
+    final tabId = (caller ?? request['tabId'] ?? '').toString();
     _Connection? connection;
     if (tabId.isNotEmpty) {
       for (final c in _connections) {
@@ -218,7 +222,8 @@ class RemoteServer {
     // veio de fora de uma aba). Com um cliente só, ele é a resposta óbvia;
     // com vários, chutar erraria de dispositivo — melhor dizer o que houve.
     if (connection == null) {
-      if (_connections.length > 1) {
+      // A known origin cannot be rerouted to a different client's selection.
+      if (caller != null || _connections.length > 1) {
         return <String, Object?>{
           'ok': false,
           'error': tabId.isEmpty

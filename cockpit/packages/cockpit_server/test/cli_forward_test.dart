@@ -188,6 +188,73 @@ void main() {
     expect(reply['ok'], isTrue);
     expect(reply['data'], 'ok');
   });
+  test(
+    'origin routes to its owning client even when the target belongs to another client',
+    () async {
+      final server = _server();
+      await server.bind(path);
+      addTearDown(server.close);
+      final origin = await _connectClient(path);
+      final destination = await _connectClient(path);
+      await _claimTab(origin, 'source');
+      await _claimTab(destination, 'target');
+      var destinationCalled = false;
+      origin.messages.listen((m) {
+        if (m is! RpcRequest || m.method != 'cli.cmd') return;
+        expect(m.params['callerTabId'], 'source');
+        if (m.params['cmd'] == 'write') expect(m.params['tabId'], 'target');
+        origin.send(RpcResponse(rid: m.rid, ok: true, data: 'origin'));
+      });
+      destination.messages.listen((m) {
+        if (m is! RpcRequest || m.method != 'cli.cmd') return;
+        destinationCalled = true;
+        destination.send(RpcResponse(rid: m.rid, ok: true, data: 'wrong'));
+      });
+      for (final command in [
+        {
+          'cmd': 'write',
+          'tabId': 'target',
+          'args': {'data': 'aGk='},
+        },
+        {'cmd': 'list-panes'},
+      ]) {
+        final reply = await _sendCliCommand(server, {
+          'type': 'cmd',
+          'callerTabId': 'source',
+          ...command,
+        });
+        expect(reply['data'], 'origin');
+      }
+      expect(destinationCalled, isFalse);
+    },
+  );
+
+  test(
+    'stale or malformed origin never falls back to a single connected client',
+    () async {
+      final server = _server();
+      await server.bind(path);
+      addTearDown(server.close);
+      final client = await _connectClient(path);
+      await _claimTab(client, 'target');
+      var called = false;
+      client.messages.listen((m) {
+        if (m is! RpcRequest || m.method != 'cli.cmd') return;
+        called = true;
+        client.send(RpcResponse(rid: m.rid, ok: true, data: 'unexpected'));
+      });
+      for (final source in ['closed', '', 42]) {
+        final reply = await _sendCliCommand(server, {
+          'type': 'cmd',
+          'cmd': 'list-panes',
+          'tabId': 'target',
+          'callerTabId': source,
+        });
+        expect(reply['ok'], isFalse);
+      }
+      expect(called, isFalse);
+    },
+  );
 }
 
 /// Abre uma PTY por esta conexão declarando `COCKPIT_TAB_ID` — é assim que o

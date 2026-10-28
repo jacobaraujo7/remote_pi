@@ -2466,10 +2466,20 @@ class CockpitViewModel extends ChangeNotifier
       command.fail('$cmd is not available from a remote terminal: $refusal');
       return;
     }
+    final caller = request['callerTabId'];
+    if (caller != null && (caller is! String || caller.isEmpty)) {
+      command.fail('invalid callerTabId');
+      return;
+    }
     final tabId = request['tabId']?.toString();
     final args = (request['args'] as Map?)?.cast<String, dynamic>() ?? const {};
     final result = await _cli.handle(
-      CockpitCommand(cmd: cmd, tabId: tabId, args: args),
+      CockpitCommand(
+        cmd: cmd,
+        tabId: tabId,
+        callerTabId: caller as String?,
+        args: args,
+      ),
     );
     if (result.ok) {
       command.respond(result.data);

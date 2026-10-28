@@ -1,3 +1,5 @@
+import '../session/orchestration_session.dart';
+import 'orchestration_cli_handler.dart';
 import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
@@ -130,6 +132,37 @@ class CockpitCliHandler {
   /// `BuildContext`, só lê/muta o estado da VM. Retorna rápido (o `insertText`
   /// só enfileira o write no PTY).
   Future<CockpitCommandResult> handle(CockpitCommand rawCommand) async {
+    final scoped = await OrchestrationCliRouter(
+      findSession: _vm.session,
+      findOwner: _vm.orchestrationById,
+      focusedTabId: () => _vm.focusedTabId,
+      workspace: (id) {
+        final project = _vm.projectById(id);
+        return project == null
+            ? null
+            : (
+                root: project.effectiveRoot,
+                name: project.name,
+                remote: project.remoteHostId != null,
+              );
+      },
+      projectCommand: _handleUnscoped,
+    ).handle(rawCommand);
+    return scoped ?? _handleUnscoped(rawCommand);
+  }
+
+  Future<CockpitCommandResult> _handleUnscoped(
+    CockpitCommand rawCommand,
+  ) async {
+    final originId = rawCommand.callerTabId;
+    final originPane = originId == null ? null : _vm.session(originId);
+    if (originId != null &&
+        (originPane == null ||
+            (originPane is TerminalSession && originPane.hasExited))) {
+      return const CockpitCommandResult.fail(
+        'Originating pane is no longer available',
+      );
+    }
     // `--focused` chega como o sentinela `@focused` no `tabId`: quem sabe qual
     // aba está em foco é a VM, não a CLI. Resolver aqui (e não em cada case)
     // vale pra todo comando que mira aba. Ferramenta externa (ditado por voz,
@@ -316,6 +349,13 @@ class CockpitCliHandler {
               'invalid split "$split" (expected right or down)',
             );
         }
+        if (originId != null &&
+            (!identical(_vm.session(originId), originPane) ||
+                (originPane is TerminalSession && originPane.hasExited))) {
+          return const CockpitCommandResult.fail(
+            'Originating pane is no longer available',
+          );
+        }
         final title = (c.args['title'] ?? '').toString();
         final sender = c.tabId == null ? null : _vm.session(c.tabId!);
         String? anchorLeaf;
@@ -362,6 +402,11 @@ class CockpitCliHandler {
           if (s == null) {
             return CockpitCommandResult.fail('tab "$id" does not exist');
           }
+        }
+        if (s is OrchestrationSession) {
+          return const CockpitCommandResult.fail(
+            'Close the orchestration app through its own controls',
+          );
         }
         // `closeTab` opera sobre o workspace ATIVO (lê `_activeTree`), então
         // fechar aba de outro workspace exige trazê-lo pra frente antes —
@@ -789,15 +834,17 @@ class CockpitCliHandler {
             );
           }
         }
+        final environment = _vm.cliEnvironment(tabId: c.tabId);
+        final profile = _vm.defaultTerminalProfile;
         if (cwd.isNotEmpty && !await Directory(cwd).exists()) {
           return CockpitCommandResult.fail('cwd not found: "$cwd"');
         }
         final result = await runShellCommand(
           command,
           cwd: cwd.isEmpty ? null : cwd,
-          environment: _vm.cliEnvironment(tabId: c.tabId),
+          environment: environment,
           timeout: Duration(seconds: timeout <= 0 ? 60 : timeout),
-          profile: _vm.defaultTerminalProfile,
+          profile: profile,
         );
         return CockpitCommandResult.ok(result.toJson());
 
@@ -1699,6 +1746,11 @@ class CockpitCliHandler {
     if (c.tabId != _focusSentinel) return c;
     final id = _vm.focusedTabId;
     if (id == null || id.isEmpty) return null;
-    return CockpitCommand(cmd: c.cmd, tabId: id, args: c.args);
+    return CockpitCommand(
+      cmd: c.cmd,
+      tabId: id,
+      callerTabId: c.callerTabId,
+      args: c.args,
+    );
   }
 }

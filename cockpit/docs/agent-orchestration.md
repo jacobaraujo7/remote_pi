@@ -85,3 +85,12 @@ transcript fallback is likewise skipped on Windows instead of interpreting Linux
 paths in the client namespace. Local restoration keeps owned conversation identity
 and its known transcript path before the first startup hook; these fields remain
 outside portable .orc documents.
+
+
+CLI terminal controls now identify the originating tab independently of their
+destination. From an owned shell, listing, reading, sending, creating/splitting
+and closing operate inside that document's registry; they cannot select an
+unrelated dock or app. Project data tools retain the original worktree/host.
+Contextual menus/shortcuts, file-link opening and telemetry wrapper integration
+are still part of the isolated-owner implementation work before the next runtime
+trial; passing component/transport tests is not macOS desktop acceptance.

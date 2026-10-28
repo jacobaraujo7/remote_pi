@@ -357,6 +357,7 @@ class OrchestrationContext extends ChangeNotifier
     String? title,
     String? inPane,
     SplitDir? split,
+    String directory = '.',
   }) async {
     final anchor = inPane ?? terminals.focusedPaneId;
     if (inPane != null &&
@@ -369,6 +370,7 @@ class OrchestrationContext extends ChangeNotifier
       harness: '',
       model: '',
       position: OrchestrationController.autoPosition(graphBoxes.length),
+      directory: directory,
     );
     if (result case Success(:final value) when !_disposed) {
       final target =
@@ -395,6 +397,7 @@ class OrchestrationContext extends ChangeNotifier
     required String harness,
     required String model,
     required Offset position,
+    String directory = '.',
   }) async {
     if (_disposed) return const Failure('Document closed');
     final invalid = _validate(title, harness, model);
@@ -413,6 +416,7 @@ class OrchestrationContext extends ChangeNotifier
           model: model,
           position: position,
         ),
+        directory: directory,
       ),
     );
     final tabId = controller.bindings[id];
