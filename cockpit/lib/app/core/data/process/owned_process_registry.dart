@@ -1,3 +1,4 @@
+import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -152,7 +153,7 @@ class OwnedProcessRegistry {
   }
 
   static String _defaultRootPath() {
-    final home = userHome() ?? '';
+    final home = cockpitIsolatedRoot() ?? userHome() ?? '';
     return '$home${Platform.pathSeparator}.pi${Platform.pathSeparator}'
         'cockpit${Platform.pathSeparator}process-pids';
   }

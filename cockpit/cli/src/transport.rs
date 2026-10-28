@@ -76,13 +76,32 @@ const FLAVOR: Option<&str> = option_env!("COCKPIT_FLAVOR");
 /// pelo app instalado, que pode ser bem mais velho — deu "tab @focused does not
 /// exist" porque aquele app nem conhecia o sentinela. O outro flavor continua
 /// como fallback: melhor falar com o app errado do que não falar com nenhum.
+fn transport_home_from(isolated: Option<String>, home: Option<String>) -> Option<String> {
+    match isolated {
+        Some(root) => {
+            let root = root.trim();
+            std::path::Path::new(root)
+                .is_absolute()
+                .then(|| root.to_owned())
+        }
+        None => home,
+    }
+}
+
+fn transport_home() -> Option<String> {
+    transport_home_from(
+        env_non_empty("COCKPIT_ISOLATED_ROOT"),
+        crate::util::home_dir(),
+    )
+}
+
 #[cfg(unix)]
 fn candidate_sockets() -> Vec<String> {
     let mut out = Vec::new();
     if let Some(path) = env_non_empty("COCKPIT_STATUS_SOCK") {
         out.push(path);
     }
-    if let Some(home) = crate::util::home_dir() {
+    if let Some(home) = transport_home() {
         let release = format!("{home}/.cockpit/status.sock");
         let debug = format!("{home}/.cockpit/status-debug.sock");
         if FLAVOR == Some("debug") {
@@ -101,7 +120,7 @@ fn candidate_sockets() -> Vec<String> {
 /// rodada de FORA de uma aba (sem env herdada). Mesma ordem de flavor do POSIX.
 #[cfg(windows)]
 fn endpoint_from_file() -> Option<(u16, Option<String>)> {
-    let home = crate::util::home_dir()?;
+    let home = transport_home()?;
     let mut names = vec!["status.json", "status-debug.json"];
     if FLAVOR == Some("debug") {
         names.reverse();
@@ -278,4 +297,31 @@ pub fn error_text(resp: &Value) -> String {
 /// Encerra com o erro da resposta (exit 1) — padrão dos comandos "simples".
 pub fn fail_with(resp: &Value) -> ! {
     die(&format!("cockpit: {}", error_text(resp)), 1)
+}
+
+#[cfg(test)]
+mod runtime_namespace_tests {
+    use super::transport_home_from;
+    #[test]
+    fn invalid_isolated_root_never_falls_back_to_user_home() {
+        assert_eq!(
+            transport_home_from(Some("relative/path".into()), Some("real-home".into())),
+            None
+        );
+    }
+    #[test]
+    fn absent_isolation_preserves_the_normal_home() {
+        assert_eq!(
+            transport_home_from(None, Some("real-home".into())),
+            Some("real-home".into())
+        );
+    }
+    #[test]
+    fn absolute_isolated_root_replaces_only_transport_discovery() {
+        let root = std::env::temp_dir().to_string_lossy().to_string();
+        assert_eq!(
+            transport_home_from(Some(format!("  {root}  ")), Some("real-home".into())),
+            Some(root)
+        );
+    }
 }

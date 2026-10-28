@@ -32,11 +32,7 @@ class StorageLocation {
 
   /// Dedicated root for disposable parallel runs. The launcher sets this only
   /// for the isolated process; normal installations keep their existing paths.
-  static String? get _isolatedRoot {
-    final raw = Platform.environment['COCKPIT_ISOLATED_ROOT']?.trim();
-    if (raw == null || raw.isEmpty || !p.isAbsolute(raw)) return null;
-    return p.normalize(raw);
-  }
+  static String? get _isolatedRoot => cockpitIsolatedRoot();
 
   /// Monta `<root>/<storageSubdir>` normalizado, com contexto injetável de
   /// `package:path` — puro, pra testar a montagem com separadores Windows
@@ -55,7 +51,7 @@ class StorageLocation {
 
   /// Ponteiro fixo: aponta pra raiz escolhida. Fora de qualquer pasta relocável.
   static String? get _pointerPath {
-    final home = remotePiHome();
+    final home = cockpitRuntimeHome();
     if (home == null) return null;
     return p.join(home, '.cockpit', 'storage_root');
   }

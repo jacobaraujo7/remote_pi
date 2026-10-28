@@ -17,6 +17,8 @@ import 'package:cockpit/app/core/domain/result.dart';
 abstract class HookInstallerBase implements HookInstaller {
   const HookInstallerBase();
 
+  bool get isolatedRuntime => cockpitIsolatedRoot() != null;
+
   /// Serializa, POR CAMINHO DE DESTINO, quem escreve um binário.
   ///
   /// O `bootstrapper` dispara os instaladores de Claude e Codex em paralelo
@@ -51,6 +53,17 @@ abstract class HookInstallerBase implements HookInstaller {
 
   @override
   Future<Result<void, String>> ensureInstalled() async {
+    if (isolatedRuntime) {
+      // Materialize this app's CLI only. Never rewrite global agent hooks or
+      // skills while another app instance may be running the user's work.
+      try {
+        return await ensureCli() == null
+            ? const Failure<void, String>('isolated CLI unavailable')
+            : const Success<void, String>(null);
+      } on Object catch (error) {
+        return Failure<void, String>(error.toString());
+      }
+    }
     final home = remotePiHome();
     if (home == null) {
       return const Failure<void, String>('HOME não resolvido');
@@ -135,6 +148,7 @@ abstract class HookInstallerBase implements HookInstaller {
     );
     if (path == null) return null;
     await ensureShortAlias(dir, destName);
+    if (isolatedRuntime) return path;
     try {
       await Process.run(path, <String>['install-skill']);
     } catch (_) {

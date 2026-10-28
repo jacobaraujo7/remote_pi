@@ -24,7 +24,7 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
   final String? configurationDirectory;
   String get _statusDirectory =>
       configurationDirectory ??
-      '${remotePiHome() ?? Directory.systemTemp.path}/.cockpit';
+      '${cockpitRuntimeHome() ?? Directory.systemTemp.path}/.cockpit';
 
   ServerSocket? _server;
   void Function(ClaudeStatusUpdate update)? _onUpdate;

@@ -69,6 +69,12 @@ jobs:
           lib/app/cockpit/ui/viewmodels/orchestration_cli_handler.dart
           lib/app/cockpit/ui/viewmodels/cockpit_cli_handler.dart
           lib/app/cockpit/data/hooks/terminal_status_server_impl.dart
+          lib/app/cockpit/data/hooks/hook_installer_base.dart
+          lib/app/core/data/setup/remote_pi_resolver.dart
+          lib/app/core/data/setup/storage_location.dart
+          lib/app/core/data/process/owned_process_registry.dart
+          lib/app/core/data/lsp/lsp_process_registry.dart
+          lib/app/cockpit/ui/document/running_instance.dart
           lib/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart
           lib/app/cockpit/ui/widgets/orchestration_terminals_view.dart
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
@@ -110,6 +116,11 @@ jobs:
           test/ui/orchestration_context_test.dart
           test/ui/orchestration_cli_handler_test.dart
           test/data/terminal_status_server_command_test.dart
+          test/data/isolated_hook_installation_test.dart
+          test/data/sidecar_server_binary_test.dart
+          test/core/data/cockpit_runtime_namespace_test.dart
+          test/core/data/storage_location_test.dart
+          test/core/process/owned_process_registry_test.dart
           test/ui/orchestration_session_test.dart
           test/ui/orchestration_terminals_view_test.dart
           test/ui/session_notifications_controller_test.dart
