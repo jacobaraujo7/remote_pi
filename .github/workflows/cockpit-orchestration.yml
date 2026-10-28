@@ -60,6 +60,9 @@ jobs:
       - name: Analyze workspace presentation
         run: >-
           flutter analyze --no-pub
+          lib/main.dart
+          lib/app/cockpit/domain/services/worktree_reconciler.dart
+          lib/app/cockpit/domain/utils/coalescing_single_flight.dart
           lib/app/bootstrapper.dart
           lib/app/cockpit/domain/entities/orchestration_presentation.dart
           lib/app/cockpit/domain/entities/orchestration_document.dart
@@ -122,6 +125,8 @@ jobs:
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
+          test/domain/coalescing_single_flight_test.dart
+          test/domain/worktree_reconciler_test.dart
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
           test/ui/layout_scrollback_keys_test.dart

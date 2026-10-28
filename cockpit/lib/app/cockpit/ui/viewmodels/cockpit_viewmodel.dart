@@ -502,7 +502,6 @@ class CockpitViewModel extends ChangeNotifier
   final Map<String, Future<void>> _orchestrationOpens = {};
   void Function()? _detachNativeOrchestration;
   bool _nativeDocumentsDisposed = false;
-  Future<void> _nativeWorktreesReady = Future<void>.value();
 
   void _attachNativeOrchestration() {
     if (_nativeDocumentsDisposed || _detachNativeOrchestration != null) return;
@@ -3923,21 +3922,10 @@ class CockpitViewModel extends ChangeNotifier
     _remoteHosts.addListener(_onRemoteHostsChanged);
     // Estado git + worktrees de todos os projetos (assíncrono — a rail atualiza
     // conforme chega). Só há raízes no boot; os forks entram pela reconciliação.
-    final initialWorktrees = <Future<void>>[];
     for (final project in _projectList) {
       unawaited(git.refresh(project.id));
-      initialWorktrees.add(_refreshWorktrees(project.id));
+      unawaited(_refreshWorktrees(project.id));
     }
-    _nativeWorktreesReady = Future.wait(initialWorktrees).then<void>((_) {});
-    unawaited(
-      _nativeWorktreesReady.catchError((Object error, StackTrace stack) {
-        DiagnosticsLog.instance.logError(
-          'native-worktree-discovery',
-          error,
-          stack,
-        );
-      }),
-    );
     git.startPoll(); // safety net contra eventos de FS perdidos (bug: rail stale)
     // Detecta IDEs instaladas (assíncrono — topbar atualiza ao chegar).
     unawaited(

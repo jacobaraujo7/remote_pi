@@ -601,9 +601,9 @@ extension OrchestrationWorkspace on CockpitViewModel {
     }
     final file = path.normalize(path.absolute(raw));
     if (!await File(file).exists() || _nativeDocumentsDisposed) return;
-    // Reuse the boot discovery already in progress, so a nested or disjoint
-    // worktree cannot be mistaken for its parent before reconciliation finishes.
-    await _nativeWorktreesReady;
+    // Observe discovery already in progress, at boot or after adding a root.
+    // Never request another reconciliation just to locate the file's worktree.
+    await _worktreeReconciler.settle();
     if (_nativeDocumentsDisposed) return;
     var project = nativeOrchestrationProject(
       file,
@@ -611,7 +611,13 @@ extension OrchestrationWorkspace on CockpitViewModel {
       realmId: realmCtrl.activeId,
       selectedProjectId: _selectedProjectId,
     );
-    project ??= await addProject(path.dirname(file));
+    if (project == null) {
+      final directory = path.dirname(file);
+      project = await addProject(
+        Platform.isWindows ? directory.replaceAll(r'\', '/') : directory,
+        name: path.basename(directory),
+      );
+    }
     final projectId = project.id;
     if (_nativeDocumentsDisposed || _projectById(projectId) == null) return;
     await _activateProject(projectId);

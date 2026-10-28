@@ -6,6 +6,52 @@ import 'package:cockpit/app/cockpit/domain/services/worktree_reconciler.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'settle observes new roots without requesting discovery or reruns',
+    () async {
+      final manager = _BlockingWorktreeManager();
+      final reconciler = WorktreeReconciler(manager);
+      await reconciler.settle();
+      expect(manager.runs, 0);
+      final first = reconciler.run('first', (m) async {
+        await m.list('/first');
+      });
+      var finished = false;
+      final waiting = reconciler.settle().then((_) {
+        finished = true;
+      });
+      final second = reconciler.run('second', (m) async {
+        await m.list('/second');
+      });
+      manager.releaseNext();
+      await Future<void>.delayed(Duration.zero);
+      expect(finished, isFalse);
+      expect(manager.runs, 2);
+      manager.releaseNext();
+      await Future.wait([first, second, waiting]);
+      expect(finished, isTrue);
+      expect(
+        manager.runs,
+        2,
+        reason: 'waiting must never trigger another git discovery',
+      );
+    },
+  );
+
+  test(
+    'failed discovery is reported without poisoning future settle calls',
+    () async {
+      final reconciler = WorktreeReconciler(_BlockingWorktreeManager());
+      final gate = Completer<void>();
+      final operation = reconciler.run('failed', (_) => gate.future);
+      final failed = expectLater(operation, throwsStateError);
+      final waited = expectLater(reconciler.settle(), throwsStateError);
+      gate.completeError(StateError('git unavailable'));
+      await Future.wait([failed, waited]);
+      await reconciler.settle();
+    },
+  );
+
   test('blocking WorktreeManager is single-flight with one rerun', () async {
     final manager = _BlockingWorktreeManager();
     final reconciler = WorktreeReconciler(manager);

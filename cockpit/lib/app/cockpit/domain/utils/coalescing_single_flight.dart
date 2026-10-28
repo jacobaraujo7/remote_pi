@@ -5,6 +5,14 @@ import 'dart:async';
 class CoalescingSingleFlight<K> {
   final Map<K, _Flight> _flights = <K, _Flight>{};
 
+  /// Wait for discovery already running, including keys added while waiting.
+  /// This observes flights without requesting another operation or rerun.
+  Future<void> settle() async {
+    while (_flights.isNotEmpty) {
+      await Future.wait(_flights.values.map((flight) => flight.done.future));
+    }
+  }
+
   Future<void> run(K key, Future<void> Function() operation) {
     final current = _flights[key];
     if (current != null) {
