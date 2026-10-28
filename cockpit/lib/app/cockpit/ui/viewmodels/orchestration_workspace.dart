@@ -240,6 +240,7 @@ extension OrchestrationWorkspace on CockpitViewModel {
       id: id ?? _nid('orch'),
       projectId: projectId,
       path: file,
+      remoteFileSystem: _isRemoteWorkspace(projectId),
       controller: controller,
       presentation: presentation,
       remoteDisconnected: () {

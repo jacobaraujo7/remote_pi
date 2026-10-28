@@ -29,6 +29,8 @@ class _Gateway extends AttachmentTerminalGateway {
 OrchestrationSession _app(
   String id, {
   Future<void> Function()? beforeDispose,
+  bool remoteFileSystem = false,
+  String? documentPath,
   WindowActivityController? activity,
   Future<Result<OrchestrationFilePresentation, String>> Function(
     TerminalSession,
@@ -39,7 +41,8 @@ OrchestrationSession _app(
 }) => OrchestrationSession(
   id: id,
   projectId: 'worktree',
-  path: '/worktree/$id.orchestration',
+  path: documentPath ?? '/worktree/$id.orchestration',
+  remoteFileSystem: remoteFileSystem,
   onBeforeDispose: beforeDispose,
   onOpenFile: openFile,
   windowActive: activity == null ? null : () => activity.isActive,
@@ -249,6 +252,82 @@ void main() {
       expect(gateway.stopped, 0);
       expect(app.terminals.session(terminal.id), same(terminal));
       await app.dispose();
+    },
+  );
+  test(
+    'local rename preserves bindings and leaves remote homonyms unchanged',
+    () async {
+      final local = _app('local', documentPath: '/worktree/agents.orc');
+      final remote = _app(
+        'remote',
+        documentPath: '/worktree/agents.orc',
+        remoteFileSystem: true,
+      );
+      final localGateway = _Gateway(), remoteGateway = _Gateway();
+      final localTerminal = _terminal(local, localGateway);
+      final remoteTerminal = _terminal(remote, remoteGateway);
+      local.terminals.attach(localTerminal);
+      remote.terminals.attach(remoteTerminal);
+      local.controller.bindings['box'] = localTerminal.id;
+      remote.controller.bindings['box'] = remoteTerminal.id;
+      final localContext = local.context, remoteContext = remote.context;
+      expect(
+        local.retargetLocalFilesystem(
+          '/worktree/agents.orc',
+          '/worktree/team.orc',
+        ),
+        isTrue,
+      );
+      expect(
+        remote.retargetLocalFilesystem(
+          '/worktree/agents.orc',
+          '/worktree/team.orc',
+        ),
+        isFalse,
+      );
+      expect(local.path, '/worktree/team.orc');
+      expect(remote.path, '/worktree/agents.orc');
+      expect(local.context, same(localContext));
+      expect(remote.context, same(remoteContext));
+      expect(local.controller.bindings['box'], localTerminal.id);
+      expect(remote.controller.bindings['box'], remoteTerminal.id);
+      expect(local.terminals.session(localTerminal.id), same(localTerminal));
+      expect(remote.terminals.session(remoteTerminal.id), same(remoteTerminal));
+      expect(localGateway.stopped, 0);
+      expect(remoteGateway.stopped, 0);
+      await local.dispose();
+      await remote.dispose();
+    },
+  );
+
+  test(
+    'local directory rename follows descendants but not siblings or closing apps',
+    () async {
+      final nested = _app('nested', documentPath: '/worktree/team/agents.orc');
+      final sibling = _app(
+        'sibling',
+        documentPath: '/worktree/team-other/agents.orc',
+      );
+      final closing = _app('closing', documentPath: '/worktree/team/closed.orc')
+        ..closing = true;
+      expect(
+        nested.retargetLocalFilesystem('/worktree/team', '/worktree/renamed'),
+        isTrue,
+      );
+      expect(nested.path, '/worktree/renamed/agents.orc');
+      expect(
+        sibling.retargetLocalFilesystem('/worktree/team', '/worktree/renamed'),
+        isFalse,
+      );
+      expect(sibling.path, '/worktree/team-other/agents.orc');
+      expect(
+        closing.retargetLocalFilesystem('/worktree/team', '/worktree/renamed'),
+        isFalse,
+      );
+      expect(closing.path, '/worktree/team/closed.orc');
+      await nested.dispose();
+      await sibling.dispose();
+      await closing.dispose();
     },
   );
 }

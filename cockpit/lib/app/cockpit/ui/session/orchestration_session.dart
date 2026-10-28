@@ -1,6 +1,7 @@
 import 'package:path/path.dart' as paths;
 import 'package:flutter/foundation.dart';
 import '../../../core/domain/result.dart';
+import '../../../core/utils/path_utils.dart';
 import '../../domain/entities/orchestration_presentation.dart';
 import '../services/orchestration_controller.dart';
 import '../viewmodels/orchestration_context.dart';
@@ -15,6 +16,7 @@ class OrchestrationSession extends PaneItem {
     required this.id,
     required this.projectId,
     required this.path,
+    this.remoteFileSystem = false,
     required this.controller,
     this.onCloseTerminal,
     this.onFocus,
@@ -62,6 +64,9 @@ class OrchestrationSession extends PaneItem {
   final String id;
   @override
   final String projectId;
+
+  /// Captured origin; local tree events must not retarget a remote homonym.
+  final bool remoteFileSystem;
   String path;
   final OrchestrationController controller;
   final OrchestrationMultiplexer<TerminalSession> terminals;
@@ -183,6 +188,15 @@ class OrchestrationSession extends PaneItem {
   String get title => paths.basename(path);
   @override
   String get workingDirectory => paths.dirname(path);
+
+  /// Follow local file-tree changes without borrowing another host's path.
+  bool retargetLocalFilesystem(String from, String to) {
+    if (_disposed || closing || remoteFileSystem || !isUnderPath(path, from)) {
+      return false;
+    }
+    retarget(path == from ? to : '$to${path.substring(from.length)}');
+    return true;
+  }
 
   void retarget(String nextPath) {
     path = nextPath;

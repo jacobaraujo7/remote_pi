@@ -124,6 +124,7 @@ jobs:
           lib/app/cockpit/ui/widgets/pane_view.dart
           lib/app/cockpit/ui/cockpit_page.dart
           lib/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart
+          lib/app/cockpit/ui/viewmodels/file_ops_controller.dart
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
@@ -145,6 +146,7 @@ jobs:
           test/core/data/storage_location_test.dart
           test/core/process/owned_process_registry_test.dart
           test/ui/orchestration_session_test.dart
+          test/session/file_ops_import_test.dart
           test/ui/orchestration_document_files_test.dart
           test/ui/native_document_router_test.dart
           test/ui/open_files_channel_test.dart

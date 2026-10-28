@@ -3693,17 +3693,15 @@ class CockpitViewModel extends ChangeNotifier
   /// prefixo). Re-lê o conteúdo e re-arma o watcher no novo caminho.
   Future<void> _retargetSessions(String from, String to) async {
     for (final s in {..._sessions.values, ..._orchestrations.values}) {
-      if (s is OrchestrationSession && _isUnder(s.path, from)) {
-        final next = s.path == from
-            ? to
-            : '$to${s.path.substring(from.length)}';
-        final bindings = _orchestrationBindings[s.projectId];
-        final old = bindings?.remove(s.path);
-        s.retarget(next);
-        if (old != null) bindings![next] = old;
-        _watchOrchestration(s);
-        _scheduleSave(s.projectId);
-        s.notifyListeners();
+      if (s is OrchestrationSession) {
+        final previous = s.path;
+        if (s.retargetLocalFilesystem(from, to)) {
+          final bindings = _orchestrationBindings[s.projectId];
+          final old = bindings?.remove(previous);
+          if (old != null) bindings![s.path] = old;
+          _watchOrchestration(s);
+          _scheduleSave(s.projectId);
+        }
       }
       if (s is! FileViewerSession || !_isUnder(s.path, from)) continue;
       final newPath = s.path == from

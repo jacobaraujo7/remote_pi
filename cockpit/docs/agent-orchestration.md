@@ -2,7 +2,7 @@
 
 Open **Gallery → Agent Orchestration** to create `agents.orc` in the active worktree. Each document opens as an independent normal tab, movable between docks. Boxes and Graph appear above its own terminal multiplexer, with tabs and splits below. Ordinary workspace terminals and docks keep their existing interface.
 
-Implementation status: the scoped UI and lifecycle are integrated in this checkpoint. Version-2 startup restoration and legacy-profile migration are wired and covered by directed tests. Owned hook/status/activity routing, contextual CLI, shortcut/menu routing and scoped telemetry wrappers are integrated; file-link handling and desktop cold-upgrade acceptance are pending. Do not install this checkpoint over an existing profile or treat it as the completed isolation correction.
+Implementation status: scoped UI/lifecycle, version-2 restoration, legacy-profile migration, owned hooks/CLI/notifications and private file presentation are implemented and covered by directed tests. Real Windows acceptance includes independent docks, portable linked worktrees, cold restoration/order, private files, passive tool configuration and public terminal disposal. Legacy-profile cold upgrades, remaining desktop UI/clipboard cases, actual model conversations and real macOS acceptance remain pending; keep the PR in draft until its validation matrix is completed. Do not upgrade an active profile while its terminals are running.
 
 ## Portable document
 
@@ -28,7 +28,7 @@ New terminal opens within this app's internal multiplexer, without changing the 
 
 ## Local state and compatibility
 
-Bindings, child session descriptors and the internal tree/focus belong to the local app instance, under its worktree layout. Selection, view mode, inspector width and terminal-area fractions are local: defaults are 60% for Boxes and 35% for Graph. They do not enter the portable file. Renaming through the file tree retargets the existing instance. Legacy documents and external sessions must be preserved; the ownership correction starts with a new file instead of importing old bindings. Version-2 restoration validates all bindings and pane placements before creating processes, retains snapshots on failure, and retries only missing sessions. Local startup metadata may resume saved CLI conversations; portable-file loading never does. Legacy-profile migration is implemented; actual desktop cold-upgrade/restoration acceptance remains pending before a profile upgrade is ready.
+Bindings, child session descriptors and the internal tree/focus belong to the local app instance, under its worktree layout. Selection, view mode, inspector width and terminal-area fractions are local: defaults are 60% for Boxes and 35% for Graph. They do not enter the portable file. A local file-tree rename retargets the existing local instance while preserving its bindings; remote documents with the same path are excluded using their captured filesystem origin. Legacy documents and external sessions must be preserved; the ownership correction starts with a new file instead of importing old bindings. Version-2 restoration validates all bindings and pane placements before creating processes, retains snapshots on failure, and retries only missing sessions. Local startup metadata may resume saved CLI conversations; portable-file loading never does. Legacy-profile migration is implemented; actual desktop cold-upgrade/restoration acceptance remains pending before a profile upgrade is ready.
 
 Theme, fonts, terminal engines and platform infrastructure remain shared. App state is logically isolated by owner, not sandboxed from the operating system. No global Terminals/Boxes/Graph switch is added. Native platform controls remain unchanged.
 
@@ -52,6 +52,8 @@ Visual subscriptions and graph telemetry pause while the app tab is hidden; the 
 
 
 Hidden tab bodies keep their last valid dimensions while a dock or window is resized. Only displayed terminals track each new grid size; hidden terminals resize once when shown. Inactive workspaces follow the same rule. The cache is presentation-only and does not enter the portable file.
+
+For real-agent and platform acceptance, use the [execution checklist](agent-orchestration-acceptance.md). It is a procedure, not a completed validation result.
 
 ## Agent skill
 
