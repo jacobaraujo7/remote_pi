@@ -111,3 +111,21 @@ owned run cannot replace the app diagnostic run. OTLP child resource attributes
 carry a qualified routing key, and ambiguous legacy IDs/service names are refused.
 Error notices retain their originating document/terminal identity. None of this
 runtime identity is written to the portable .orc.
+
+
+## Native file opening
+
+Windows executable file arguments and Finder open events use the same owned app
+routing for `.orc` and legacy `.orchestration` files. Early events wait until the
+workspace is restored; opening an already loaded document reveals its existing
+app instead of duplicating sessions. The closest containing local worktree is
+resolved independently of the selected workspace. Discovery already running is
+awaited without starting another git reconciliation.
+
+On Windows the runner forwards through its bundled authenticated CLI before
+creating a Flutter engine. The helper uses the exact profile and build flavor,
+ignores inherited terminal routing and never falls back to another flavor. This
+avoids creating a secondary engine only to immediately tear down its plugins.
+The installer provides OpenWith entries; macOS declares an Alternate JSON type.
+These declarations preserve other default file handlers. macOS manual acceptance
+remains required before merge.
