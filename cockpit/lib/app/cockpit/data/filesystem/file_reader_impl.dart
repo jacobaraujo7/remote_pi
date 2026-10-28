@@ -67,7 +67,24 @@ class FileReaderImpl implements FileReader {
       return const FileViewUnsupported();
     }
 
-    final bytes = await file.readAsBytes();
+    return fromBytes(path, await file.readAsBytes(), allowLocalMedia: true);
+  }
+
+  /// Classifies bytes read through a captured local/remote file service.
+  /// Remote media paths must never become client-local image/player paths.
+  static FileView fromBytes(
+    String path,
+    List<int> bytes, {
+    bool allowLocalMedia = false,
+  }) {
+    final ext = _ext(path);
+    if (_image.contains(ext) || _video.contains(ext) || _audio.contains(ext)) {
+      if (!allowLocalMedia) return const FileViewUnsupported();
+      if (_image.contains(ext)) return FileViewImage(path);
+      if (_video.contains(ext)) return FileViewVideo(path);
+      return FileViewAudio(path);
+    }
+    if (bytes.length > _maxTextBytes) return const FileViewUnsupported();
     // Banco sqlite (magic header) nunca é texto útil — não abre como viewer;
     // ele aparece como conexão "detected" no painel Database (plano 51).
     if (_isSqlite(bytes)) return const FileViewUnsupported();
@@ -139,8 +156,8 @@ class FileReaderImpl implements FileReader {
       bytes.length >= _sqliteMagic.length &&
       String.fromCharCodes(bytes.take(_sqliteMagic.length)) == _sqliteMagic;
 
-  String _ext(String path) {
-    final name = path.split('/').last;
+  static String _ext(String path) {
+    final name = path.split(RegExp(r'[/\\]')).last;
     final dot = name.lastIndexOf('.');
     return dot <= 0 ? '' : name.substring(dot + 1).toLowerCase();
   }

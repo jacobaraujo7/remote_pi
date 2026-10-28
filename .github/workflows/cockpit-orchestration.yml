@@ -79,6 +79,9 @@ jobs:
           lib/app/core/data/process/owned_process_registry.dart
           lib/app/core/data/lsp/lsp_process_registry.dart
           lib/app/cockpit/ui/document/running_instance.dart
+          lib/app/cockpit/ui/document/worktree_document_host.dart
+          lib/app/cockpit/ui/document/standalone_document_host.dart
+          lib/app/cockpit/data/filesystem/file_reader_impl.dart
           lib/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart
           lib/app/cockpit/ui/widgets/orchestration_terminals_view.dart
           lib/app/cockpit/ui/viewmodels/workspace_graph_context.dart
@@ -126,6 +129,9 @@ jobs:
           test/core/data/storage_location_test.dart
           test/core/process/owned_process_registry_test.dart
           test/ui/orchestration_session_test.dart
+          test/ui/worktree_document_host_test.dart
+          test/ui/standalone_document_host_test.dart
+          test/data/file_reader_impl_test.dart
           test/ui/orchestration_terminals_view_test.dart
           test/ui/session_notifications_controller_test.dart
           test/ui/terminal_session_view_test.dart

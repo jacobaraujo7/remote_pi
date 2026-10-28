@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:path/path.dart' as paths;
 
 import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
@@ -53,11 +54,10 @@ class StandaloneDocumentHost implements DocumentHost {
   @override
   String displayPath(String projectId, String absolutePath) {
     if (workspaceRoot.isEmpty) return absolutePath;
-    final prefix = workspaceRoot.endsWith(Platform.pathSeparator)
-        ? workspaceRoot
-        : '$workspaceRoot${Platform.pathSeparator}';
-    return absolutePath.startsWith(prefix)
-        ? absolutePath.substring(prefix.length)
+    final root = paths.normalize(workspaceRoot);
+    final file = paths.normalize(absolutePath);
+    return paths.isWithin(root, file)
+        ? paths.relative(file, from: root).replaceAll('\\', '/')
         : absolutePath;
   }
 
