@@ -252,6 +252,7 @@ void main() {
       final key = GlobalKey();
       final focus = FocusNode();
       final overviewActive = ValueNotifier(true);
+      var sourceEdits = 0;
       Widget overview() => ValueListenableBuilder<bool>(
         valueListenable: overviewActive,
         builder: (_, active, _) => OrchestrationView(
@@ -259,6 +260,7 @@ void main() {
           active: active,
           focused: active,
           processMetrics: _Metrics(),
+          onEditSource: () => sourceEdits++,
         ),
       );
       Widget dockHeader(String label, Widget child) => Column(
@@ -347,6 +349,10 @@ void main() {
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
       expect(find.text('Novo terminal'), findsOneWidget);
+      await tester.tap(find.text('Abrir como JSON'));
+      await tester.pump();
+      expect(sourceEdits, 1);
+      expect(app.terminals.sessions.length, 3);
       // One selected owned terminal plus the independent external terminal.
       expect(
         find.byType(AdaptiveTerminalPane),

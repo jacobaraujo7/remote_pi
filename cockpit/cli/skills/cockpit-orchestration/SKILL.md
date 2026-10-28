@@ -17,6 +17,11 @@ editing files, starting tools or creating sessions.
 - Open any `.orc` file in Cockpit to get its app tab. The content is versioned
   JSON. Legacy `.orchestration` files remain readable. An explicitly empty
   document stays empty; opening an existing file does not add default terminals.
+- **Open as JSON** in the file-tree menu, app-tab menu or app toolbar opens
+  the source in the configured text editor while preserving the app and its
+  terminals. In a Cockpit source tab, **Open as orchestration** returns to the
+  existing app. Save source edits to synchronize; invalid JSON preserves the
+  last valid configuration and reports an error.
 - Each file owns its terminals. Several files may be open in the same worktree.
   Reopening the same file reveals its existing tab. Workspace terminals and
   other orchestrations are not captured or imported.

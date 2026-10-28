@@ -612,6 +612,8 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openAsYaml => '以 YAML 打开';
 	@override String get openAsPanel => '以面板打开';
 	@override String get openAsHtml => '以 HTML 打开';
+	@override String get openAsJson => '以 JSON 打开';
+	@override String get openAsOrchestration => '以编排打开';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2252,6 +2254,8 @@ extension on TranslationsZh {
 			'cockpit.paneView.openAsYaml' => '以 YAML 打开',
 			'cockpit.paneView.openAsPanel' => '以面板打开',
 			'cockpit.paneView.openAsHtml' => '以 HTML 打开',
+			'cockpit.paneView.openAsJson' => '以 JSON 打开',
+			'cockpit.paneView.openAsOrchestration' => '以编排打开',
 			'cockpit.fileTreePanel.viewDiff' => '查看差异',
 			'cockpit.fileTreePanel.commit' => '提交',
 			'cockpit.fileTreePanel.stageAndCommit' => '暂存并提交',
@@ -2548,10 +2552,10 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
-			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
+			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit 从未连接过 ${endpoint}。',
 			'cockpit.sshPrompts.trustHint' => '仅当此指纹与服务器匹配时才信任。你可以在服务器上用以下命令核对：',
@@ -3062,10 +3066,10 @@ extension on TranslationsZh {
 			'fileOperation.error.notScratchTab' => '此标签页不是草稿文件。',
 			'fileOperation.error.writeFailed' => '无法写入文件。',
 			'fileOperation.error.formatterEmptyCommand' => '格式化器命令为空。',
-			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
-			'fileOperation.error.formatterTimeout' => '格式化器超时。',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
+			'fileOperation.error.formatterTimeout' => '格式化器超时。',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',
 			'fileOperation.error.formatterFailed' => '格式化器无法运行。',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',

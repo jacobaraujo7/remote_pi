@@ -105,7 +105,11 @@ class FileReaderImpl implements FileReader {
     if (ext == 'svg') return FileViewSvg(path, text, encoding: encoding);
     return FileViewText(
       text,
-      language: ext.isEmpty ? null : ext,
+      language: switch (ext) {
+        'orc' || 'orchestration' => 'json',
+        '' => null,
+        _ => ext,
+      },
       encoding: encoding,
     );
   }

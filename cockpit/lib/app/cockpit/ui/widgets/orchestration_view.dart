@@ -27,11 +27,13 @@ class OrchestrationView extends StatefulWidget {
     required this.active,
     this.focused = false,
     this.processMetrics,
+    this.onEditSource,
   });
   final OrchestrationSession session;
   final bool active;
   final bool focused;
   final ProcessMetricsProvider? processMetrics;
+  final VoidCallback? onEditSource;
   @override
   State<OrchestrationView> createState() => _OrchestrationViewState();
 }
@@ -263,6 +265,11 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                       ),
                     ),
                   ),
+                  if (widget.onEditSource != null)
+                    OutlineButton(
+                      onPressed: widget.onEditSource,
+                      child: Text(context.t.cockpit.paneView.openAsJson),
+                    ),
                   PrimaryButton(
                     onPressed: controller.busy || vm.selectedRemoteDisconnected
                         ? null

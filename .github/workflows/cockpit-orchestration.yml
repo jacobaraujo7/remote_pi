@@ -132,6 +132,7 @@ jobs:
           test/domain/worktree_reconciler_test.dart
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
+          test/ui/file_tree_panel_test.dart
           test/ui/layout_scrollback_keys_test.dart
           test/ui/orchestration_restore_state_test.dart
           test/ui/orchestration_ownership_migration_test.dart

@@ -690,6 +690,8 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openAsYaml => 'Abrir como YAML';
 	@override String get openAsPanel => 'Abrir como panel';
 	@override String get openAsHtml => 'Abrir como HTML';
+	@override String get openAsJson => 'Abrir como JSON';
+	@override String get openAsOrchestration => 'Abrir como orquestación';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2330,6 +2332,8 @@ extension on TranslationsEs {
 			'cockpit.paneView.openAsYaml' => 'Abrir como YAML',
 			'cockpit.paneView.openAsPanel' => 'Abrir como panel',
 			'cockpit.paneView.openAsHtml' => 'Abrir como HTML',
+			'cockpit.paneView.openAsJson' => 'Abrir como JSON',
+			'cockpit.paneView.openAsOrchestration' => 'Abrir como orquestación',
 			'cockpit.fileTreePanel.viewDiff' => 'Ver Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage y Commit',
@@ -2626,10 +2630,10 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
-			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit nunca se ha conectado a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confía solo si esta fingerprint coincide con el servidor. Puedes verificarla en el servidor con:',
@@ -3140,10 +3144,10 @@ extension on TranslationsEs {
 			'fileOperation.error.notScratchTab' => 'Esta pestaña no es un archivo temporal.',
 			'fileOperation.error.writeFailed' => 'No se pudo escribir el archivo.',
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formato vacío.',
-			'fileOperation.error.formatterMissingPlaceholder' => 'El comando de formato debe incluir el marcador %FILE%.',
-			'fileOperation.error.formatterTimeout' => 'El formateador agotó el tiempo de espera.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterMissingPlaceholder' => 'El comando de formato debe incluir el marcador %FILE%.',
+			'fileOperation.error.formatterTimeout' => 'El formateador agotó el tiempo de espera.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'El formateador terminó con el código ${code}.',
 			'fileOperation.error.formatterFailed' => 'No se pudo ejecutar el formateador.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',

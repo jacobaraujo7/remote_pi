@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
+import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_history_commit.dart';
@@ -1981,7 +1982,8 @@ class _DirViewState extends State<_DirView> {
                   onOpenAsSource:
                       edit.onOpenAsSource == null ||
                           !(node.name.toLowerCase().endsWith('.kanban') ||
-                              node.name.toLowerCase().endsWith('.panel'))
+                              node.name.toLowerCase().endsWith('.panel') ||
+                              OrchestrationDocument.isFilePath(node.path))
                       ? null
                       : () => edit.onOpenAsSource!(node.path),
                   onStartRename: () => edit.onStartRename(node.path),
@@ -2258,12 +2260,13 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
             label: tr.openInNewWindow,
             icon: Icons.open_in_browser,
           ),
-        // Só `.kanban` (markdown cru) e `.panel` (HTML cru): escapa do
-        // renderizador próprio e edita a fonte.
+        // Open the source without replacing a specialized app or its terminals.
         if (widget.onOpenAsSource != null)
           AppMenuItem(
             value: 'as-source',
-            label: widget.name.toLowerCase().endsWith('.panel')
+            label: OrchestrationDocument.isFilePath(widget.path)
+                ? context.t.cockpit.paneView.openAsJson
+                : widget.name.toLowerCase().endsWith('.panel')
                 ? tr.openAsHtml
                 : tr.openAsMarkdown,
             icon: Icons.notes_outlined,

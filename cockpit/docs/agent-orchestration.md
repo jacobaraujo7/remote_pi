@@ -4,6 +4,10 @@ Open **Gallery → Agent Orchestration** to create `agents.orc` in the active wo
 
 Implementation status: scoped UI/lifecycle, version-2 restoration, legacy-profile migration, owned hooks/CLI/notifications and private file presentation are implemented and covered by directed tests. Real Windows acceptance includes independent docks, portable linked worktrees, cold restoration/order, private files, passive tool configuration and public terminal disposal. Legacy-profile cold upgrades, remaining desktop UI/clipboard cases, actual model conversations and real macOS acceptance remain pending; keep the PR in draft until its validation matrix is completed. Do not upgrade an active profile while its terminals are running.
 
+## Edit the JSON source
+
+Use **Open as JSON** in the file-tree context menu, orchestration-tab menu or orchestration toolbar. This opens the same file in the configured text editor, leaving the app and its terminals intact. The Cockpit editor highlights it as JSON and supports the normal save and unsaved-change confirmation flow. In its tab menu, **Open as orchestration** returns to the existing app without closing an unsaved source buffer. Saved changes synchronize through the existing document reconciliation; invalid JSON preserves the last valid configuration and sessions. Both `.orc` and legacy `.orchestration` support these actions.
+
 ## Portable document
 
 The JSON format has `version: 1`, an ordered `boxes` array, and planned `links` (`from`/`to` box IDs). Each box has `id`, `title`, optional-role `role`, `harness`, `model`, canvas `x`/`y`, and `directory` (a relative POSIX path under the worktree, default `.`). Box IDs are stable definitions, not terminal IDs. Root-level extension fields are preserved.

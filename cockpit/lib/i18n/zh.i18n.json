@@ -249,7 +249,9 @@
       "openAsLayout": "以布局打开",
       "openAsYaml": "以 YAML 打开",
       "openAsPanel": "以面板打开",
-      "openAsHtml": "以 HTML 打开"
+      "openAsHtml": "以 HTML 打开",
+      "openAsJson": "以 JSON 打开",
+      "openAsOrchestration": "以编排打开"
     },
     "fileTreePanel": {
       "viewDiff": "查看差异",

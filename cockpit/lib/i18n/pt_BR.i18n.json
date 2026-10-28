@@ -249,7 +249,9 @@
       "openAsLayout": "Abrir como layout",
       "openAsYaml": "Abrir como YAML",
       "openAsPanel": "Abrir como painel",
-      "openAsHtml": "Abrir como HTML"
+      "openAsHtml": "Abrir como HTML",
+      "openAsJson": "Abrir como JSON",
+      "openAsOrchestration": "Abrir como orquestração"
     },
     "fileTreePanel": {
       "viewDiff": "Ver Diff",

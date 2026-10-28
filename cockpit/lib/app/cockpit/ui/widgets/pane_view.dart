@@ -1,5 +1,6 @@
 import 'stable_tab_stack.dart';
 import 'orchestration_view.dart';
+import '../../domain/entities/orchestration_document.dart';
 import '../session/orchestration_session.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'terminal_session_view.dart';
@@ -776,6 +777,7 @@ class _TabState extends State<_Tab> {
     if (s == null) return;
     final viewer = s is FileViewerSession ? s : null;
     final notebook = s is NotebookSession ? s : null;
+    final orchestration = s is OrchestrationSession ? s : null;
     final isPreview = viewer?.isPreview ?? false;
     final terminal = s is TerminalSession ? s : null;
     // Janela de documento: desktop e workspace local (ver `canOpenInWindow`).
@@ -847,6 +849,18 @@ class _TabState extends State<_Tab> {
                   : Icons.code_outlined,
             ),
         ],
+        if (orchestration != null)
+          AppMenuItem(
+            value: 'orc-source',
+            label: tr.openAsJson,
+            icon: Icons.code_outlined,
+          ),
+        if (viewer != null && OrchestrationDocument.isFilePath(viewer.path))
+          AppMenuItem(
+            value: 'orc-preview',
+            label: tr.openAsOrchestration,
+            icon: Icons.account_tree_outlined,
+          ),
         // Só em abas de terminal: o id (pane id) copiável pra usar na CLI
         // `cockpit` (`--tab-id`).
         if (terminal != null) ...[
@@ -926,6 +940,19 @@ class _TabState extends State<_Tab> {
       case 'copy-id':
         if (terminal != null) {
           await Clipboard.setData(ClipboardData(text: terminal.id));
+        }
+      case 'orc-source':
+        if (orchestration != null) {
+          await context.read<CockpitViewModel>().openFileAsSource(
+            orchestration.path,
+          );
+        }
+      case 'orc-preview':
+        if (viewer != null) {
+          await context.read<CockpitViewModel>().openOrchestration(
+            viewer.path,
+            projectId: viewer.projectId,
+          );
         }
       case 'raw-source':
         viewer?.toggleRawSource();
@@ -1627,6 +1654,8 @@ class _PaneBodyState extends State<_PaneBody> {
         session: item,
         active: widget.active,
         focused: widget.focused,
+        onEditSource: () =>
+            context.read<CockpitViewModel>().openFileAsSource(item.path),
       );
     }
     // Viewer de diff (read-only, split): comparação com o HEAD do git.

@@ -690,6 +690,8 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openAsYaml => 'Abrir como YAML';
 	@override String get openAsPanel => 'Abrir como painel';
 	@override String get openAsHtml => 'Abrir como HTML';
+	@override String get openAsJson => 'Abrir como JSON';
+	@override String get openAsOrchestration => 'Abrir como orquestração';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2330,6 +2332,8 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openAsYaml' => 'Abrir como YAML',
 			'cockpit.paneView.openAsPanel' => 'Abrir como painel',
 			'cockpit.paneView.openAsHtml' => 'Abrir como HTML',
+			'cockpit.paneView.openAsJson' => 'Abrir como JSON',
+			'cockpit.paneView.openAsOrchestration' => 'Abrir como orquestração',
 			'cockpit.fileTreePanel.viewDiff' => 'Ver Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage e Commit',
@@ -2626,10 +2630,10 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
-			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'O Cockpit nunca se conectou a ${endpoint} antes.',
 			'cockpit.sshPrompts.trustHint' => 'Confie apenas se esta fingerprint corresponder ao servidor. Você pode verificar no servidor com:',
@@ -3140,10 +3144,10 @@ extension on TranslationsPtBr {
 			'fileOperation.error.notScratchTab' => 'Esta aba não é um arquivo temporário.',
 			'fileOperation.error.writeFailed' => 'Não foi possível gravar o arquivo.',
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formatação vazio.',
-			'fileOperation.error.formatterMissingPlaceholder' => 'O comando de formatação precisa incluir o placeholder %FILE%.',
-			'fileOperation.error.formatterTimeout' => 'O formatador excedeu o tempo limite.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterMissingPlaceholder' => 'O comando de formatação precisa incluir o placeholder %FILE%.',
+			'fileOperation.error.formatterTimeout' => 'O formatador excedeu o tempo limite.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'O formatador saiu com código ${code}.',
 			'fileOperation.error.formatterFailed' => 'Não foi possível executar o formatador.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',

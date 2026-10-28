@@ -1,3 +1,4 @@
+import 'package:cockpit/app/core/ui/overlay/app_popover_handler.dart';
 import 'dart:async';
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
@@ -16,6 +17,58 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
+  for (final extension in ['orc', 'ORC', 'orchestration']) {
+    testWidgets('opens .$extension as JSON from the file menu', (tester) async {
+      LocaleSettings.setLocale(AppLocale.en);
+      final name = 'agents.$extension';
+      final path = '/workspace/$name';
+      String? sourcePath;
+      var appOpens = 0;
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            popoverHandler: const AppPopoverOverlayHandler(),
+            menuHandler: const AppPopoverOverlayHandler(),
+            home: Scaffold(
+              child: FileTreePanel(
+                rootPath: '/workspace',
+                revision: 1,
+                listChildren: (_) async => [
+                  FileNode(name: name, path: path, isDirectory: false),
+                ],
+                gitStatusOf: (_) => null,
+                onOpenFile: (_) => appOpens++,
+                onOpenAsSource: (path) => sourcePath = path,
+                onOpenDiff: (_) {},
+                isGitRepo: false,
+                changedPaths: const [],
+                onOpenWith: (_) {},
+                onCreateInFolder: (_, {command}) {},
+                onCreate: (_, _, _) async => const Success(null),
+                onRename: (_, _) async => const Success(null),
+                onDelete: (_) async => const Success(null),
+                onMove: (_, _) async => const Success(null),
+                onCopy: (_) {},
+                onCut: (_) {},
+                onPaste: (_) async => const Success(null),
+                canPaste: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(name), buttons: kSecondaryMouseButton);
+      await tester.pumpAndSettle();
+      expect(find.text('Open as JSON'), findsOneWidget);
+      await tester.tap(find.text('Open as JSON'));
+      await tester.pumpAndSettle();
+      expect(sourcePath, path);
+      expect(appOpens, 0);
+    });
+  }
+
   group('FileTreePanel selection', () {
     testWidgets('reveal returns to Files and scrolls the target into view', (
       tester,

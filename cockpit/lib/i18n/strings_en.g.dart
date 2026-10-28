@@ -1380,6 +1380,12 @@ class Translations$cockpit$paneView$en {
 
 	/// en: 'Open as HTML'
 	String get openAsHtml => 'Open as HTML';
+
+	/// en: 'Open as JSON'
+	String get openAsJson => 'Open as JSON';
+
+	/// en: 'Open as orchestration'
+	String get openAsOrchestration => 'Open as orchestration';
 }
 
 // Path: cockpit.fileTreePanel
@@ -4678,6 +4684,8 @@ extension on Translations {
 			'cockpit.paneView.openAsYaml' => 'Open as YAML',
 			'cockpit.paneView.openAsPanel' => 'Open as panel',
 			'cockpit.paneView.openAsHtml' => 'Open as HTML',
+			'cockpit.paneView.openAsJson' => 'Open as JSON',
+			'cockpit.paneView.openAsOrchestration' => 'Open as orchestration',
 			'cockpit.fileTreePanel.viewDiff' => 'View Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage and Commit',
@@ -4974,10 +4982,10 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
-			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
+			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
 			'cockpit.sshPrompts.neverConnected' => ({required Object endpoint}) => 'Cockpit has never connected to ${endpoint} before.',
 			'cockpit.sshPrompts.trustHint' => 'Trust it only if this fingerprint matches the server. You can check it on the server with:',
@@ -5488,10 +5496,10 @@ extension on Translations {
 			'fileOperation.error.notScratchTab' => 'This tab is not a scratch file.',
 			'fileOperation.error.writeFailed' => 'Could not write the file.',
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
-			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
-			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			_ => null,
 		} ?? switch (path) {
+			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
+			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
 			'fileOperation.error.formatterFailed' => 'The formatter could not run.',
 			'fileOperation.error.osFailure' => ({required Object detail}) => '${detail}',
