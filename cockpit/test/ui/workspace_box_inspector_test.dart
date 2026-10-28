@@ -66,55 +66,86 @@ class _InspectorVM implements CockpitViewModel {
 }
 
 void main() {
-  testWidgets('agent role is a preview until explicitly accepted and saved', (
-    tester,
-  ) async {
-    final vm = _InspectorVM();
-    var asked = 0;
-    await tester.pumpWidget(
-      TranslationProvider(
-        child: ShadcnApp(
-          theme: buildTheme(brightness: Brightness.dark),
-          home: Scaffold(
-            child: WorkspaceBoxInspector(
-              vm: vm,
-              box: _box,
-              entry: const WorkspaceBoxEntry(
-                box: _box,
-                status: WorkspaceBoxStatus.idle,
-                tool: 'Codex',
+  for (final width in [320.0, 400.0]) {
+    testWidgets(
+      'agent role is a preview until explicitly accepted and saved / $width px',
+      (tester) async {
+        final vm = _InspectorVM();
+        var asked = 0;
+        tester.view.physicalSize = Size(width, 720);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          TranslationProvider(
+            child: ShadcnApp(
+              theme: buildTheme(brightness: Brightness.dark),
+              home: Scaffold(
+                child: WorkspaceBoxInspector(
+                  vm: vm,
+                  box: _box,
+                  entry: const WorkspaceBoxEntry(
+                    box: _box,
+                    status: WorkspaceBoxStatus.idle,
+                    tool: 'Codex',
+                  ),
+                  onClose: () {},
+                  onSuggestRole: () async {
+                    asked++;
+                    return const Success('Revisar contratos da API');
+                  },
+                ),
               ),
-              onClose: () {},
-              onSuggestRole: () async {
-                asked++;
-                return const Success('Revisar contratos da API');
-              },
             ),
           ),
-        ),
-      ),
+        );
+        await tester.pumpAndSettle();
+        final roleField = find.byType(TextField).at(1);
+        final roleHelp = find.text(t.orchestration.roleMissing);
+        final askButton = find.ancestor(
+          of: find.text(t.orchestration.askRole),
+          matching: find.byType(OutlineButton),
+        );
+        expect(
+          tester.getRect(roleHelp).top,
+          greaterThan(tester.getRect(roleField).bottom),
+        );
+        expect(
+          tester.getRect(askButton).top,
+          greaterThan(tester.getRect(roleHelp).bottom),
+        );
+        await tester.ensureVisible(find.text(t.orchestration.askRole));
+        await tester.tap(find.text(t.orchestration.askRole));
+        await tester.pumpAndSettle();
+        expect(asked, 1);
+        expect(vm.saved, 0);
+        expect(vm.started, 0);
+        expect(find.text('Revisar contratos da API'), findsOneWidget);
+        final acceptButton = find.ancestor(
+          of: find.text(t.orchestration.useSuggestion),
+          matching: find.byType(OutlineButton),
+        );
+        expect(
+          tester.getRect(acceptButton).top,
+          greaterThan(
+            tester.getRect(find.text('Revisar contratos da API')).bottom,
+          ),
+        );
+        await tester.ensureVisible(find.text(t.orchestration.useSuggestion));
+        await tester.tap(find.text(t.orchestration.useSuggestion));
+        await tester.pumpAndSettle();
+        expect(vm.saved, 0);
+        await tester.ensureVisible(find.text(t.workspaceView.save));
+        await tester.tap(find.text(t.workspaceView.save));
+        await tester.pumpAndSettle();
+        expect(vm.saved, 1);
+        expect(vm.role, 'Revisar contratos da API');
+        expect(vm.started, 0);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+      },
     );
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text(t.orchestration.askRole));
-    await tester.tap(find.text(t.orchestration.askRole));
-    await tester.pumpAndSettle();
-    expect(asked, 1);
-    expect(vm.saved, 0);
-    expect(vm.started, 0);
-    expect(find.text('Revisar contratos da API'), findsOneWidget);
-    await tester.ensureVisible(find.text(t.orchestration.useSuggestion));
-    await tester.tap(find.text(t.orchestration.useSuggestion));
-    await tester.pumpAndSettle();
-    expect(vm.saved, 0);
-    await tester.ensureVisible(find.text(t.workspaceView.save));
-    await tester.tap(find.text(t.workspaceView.save));
-    await tester.pumpAndSettle();
-    expect(vm.saved, 1);
-    expect(vm.role, 'Revisar contratos da API');
-    expect(vm.started, 0);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-  });
+  }
   for (final brightness in Brightness.values) {
     testWidgets(
       'inspector saves optional context without starting a tool / $brightness',

@@ -274,9 +274,10 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 6),
                     Text(
                       '${context.t.orchestration.connectedCli}: ${widget.entry.tool.isEmpty ? context.t.orchestration.noCli : widget.entry.tool}',
-                      style: context.typo.label,
+                      style: context.typo.label.copyWith(height: 1.4),
                     ),
                     label(t.configuration),
                     TextField(
@@ -291,11 +292,17 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                       onChanged: (_) => _dirty = true,
                     ),
                     if (widget.onSuggestRole != null) ...[
-                      if (box.role.trim().isEmpty)
+                      const SizedBox(height: 12),
+                      if (box.role.trim().isEmpty) ...[
                         Text(
                           context.t.orchestration.roleMissing,
-                          style: context.typo.label,
+                          style: context.typo.label.copyWith(
+                            color: context.colors.text2,
+                            height: 1.4,
+                          ),
                         ),
+                        const SizedBox(height: 8),
+                      ],
                       OutlineButton(
                         onPressed:
                             _askingRole ||
@@ -311,7 +318,11 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                       ),
                       if (_suggestion case final suggestion?) ...[
                         label(context.t.orchestration.roleSuggestion),
-                        Text(suggestion),
+                        Text(
+                          suggestion,
+                          style: context.typo.body.copyWith(height: 1.4),
+                        ),
+                        const SizedBox(height: 8),
                         Wrap(
                           spacing: 8,
                           runSpacing: 6,
