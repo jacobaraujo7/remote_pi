@@ -2272,7 +2272,7 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
         : path;
   }
 
-  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
+  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (só
   /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
   Future<void> openDiff(
     String path, {
@@ -2336,14 +2336,29 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
     // Reutiliza a aba de preview de diff, se houver.
     if (isPreview && previewCandidate != null) {
       previewCandidate
-        ..path = path
-        ..diff = diff
+        ..replaceDiff(diff, path)
         ..commitHash = commitHash
         ..repoRoot = commitHash == null ? null : root
         ..previousRelativePath = commitHash == null
             ? null
-            : previousRelativePath
-        ..notifyListeners();
+            : previousRelativePath;
+      if (previewCandidate.viewMode == DiffViewMode.modifiedContent &&
+          diff.kind != FileDiffKind.deleted &&
+          diff.kind != FileDiffKind.binary &&
+          diff.kind != FileDiffKind.error &&
+          diff.kind != FileDiffKind.unchanged) {
+        final target = previewCandidate;
+        target.startModifiedContentLoad();
+        unawaited(
+          loadModifiedDiffContent(target)
+              .then(
+                (content) => target.completeModifiedContentLoad(diff, content),
+              )
+              .catchError(
+                (Object error) => target.failModifiedContentLoad(diff, error),
+              ),
+        );
+      }
       _trees[projectId] = updateLeaf(
         tree,
         paneId,
@@ -2400,6 +2415,34 @@ class CockpitViewModel extends ChangeNotifier implements DocumentHost {
       );
     }
     notifyListeners();
+  }
+
+  /// Conteúdo integral da versão direita do diff. Carregado somente quando o
+  /// usuário escolhe Modified content; os hunks não incluem o arquivo todo.
+  Future<String> loadModifiedDiffContent(DiffViewerSession session) async {
+    final path = session.path;
+    final hash = session.commitHash;
+    final root = session.repoRoot ?? rootContaining(session.projectId, path);
+    if (hash != null) {
+      if (root == null) throw StateError('Repository unavailable');
+      final object = '$hash:${_relativePath(root, path)}';
+      if (_activeRemoteHost() != null) {
+        final result = await (await _activeRemoteGit()).run(root, [
+          'show',
+          object,
+        ]);
+        if (result.code != 0) throw StateError(result.stderr);
+        return result.stdout;
+      }
+      return _gitDiff.readCommitContent(root, hash, _relativePath(root, path));
+    }
+    if (_activeRemoteHost() != null) {
+      final host = _activeRemoteHost()!;
+      final service = await _remoteHosts.fileServiceFor(host);
+      return utf8.decode(await service.read(path), allowMalformed: true);
+    }
+    final bytes = await File(path).readAsBytes();
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   /// Abre o diff que um commit introduziu em [relativePath].

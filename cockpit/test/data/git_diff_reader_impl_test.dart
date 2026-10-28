@@ -87,6 +87,31 @@ void main() {
     );
   });
 
+  test(
+    'conteúdo histórico inclui linhas fora dos hunks e ignora working tree',
+    () async {
+      if (!await gitAvailable()) {
+        markTestSkipped('git não disponível');
+        return;
+      }
+      final lines = List.generate(20, (i) => 'line ${i + 1}');
+      await write('a.txt', '${lines.join('\n')}\n');
+      await git(['add', 'a.txt']);
+      await git(['commit', '-m', 'long baseline']);
+      lines[9] = 'COMMITTED CHANGE';
+      final committed = '${lines.join('\n')}\n';
+      await write('a.txt', committed);
+      await git(['add', 'a.txt']);
+      await git(['commit', '-m', 'change middle']);
+      final hash = (await git(['rev-parse', 'HEAD'])).stdout.toString().trim();
+      await write('a.txt', 'later working tree edit\n');
+
+      final content = await reader.readCommitContent(repo.path, hash, 'a.txt');
+      expect(content, committed);
+      expect(content, contains('line 20'));
+    },
+  );
+
   test('rename historico compara o caminho anterior ao novo', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git nao disponivel');

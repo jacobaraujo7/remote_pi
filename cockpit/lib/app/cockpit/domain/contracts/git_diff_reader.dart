@@ -15,4 +15,11 @@ abstract class GitDiffReader {
     String relativePath, {
     String? previousRelativePath,
   });
+
+  /// Conteúdo completo da versão do arquivo no commit (lado direito do diff).
+  Future<String> readCommitContent(
+    String repoPath,
+    String commitHash,
+    String relativePath,
+  );
 }

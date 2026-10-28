@@ -1627,11 +1627,12 @@ class _PaneBodyState extends State<_PaneBody> {
   Widget build(BuildContext context) {
     final item = widget.item;
 
-    // Viewer de diff (read-only, split): comparação com o HEAD do git.
+    // Viewer de diff read-only: comparação com o HEAD do git.
     if (item is DiffViewerSession) {
       final vm = context.read<CockpitViewModel>();
       return DiffViewer(
         session: item,
+        loadModifiedContent: vm.loadModifiedDiffContent,
         displayPath: vm.displayPath(item.projectId, item.path),
       );
     }
