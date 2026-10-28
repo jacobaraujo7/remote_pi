@@ -593,6 +593,37 @@ extension OrchestrationWorkspace on CockpitViewModel {
     return _startOwnedCli(owner, boxId);
   }
 
+  /// A native OS open has no terminal/selected-workspace origin. Resolve its
+  /// actual local worktree, or create an empty workspace beside the file.
+  Future<void> openNativeOrchestration(String raw) async {
+    if (_nativeDocumentsDisposed || !OrchestrationDocument.isFilePath(raw)) {
+      return;
+    }
+    final file = path.normalize(path.absolute(raw));
+    if (!await File(file).exists() || _nativeDocumentsDisposed) return;
+    // Reuse the boot discovery already in progress, so a nested or disjoint
+    // worktree cannot be mistaken for its parent before reconciliation finishes.
+    await _nativeWorktreesReady;
+    if (_nativeDocumentsDisposed) return;
+    var project = nativeOrchestrationProject(
+      file,
+      _projectList,
+      realmId: realmCtrl.activeId,
+      selectedProjectId: _selectedProjectId,
+    );
+    project ??= await addProject(path.dirname(file));
+    final projectId = project.id;
+    if (_nativeDocumentsDisposed || _projectById(projectId) == null) return;
+    await _activateProject(projectId);
+    if (_nativeDocumentsDisposed || _projectById(projectId) == null) return;
+    selectProject(projectId);
+    await openOrchestration(file, projectId: projectId);
+    if (!_nativeDocumentsDisposed && !isMobilePlatform) {
+      await windowManager.show();
+      if (!_nativeDocumentsDisposed) await windowManager.focus();
+    }
+  }
+
   Future<void> openOrchestration(
     String file, {
     required String projectId,

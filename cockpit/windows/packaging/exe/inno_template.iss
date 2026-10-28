@@ -81,5 +81,12 @@ Root: HKCU; Subkey: "Software\Classes\Cockpit.Markdown\shell\open\command"; Valu
 Root: HKCU; Subkey: "Software\Classes\.md\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Markdown"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\.markdown\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Markdown"; ValueData: ""; Flags: uninsdeletevalue
 
+; OpenWith only: .orc is also used by other applications.
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Orchestration"; ValueType: string; ValueData: "Cockpit Agent Orchestration"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Orchestration\DefaultIcon"; ValueType: string; ValueData: "{app}\{{EXECUTABLE_NAME}},0"
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Orchestration\shell\open\command"; ValueType: string; ValueData: """{app}\{{EXECUTABLE_NAME}}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.orc\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Orchestration"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.orchestration\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Orchestration"; ValueData: ""; Flags: uninsdeletevalue
+
 [Run]
 Filename: "{app}\{{EXECUTABLE_NAME}}"; Description: "{cm:LaunchProgram,{{DISPLAY_NAME}}}"; Flags: nowait postinstall skipifsilent

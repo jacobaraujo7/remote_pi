@@ -1,3 +1,5 @@
+import '../document/open_files_channel.dart';
+import '../document/native_document_router.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.dart';
 import 'dart:async';
 import 'package:path/path.dart' as path;
@@ -498,6 +500,17 @@ class CockpitViewModel extends ChangeNotifier
 
   final Map<String, OrchestrationSession> _orchestrations = {};
   final Map<String, Future<void>> _orchestrationOpens = {};
+  void Function()? _detachNativeOrchestration;
+  bool _nativeDocumentsDisposed = false;
+  Future<void> _nativeWorktreesReady = Future<void>.value();
+
+  void _attachNativeOrchestration() {
+    if (_nativeDocumentsDisposed || _detachNativeOrchestration != null) return;
+    _detachNativeOrchestration = OpenFilesChannel.attachOrchestration(
+      openNativeOrchestration,
+    );
+  }
+
   final Map<String, Future<Result<String, FileOperationError>>>
   _orchestrationCreates = {};
   final Map<String, Map<String, Map<String, String>>> _orchestrationBindings =
@@ -3898,18 +3911,33 @@ class CockpitViewModel extends ChangeNotifier
           debugPrint(
             '[boot] falha ao ativar o workspace inicial: $error\n$stack',
           );
+        } finally {
+          _attachNativeOrchestration();
         }
       });
+    } else {
+      _attachNativeOrchestration();
     }
     // Mudanças de host/pin vindas de OUTRA rota (aba "Remote hosts" das
     // Configurações opera o mesmo RemoteHostsController) re-sincronizam a rail.
     _remoteHosts.addListener(_onRemoteHostsChanged);
     // Estado git + worktrees de todos os projetos (assíncrono — a rail atualiza
     // conforme chega). Só há raízes no boot; os forks entram pela reconciliação.
+    final initialWorktrees = <Future<void>>[];
     for (final project in _projectList) {
       unawaited(git.refresh(project.id));
-      unawaited(_refreshWorktrees(project.id));
+      initialWorktrees.add(_refreshWorktrees(project.id));
     }
+    _nativeWorktreesReady = Future.wait(initialWorktrees).then<void>((_) {});
+    unawaited(
+      _nativeWorktreesReady.catchError((Object error, StackTrace stack) {
+        DiagnosticsLog.instance.logError(
+          'native-worktree-discovery',
+          error,
+          stack,
+        );
+      }),
+    );
     git.startPoll(); // safety net contra eventos de FS perdidos (bug: rail stale)
     // Detecta IDEs instaladas (assíncrono — topbar atualiza ao chegar).
     unawaited(
@@ -8143,6 +8171,9 @@ class CockpitViewModel extends ChangeNotifier
 
   @override
   void dispose() {
+    _nativeDocumentsDisposed = true;
+    _detachNativeOrchestration?.call();
+    _detachNativeOrchestration = null;
     _remoteHosts.removeListener(_onRemoteHostsChanged);
     unawaited(_statusServer.stop());
     unawaited(_previewSub?.cancel());

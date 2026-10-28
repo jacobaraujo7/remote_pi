@@ -82,6 +82,8 @@ jobs:
           lib/app/cockpit/ui/services/orchestration_document_files.dart
           lib/app/cockpit/ui/session/orchestration_file_presentation.dart
           lib/app/cockpit/ui/widgets/orchestration_document_area.dart
+          lib/app/cockpit/ui/document/native_document_router.dart
+          lib/app/cockpit/ui/document/open_files_channel.dart
           lib/app/cockpit/ui/document/worktree_document_host.dart
           lib/app/cockpit/ui/document/document_window_app.dart
           lib/app/cockpit/ui/widgets/file_viewer.dart
@@ -137,6 +139,8 @@ jobs:
           test/core/process/owned_process_registry_test.dart
           test/ui/orchestration_session_test.dart
           test/ui/orchestration_document_files_test.dart
+          test/ui/native_document_router_test.dart
+          test/ui/open_files_channel_test.dart
           test/ui/worktree_document_host_test.dart
           test/ui/scoped_document_screen_test.dart
           test/ui/layout_preview_view_test.dart

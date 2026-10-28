@@ -3,12 +3,14 @@ import 'dart:io';
 
 import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:flutter/services.dart';
+import 'native_document_router.dart';
 
 /// Arquivos abertos **pelo sistema** (Finder: duplo clique, "Abrir com").
 /// O lado nativo (macOS `AppDelegate.openFiles`) manda `open` com os
 /// caminhos; os que chegaram antes de o Dart estar pronto ficam em buffer lá
-/// e são puxados com `pull` ao ligar. Cada caminho vira uma janela de
-/// documento. Windows/Linux: não há canal nativo; os caminhos chegam pela
+/// e são puxados com `pull` ao ligar. Documentos comuns abrem em janelas;
+/// orquestrações aguardam o workspace e abrem como apps da Gallery.
+/// Windows/Linux: não há canal nativo; os caminhos chegam pela
 /// linha de comando (`pendingFromArguments`) ou pelo `open-document` que o
 /// segundo processo manda ao app vivo (ver `RunningInstance`).
 class OpenFilesChannel {
@@ -16,6 +18,13 @@ class OpenFilesChannel {
 
   static const _channel = MethodChannel('cockpit/open_files');
   static bool _bound = false;
+  static final _router = NativeDocumentRouter(
+    openDocument: DocumentWindows.open,
+  );
+  static Future<void> open(String path) => _router.open(path);
+  static void Function() attachOrchestration(
+    Future<void> Function(String) open,
+  ) => _router.attach(open);
 
   /// Windows/Linux: caminhos que vieram na linha de comando deste processo
   /// (duplo clique com o app fechado). O `main` deposita aqui quando não havia
@@ -29,12 +38,12 @@ class OpenFilesChannel {
       if (call.method != 'open') return null;
       final paths = (call.arguments as List?)?.cast<String>() ?? const [];
       for (final p in paths) {
-        unawaited(DocumentWindows.open(p));
+        unawaited(open(p));
       }
       return null;
     });
     for (final p in pendingFromArguments) {
-      unawaited(DocumentWindows.open(p));
+      unawaited(open(p));
     }
     pendingFromArguments = const [];
     // Gancho de diagnóstico (debug): COCKPIT_OPEN_DOCUMENT=<path> abre uma
@@ -42,7 +51,7 @@ class OpenFilesChannel {
     {
       final probe = Platform.environment['COCKPIT_OPEN_DOCUMENT'];
       if (probe != null && probe.isNotEmpty) {
-        unawaited(DocumentWindows.open(probe));
+        unawaited(open(probe));
       }
     }
     try {
@@ -52,7 +61,7 @@ class OpenFilesChannel {
           ))?.cast<String>() ??
           const <String>[];
       for (final p in pending) {
-        unawaited(DocumentWindows.open(p));
+        unawaited(open(p));
       }
     } on MissingPluginException {
       // plataforma sem o canal nativo

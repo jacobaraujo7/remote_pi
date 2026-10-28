@@ -1,3 +1,4 @@
+import '../document/open_files_channel.dart';
 import '../session/orchestration_session.dart';
 import 'orchestration_cli_handler.dart';
 import 'dart:async' show unawaited;
@@ -31,7 +32,6 @@ import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
 import 'package:cockpit/app/core/utils/shell_command.dart';
-import 'package:cockpit/app/cockpit/ui/document/document_windows.dart';
 import 'package:cockpit/app/cockpit/ui/session/empty_tab.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
@@ -316,7 +316,7 @@ class CockpitCliHandler {
         }
         for (final path in paths) {
           if (await File(path).exists() || await Directory(path).exists()) {
-            unawaited(DocumentWindows.open(path));
+            unawaited(OpenFilesChannel.open(path));
           }
         }
         return const CockpitCommandResult.ok();
