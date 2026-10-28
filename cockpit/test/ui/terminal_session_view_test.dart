@@ -1,3 +1,7 @@
+import 'dart:io' show Platform;
+import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/terminal_find_bar.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/orchestration_multiplexer.dart';
@@ -31,7 +35,7 @@ class _Gateway extends AttachmentTerminalGateway {
 void main() {
   for (final engine in TerminalEngine.values) {
     testWidgets(
-      '${engine.name}: shared renderer keeps sessions across inner tab/split changes',
+      '${engine.name}: shared renderer keeps sessions and find shortcuts across inner tab/split changes',
       (tester) async {
         final mux = OrchestrationMultiplexer<TerminalSession>(
           instanceId: 'doc',
@@ -79,7 +83,9 @@ void main() {
                   typo: tokens.typo,
                   syntax: tokens.syntax,
                   terminal: tokens.terminal,
-                  child: ghost.TerminalScope(child: child!),
+                  child: TranslationProvider(
+                    child: ghost.TerminalScope(child: child!),
+                  ),
                 );
               },
               home: ValueListenableBuilder<double>(
@@ -129,6 +135,37 @@ void main() {
         );
         sessions['one']!.terminal.write('retained history\r\n');
         await tester.pump();
+        await tester.pump();
+        final focusedPane = tester.widget<AdaptiveTerminalPane>(
+          find.descendant(
+            of: find.byKey(const ValueKey('owned-one')),
+            matching: find.byType(AdaptiveTerminalPane),
+          ),
+        );
+        expect(focusedPane.focusNode.hasFocus, isTrue);
+        final inputBeforeFind = List<int>.of(gateways['one']!.bytes);
+        final modifier = Platform.isMacOS
+            ? LogicalKeyboardKey.metaLeft
+            : LogicalKeyboardKey.controlLeft;
+        await tester.sendKeyDownEvent(modifier);
+        await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+        await tester.sendKeyUpEvent(modifier);
+        await tester.pump();
+        expect(find.byType(TerminalFindBar), findsOneWidget);
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+        expect(find.byType(TerminalFindBar), findsNothing);
+        expect(gateways['one']!.bytes, inputBeforeFind);
+        if (Platform.isMacOS) {
+          // Cmd-F is app find; Ctrl-F remains readline's forward-char.
+          final beforeReadline = gateways['one']!.bytes.length;
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.keyF);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+          await tester.pump();
+          expect(find.byType(TerminalFindBar), findsNothing);
+          expect(gateways['one']!.bytes.skip(beforeReadline), contains(0x06));
+        }
         mux.reveal('two', focus: false);
         await tester.pump();
         final secondPane = tester.widget<AdaptiveTerminalPane>(

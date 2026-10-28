@@ -3,7 +3,12 @@ import 'dart:io' show Platform;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, KeyEvent, LogicalKeyboardKey;
+    show
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        KeyRepeatEvent,
+        LogicalKeyboardKey;
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
@@ -632,7 +637,24 @@ class _TerminalPaneState extends State<TerminalPane>
           scrollController: _scroll,
           focusNode: widget.focusNode,
           hardwareKeyboardOnly: widget.hardwareKeyboardOnly,
-          onKeyEvent: (_, event) => widget.onKeyEvent(event),
+          onKeyEvent: (_, event) {
+            // The terminal encoder consumes Ctrl-F as a control character.
+            // Resolve find before it, rather than in an ancestor Shortcuts.
+            if ((event is KeyDownEvent || event is KeyRepeatEvent) &&
+                (const SingleActivator(
+                      LogicalKeyboardKey.keyF,
+                      meta: true,
+                    ).accepts(event, HardwareKeyboard.instance) ||
+                    (!Platform.isMacOS &&
+                        const SingleActivator(
+                          LogicalKeyboardKey.keyF,
+                          control: true,
+                        ).accepts(event, HardwareKeyboard.instance)))) {
+              openFind();
+              return KeyEventResult.handled;
+            }
+            return widget.onKeyEvent(event);
+          },
           theme: widget.theme,
           textStyle: widget.textStyle,
           mouseCursor: MouseCursor.defer,
