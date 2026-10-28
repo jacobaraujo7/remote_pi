@@ -201,6 +201,91 @@ pub fn transport_configured() -> bool {
     endpoint_from_file().is_some()
 }
 
+/// Native Windows forwarding runs before a Flutter engine exists. Unlike a
+/// terminal command it must ignore inherited caller/socket env and never try
+/// another flavor or another user's live instance.
+pub fn forward_native_open(flavor: &str, arguments: &[String]) -> bool {
+    let suffix = match flavor {
+        "debug" => "-debug",
+        "release" => "",
+        _ => return false,
+    };
+    let Some(home) = transport_home() else {
+        return false;
+    };
+    let endpoint = std::path::Path::new(&home)
+        .join(".cockpit")
+        .join(format!("status{suffix}.json"));
+    let Ok(cwd) = std::env::current_dir() else {
+        return false;
+    };
+    let files: Vec<String> = arguments
+        .iter()
+        .filter_map(|raw| {
+            if raw.is_empty() || raw.starts_with('-') {
+                return None;
+            }
+            let path = cwd.join(raw);
+            (path.is_file() || path.is_dir()).then(|| path.to_string_lossy().into_owned())
+        })
+        .collect();
+    if files.is_empty() {
+        return false;
+    }
+    forward_native_open_at(&endpoint, &files)
+}
+
+fn forward_native_open_at(endpoint: &std::path::Path, files: &[String]) -> bool {
+    use std::net::{Ipv4Addr, SocketAddr, TcpStream};
+    use std::time::Instant;
+    let attempt = || -> Option<bool> {
+        let mut raw = String::new();
+        std::fs::File::open(endpoint)
+            .ok()?
+            .take(64 * 1024)
+            .read_to_string(&mut raw)
+            .ok()?;
+        let metadata: Value = serde_json::from_str(&raw).ok()?;
+        let port = u16::try_from(metadata.get("port")?.as_u64()?).ok()?;
+        let token = metadata.get("tok")?.as_str()?;
+        if port == 0 || token.is_empty() || files.is_empty() {
+            return None;
+        }
+        let address = SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port);
+        let mut stream = TcpStream::connect_timeout(&address, Duration::from_secs(2)).ok()?;
+        stream
+            .set_write_timeout(Some(Duration::from_secs(2)))
+            .ok()?;
+        let request = json!({"type":"cmd", "cmd":"open-document", "tok":token,
+            "args":{"paths":files}});
+        writeln!(stream, "{request}").ok()?;
+        stream.flush().ok()?;
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut response = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return None;
+            }
+            stream.set_read_timeout(Some(remaining)).ok()?;
+            let count = stream.read(&mut chunk).ok()?;
+            if count == 0 {
+                return None;
+            }
+            response.extend_from_slice(&chunk[..count]);
+            if response.len() > 64 * 1024 {
+                return None;
+            }
+            if let Some(end) = response.iter().position(|byte| *byte == b'\n') {
+                let result: Value = serde_json::from_slice(&response[..end]).ok()?;
+                return Some(result.get("ok") == Some(&Value::Bool(true)));
+            }
+        }
+    };
+    attempt().unwrap_or(false)
+}
+
 /// Envia uma requisição e devolve a resposta decodificada.
 ///
 /// Fora de um terminal do Cockpit, encerra com exit 3 (mesma mensagem da CLI

@@ -13,7 +13,6 @@ import 'package:cockpit/app/core/ui/widgets/error_report_dialog.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:window_manager/window_manager.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -38,14 +37,8 @@ Future<void> main(List<String> args) async {
   if (Platform.isWindows || Platform.isLinux) {
     final files = RunningInstance.filePathsFromArguments(args);
     if (files.isNotEmpty) {
-      if (await RunningInstance.forwardOpen(files)) {
-        // Let the Flutter host dispose plugins/COM in its normal shutdown order.
-        // dart:io exit bypasses that and crashes the secondary Windows process.
-        WidgetsFlutterBinding.ensureInitialized();
-        await windowManager.ensureInitialized();
-        await windowManager.destroy();
-        return;
-      }
+      // Windows forwards through its bundled CLI before creating an engine.
+      if (Platform.isLinux && await RunningInstance.forwardOpen(files)) exit(0);
       OpenFilesChannel.pendingFromArguments = files;
     }
   }

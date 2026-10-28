@@ -9,6 +9,8 @@ on:
       - 'cockpit/pubspec.*'
       - 'cockpit/packages/**'
       - 'cockpit/cli/**'
+      - 'cockpit/windows/**'
+      - 'cockpit/macos/**'
       - '.github/workflows/cockpit-orchestration.yml'
   workflow_dispatch:
 
@@ -196,6 +198,13 @@ jobs:
       - name: Build Windows app
         if: runner.os == 'Windows'
         run: flutter build windows --debug --no-pub
+      - name: Windows native forwarding argument round-trips
+        if: runner.os == 'Windows'
+        run: |
+          cmake --build build/windows/x64 --config Debug --target native_open_forwarder_test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build/windows/x64/native_tests/Debug/native_open_forwarder_test.exe
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build macOS app without release publishing
         if: runner.os == 'macOS'
         shell: bash
