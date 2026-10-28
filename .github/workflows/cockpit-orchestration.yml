@@ -172,7 +172,6 @@ jobs:
           test/ui/graph_telemetry_service_test.dart
           test/data/telemetry/app_telemetry_bridge_test.dart
           test/data/telemetry/otlp_and_config_test.dart
-          test/data/telemetry/sqlite_telemetry_store_test.dart
           test/data/telemetry/telemetry_store_registry_test.dart
           test/data/telemetry/telemetry_cli_handler_test.dart
           test/data/telemetry/telemetry_ingest_test.dart
@@ -185,6 +184,11 @@ jobs:
           test/ui/terminal_attachment_shortcuts_test.dart
           test/session/terminal_status_test.dart
           tool/design/render_orchestration_layouts_test.dart
+      # Preserve the existing 10k/<1000ms gate without parallel compiler/test contention.
+      - name: SQLite correctness and isolated 10k benchmark
+        run: >-
+          flutter test --no-pub --concurrency=1
+          test/data/telemetry/sqlite_telemetry_store_test.dart
       - name: Resolve server regression dependencies
         working-directory: cockpit/packages/cockpit_server
         run: dart pub get
