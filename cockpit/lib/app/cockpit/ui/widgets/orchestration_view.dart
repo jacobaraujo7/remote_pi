@@ -37,7 +37,7 @@ class OrchestrationView extends StatefulWidget {
 }
 
 class _OrchestrationViewState extends State<OrchestrationView> {
-  final Map<String, GraphTelemetrySnapshot> _metrics = {};
+  final Map<GraphTelemetryKey, GraphTelemetrySnapshot> _metrics = {};
   Timer? _timer;
   bool _refreshing = false;
   OrchestrationLiveSessions? _live;
@@ -60,6 +60,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
                   t.id,
                   t.status,
                   t.activeHarness,
+                  GraphTelemetryService.keyFor(t),
                   t.hasExited,
                   t.unseenFinish,
                   t.displayTitle,
@@ -110,13 +111,16 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     final documentSession = widget.session;
     final documentPath = documentSession.path;
     try {
-      final next = <String, GraphTelemetrySnapshot>{};
+      final next = <GraphTelemetryKey, GraphTelemetrySnapshot>{};
       for (final box in documentSession.controller.graphBoxes) {
-        final session = widget.session.context.session(box.tabId ?? '');
+        final session = documentSession.context.session(box.tabId ?? '');
         if (session == null) continue;
-        next[session.id] = await const GraphTelemetryService().snapshot(
-          session,
-        );
+        final key = GraphTelemetryService.keyFor(session);
+        final value = await const GraphTelemetryService().snapshot(session);
+        if (identical(documentSession.context.session(session.id), session) &&
+            key == GraphTelemetryService.keyFor(session)) {
+          next[key] = value;
+        }
       }
       if (!mounted ||
           widget.session != documentSession ||
@@ -165,7 +169,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
       unseen: t?.unseenFinish ?? false,
       contextPercent: t == null || t.hasExited || t.activeHarness == null
           ? null
-          : _metrics[t.id]?.contextPercent,
+          : _metrics[GraphTelemetryService.keyFor(t)]?.contextPercent,
     );
   }
 

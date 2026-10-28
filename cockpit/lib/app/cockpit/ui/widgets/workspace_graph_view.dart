@@ -53,10 +53,10 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
   final TransformationController _transform = TransformationController();
   final ValueNotifier<int> _graphRevision = ValueNotifier(0);
   bool _editingText = false;
-  final Map<String, Future<GraphTelemetrySnapshot>> _telemetry = {};
+  final Map<GraphTelemetryKey, Future<GraphTelemetrySnapshot>> _telemetry = {};
   final Map<String, Offset> _dragPositions = {};
   final Map<String, Offset> _subagentPositions = {};
-  final Map<String, GraphTelemetrySnapshot> _latestTelemetry = {};
+  final Map<GraphTelemetryKey, GraphTelemetrySnapshot> _latestTelemetry = {};
   final Map<String, Future<ProcessMetricsSnapshot>> _processTelemetry = {};
   late GraphProcessMetricsService _processMetricsService;
   Timer? _telemetryTimer;
@@ -91,6 +91,9 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
       oldWidget.vm.removeListener(_onVmChanged);
       if (!widget.embedded) widget.vm.addListener(_onVmChanged);
       _graphRevision.value++;
+      _telemetry.clear();
+      _latestTelemetry.clear();
+      _processTelemetry.clear();
     }
     if (!oldWidget.active && widget.active) {
       _telemetry.clear();
@@ -112,6 +115,35 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     _graphRevision.dispose();
     _transform.dispose();
     super.dispose();
+  }
+
+  Future<GraphTelemetrySnapshot>? _telemetryForBox(GraphBox box) {
+    final context = widget.vm;
+    final pane = context.session(box.tabId ?? '');
+    if (pane == null) return null;
+    final key = GraphTelemetryService.keyFor(pane);
+    _telemetry.removeWhere((old, _) => old.pane.id == pane.id && old != key);
+    _latestTelemetry.removeWhere(
+      (old, _) => old.pane.id == pane.id && old != key,
+    );
+    return _telemetry.putIfAbsent(key, () async {
+      final result = await const GraphTelemetryService().snapshot(pane);
+      if (mounted &&
+          widget.vm == context &&
+          identical(context.session(pane.id), pane) &&
+          key == GraphTelemetryService.keyFor(pane)) {
+        _latestTelemetry[key] = result;
+        if (!_editingText) setState(() {});
+      }
+      return result;
+    });
+  }
+
+  GraphTelemetrySnapshot? _latestFor(String? tabId) {
+    final pane = tabId == null ? null : widget.vm.session(tabId);
+    return pane == null
+        ? null
+        : _latestTelemetry[GraphTelemetryService.keyFor(pane)];
   }
 
   void _onVmChanged() {
@@ -442,27 +474,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                               session: widget.vm.session(box.tabId ?? ''),
                               disconnected:
                                   widget.vm.selectedRemoteDisconnected,
-                              telemetry:
-                                  box.tabId == null ||
-                                      widget.vm.session(box.tabId!) == null
-                                  ? null
-                                  : _telemetry.putIfAbsent(
-                                      box.tabId!,
-                                      () async {
-                                        final result =
-                                            await const GraphTelemetryService()
-                                                .snapshot(
-                                                  widget.vm.session(
-                                                    box.tabId!,
-                                                  )!,
-                                                );
-                                        if (mounted) {
-                                          _latestTelemetry[box.tabId!] = result;
-                                          if (!_editingText) setState(() {});
-                                        }
-                                        return result;
-                                      },
-                                    ),
+                              telemetry: _telemetryForBox(box),
                               processTelemetry: switch (widget.vm.session(
                                 box.tabId ?? '',
                               )) {
@@ -654,7 +666,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                         )
                         .toList(),
                     boxNames: {for (final box in boxes) box.id: box.title},
-                    telemetry: _latestTelemetry[selectedBox.tabId],
+                    telemetry: _latestFor(selectedBox.tabId),
                     onEditRole: () async {
                       final box = selectedBox!;
                       final draft = await _editBox(
@@ -854,6 +866,7 @@ class _GraphBoxCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: FutureBuilder<GraphTelemetrySnapshot>(
+        key: ObjectKey(telemetry),
         future: telemetry,
         builder: (context, snapshot) => FutureBuilder<ProcessMetricsSnapshot>(
           future: processTelemetry,

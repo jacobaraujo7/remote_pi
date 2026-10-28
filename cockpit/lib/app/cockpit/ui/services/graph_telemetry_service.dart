@@ -45,13 +45,51 @@ class GraphTelemetrySnapshot {
   }
 }
 
+/// Runtime-only cache identity. A native pane can host multiple conversations;
+/// its tab ID alone cannot identify the source of an earlier token count.
+typedef GraphTelemetryKey = ({
+  PaneItem pane,
+  HarnessKind? harness,
+  String? conversation,
+  String? transcript,
+  bool ended,
+});
+
 /// Snapshot adapter for graph boxes. It does not execute CLI commands in a
 /// terminal or infer token counts from screen output or process CPU use.
 class GraphTelemetryService {
   const GraphTelemetryService();
 
+  static GraphTelemetryKey keyFor(PaneItem pane) => (
+    pane: pane,
+    harness: pane is TerminalSession ? pane.activeHarness : null,
+    conversation: pane is TerminalSession ? pane.claudeSessionId : null,
+    transcript: pane is TerminalSession ? pane.transcriptPath : null,
+    ended: pane is TerminalSession && pane.hasExited,
+  );
+
   Future<GraphTelemetrySnapshot> snapshot(PaneItem pane) async {
+    final key = keyFor(pane);
+    final value = await _snapshot(pane);
+    if (key == keyFor(pane)) return value;
+    // An asynchronous transcript read belongs to the original conversation.
+    // Never attach its values to a replacement conversation in the same pane.
+    return GraphTelemetrySnapshot(
+      activity: pane is TerminalSession && pane.hasExited
+          ? GraphActivity.stopped
+          : GraphActivity.unknown,
+      activitySource: 'agent changed during telemetry read',
+    );
+  }
+
+  Future<GraphTelemetrySnapshot> _snapshot(PaneItem pane) async {
     if (pane is TerminalSession) {
+      if (pane.hasExited) {
+        return const GraphTelemetrySnapshot(
+          activity: GraphActivity.stopped,
+          activitySource: 'terminal',
+        );
+      }
       final activity = switch (pane.status) {
         TerminalStatus.working => GraphActivity.working,
         TerminalStatus.waiting => GraphActivity.waiting,

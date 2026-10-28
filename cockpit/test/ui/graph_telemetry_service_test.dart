@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
@@ -25,7 +26,94 @@ class _RemoteTerminal extends TerminalSession {
   HarnessKind? get activeHarness => HarnessKind.claudeCode;
 }
 
+class _LocalTerminal extends TerminalSession {
+  _LocalTerminal()
+    : super(
+        id: 'reused-id',
+        projectId: 'worktree',
+        workingDirectory: '/worktree',
+        gateway: AttachmentTerminalGateway(),
+        profile: const TerminalProfile(
+          id: 'sh',
+          label: 'Shell',
+          executable: 'sh',
+        ),
+      );
+  HarnessKind? harness = HarnessKind.claudeCode;
+  @override
+  HarnessKind? get activeHarness => harness;
+}
+
+class _DelayedTelemetry extends GraphTelemetryService {
+  final result = Completer<GraphTelemetrySnapshot>();
+  @override
+  Future<GraphTelemetrySnapshot> readTranscript(
+    String path,
+    HarnessKind harness,
+  ) => result.future;
+}
+
 void main() {
+  test(
+    'runtime keys distinguish conversations, harnesses, paths and replacement controllers',
+    () async {
+      final pane = _LocalTerminal()
+        ..claudeSessionId = 'one'
+        ..transcriptPath = '/one';
+      final replacement = _LocalTerminal()
+        ..claudeSessionId = 'one'
+        ..transcriptPath = '/one';
+      addTearDown(pane.dispose);
+      addTearDown(replacement.dispose);
+      final first = GraphTelemetryService.keyFor(pane);
+      expect(GraphTelemetryService.keyFor(replacement), isNot(first));
+      pane.applyGraphMetrics(50, 100);
+      expect(GraphTelemetryService.keyFor(pane), first);
+      pane.claudeSessionId = 'two';
+      expect(GraphTelemetryService.keyFor(pane), isNot(first));
+      pane.claudeSessionId = 'one';
+      pane.transcriptPath = '/two';
+      expect(GraphTelemetryService.keyFor(pane), isNot(first));
+      pane.transcriptPath = '/one';
+      pane.harness = HarnessKind.codex;
+      expect(GraphTelemetryService.keyFor(pane), isNot(first));
+    },
+  );
+
+  test(
+    'a transcript finishing after a conversation change cannot supply its old token counts',
+    () async {
+      final pane = _LocalTerminal()
+        ..claudeSessionId = 'one'
+        ..transcriptPath = '/one';
+      addTearDown(pane.dispose);
+      final service = _DelayedTelemetry();
+      final read = service.snapshot(pane);
+      pane.claudeSessionId = 'two';
+      pane.transcriptPath = '/two';
+      service.result.complete(
+        GraphTelemetrySnapshot(
+          activity: GraphActivity.idle,
+          activitySource: 'old transcript',
+          contextTokens: GraphMetric(
+            99,
+            source: 'old',
+            observedAt: DateTime.now(),
+          ),
+          contextWindow: GraphMetric(
+            100,
+            source: 'old',
+            observedAt: DateTime.now(),
+          ),
+        ),
+      );
+      final value = await read;
+      expect(value.contextTokens, isNull);
+      expect(value.contextWindow, isNull);
+      expect(value.contextPercent, isNull);
+    },
+  );
+
   late Directory directory;
   setUp(
     () async =>
