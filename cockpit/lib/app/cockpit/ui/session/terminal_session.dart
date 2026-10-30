@@ -535,7 +535,11 @@ class TerminalSession extends PaneItem {
 
   void _reportAttachment(TerminalAttachmentFeedback feedback) {
     if (_disposed) return;
-    attachmentFeedback = feedback;
+    // A native image paste shows up in the agent's own prompt, so a banner
+    // saying so is noise. Clear any "importing" status instead.
+    attachmentFeedback = feedback.notice == TerminalAttachmentNotice.nativeImage
+        ? null
+        : feedback;
     if (kDebugMode && feedback.notice != TerminalAttachmentNotice.importing) {
       DiagnosticsLog.instance.log(
         'terminal-attachments',
