@@ -192,6 +192,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$layoutPreview$en layoutPreview = Translations$cockpit$layoutPreview$en.internal(_root);
 	late final Translations$cockpit$telemetry$en telemetry = Translations$cockpit$telemetry$en.internal(_root);
 	late final Translations$cockpit$panelView$en panelView = Translations$cockpit$panelView$en.internal(_root);
+	late final Translations$cockpit$cloneRepoDialog$en cloneRepoDialog = Translations$cockpit$cloneRepoDialog$en.internal(_root);
 }
 
 // Path: settings
@@ -3229,6 +3230,63 @@ class Translations$cockpit$panelView$en {
 	String get openAsHtml => 'Open as HTML';
 }
 
+// Path: cockpit.cloneRepoDialog
+class Translations$cockpit$cloneRepoDialog$en {
+	Translations$cockpit$cloneRepoDialog$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Clone repository'
+	String get menuItem => 'Clone repository';
+
+	/// en: 'Clone Git repository'
+	String get title => 'Clone Git repository';
+
+	/// en: 'Repository URL (SSH or HTTPS)'
+	String get urlLabel => 'Repository URL (SSH or HTTPS)';
+
+	/// en: 'git@github.com:org/repo.git'
+	String get urlPlaceholder => 'git@github.com:org/repo.git';
+
+	/// en: 'Paste'
+	String get paste => 'Paste';
+
+	/// en: 'Destination folder'
+	String get parentLabel => 'Destination folder';
+
+	/// en: 'Choose…'
+	String get choose => 'Choose…';
+
+	/// en: 'Choose where to clone the repository'
+	String get chooseParentDialogTitle => 'Choose where to clone the repository';
+
+	/// en: 'Folder name'
+	String get folderLabel => 'Folder name';
+
+	/// en: 'Clones into ${path}'
+	String targetPreview({required Object path}) => 'Clones into ${path}';
+
+	/// en: 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.'
+	String get errUrl => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.';
+
+	/// en: 'Pick an existing destination folder.'
+	String get errParent => 'Pick an existing destination folder.';
+
+	/// en: 'Folder name required (no slashes).'
+	String get errFolder => 'Folder name required (no slashes).';
+
+	/// en: '${path} already exists and is not empty.'
+	String errExists({required Object path}) => '${path} already exists and is not empty.';
+
+	/// en: 'Clone'
+	String get cloneAction => 'Clone';
+
+	/// en: 'Cloning ${name}'
+	String progressTitle({required Object name}) => 'Cloning ${name}';
+}
+
 // Path: settings.language
 class Translations$settings$language$en {
 	Translations$settings$language$en.internal(this._root);
@@ -5256,6 +5314,22 @@ extension on Translations {
 			'cockpit.panelView.unavailable' => 'Panels need the embedded web view, which is not available on Linux yet.',
 			'cockpit.panelView.openInBrowser' => 'Open in browser',
 			'cockpit.panelView.openAsHtml' => 'Open as HTML',
+			'cockpit.cloneRepoDialog.menuItem' => 'Clone repository',
+			'cockpit.cloneRepoDialog.title' => 'Clone Git repository',
+			'cockpit.cloneRepoDialog.urlLabel' => 'Repository URL (SSH or HTTPS)',
+			'cockpit.cloneRepoDialog.urlPlaceholder' => 'git@github.com:org/repo.git',
+			'cockpit.cloneRepoDialog.paste' => 'Paste',
+			'cockpit.cloneRepoDialog.parentLabel' => 'Destination folder',
+			'cockpit.cloneRepoDialog.choose' => 'Choose…',
+			'cockpit.cloneRepoDialog.chooseParentDialogTitle' => 'Choose where to clone the repository',
+			'cockpit.cloneRepoDialog.folderLabel' => 'Folder name',
+			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Clones into ${path}',
+			'cockpit.cloneRepoDialog.errUrl' => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.',
+			'cockpit.cloneRepoDialog.errParent' => 'Pick an existing destination folder.',
+			'cockpit.cloneRepoDialog.errFolder' => 'Folder name required (no slashes).',
+			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} already exists and is not empty.',
+			'cockpit.cloneRepoDialog.cloneAction' => 'Clone',
+			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Cloning ${name}',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -5480,6 +5554,8 @@ extension on Translations {
 			'automation.error.noWorkspace' => 'No workspace selected.',
 			'automation.error.fileOutsideWorkspace' => 'File is outside the workspace roots.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Could not read the file: ${detail}',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.binaryFile' => 'A commit message cannot be generated for a binary file.',
 			'automation.error.noFileChanges' => 'There are no changes to describe for this file.',
 			'automation.error.noStagedChanges' => 'There are no staged changes to describe.',
@@ -5496,8 +5572,6 @@ extension on Translations {
 			'fileOperation.error.notScratchTab' => 'This tab is not a scratch file.',
 			'fileOperation.error.writeFailed' => 'Could not write the file.',
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',

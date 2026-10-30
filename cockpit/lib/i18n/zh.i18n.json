@@ -926,6 +926,24 @@
       "unavailable": "面板需要内嵌 web 视图，目前在 Linux 上尚不可用。",
       "openInBrowser": "在浏览器中打开",
       "openAsHtml": "以 HTML 打开"
+    },
+    "cloneRepoDialog": {
+      "menuItem": "克隆仓库",
+      "title": "克隆 Git 仓库",
+      "urlLabel": "仓库 URL（SSH 或 HTTPS）",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "paste": "粘贴",
+      "parentLabel": "目标文件夹",
+      "choose": "选择…",
+      "chooseParentDialogTitle": "选择克隆仓库的位置",
+      "folderLabel": "文件夹名称",
+      "targetPreview": "克隆到 ${path}",
+      "errUrl": "请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。",
+      "errParent": "请选择一个已存在的目标文件夹。",
+      "errFolder": "文件夹名称必填（不能包含斜杠）。",
+      "errExists": "${path} 已存在且不为空。",
+      "cloneAction": "克隆",
+      "progressTitle": "正在克隆 ${name}"
     }
   },
   "settings": {

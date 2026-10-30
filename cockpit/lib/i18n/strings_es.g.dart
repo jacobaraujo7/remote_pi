@@ -144,6 +144,7 @@ class _Translations$cockpit$es extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$layoutPreview$es layoutPreview = _Translations$cockpit$layoutPreview$es._(_root);
 	@override late final _Translations$cockpit$telemetry$es telemetry = _Translations$cockpit$telemetry$es._(_root);
 	@override late final _Translations$cockpit$panelView$es panelView = _Translations$cockpit$panelView$es._(_root);
+	@override late final _Translations$cockpit$cloneRepoDialog$es cloneRepoDialog = _Translations$cockpit$cloneRepoDialog$es._(_root);
 }
 
 // Path: settings
@@ -1497,6 +1498,31 @@ class _Translations$cockpit$panelView$es extends Translations$cockpit$panelView$
 	@override String get unavailable => 'Los paneles necesitan la web view integrada, que todavía no existe en Linux.';
 	@override String get openInBrowser => 'Abrir en el navegador';
 	@override String get openAsHtml => 'Abrir como HTML';
+}
+
+// Path: cockpit.cloneRepoDialog
+class _Translations$cockpit$cloneRepoDialog$es extends Translations$cockpit$cloneRepoDialog$en {
+	_Translations$cockpit$cloneRepoDialog$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get menuItem => 'Clonar repositorio';
+	@override String get title => 'Clonar repositorio Git';
+	@override String get urlLabel => 'URL del repositorio (SSH o HTTPS)';
+	@override String get urlPlaceholder => 'git@github.com:org/repo.git';
+	@override String get paste => 'Pegar';
+	@override String get parentLabel => 'Carpeta de destino';
+	@override String get choose => 'Elegir…';
+	@override String get chooseParentDialogTitle => 'Elige dónde clonar el repositorio';
+	@override String get folderLabel => 'Nombre de la carpeta';
+	@override String targetPreview({required Object path}) => 'Se clona en ${path}';
+	@override String get errUrl => 'Pega una URL Git SSH (git@host:org/repo.git) o HTTPS.';
+	@override String get errParent => 'Elige una carpeta de destino existente.';
+	@override String get errFolder => 'Nombre de carpeta obligatorio (sin barras).';
+	@override String errExists({required Object path}) => '${path} ya existe y no está vacía.';
+	@override String get cloneAction => 'Clonar';
+	@override String progressTitle({required Object name}) => 'Clonando ${name}';
 }
 
 // Path: settings.language
@@ -2904,6 +2930,22 @@ extension on TranslationsEs {
 			'cockpit.panelView.unavailable' => 'Los paneles necesitan la web view integrada, que todavía no existe en Linux.',
 			'cockpit.panelView.openInBrowser' => 'Abrir en el navegador',
 			'cockpit.panelView.openAsHtml' => 'Abrir como HTML',
+			'cockpit.cloneRepoDialog.menuItem' => 'Clonar repositorio',
+			'cockpit.cloneRepoDialog.title' => 'Clonar repositorio Git',
+			'cockpit.cloneRepoDialog.urlLabel' => 'URL del repositorio (SSH o HTTPS)',
+			'cockpit.cloneRepoDialog.urlPlaceholder' => 'git@github.com:org/repo.git',
+			'cockpit.cloneRepoDialog.paste' => 'Pegar',
+			'cockpit.cloneRepoDialog.parentLabel' => 'Carpeta de destino',
+			'cockpit.cloneRepoDialog.choose' => 'Elegir…',
+			'cockpit.cloneRepoDialog.chooseParentDialogTitle' => 'Elige dónde clonar el repositorio',
+			'cockpit.cloneRepoDialog.folderLabel' => 'Nombre de la carpeta',
+			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Se clona en ${path}',
+			'cockpit.cloneRepoDialog.errUrl' => 'Pega una URL Git SSH (git@host:org/repo.git) o HTTPS.',
+			'cockpit.cloneRepoDialog.errParent' => 'Elige una carpeta de destino existente.',
+			'cockpit.cloneRepoDialog.errFolder' => 'Nombre de carpeta obligatorio (sin barras).',
+			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} ya existe y no está vacía.',
+			'cockpit.cloneRepoDialog.cloneAction' => 'Clonar',
+			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Clonando ${name}',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglés',
@@ -3128,6 +3170,8 @@ extension on TranslationsEs {
 			'automation.error.noWorkspace' => 'Ningún workspace seleccionado.',
 			'automation.error.fileOutsideWorkspace' => 'El archivo está fuera de las raíces del workspace.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'No se pudo leer el archivo: ${detail}',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.binaryFile' => 'No se puede generar un mensaje de commit para un archivo binario.',
 			'automation.error.noFileChanges' => 'No hay cambios que describir en este archivo.',
 			'automation.error.noStagedChanges' => 'No hay cambios en stage que describir.',
@@ -3144,8 +3188,6 @@ extension on TranslationsEs {
 			'fileOperation.error.notScratchTab' => 'Esta pestaña no es un archivo temporal.',
 			'fileOperation.error.writeFailed' => 'No se pudo escribir el archivo.',
 			'fileOperation.error.formatterEmptyCommand' => 'Comando de formato vacío.',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.formatterMissingPlaceholder' => 'El comando de formato debe incluir el marcador %FILE%.',
 			'fileOperation.error.formatterTimeout' => 'El formateador agotó el tiempo de espera.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'El formateador terminó con el código ${code}.',

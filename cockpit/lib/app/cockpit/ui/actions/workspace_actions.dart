@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/clone_repository_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
@@ -44,6 +47,17 @@ Future<bool> createWorkspace(BuildContext context) async {
     initialDirectory: vm.selectedProject?.path,
   );
   if (path == null || !context.mounted) return false;
+  return _registerWorkspace(context, vm, path);
+}
+
+/// Dialog de configurações (nome = basename da pasta + cor sugerida, ambos
+/// editáveis) e registra [path] como workspace. Compartilhado por "Criar
+/// Workspace" e "Clonar repositório".
+Future<bool> _registerWorkspace(
+  BuildContext context,
+  CockpitViewModel vm,
+  String path,
+) async {
   final suggestedName = path.split('/').where((p) => p.isNotEmpty).lastOrNull;
   final suggestedColor =
       kWorkspacePalette[vm.rootProjects.length % kWorkspacePalette.length];
@@ -61,6 +75,34 @@ Future<bool> createWorkspace(BuildContext context) async {
     imagePath: result.imagePath,
   );
   return true;
+}
+
+/// "Clonar repositório" (menu do "+"): URL + destino → `git clone` ao vivo no
+/// dialog de processo → se deu certo, segue o fluxo de "Criar Workspace"
+/// (nome + cor) na pasta clonada. Clone que falha não registra nada.
+Future<bool> cloneWorkspace(BuildContext context) async {
+  final vm = _vm(context);
+  final selected = vm.selectedProject?.path;
+  final initialParent = selected != null && selected.isNotEmpty
+      ? File(selected).parent.path
+      : (Platform.environment['HOME'] ?? Directory.current.path);
+  final request = await showCloneRepositoryDialog(
+    context,
+    initialParent: initialParent,
+  );
+  if (request == null || !context.mounted) return false;
+  final process = vm.gitClone(request.url, request.targetPath);
+  final ok = process.exitCode.then((c) => c == 0);
+  await showGitProcessDialog(
+    context,
+    title: context.t.cockpit.cloneRepoDialog.progressTitle(
+      name: request.targetPath.split('/').last,
+    ),
+    output: process.output,
+    success: ok,
+  );
+  if (!await ok || !context.mounted) return false;
+  return _registerWorkspace(context, vm, request.targetPath);
 }
 
 /// "Configurações" do workspace: editar nome + cor do avatar.

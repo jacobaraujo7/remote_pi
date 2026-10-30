@@ -926,6 +926,24 @@
       "unavailable": "Painéis precisam da web view embutida, que ainda não existe no Linux.",
       "openInBrowser": "Abrir no navegador",
       "openAsHtml": "Abrir como HTML"
+    },
+    "cloneRepoDialog": {
+      "menuItem": "Clonar repositório",
+      "title": "Clonar repositório Git",
+      "urlLabel": "URL do repositório (SSH ou HTTPS)",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "paste": "Colar",
+      "parentLabel": "Pasta de destino",
+      "choose": "Escolher…",
+      "chooseParentDialogTitle": "Escolha onde clonar o repositório",
+      "folderLabel": "Nome da pasta",
+      "targetPreview": "Clona em ${path}",
+      "errUrl": "Cole uma URL Git SSH (git@host:org/repo.git) ou HTTPS.",
+      "errParent": "Escolha uma pasta de destino existente.",
+      "errFolder": "Nome da pasta obrigatório (sem barras).",
+      "errExists": "${path} já existe e não está vazia.",
+      "cloneAction": "Clonar",
+      "progressTitle": "Clonando ${name}"
     }
   },
   "settings": {

@@ -57,4 +57,46 @@ void main() {
     // Push nunca é iniciado quando o pull falha.
     expect(lines.any((l) => l.contains(r'$ git push')), isFalse);
   });
+
+  test('clone de repo local → exit 0 e pasta criada', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    final dest = Directory(
+      '${repo.parent.path}/${repo.uri.pathSegments[repo.uri.pathSegments.length - 2]}_clone',
+    );
+    addTearDown(() async {
+      if (await dest.exists()) await dest.delete(recursive: true);
+    });
+    final run = runner.clone(repo.path, dest.path);
+    final lines = await run.output.toList();
+    expect(await run.exitCode, 0);
+    expect(lines.first, startsWith(r'$ git clone'));
+    expect(File('${dest.path}/a.txt').existsSync(), isTrue);
+  });
+
+  test('clone pra pasta não vazia → falha sem pendurar', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    final run = runner.clone(repo.path, repo.path);
+    await run.output.toList();
+    expect(await run.exitCode, isNot(0));
+  });
+
+  test('GitProgressThrottle passa 1 linha por dezena e a final', () {
+    final t = GitProgressThrottle();
+    final lines = [
+      'Cloning into \'repo\'...',
+      for (var i = 0; i <= 100; i++) 'Receiving objects:  $i% ($i/100)',
+      'Receiving objects: 100% (100/100), done.',
+    ];
+    final kept = lines.where(t.accept).toList();
+    expect(kept.first, startsWith('Cloning into'));
+    expect(kept.last, endsWith('done.'));
+    // 0..9 dezenas + 100% + done + "Cloning into".
+    expect(kept.length, 13);
+  });
 }

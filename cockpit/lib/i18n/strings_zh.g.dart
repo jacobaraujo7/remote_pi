@@ -142,6 +142,7 @@ class _Translations$cockpit$zh extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$layoutPreview$zh layoutPreview = _Translations$cockpit$layoutPreview$zh._(_root);
 	@override late final _Translations$cockpit$telemetry$zh telemetry = _Translations$cockpit$telemetry$zh._(_root);
 	@override late final _Translations$cockpit$panelView$zh panelView = _Translations$cockpit$panelView$zh._(_root);
+	@override late final _Translations$cockpit$cloneRepoDialog$zh cloneRepoDialog = _Translations$cockpit$cloneRepoDialog$zh._(_root);
 }
 
 // Path: settings
@@ -1419,6 +1420,31 @@ class _Translations$cockpit$panelView$zh extends Translations$cockpit$panelView$
 	@override String get unavailable => '面板需要内嵌 web 视图，目前在 Linux 上尚不可用。';
 	@override String get openInBrowser => '在浏览器中打开';
 	@override String get openAsHtml => '以 HTML 打开';
+}
+
+// Path: cockpit.cloneRepoDialog
+class _Translations$cockpit$cloneRepoDialog$zh extends Translations$cockpit$cloneRepoDialog$en {
+	_Translations$cockpit$cloneRepoDialog$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get menuItem => '克隆仓库';
+	@override String get title => '克隆 Git 仓库';
+	@override String get urlLabel => '仓库 URL（SSH 或 HTTPS）';
+	@override String get urlPlaceholder => 'git@github.com:org/repo.git';
+	@override String get paste => '粘贴';
+	@override String get parentLabel => '目标文件夹';
+	@override String get choose => '选择…';
+	@override String get chooseParentDialogTitle => '选择克隆仓库的位置';
+	@override String get folderLabel => '文件夹名称';
+	@override String targetPreview({required Object path}) => '克隆到 ${path}';
+	@override String get errUrl => '请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。';
+	@override String get errParent => '请选择一个已存在的目标文件夹。';
+	@override String get errFolder => '文件夹名称必填（不能包含斜杠）。';
+	@override String errExists({required Object path}) => '${path} 已存在且不为空。';
+	@override String get cloneAction => '克隆';
+	@override String progressTitle({required Object name}) => '正在克隆 ${name}';
 }
 
 // Path: settings.language
@@ -2826,6 +2852,22 @@ extension on TranslationsZh {
 			'cockpit.panelView.unavailable' => '面板需要内嵌 web 视图，目前在 Linux 上尚不可用。',
 			'cockpit.panelView.openInBrowser' => '在浏览器中打开',
 			'cockpit.panelView.openAsHtml' => '以 HTML 打开',
+			'cockpit.cloneRepoDialog.menuItem' => '克隆仓库',
+			'cockpit.cloneRepoDialog.title' => '克隆 Git 仓库',
+			'cockpit.cloneRepoDialog.urlLabel' => '仓库 URL（SSH 或 HTTPS）',
+			'cockpit.cloneRepoDialog.urlPlaceholder' => 'git@github.com:org/repo.git',
+			'cockpit.cloneRepoDialog.paste' => '粘贴',
+			'cockpit.cloneRepoDialog.parentLabel' => '目标文件夹',
+			'cockpit.cloneRepoDialog.choose' => '选择…',
+			'cockpit.cloneRepoDialog.chooseParentDialogTitle' => '选择克隆仓库的位置',
+			'cockpit.cloneRepoDialog.folderLabel' => '文件夹名称',
+			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => '克隆到 ${path}',
+			'cockpit.cloneRepoDialog.errUrl' => '请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。',
+			'cockpit.cloneRepoDialog.errParent' => '请选择一个已存在的目标文件夹。',
+			'cockpit.cloneRepoDialog.errFolder' => '文件夹名称必填（不能包含斜杠）。',
+			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} 已存在且不为空。',
+			'cockpit.cloneRepoDialog.cloneAction' => '克隆',
+			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => '正在克隆 ${name}',
 			'settings.language.title' => '语言',
 			'settings.language.system' => '跟随系统',
 			'settings.language.english' => 'English',
@@ -3050,6 +3092,8 @@ extension on TranslationsZh {
 			'automation.error.noWorkspace' => '未选择工作区。',
 			'automation.error.fileOutsideWorkspace' => '文件在工作区根目录之外。',
 			'automation.error.fileUnreadable' => ({required Object detail}) => '无法读取文件：${detail}',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.binaryFile' => '无法为二进制文件生成提交信息。',
 			'automation.error.noFileChanges' => '此文件没有可描述的更改。',
 			'automation.error.noStagedChanges' => '没有已暂存的更改可描述。',
@@ -3066,8 +3110,6 @@ extension on TranslationsZh {
 			'fileOperation.error.notScratchTab' => '此标签页不是草稿文件。',
 			'fileOperation.error.writeFailed' => '无法写入文件。',
 			'fileOperation.error.formatterEmptyCommand' => '格式化器命令为空。',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.formatterMissingPlaceholder' => '格式化器命令必须包含 %FILE% 占位符。',
 			'fileOperation.error.formatterTimeout' => '格式化器超时。',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => '格式化器以退出码 ${code} 结束。',

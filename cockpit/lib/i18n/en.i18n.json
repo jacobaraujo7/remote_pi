@@ -926,6 +926,24 @@
       "unavailable": "Panels need the embedded web view, which is not available on Linux yet.",
       "openInBrowser": "Open in browser",
       "openAsHtml": "Open as HTML"
+    },
+    "cloneRepoDialog": {
+      "menuItem": "Clone repository",
+      "title": "Clone Git repository",
+      "urlLabel": "Repository URL (SSH or HTTPS)",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "paste": "Paste",
+      "parentLabel": "Destination folder",
+      "choose": "Choose…",
+      "chooseParentDialogTitle": "Choose where to clone the repository",
+      "folderLabel": "Folder name",
+      "targetPreview": "Clones into ${path}",
+      "errUrl": "Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.",
+      "errParent": "Pick an existing destination folder.",
+      "errFolder": "Folder name required (no slashes).",
+      "errExists": "${path} already exists and is not empty.",
+      "cloneAction": "Clone",
+      "progressTitle": "Cloning ${name}"
     }
   },
   "settings": {
