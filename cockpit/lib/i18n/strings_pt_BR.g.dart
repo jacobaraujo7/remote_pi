@@ -1519,10 +1519,18 @@ class _Translations$cockpit$cloneRepoDialog$pt_BR extends Translations$cockpit$c
 	@override String targetPreview({required Object path}) => 'Clona em ${path}';
 	@override String get errUrl => 'Cole uma URL Git SSH (git@host:org/repo.git) ou HTTPS.';
 	@override String get errParent => 'Escolha uma pasta de destino existente.';
-	@override String get errFolder => 'Nome da pasta obrigatório (sem barras).';
+	@override String get errFolder => 'Nome da pasta obrigatório, sem / ou \.';
 	@override String errExists({required Object path}) => '${path} já existe e não está vazia.';
 	@override String get cloneAction => 'Clonar';
 	@override String progressTitle({required Object name}) => 'Clonando ${name}';
+	@override String get errFolderChars => 'O Windows não aceita < > : " | ? * em nome de pasta.';
+	@override String errFolderReserved({required Object name}) => '"${name}" é um nome reservado no Windows.';
+	@override String get errFolderTrailing => 'No Windows, nome de pasta não pode terminar com ponto ou espaço.';
+	@override String get hintGitMissing => 'Git não encontrado. Instale e tente de novo: no macOS rode xcode-select --install (ou brew install git); no Windows instale o Git for Windows (git-scm.com).';
+	@override String get hintXcodeTools => 'Faltam as Command Line Tools do macOS. Rode xcode-select --install no Terminal e tente de novo.';
+	@override String get hintSshMissing => 'SSH indisponível para esta URL. Use a URL HTTPS ou instale o OpenSSH (o Git for Windows já traz um).';
+	@override String get hintHostKey => 'A chave SSH do servidor não pôde ser verificada ou mudou. Confira o ~/.ssh/known_hosts antes de tentar de novo.';
+	@override String get hintAuth => 'Acesso negado ou repositório não encontrado. No SSH, teste sua chave com ssh -T git@github.com; no HTTPS, entre pelo gerenciador de credenciais do Git (ou gh auth login).';
 }
 
 // Path: settings.language
@@ -2942,10 +2950,18 @@ extension on TranslationsPtBr {
 			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Clona em ${path}',
 			'cockpit.cloneRepoDialog.errUrl' => 'Cole uma URL Git SSH (git@host:org/repo.git) ou HTTPS.',
 			'cockpit.cloneRepoDialog.errParent' => 'Escolha uma pasta de destino existente.',
-			'cockpit.cloneRepoDialog.errFolder' => 'Nome da pasta obrigatório (sem barras).',
+			'cockpit.cloneRepoDialog.errFolder' => 'Nome da pasta obrigatório, sem / ou \.',
 			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} já existe e não está vazia.',
 			'cockpit.cloneRepoDialog.cloneAction' => 'Clonar',
 			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Clonando ${name}',
+			'cockpit.cloneRepoDialog.errFolderChars' => 'O Windows não aceita < > : " | ? * em nome de pasta.',
+			'cockpit.cloneRepoDialog.errFolderReserved' => ({required Object name}) => '"${name}" é um nome reservado no Windows.',
+			'cockpit.cloneRepoDialog.errFolderTrailing' => 'No Windows, nome de pasta não pode terminar com ponto ou espaço.',
+			'cockpit.cloneRepoDialog.hintGitMissing' => 'Git não encontrado. Instale e tente de novo: no macOS rode xcode-select --install (ou brew install git); no Windows instale o Git for Windows (git-scm.com).',
+			'cockpit.cloneRepoDialog.hintXcodeTools' => 'Faltam as Command Line Tools do macOS. Rode xcode-select --install no Terminal e tente de novo.',
+			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH indisponível para esta URL. Use a URL HTTPS ou instale o OpenSSH (o Git for Windows já traz um).',
+			'cockpit.cloneRepoDialog.hintHostKey' => 'A chave SSH do servidor não pôde ser verificada ou mudou. Confira o ~/.ssh/known_hosts antes de tentar de novo.',
+			'cockpit.cloneRepoDialog.hintAuth' => 'Acesso negado ou repositório não encontrado. No SSH, teste sua chave com ssh -T git@github.com; no HTTPS, entre pelo gerenciador de credenciais do Git (ou gh auth login).',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglês',
@@ -3162,6 +3178,8 @@ extension on TranslationsPtBr {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} não respondeu em ${seconds} segundos.',
 			'automation.error.cancelled' => 'A geração da mensagem de commit foi cancelada.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} não conseguiu gerar uma mensagem de commit.',
 			'automation.error.invalidResponse' => 'A automação devolveu uma mensagem de commit vazia.',
@@ -3170,8 +3188,6 @@ extension on TranslationsPtBr {
 			'automation.error.noWorkspace' => 'Nenhum workspace selecionado.',
 			'automation.error.fileOutsideWorkspace' => 'O arquivo está fora das raízes do workspace.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Não foi possível ler o arquivo: ${detail}',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.binaryFile' => 'Não é possível gerar mensagem de commit para um arquivo binário.',
 			'automation.error.noFileChanges' => 'Não há mudanças a descrever neste arquivo.',
 			'automation.error.noStagedChanges' => 'Não há mudanças no stage a descrever.',

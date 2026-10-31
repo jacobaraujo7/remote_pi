@@ -940,10 +940,18 @@
       "targetPreview": "Se clona en ${path}",
       "errUrl": "Pega una URL Git SSH (git@host:org/repo.git) o HTTPS.",
       "errParent": "Elige una carpeta de destino existente.",
-      "errFolder": "Nombre de carpeta obligatorio (sin barras).",
+      "errFolder": "Nombre de carpeta obligatorio, sin / ni \\.",
       "errExists": "${path} ya existe y no está vacía.",
       "cloneAction": "Clonar",
-      "progressTitle": "Clonando ${name}"
+      "progressTitle": "Clonando ${name}",
+      "errFolderChars": "Windows no admite < > : \" | ? * en nombres de carpeta.",
+      "errFolderReserved": "\"${name}\" es un nombre reservado en Windows.",
+      "errFolderTrailing": "En Windows un nombre de carpeta no puede terminar en punto o espacio.",
+      "hintGitMissing": "No se encontró Git. Instálalo y vuelve a intentarlo: en macOS ejecuta xcode-select --install (o brew install git); en Windows instala Git for Windows (git-scm.com).",
+      "hintXcodeTools": "Faltan las Command Line Tools de macOS. Ejecuta xcode-select --install en Terminal y vuelve a intentarlo.",
+      "hintSshMissing": "SSH no está disponible para esta URL. Usa la URL HTTPS o instala OpenSSH (Git for Windows ya incluye uno).",
+      "hintHostKey": "No se pudo verificar la clave SSH del servidor o cambió. Revisa ~/.ssh/known_hosts antes de reintentar.",
+      "hintAuth": "Acceso denegado o repositorio no encontrado. Con SSH, prueba tu clave con ssh -T git@github.com; con HTTPS, inicia sesión con el gestor de credenciales de Git (o gh auth login)."
     }
   },
   "settings": {

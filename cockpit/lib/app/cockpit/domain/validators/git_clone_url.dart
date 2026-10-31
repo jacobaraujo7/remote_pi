@@ -6,6 +6,11 @@
 bool isGitCloneUrl(String raw) {
   final url = raw.trim();
   if (url.isEmpty || RegExp(r'\s').hasMatch(url)) return false;
+  // Barra invertida nunca aparece numa URL git; aparece em caminho de Windows.
+  if (url.contains(r'\')) return false;
+  // `C:/Users/me/repo` casaria com o formato scp (host "C"); o git trata letra
+  // de drive como caminho local, então aqui também é caminho, não URL.
+  if (RegExp(r'^[A-Za-z]:[\\/]').hasMatch(url)) return false;
   final uri = Uri.tryParse(url);
   if (uri != null && uri.hasScheme) {
     const schemes = {'https', 'http', 'ssh', 'git+ssh'};

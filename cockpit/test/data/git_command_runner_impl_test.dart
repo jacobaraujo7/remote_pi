@@ -99,4 +99,38 @@ void main() {
     // 0..9 dezenas + 100% + done + "Cloning into".
     expect(kept.length, 13);
   });
+
+  group('cloneProcessEnvironment', () {
+    test('sem SSH do usuário: desliga prompts e usa SSH em BatchMode', () {
+      final env = cloneProcessEnvironment({'PATH': '/usr/bin'});
+      expect(env['GIT_TERMINAL_PROMPT'], '0');
+      expect(env['GIT_SSH_COMMAND'], kCloneSshCommand);
+      expect(env['PATH'], '/usr/bin');
+    });
+
+    test('respeita GIT_SSH_COMMAND do usuário', () {
+      final env = cloneProcessEnvironment({'GIT_SSH_COMMAND': 'ssh -i k'});
+      expect(env['GIT_SSH_COMMAND'], 'ssh -i k');
+    });
+
+    test('Windows com plink (GIT_SSH): não sobrescreve', () {
+      final env = cloneProcessEnvironment({
+        'GIT_SSH': r'C:\Program Files\PuTTY\plink.exe',
+      });
+      expect(env.containsKey('GIT_SSH_COMMAND'), isFalse);
+      expect(env['GIT_SSH'], r'C:\Program Files\PuTTY\plink.exe');
+    });
+
+    test(
+      'core.sshCommand configurado (ex.: OpenSSH do Windows): não sobrescreve',
+      () {
+        final env = cloneProcessEnvironment(
+          const {},
+          configuredSshCommand: r'C:/Windows/System32/OpenSSH/ssh.exe',
+        );
+        expect(env.containsKey('GIT_SSH_COMMAND'), isFalse);
+        expect(env['GIT_TERMINAL_PROMPT'], '0');
+      },
+    );
+  });
 }

@@ -1441,10 +1441,18 @@ class _Translations$cockpit$cloneRepoDialog$zh extends Translations$cockpit$clon
 	@override String targetPreview({required Object path}) => '克隆到 ${path}';
 	@override String get errUrl => '请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。';
 	@override String get errParent => '请选择一个已存在的目标文件夹。';
-	@override String get errFolder => '文件夹名称必填（不能包含斜杠）。';
+	@override String get errFolder => '文件夹名称必填，且不能包含 / 或 \。';
 	@override String errExists({required Object path}) => '${path} 已存在且不为空。';
 	@override String get cloneAction => '克隆';
 	@override String progressTitle({required Object name}) => '正在克隆 ${name}';
+	@override String get errFolderChars => 'Windows 的文件夹名称不能包含 < > : " | ? *。';
+	@override String errFolderReserved({required Object name}) => '"${name}" 是 Windows 的保留名称。';
+	@override String get errFolderTrailing => '在 Windows 上，文件夹名称不能以点或空格结尾。';
+	@override String get hintGitMissing => '未找到 Git。请安装后重试：macOS 上运行 xcode-select --install（或 brew install git）；Windows 上从 git-scm.com 安装 Git for Windows。';
+	@override String get hintXcodeTools => '缺少 macOS Command Line Tools。请在终端运行 xcode-select --install 后重试。';
+	@override String get hintSshMissing => '此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。';
+	@override String get hintHostKey => '无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。';
+	@override String get hintAuth => '访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。';
 }
 
 // Path: settings.language
@@ -2864,10 +2872,18 @@ extension on TranslationsZh {
 			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => '克隆到 ${path}',
 			'cockpit.cloneRepoDialog.errUrl' => '请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。',
 			'cockpit.cloneRepoDialog.errParent' => '请选择一个已存在的目标文件夹。',
-			'cockpit.cloneRepoDialog.errFolder' => '文件夹名称必填（不能包含斜杠）。',
+			'cockpit.cloneRepoDialog.errFolder' => '文件夹名称必填，且不能包含 / 或 \。',
 			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} 已存在且不为空。',
 			'cockpit.cloneRepoDialog.cloneAction' => '克隆',
 			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => '正在克隆 ${name}',
+			'cockpit.cloneRepoDialog.errFolderChars' => 'Windows 的文件夹名称不能包含 < > : " | ? *。',
+			'cockpit.cloneRepoDialog.errFolderReserved' => ({required Object name}) => '"${name}" 是 Windows 的保留名称。',
+			'cockpit.cloneRepoDialog.errFolderTrailing' => '在 Windows 上，文件夹名称不能以点或空格结尾。',
+			'cockpit.cloneRepoDialog.hintGitMissing' => '未找到 Git。请安装后重试：macOS 上运行 xcode-select --install（或 brew install git）；Windows 上从 git-scm.com 安装 Git for Windows。',
+			'cockpit.cloneRepoDialog.hintXcodeTools' => '缺少 macOS Command Line Tools。请在终端运行 xcode-select --install 后重试。',
+			'cockpit.cloneRepoDialog.hintSshMissing' => '此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。',
+			'cockpit.cloneRepoDialog.hintHostKey' => '无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。',
+			'cockpit.cloneRepoDialog.hintAuth' => '访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。',
 			'settings.language.title' => '语言',
 			'settings.language.system' => '跟随系统',
 			'settings.language.english' => 'English',
@@ -3084,6 +3100,8 @@ extension on TranslationsZh {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',
@@ -3092,8 +3110,6 @@ extension on TranslationsZh {
 			'automation.error.noWorkspace' => '未选择工作区。',
 			'automation.error.fileOutsideWorkspace' => '文件在工作区根目录之外。',
 			'automation.error.fileUnreadable' => ({required Object detail}) => '无法读取文件：${detail}',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.binaryFile' => '无法为二进制文件生成提交信息。',
 			'automation.error.noFileChanges' => '此文件没有可描述的更改。',
 			'automation.error.noStagedChanges' => '没有已暂存的更改可描述。',

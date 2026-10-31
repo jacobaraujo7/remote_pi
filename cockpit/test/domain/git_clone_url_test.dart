@@ -27,6 +27,10 @@ void main() {
         'ext::sh -c touch% /tmp/pwned',
         'git@github.com:org/repo.git extra',
         '/Users/me/repo',
+        r'C:\Users\me\repo',
+        'C:/Users/me/repo',
+        r'\\server\share\repo.git',
+        r'git@github.com:org\repo.git',
       ]) {
         expect(isGitCloneUrl(url), isFalse, reason: url);
       }

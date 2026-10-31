@@ -940,10 +940,18 @@
       "targetPreview": "克隆到 ${path}",
       "errUrl": "请粘贴 SSH（git@host:org/repo.git）或 HTTPS 的 Git URL。",
       "errParent": "请选择一个已存在的目标文件夹。",
-      "errFolder": "文件夹名称必填（不能包含斜杠）。",
+      "errFolder": "文件夹名称必填，且不能包含 / 或 \\。",
       "errExists": "${path} 已存在且不为空。",
       "cloneAction": "克隆",
-      "progressTitle": "正在克隆 ${name}"
+      "progressTitle": "正在克隆 ${name}",
+      "errFolderChars": "Windows 的文件夹名称不能包含 < > : \" | ? *。",
+      "errFolderReserved": "\"${name}\" 是 Windows 的保留名称。",
+      "errFolderTrailing": "在 Windows 上，文件夹名称不能以点或空格结尾。",
+      "hintGitMissing": "未找到 Git。请安装后重试：macOS 上运行 xcode-select --install（或 brew install git）；Windows 上从 git-scm.com 安装 Git for Windows。",
+      "hintXcodeTools": "缺少 macOS Command Line Tools。请在终端运行 xcode-select --install 后重试。",
+      "hintSshMissing": "此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。",
+      "hintHostKey": "无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。",
+      "hintAuth": "访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。"
     }
   },
   "settings": {

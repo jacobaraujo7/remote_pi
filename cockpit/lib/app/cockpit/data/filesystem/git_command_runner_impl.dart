@@ -67,16 +67,9 @@ class GitCommandRunnerImpl implements GitCommandRunner {
     final exitCompleter = Completer<int>();
     final parent = Directory(targetPath).parent.path;
     () async {
-      // O app GUI não tem TTY: um prompt de usuário/senha (HTTPS) ou de
-      // passphrase/host key (SSH) deixaria o clone pendurado pra sempre. Sem
-      // prompt, o git falha com a mensagem certa no dialog. `accept-new` aceita
-      // a host key só na PRIMEIRA vez (github.com num Mac novo); chave trocada
-      // continua sendo recusada. Um GIT_SSH_COMMAND do usuário tem precedência.
-      final env = await envWithNodeOnPath();
-      env['GIT_TERMINAL_PROMPT'] = '0';
-      env.putIfAbsent(
-        'GIT_SSH_COMMAND',
-        () => 'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new',
+      final env = cloneProcessEnvironment(
+        await envWithNodeOnPath(),
+        configuredSshCommand: await _configuredSshCommand(),
       );
       // `--progress` reescreve a mesma linha com `\r` a cada 1%: o dialog
       // empilharia milhares delas. Passa só a cada 10% (e o 100%) por fase.
@@ -167,6 +160,22 @@ class GitCommandRunnerImpl implements GitCommandRunner {
     );
   }
 
+  /// `core.sshCommand` do git config global/sistema do usuário, ou `null`.
+  Future<String?> _configuredSshCommand() async {
+    try {
+      final git = await _gitBinary.resolve();
+      final res = await Process.run(git, [
+        'config',
+        '--get',
+        'core.sshCommand',
+      ], environment: await envWithNodeOnPath());
+      final value = (res.stdout as String).trim();
+      return res.exitCode == 0 && value.isNotEmpty ? value : null;
+    } catch (_) {
+      return null; // git ausente: o clone em si reporta o erro
+    }
+  }
+
   /// `true` se o working tree em [path] tem mudanças (staged ou não).
   Future<bool> _isDirty(String path) async {
     final git = await _gitBinary.resolve();
@@ -237,4 +246,38 @@ class GitProgressThrottle {
     _lastBucket[phase] = bucket;
     return true;
   }
+}
+
+/// SSH sem prompt usado no clone quando o usuário não configurou o dele.
+/// `BatchMode` falha em vez de perguntar passphrase/senha; `accept-new` aceita
+/// a host key só na PRIMEIRA conexão (github.com numa máquina nova) e continua
+/// recusando chave trocada. OpenSSH ≥ 7.6: o do macOS, o embutido no Git for
+/// Windows e o OpenSSH do Windows 10/11 atendem.
+const kCloneSshCommand =
+    'ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new';
+
+/// Ambiente do `git clone` a partir de [base] (o env do processo).
+///
+/// O app GUI não tem TTY: um prompt de usuário/senha (HTTPS) ou de passphrase
+/// e host key (SSH) deixaria o clone pendurado. `GIT_TERMINAL_PROMPT=0` corta o
+/// do HTTPS (credential helpers como osxkeychain/manager seguem funcionando).
+///
+/// O SSH sem prompt ([kCloneSshCommand]) só entra quando o usuário não escolheu
+/// o próprio: `GIT_SSH_COMMAND`/`GIT_SSH` no ambiente (ex.: plink/PuTTY no
+/// Windows) ou `core.sshCommand` no git config ([configuredSshCommand], ex.:
+/// OpenSSH do Windows pro ssh-agent do sistema, agente do 1Password). Setar
+/// `GIT_SSH_COMMAND` por cima disso ganharia do config e quebraria o acesso.
+Map<String, String> cloneProcessEnvironment(
+  Map<String, String> base, {
+  String? configuredSshCommand,
+}) {
+  final env = Map<String, String>.of(base);
+  env['GIT_TERMINAL_PROMPT'] = '0';
+  bool has(String key) => (env[key] ?? '').isNotEmpty;
+  final userChoseSsh =
+      has('GIT_SSH_COMMAND') ||
+      has('GIT_SSH') ||
+      (configuredSshCommand?.isNotEmpty ?? false);
+  if (!userChoseSsh) env['GIT_SSH_COMMAND'] = kCloneSshCommand;
+  return env;
 }

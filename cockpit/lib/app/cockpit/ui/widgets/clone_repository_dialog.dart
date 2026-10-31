@@ -1,11 +1,11 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/domain/validators/clone_destination.dart';
 import 'package:cockpit/app/cockpit/domain/validators/git_clone_url.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart' show Clipboard;
-import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// O que o dialog "Clonar repositório" devolve: a URL e o caminho final do
@@ -108,17 +108,26 @@ class _CloneRepositoryDialogState extends State<_CloneRepositoryDialog> {
 
   String get _urlTrimmed => _url.text.trim();
   String get _folderTrimmed => _folder.text.trim();
-  String get _targetPath => p.join(_parent, _folderTrimmed);
+  String get _targetPath => cloneTargetPath(_parent, _folderTrimmed);
 
   bool get _urlInvalid => !isGitCloneUrl(_urlTrimmed);
   bool get _parentInvalid =>
       _parent.isEmpty || !Directory(_parent).existsSync();
-  bool get _folderInvalid =>
-      _folderTrimmed.isEmpty ||
-      _folderTrimmed == '.' ||
-      _folderTrimmed == '..' ||
-      _folderTrimmed.contains('/') ||
-      _folderTrimmed.contains(r'\');
+  CloneFolderError? get _folderError =>
+      validateCloneFolderName(_folder.text, windows: Platform.isWindows);
+  bool get _folderInvalid => _folderError != null;
+
+  String _folderErrorText(BuildContext context, CloneFolderError error) {
+    final tr = context.t.cockpit.cloneRepoDialog;
+    return switch (error) {
+      CloneFolderError.empty ||
+      CloneFolderError.dotName ||
+      CloneFolderError.separator => tr.errFolder,
+      CloneFolderError.invalidChar => tr.errFolderChars,
+      CloneFolderError.reserved => tr.errFolderReserved(name: _folderTrimmed),
+      CloneFolderError.trailingDotOrSpace => tr.errFolderTrailing,
+    };
+  }
 
   /// O git só clona numa pasta inexistente ou vazia.
   bool get _targetTaken {
@@ -228,7 +237,8 @@ class _CloneRepositoryDialogState extends State<_CloneRepositoryDialog> {
               onChanged: (_) => setState(() => _folderEdited = true),
               onSubmitted: (_) => _submit(),
             ),
-            if (_attempted && _folderInvalid) _errorText(context, tr.errFolder),
+            if (_attempted && _folderError != null)
+              _errorText(context, _folderErrorText(context, _folderError!)),
             if (_attempted && _targetTaken)
               _errorText(context, tr.errExists(path: _targetPath)),
             if (!_folderInvalid && !_parentInvalid) ...[

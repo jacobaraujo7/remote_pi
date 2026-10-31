@@ -2,11 +2,13 @@ import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
+import 'package:cockpit/app/cockpit/domain/validators/clone_destination.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/clone_repository_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/widgets.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
+import 'package:cockpit/app/core/utils/user_home.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -58,12 +60,12 @@ Future<bool> _registerWorkspace(
   CockpitViewModel vm,
   String path,
 ) async {
-  final suggestedName = path.split('/').where((p) => p.isNotEmpty).lastOrNull;
+  final suggestedName = folderDisplayName(path);
   final suggestedColor =
       kWorkspacePalette[vm.rootProjects.length % kWorkspacePalette.length];
   final result = await showWorkspaceSettingsDialog(
     context,
-    name: suggestedName ?? path,
+    name: suggestedName,
     colorValue: suggestedColor,
     path: path,
   );
@@ -82,24 +84,39 @@ Future<bool> _registerWorkspace(
 /// (nome + cor) na pasta clonada. Clone que falha não registra nada.
 Future<bool> cloneWorkspace(BuildContext context) async {
   final vm = _vm(context);
-  final selected = vm.selectedProject?.path;
-  final initialParent = selected != null && selected.isNotEmpty
-      ? File(selected).parent.path
-      : (Platform.environment['HOME'] ?? Directory.current.path);
   final request = await showCloneRepositoryDialog(
     context,
-    initialParent: initialParent,
+    initialParent: cloneInitialParent(
+      selectedProjectPath: vm.selectedProject?.path,
+      home: userHome(),
+      fallback: Directory.current.path,
+    ),
   );
   if (request == null || !context.mounted) return false;
+  final tr = context.t.cockpit.cloneRepoDialog;
   final process = vm.gitClone(request.url, request.targetPath);
+  final lines = <String>[];
   final ok = process.exitCode.then((c) => c == 0);
   await showGitProcessDialog(
     context,
-    title: context.t.cockpit.cloneRepoDialog.progressTitle(
-      name: request.targetPath.split('/').last,
-    ),
-    output: process.output,
+    title: tr.progressTitle(name: folderDisplayName(request.targetPath)),
+    output: process.output.map((l) {
+      lines.add(l);
+      return l;
+    }),
     success: ok,
+    // Falha conhecida (sem git, sem ssh, sem credencial…) ganha uma linha
+    // dizendo o que fazer; o resto fica com o erro do git, que já basta.
+    finalMessage: (succeeded) => succeeded
+        ? ''
+        : switch (classifyCloneFailure(lines)) {
+            CloneFailure.gitMissing => tr.hintGitMissing,
+            CloneFailure.xcodeToolsMissing => tr.hintXcodeTools,
+            CloneFailure.sshMissing => tr.hintSshMissing,
+            CloneFailure.hostKey => tr.hintHostKey,
+            CloneFailure.auth => tr.hintAuth,
+            null => '',
+          },
   );
   if (!await ok || !context.mounted) return false;
   return _registerWorkspace(context, vm, request.targetPath);

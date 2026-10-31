@@ -3274,8 +3274,8 @@ class Translations$cockpit$cloneRepoDialog$en {
 	/// en: 'Pick an existing destination folder.'
 	String get errParent => 'Pick an existing destination folder.';
 
-	/// en: 'Folder name required (no slashes).'
-	String get errFolder => 'Folder name required (no slashes).';
+	/// en: 'Folder name required, without / or \.'
+	String get errFolder => 'Folder name required, without / or \.';
 
 	/// en: '${path} already exists and is not empty.'
 	String errExists({required Object path}) => '${path} already exists and is not empty.';
@@ -3285,6 +3285,30 @@ class Translations$cockpit$cloneRepoDialog$en {
 
 	/// en: 'Cloning ${name}'
 	String progressTitle({required Object name}) => 'Cloning ${name}';
+
+	/// en: 'Windows does not allow < > : " | ? * in folder names.'
+	String get errFolderChars => 'Windows does not allow < > : " | ? * in folder names.';
+
+	/// en: '"${name}" is a reserved name on Windows.'
+	String errFolderReserved({required Object name}) => '"${name}" is a reserved name on Windows.';
+
+	/// en: 'On Windows a folder name cannot end with a dot or a space.'
+	String get errFolderTrailing => 'On Windows a folder name cannot end with a dot or a space.';
+
+	/// en: 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.'
+	String get hintGitMissing => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.';
+
+	/// en: 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.'
+	String get hintXcodeTools => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.';
+
+	/// en: 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).'
+	String get hintSshMissing => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).';
+
+	/// en: 'The server's SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.'
+	String get hintHostKey => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.';
+
+	/// en: 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).'
+	String get hintAuth => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).';
 }
 
 // Path: settings.language
@@ -5326,10 +5350,18 @@ extension on Translations {
 			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Clones into ${path}',
 			'cockpit.cloneRepoDialog.errUrl' => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.',
 			'cockpit.cloneRepoDialog.errParent' => 'Pick an existing destination folder.',
-			'cockpit.cloneRepoDialog.errFolder' => 'Folder name required (no slashes).',
+			'cockpit.cloneRepoDialog.errFolder' => 'Folder name required, without / or \.',
 			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} already exists and is not empty.',
 			'cockpit.cloneRepoDialog.cloneAction' => 'Clone',
 			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Cloning ${name}',
+			'cockpit.cloneRepoDialog.errFolderChars' => 'Windows does not allow < > : " | ? * in folder names.',
+			'cockpit.cloneRepoDialog.errFolderReserved' => ({required Object name}) => '"${name}" is a reserved name on Windows.',
+			'cockpit.cloneRepoDialog.errFolderTrailing' => 'On Windows a folder name cannot end with a dot or a space.',
+			'cockpit.cloneRepoDialog.hintGitMissing' => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.',
+			'cockpit.cloneRepoDialog.hintXcodeTools' => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.',
+			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).',
+			'cockpit.cloneRepoDialog.hintHostKey' => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.',
+			'cockpit.cloneRepoDialog.hintAuth' => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -5546,6 +5578,8 @@ extension on Translations {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',
@@ -5554,8 +5588,6 @@ extension on Translations {
 			'automation.error.noWorkspace' => 'No workspace selected.',
 			'automation.error.fileOutsideWorkspace' => 'File is outside the workspace roots.',
 			'automation.error.fileUnreadable' => ({required Object detail}) => 'Could not read the file: ${detail}',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.binaryFile' => 'A commit message cannot be generated for a binary file.',
 			'automation.error.noFileChanges' => 'There are no changes to describe for this file.',
 			'automation.error.noStagedChanges' => 'There are no staged changes to describe.',
