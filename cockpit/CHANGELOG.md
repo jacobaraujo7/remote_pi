@@ -24,6 +24,13 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.23] - 2026-10-31
+
+### Added
+- Clone a Git repository from the workspace "+" menu: paste an SSH or HTTPS URL (prefilled from the clipboard), pick the destination folder and name, watch the clone in the git dialog and register the folder as a workspace on success (#277)
+- Credential prompts never hang the clone: the GUI runs git without terminal prompts and, unless you configured your own SSH command, with non-interactive SSH that accepts a new host key on first contact; known failures show a hint (git or Xcode tools missing, ssh missing, host key, authentication)
+- Git for Windows is found in Program Files and in the per-user install even when it is not on PATH
+
 ## [2.1.22] - 2026-10-28
 
 ### Added
