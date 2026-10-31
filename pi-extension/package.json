@@ -35,6 +35,9 @@
     "extensions": [
       "./dist"
     ],
+    "skills": [
+      "./skills"
+    ],
     "image": "https://raw.githubusercontent.com/jacobaraujo7/remote_pi/main/branding/banner.png"
   },
   "author": "Jacob Moura <jacobmoura7@gmail.com>",
