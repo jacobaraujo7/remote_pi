@@ -1,3 +1,4 @@
+import { useTranslations } from "next-intl";
 import { Callout } from "@/components/callout";
 import { IconDownload } from "@/components/landing/icons";
 import { ShaCopy } from "@/components/download/sha-copy";
@@ -21,13 +22,14 @@ export function DownloadCard({
   artifact,
   live,
   archLabel,
-  downloadLabel = "Download",
+  downloadLabel,
 }: {
   artifact: CardArtifact;
   live: boolean;
   archLabel: string;
   downloadLabel?: string;
 }) {
+  const t = useTranslations("DownloadWidgets.card");
   return (
     <div className="dl-card">
       <div className="dl-card-top">
@@ -38,15 +40,15 @@ export function DownloadCard({
       <div className="dl-file">{artifactFileName(artifact)}</div>
       {live ? (
         <a className="btn btn-primary dl-btn" href={artifact.url} download>
-          <IconDownload /> {downloadLabel}
+          <IconDownload /> {downloadLabel ?? t("download")}
         </a>
       ) : (
         <span
           className="btn dl-btn dl-btn-off"
           aria-disabled="true"
-          title="Not published yet"
+          title={t("notPublishedTitle")}
         >
-          <IconDownload /> Unavailable
+          <IconDownload /> {t("unavailable")}
         </span>
       )}
       <ShaCopy sha256={artifact.sha256} />
@@ -67,27 +69,24 @@ export function ReleaseNotes({
   /** Link to the tagged GitHub Release, when the product publishes one. */
   releaseUrl?: string;
 }) {
+  const t = useTranslations("DownloadWidgets.notes");
   return (
     <>
       {!live ? (
         <div className="reveal" style={{ marginTop: 24, maxWidth: 760 }}>
-          <Callout variant="warning" title="Not published yet">
-            <p>
-              These builds haven&apos;t been published to the download host yet,
-              so the links below aren&apos;t live. The version, size and
-              checksum are a preview of the layout, so check back soon.
-            </p>
+          <Callout variant="warning" title={t("notPublishedTitle")}>
+            <p>{t("notPublishedBody")}</p>
           </Callout>
         </div>
       ) : null}
       {notes ? (
         <div className="reveal" style={{ marginTop: 20, maxWidth: 760 }}>
-          <Callout title={`What's new in ${version}`}>
+          <Callout title={t("whatsNew", { version })}>
             <NotesMarkdown source={notes} />
             {releaseUrl ? (
               <p className="rn-more">
                 <a href={releaseUrl} target="_blank" rel="noopener noreferrer">
-                  Full release notes for {version} on GitHub
+                  {t("fullNotes", { version })}
                 </a>
               </p>
             ) : null}

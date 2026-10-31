@@ -1,0 +1,1735 @@
+{
+  "Common": {
+    "note": "Note",
+    "warning": "Warning",
+    "copy": "Copy",
+    "copied": "Copied",
+    "download": "Download",
+    "github": "GitHub"
+  },
+  "Metadata": {
+    "titleDefault": "Cockpit: a terminal that grew an IDE around your agents",
+    "titleTemplate": "%s · Cockpit",
+    "description": "Run Claude Code, Codex, Pi or anything else in real terminals, local or on any machine over SSH, with the viewer, diagnostics, git, worktrees and databases they need to work."
+  },
+  "Header": {
+    "docs": "Docs",
+    "tutorials": "Tutorials",
+    "download": "Download",
+    "remotePi": "Remote Pi",
+    "whyPi": "Why Pi",
+    "install": "Install",
+    "github": "GitHub",
+    "brandCockpit": "Cockpit",
+    "brandRemotePi": "Remote Pi",
+    "homeAria": "{brand} home",
+    "primaryNav": "Primary",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "siblingBar": "You are reading about <strong>Remote Pi</strong>, the sibling project: agents on your phone, 24/7 daemons and the mesh.",
+    "backToCockpit": "Back to Cockpit"
+  },
+  "Footer": {
+    "copy": "© {year} <b>Flutterando</b>. Remote Pi is open source under the MIT license.",
+    "docs": "Docs",
+    "download": "Download",
+    "remotePi": "Remote Pi",
+    "terms": "Terms of Service",
+    "privacy": "Privacy Policy",
+    "protocol": "Protocol",
+    "github": "GitHub"
+  },
+  "LanguageSwitcher": {
+    "label": "Language"
+  },
+  "Home": {
+    "hero": {
+      "eyebrow": "Remote Pi Cockpit 2.0",
+      "title": "A terminal that grew an IDE around your agents.",
+      "lede": "Run Claude Code, Codex, Pi or anything else in real terminals, on your machine or on any host over SSH, with the viewer, diagnostics, git, worktrees and databases they need to work.",
+      "download": "Download",
+      "whatsNew": "What 2.0 brings",
+      "shotAlt": "Remote Pi Cockpit as a multiplexed terminal: several real shells split across panes, with a workspace sidebar and file tree."
+    },
+    "agents": {
+      "eyebrow": "Agents",
+      "title": "Agents live in tabs.",
+      "body": "A tab is a real terminal, so you run the harness you already use: Claude Code, Codex CLI, Pi, OpenCode. Cockpit adds what a terminal never had. Each tab shows whether its agent is working, waiting on you or done, with a chime when the window is focused and a system notification when it is not, and Restart replaces the process in place, keeping the scrollback, the folder and the session it was running. Nothing to configure: a session started outside Cockpit simply reports nothing.",
+      "shotAlt": "An agent working in a Cockpit tab on a git worktree, with an inline green-and-red diff and new diagnostic issues reported."
+    },
+    "remote": {
+      "eyebrow": "New in 2.0 · Remote",
+      "title": "Your workspace, on any machine.",
+      "p1": "Open a folder on another computer and work in it exactly like a local one: the terminals, the file tree, the editor, source control and the databases all run on the host. A Raspberry Pi, an ARM VM, a beefy Linux box, a Mac or a Windows machine are all first-class hosts, from any client.",
+      "p2": "It is plain SSH, and SSH is the only door: Cockpit talks to a small <code>cockpit-server</code> on the host through a tunnel, with nothing exposed on the network. A new host shows you its fingerprint and asks; a host whose key changed is refused. A database password stays next to the database it opens, on the host, and never travels to your laptop."
+    },
+    "sessions": {
+      "eyebrow": "New in 2.0 · Sessions",
+      "title": "Close the laptop. The agent keeps working.",
+      "body": "Sessions belong to the host, not to the window you opened them from. Disconnect, walk away, come back from another machine, and the terminal picks up where it stopped. When the connection drops, a banner says so and Cockpit retries: the terminals freeze instead of dying."
+    },
+    "vps": {
+      "eyebrow": "New in 2.0 · Any Linux box",
+      "title": "One curl turns a VPS into a host.",
+      "body": "No desktop, no sudo, idempotent, on Linux x86_64 and arm64. The flag <code>--service</code> registers a <code>systemd --user</code> unit so the host is ready right after a reboot; without it the client starts the server on demand over SSH.",
+      "codeLabel": "on the host",
+      "recipe": "The whole recipe, including pinning a version and keeping the server in step with the app, is on the <download>download page</download> and in the <ref>remote hosts reference</ref>."
+    },
+    "mobile": {
+      "eyebrow": "New in 2.0 · Mobile",
+      "title": "The same workspace, from a tablet.",
+      "p1": "Cockpit on an iPad or an Android tablet is a pure remote client: it connects to a host and works there, so the agents run on a real machine while you drive them from the couch. Panels become drawers on a narrow screen, tabs scroll and reorder by touch, and a key bar gives you what a touch keyboard lacks: ESC, Tab, Ctrl+C, the arrows and F1 to F12, plus copy and paste.",
+      "p2": "It ships as a direct Android APK, built and signed by the same release pipeline as the desktop builds. Grab it on the <download>download page</download>. Prepare the host first, from a desktop Cockpit or with the installer above."
+    },
+    "documents": {
+      "eyebrow": "New in 2.0 · Documents",
+      "title": "Your notes, requests and boards are tabs now.",
+      "intro": "Next to the terminal where your agent works, Cockpit opens the documents the work produces, and your agent writes to the same files:",
+      "notebook": "<strong>Notebook</strong>: a <code>.notebook</code> folder of plain markdown notes with tags, <code>[[wiki links]]</code>, inline images and live formatting. Git, Obsidian and your agent see the same files, and <code>cockpit note add</code> lets the agent leave you one.",
+      "http": "<strong>HTTP requests</strong>: write one in the REST Client syntax in a <code>.http</code> file, press ⌘↵ and read the response as JSON, headers or raw text. <code>cockpit http run</code> fires the same request for the agent.",
+      "kanban": "<strong>Kanban boards</strong> with dependencies between cards, filters by title and label, drag and drop, and markdown in comments.",
+      "mermaid": "<strong>Mermaid diagrams</strong> rendered in the markdown preview, offline, in your theme.",
+      "window": "<strong>Document window</strong>: open any file in its own light window, from the app or straight from Finder, Explorer or your Linux file manager.",
+      "gallery": "<strong>Gallery</strong>: one click creates and opens any of them, on a local or a remote workspace."
+    },
+    "secrets": {
+      "eyebrow": "New in 2.0 · Secrets",
+      "title": "Stop pasting tokens into your agent's prompt.",
+      "body": "A <code>.env.cockpit</code> at the workspace root feeds every terminal Cockpit opens there, on local and remote workspaces alike. The values it injects are replaced by <code>***</code> in the terminal, in the saved scrollback and in <code>cockpit read-tab</code>, so a secret does not reach the screen your agent is reading.",
+      "note": "Keys that change who runs what are never injected (<code>PATH</code>, <code>SHELL</code>, <code>HOME</code>, <code>LD_*</code>, <code>DYLD_*</code> and friends), and when the file came with the repository, new terminals print a notice listing the key names it injected, never the values."
+    },
+    "cli": {
+      "eyebrow": "An agentic tmux",
+      "title": "The agent drives the cockpit.",
+      "body": "A built-in <code>cockpit</code> CLI, on the PATH of its terminals and nowhere else, lets an agent open tabs and splits, type into another tab, read what it printed, run your project's tasks, query your databases and write notes. Local or over SSH, always handled by the Cockpit that owns the tab. Database connections are read-only by default and can be hidden from the CLI entirely, so an agent queries what you allow.",
+      "codeLabel": "Cockpit terminal",
+      "ref": "Every command, flag, and id convention lives in the <ref>Cockpit reference</ref>."
+    },
+    "ide": {
+      "eyebrow": "The IDE emerges",
+      "title": "Viewer, diagnostics, git. When you need them.",
+      "body": "Syntax-highlighted code in ~190 languages, live diagnostics and formatting from any language server on your PATH (Dart, TypeScript, Python, Go, Rust and more), plus git status and one-click worktrees. The agent edits; you review.",
+      "shotAlt": "Cockpit's code viewer showing a Dart file with syntax highlighting, styled documentation comments, and a file path breadcrumb."
+    },
+    "database": {
+      "eyebrow": "Databases",
+      "title": "Databases as tabs.",
+      "body": "SQLite, Postgres, MySQL, SQL Server, Redis and MongoDB: open them as tabs, query them, and let agents do the same through <code>cockpit db</code>.",
+      "shotAlt": "Cockpit's Database panel listing Postgres, MySQL, SQL Server, Redis, MongoDB, and an auto-detected SQLite connection."
+    },
+    "workspaces": {
+      "eyebrow": "Workspaces & realms",
+      "title": "Every context, one click away.",
+      "body": "Group projects into workspaces, workspaces into realms, and fork onto a fresh git worktree with your whole layout recreated. Point at a folder of repositories and you get a sectioned tree, an aggregate git badge and per-repo actions, locally and over SSH."
+    },
+    "layouts": {
+      "eyebrow": "Committed setup",
+      "title": "Your environment, in the repo.",
+      "body": "A <code>.ckp</code> file describes the terminals a project opens (folders, splits, commands) and can apply itself to every new worktree. A <code>.cockpit/tasks.json</code> turns your dev servers into play and stop buttons with profiles and reload on save, on top of the tasks Cockpit already detects from <code>package.json</code> and <code>pubspec.yaml</code>.",
+      "tutorial": "Build both from scratch in the <tutorial>layouts and tasks tutorial</tutorial>."
+    },
+    "yours": {
+      "eyebrow": "Make it yours",
+      "title": "Themes, sounds, your language.",
+      "body": "Nine built-in themes, or write your own: one JSON file paints the UI, the syntax highlighting and the terminal palette at once, inheriting everything you don't declare. Pick the terminal font family, bind a sound to each agent event (turn done, action needed, error), and read the whole interface in English, Portuguese or Spanish."
+    },
+    "cta": {
+      "eyebrow": "Get Cockpit",
+      "title": "Start with a terminal.",
+      "body": "Free and open source, for macOS, Windows and Linux, with in-app updates on macOS and Windows. Any Linux box becomes a host, and an Android tablet becomes a client.",
+      "download": "Download",
+      "reference": "Reference",
+      "github": "GitHub",
+      "remotePi": "Part of the <remotepi>Remote Pi</remotepi> project, which is where the phone app, the daemons and the agent mesh live."
+    }
+  },
+  "DownloadPage": {
+    "metaTitle": "Download",
+    "metaDescription": "Download Cockpit: signed builds for macOS, Windows and Linux, the Android client, and the one-line cockpit-server installer for a Linux host.",
+    "head": {
+      "eyebrow": "Download",
+      "title": "Download Cockpit",
+      "lede": "Built straight from CI, with a published SHA-256 for every file. Take the desktop app for your machine, the Android client for your tablet, and the one-line installer for a Linux host you want to reach over SSH."
+    },
+    "product": {
+      "eyebrow": "Desktop & mobile · Cockpit",
+      "title": "Remote Pi Cockpit",
+      "lede": "A multiplexed terminal where an IDE grows around your agents: viewer, diagnostics, git, worktrees and databases, on your own machine or on any host you reach over SSH.",
+      "version": "Version {version}",
+      "released": "Released {date}",
+      "signed": "Signed & notarized on macOS"
+    },
+    "requires": "Requires",
+    "archUniversal": "Universal · Apple Silicon + Intel",
+    "macos": {
+      "tagline": "One universal build for Apple Silicon and Intel.",
+      "requirements": "macOS 12.0 or later. Apple Silicon and Intel.",
+      "step1": "Open the downloaded <code>.dmg</code>.",
+      "step2": "Drag <strong>Remote Pi Cockpit</strong> into your <strong>Applications</strong> folder.",
+      "step3": "Launch it from Applications or Spotlight.",
+      "foot": "The build is signed with a Developer ID and notarized, so it opens without a Gatekeeper prompt."
+    },
+    "windows": {
+      "tagline": "Installer for Windows 10 and 11 on x64.",
+      "requirements": "Windows 10 or 11, x64. There is no native arm64 build.",
+      "calloutTitle": "SmartScreen notice",
+      "p1": "This build isn't code-signed yet, so Windows SmartScreen may warn that the publisher is unknown. To continue:",
+      "p2": "Click <strong>More info</strong>, then <strong>Run anyway</strong> — and follow the installer."
+    },
+    "linux": {
+      "tagline": ".deb and .rpm packages for x86_64 and arm64.",
+      "requirements": "GTK3 with libmpv, libsecret and ALSA, on x86_64 or arm64. Built and tested on Ubuntu 24.04 and Fedora 40.",
+      "intro": "Download the package for your architecture, then install it:",
+      "debLabel": "Debian / Ubuntu — .deb",
+      "rpmLabel": "Fedora / RHEL — .rpm",
+      "foot": "Swap <code>amd64</code>/<code>x86_64</code> for <code>arm64</code>/<code>aarch64</code> on ARM machines. The app then appears in your applications menu.",
+      "calloutTitle": "Close Cockpit before updating",
+      "calloutBody": "Installing a package over a running Cockpit replaces files the app has open. Quit it first, then install, then start it again."
+    },
+    "android": {
+      "tagline": "The mobile client, as a direct APK for arm64 phones and tablets.",
+      "requirements": "Android on arm64. There is no 32-bit or x86 build.",
+      "archLabel": "arm64 · phones and tablets",
+      "step1": "Download the <code>.apk</code> to your phone or tablet.",
+      "step2": "Tap the file to start installing.",
+      "step3": "If Android blocks it, allow your browser to <strong>install unknown apps</strong> when prompted, then continue.",
+      "step4": "Optional: check that the <strong>SHA-256</strong> above matches the file you downloaded.",
+      "calloutTitle": "A remote client",
+      "calloutBody": "The mobile Cockpit is a <strong>client</strong>: it connects over SSH to a host that runs <code>cockpit-server</code>, and everything (terminals, agents, files, git) happens on that machine. It does not run agents on the tablet itself, so prepare a host first, either from a desktop Cockpit or with the <vps>one-line installer below</vps>."
+    },
+    "updates": {
+      "title": "Updates",
+      "lede": "How each platform gets the next version.",
+      "p1": "On <strong>macOS</strong> and <strong>Windows</strong>, Cockpit updates itself: it checks a signed appcast (Sparkle and WinSparkle), downloads the new build and restarts into it. You can keep the installer you downloaded once and never come back here.",
+      "p2": "On <strong>Linux</strong> there is no self-update. The app tells you when a release is out, and you install the new <code>.deb</code> or <code>.rpm</code> yourself, with Cockpit closed.",
+      "foot": "A remote host is separate: its <code>cockpit-server</code> has to run the same version as the app, so update it by re-running the installer. See <vps>the section below</vps>."
+    },
+    "verify": {
+      "title": "Verify your download",
+      "lede": "Every card above carries the SHA-256 of that exact file. Compare it with the one your machine computes.",
+      "foot": "The full list for this release, every platform in one file, is published as <sums>SHA256SUMS</sums>. If a hash does not match, do not install the file."
+    },
+    "foot": "Cockpit is a terminal first: no account, no cloud, nothing else to install. Agents run as ordinary processes in its tabs, so you bring the harness you already use (Claude Code, Codex CLI, Pi, OpenCode). Every command and file format lives in the <docs>Cockpit reference</docs>.",
+    "vps": {
+      "eyebrow": "Linux host · cockpit-server",
+      "title": "Put Cockpit on a machine with no desktop",
+      "lede": "One command turns a VPS, a build server or a Raspberry Pi into a host you can open as a remote workspace, and it is how the mobile client reaches a machine that no desktop has prepared before.",
+      "meta1": "Linux x86_64 and arm64",
+      "meta2": "User space, no sudo",
+      "meta3": "Idempotent, re-run to update",
+      "installTitle": "Install the server",
+      "installLede": "Run this on the host, over SSH.",
+      "codeLabel": "on the host",
+      "installBody": "The script detects the architecture, downloads the matching <code>cockpit-server</code> zip from the GitHub release, verifies its SHA-256 and installs into <code>~/.cockpit/server</code>, linking the binary into <code>~/.local/bin</code>. Nothing is exposed on the network: the app talks to it through an SSH tunnel.",
+      "variantsLabel": "variants",
+      "installFoot": "Piping a script into <code>bash</code> deserves a look first: read <src>the source of the installer</src> (the short URL redirects to it), or download it, read it, and run it as a file.",
+      "versionsTitle": "Versions must match",
+      "versionsBody": "Client and server are released together, and the app refuses a host running a different version. Keep both on the same release, or pin the server with <code>COCKPIT_VERSION={version}</code>. A desktop client fixes a mismatch by itself over SSH; from the mobile client, re-run the installer on the host.",
+      "foot": "Start at boot needs <em>linger</em> on most distributions; the <code>--service</code> path tries to enable it and prints the one <code>sudo</code> line to run when it cannot. The full story, including how a desktop installs the server for you and what to do when a connection fails, is in the <remote>remote hosts reference</remote>."
+    }
+  },
+  "DownloadWidgets": {
+    "card": {
+      "download": "Download",
+      "unavailable": "Unavailable",
+      "notPublishedTitle": "Not published yet"
+    },
+    "notes": {
+      "notPublishedTitle": "Not published yet",
+      "notPublishedBody": "These builds haven't been published to the download host yet, so the links below aren't live. The version, size and checksum are a preview of the layout, so check back soon.",
+      "whatsNew": "What's new in {version}",
+      "fullNotes": "Full release notes for {version} on GitHub"
+    },
+    "sha": {
+      "copyAria": "Copy SHA-256 checksum"
+    },
+    "picker": {
+      "version": "Version {version}",
+      "choose": "Choose your platform",
+      "chooseLede": "Every build below comes with its size and its SHA-256.",
+      "jumpAria": "Jump to a platform",
+      "linuxHost": "Linux host",
+      "notPublished": "Not published yet",
+      "notYours": "Not your system? <all>See every build</all>, or put Cockpit on a <host>Linux host</host>.",
+      "macTitle": "Download for your Mac",
+      "macDetail": "Universal build, Apple Silicon and Intel · {size} · macOS 12.0 or later",
+      "macPrimary": "Download .dmg",
+      "winTitle": "Download for Windows",
+      "winDetail": "64-bit installer · {size} · Windows 10 or 11",
+      "winPrimary": "Download installer",
+      "winArmNote": "Cockpit ships an x64 build only. It runs on Windows on ARM through emulation.",
+      "androidTitle": "Download for Android",
+      "androidDetail": "arm64 phones and tablets · {size}",
+      "androidPrimary": "Download .apk",
+      "androidNote": "The mobile app is a client: it connects over SSH to a host running cockpit-server.",
+      "linuxTitle": "Download for Linux",
+      "linuxDetail": "{arch} · {size} · GTK3, libmpv, libsecret and ALSA",
+      "linuxPrimary": "Download .{format}",
+      "linuxSecondary": ".{format} instead"
+    }
+  },
+  "Hero": {
+    "eyebrow": "Open source · self-hostable",
+    "titleLine1": "Your agents,",
+    "titleLine2": "in your",
+    "titlePocket": "pocket.",
+    "sub": "Pair your phone once — then drive any agent, keep a fleet running 24/7, and link every machine into one mesh.",
+    "install": "Install",
+    "github": "GitHub",
+    "metaInstall": "one command to install",
+    "metaAccounts": "no accounts",
+    "metaLicense": "MIT licensed",
+    "demoAgentsMesh": "4 agents · 1 mesh",
+    "demoDaemon": "daemon · answers at 3am",
+    "demoChatTitle": "Frontend",
+    "demoChatHost": "MacBook",
+    "demoChatState": "working…",
+    "demoUserMessage": "hello",
+    "demoMdMessage": "This is a Pi Agent Network pairing code. `Frontend` is asking to connect to this machine — processing the link now.",
+    "demoWaiting": "Waiting for response…"
+  },
+  "Install": {
+    "eyebrow": "Install",
+    "title": "One command, then scan a QR.",
+    "sub": "No accounts, no sign-up. Add the plugin to Pi, pair your phone once, and you're driving every agent from your pocket.",
+    "tabFresh": "No Pi yet",
+    "tabHasPi": "Already have Pi",
+    "labelFresh": "bash — fresh machine",
+    "labelHasPi": "bash + Pi",
+    "noteFresh": "Installs <b>Pi</b>, the Remote Pi plugin, and the always-on supervisor — then prints the pairing step. No sudo; everything lands in your home directory.",
+    "noteHasPi": "Run the first line in your shell; the <code>/remote-pi</code> lines run inside <b>Pi</b>. The first <code>/remote-pi</code> is a quick setup wizard (name + relay), then <b>pair</b> shows a QR you scan with the app.",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "Pillars": {
+    "tag1": "01 / gateway",
+    "title1": "Drive any agent from your phone.",
+    "proof1": "Pair with a QR; send prompts, voice, and images; switch models from anywhere.",
+    "link1": "How pairing works",
+    "tag2": "02 / daemon",
+    "title2": "Run as many agents as you want, 24/7.",
+    "proof2": "Promote any folder to a background daemon; survives logout, answers at 3am.",
+    "link2": "Daemon how-to",
+    "tag3": "03 / mesh",
+    "title3": "Every machine, one network.",
+    "proof3": "Agents across PCs and servers join one mesh under a single key, reachable from your phone.",
+    "link3": "See the protocol"
+  },
+  "GetApp": {
+    "eyebrow": "Get the app",
+    "title": "Pair your phone, drive your agents.",
+    "sub": "The authenticator and the remote control. Get it on the App Store or Google Play, grab the Android APK direct, or download the desktop Cockpit.",
+    "appStoreTop": "Download on the",
+    "appStoreName": "App Store",
+    "appStoreSub": "iOS · iPhone & iPad",
+    "playTop": "Get it on",
+    "playName": "Google Play",
+    "playSub": "Android",
+    "apkTop": "Direct download",
+    "apkName": "Android APK",
+    "apkSub": "Signed · with sha256",
+    "cockpitTop": "Desktop app",
+    "cockpitName": "Cockpit",
+    "cockpitSub": "macOS · Windows · Linux"
+  },
+  "Strip": {
+    "voice": "Voice — dictate, no cloud transcription",
+    "image": "Image — send a shot to a multimodal agent",
+    "openSource": "Open source — MIT licensed",
+    "selfHost": "Self-host — run the relay behind a VPN"
+  },
+  "GithubCTA": {
+    "eyebrow": "Open source",
+    "title": "Open source, all the way down.",
+    "sub": "Active MVP. Read the source, run the protocol, or self-host the relay — it's all on GitHub.",
+    "cta": "View on GitHub",
+    "star1": "MIT licensed",
+    "star2": "Self-hostable relay",
+    "star3": "Harness-agnostic protocol"
+  },
+  "WhyPage": {
+    "title": "Why Pi",
+    "metaDescription": "Deciding how to run an always-on coding agent? remote-pi keeps Pi alive 24/7 and puts it in your pocket. Here's when that's the right shape — and when an all-in-one platform isn't.",
+    "eyebrow": "Why Pi",
+    "h1": "An always-on agent you assemble yourself.",
+    "lede": "remote-pi turns Pi into a background agent that never logs off — and a phone in your pocket that drives it. This page is about that choice: keeping a coding agent alive 24/7, and whether building it up from something small is the shape you want.",
+    "gotEyebrow": "What you get",
+    "gotTitle": "Pi, kept alive and put in your pocket.",
+    "h1Title": "Alive 24/7",
+    "h1Desc": "A per-machine supervisor (launchd on macOS, systemd on Linux) keeps every paired folder running as a background agent — survives logout, restarts on crash, answers at 3am.",
+    "h2Title": "Lightweight",
+    "h2Desc": "Pi is a small coding agent, not a platform. It boots fast and runs only what you add to it — nothing you didn't ask for.",
+    "h3Title": "You assemble it",
+    "h3Desc": "Extend Pi with the skills, plugins, and per-folder agents you actually need. The agent is yours to shape until it fits your work exactly.",
+    "h4Title": "Driven from your phone",
+    "h4Desc": "Pair once with a QR. Send prompts, switch models, start a fresh session, or compact context from iOS or Android — wherever you are.",
+    "h5Title": "A mesh when you need it",
+    "h5Desc": "Agents reach each other on one machine over a local socket, or across PCs through the relay. One Owner key, one mesh, no central server.",
+    "h6Title": "Open source, self-hostable",
+    "h6Desc": "MIT licensed. Run the community relay or host your own; traffic is encrypted in transit, and self-hosting keeps it on infrastructure you control.",
+    "honestEyebrow": "The honest version",
+    "honestTitle": "What about OpenClaw and Hermes Agent?",
+    "honestP1": "They're excellent. <b>OpenClaw</b> and <b>Hermes Agent</b> are first-class always-on, open-source agents. If you want a batteries-included platform that ships ready to run, you should look hard at them — this page won't pretend otherwise.",
+    "honestP2": "remote-pi makes a different bet. It starts from Pi — a lightweight coding agent — and adds just the always-on layer: a supervisor that keeps it running and a phone that drives it. Everything else, you assemble. The trade is real: less out of the box, more that's exactly yours.",
+    "choiceTitle": "The choice",
+    "choiceBody": "Want a complete, all-in-one platform, ready out of the box? OpenClaw and Hermes Agent are great places to start. Want a lightweight coding agent you assemble, keep alive 24/7, and control from your phone? That's Pi with remote-pi.",
+    "scopeNote": "One note on scope: this comparison is about the <i>always-on layer</i> — remote-pi's daemon mode — not coding agents in general. It's the part where keeping an agent alive and reachable is the whole job, and where OpenClaw and Hermes Agent shine too.",
+    "getStartedEyebrow": "Get started",
+    "getStartedTitle": "Build yours and leave it running.",
+    "getStartedSub": "Add the plugin to Pi, pair your phone, and promote a folder to a 24/7 daemon. The how-to walks every step.",
+    "install": "Install",
+    "daemonHowTo": "Daemon how-to →",
+    "github": "GitHub"
+  },
+  "PrivacyPage": {
+    "title": "Privacy Policy",
+    "metaDescription": "Privacy Policy for Remote Pi — what little data we touch, why we touch it, and your LGPD rights.",
+    "subtitle": "Data controller: <b>Flutterando Desenvolvimento de Programas de Computador LTDA</b> (CNPJ 33.637.582/0001-70). Data Protection Officer (DPO): <b>Jacob Moura</b> — <link>{email}</link>.",
+    "s1Title": "Who We Are (Data Controller)",
+    "s1P1": "Remote Pi is operated by Flutterando Desenvolvimento de Programas de Computador LTDA, a company incorporated in Brazil (CNPJ 33.637.582/0001-70), with offices at Rua Clara Nunes, 198, Maringá/PR, CEP 87.045-650.",
+    "s1P2": "For any matter related to this Policy or to the processing of your personal data, you may contact our Data Protection Officer, Jacob Moura, at <link>{email}</link>.",
+    "s2Title": "Data We Collect",
+    "s2h1": "2.1 Data you provide directly",
+    "s2P1": "Remote Pi is designed so that you provide essentially nothing to us on the relay path. There is no account, no email registration, no profile, and no payment information. The pairing flow generates cryptographic keys locally on your devices.",
+    "s2P2": "On the device itself, the mobile app stores a list of paired peers (their public keys, a friendly name you choose, and the relay URL) in the platform's secure storage (iOS Keychain / Android Keystore). This information never leaves your device unless you explicitly send it.",
+    "s2h2": "2.2 Data processed automatically by the public relay",
+    "s2P3": "When you connect to the public relay operated by Flutterando, the relay processes three categories of data:",
+    "s2Li1": "<b>Connection metadata</b> — source IP address, connection timestamps, public-key identifier of the connecting peer, room identifiers, and basic transport statistics (bytes in/out, message timing and sizes). This is <b>logged</b> for at most 30 days and used for abuse mitigation and reliable operation of the relay.",
+    "s2Li2": "<b>Message payloads</b> forwarded between paired peers. In the current MVP, payloads travel base64-encoded over TLS and <b>are not end-to-end encrypted at the application layer</b>. The relay operator could in principle access plaintext message contents in memory while forwarding. We do <b>not log, persist, or inspect</b> those payloads — we forward them and discard them. See §9 for the full trust model.",
+    "s2Li3": "<b>Signed mesh-membership blobs.</b> When you pair a new machine, your Owner key signs a small JSON blob listing which Pi devices belong to that Owner's mesh, and your app uploads it to the relay via <code>POST /mesh/&lt;owner_pk_hash&gt;</code>. The relay verifies the Ed25519 signature and persists the blob (a few KB per Owner) so that new devices restoring the same Owner key can recover their peer list. The blob contains: Owner public key, a version number, the list of Pi public keys you have paired, and a timestamp. It is <b>not encrypted</b> — anyone with access to the relay database can read it. Pairing on your own self-hosted relay keeps this data on your infrastructure.",
+    "s2P4": "If you require cryptographic confidentiality from the relay operator, self-host the relay (the code is open source and documented). When you self-host, the data described in §2.2 is processed by your own infrastructure, not by Flutterando.",
+    "s2h3": "2.3 Data we do NOT collect",
+    "s2Li4": "Precise device location.",
+    "s2Li5": "Contacts, photos, microphone, or camera content.",
+    "s2Li6": "The text of your prompts or the responses produced by your Pi-side agent.",
+    "s2Li7": "Advertising identifiers (IDFA, AAID).",
+    "s2Li8": "Behavioral analytics or tracking telemetry.",
+    "s3Title": "How We Use Your Data",
+    "s3P1": "The limited connection metadata described in §2.2 is used to:",
+    "s3Li1": "Operate, maintain, and route traffic on the relay service.",
+    "s3Li2": "Detect and mitigate abuse, such as denial-of-service attacks or patterns of unauthorized access attempts.",
+    "s3Li3": "Investigate incidents and protect the security of the Service and its users.",
+    "s3P2": "We do not use any data for advertising, profiling, or behavioral analytics.",
+    "s4Title": "Legal Bases (LGPD Article 7)",
+    "s4P1": "Under the Brazilian General Data Protection Law (Lei Geral de Proteção de Dados, Law 13.709/2018, \"LGPD\"), we process the limited data described above on the following legal bases:",
+    "s4Li1": "<b>Performance of a contract</b> (Article 7, V) — to provide the relay service you connect to.",
+    "s4Li2": "<b>Legitimate interest</b> (Article 7, IX) — to ensure the security and integrity of the relay infrastructure.",
+    "s5Title": "Data Sharing",
+    "s5P1": "We do not sell or rent your data. We do not share connection metadata with third parties for advertising or analytics purposes. We may disclose data only when required to do so by a valid legal order under Brazilian law, and only to the extent strictly necessary to comply with that order.",
+    "s5P2": "If you choose to self-host your own relay or connect to a relay operated by a third party, that operator becomes the data controller for the connection metadata they process. This Policy does not cover third-party relays.",
+    "s6Title": "International Transfer",
+    "s6P1": "The public relay operated by Flutterando may be hosted in data centers located outside Brazil. Where this is the case, transfers occur under conditions equivalent to those required by Article 33 of the LGPD, including contractual safeguards with infrastructure providers. You can avoid international transfer entirely by running your own relay on infrastructure under your control.",
+    "s7Title": "Data Retention",
+    "s7P1": "Relay connection logs are retained for a maximum of <b>30 days</b>, after which they are deleted or anonymized. Aggregated, non-identifying statistics (e.g. daily active connection counts) may be retained longer for capacity planning.",
+    "s7P2": "Paired peers stored on your device persist until you revoke the pairing or uninstall the app. We do not have access to that storage.",
+    "s8Title": "Your Rights (LGPD Article 18)",
+    "s8P1": "Subject to the LGPD, you have the right to request, with respect to personal data we hold about you:",
+    "s8Li1": "Confirmation that we process your data.",
+    "s8Li2": "Access to that data.",
+    "s8Li3": "Correction of incomplete, inaccurate, or outdated data.",
+    "s8Li4": "Anonymization, blocking, or deletion of unnecessary or excessive data, or data processed in non-compliance with the LGPD.",
+    "s8Li5": "Information about public and private entities with which we have shared your data.",
+    "s8Li6": "Information about the possibility of not providing consent, and the consequences of refusal.",
+    "s8Li7": "Revocation of consent, where consent was the legal basis.",
+    "s8P2": "To exercise any of these rights, contact our DPO at <link>{email}</link>. We may need to verify your identity (for example, by asking you to prove control of a paired device's public key) before fulfilling the request.",
+    "s9Title": "Security and trust model",
+    "s9P1": "We use the following safeguards:",
+    "s9Li1": "<b>TLS 1.3</b> on every connection between clients and the relay.",
+    "s9Li2": "<b>Ed25519 challenge-response</b> at pairing time, so paired devices verify each other's identity cryptographically and identity squatting is prevented.",
+    "s9Li3": "Private keys generated on-device and stored in the platform secure storage (iOS Keychain / Android Keystore). Private keys never leave your devices.",
+    "s9Li4": "Operational separation between transport metadata and any other system, with strict access controls on relay logs.",
+    "s9P2": "<b>Important — read this if confidentiality matters to you.</b> Application-layer <b>end-to-end encryption of message payloads is not active in the current MVP</b>. Payloads travel base64-encoded over TLS to the relay and from the relay to the paired device. The public relay operator (Flutterando) could in principle access plaintext message contents in memory while forwarding, but we do <b>not log, persist, or inspect</b> payloads. Per-message end-to-end encryption was removed for MVP stability and is on the roadmap for a future release.",
+    "s9P3": "If you require cryptographic confidentiality from the relay operator, <b>run your own relay</b>. The relay is open source and the documentation covers Docker deployment and VPN gating (Tailscale, WireGuard) so that only your devices can reach the relay's WebSocket port at all.",
+    "s9P4": "No system is perfectly secure. If you believe your account or device has been compromised, revoke the affected pairing immediately and report the incident to <link>{email}</link>.",
+    "s10Title": "Children and Minors",
+    "s10P1": "The Service is not directed at, and is not intended for use by, individuals under the age of 13. We do not knowingly collect personal data from minors. If we become aware that we have collected personal data from a minor under 13, we will delete that data promptly.",
+    "s11Title": "Cookies",
+    "s11P1": "This site does not use tracking, advertising, or analytics cookies. The mobile application and the Pi-side extension do not use cookies either. We may use strictly functional cookies on this site only if needed for security (for example, CSRF protection on a future contact form); none are used today.",
+    "s12Title": "Policy Updates",
+    "s12P1": "We may update this Policy from time to time. The current version is always published on this site, with the \"Last updated\" date at the top. Material changes will additionally be announced in the project README.",
+    "s13Title": "Contact",
+    "s13P1": "For questions, requests under the LGPD, or any other privacy matter, contact our DPO, Jacob Moura, at <link>{email}</link>.",
+    "s13P2": "You also have the right to lodge a complaint with the Brazilian National Data Protection Authority (Autoridade Nacional de Proteção de Dados — ANPD)."
+  },
+  "TermsPage": {
+    "title": "Terms of Service",
+    "metaDescription": "Terms of Service for Remote Pi — provided by Flutterando Desenvolvimento de Programas de Computador LTDA.",
+    "subtitle": "Provider: <b>Flutterando Desenvolvimento de Programas de Computador LTDA</b> (CNPJ 33.637.582/0001-70). Address: Rua Clara Nunes, 198, Maringá/PR, CEP 87.045-650, Brazil.",
+    "s1Title": "Acceptance of Terms",
+    "s1P1": "By installing, accessing, or using the Remote Pi mobile application, the Remote Pi Pi-side extension, the Remote Pi relay service, or any other software or service provided under the Remote Pi name (collectively, the \"Service\"), you agree to be bound by these Terms of Service (\"Terms\"). If you do not agree to these Terms, you must not use the Service.",
+    "s1P2": "These Terms form a binding agreement between you and Flutterando Desenvolvimento de Programas de Computador LTDA (\"Flutterando\", \"we\", \"us\", or \"our\").",
+    "s2Title": "Account & Pairing",
+    "s2P1": "Remote Pi does not require you to create an account, register an email address, or provide personally identifiable information to use the Service. Instead, the Service uses an ephemeral, on-demand pairing flow: a QR code generated locally on the Pi-side extension is scanned by the mobile app, establishing a mutually authenticated channel between the two devices (Ed25519 challenge-response). See the Privacy Policy, section 9, for the full trust model — application-layer end-to-end encryption of payloads is on the roadmap, not yet active.",
+    "s2P2": "Each pairing produces a cryptographic key pair stored locally on the phone and the Pi. Pairings can be revoked at any time from either device. You are responsible for keeping your devices secure; anyone with physical or remote access to a paired device can use that pairing.",
+    "s2P3": "The Service is not directed at, and may not be used by, individuals under 13 years of age.",
+    "s3Title": "Features",
+    "s3P1": "The Service currently provides the following features:",
+    "s3Li1": "Remote control of a Pi-based coding agent (such as Claude Code, Codex, or similar) from a paired mobile device.",
+    "s3Li2": "A local multi-agent messaging mesh on the Pi (UDS broker) that lets multiple agents and the mobile peer exchange messages.",
+    "s3Li3": "An optional public relay service that forwards encrypted messages between paired devices when they are not on the same local network. You may instead self-host your own relay using the open-source relay code.",
+    "s3P2": "Features may be added, modified, or removed at any time. We will make a reasonable effort to communicate breaking changes through the project README and this site.",
+    "s4Title": "User-Generated Content",
+    "s4P1": "The prompts you send to your Pi-side agent and the responses produced by that agent (\"User Content\") belong to you. Flutterando does not log, persist, or inspect User Content.",
+    "s4P2": "For full transparency about the current trust model: in the current MVP, message payloads travel base64-encoded over TLS between your devices and the relay. Application-layer end-to-end encryption is <b>not</b> active yet (it was removed for MVP stability and is on the roadmap). This means the operator of the relay you connect to could in principle access plaintext message contents while forwarding them. Users who require cryptographic confidentiality from the relay operator should self-host the relay (it is open source and the docs cover Docker + VPN deployment). See our Privacy Policy, section 9, for the full description.",
+    "s4P3": "You are solely responsible for the User Content you send through the Service and for ensuring that you have the right to send and receive that content under applicable law and any third-party agreements (including the terms of any AI provider whose model the Pi-side agent uses).",
+    "s5Title": "Prohibited Conduct",
+    "s5P1": "You must not:",
+    "s5Li1": "Attempt to break, bypass, or weaken the cryptographic authentication used by the Service (Ed25519 pairing, TLS to the relay), or attempt to impersonate another paired device.",
+    "s5Li2": "Attack, overload, or otherwise disrupt the relay infrastructure or any other component of the Service (denial-of-service, abusive connection patterns, etc.).",
+    "s5Li3": "Reverse-engineer the Service for the purpose of producing a confusingly similar product or circumventing security features (reverse engineering for interoperability or security research is permitted to the extent allowed by applicable law).",
+    "s5Li4": "Use the Service to commit, facilitate, or attempt unlawful acts, or to violate the rights of any third party.",
+    "s6Title": "Reporting and Security Issues",
+    "s6P1": "Remote Pi does not host or moderate user-to-user content (the relay is oblivious to message contents), so there is no general content moderation process. However, if you discover a security vulnerability in the Service or believe the Service is being abused to attack infrastructure or users, please report the issue to <link>{email}</link>. We will acknowledge security reports and respond as quickly as reasonably possible.",
+    "s7Title": "Platform Intellectual Property",
+    "s7P1": "The source code for Remote Pi components is released under the MIT license and can be found in the project's public repository. Subject to that license, you may use, copy, modify, and distribute the source code.",
+    "s7P2": "The Remote Pi name, logo, and visual identity (including the π symbol mark, the color palette, and the wordmark) are trademarks and trade dress of Flutterando and are not granted to you by the MIT license. You may not use them in a way that suggests endorsement of, or affiliation with, a derivative product without prior written permission.",
+    "s8Title": "Availability and Service Modifications",
+    "s8P1": "The Service is provided on an \"as is\" and \"as available\" basis. We do not guarantee that the Service will be uninterrupted, error-free, or free from defects, and we may suspend, modify, or discontinue all or part of the Service at any time without prior notice.",
+    "s8P2": "The public relay in particular is a free, best-effort service. If you require strong availability guarantees, you should self-host the relay.",
+    "s9Title": "Liability Limitation",
+    "s9P1": "To the maximum extent permitted by applicable law, Flutterando shall not be liable for any indirect, incidental, special, consequential, or punitive damages, or for any loss of profits, revenue, data, use, goodwill, or other intangible losses, resulting from (i) your use of or inability to use the Service; (ii) any conduct or content of any third party in the Service; (iii) any unauthorized access to, use of, or alteration of your transmissions or content; or (iv) any other matter relating to the Service.",
+    "s9P2": "Nothing in these Terms excludes or limits liability that cannot be excluded or limited under applicable law (including consumer protection rights under Brazilian law).",
+    "s10Title": "Terms Modifications",
+    "s10P1": "We may update these Terms from time to time. The current version is always published on this site, with the \"Last updated\" date at the top. Material changes will additionally be announced in the project README. Your continued use of the Service after a change becomes effective constitutes acceptance of the new Terms.",
+    "s11Title": "Termination",
+    "s11P1": "You may stop using the Service at any time. To terminate a specific pairing, revoke it from the mobile app or, on the Pi side, run <code>/remote-pi revoke &lt;id&gt;</code>. You may also uninstall the mobile application and the Pi-side extension to fully stop using the Service.",
+    "s11P2": "We may suspend or terminate your access to the public relay if you violate these Terms or if your usage threatens the stability or security of the Service.",
+    "s12Title": "Applicable Law",
+    "s12P1": "These Terms are governed by the laws of the Federative Republic of Brazil. Any dispute arising out of or relating to these Terms or the Service shall be resolved exclusively in the courts of the district of Maringá, State of Paraná, Brazil, except where Brazilian consumer law mandates a different jurisdiction.",
+    "s13Title": "Contact",
+    "s13P1": "Questions, notices, and requests under these Terms can be addressed to <link>{email}</link>, attention: Jacob Moura, Data Protection Officer, Flutterando Desenvolvimento de Programas de Computador LTDA."
+  },
+  "LegalCommon": {
+    "eyebrow": "Legal",
+    "lastUpdated": "Last updated: {date}"
+  },
+  "Og": {
+    "cockpitHeadline": "Just a terminal. Until your agents need more.",
+    "cockpitTag": "local, no cloud, no account",
+    "remotePiHeadline": "Your coding agents, in your pocket.",
+    "remotePiTag": "Phone gateway · always-on 24/7 · one mesh, any machine"
+  },
+  "RemotePiMeta": {
+    "titleDefault": "Remote Pi",
+    "titleTemplate": "%s · Remote Pi",
+    "pageTitle": "Remote Pi: your coding agents, in your pocket",
+    "pageDescription": "Pair your phone once, then drive any Pi coding agent from it: keep a fleet running 24/7 and link every machine into one mesh. Open source, self-hostable."
+  },
+  "RemotePiDownload": {
+    "metaTitle": "Download the Remote Pi app",
+    "metaDescription": "Get the Remote Pi phone app: the direct Android APK with its SHA-256, plus the App Store and Google Play listings.",
+    "head": {
+      "eyebrow": "Remote Pi · Download",
+      "title": "Get the Remote Pi app",
+      "lede": "The phone app is the authenticator and the remote control: pair once with a QR, then drive your agents from anywhere. Install it from a store, or take the APK directly."
+    },
+    "android": {
+      "eyebrow": "Mobile · Android",
+      "title": "Remote Pi for Android",
+      "lede": "Straight from CI, signed, with a published SHA-256. No Play Store account needed.",
+      "version": "Version {version}",
+      "released": "Released {date}",
+      "direct": "Direct APK · signed release",
+      "tagline": "One universal APK for phones and tablets.",
+      "archLabel": "Universal APK",
+      "downloadLabel": "Download RemotePi.apk",
+      "step1": "Download <code>RemotePi.apk</code> to your phone.",
+      "step2": "Tap the file to start installing.",
+      "step3": "If Android blocks it, allow your browser to <strong>install unknown apps</strong> when prompted, then continue.",
+      "step4": "Optional: check the <strong>SHA-256</strong> above matches the file before installing.",
+      "foot": "Prefer a store? Remote Pi is on <play>Google Play</play> and on the <appstore>App Store</appstore>."
+    },
+    "foot": "The app drives agents on your machines, so install the <code>remote-pi</code> side first: <guide>the getting started guide</guide> goes from a fresh machine to a paired phone. Looking for the Cockpit desktop app instead? It has its own <cockpit>download page</cockpit>."
+  },
+  "RemoteDocs": {
+    "intro": {
+      "span1": "Documentation",
+      "h11": "Remote Pi docs",
+      "span2": "Last updated: 2026-05-31",
+      "span3": "License: MIT",
+      "p1": "This is the <strong1>reference</strong1>. Remote Pi is a mesh for coding agents: agents on the same machine talk through a local UDS broker, agents on different machines reach each other through an open-source relay, and your phone authenticates new peers and drives sessions. The first supported harness is the <a1>Pi coding agent</a1>; <code1>/remote-pi</code1> wires everything up. To <strong1>learn by doing</strong1>, start with the <link1>tutorials</link1>; for <strong1>why</strong1> it works this way, see <link2>Why Pi</link2>. The pages below are for looking things up."
+    },
+    "quickStart": {
+      "title": "Quick start",
+      "p1": "Install the plugin, run the setup wizard, and pair your phone in a few commands — then send your first prompt from the app. The full walkthrough, including the mobile side, is a tutorial.",
+      "link1": "See the Getting started tutorial"
+    },
+    "whatItDoes": {
+      "title": "What it does",
+      "p1": "Remote Pi adds two independent layers on top of Pi. The <strong1>agent network</strong1> lets agents discover and message each other — over a local socket on one machine, or through the relay across PCs. The <strong1>mobile control plane</strong1> is your phone: it authenticates new peers into the mesh and drives sessions. Each is covered hands-on:",
+      "li1": "<link3>Local mesh</link3> — agents discovering and messaging on the same machine.",
+      "li2": "<link4>Remote mesh</link4> — routing between agents on different PCs.",
+      "li3": "<link5>Getting started</link5> — pairing your phone and driving an agent from it."
+    },
+    "install": {
+      "title": "Install",
+      "p1": "Requirements: Node 20+ and Pi (the host coding agent). Remote Pi installs as a Pi plugin with <code1>pi install npm:remote-pi</code1>, which self-registers the <code1>/remote-pi</code1> slash command and deploys the agent-network skill. The complete setup — wizard, pairing, first command — is in the tutorial.",
+      "p2": "→ <link5>See the Getting started tutorial</link5>. Daemon mode has its own one-time install — see <a2>Daemon mode</a2> below."
+    },
+    "usingRemotePi": {
+      "title": "Using /remote-pi",
+      "p1": "<code1>/remote-pi</code1> is the everyday entry point. The first run opens a short wizard (agent name, whether to use the relay) that creates the per-folder config; later runs join the local mesh and start the relay automatically. Re-run the wizard with <code1>/remote-pi setup</code1>. Every subcommand is in the <a3>command reference</a3>.",
+      "p2": "→ <link5>See the Getting started tutorial</link5> for the guided flow."
+    },
+    "pairing": {
+      "title": "Pairing a mobile device",
+      "p1": "<code1>/remote-pi pair</code1> prints a QR (and a copy-paste URI); scan it with the Remote Pi app. Pairing is <strong1>per machine</strong1> — once a device is paired, every Pi process on that machine accepts it. Manage devices with <code1>/remote-pi devices</code1> and <code1>/remote-pi revoke '<'shortid'>'</code1> (see the <a3>command reference</a3>).",
+      "link1": "See the Getting started tutorial"
+    },
+    "quickActions": {
+      "title": "Quick actions from the phone",
+      "p1": "Beyond chatting, the app drives a session with a small set of typed actions — <strong1>compact context</strong1>, <strong1>new session</strong1>, <strong1>set model</strong1>, and <strong1>set thinking</strong1> level. The model picker reads live from the host, so it always reflects what that machine can run. The full vocabulary, wire format, and fallback semantics live in <a4>PROTOCOL.md</a4> (the <em1>App actions</em1> section).",
+      "link1": "See the Getting started tutorial"
+    },
+    "agentNetwork": {
+      "title": "Agent network",
+      "p1": "Each agent is a peer in a mesh. The LLM gets three tools — <code1>list_peers</code1> (who is online), <code1>agent_send</code1> (send with an ACK), and <code1>get_messages</code1> (drain the inbox). On one machine, peers talk over a Unix-domain-socket broker; across machines, the same <code1>agent_send</code1> routes through the relay, addressing remote peers as <code1>pc_label:peer</code1>. Both paths are covered hands-on:",
+      "li1": "<link3>Local mesh</link3> — the broker, the three tools, a concrete exchange.",
+      "li2": "<link4>Remote mesh</link4> — cross-PC addressing and what an ACK does (and doesn't) guarantee."
+    },
+    "daemonMode": {
+      "title": "Daemon mode",
+      "p1": "Promote a folder to a 24/7 background agent: run <code1>/remote-pi install</code1> once per machine to install the supervisor (launchd on macOS, <code1>systemd --user</code1> on Linux) and link the CLI, then <code1>remote-pi create '<'folder'>' --name \"…\"</code1> to register and start a daemon. One supervisor per machine, N daemons under it. Every command is in the <a3>command reference</a3> below.",
+      "p2": "→ <link6>See the Daemon mode tutorial</link6> for the full how-to; the <em1>why</em1> (and how it compares to all-in-one platforms) is <link2>Why Pi</link2>."
+    },
+    "relay": {
+      "title": "The relay",
+      "p1": "The relay is the only network-touching piece of Remote Pi. In the current MVP it sees both message payloads (forwarded but never logged or inspected by the community operator) and connection metadata: which keypair is online, which room/cwd identifiers exist, message timing, sizes. Traffic is encrypted in transit (TLS) and peers authenticate with Ed25519 pairing, but payloads are not encrypted at the application layer — see <a5>Protocol & Security</a5> and the Privacy Policy, section 9, for the full picture.",
+      "p2": "The relay also <strong1>persists a small SQLite table</strong1> called <code1>mesh_versions</code1> — blobs signed by your Owner key listing the Pi devices that belong to your mesh (a few KB per Owner). The relay verifies the Ed25519 signature on every <code1>POST /mesh/'<'owner_pk_hash'>'</code1> and stores what you signed; it never decides membership itself. New devices restoring your Owner key recover their peer list from this blob. A relay compromise means DoS, not impersonation. See the <a4>PROTOCOL.md</a4> mesh-membership section for the wire format.",
+      "p3": "You have two options."
+    },
+    "relay_communityRelay": {
+      "title": "Option A — Use the community relay",
+      "p1": "<code1>https://relay-rp1.jacobmoura.work</code1> (default). Zero setup. Good for trying things out or for casual use. (Internally the extension uses the WebSocket form <code1>wss://…</code1> — both schemes point at the same endpoint.)",
+      "p2": "Caveats:",
+      "li1": "Shared infrastructure — availability is best-effort.",
+      "li2": "<strong1>TLS in transit is the only network protection</strong1> — the relay operator sees plaintext envelopes (payloads, routing metadata, peer pubkeys, timing). Self-host for confidentiality from the operator.",
+      "li3": "<strong1>No IP allow-listing or VPN gating</strong1> built in. Anyone with a paired keypair can connect; layer a VPN on top via Option B if you want network-level isolation."
+    },
+    "relay_selfHost": {
+      "title": "Option B — Self-host (recommended for privacy)",
+      "p1": "Run the relay yourself in Docker and put it behind a VPN like <a6>Tailscale</a6>, <a7>WireGuard</a7>, or your own VPC. Because the relay's network-level protection is just TLS + keypair authentication, layering a VPN on top means <strong1>only your devices</strong1> can even reach the WebSocket port — defense in depth.",
+      "p2": "Quick Docker outline (see the <a8>relay README</a8> for the full setup, environment variables, and reverse-proxy guidance):",
+      "label1": "On your relay host",
+      "p3": "The <code1>-v remote-pi-data:/data</code1> mount is required — that's where the relay keeps <code1>mesh.db</code1> (the Owner-signed mesh blobs). Skip the volume and the table is wiped on every container restart, forcing every client to re-publish.",
+      "p4": "The relay serves the WebSocket upgrade, <code1>/health</code1>, and <code1>/mesh/'<'owner_pk_hash'>'</code1> on the same port (default 3000) — point your reverse proxy at one upstream and you're done. Use <code1>/health</code1> for liveness probes (Coolify, Kubernetes, Fly health checks).",
+      "p5": "Bind the container to your VPN interface, terminate TLS in a reverse proxy, and point both your Pi and your phone at the resulting <code1>https://…</code1> URL."
+    },
+    "relay_pointPi": {
+      "title": "Pointing Pi at your own relay",
+      "p1": "Once your relay is reachable, tell the extension:",
+      "label1": "In Pi",
+      "p2": "The URL must be <code1>http://</code1> or <code1>https://</code1> — <code1>wss://</code1> / <code1>ws://</code1> are rejected at validation. The extension converts to the WebSocket form internally when it opens the connection, so you can paste whatever URL your reverse proxy or PaaS dashboard exposes.",
+      "p3": "This writes <code1>~/.pi/remote/config.json</code1> with <code1>'{' \"relay\": \"...\" '}'</code1>. Resolution order (highest precedence first):",
+      "li1": "<code1>REMOTE_PI_RELAY</code1> environment variable (CI / one-off overrides)",
+      "li2": "The built-in default (<code1>https://relay-rp1.jacobmoura.work</code1>)",
+      "p4": "Verify the active URL and its source with:",
+      "label2": "In Pi",
+      "p5": "To switch URLs while connected: <code1>/remote-pi stop</code1> then <code1>/remote-pi</code1> again. The mobile app has its own relay-URL setting in its preferences pane — keep both pointing at the same relay."
+    },
+    "protocol": {
+      "title": "Protocol & Security",
+      "p1": "The canonical spec for everything wire-level — envelope format, identity model (Owner key + per-device subkeys), ACK protocol, cross-PC routing, mesh membership, trust model, and failure modes — lives in <a4>PROTOCOL.md</a4> on GitHub. It is the source of truth that the Pi extension, the mobile apps, and the relay all implement against. Read it when you need exact behavior or when writing a new harness adapter.",
+      "p2": "<strong1>Security posture, in short.</strong1> Connections to the relay are <strong1>encrypted in transit (TLS)</strong1>, and devices authenticate each other with <strong1>Ed25519 pairing</strong1>, so paired peers verify identity cryptographically. Message payloads are <strong1>not</strong1> encrypted at the application layer — the relay operator could in principle read plaintext in memory while forwarding. If you need confidentiality from the relay operator, <a9>self-host the relay</a9> behind a VPN. The Privacy Policy, section 9, restates this in plain language, and PROTOCOL.md is the deep dive that matches the code."
+    },
+    "commands": {
+      "title": "Command reference",
+      "p1": "Every command works as a Pi slash command (interactive) and as a shell-level <code1>remote-pi '<'subcommand'>'</code1> when the package is installed globally (<code1>npm install -g remote-pi</code1>).",
+      "p2": "The footer in the Pi TUI reflects state live:",
+      "li1": "<code1>📡 local (N)</code1> — local mesh session and peer count",
+      "li2": "<code1>🟢 relay</code1> — relay connected, at least one device paired on this machine",
+      "li3": "<code1>🟡 relay waiting for pairing</code1> — relay connected, no device paired yet",
+      "li4": "<code1>📱 '<'shortid'>'</code1> — a mobile device is actively connected right now",
+      "p3": "The window title is two parts — <code1>'<'agent-name'>' · On</code1> when the relay is up or <code1>'<'agent-name'>' · Off</code1> otherwise — so you can tell your terminal tabs apart at a glance."
+    },
+    "commands_commandsLocal": {
+      "title": "Local session — one Pi, one terminal",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Connect (join local mesh + start relay), or run setup on first use",
+      "td2": "Run the setup wizard and update local config",
+      "td3": "Show local mesh + relay status",
+      "td4": "List local and cross-PC mesh peers, grouped by PC label",
+      "cell1": "Stop everything for <em1>this</em1> terminal (mesh + relay)",
+      "td5": "Show QR + copy-paste pairing URI for a new mobile device (QR valid 60s by default; --ttl clamps to 10–600s)",
+      "td6": "List paired mobile devices (online/offline per device)",
+      "td7": "Revoke a paired device by its shortid (brings the relay up first, like pair, to notify the device)",
+      "td8": "Persist a new relay URL (http:// or https://)"
+    },
+    "commands_commandsDaemon": {
+      "title": "Daemon fleet — one supervisor, N background Pis",
+      "p1": "See <a2>Daemon mode</a2> for the overview and the <link6>Daemon mode tutorial</link6> for the full how-to.",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Register a folder as a daemon (starts it when the supervisor is running)",
+      "td2": "Unregister a daemon (local config preserved)",
+      "td3": "List registered daemons + state",
+      "td4": "Start one daemon by id, or every registered daemon with no id",
+      "cell1": "Stop one daemon by id, or every running daemon with no id (<code1>/remote-pi stop</code1> stops only the local terminal)",
+      "td5": "Restart one daemon by id, or every daemon with no id",
+      "td6": "Detailed runtime status (pid, uptime, restart count)",
+      "td7": "Send a prompt to a specific daemon",
+      "cell2": "Install <code1>pi-supervisord</code1> as a system service <strong1>and</strong1> symlink the <code1>remote-pi</code1> CLI into <code1>~/.local/bin/</code1>",
+      "cell3": "Remove the system service <strong1>and</strong1> the <code1>~/.local/bin</code1> symlinks (daemon registry preserved)"
+    },
+    "commands_commandsCron": {
+      "title": "Daemon cron — scheduled prompts",
+      "p1": "Schedule recurring prompts to a daemon. The scheduler runs <strong1>inside the supervisor</strong1>, so it only fires when the supervisor is installed as a service (<a2>Daemon mode</a2> / <code1>/remote-pi install</code1>) — otherwise <code1>cron add</code1> warns instead of scheduling. See the <link7>Daemon mode tutorial</link7> for the walkthrough.",
+      "th1": "Command",
+      "th2": "Description",
+      "td1": "Schedule a recurring prompt to a daemon (5-field cron expression; runs must be ≥60s apart)",
+      "td2": "List jobs: schedule, enabled, last run / status, next run",
+      "td3": "Fire a job now, ignoring its schedule",
+      "td4": "Resume a paused job",
+      "td5": "Pause a job without deleting it",
+      "td6": "Delete a job",
+      "cell1": "Tail the fire / skip audit log (default N = 20), optionally for one job",
+      "li1": "<strong1>Minimum interval 60s.</strong1> A more frequent expression is rejected (each fire spends tokens). Croner syntax — five fields (<code1>min hour day-of-month month day-of-week</code1>), plus an optional seconds field, still bounded by the 60s floor.",
+      "li2": "<strong1>Timezone per job.</strong1> <code1>--tz Area/City</code1> resolves DST; without it a job runs in the machine's local time.",
+      "li3": "<strong1>Overlap & downtime.</strong1> A fire is skipped while the daemon is mid-turn (<code1>--no-skip-busy</code1> overrides), skipped if the daemon is down (<code1>--wake</code1> starts it first), and at most one missed run is replayed on startup (<code1>--catchup</code1>, off by default).",
+      "li4": "<strong1>Audit.</strong1> Every fire <em1>and</em1> every skip appends one line to <code1>~/.pi/remote/cron.jsonl</code1> with a <code1>result</code1> of <code1>delivered</code1>, <code1>deliver_failed</code1>, <code1>woke_and_delivered</code1>, <code1>skipped_busy</code1>, <code1>skipped_down</code1>, or <code1>skipped_disabled</code1>. The agent's reply itself is fire-and-forget into the mesh — cron records the trigger, not the response."
+    },
+    "config": {
+      "title": "Configuration files",
+      "th1": "Path",
+      "th2": "Scope",
+      "th3": "What's in it",
+      "td1": "Per-directory",
+      "td2": "Per-user",
+      "cell1": "<code1>relay</code1> URL",
+      "td3": "Per-machine",
+      "td4": "Paired mobile devices",
+      "td5": "Per-machine",
+      "cell2": "Daemon registry (list of <code1>'{' cwd, name '}'</code1> entries)",
+      "td6": "Per-machine",
+      "cell3": "Pi-secret fallback when the OS keyring is unavailable (headless Linux). Stored with <code1>chmod 0600</code1>. See <a4>PROTOCOL.md</a4> for the keyring details.",
+      "td7": "Per-machine",
+      "cell4": "Broker socket + <code1>audit.jsonl</code1>",
+      "td8": "Per-user",
+      "td9": "Agent skill the LLM reads",
+      "p1": "Override the relay for a single run without persisting:",
+      "label1": "Shell",
+      "p2": "Only <code1>http://</code1> / <code1>https://</code1> are accepted — <code1>wss://</code1> / <code1>ws://</code1> are rejected at validation, the extension converts to the WebSocket form internally when it opens the connection.",
+      "p3": "Daemons don't read the per-directory file at all — the supervisor injects their whole config inline via the <code1>REMOTE_PI_DIRECT_CONFIG</code1> environment variable at spawn (a fixed <code1>assistent</code1> workspace with the relay on), so a daemon folder needs no <code1>.pi/remote-pi/</code1> of its own. You can set the same variable yourself to override <code1>'<'cwd'>'/.pi/remote-pi/config.json</code1> for a single run — an escape hatch for CI, ops, and the Cockpit desktop client:",
+      "label2": "Shell"
+    },
+    "troubleshooting": {
+      "title": "Troubleshooting"
+    },
+    "troubleshooting_footerStuck": {
+      "title": "Footer says 🟡 relay waiting for pairing even though I paired a device",
+      "p1": "The icon reflects whether <em1>any</em1> device has been paired on this machine, not whether one is connected right now. If you really have a paired device in <code1>/remote-pi devices</code1>, restart Pi — the cache may be stale (fixed in current release; report a bug if it recurs)."
+    },
+    "troubleshooting_timeoutMobile": {
+      "title": "Mobile app times out connecting",
+      "p1": "Verify the same relay URL is configured on both sides. If you self-host behind a VPN, your phone must also be on the VPN (Tailscale on iOS/Android works fine)."
+    },
+    "troubleshooting_timeoutRequest": {
+      "title": "Reply never arrives",
+      "p1": "<code1>agent_send</code1> returned <code1>'{' status: \"received\" '}'</code1> but no reply ever lands in your inbox. Possible causes:",
+      "li1": "<strong1>Receiver crashed or never processed.</strong1> Run <code1>/remote-pi peers</code1> to see whether the peer is still online.",
+      "li2": "<strong1>The receiver chose not to reply.</strong1> <code1>agent_send</code1> is not RPC — there's no obligation to respond. If the conversation needs a reply, the prompt to the receiver must say so explicitly.",
+      "li3": "<strong1>Cross-PC: peer went offline.</strong1> Look in your inbox for a <code1>transport_error</code1> envelope with <code1>re='<'your-send-id'>'</code1> — the relay returns one when a forwarded message can't be delivered. A <code1>Delivered</code1> ACK only means the remote broker accepted the envelope, not that the peer is alive — validate by roundtrip.",
+      "p2": "<strong1>Note:</strong1> <code1>agent_request</code1> is deprecated (still available as a wrapper for backward compat, emits a warning). New agents call <code1>agent_send</code1> and observe the inbox in a future turn."
+    },
+    "troubleshooting_onePiPerCwd": {
+      "title": "Two Pi processes can't share a directory",
+      "p1": "A cwd lock allows <strong1>one Pi process per directory</strong1>. If you try to run <code1>/remote-pi</code1> in a second terminal that's already in the same folder, the second start is rejected (and the relay, separately, refuses a duplicate room with <code1>RoomAlreadyOpenError</code1>).",
+      "p2": "<strong1>To run two agents side by side:</strong1> put them in two different directories — each gets its own workspace and both meet in the same <code1>local</code1> session. See the <link3>Local mesh tutorial</link3>.",
+      "p3": "If you actually wanted a second terminal at the same workspace (e.g. just to read state), stop the running Pi first or open a shell that does <em1>not</em1> launch Pi."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "Homepage: <link8>Remote Pi</link8>",
+      "li2": "Tutorials: <link1>hands-on guides</link1>",
+      "li3": "Cockpit reference: <link9>CLI, layouts, tasks, themes</link9>",
+      "li4": "Source: <a10>github.com/jacobaraujo7/remote_pi</a10>",
+      "li5": "Protocol spec: <a4>PROTOCOL.md</a4>",
+      "li6": "Pi coding agent: <a1>github.com/earendil-works/pi</a1>",
+      "li7": "Relay (self-hosting guide): <a11>relay/README.md</a11>",
+      "li8": "Issues / bugs: <a12>github.com/jacobaraujo7/remote_pi/issues</a12>",
+      "p1": "License: MIT."
+    },
+    "meta": {
+      "title": "Docs",
+      "description": "Reference for Remote Pi: the relay, protocol & security, the full command reference, configuration files, and troubleshooting."
+    },
+    "toc": {
+      "quickStart": "Quick start",
+      "whatItDoes": "What it does",
+      "install": "Install",
+      "pairing": "Pairing a mobile device",
+      "quickActions": "Quick actions from the phone",
+      "agentNetwork": "Agent network",
+      "daemonMode": "Daemon mode",
+      "relay": "The relay",
+      "communityRelay": "Community relay",
+      "selfHost": "Self-host",
+      "pointPi": "Point Pi at your relay",
+      "protocol": "Protocol & Security",
+      "commands": "Command reference",
+      "commandsLocal": "Local session",
+      "commandsDaemon": "Daemon fleet",
+      "commandsCron": "Daemon cron",
+      "config": "Configuration files",
+      "troubleshooting": "Troubleshooting",
+      "footerStuck": "Stuck on pairing",
+      "timeoutMobile": "Mobile times out",
+      "timeoutRequest": "Reply never arrives",
+      "onePiPerCwd": "One Pi per cwd",
+      "links": "Links",
+      "usingRemotePi": "Using <code1>/remote-pi</code1>"
+    }
+  },
+  "DocsShared": {
+    "tocOnThisPage": "On this page",
+    "pagerAriaLabel": "Tutorial navigation",
+    "pagerPrev": "← Previous",
+    "pagerNext": "Next →"
+  },
+  "CockpitDocs": {
+    "intro": {
+      "span1": "Documentation · Cockpit",
+      "h11": "Cockpit reference",
+      "span2": "Last updated: 2026-09-21",
+      "span3": "License: MIT",
+      "p1": "Everything the desktop app reads from your repository or writes to your machine: the internal <code1>cockpit</code1> CLI that agents use to drive tabs, the <code1>.ckp</code1> pane layouts, the <code1>.cockpit/tasks.json</code1> Task Run file, the theme format, the documents that open as tabs, the <code1>.env.cockpit</code1> that feeds your terminals, and the harness hooks behind the turn status. For the product tour, see the <link1>Cockpit page</link1>; for the mesh, daemons, and the relay, see the <link2>Remote Pi docs</link2>."
+    },
+    "install": {
+      "title": "Install",
+      "p1": "Cockpit ships for macOS, Windows, and Linux. macOS builds are signed and notarized, and every platform that supports it gets in-app updates. Grab a build from the <link3>download page</link3> — <code1>.dmg</code1>, <code1>.exe</code1>, <code1>.deb</code1> and <code1>.rpm</code1> (x64 and arm64), each with a published SHA-256.",
+      "p2": "Cockpit is a terminal first: it needs no account, no cloud and nothing else installed to be useful. Agents run as ordinary processes in its tabs, so the harness you already use (Claude Code, Codex CLI, Pi, OpenCode) is the one that runs here.",
+      "p3": "Working on another machine is SSH plus <code1>cockpit-server</code1>, described in <a1>Remote hosts & VPS</a1>. That is unrelated to the Remote Pi relay: the mesh, the phone app and the 24/7 daemons belong to the <link4>Remote Pi project</link4> and are not part of Cockpit."
+    },
+    "cli": {
+      "title": "The cockpit CLI",
+      "p1": "Cockpit materializes a small binary at <code1>~/.cockpit/bin/cockpit</code1> and puts that folder on the <code1>PATH</code1> of the terminals it spawns — and only those. So the CLI exists for anything running inside Cockpit (you, a script, an agent) and does not leak into the rest of your shell environment. It talks to the app over a local socket: a Unix socket on macOS and Linux, a loopback TCP port plus a token on Windows.",
+      "p2": "This is what makes Cockpit an <em1>agentic</em1> multiplexer: an agent in one tab can open another tab, type into it, read what it printed, run a project task, or query a database — the same verbs a human uses, with no screen scraping."
+    },
+    "cli_cliTargets": {
+      "title": "Targets & ids",
+      "p1": "The unit the CLI addresses is a <strong1>tab</strong1> (one terminal or agent session). A <strong1>pane</strong1> is the split leaf that groups tabs and is not addressable — <code1>list-panes</code1> and <code1>read-pane</code1> survive as legacy aliases.",
+      "th1": "Flag",
+      "th2": "What it does",
+      "cell1": "Target another tab. Defaults to <code1>$COCKPIT_TAB_ID</code1> (the current tab; legacy fallback <code1>$COCKPIT_PANE_ID</code1>).",
+      "cell2": "Target whatever tab you are looking at, resolved by the app. Works from outside a Cockpit terminal too (dictation tools, scripts): with no env inherited the CLI finds the app through <code1>~/.cockpit/status.sock</code1>. Wins over <code1>--tab-id</code1>.",
+      "cell3": "(<code1>send</code1> only) press Enter right after the text, as a separate keystroke — a <code1>send</code1> plus a <code1>send-key Enter</code1> in one call.",
+      "callout1": "Tab ids reset on boot",
+      "p2": "Ids (<code1>t0</code1>, <code1>t1</code1>…) are assigned per app boot, so never hardcode one. Discover them with <code1>cockpit list-tabs</code1>, or give a tab a <strong1>stable label</strong1> (double-click the tab, or <code1>new-tab --title</code1>) and address it by name. Labels persist across boots; workspace ids are opaque UUIDs, so use <code1>workspacePath</code1> / <code1>path</code1> when you need the folder on disk."
+    },
+    "cli_cliCommands": {
+      "title": "Command reference",
+      "th1": "Command",
+      "th2": "What it does",
+      "td1": "Type text into a tab.",
+      "cell1": "Press named keys: <code1>Enter Tab Escape Space BSpace Up Down Left Right Home End PageUp PageDown Delete</code1> and <code1>C-'<'letter'>'</code1> (e.g. <code1>C-c</code1>).",
+      "cell2": "Open a file in the app's viewer. Bare <code1>cockpit '<'file'>'</code1> is a shortcut for it, relative to the tab's cwd.",
+      "cell3": "Open a terminal tab and print its id. <code1>h</code1>/<code1>right</code1> splits side by side, <code1>v</code1>/<code1>down</code1> stacks; omit to open as a tab in the same pane. Anchored at the emitting tab's pane.",
+      "cell4": "Read a tab's rendered output. No target = the current tab. Alias: <code1>read-pane</code1>.",
+      "td2": "Read a task's output, even with no tab open for it.",
+      "cell5": "List active tabs (alias: <code1>list-panes</code1>). The JSON carries <code1>label</code1>, <code1>workspacePath</code1>, <code1>working</code1> and, for task output tabs, <code1>taskId</code1>.",
+      "td3": "List workspaces (projects) and their paths.",
+      "cell6": "List this workspace's tasks. <code1>[output]</code1> marks tasks whose output <code1>read-task</code1> can read (ran this boot); ● marks tasks running right now.",
+      "cell7": "SQL databases registered in the workspace — see <a2>Databases</a2>.",
+      "td4": "Run a Redis command, or open the key table for a human.",
+      "td5": "Run a MongoDB command, or open the collection browser.",
+      "cell8": "Apply a pane layout — see <a3><code1>.ckp</code1> layouts</a3>.",
+      "td6": "Install the Claude Code skill that teaches this CLI.",
+      "label1": "Cockpit terminal"
+    },
+    "cli_cliRead": {
+      "title": "Reading output",
+      "p1": "<code1>read-tab</code1> and <code1>read-task</code1> share a windowing model. Output is always chronological (top to bottom); the flags only pick which window you get.",
+      "th1": "Flag",
+      "th2": "Default",
+      "th3": "What it does",
+      "td1": "How many lines to return (server cap: 2000).",
+      "td2": "Skip N lines from the anchor — this is your pagination.",
+      "td3": "off",
+      "td4": "Anchor at the start of the buffer instead of the tail.",
+      "p2": "Task ids are stable per workspace: <code1>npm:'<'script'>'</code1> from <code1>package.json</code1>, <code1>flutter:run</code1> / <code1>flutter:test</code1>, and <code1>json:'<'label'>'</code1> from <code1>.cockpit/tasks.json</code1>."
+    },
+    "layouts": {
+      "title": ".ckp pane layouts",
+      "p1": "A <code1>.ckp</code1> file is a versionable YAML that describes the terminals to open in a workspace — the equivalent of a tmuxinator layout. One file is one layout, and the file name is the layout name (<code1>dev.ckp</code1> → layout “dev”). Commit it, and a teammate gets your working geometry on clone.",
+      "p2": "There are three ways to apply one:",
+      "li1": "<strong1>GUI</strong1> — right-click the <code1>.ckp</code1> file in the tree → <strong1>Open layout</strong1>.",
+      "li2": "<strong1>CLI</strong1> — <code1>cockpit orchestrate dev.ckp</code1> from inside a tab.",
+      "li3": "<strong1>Worktree autorun</strong1> — <code1>autorun: worktree</code1> in the file: the layout is applied by itself whenever you create a worktree of the workspace. The worktree is born empty, so the geometry comes out exact."
+    },
+    "layouts_layoutsFields": {
+      "title": "Fields",
+      "p1": "<strong1>Root:</strong1> <code1>panes</code1> (required) is the list of panes in creation order. <code1>autorun</code1> (optional) accepts only <code1>worktree</code1>; with two or more autorun files at the root, none of them runs — ambiguity is never guessed.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Default",
+      "th4": "Description",
+      "td1": "yes",
+      "td2": "Unique (case-insensitive). Becomes the tab's manual label and the merge key.",
+      "td3": "no",
+      "cell1": "Relative to the file's folder, forward slashes only. Absolute paths and <code1>\\</code1> are rejected for portability.",
+      "td4": "no",
+      "cell2": "Where it is born, relative to the <em1>previously created</em1> pane: <code1>tab</code1>, <code1>right</code1>, <code1>down</code1>.",
+      "td5": "no",
+      "td6": "Typed into the terminal and run by the tab's shell (resolved through the machine's PATH).",
+      "td7": "no",
+      "td8": "all",
+      "cell3": "<code1>macos</code1> / <code1>windows</code1> / <code1>linux</code1>, string or list — same semantics as in <code1>tasks.json</code1>."
+    },
+    "layouts_layoutsMerge": {
+      "title": "Replace semantics",
+      "li1": "Opening a layout means <strong1>become this layout</strong1>: the file is validated first, then every tab of the workspace is closed (pinned ones included), then the panes are built with exact geometry. If any tab has work running (an agent mid-turn, a process in a terminal, a live task) the GUI asks before closing; idle tabs close silently.",
+      "li2": "<code1>cockpit orchestrate dev.ckp</code1> replaces without asking and keeps only the tab that ran the command. Pass <code1>--append</code1> to keep the old additive behavior: panes whose <code1>name</code1> already exists are skipped and nothing is closed. The worktree autorun always appends (the worktree is born empty, so it makes no difference).",
+      "li3": "A missing <code1>cwd</code1> or invalid YAML gives a readable error (dialog in the GUI, stderr in the CLI); nothing is applied halfway from the failing pane on.",
+      "li4": "<code1>command</code1> is typed ~700 ms after the tab opens, so the shell has time to finish booting, with Enter at the end.",
+      "p1": "Cockpit treats <code1>.ckp</code1> as YAML for highlighting and shows the Cockpit logo as the file icon in the tree."
+    },
+    "tasks": {
+      "title": "Task Run",
+      "p1": "Task Run executes your project's build and dev commands (<code1>npm run dev</code1>, <code1>flutter run</code1>, <code1>go run</code1>, <code1>make</code1>…) with streamed output, a visual lifecycle (play / stop / restart), interactive keys, and reload-on-save. Two sources coexist:",
+      "li1": "<strong1>Auto-detected</strong1> — on opening a project, Cockpit reads the manifests (<code1>package.json</code1> scripts, <code1>pubspec.yaml</code1>) and shows tasks with no config at all.",
+      "li2": "<strong1>Declared</strong1> — <code1>.cockpit/tasks.json</code1>, for customizing, adding tasks, or describing a monorepo. JSON tasks take precedence over a detected task with the same id.",
+      "callout1": "The runner is generic",
+      "p2": "It knows only <code1>command</code1>, <code1>args</code1>, and <code1>env</code1>. There are no stack-specific keys (flavor, dart-define, <code1>NODE_ENV</code1>) — all of that is expressed as <code1>args</code1> and <code1>env</code1>."
+    },
+    "tasks_tasksFile": {
+      "title": "Where the file lives",
+      "p1": "At the <strong1>root of the workspace you open</strong1>. Discovery is literal — Cockpit does not walk up the tree. For a single package, open the package folder. For a <strong1>monorepo</strong1>, open the root and let one <code1>.cockpit/tasks.json</code1> drive the subpackages through a per-task <code1>cwd</code1>.",
+      "p2": "The file is <strong1>JSONC</strong1>: comments (<code1>//</code1> and <code1>/* */</code1>) and trailing commas are allowed, just like VSCode's <code1>tasks.json</code1>. Point <code1>$schema</code1> at <a4><code1>docs/tasks.schema.json</code1></a4> for editor autocomplete; Cockpit ignores the field when running."
+    },
+    "tasks_tasksFields": {
+      "title": "Fields",
+      "p1": "Root: <code1>tasks</code1> (required) and <code1>cwd</code1> (optional) — a default <code1>cwd</code1> for every task, which each task may override.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Default",
+      "th4": "Description",
+      "td1": "yes",
+      "cell1": "Short display name. The task id is derived from it: <code1>json:'<'label'>'</code1>.",
+      "td2": "yes",
+      "td3": "Base executable (npm, flutter, dart…).",
+      "td4": "no",
+      "td5": "Base args, placed before the profile's args.",
+      "td6": "no",
+      "td7": "root",
+      "cell2": "Run folder, relative to the <code1>tasks.json</code1> folder (absolute also accepted). Falls back to the top-level <code1>cwd</code1>, then the root.",
+      "td8": "no",
+      "td9": "all",
+      "cell3": "OSes where the task is visible: <code1>macos</code1>, <code1>windows</code1>, <code1>linux</code1>.",
+      "td10": "no",
+      "cell4": "<code1>watch</code1> (long-lived process, e.g. a dev server) or <code1>oneShot</code1> (runs and exits).",
+      "td11": "no",
+      "cell5": "Buttons that write to the process' stdin: <code1>key</code1>, <code1>label</code1>, optional <code1>icon</code1> (<code1>refresh</code1>, <code1>restart</code1>, <code1>stop</code1>, <code1>bolt</code1>) and <code1>primary</code1>.",
+      "td12": "no",
+      "cell6": "Reload on save: <code1>paths</code1>, <code1>ignore</code1>, <code1>onChange</code1> (required — an <code1>interactiveKeys</code1> label or <code1>\"__restart__\"</code1>) and <code1>debounceMs</code1> (300). Leave it out for tools that already watch (Vite, Next).",
+      "td13": "no",
+      "cell7": "<code1>begin</code1> / <code1>end</code1> regexes that swing the badge between <em1>building</em1> and <em1>running</em1>.",
+      "td14": "no",
+      "cell8": "Named run variants (launch configs): <code1>name</code1>, extra <code1>args</code1> appended after the task's, and <code1>env</code1> merged into the process environment. A chip cycles them before you hit play.",
+      "callout1": "Two known limits",
+      "p2": "For an argument value containing spaces, use <strong1>separate items</strong1> in <code1>args</code1> (<code1>[\"--dart-define\", \"MSG=hello world\"]</code1>). And the output tab does not survive an app restart — the task dies with it."
+    },
+    "databases": {
+      "title": "Databases",
+      "p1": "Connections live per workspace in <code1>.cockpit/databases.json</code1>, plus any SQLite files Cockpit auto-detects in the project. SQLite, Postgres, MySQL, SQL Server, Redis, and MongoDB open as tabs: a table view for SQL and Redis, a collection browser for MongoDB. A <code1>.dbq</code1> file is a saved query you can commit and re-run.",
+      "p2": "The same connections are reachable from the CLI, and the output is <strong1>one JSON line</strong1> — built to be parsed by an agent, not read by a human.",
+      "label1": "Cockpit terminal",
+      "callout1": "Per-connection guardrails",
+      "p3": "Each connection carries an <code1>access</code1> level (<code1>read</code1> — the default, including for connections created before the field existed — or <code1>readwrite</code1>) and an <code1>agents</code1> flag. A connection with <code1>agents: false</code1> is invisible to the CLI. The gates are enforced on the CLI surface: what you do by hand in the GUI is never blocked, but what an agent can reach is yours to decide. Run <code1>cockpit db --help</code1> for the full surface."
+    },
+    "documents": {
+      "title": "Documents as tabs",
+      "p1": "Besides terminals, a Cockpit tab can be a document. Each one is a plain file in your repository, so git sees it, your agent can write it from the CLI, and nothing is locked inside the app. The <strong1>Gallery</strong1> panel, next to Database, has one card per document type: click it and the file is created at the workspace root and opened, on local and remote workspaces alike."
+    },
+    "documents_documentsNotebook": {
+      "title": "Notebook (.notebook)",
+      "p1": "A folder whose name ends in <code1>.notebook</code1> is a notebook: one <code1>.md</code1> per note, each with a shallow YAML frontmatter. Cockpit shows the folder as a single item in the tree and opens it as a notes tab. Outside the app it is an ordinary folder, so git, Obsidian and an agent in the terminal read the same files.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "Notes",
+      "td1": "no",
+      "td2": "Without it, the title is the file name minus .md",
+      "td3": "no",
+      "cell1": "A list <code1>[a, b]</code1>. With none, the note lands in the “no tag” group",
+      "td4": "no",
+      "td5": "no",
+      "td6": "Rewritten by the app on save",
+      "p2": "The parser never throws: a file with no frontmatter, or with an unterminated <code1>---</code1>, becomes a note whose body is the whole content. The app only rewrites the <code1>title</code1>, <code1>tags</code1> and <code1>updated</code1> lines, leaving the body and any other key untouched.",
+      "p3": "Notes are always editable, in a single mode: the markdown is painted live as you type while the markers stay visible, so the file remains plain markdown. It saves on its own about a second and a half after you stop typing (and on tab change or close), and ⌘S forces it. Pasting or dropping an image writes it to <code1>_assets/</code1> inside the notebook. <code1>[[Note title]]</code1> in the body becomes a clickable chip, creating the note if it does not exist, and each note lists its backlinks at the bottom.",
+      "label1": "Cockpit terminal",
+      "callout1": "The agent tag",
+      "p4": "The CLI always adds the reserved tag <code1>agent</code1> to a note it writes, and the UI marks those with a spark, so a note left by an agent is never confused with one you wrote."
+    },
+    "documents_documentsHttp": {
+      "title": "HTTP requests (.http)",
+      "p1": "A <code1>.http</code1> file is a request tab: editor on one side, response on the other. The syntax is the one the REST Client and JetBrains HTTP Client use, so files you already have work here: <code1>###</code1> separates requests, <code1>@name = value</code1> declares a variable and <code1>'{{'name'}}'</code1> interpolates it. Run the request under the cursor with ⌘↵ and read the response as JSON, as headers or as raw text.",
+      "p2": "The agent runs the same file through the CLI, and gets one JSON line back. A 4xx or 5xx is a normal response, so it should check <code1>status</code1> rather than the exit code.",
+      "label1": "Cockpit terminal"
+    },
+    "documents_documentsMore": {
+      "title": "Boards, diagrams and windows",
+      "li1": "<strong1>Kanban</strong1>: a <code1>.kanban</code1> markdown file renders as a board, with dependencies between cards (<code1>blockedBy</code1>, plus blocked and ready filters), a title and label filter, drag and drop in list mode, markdown in comments, and a hold on the advance arrow to send a card straight to the last column.",
+      "li2": "<strong1>Mermaid</strong1>: a <code1>```mermaid</code1> fence renders as a diagram in the markdown preview, offline, in your theme. Prefer it over ASCII art when an agent explains a flow.",
+      "li3": "<strong1>Document window</strong1>: open any file in its own light window from the app, or straight from the operating system. Double-click a <code1>.kanban</code1>, <code1>.notebook</code1>, <code1>.ckp</code1>, <code1>.dbq</code1>, <code1>.http</code1> or a markdown file in Finder, in Explorer or in your Linux file manager, and Cockpit opens it, forwarding the path to the instance you already have running."
+    },
+    "env": {
+      "title": "Workspace environment (.env.cockpit)",
+      "p1": "A plain <code1>KEY=VALUE</code1> file named <code1>.env.cockpit</code1> at the workspace root is injected into every terminal Cockpit opens there: every root of a multi-root workspace, and remote workspaces too, where the host reads its own copy right before spawning the shell. Put the tokens your agents need there instead of pasting them into a prompt. New tabs pick up changes, and <strong1>Restart</strong1> reloads an existing tab in place."
+    },
+    "env_envRedaction": {
+      "title": "Redaction",
+      "p1": "Values injected from the file are replaced by <code1>***</code1> before the output reaches the emulator, which covers the screen, the saved scrollback and <code1>cockpit read-tab</code1> at once. An agent reading another tab does not read your secrets back.",
+      "p2": "Out of scope, on purpose: a value that the program re-encodes (base64, for instance) or splits with ANSI escapes, and the file itself, which is an ordinary file that anything with your permissions can read."
+    },
+    "env_envBlocked": {
+      "title": "Keys that are never injected",
+      "p1": "Keys that change <em1>who runs what</em1> are ignored, so a file that arrives with a repository cannot redirect the programs your shell starts:",
+      "label1": "blocked",
+      "p2": "On top of that, when the <code1>.env.cockpit</code1> is tracked by git (so it came with the repository, it is not yours), new terminals print a notice listing the key <em1>names</em1> it injected, never the values. The Gallery card that creates the file also keeps it out of git."
+    },
+    "env_envAccounts": {
+      "title": "A personal and a work account, side by side",
+      "p1": "Claude Code and Codex read their whole account (credentials, settings and history) from a directory you can point somewhere else, and Cockpit injects those variables per workspace like any other. That is the recipe for separate accounts: no extra feature, one line per workspace.",
+      "p2": "Restart the tabs (or open new ones), run <code1>claude</code1> and log in once with <code1>/login</code1>. From then on that workspace uses that account, and your other workspaces keep the default one. Use absolute paths: the variables name a directory, not a profile."
+    },
+    "themes": {
+      "title": "Themes",
+      "p1": "Cockpit ships nine built-in themes — <code1>cockpit</code1>, <code1>cockpit.2</code1>, <code1>violet</code1>, <code1>violet.2</code1>, <code1>midnight</code1>, <code1>rose</code1>, <code1>sun</code1>, <code1>flexoki</code1> and <code1>pantera</code1> — each with a light and a dark variant. Beyond those, a theme is <strong1>a single JSON file</strong1> that paints all three layers at once: the app UI, the code viewer's syntax highlighting, and the terminal palette."
+    },
+    "themes_themesFile": {
+      "title": "The theme file",
+      "li1": "Import with <strong1>Settings → Appearance → Theme → Import…</strong1>",
+      "li2": "Themes live in <code1>'<'data folder'>'/themes/</code1> (the same root as the “Storage” setting), one file per theme, named after its <code1>id</code1>. Copying a <code1>.json</code1> in there installs it too.",
+      "li3": "Export produces a <strong1>complete</strong1> file (every token, no <code1>extends</code1>) — a good starting point for hand editing.",
+      "th1": "Field",
+      "th2": "Required",
+      "th3": "What it is",
+      "td1": "yes",
+      "cell1": "Stable, namespaced identity (<code1>publisher.name</code1>). It is what gets stored in preferences, so renaming <code1>name</code1> never loses the user's choice. Cannot collide with a built-in id.",
+      "td2": "yes",
+      "td3": "What shows up in the picker.",
+      "td4": "no",
+      "td5": "Metadata.",
+      "td6": "no",
+      "td7": "Metadata.",
+      "td8": "no",
+      "cell2": "Id of a built-in theme to inherit from. Absent = inherits from <code1>cockpit</code1>.",
+      "td9": "yes",
+      "cell3": "At least one of <code1>dark</code1> / <code1>light</code1>. A dark-only theme is applied in light mode too — better than mixing half a light theme with half a dark one.",
+      "p1": "<strong1>Inheritance is the point.</strong1> Every token you do not declare comes from the base, so a useful theme can be five lines long:",
+      "p2": "Colors are CSS-style hex — <code1>#RGB</code1>, <code1>#RRGGBB</code1> or <code1>#RRGGBBAA</code1>, <strong1>alpha last</strong1>. It is not Dart's <code1>0xAARRGGBB</code1>. On a bad import the parser points at the <strong1>field path</strong1> that broke (<code1>variants.dark.ui.accent</code1>), and validation runs before the copy, so an invalid file never reaches the themes folder.",
+      "label1": "theme.json — shape"
+    },
+    "themes_themesTokens": {
+      "title": "Tokens",
+      "th1": "Group",
+      "th2": "Tokens",
+      "cell1": "Surfaces <code1>bg</code1> <code1>panel</code1> <code1>panel2</code1> <code1>panel3</code1> · strokes <code1>border</code1> <code1>border2</code1> · text <code1>text</code1> <code1>text2</code1> <code1>text3</code1> <code1>text4</code1> · brand <code1>accent</code1> <code1>accentSoft</code1> <code1>accentText</code1> · state <code1>online</code1> <code1>ok</code1> <code1>error</code1> <code1>warn</code1> · editing <code1>edited</code1> <code1>editedBg</code1> · git <code1>gitStaged</code1> <code1>gitUntracked</code1> <code1>gitDeleted</code1> <code1>gitConflict</code1> · overlay <code1>scrim</code1> <code1>shadow</code1>",
+      "cell2": "<code1>cursor</code1> <code1>selection</code1> <code1>foreground</code1> <code1>background</code1>, the 8 normal ANSI colors, their 8 <code1>bright*</code1> counterparts, and <code1>searchHitBackground</code1> <code1>searchHitBackgroundCurrent</code1> <code1>searchHitForeground</code1>",
+      "p1": "Text drawn <em1>on top of</em1> <code1>accent</code1> and <code1>error</code1> is not a token: it is derived from the color's luminance, so a light accent automatically gets dark text.",
+      "p2": "<code1>syntax.background</code1> has a special default. The code viewer, the editor, and the terminal are all content inside a tab, so they share the field: when a theme declares neither <code1>syntax.background</code1> nor <code1>terminal.background</code1>, the three follow <code1>ui.panel</code1> of <em1>this</em1> theme, not of the base. Declare the field if your code palette needs a surface of its own.",
+      "p3": "The <code1>$schema</code1> URL lives in the repository, versioned next to the code that implements it, so the app and the schema can never drift apart. Cockpit ignores the field when reading a theme — it only serves your editor. See <a5><code1>theme.example.json</code1></a5> for a commented file with every group filled in."
+    },
+    "turnStatus": {
+      "title": "Agent turn status",
+      "p1": "When an agent runs in a tab, Cockpit shows whether it is <strong1>working</strong1>, <strong1>waiting</strong1> for you, or <strong1>idle</strong1> — as a spinner, a badge, a chime, and an OS notification when the window is unfocused. Supported harnesses today: <strong1>Claude Code</strong1> and <strong1>Codex CLI</strong1> (0.147+).",
+      "p2": "How it works:",
+      "li1": "At boot, Cockpit materializes the internal CLI at <code1>~/.cockpit/bin/cockpit</code1> and registers <code1>cockpit hook</code1> on the harness' lifecycle events.",
+      "li2": "On each event the harness runs the hook, passing a JSON payload on stdin.",
+      "li3": "The hook translates it into a status and sends it to the app over the local socket. (A socket rather than an escape sequence on the PTY: harnesses run hooks with no controlling terminal, and writing to <code1>/dev/tty</code1> fails with <code1>ENXIO</code1>.)",
+      "li4": "Routing is by the <code1>COCKPIT_PANE_ID</code1> env var, which the app injects into the tab's PTY. An agent session started <em1>outside</em1> Cockpit does not have it, so the hook is a no-op there. Nothing to configure, nothing to disable.",
+      "th1": "Harness",
+      "th2": "File",
+      "th3": "Format",
+      "td1": "Claude Code",
+      "cell1": "<code1>hooks.'<'Event'>'[]</code1>, each item <code1>'{'matcher, hooks:['{'type, command'}']'}'</code1>",
+      "td2": "Codex CLI",
+      "cell2": "Same shape, <strong1>plus</strong1> a trust block in <code1>~/.codex/config.toml</code1> (Codex silently ignores an untrusted hook, so Cockpit computes and writes the trust hash for you, between <code1># '>>>' cockpit hooks</code1> delimiters).",
+      "p3": "Both installers do an <strong1>idempotent append</strong1> of a marked entry (<code1>_cockpit: v1</code1>): re-running removes our old entry and re-adds it, never rewriting the list — your own hooks, and those of plugins or iTerm2, survive untouched."
+    },
+    "turnStatus_turnStatusEvents": {
+      "title": "Event mapping",
+      "th1": "Event",
+      "th2": "Claude",
+      "th3": "Codex",
+      "th4": "Status",
+      "cell1": "<code1>working</code1> (turn starts)",
+      "cell2": "<code1>working</code1> — except for Claude's blocking tools (below)",
+      "cell3": "<code1>waiting</code1> / <code1>idle</code1> (heuristic on the text)",
+      "strong1": "ignored",
+      "p1": "Two asymmetries matter. On <strong1>Claude</strong1>, tools that block waiting for the user (<code1>AskUserQuestion</code1>, <code1>ExitPlanMode</code1>) emit no <code1>Notification</code1>; the last hook before the block is <code1>PreToolUse</code1>, so that one maps to <code1>waiting</code1> for those two — otherwise the tab would spin forever with no chime. On <strong1>Codex</strong1>, approval has its own event, so there is no text heuristic and no detour."
+    },
+    "turnStatus_turnStatusResume": {
+      "title": "Resuming a session",
+      "p1": "Cockpit persists the <code1>session_id</code1> that arrived through the hook, and on restoring the tab it types the command that reattaches the conversation. A session id alone does not say which harness it belongs to, and the commands differ — <code1>claude --resume '<'id'>'</code1> versus <code1>codex resume '<'id'>'</code1> — so the installer registers the hook as <code1>cockpit hook --harness '<'name'>'</code1> and the layout stores the harness next to the id. Entries written by older versions pass no flag and are assumed to be Claude, which is what they all were.",
+      "callout1": "Codex trust is index-keyed",
+      "p2": "The Codex trust key includes the hook's group index. If you add a hook of your own <em1>before</em1> ours on the same event — or edit <code1>hooks.json</code1> by hand — the hash stops matching and the hook silently stops running. The installer repairs it on the next boot, because it recomputes the indices from the final file."
+    },
+    "remote": {
+      "title": "Remote hosts & VPS",
+      "p1": "A remote workspace is a folder on another machine, reached over SSH. Cockpit runs a small headless <code1>cockpit-server</code1> on the host, talks to it through an SSH tunnel to a Unix socket, and nothing is ever exposed on the network: SSH is the only door. Terminals and agents keep running on the host when you disconnect, and the next connection picks them up where they were.",
+      "p2": "From the <strong1>desktop</strong1> app you usually need nothing on the host: Cockpit uploads the server over SSH on first connect and keeps it updated (it compares a manifest of the installed files with the bundle it ships and reinstalls when they differ). The <strong1>mobile</strong1> apps (iPad, Android) carry no server, so a host you want to reach from them must be prepared once, either by a desktop or with the installer below.",
+      "p3": "The desktop can only install the targets it ships, so the installer is also the way in for the other combinations:",
+      "th1": "Client",
+      "th2": "Linux arm64 host",
+      "th3": "Linux x86_64 host",
+      "td1": "macOS",
+      "td2": "installs and updates over SSH",
+      "td3": "installer",
+      "td4": "Linux arm64",
+      "td5": "installs and updates over SSH",
+      "td6": "installer",
+      "td7": "Linux x86_64",
+      "td8": "installer",
+      "td9": "installs and updates over SSH",
+      "td10": "Windows",
+      "td11": "installer",
+      "td12": "installer",
+      "td13": "iPad / Android",
+      "td14": "installer",
+      "td15": "installer",
+      "p4": "Both paths land in the same place and recognize each other: a host prepared with the installer is reused as is by a desktop that ships the same version, and a host prepared by a desktop can be updated later with the installer. Whoever gets there first installs; the other one just connects."
+    },
+    "remote_remoteInstall": {
+      "title": "Install the server",
+      "p1": "Linux x86_64 and arm64. User space, no sudo, idempotent; re-run it to update.",
+      "label1": "on the host",
+      "p2": "The script detects the architecture, downloads <code1>cockpit-server-'<'version'>'-linux-'<'arch'>'.zip</code1> from the GitHub release, verifies its SHA-256 and runs the <code1>install.sh</code1> shipped inside the zip. That installs to <code1>~/.cockpit/server</code1> (the same layout the desktop app uses), links the binary into <code1>~/.local/bin</code1>, checks every file against <code1>bundle.manifest</code1> and does a smoke start before swapping the new version in. A host without internet access can take the zip by <code1>scp</code1> and run <code1>./cockpit-server/install.sh</code1> directly.",
+      "p3": "<strong1>Versions must match.</strong1> Client and server are released together and the app refuses a different server version. Pin one with <code1>COCKPIT_VERSION=1.28.33</code1> in front of the command; without it the latest release is used. Desktop clients fix a mismatch by themselves over SSH; from mobile, re-run the installer."
+    },
+    "remote_remoteService": {
+      "title": "Start at boot",
+      "p1": "By default the app starts the server on demand and it exits when idle with no live session; terminals and agents keep the server alive while they run, so most hosts need no service. Note that if you kill the server while a Cockpit workspace is open on it, the client treats that as a dropped connection and starts it again. For a dedicated VPS you can register a <code1>systemd --user</code1> unit: the server is up right after a reboot, never exits on idle, and systemd restarts it on failure. It does not change how the app connects, and a reboot still ends the sessions that were running.",
+      "label1": "on the host",
+      "p2": "The unit lives in <code1>~/.config/systemd/user/cockpit-server.service</code1>. Starting at boot without an open SSH session requires <em1>linger</em1>; the command tries to enable it and, when that needs root, prints the one-line <code1>sudo loginctl enable-linger</code1> for you to run once. Updates restart the unit automatically. To stop it for real use <code1>systemctl --user stop cockpit-server</code1> (a plain kill is undone by systemd in two seconds)."
+    },
+    "remote_remoteTroubleshooting": {
+      "title": "Troubleshooting",
+      "li1": "<strong1>version_mismatch</strong1>: the host runs another release than the app. Re-run the installer (mobile) or reconnect from a desktop, which reinstalls.",
+      "li2": "<strong1>cockpit-server did not start</strong1> during install: the log printed above the error is the reason. A glibc older than the build expects is the usual cause on old distributions; check <code1>ldd --version</code1>.",
+      "li3": "<strong1>Socket permission</strong1>: the server listens on <code1>~/.cockpit/cockpit-server.sock</code1> as the SSH user; connect with the same user that ran the installer.",
+      "li4": "<strong1>Updating means restarting</strong1>: a new server version replaces the running process, which ends the terminals and agents on that host. The desktop does it silently when its bundle differs from the host; the installer does it when you run it with a newer release. Finish long jobs first.",
+      "li5": "<strong1>Nothing after reboot</strong1>: without the service the first connection starts the server (a second or two); with it, check <code1>cockpit-server service status</code1> and linger."
+    },
+    "sounds": {
+      "title": "Sounds & notifications",
+      "p1": "Turn status drives audio too. Under <strong1>Settings → Notifications</strong1> you can bind a sound per event — <strong1>turn done</strong1>, <strong1>action needed</strong1>, <strong1>error</strong1> — pick a custom audio file for each, and set the volume. With the window focused you get the chime; unfocused, an OS notification. Since an agent started outside Cockpit never reports status, nothing fires for sessions the app is not hosting."
+    },
+    "language": {
+      "title": "Language",
+      "p1": "Cockpit's interface is fully localized in <strong1>English</strong1>, <strong1>Portuguese (Brazil)</strong1> and <strong1>Spanish</strong1>, down to the native application menu. Switch it in <strong1>Settings → General → Language</strong1>; the choice is independent of the OS locale."
+    },
+    "links": {
+      "title": "Links",
+      "li1": "<link1>Cockpit product page</link1> — the tour.",
+      "li2": "<link5>Tutorial: layouts and tasks</link5> — build a <code1>.ckp</code1> and a <code1>tasks.json</code1> from scratch.",
+      "li3": "<link6>Tutorial: telemetry for agents</link6> — the error store, the <code1>cockpit telemetry</code1> CLI and how to make a project speak JSON logs.",
+      "link1": "Tutorial: an agent team in Cockpit",
+      "li4": "<link2>Remote Pi docs</link2> — mesh, relay, daemons, pairing.",
+      "li5": "<a6>Source docs & JSON schemas</a6> in the repository.",
+      "li6": "<a7>GitHub</a7> — issues and source."
+    },
+    "meta": {
+      "title": "Cockpit reference",
+      "description": "Reference for Remote Pi Cockpit: the internal CLI, .ckp pane layouts, Task Run, databases, notebooks and .http tabs, .env.cockpit, themes, turn status hooks and remote hosts over SSH."
+    },
+    "toc": {
+      "cli": "The <code1>cockpit</code1> CLI",
+      "layouts": "<code1>.ckp</code1> pane layouts",
+      "documentsHttp": "<code1>.http</code1> requests",
+      "install": "Install",
+      "cliTargets": "Targets & ids",
+      "cliCommands": "Command reference",
+      "cliRead": "Reading output",
+      "layoutsFields": "Fields",
+      "layoutsMerge": "Merge semantics",
+      "tasks": "Task Run",
+      "tasksFile": "tasks.json",
+      "tasksFields": "Fields",
+      "databases": "Databases",
+      "documents": "Documents as tabs",
+      "documentsNotebook": "Notebook",
+      "documentsMore": "Boards, diagrams, windows",
+      "envRedaction": "Redaction",
+      "envBlocked": "Blocked keys",
+      "envAccounts": "Separate accounts",
+      "themes": "Themes",
+      "themesFile": "Theme file",
+      "themesTokens": "Tokens",
+      "turnStatus": "Agent turn status",
+      "turnStatusEvents": "Event mapping",
+      "turnStatusResume": "Resuming a session",
+      "remote": "Remote hosts & VPS",
+      "remoteInstall": "Install the server",
+      "remoteService": "Start at boot",
+      "remoteTroubleshooting": "Troubleshooting",
+      "sounds": "Sounds & notifications",
+      "language": "Language",
+      "links": "Links"
+    }
+  },
+  "CockpitTutorials": {
+    "layouts": {
+      "intro": {
+        "span1": "Cockpit · workflow",
+        "span2": "Tutorial · Cockpit",
+        "h11": "Layouts and tasks in Cockpit",
+        "p1": "Two small files turn “set up my environment” into one click: a <code1>.ckp</code1> layout that opens the right terminals in the right folders, and a <code1>.cockpit/tasks.json</code1> that runs your dev servers with buttons, profiles, and reload on save. Both live in the repository, so your teammates — and every new git worktree — get the same setup for free."
+      },
+      "what": {
+        "title": "What you'll build",
+        "p1": "A small monorepo with an API and a web app. By the end, opening the project gives you three terminals in the right folders, a task list with both servers ready to play, and a new worktree that recreates the whole thing by itself.",
+        "label1": "project layout",
+        "p2": "Everything here is Cockpit-local: no account, no mesh, no agents required. If you want agents on top of this, follow <link1>An agent team in Cockpit</link1> next."
+      },
+      "prereqs": {
+        "title": "Before you start",
+        "li1": "<strong1>Cockpit installed</strong1> — macOS, Windows, or Linux, from the <link2>download page</link2>.",
+        "li2": "A project folder open as a workspace. Anything with a couple of subfolders works; the commands below assume <code1>npm</code1>, but the runner is generic."
+      },
+      "firstLayout": {
+        "title": "1. Write your first layout",
+        "p1": "Create <code1>dev.ckp</code1> at the root of the project. A layout is YAML, and the smallest useful one is three lines:",
+        "p2": "Right-click the file in Cockpit's tree and choose <strong2>Open layout</strong2>. A tab named <code1>Agent</code1> opens at the project root and types <code1>claude</code1> for you. Apply it again: nothing happens. A pane whose <code1>name</code1> already exists is skipped, so a layout is safe to re-run and never closes anything.",
+        "callout1": "The name is the label",
+        "p3": "<code1>name</code1> becomes the tab's <strong2>stable label</strong2> — the one the <code1>cockpit</code1> CLI can address by name instead of by a boot-scoped id, and the same label you would otherwise set by double-clicking the tab."
+      },
+      "splits": {
+        "title": "2. Add splits and folders",
+        "p1": "Now the real geometry. <code1>cwd</code1> is relative to the <code1>.ckp</code1> file (forward slashes only, so the file works on every OS), and <code1>split</code1> says where each pane is born relative to the one created before it: <code1>tab</code1> (default), <code1>right</code1>, or <code1>down</code1>.",
+        "p2": "You can also apply it from inside any Cockpit terminal, which is how an agent sets up its own workspace:",
+        "label1": "Cockpit terminal",
+        "callout1": "autorun: worktree",
+        "p3": "That one line is the payoff. Every time you fork the workspace onto a fresh git worktree, Cockpit applies the layout by itself — and since a new worktree starts empty, the splits come out exactly as written. Keep a single autorun file at the root: with two or more, none of them runs, because ambiguity is never guessed."
+      },
+      "tasks": {
+        "title": "3. Declare your tasks",
+        "p1": "Cockpit already detects tasks from <code1>package.json</code1> and <code1>pubspec.yaml</code1> with no configuration — open the Tasks panel and your scripts are there. You write <code1>.cockpit/tasks.json</code1> when you want more than that: a monorepo, interactive keys, environment profiles.",
+        "p2": "The file goes at the root of the workspace you open — discovery is literal, with no walking up the tree. Each task's <code1>cwd</code1> is relative to that file, which is what lets one file at the monorepo root drive every subpackage. Hit play and the output streams into its own tab, with stop and restart controls and any <code1>interactiveKeys</code1> you declared as buttons that write straight to the process' stdin.",
+        "p3": "<code1>profiles</code1> are launch configs: a chip cycles them before you press play, appending <code1>args</code1> and merging <code1>env</code1>. The runner stays generic on purpose — a Flutter flavor or a <code1>--dart-define</code1> is just more <code1>args</code1>.",
+        "callout1": "Reload on save",
+        "p4": "For a process that does not watch files itself (<code1>flutter run</code1> is the classic case), add a <code1>watch</code1> block: <code1>paths</code1> to observe, <code1>ignore</code1> to keep build folders from looping, and <code1>onChange</code1> pointing at an <code1>interactiveKeys</code1> label (<code1>\"Hot reload\"</code1>) or <code1>\"__restart__\"</code1>. Skip it for Vite or Next, which already reload on their own."
+      },
+      "agents": {
+        "title": "4. Let an agent use them",
+        "p1": "Both files are reachable from the internal <code1>cockpit</code1> CLI, which exists only inside Cockpit's terminals. That means an agent in one tab can start your dev server, read what it printed, and open a file for you to look at — without a screenshot or a screen scrape.",
+        "label1": "Cockpit terminal",
+        "p2": "Task ids are stable per workspace: <code1>json:'<'label'>'</code1> for the ones you declared, <code1>npm:'<'script'>'</code1> and <code1>flutter:run</code1> for detected ones. The full command surface is in the <link3>Cockpit reference</link3>."
+      },
+      "commit": {
+        "title": "5. Commit them",
+        "p1": "Both files belong in git. <code1>dev.ckp</code1> is your working geometry, and <code1>.cockpit/tasks.json</code1> is how the project is run — the same reason a <code1>Makefile</code1> is committed. A teammate clones, opens the folder in Cockpit, and gets your terminals and your task list. Point <code1>$schema</code1> at <code1>tasks.schema.json</code1> from the repository and their editor will autocomplete the fields as well; Cockpit ignores the field when running.",
+        "p2": "From here: <link1>put a team of agents</link1> into those panes, or read the <link4>Cockpit reference</link4> for every field, flag, and the theme format."
+      },
+      "pager": {
+        "prev": "Meet Cockpit",
+        "next": "An agent team in Cockpit"
+      },
+      "meta": {
+        "title": "Layouts and tasks in Cockpit",
+        "description": "Commit your working setup: a .ckp layout that opens the right terminals in the right folders, and a .cockpit/tasks.json that runs your dev servers with reload on save."
+      }
+    },
+    "team": {
+      "intro": {
+        "span1": "Cockpit · multi-agent",
+        "span2": "Tutorial · Cockpit",
+        "h11": "An agent team in Cockpit",
+        "p1": "Cockpit's real power is the multiplexer: many agents in one window, each in its own folder. Here you wire up three, an <strong1>orchestrator</strong1>, a <strong1>backend</strong1> and a <strong1>frontend</strong1>, and let the orchestrator drive the other two with the internal <code1>cockpit</code1> CLI."
+      },
+      "what": {
+        "title": "What you'll build",
+        "p1": "Three agent tabs, side by side in a single Cockpit workspace. Each one is an ordinary terminal running your harness of choice (this tutorial uses <code1>claude</code1>; <code1>codex</code1> or <code1>pi</code1> work the same way), started in its own subfolder so it picks up that folder's brief and boots into a role.",
+        "p2": "They coordinate through Cockpit itself. The orchestrator opens the worker tabs, types instructions into them and reads their output back, using the <code1>cockpit</code1> CLI that exists inside every Cockpit terminal. No network, no account, no extra service: it is the app you already have open, driven by the same verbs a human uses.",
+        "callout1": "Worth reading first",
+        "callout2": "The CLI reference lives in the <link1>Cockpit docs</link1>, and <link2>Layouts and tasks</link2> shows how a <code1>.ckp</code1> file recreates a window like this one on any machine."
+      },
+      "prereqs": {
+        "title": "Before you start",
+        "li1": "<strong1>Cockpit installed</strong1>, from the <link3>download page</link3>. Nothing else is required: Cockpit needs no account and no cloud.",
+        "li2": "<strong1>A harness on your PATH</strong1>, the one you already use. Cockpit runs it as a normal process, so whatever works in your terminal works in a tab."
+      },
+      "folders": {
+        "title": "1. Lay out the folders",
+        "p1": "An agent's identity comes from where it starts, so give each teammate a folder with its own brief:",
+        "label1": "project layout",
+        "p2": "<code1>AGENTS.md</code1> is the standing brief an agent reads when it starts in a folder (Claude Code also reads <code1>CLAUDE.md</code1>). Give each one a clear job, and tell the orchestrator how to reach the others.",
+        "callout1": "One folder, one teammate",
+        "callout2": "Keeping each agent in its own subfolder is what keeps the briefs, the histories and the edits apart. Three folders, three tabs, three roles."
+      },
+      "tabs": {
+        "title": "2. Open the three tabs",
+        "p1": "Open <code1>my-app/</code1> as a workspace. Then open a terminal in each subfolder and start your harness there. The fastest way is from the Files panel: right-click a folder and open a terminal in it, then run <code1>claude</code1>.",
+        "p2": "Split the canvas so all three are visible at once, the orchestrator on one side and the workers on the other, and rename each tab by double-clicking it: <code1>Orchestrator</code1>, <code1>Backend</code1>, <code1>Frontend</code1>. Those labels are how the CLI addresses a tab, and unlike ids they survive a restart of the app.",
+        "p3": "Do it once by hand, or commit the whole geometry as a <code1>team.ckp</code1> and let Cockpit build the window for you:",
+        "label1": "any Cockpit terminal",
+        "callout1": "Labels, not ids",
+        "callout2": "Tab ids (<code1>t0</code1>, <code1>t1</code1>…) are handed out per app boot, so never hardcode one in a brief or a script. Address a tab by its label, or discover the id of the moment with <code1>cockpit list-tabs</code1>."
+      },
+      "wiring": {
+        "title": "3. Teach the orchestrator the CLI",
+        "p1": "Every terminal Cockpit opens has <code1>cockpit</code1> on its <code1>PATH</code1>, and only those terminals do. So the orchestrator can already drive its teammates; it just needs to know the verbs. Ask it to look around:",
+        "label1": "Orchestrator · prompt",
+        "label2": "Orchestrator · tool call",
+        "p2": "Four verbs are enough to run a team. If you use Claude Code, <code1>cockpit install-skill</code1> installs a skill that teaches all of them, so the brief can stay short.",
+        "label3": "the four verbs",
+        "callout1": "Enter is a keystroke",
+        "callout2": "A bare <code1>cockpit send</code1> types the text and leaves it in the composer. Use <code1>--enter</code1> (or a separate <code1>cockpit send-key Enter</code1>) to submit it, because a newline inside the text is a line break for the harness, not a send."
+      },
+      "run": {
+        "title": "4. Run the orchestration",
+        "p1": "Now give the orchestrator something real. You talk only to it; it talks to the others.",
+        "label1": "Orchestrator · prompt",
+        "p2": "It breaks the work in two and types one instruction into each worker. The send returns as soon as the text is delivered, so it is a dispatch, not a blocking call:",
+        "label2": "Orchestrator · tool calls",
+        "p3": "Each worker sees the instruction in its own tab, does the work <em1>in its own folder</em1>, and prints the result. The orchestrator polls for the turn to end, then reads the answer:",
+        "label3": "Orchestrator · tool calls",
+        "p4": "With the contract in hand it unblocks the frontend, forwarding the exact shape, and reports the finished feature back to you. Three agents, three folders, one coordinated change, and you watched all of it happen.",
+        "callout1": "Who is working right now",
+        "callout2": "You do not have to poll to know: each tab shows its own turn status (working, waiting on you, done), with a chime when the window is focused and a system notification when it is not. The same signal the orchestrator reads from <code1>working</code1> in <code1>list-tabs --json</code1>."
+      },
+      "why": {
+        "title": "Why do this in Cockpit",
+        "p1": "You could run three terminals, but then nothing connects them. Here the whole team lives in one window: every agent streams its own work in its own tab, the orchestrator dispatches and reads without you copying text around, and the layout comes back when you reopen the app. Add a terminal tab for the dev server, and the build, the agents and their traffic are all in front of you at once.",
+        "p2": "From here: commit the <code1>.ckp</code1> and a <code1>.cockpit/tasks.json</code1> so a teammate gets the same window on clone (<link2>Layouts and tasks</link2>), or move the team onto a bigger machine and keep driving it over SSH (<link4>Remote hosts</link4>)."
+      },
+      "pager": {
+        "prev": "Layouts and tasks",
+        "next": "Telemetry for agents"
+      },
+      "meta": {
+        "title": "An agent team in Cockpit",
+        "description": "Run an orchestrator and two worker agents as terminal tabs in one Cockpit window, each in its own folder, coordinated with the internal cockpit CLI."
+      }
+    },
+    "telemetry": {
+      "intro": {
+        "span1": "Cockpit · debugging",
+        "span2": "Tutorial · Cockpit",
+        "h11": "Telemetry: let agents query errors, not terminals",
+        "p1": "A dev server prints thousands of lines. Somewhere in there is the one error that matters, and the agent debugging your app has to read all of it to find it. Cockpit keeps a structured, per-workspace store of what your processes print, groups errors by fingerprint, and gives agents one CLI to ask <em1>what broke, where, and is it new</em1>. No SDK, no account, nothing leaves your machine."
+      },
+      "what": {
+        "title": "What you get",
+        "li1": "<strong1>A Telemetry tab</strong1> in the right panel (next to Files, Search, Database, Tasks): cases grouped by project and run, with counts, file:line, and tags for <em1>new</em1> and <em1>regression</em1>. Clicking a case opens it in the center pane with the stack, the JSON log printed right before it, occurrences per run, and the raw context lines.",
+        "li2": "<strong1>Triage that agents respect.</strong1> Mark a case resolved and it disappears; if it comes back in a later run it returns flagged as a regression. Ignore a case and agents stop seeing it too.",
+        "li3": "<strong1><code1>cockpit telemetry</code1></strong1>, a CLI that answers in compact JSON: errors, logs, one case in detail, wait-until-it-stops-happening."
+      },
+      "how": {
+        "title": "1. Where the data comes from",
+        "p1": "Every task you run from <code1>.cockpit/tasks.json</code1> feeds the store by default. Anything else enters when you prefix the command with <code1>cockpit telemetry</code1>. That works in a terminal tab (colors and keys preserved) and from an agent’s own shell, which is the case that matters most: an agent running <code1>flutter test</code1> gets the three failing tests with file:line instead of the whole output.",
+        "callout1": "Nothing is captured behind your back",
+        "callout2": "Cockpit never taps a terminal you did not ask it to observe. Tasks are observed because Cockpit is the parent process; the wrapper is the explicit opt-in for everything else."
+      },
+      "loop": {
+        "title": "2. The agent loop",
+        "p1": "The wrapper prints a summary line at exit. From there the agent narrows down instead of reading up:",
+        "p2": "Useful filters: <code1>--new</code1> (never seen in earlier runs of the same command), <code1>--since-edit</code1> (since your last save in the editor), <code1>--before ev_xxxx --window 5s</code1> (what happened right before an event), <code1>--project</code1> in a monorepo. Replies are capped and tell the agent how to narrow further. The skill installed by <code1>cockpit install-skill</code1> teaches all of this to Claude Code and friends."
+      },
+      "speak": {
+        "title": "3. Make your project speak telemetry",
+        "p1": "Stack traces and error blocks are recognized as they are (Dart, Flutter, Node, Python, Rust, Go, test runners). For everything else there is one rule: make the project’s logger emit <strong1>JSON Lines</strong1> to stdout. Every ecosystem already does this (pino, structlog, slog, tracing). Cockpit only knows the field aliases:",
+        "label1": "one log line",
+        "label2": "Flutter example",
+        "p2": "Keep <code1>msg</code1> fixed and put variable data in fields: <code1>\"msg\":\"order failed\",\"orderId\":\"91c\"</code1> groups into one case; <code1>\"order 91c failed\"</code1> becomes one case per order.",
+        "callout1": "Do not gate logs on Cockpit",
+        "callout2": "The app should behave the same inside and outside Cockpit. Control verbosity with your own knob (<code1>LOG_LEVEL</code1>, <code1>kReleaseMode</code1>), set per task through <code1>env</code1>. A <code1>COCKPIT=1</code1> check would not even reach a phone or a container."
+      },
+      "extras": {
+        "title": "4. Flutter, OpenTelemetry, HTTP proxy",
+        "li1": "<strong1>Flutter, zero code.</strong1> When a run prints the Dart VM Service URI, Cockpit attaches as a second client and reads <code1>dart:developer log()</code1> records and the framework’s structured errors. An error that also reached the console counts once.",
+        "li2": "<strong1>OpenTelemetry.</strong1> Observed processes get <code1>OTEL_EXPORTER_OTLP_ENDPOINT</code1> and <code1>OTEL_SERVICE_NAME</code1> in their environment. An app with the OTel SDK (or Node’s auto-instrumentation) sends logs and spans to a local, loopback-only receiver; failed spans become cases too.",
+        "li3": "<strong1>HTTP proxy.</strong1> Point the frontend at the proxy port and every request/response is recorded with status, duration, redacted bodies and an injected <code1>x-request-id</code1>. Mark a reproduction window and replay it after the fix."
+      },
+      "privacy": {
+        "title": "Privacy and retention",
+        "p1": "The store is a SQLite file per workspace in Cockpit’s local cache, never inside your repository and never synchronized. Secrets are redacted on the way in (authorization headers, cookies, tokens, JWTs, passwords). Old runs are dropped after 7 days or 256 MB, oldest first. Delete anything from the Telemetry tab at any time.",
+        "p2": "From here: put <link1>a team of agents</link1> on top of it, or read the <link2>Cockpit reference</link2>."
+      },
+      "pager": {
+        "prev": "An agent team in Cockpit",
+        "next": "Cockpit reference"
+      },
+      "meta": {
+        "title": "Telemetry: let agents query errors, not terminals",
+        "description": "Cockpit keeps a per-workspace store of what your processes print: errors grouped by fingerprint, JSON logs with their fields, and the lines around them. Agents query it with one CLI instead of reading thousands of terminal lines."
+      }
+    },
+    "index": {
+      "meta": {
+        "title": "Tutorials",
+        "description": "Hands-on guides for Cockpit: commit the layout and tasks your project opens with, and run a team of agents in one window."
+      },
+      "eyebrow": "Tutorials",
+      "h1": "Learn Cockpit by doing.",
+      "lede": "Two hands-on guides that take the app past a plain terminal. For every command, file format and flag, the <ref>reference</ref> has the whole picture. Looking for the Remote Pi guides (pairing, mesh, daemons)? They live at <remote>/remote-pi/tutorials</remote>.",
+      "open": "Open tutorial",
+      "step1": {
+        "title": "Layouts and tasks",
+        "desc": "Commit a .ckp layout that opens your terminals and a tasks.json that runs your dev servers, with profiles and reload on save."
+      },
+      "step2": {
+        "title": "An agent team",
+        "desc": "Run an orchestrator, a backend and a frontend as three agent tabs, each in its own folder, coordinated with the internal cockpit CLI."
+      },
+      "step3": {
+        "title": "Telemetry for agents",
+        "desc": "A per-workspace error store agents query instead of reading terminals: grouped cases, triage, one CLI."
+      }
+    }
+  },
+  "RemoteTutorials": {
+    "gettingStarted": {
+      "intro": {
+        "span1": "Tutorial · 1 of 4",
+        "h11": "Getting started",
+        "p1": "By the end of this guide you'll have Remote Pi running on one machine, your phone paired to it, and your first command sent from the app — the agent runs it and the result streams back to your pocket. Plan on about five minutes."
+      },
+      "prereqs": {
+        "title": "Before you start",
+        "p1": "You need two things:",
+        "li1": "A machine with <strong1>Pi</strong1> (the coding agent) and <strong1>Node 20+</strong1> installed.",
+        "li2": "The <strong1>Remote Pi</strong1> app on your phone — from the <a1>App Store</a1>, <a2>Google Play</a2>, or the <link1>Android APK</link1> direct download.",
+        "p2": "No Pi yet? The <strong1>No Pi yet</strong1> tab below runs a one-command <code1>curl</code1> installer that sets up Pi, the plugin, and the supervisor for you. Already have Pi? Use the <strong1>Already have Pi</strong1> path."
+      },
+      "install": {
+        "title": "1. Install the plugin",
+        "p1": "Remote Pi is a Pi plugin. Add it, run the setup wizard, then show a pairing QR:",
+        "p2": "Walking through the three commands:",
+        "callout1": "Order matters",
+        "callout2": "Run <code1>/remote-pi</code1> before <code1>/remote-pi pair</code1>. On a brand-new folder with no config, <code1>pair</code1> will tell you to run the wizard first — that's the config step doing its job."
+      },
+      "install_piInstallNpmremotePi": {
+        "title": "pi install npm:remote-pi",
+        "p1": "Installs the plugin into Pi. This registers the <code1>/remote-pi</code1> slash command and deploys the agent-network skill that teaches the LLM the mesh tools."
+      },
+      "install_remotePi": {
+        "title": "/remote-pi",
+        "p1": "The first run opens a short wizard that <strong1>creates the config for this folder</strong1>. It asks two questions:",
+        "li1": "<strong1>Agent name</strong1> — how other peers address this agent. Defaults to the folder name.",
+        "li2": "<strong1>Use the relay?</strong1> — answer <code1>Yes</code1> so your phone (and, later, other PCs) can reach this agent.",
+        "p2": "When it finishes, the agent has joined the local mesh and the relay is connected."
+      },
+      "install_remotePiPair": {
+        "title": "/remote-pi pair",
+        "p1": "Prints a QR code (and a copy-paste pairing URI). Leave it on screen for the next step. Pairing is <strong1>per machine</strong1>: once a phone is paired, every Pi agent on this machine accepts it."
+      },
+      "pair": {
+        "title": "2. Pair your phone",
+        "p1": "With the QR on screen:",
+        "li1": "Open the Remote Pi app on your phone.",
+        "li2": "Tap <strong1>Pair a device</strong1> (or the scan button) and point the camera at the QR.",
+        "li3": "The app confirms the pairing and the agent shows up in your device list. The Pi terminal footer flips to <code1>🟢 relay</code1> and shows <code1>📱 '<'shortid'>'</code1> while the phone is connected.",
+        "p2": "Pairing authenticates the two sides to each other with Ed25519, and all relay traffic is encrypted in transit (TLS)."
+      },
+      "firstCommand": {
+        "title": "3. Send your first command",
+        "p1": "You're now driving the agent from your phone. In the app's chat for this agent, type a prompt and send it:",
+        "label1": "From the app",
+        "p2": "The prompt lands in the Pi session on your machine exactly as if you had typed it there. The agent runs, and its response streams back to your phone live. That round trip — phone to agent and back — is the whole point of Remote Pi.",
+        "p3": "Beyond chatting, the app can drive the session with a few typed actions: <strong1>compact context</strong1>, <strong1>new session</strong1>, <strong1>set model</strong1>, and <strong1>set thinking</strong1> level. The model picker reads live from the host, so it always reflects what that machine can actually run."
+      },
+      "next": {
+        "title": "Where to go next",
+        "p1": "That's one agent, one phone. From here you can let multiple agents talk to each other, reach across machines, or keep an agent running when you walk away:",
+        "li1": "<link2>Local mesh</link2> — two agents on the same machine discovering and messaging each other.",
+        "li2": "<link3>Daemon mode</link3> — promote a folder to a 24/7 background agent."
+      },
+      "pager": {
+        "next": "Local mesh"
+      },
+      "meta": {
+        "title": "Getting started",
+        "description": "Install Remote Pi on Pi, pair your phone, and send your first command to an agent from the app — from install to first prompt."
+      }
+    },
+    "meshLocal": {
+      "intro": {
+        "span1": "Tutorial · 2 of 4",
+        "h11": "Local mesh",
+        "p1": "Two agents running side by side on one machine can see each other and trade messages — no network involved. Here you'll start a second agent, have the first one find it, and watch a message go from one to the other and back."
+      },
+      "how": {
+        "title": "How local discovery works",
+        "p1": "Every agent that runs <code1>/remote-pi</code1> on a machine joins the same local session, named <code1>local</code1>. They meet through a Unix domain socket — a local broker at <code1>~/.pi/remote/sessions/local/broker.sock</code1> — so messages never leave the box. The first agent to start hosts the broker; the rest connect to it. If the host exits, another agent takes over automatically.",
+        "callout1": "One agent per folder",
+        "callout2": "A lock allows exactly one Pi agent per directory. To run two agents at once, put them in <strong1>two different folders</strong1> — each gets its own workspace, both meet in the <code1>local</code1> session."
+      },
+      "start": {
+        "title": "1. Start a second agent",
+        "p1": "You already have one agent from the <link1>getting started</link1> guide. Open a second terminal in a <strong1>different</strong1> folder and start Remote Pi there too:",
+        "label1": "Second terminal",
+        "p2": "Say the first agent is named <code1>agent-a</code1> and the second <code1>agent-b</code1> (the wizard defaults to the folder name). Both are now in the <code1>local</code1> session."
+      },
+      "tools": {
+        "title": "2. The three mesh tools",
+        "p1": "The agent-network skill gives the LLM three tools. You don't call them by hand — you ask the agent in plain language and it calls them for you.",
+        "li1": "<code1>list_peers()</code1> — who is online right now. Returns the peer names, one per line.",
+        "li2": "<code1>agent_send('{' to, body, re? '}')</code1> — send a message and wait for an ACK. Set <code1>re</code1> when you're replying to an earlier message.",
+        "li3": "<code1>get_messages()</code1> — drain this agent's inbox. The agent checks it at the start of each turn, so incoming messages surface on its next reply."
+      },
+      "exchange": {
+        "title": "3. Send a message across",
+        "p1": "In <code1>agent-a</code1>''s terminal, ask it to find its peers:",
+        "label1": "agent-a · prompt",
+        "p2": "The LLM calls the tool and gets back the roster:",
+        "label2": "agent-a · tool call",
+        "p3": "Now have it send something:",
+        "label3": "agent-a · prompt",
+        "label4": "agent-a · tool call",
+        "p4": "<code1>Delivered</code1> means <code1>agent-b</code1>''s inbox accepted the envelope. On its next turn, <code1>agent-b</code1> sees it. Ask it:",
+        "label5": "agent-b · prompt",
+        "label6": "agent-b · tool calls",
+        "p5": "Back in <code1>agent-a</code1>, the <code1>pong</code1> shows up on its next turn, carrying <code1>re=ab12cd34</code1> so the agent knows which message it answers. The whole exchange is event-driven — nothing blocks waiting for a reply."
+      },
+      "acks": {
+        "title": "Reading the ACK",
+        "p1": "<code1>agent_send</code1> tells you what happened to the envelope:",
+        "li1": "<code1>Delivered</code1> — the peer's inbox accepted it.",
+        "li2": "<code1>busy</code1> — the peer is mid-turn; the message was dropped. Retry shortly.",
+        "li3": "<code1>denied</code1> — the peer refused it. Don't retry.",
+        "li4": "<strong1>No ACK (timeout)</strong1> — the peer may be offline.",
+        "callout1": "A send is not a request",
+        "callout2": "<code1>agent_send</code1> is fire-and-ACK, not RPC. There is no obligation for the other agent to reply. If you need an answer, the prompt to the receiver has to ask for one — like <code1>reply to the sender</code1> above."
+      },
+      "pager": {
+        "prev": "Getting started",
+        "next": "Remote mesh"
+      },
+      "meta": {
+        "title": "Local mesh",
+        "description": "Run two Pi agents on the same machine and have them discover each other and exchange messages over the local broker with list_peers, agent_send, and get_messages."
+      }
+    },
+    "meshRemote": {
+      "intro": {
+        "span1": "Tutorial · 3 of 4",
+        "h11": "Remote mesh",
+        "p1": "The <link1>local mesh</link1> stops at one machine. Turn on the relay and the same <code1>agent_send</code1> reaches agents on other PCs — your laptop talking to your desktop, a build box, a server. The tools are identical; only the addressing changes."
+      },
+      "setup": {
+        "title": "1. Put both machines on one mesh",
+        "p1": "Cross-PC routing rides the relay. Every machine paired under the same <strong1>Owner key</strong1> forms one logical mesh — there is no central server, just a relay forwarding between paired peers. To get there:",
+        "li1": "On each machine, run <code1>/remote-pi</code1> and answer <strong1>Yes</strong1> to using the relay.",
+        "li2": "Pair both machines to the <strong1>same Owner</strong1> so they share one mesh. The mesh-membership details — how the Owner key signs the device list — live in <a1>PROTOCOL.md</a1>.",
+        "p2": "Point both machines at the same relay. The default is the community relay; for your own, see <link2>the relay reference</link2>."
+      },
+      "addressing": {
+        "title": "2. Address peers across PCs",
+        "p1": "Once both machines are on the mesh, <code1>list_peers()</code1> shows local agents plus remote ones, each prefixed with the source machine's label:",
+        "label1": "any agent · tool call",
+        "p2": "To message a remote peer, use its full <code1>pc_label:peer</code1> name verbatim — that's the only difference from a local send:",
+        "label2": "frontend · tool call",
+        "p3": "The reply arrives the same way a local one does — in your inbox on a future turn, carrying <code1>re='<'your-send-id'>'</code1>."
+      },
+      "delivered": {
+        "title": "3. \"Delivered\" is not \"alive\"",
+        "p1": "This is the one thing to internalize about remote sends. A <code1>Delivered</code1> ACK means <strong1>the remote broker accepted the envelope</strong1> — nothing more. It does <em1>not</em1> mean the peer is alive, processed the message, or will ever answer.",
+        "callout1": "Validate by roundtrip",
+        "callout2": "Don't treat <code1>Delivered</code1> as proof the other agent is working. <code1>list_peers</code1> can even list a peer that has gone stale. The only real confirmation is a <strong1>reply you actually receive</strong1>: ask the remote agent to respond, then wait for that envelope in your inbox. If it never comes, the peer may be offline regardless of what the ACK said.",
+        "p2": "When a forwarded message genuinely can't be delivered, the relay returns a <code1>transport_error</code1> envelope with <code1>re='<'your-send-id'>'</code1> — watch your inbox for that too."
+      },
+      "trust": {
+        "title": "What the relay sees",
+        "p1": "The relay is the only network-touching piece, so it's worth being precise about what it protects and what it doesn't:",
+        "callout1": "Encrypted in transit — payloads are not",
+        "callout2": "Connections to the relay are <strong1>encrypted in transit (TLS)</strong1>, and devices authenticate each other with <strong1>Ed25519 pairing</strong1>. But message payloads are <strong1>not</strong1> encrypted at the application layer — the relay operator could in principle read plaintext in memory while forwarding. If you need confidentiality from the relay operator, <link3>self-host the relay</link3> behind a VPN.",
+        "p2": "The community relay does not log, persist, or inspect payloads, but self-hosting is the way to get cryptographic-grade isolation. The full trust model is in <a1>PROTOCOL.md</a1>."
+      },
+      "uses": {
+        "title": "What it's for",
+        "p1": "Cross-PC messaging lets you split work across roles that live on different machines — a <code1>frontend</code1> on your laptop handing tasks to a <code1>backend</code1> on a beefier box, or a <code1>tests</code1> agent on a build server reporting back. Same tools, same envelope; the relay just carries it between machines."
+      },
+      "uses_KeepThemReachable": {
+        "title": "Keep them reachable",
+        "p1": "Cross-PC coordination is most useful when the remote agents are always up. That's the next guide: <link4>run them as 24/7 daemons</link4>."
+      },
+      "pager": {
+        "prev": "Local mesh",
+        "next": "Daemon mode"
+      },
+      "meta": {
+        "title": "Remote mesh",
+        "description": "Route messages between agents on different PCs through the relay, address peers as pc_label:peer, and understand what an ACK does and does not guarantee."
+      }
+    },
+    "daemon": {
+      "intro": {
+        "span1": "Tutorial · 4 of 4",
+        "h11": "Daemon mode",
+        "p1": "So far your agents only run while a terminal is open. Daemon mode keeps a folder running as a background agent that survives logout, restarts on crash, and answers your phone at 3am. This is the <em1>how</em1>; for the <em1>why</em1> — and how it compares to all-in-one platforms — see <link1>Why Pi</link1>."
+      },
+      "model": {
+        "title": "The shape of it",
+        "p1": "One <strong1>supervisor</strong1> runs per machine. Under it sit N background agents — one per folder you promote. The supervisor is a normal user service: <code1>launchd</code1> on macOS, <code1>systemd --user</code1> on Linux. It starts at login, survives reboots, and respawns any agent that crashes.",
+        "callout1": "Lock down tool permissions first",
+        "callout2": "A daemon inherits the same Pi tool permissions your interactive session has — <code1>Bash</code1>, <code1>Edit</code1>, <code1>Write</code1> all run <strong1>without a prompt</strong1>, because no one is at the keyboard to approve them. Configure Pi's tool permissions to taste <em2>before</em2> you promote a folder to a 24/7 daemon. A tool-approval gate is on the roadmap."
+      },
+      "install": {
+        "title": "1. Install the supervisor (once per machine)",
+        "p1": "From inside Pi:",
+        "label1": "In Pi",
+        "p2": "That single command does two things:",
+        "li1": "Installs and activates the user-level supervisor service (<code1>launchd</code1> / <code1>systemd --user</code1>), so it auto-starts at login and after reboot.",
+        "li2": "Symlinks the <code1>remote-pi</code1> and <code1>pi-supervisord</code1> CLIs into <code1>~/.local/bin/</code1> so you can manage daemons from any shell. If that directory isn't on your <code1>$PATH</code1>, the command prints the line to add.",
+        "p3": "This is a separate, explicit opt-in — it is <strong1>not</strong1> part of the regular setup wizard. You only run it on machines where you want 24/7 agents."
+      },
+      "create": {
+        "title": "2. Promote a folder to a daemon",
+        "p1": "No per-folder setup is needed first — <code1>create</code1> registers any folder and the supervisor injects the daemon's config at spawn (a fixed <code1>assistent</code1> workspace, relay on), so the folder needs no <code1>.pi/remote-pi/</code1> of its own. To reach the daemon from your phone, just make sure this machine has been paired once — pairing is per-machine, so any earlier <code1>/remote-pi pair</code1> on it counts. Then register:",
+        "p2": "The id is a stable hash of the folder path (<code1>sha256(realpath)[:8]</code1>), so it survives moves and is the same on every machine. With the supervisor running, <code1>create</code1> <strong1>starts the daemon right away</strong1> — there is no separate start step. It restarts on crash and comes back after a reboot on its own.",
+        "callout1": "One daemon per folder",
+        "callout2": "The by-path id rejects a second daemon in the same directory at <code1>create</code1> time. Pairing stays interactive — a daemon reuses the keypair and paired devices already set up on this machine; it doesn't show a QR itself."
+      },
+      "fleet": {
+        "title": "3. Manage the fleet",
+        "p1": "Every command works as a Pi slash command (<code1>/remote-pi …</code1>) and, once the CLI is linked, as a plain shell command (<code1>remote-pi …</code1>):",
+        "label1": "Fleet commands",
+        "p2": "A daemon receives a prompt as if a user typed it; its response flows back through the same mesh and relay you configured — your phone sees it live, and other agents on the machine see it over the local mesh."
+      },
+      "fleet_WhereTheLogsAre": {
+        "title": "Where the logs are",
+        "p1": "Each daemon's output is forwarded into the supervisor log with a <code1>['<'cwd'>']</code1> prefix, so one stream shows the whole fleet."
+      },
+      "cron": {
+        "title": "4. Schedule recurring prompts (cron)",
+        "p1": "A daemon only acts when something prompts it. <code1>cron</code1> lets the supervisor be that something on a schedule — “every weekday at 9am, summarize the new PRs” — with no one at the keyboard. Jobs target a daemon by id and survive reboots along with the supervisor.",
+        "callout1": "Cron needs the supervisor installed as a service",
+        "callout2": "The scheduler runs <em1>inside</em1> the supervisor, so it only fires when the supervisor is installed as a user service. Run <code1>/remote-pi install</code1> (step 1) first — without it, <code1>cron add</code1> warns instead of pretending to schedule. It is the same launchd / systemd service that keeps your daemons alive; there is no second scheduler.",
+        "p2": "With a daemon registered (step 2) and the supervisor running, add a job. The first argument is the daemon id, then a standard five-field cron expression, then the prompt:",
+        "label1": "Schedule a prompt",
+        "p3": "Runs must be at least <strong1>60 seconds</strong1> apart — a more frequent expression is rejected with a clear message, since every fire spends tokens. Flags on <code1>cron add</code1>:",
+        "li1": "<code1>--tz Area/City</code1> — run in a specific, DST-aware timezone (e.g. <code1>America/Sao_Paulo</code1>). Defaults to the machine's local time.",
+        "li2": "<code1>--wake</code1> — if the daemon is stopped when the job fires, start it first, then send. Default: skip (logged as <code1>skipped_down</code1>).",
+        "li3": "<code1>--no-skip-busy</code1> — send even if the daemon is mid-turn. By default a fire is skipped while the daemon is still working (<code1>skipped_busy</code1>) so prompts don't pile up on an unfinished turn.",
+        "li4": "<code1>--catchup</code1> — after the supervisor was down, fire <em1>one</em1> missed run on startup. Default off; never replays the whole backlog.",
+        "p4": "Each job gets an id like <code1>j_ab12</code1> (printed by <code1>cron add</code1> and <code1>cron list</code1>). Inspect, test, and audit the fleet's schedule:",
+        "p5": "The agent's reply is fire-and-forget into the mesh — your phone and other agents see it live, exactly like a manual <code1>daemon send</code1>. Cron itself only audits the <em1>trigger</em1>: every fire and every skip appends one line to <code1>~/.pi/remote/cron.jsonl</code1>, which <code1>cron log</code1> tails. Full subcommand reference is in the <link2>docs</link2>."
+      },
+      "cleanup": {
+        "title": "Removing a daemon",
+        "p1": "<code1>uninstall</code1> is reversible — re-running <code1>/remote-pi install</code1> later brings every registered daemon back. Full flags and paths are in the <link3>reference docs</link3>."
+      },
+      "pager": {
+        "prev": "Remote mesh"
+      },
+      "meta": {
+        "title": "Daemon mode",
+        "description": "Keep a Pi agent alive 24/7: install the supervisor (launchd / systemd --user), register a folder as a daemon, and manage the fleet from one CLI."
+      }
+    },
+    "claudeMesh": {
+      "intro": {
+        "span1": "Extra · terminal only — no app yet",
+        "span2": "Tutorial · Extra",
+        "h11": "Claude in the mesh",
+        "p1": "<code1>remote-pi claude</code1> puts <strong1>Claude Code</strong1> on the same agent mesh as Pi — a named peer on the local UDS broker and, through the relay, across PCs. This is an advanced, agent-to-agent setup driven entirely from the terminal. It is <strong1>not surfaced in the mobile app yet</strong1> — see <a1>why</a1> at the end."
+      },
+      "prereqs": {
+        "title": "Before you start",
+        "li1": "The <code1>remote-pi</code1> CLI on your <code1>$PATH</code1> — run <code1>/remote-pi install</code1> once (see the <link1>daemon tutorial</link1>) to link it.",
+        "li2": "<strong1>Claude Code</strong1> installed and on your <code1>$PATH</code1> as <code1>claude</code1>.",
+        "li3": "A folder that <strong1>isn't</strong1> already running a Pi agent (see <a2>one agent per folder</a2>)."
+      },
+      "run": {
+        "title": "Run it",
+        "p1": "On the first run in a folder, it asks for an agent name (defaulting to the folder name) and saves a small config:",
+        "label1": "First run",
+        "p2": "That name is how other agents address this Claude in <code1>list_peers</code1> and <code1>agent_send</code1>. Then it wires three things into Claude Code and launches it."
+      },
+      "injected": {
+        "title": "What it wires in",
+        "p1": "<code1>remote-pi claude</code1> is a wrapper. It injects three things, then spawns <code1>claude</code1> in the target folder."
+      },
+      "injected_mcp": {
+        "title": "1. An MCP server (the mesh tools)",
+        "p1": "It registers a stdio MCP server named <code1>remote-pi-mesh</code1> in Claude's <strong1>local scope</strong1> — per-folder, stored in <code1>~/.claude.json</code1>, not written into the project directory and not committed to version control:",
+        "label1": "What the wrapper runs (you don't type this)",
+        "p2": "The server exposes three tools to Claude — the same mesh API Pi agents get:",
+        "li1": "<code1>list_peers</code1> — who is online: local peers plus cross-PC ones in <code1>pc_label:peer</code1> form (e.g. <code1>MacMini:backend</code1>).",
+        "li2": "<code1>agent_send('{' to, body, re? '}')</code1> — send a message and get an <strong1>ACK</strong1> back (<code1>received</code1>, <code1>busy</code1>, <code1>denied</code1>, or <code1>timeout</code1>). It is <strong1>not fire-and-forget</strong1>; set <code1>re</code1> to the id of the message you're replying to.",
+        "li3": "<code1>get_messages</code1> — drain this agent's inbox of pending messages."
+      },
+      "injected_skill": {
+        "title": "2. The agent-network skill",
+        "p1": "An MCP server gives Claude the tools but not the <em1>habits</em1>. Skills load only from disk, so the wrapper deploys one to <code1>~/.claude/skills/agent-network/SKILL.md</code1>. The skill's description self-gates to mesh contexts, so it doesn't intrude on unrelated Claude sessions. It teaches Claude to:",
+        "li1": "call <code1>get_messages</code1> at the start of every turn, so incoming messages are seen promptly;",
+        "li2": "read the <code1>agent_send</code1> ACK and act on it (retry on <code1>busy</code1>, give up on <code1>denied</code1>) rather than assuming delivery;",
+        "li3": "reply by echoing the original message id in <code1>re</code1>, so threads stay linked;",
+        "li4": "treat <code1>broadcast</code1> as fire-and-forget — no per-recipient ACK."
+      },
+      "injected_channels": {
+        "title": "3. Channel push (wake on message)",
+        "p1": "When a message lands, the MCP server emits a <code1>notifications/claude/channel</code1>. Whether that reaches Claude immediately depends on one launch flag:",
+        "li1": "<strong1>Push</strong1> — with <code1>--dangerously-load-development-channels server:remote-pi-mesh</code1> on (the wrapper sets it), the notification <strong1>wakes Claude</strong1> right away, so it reacts to an incoming message without you prompting it.",
+        "li2": "<strong1>Poll</strong1> — without that flag, Claude only sees the message the next time it calls <code1>get_messages</code1> (i.e. on its next turn)."
+      },
+      "flags": {
+        "title": "The --dangerously-* flags",
+        "p1": "The wrapper launches Claude with two flags:",
+        "label1": "Launch (the wrapper runs this)",
+        "callout1": "Know what these flags do",
+        "callout2": "<code1>--dangerously-skip-permissions</code1> <strong1>auto-approves every tool call</strong1> — Claude runs Bash, edits, and writes without prompting you, which is what makes unattended agent-to-agent work possible but also removes your approval gate. <code1>--dangerously-load-development-channels</code1> opens a development channel for the local MCP server (it shows a one-time confirmation dialog at startup). Only point this at folders and peers you trust — same posture as promoting a folder to a <link1>daemon</link1>."
+      },
+      "cwdLock": {
+        "title": "One agent per folder",
+        "p1": "A kernel-enforced lock (the same one <code1>/remote-pi</code1> takes) allows <strong1>one remote-pi agent per folder</strong1> — Pi <em1>or</em1> Claude, never both in the same directory. If a folder already has a Pi agent, start Claude in a different folder; both still meet in the same local mesh. A second agent in a locked folder is refused before it connects, so it never becomes a ghost peer."
+      },
+      "noApp": {
+        "title": "Why this isn't in the app yet",
+        "p1": "The mobile app talks to the <strong1>relay</strong1>, and it sees only the Pi agent that paired it. It does not see local UDS peers — like a Claude joined with <code1>remote-pi claude</code1> — so a mesh-mate Claude won't show up in your phone. Surfacing the full mesh in the app is future work; for now this is a terminal-driven, agent-to-agent feature. Relay traffic, where it's used, is encrypted in transit.",
+        "p2": "To watch two agents talk on one machine, pair this with the <link2>local mesh</link2> tutorial — start one peer as Pi and another as Claude, in two folders, and have them message each other."
+      },
+      "pager": {
+        "prev": "Daemon mode",
+        "next": "All tutorials"
+      },
+      "meta": {
+        "title": "Claude in the mesh",
+        "description": "Advanced extra: remote-pi claude puts Claude Code on the agent mesh as a named peer next to Pi — agent-to-agent, driven from the terminal. Not in the app yet."
+      }
+    },
+    "index": {
+      "meta": {
+        "title": "Tutorials",
+        "description": "Hands-on guides for Remote Pi: get started with the app, run a local mesh, route across PCs, and keep an agent alive 24/7."
+      },
+      "eyebrow": "Tutorials",
+      "h1": "Learn Remote Pi by doing.",
+      "lede": "Four hands-on guides, in order. Start with the app, then add agents, cross-PC routing, and a 24/7 supervisor as you need them. For the <em>why</em> behind it, <why>read Why Pi</why>; for exact flags and config, the <docs>reference docs</docs>. Looking for Cockpit instead? Its tutorials are at <cockpit>/tutorials</cockpit>.",
+      "open": "Open tutorial",
+      "extras": "Extras",
+      "extraTag": "extra",
+      "step1": {
+        "title": "Getting started",
+        "desc": "Install Remote Pi, pair your phone, and drive your first agent from the app."
+      },
+      "step2": {
+        "title": "Local mesh",
+        "desc": "Let two agents on the same machine discover each other and trade messages."
+      },
+      "step3": {
+        "title": "Remote mesh",
+        "desc": "Route messages between agents on different PCs through the relay."
+      },
+      "step4": {
+        "title": "Daemon mode",
+        "desc": "Keep an agent alive 24/7 with the supervisor, then manage the fleet."
+      },
+      "extra1": {
+        "title": "Claude in the mesh",
+        "desc": "Put Claude Code on the agent mesh next to Pi — advanced, terminal-only (not in the app yet)."
+      }
+    }
+  },
+  "InstallTabs": {
+    "aria": "Install Remote Pi",
+    "tabFresh": "No Pi yet",
+    "tabHasPi": "Already have Pi",
+    "soon": " · soon",
+    "labelFresh": "bash — one command",
+    "labelHasPi": "pi — three commands",
+    "noteFresh": "Installs Pi, the Remote Pi plugin, and the always-on supervisor, then prints the pairing step. No sudo — everything lands in your home directory.",
+    "noteHasPi": "Run them in order: install the plugin, run the setup wizard, then show the pairing QR. Each is explained below."
+  }
+}
