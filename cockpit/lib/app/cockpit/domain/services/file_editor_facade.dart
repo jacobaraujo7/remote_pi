@@ -60,23 +60,44 @@ class FileEditorFacade {
 
   final FileEditorRegistry _registry;
   FileEditorEngine engine = FileEditorEngine.cockpit;
+  bool inlinePreviewAvailable = true;
 
   static const Set<String> _cockpitExtensions = {
     // Experiências especializadas.
-    'http', 'dbq', 'kanban',
-    // Mídia e SVG.
-    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'svg',
+    'http', 'rest', 'dbq',
+    // Mídia.
+    'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico',
     'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv',
     'mp3', 'wav', 'aac', 'm4a', 'flac', 'ogg', 'opus',
   };
+
+  static const Set<String> _previewExtensions = {
+    'md',
+    'mdx',
+    'markdown',
+    'html',
+    'htm',
+    'svg',
+    'panel',
+    'kanban',
+    'ckp',
+  };
+  static const Set<String> _inlinePreviewExtensions = {'html', 'htm', 'panel'};
 
   FileEditorEngine engineFor(FileOpenRequest request) {
     if (request.isRemote || request.isNotebook) {
       return FileEditorEngine.cockpit;
     }
-    if (!request.asSource &&
-        _cockpitExtensions.contains(_extension(request.path))) {
-      return FileEditorEngine.cockpit;
+    if (!request.asSource) {
+      final extension = _extension(request.path);
+      if (_cockpitExtensions.contains(extension)) {
+        return FileEditorEngine.cockpit;
+      }
+      if (_previewExtensions.contains(extension) &&
+          (inlinePreviewAvailable ||
+              !_inlinePreviewExtensions.contains(extension))) {
+        return FileEditorEngine.cockpit;
+      }
     }
     return engine;
   }

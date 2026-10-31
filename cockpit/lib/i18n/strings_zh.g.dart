@@ -596,6 +596,7 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => '在新窗口中打开';
 	@override String get rename => '重命名';
 	@override String get openAsMarkdown => '以 Markdown 打开';
+	@override String get editInNeovim => '使用 Neovim 编辑';
 	@override String get openAsBoard => '以看板打开';
 	@override String get resetTitle => '重置标题';
 	@override String get copyId => '复制 ID';
@@ -2271,6 +2272,7 @@ extension on TranslationsZh {
 			'cockpit.paneView.openInNewWindow' => '在新窗口中打开',
 			'cockpit.paneView.rename' => '重命名',
 			'cockpit.paneView.openAsMarkdown' => '以 Markdown 打开',
+			'cockpit.paneView.editInNeovim' => '使用 Neovim 编辑',
 			'cockpit.paneView.openAsBoard' => '以看板打开',
 			'cockpit.paneView.resetTitle' => '重置标题',
 			'cockpit.paneView.copyId' => '复制 ID',
@@ -2585,9 +2587,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
-			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3099,9 +3101,9 @@ extension on TranslationsZh {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
-			'automation.error.cancelled' => '提交信息生成已取消。',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.cancelled' => '提交信息生成已取消。',
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

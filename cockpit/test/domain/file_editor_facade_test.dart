@@ -11,11 +11,13 @@ void main() {
     bool remote = false,
     bool source = false,
     bool notebook = false,
+    bool previewTab = true,
   }) => FileOpenRequest(
     path: path,
     projectId: 'project',
     paneId: 'pane',
     isRemote: remote,
+    isPreview: previewTab,
     asSource: source,
     isNotebook: notebook,
   );
@@ -60,6 +62,57 @@ void main() {
   test('source action sends specialized text to selected engine', () async {
     await facade.open(request('/repo/board.kanban', source: true));
     expect(calls, [FileEditorEngine.neovim]);
+  });
+
+  test(
+    'previews supported visual types and edits their source in Neovim',
+    () async {
+      for (final path in [
+        '/repo/README.md',
+        '/repo/page.mdx',
+        '/repo/readme.markdown',
+        '/repo/page.html',
+        '/repo/page.htm',
+        '/repo/logo.svg',
+        '/repo/tool.panel',
+        '/repo/board.kanban',
+        '/repo/layout.ckp',
+      ]) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.cockpit], reason: path);
+        calls.clear();
+        await facade.open(request(path, source: true));
+        expect(calls, [FileEditorEngine.neovim], reason: path);
+      }
+    },
+  );
+
+  test(
+    'pinned Markdown, SVG and HTML opens still use Cockpit preview',
+    () async {
+      for (final path in [
+        '/repo/README.MD',
+        '/repo/logo.SVG',
+        '/repo/page.HTML',
+      ]) {
+        calls.clear();
+        await facade.open(request(path, previewTab: false));
+        expect(calls, [FileEditorEngine.cockpit], reason: path);
+      }
+    },
+  );
+
+  test('HTML and panel need an inline preview', () async {
+    facade.inlinePreviewAvailable = false;
+    for (final path in ['/repo/page.html', '/repo/tool.panel']) {
+      calls.clear();
+      await facade.open(request(path));
+      expect(calls, [FileEditorEngine.neovim]);
+    }
+    calls.clear();
+    await facade.open(request('/repo/README.md'));
+    expect(calls, [FileEditorEngine.cockpit]);
   });
 
   test('falls back exactly once when external engine cannot open', () async {

@@ -674,6 +674,7 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
 	@override String get rename => 'Renombrar';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar con Neovim';
 	@override String get openAsBoard => 'Abrir como tablero';
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
@@ -2349,6 +2350,7 @@ extension on TranslationsEs {
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
 			'cockpit.paneView.rename' => 'Renombrar',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar con Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como tablero',
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2663,9 +2665,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
-			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
@@ -3177,9 +3179,9 @@ extension on TranslationsEs {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} no respondió en ${seconds} segundos.',
-			'automation.error.cancelled' => 'Se canceló la generación del mensaje de commit.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.cancelled' => 'Se canceló la generación del mensaje de commit.',
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} no pudo generar un mensaje de commit.',
 			'automation.error.invalidResponse' => 'La automatización devolvió un mensaje de commit vacío.',

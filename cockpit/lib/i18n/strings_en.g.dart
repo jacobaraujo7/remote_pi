@@ -1331,6 +1331,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -4749,6 +4752,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -5063,9 +5067,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
-			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5577,9 +5581,9 @@ extension on Translations {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
-			'automation.error.cancelled' => 'Commit message generation was cancelled.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.cancelled' => 'Commit message generation was cancelled.',
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',

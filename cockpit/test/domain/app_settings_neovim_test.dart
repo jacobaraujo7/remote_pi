@@ -31,6 +31,14 @@ void main() {
     );
   });
 
+  test('obsolete preview selection is not persisted', () {
+    final settings = AppSettings.fromJson({
+      'editor.engine': 'neovim',
+      'editor.previewTypes': <String>[],
+    });
+    expect(settings.toJson(), isNot(contains('editor.previewTypes')));
+  });
+
   test('legacy Neovim boolean migrates and new key takes precedence', () {
     expect(
       AppSettings.fromJson({'editor.neovim.enabled': true}).fileEditorEngine,

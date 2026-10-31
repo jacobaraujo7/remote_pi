@@ -9,6 +9,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/panel_document.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/preview_edit_button.dart';
 
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
@@ -45,12 +46,22 @@ class PanelWebViews {
 }
 
 class PanelView extends StatefulWidget {
-  const PanelView({super.key, required this.session, required this.onCall});
+  const PanelView({
+    super.key,
+    required this.session,
+    required this.onCall,
+    this.onEditSource,
+    this.editSourceLabel,
+  });
 
   final FileViewerSession session;
 
   /// Executa `cockpit <line>` com cwd [cwd] e devolve o mapa que a página vê.
   final Future<Map<String, Object?>> Function(String line, String cwd) onCall;
+
+  /// Abre o HTML do painel no editor configurado. Ausente na janela solta.
+  final VoidCallback? onEditSource;
+  final String? editSourceLabel;
 
   @override
   State<PanelView> createState() => _PanelViewState();
@@ -306,9 +317,9 @@ class _PanelViewState extends State<PanelView> {
       return _Unavailable(
         message: tr.unavailable,
         openInBrowser: tr.openInBrowser,
-        openAsHtml: tr.openAsHtml,
+        openAsHtml: widget.editSourceLabel ?? tr.openAsHtml,
         path: widget.session.path,
-        onOpenAsHtml: widget.session.toggleRawSource,
+        onOpenAsHtml: widget.onEditSource ?? widget.session.toggleRawSource,
       );
     }
     final bridge = _bridge;
@@ -333,7 +344,7 @@ class _PanelViewState extends State<PanelView> {
     final initialUrlRequest = Platform.isWindows
         ? URLRequest(url: WebUri(_baseUrl))
         : null;
-    return WebViewCover(
+    final preview = WebViewCover(
       loaded: _loaded,
       child: WebViewEnvironmentGate(
         builder: (context, environment) => UnzoomedNativeView(
@@ -396,6 +407,23 @@ class _PanelViewState extends State<PanelView> {
           ),
         ),
       ),
+    );
+    final onEditSource = widget.onEditSource;
+    if (onEditSource == null) return preview;
+    return Column(
+      children: [
+        Expanded(child: preview),
+        Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          color: context.colors.bg,
+          alignment: Alignment.centerRight,
+          child: PreviewEditButton(
+            onPressed: onEditSource,
+            label: widget.editSourceLabel ?? tr.openAsHtml,
+          ),
+        ),
+      ],
     );
   }
 }
