@@ -250,12 +250,13 @@ class RemoteHostConnector {
     // paga round-trip novo — só mudou quem pergunta.
     final shell = await _hostShell();
 
-    // Servidor já de pé? No POSIX o endpoint é determinístico e a ausência é
-    // descoberta pelo túnel (comportamento de antes); no Windows é o arquivo
-    // de rendezvous que responde, e sem ele nem adianta abrir forward.
+    // Servidor já de pé? No POSIX o anúncio é lido num único comando (`test
+    // -S` + `cat` do rendezvous, ver PosixHostShell); a ausência é descoberta
+    // pelo túnel (comportamento de antes). No Windows é o arquivo de
+    // rendezvous que responde, e sem ele nem adianta abrir forward.
     var endpoint = await shell.readEndpoint();
     if (endpoint != null) {
-      final service = await _connectVia(shell, endpoint);
+      final service = await _connectWithFallback(shell, endpoint);
       if (service != null) return service;
     }
 
@@ -271,10 +272,37 @@ class RemoteHostConnector {
         log.isEmpty ? 'server did not start on the host' : log,
       );
     }
-    final service = await _connectVia(shell, endpoint, attempts: 20);
+    final service = await _connectWithFallback(shell, endpoint, attempts: 20);
     if (service != null) return service;
     _setPhase(RemoteHostPhase.failed);
-    throw const RemoteHostException(RemoteHostErrorKind.serverInstallFailed);
+    // Nem o socket nem o rendezvous atenderam: o rastro do arranque é a única
+    // evidência — mesma regra do caminho de servidor que nem chegou a subir.
+    final bootLog = await shell.tailBootLog();
+    throw RemoteHostException(
+      RemoteHostErrorKind.serverInstallFailed,
+      bootLog.isEmpty ? 'server did not start on the host' : bootLog,
+    );
+  }
+
+  /// Tenta o transporte [endpoint] e, se ninguém atender, tenta a OUTRA ponta
+  /// anunciada no host.
+  ///
+  /// O host POSIX passou a subir o servidor em TCP + rendezvous (`--tcp`) para
+  /// SSHs sem forward de socket UNIX (Tailscale SSH); anúncios antigos ou de
+  /// binários velhos (que ignoram a flag) são socket UNIX. Re-ler o anúncio
+  /// (em vez de chutar a outra forma) cobre o anúncio ter trocado de transporte
+  /// entre a primeira leitura e a falha — e não tenta nada quando só há uma
+  /// forma anunciada, que é o caso comum.
+  Future<RemoteTerminalService?> _connectWithFallback(
+    HostShell shell,
+    RemoteEndpoint endpoint, {
+    int attempts = 1,
+  }) async {
+    final service = await _connectVia(shell, endpoint, attempts: attempts);
+    if (service != null) return service;
+    final other = await shell.readEndpoint();
+    if (other == null || other.runtimeType == endpoint.runtimeType) return null;
+    return _connectVia(shell, other, attempts: attempts);
   }
 
   /// Abre o túnel para [endpoint] e completa o handshake. `null` = não havia
@@ -630,6 +658,16 @@ class RemoteHostConnector {
 
   Future<void> _installAndStartServer(HostShell shell) async {
     var installed = await shell.serverInstalled();
+    // Stale por duas vias: marcado depois de uma conexão bem-sucedida (a
+    // freshness barata, uma vez por host por sessão), ou detectado AQUI quando
+    // o servidor instalado não atende por transporte nenhum — o caso do binário
+    // velho demais para os novos argumentos de arranque, em que a marca nunca
+    // chegou a ser levantada. O digest custa um SSH só quando instalado e a
+    // marca ainda não existe.
+    if (installed && !_staleServer) {
+      _staleServer = await _serverFreshness.run(() => _remoteServerIsStale(shell));
+      if (_staleServer) installed = false;
+    }
     if (installed && _staleServer) installed = false;
 
     if (!installed) {
