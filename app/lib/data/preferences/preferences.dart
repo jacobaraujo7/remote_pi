@@ -18,6 +18,7 @@ class Preferences extends ChangeNotifier {
   bool _onboardingCompleted = false;
   ThemeMode _themeMode = ThemeMode.system;
   AppFontScale _fontScale = AppFontScale.standard;
+  String? _sttLocale;
 
   Preferences([FlutterSecureStorage? store])
       : _store = store ?? const FlutterSecureStorage();
@@ -28,6 +29,7 @@ class Preferences extends ChangeNotifier {
   static const _kOnboardingCompletedKey = 'prefs.onboarding_completed';
   static const _kThemeModeKey = 'prefs.theme_mode';
   static const _kFontScaleKey = 'prefs.font_scale';
+  static const _kSttLocaleKey = 'prefs.stt_locale';
 
   /// True → chat hides `ToolEvent` rows (only user/assistant text remain).
   bool get hideToolCalls => _hideToolCalls;
@@ -84,6 +86,12 @@ class Preferences extends ChangeNotifier {
   /// `copyWith(fontSize: …)` overrides that a typography-only change would miss.
   AppFontScale get fontScale => _fontScale;
 
+  /// Preferred speech-to-text recognition locale (e.g. `he_IL`). `null` =
+  /// system default — the recognizer resolves the platform locale at init
+  /// time. Consumed by the voice-input ViewModel and set from the Settings
+  /// "Voice input" section.
+  String? get sttLocale => _sttLocale;
+
   /// Hydrate from secure storage. Safe to call multiple times.
   Future<void> load() async {
     var changed = false;
@@ -126,6 +134,13 @@ class Preferences extends ChangeNotifier {
     final scale = AppFontScale.fromName(await _store.read(key: _kFontScaleKey));
     if (scale != _fontScale) {
       _fontScale = scale;
+      changed = true;
+    }
+
+    final sttRaw = await _store.read(key: _kSttLocaleKey);
+    final sttCleaned = (sttRaw != null && sttRaw.isNotEmpty) ? sttRaw : null;
+    if (sttCleaned != _sttLocale) {
+      _sttLocale = sttCleaned;
       changed = true;
     }
 
@@ -198,6 +213,20 @@ class Preferences extends ChangeNotifier {
     if (_themeMode == value) return;
     _themeMode = value;
     await _store.write(key: _kThemeModeKey, value: value.name);
+    notifyListeners();
+  }
+
+  /// Persist the preferred speech-to-text locale. `null` or empty clears
+  /// the override so recognition falls back to the platform locale.
+  Future<void> setSttLocale(String? value) async {
+    final cleaned = (value != null && value.isNotEmpty) ? value : null;
+    if (cleaned == _sttLocale) return;
+    _sttLocale = cleaned;
+    if (cleaned == null) {
+      await _store.delete(key: _kSttLocaleKey);
+    } else {
+      await _store.write(key: _kSttLocaleKey, value: cleaned);
+    }
     notifyListeners();
   }
 
