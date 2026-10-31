@@ -1,24 +1,19 @@
-// Plan/57 — Bridge @eko24ive/pi-ask clarification flows to the paired app over
-// the extension_ui_request/response contract.
+// Plan/57 — Bridge interactive clarification flows to the paired app over the
+// extension_ui_request/response contract.
 //
-// pi-ask (when installed) runs ask_user in the Pi TUI on the desktop AND emits
-// a same-process event contract on `pi.events` (docs/remote-events.md):
+// Two producers are supported:
 //
-//   @eko24ive/pi-ask:started      { flowId, toolCallId?, source, title?, questions[] }
-//   @eko24ive/pi-ask:submit       { requestId, flowId, response }   // we emit this
-//   @eko24ive/pi-ask:submit-result{ requestId, flowId, ok, error? } // pi-ask emits
-//   @eko24ive/pi-ask:completed    { flowId, result }
+//   @eko24ive/pi-ask events — Pi's ask_user extension emits a same-process
+//     event contract that this bridge forwards to the app.
+//   OMP's built-in ask tool — OMP exposes its rich askDialog through the
+//     ExtensionContext UI object. When present, this bridge wraps that method
+//     and races the desktop dialog against the paired app.
 //
-// This module subscribes to those events and translates them into the SDK's
-// extension_ui_request/response wire shapes (mirrored from
-// `pi --mode rpc`'s RpcExtensionUIRequest/Response) so the mobile app renders
-// ask_user natively. pi-ask's richer schema rides in an optional `ask` envelope.
-//
-// Inert when pi-ask is absent: no events fire, nothing breaks. ask_user without
-// pi-ask doesn't exist, so this bridge is strictly opt-in.
+// Both flows use the same wire envelope. The app already renders the envelope
+// as a native multi-question/multi-select surface; only the producer differs.
 
+import { randomUUID } from "node:crypto";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import type { PlainPeerChannel } from "./transport/peer_channel.js";
 import type {
   AskAnswerWire,
   AskEnrichmentWire,
@@ -34,16 +29,78 @@ const PI_ASK_STARTED = "@eko24ive/pi-ask:started";
 const PI_ASK_COMPLETED = "@eko24ive/pi-ask:completed";
 const PI_ASK_SUBMIT = "@eko24ive/pi-ask:submit";
 const PI_ASK_SUBMIT_RESULT = "@eko24ive/pi-ask:submit-result";
+const OMP_ASK_FLOW_PREFIX = "omp:ask:";
 
-/** Drop a flow from `activeFlows` if pi-ask never resolves it (e.g. a flow
- *  disposed on session_shutdown — pi-ask does not emit `completed` for those).
- *  Bounds memory; generous vs. a human answer time. */
+/** Drop an unanswered flow after ten minutes. */
 const FLOW_TTL_MS = 10 * 60 * 1000;
 
 /** Minimal view of `pi.events` this bridge needs. */
 type EventBus = ExtensionAPI["events"];
 
-/** One ask_user flow we've surfaced to the app and are awaiting an answer for. */
+/** Structural copy of OMP's rich ask UI types.
+ *
+ * Remote Pi is compiled against Pi's public extension types, while OMP loads
+ * legacy Pi extensions through its compatibility layer. Keeping these types
+ * structural avoids a hard dependency on OMP.
+ */
+export interface OmpAskDialogOption {
+  label: string;
+  description?: string;
+  preview?: string;
+}
+
+export interface OmpAskDialogQuestion {
+  id: string;
+  question: string;
+  header?: string;
+  options: OmpAskDialogOption[];
+  multi?: boolean;
+  recommended?: number;
+}
+
+export interface OmpAskDialogResultItem {
+  id: string;
+  question: string;
+  options: string[];
+  multi: boolean;
+  selectedOptions: string[];
+  customInput?: string;
+  note?: string;
+  timedOut?: boolean;
+}
+
+export type OmpAskDialogResult =
+  | { kind: "submit"; results: OmpAskDialogResultItem[] }
+  | { kind: "chat" };
+
+interface OmpDialogOptions {
+  signal?: AbortSignal;
+  timeout?: number;
+  onTimeout?: () => void;
+  [key: string]: unknown;
+}
+
+type OmpAskDialog = (
+  questions: OmpAskDialogQuestion[],
+  options?: OmpDialogOptions,
+) => Promise<OmpAskDialogResult | undefined>;
+
+type RemoteOmpResult =
+  | { kind: "answer"; value: OmpAskDialogResult | undefined }
+  | { kind: "unavailable" };
+
+interface OmpDialogWinner {
+  source: "local" | "remote";
+  value: OmpAskDialogResult | undefined;
+}
+interface ActiveOmpFlow {
+  flowId: string;
+  title: string | null;
+  questions: AskQuestionWire[];
+  resolve: (result: RemoteOmpResult) => void;
+}
+
+/** One pi-ask flow we've surfaced to the app and are awaiting an answer for. */
 interface ActiveFlow {
   flowId: string;
   toolCallId: string | null;
@@ -52,33 +109,38 @@ interface ActiveFlow {
   questions: AskQuestionWire[];
 }
 
+export interface ExtensionUiBridgeOptions {
+  /** Return true when at least one paired app can receive a prompt. */
+  hasActivePeer?: () => boolean;
+}
+
 export interface ExtensionUiBridge {
-  /** Route an inbound `extension_ui_response` from a peer back to pi-ask. */
+  /** Route an inbound extension_ui_response from a peer. */
   respond(msg: ExtensionUiResponseWire): void;
+  /** Wrap OMP's optional rich askDialog UI method when the host provides it. */
+  attachOmpAskDialog(ui: unknown): void;
   /**
-   * Requests for flows still awaiting an answer, for `session_sync` to replay.
+   * Requests for flows still awaiting an answer, for session_sync to replay.
    *
-   * The `started` broadcast fires exactly once. A peer that connects *after*
-   * a flow opened never saw it: history replayed, but the interactive frame
-   * did not, so the phone showed the ask_user tool call as plain text while
-   * the desktop sat blocked on the TUI dialog. Replaying on sync closes that
-   * hole — the common real-world case is the agent asking while the app is
-   * closed.
+   * The started broadcast fires exactly once. A peer that connects after a
+   * flow opened never saw it, so replay the interactive frame after history.
    */
   pendingRequests(): ServerMessage[];
-  /** Drop all subscriptions + state (best-effort teardown). */
+  /** Drop all subscriptions, wrappers, timers, and pending state. */
   dispose(): void;
 }
 
 /**
- * Wire pi-ask's event contract to the relay's extension_ui_request/response
- * frames. Returns `null` only if the SDK exposes no usable `events` bus (defensive
- * — modern Pi always has one); callers stay null-safe.
+ * Wire Pi ask_user events and OMP's built-in ask dialog to the relay's
+ * extension_ui_request/response frames. Returns null only when the SDK exposes
+ * no usable events bus.
  */
 export function createExtensionUiBridge(
   pi: ExtensionAPI,
   broadcast: (msg: ServerMessage) => void,
+  options: ExtensionUiBridgeOptions = {},
 ): ExtensionUiBridge | null {
+
   const eventsRaw = (pi as { events?: EventBus }).events;
   if (
     !eventsRaw ||
@@ -95,10 +157,14 @@ export function createExtensionUiBridge(
   // option value, and so completed/submit-result can be tolerated if they arrive
   // after the app already answered.
   const activeFlows = new Map<string, ActiveFlow>();
+  const activeOmpFlows = new Map<string, ActiveOmpFlow>();
+  const ompFlowTimers = new Map<string, NodeJS.Timeout>();
+  let restoreOmpAskDialog: (() => void) | null = null;
+  const hasActivePeer = options.hasActivePeer ?? (() => true);
   // Per-flow TTL timers (FLOW_TTL_MS). pi-ask disposes flows on session_shutdown
   // WITHOUT emitting `completed`, so without this the `activeFlows` map would
   // leak one entry per abandoned flow. Bounded, defensive.
-  const flowTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const flowTimers = new Map<string, NodeJS.Timeout>();
 
   function clearFlowTtl(flowId: string): void {
     const t = flowTimers.get(flowId);
@@ -129,6 +195,150 @@ export function createExtensionUiBridge(
         });
       }, FLOW_TTL_MS),
     );
+  }
+  function clearOmpFlowTtl(flowId: string): void {
+    const timer = ompFlowTimers.get(flowId);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      ompFlowTimers.delete(flowId);
+    }
+  }
+
+  function settleOmpFlow(
+    flowId: string,
+    result: RemoteOmpResult,
+    notify = true,
+  ): void {
+    const flow = activeOmpFlows.get(flowId);
+    if (!flow) return;
+    activeOmpFlows.delete(flowId);
+    clearOmpFlowTtl(flowId);
+    flow.resolve(result);
+    if (notify) {
+      broadcast({
+        type: "extension_ui_request",
+        id: flowId,
+        method: "notify",
+        message: "Clarification resolved.",
+      });
+    }
+  }
+
+  function armOmpFlowTtl(flowId: string): void {
+    clearOmpFlowTtl(flowId);
+    ompFlowTimers.set(
+      flowId,
+      setTimeout(() => {
+        settleOmpFlow(flowId, { kind: "unavailable" });
+      }, FLOW_TTL_MS),
+    );
+  }
+
+  function requestOmpAskDialog(
+    questions: OmpAskDialogQuestion[],
+    dialogOptions?: OmpDialogOptions,
+  ): Promise<RemoteOmpResult> {
+    if (dialogOptions?.signal?.aborted) {
+      return Promise.resolve({ kind: "unavailable" });
+    }
+
+    const flowId = `${OMP_ASK_FLOW_PREFIX}${randomUUID()}`;
+    const flow: ActiveOmpFlow = {
+      flowId,
+      title: null,
+      questions: toOmpWireQuestions(questions),
+      resolve: () => {},
+    };
+    let resolveResult: (result: RemoteOmpResult) => void = () => {};
+    const result = new Promise<RemoteOmpResult>((resolve) => {
+      resolveResult = resolve;
+    });
+    flow.resolve = resolveResult;
+    activeOmpFlows.set(flowId, flow);
+    armOmpFlowTtl(flowId);
+
+    const onAbort = (): void => {
+      settleOmpFlow(flowId, { kind: "unavailable" });
+    };
+    dialogOptions?.signal?.addEventListener("abort", onAbort, { once: true });
+
+    try {
+      broadcast(requestForOmpFlow(flow));
+    } catch {
+      onAbort();
+    }
+
+    return result.finally(() => {
+      dialogOptions?.signal?.removeEventListener("abort", onAbort);
+    });
+  }
+
+  function attachOmpAskDialog(ui: unknown): void {
+    restoreOmpAskDialog?.();
+    restoreOmpAskDialog = null;
+    if (!ui || typeof ui !== "object") return;
+
+    const candidate = ui as { askDialog?: OmpAskDialog };
+    const original = candidate.askDialog;
+    if (typeof original !== "function") return;
+
+    const wrapped: OmpAskDialog = async (questions, dialogOptions) => {
+      let remoteAvailable = false;
+      try {
+        remoteAvailable = hasActivePeer();
+      } catch {
+        remoteAvailable = false;
+      }
+      if (!remoteAvailable) return original(questions, dialogOptions);
+
+      const localAbort = new AbortController();
+      const remoteAbort = new AbortController();
+      const parentSignal = dialogOptions?.signal;
+      const localSignal = parentSignal
+        ? AbortSignal.any([parentSignal, localAbort.signal])
+        : localAbort.signal;
+      const remoteSignal = parentSignal
+        ? AbortSignal.any([parentSignal, remoteAbort.signal])
+        : remoteAbort.signal;
+
+      const localPromise = Promise.resolve().then(() =>
+        original(questions, { ...dialogOptions, signal: localSignal }),
+      );
+      const localWinner: Promise<OmpDialogWinner> = localPromise.then(
+        (value): OmpDialogWinner => ({
+          source: "local",
+          value,
+        }),
+      );
+      const remoteWinner: Promise<OmpDialogWinner> = requestOmpAskDialog(
+        questions,
+        {
+          ...dialogOptions,
+          signal: remoteSignal,
+        },
+      ).then((outcome): OmpDialogWinner | PromiseLike<OmpDialogWinner> =>
+        outcome.kind === "unavailable"
+          ? localWinner
+          : { source: "remote", value: outcome.value },
+      );
+
+      try {
+        const winner = await Promise.race([localWinner, remoteWinner]);
+        return winner.value;
+      } finally {
+        localAbort.abort();
+        remoteAbort.abort();
+      }
+    };
+
+    try {
+      candidate.askDialog = wrapped;
+    } catch {
+      return;
+    }
+    restoreOmpAskDialog = () => {
+      if (candidate.askDialog === wrapped) candidate.askDialog = original;
+    };
   }
 
   const unsubStarted = events.on(PI_ASK_STARTED, (raw: unknown) => {
@@ -206,7 +416,43 @@ export function createExtensionUiBridge(
     });
   });
 
+  function respondToOmpFlow(msg: ExtensionUiResponseWire): boolean {
+    const ask = msg.ask;
+    const flowId =
+      ask?.flow_id ?? (activeOmpFlows.has(msg.id) ? msg.id : undefined);
+    if (!flowId) return false;
+    const flow = activeOmpFlows.get(flowId);
+    if (!flow) return false;
+
+    if (
+      ("cancelled" in msg && msg.cancelled === true) ||
+      (ask !== undefined && ask.kind === "cancel")
+    ) {
+      settleOmpFlow(flowId, { kind: "answer", value: undefined });
+      return true;
+    }
+
+    if (ask !== undefined && ask.kind === "answer") {
+      settleOmpFlow(flowId, {
+        kind: "answer",
+        value: ompResultFromAnswer(flow, ask),
+      });
+      return true;
+    }
+
+    if ("value" in msg) {
+      settleOmpFlow(flowId, {
+        kind: "answer",
+        value: ompResultFromLabel(flow, String(msg.value)),
+      });
+      return true;
+    }
+
+    return true;
+  }
+
   function respond(msg: ExtensionUiResponseWire): void {
+    if (respondToOmpFlow(msg)) return;
     const ask = msg.ask;
 
     // Explicit cancel — with or without the ask envelope. A strict client
@@ -284,17 +530,26 @@ export function createExtensionUiBridge(
 
   return {
     respond,
-    // Insertion order = the order the flows opened, so a client replaying more
-    // than one renders them oldest-first. pi-ask resolves one flow at a time in
-    // practice, so this is a defensive detail rather than a live case.
-    pendingRequests: () => [...activeFlows.values()].map(requestForFlow),
+    attachOmpAskDialog,
+    pendingRequests: () => [
+      ...[...activeFlows.values()].map(requestForFlow),
+      ...[...activeOmpFlows.values()].map(requestForOmpFlow),
+    ],
     dispose() {
+      restoreOmpAskDialog?.();
+      restoreOmpAskDialog = null;
       unsubStarted();
       unsubCompleted();
       unsubResult();
       for (const t of flowTimers.values()) clearTimeout(t);
       flowTimers.clear();
+      for (const flowId of [...activeOmpFlows.keys()]) {
+        settleOmpFlow(flowId, { kind: "unavailable" }, false);
+      }
+      for (const t of ompFlowTimers.values()) clearTimeout(t);
+      ompFlowTimers.clear();
       activeFlows.clear();
+      activeOmpFlows.clear();
     },
   };
 }
@@ -336,6 +591,120 @@ function requestForFlow(flow: ActiveFlow): ServerMessage {
     ask,
   };
 }
+/** Build the same envelope for an OMP `ask` flow. */
+function requestForOmpFlow(flow: ActiveOmpFlow): ServerMessage {
+  const first = flow.questions[0];
+  const title = flow.title ?? first?.prompt ?? "Clarification";
+  const options = first ? first.options.map((o) => o.label) : [];
+  const ask: AskEnrichmentWire = {
+    flow_id: flow.flowId,
+    tool_call_id: null,
+    source: "omp-ask",
+    title: flow.title,
+    questions: flow.questions,
+  };
+  if (options.length === 0) {
+    return {
+      type: "extension_ui_request",
+      id: flow.flowId,
+      method: "input",
+      title,
+      placeholder: first?.prompt,
+      ask,
+    };
+  }
+  return {
+    type: "extension_ui_request",
+    id: flow.flowId,
+    method: "select",
+    title,
+    options,
+    ask,
+  };
+}
+
+function toOmpWireQuestions(
+  questions: OmpAskDialogQuestion[],
+): AskQuestionWire[] {
+  return questions.map((question) => {
+    const hasPreview = question.options.some(
+      (option) => typeof option.preview === "string" && option.preview.length > 0,
+    );
+    const isMulti = question.multi === true;
+    const type: AskQuestionWireType = hasPreview
+      ? "preview"
+      : isMulti
+        ? "multi"
+        : "single";
+    return {
+      id: question.id,
+      label: question.header ?? question.question,
+      prompt: question.question,
+      type,
+      required: false,
+      ...(isMulti && hasPreview ? { presentedType: "multi" as const } : {}),
+      requestedType: isMulti ? "multi" : type,
+      options: question.options.map((option, index) => ({
+        value: `${question.id}:${index}`,
+        label: option.label,
+        description: option.description,
+        preview: option.preview,
+      })),
+    };
+  });
+}
+function ompResultFromAnswer(
+  flow: ActiveOmpFlow,
+  answer: AskResponseEnrichmentWire & { kind: "answer" },
+): OmpAskDialogResult {
+  return {
+    kind: "submit",
+    results: flow.questions.map((question) => {
+      const response = answer.answers[question.id] ?? {};
+      const values = new Set(response.values ?? []);
+      const selectedOptions = question.options
+        .map((option, index) => ({
+          label: option.label,
+          value: `${question.id}:${index}`,
+        }))
+        .filter((option) => values.has(option.value) || values.has(option.label))
+        .map((option) => option.label);
+      return {
+        id: question.id,
+        question: question.prompt,
+        options: question.options.map((option) => option.label),
+        multi: question.type === "multi" || question.presentedType === "multi",
+        selectedOptions,
+        customInput: response.customText,
+        note: response.note,
+      };
+    }),
+  };
+}
+
+function ompResultFromLabel(
+  flow: ActiveOmpFlow,
+  label: string,
+): OmpAskDialogResult {
+  return {
+    kind: "submit",
+    results: flow.questions.map((question, index) => {
+      const selected =
+        index === 0
+          ? question.options.find((option) => option.label === label)?.label
+          : undefined;
+      return {
+        id: question.id,
+        question: question.prompt,
+        options: question.options.map((option) => option.label),
+        multi: question.type === "multi" || question.presentedType === "multi",
+        selectedOptions: selected ? [selected] : [],
+        customInput: index === 0 && !selected && label ? label : undefined,
+      };
+    }),
+  };
+}
+
 
 // ── pi-ask event parsing (defensive — shapes come from a third-party package) ──
 
