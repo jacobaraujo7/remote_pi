@@ -926,6 +926,32 @@
       "unavailable": "Panels need the embedded web view, which is not available on Linux yet.",
       "openInBrowser": "Open in browser",
       "openAsHtml": "Open as HTML"
+    },
+    "cloneRepoDialog": {
+      "menuItem": "Clone repository",
+      "title": "Clone Git repository",
+      "urlLabel": "Repository URL (SSH or HTTPS)",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "paste": "Paste",
+      "parentLabel": "Destination folder",
+      "choose": "Choose…",
+      "chooseParentDialogTitle": "Choose where to clone the repository",
+      "folderLabel": "Folder name",
+      "targetPreview": "Clones into ${path}",
+      "errUrl": "Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.",
+      "errParent": "Pick an existing destination folder.",
+      "errFolder": "Folder name required, without / or \\.",
+      "errExists": "${path} already exists and is not empty.",
+      "cloneAction": "Clone",
+      "progressTitle": "Cloning ${name}",
+      "errFolderChars": "Windows does not allow < > : \" | ? * in folder names.",
+      "errFolderReserved": "\"${name}\" is a reserved name on Windows.",
+      "errFolderTrailing": "On Windows a folder name cannot end with a dot or a space.",
+      "hintGitMissing": "Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.",
+      "hintXcodeTools": "macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.",
+      "hintSshMissing": "SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).",
+      "hintHostKey": "The server's SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.",
+      "hintAuth": "Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login)."
     }
   },
   "settings": {

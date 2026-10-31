@@ -5381,6 +5381,11 @@ class CockpitViewModel extends ChangeNotifier
   /// `git push` no repo em [repoPath].
   GitRun gitPush(String repoPath) => git.push(repoPath);
 
+  /// `git clone` de [url] em [targetPath] (fluxo "Clonar repositório" do "+").
+  /// Não registra o workspace: a action faz isso só depois do clone dar certo.
+  GitRun gitClone(String url, String targetPath) =>
+      _gitRunner.clone(url, targetPath);
+
   /// "Update from parent": mergeia a branch **do pai** (root de origem) no
   /// checkout do worktree [fork] — o inverso do [mergeWorktreeToParent].
   /// Conflito fica no worktree pro usuário resolver (exit ≠ 0 no dialog);

@@ -28,6 +28,8 @@ class _NoopCommandRunner implements GitCommandRunner {
 
   @override
   GitRun syncPullPush(String repoPath) => _unused();
+  @override
+  GitRun clone(String url, String targetPath) => _unused();
 }
 
 void main() {

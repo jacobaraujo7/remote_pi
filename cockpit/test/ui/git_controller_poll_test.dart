@@ -31,6 +31,8 @@ class _UnusedRunner implements GitCommandRunner {
   @override
   GitRun syncPullPush(String repoPath) => throw UnimplementedError();
   @override
+  GitRun clone(String url, String targetPath) => throw UnimplementedError();
+  @override
   GitMergeOutcome mergeIntoParent(
     String parentPath,
     String worktreePath,

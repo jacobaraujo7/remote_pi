@@ -926,6 +926,32 @@
       "unavailable": "Painéis precisam da web view embutida, que ainda não existe no Linux.",
       "openInBrowser": "Abrir no navegador",
       "openAsHtml": "Abrir como HTML"
+    },
+    "cloneRepoDialog": {
+      "menuItem": "Clonar repositório",
+      "title": "Clonar repositório Git",
+      "urlLabel": "URL do repositório (SSH ou HTTPS)",
+      "urlPlaceholder": "git@github.com:org/repo.git",
+      "paste": "Colar",
+      "parentLabel": "Pasta de destino",
+      "choose": "Escolher…",
+      "chooseParentDialogTitle": "Escolha onde clonar o repositório",
+      "folderLabel": "Nome da pasta",
+      "targetPreview": "Clona em ${path}",
+      "errUrl": "Cole uma URL Git SSH (git@host:org/repo.git) ou HTTPS.",
+      "errParent": "Escolha uma pasta de destino existente.",
+      "errFolder": "Nome da pasta obrigatório, sem / ou \\.",
+      "errExists": "${path} já existe e não está vazia.",
+      "cloneAction": "Clonar",
+      "progressTitle": "Clonando ${name}",
+      "errFolderChars": "O Windows não aceita < > : \" | ? * em nome de pasta.",
+      "errFolderReserved": "\"${name}\" é um nome reservado no Windows.",
+      "errFolderTrailing": "No Windows, nome de pasta não pode terminar com ponto ou espaço.",
+      "hintGitMissing": "Git não encontrado. Instale e tente de novo: no macOS rode xcode-select --install (ou brew install git); no Windows instale o Git for Windows (git-scm.com).",
+      "hintXcodeTools": "Faltam as Command Line Tools do macOS. Rode xcode-select --install no Terminal e tente de novo.",
+      "hintSshMissing": "SSH indisponível para esta URL. Use a URL HTTPS ou instale o OpenSSH (o Git for Windows já traz um).",
+      "hintHostKey": "A chave SSH do servidor não pôde ser verificada ou mudou. Confira o ~/.ssh/known_hosts antes de tentar de novo.",
+      "hintAuth": "Acesso negado ou repositório não encontrado. No SSH, teste sua chave com ssh -T git@github.com; no HTTPS, entre pelo gerenciador de credenciais do Git (ou gh auth login)."
     }
   },
   "settings": {

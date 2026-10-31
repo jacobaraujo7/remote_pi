@@ -192,6 +192,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$layoutPreview$en layoutPreview = Translations$cockpit$layoutPreview$en.internal(_root);
 	late final Translations$cockpit$telemetry$en telemetry = Translations$cockpit$telemetry$en.internal(_root);
 	late final Translations$cockpit$panelView$en panelView = Translations$cockpit$panelView$en.internal(_root);
+	late final Translations$cockpit$cloneRepoDialog$en cloneRepoDialog = Translations$cockpit$cloneRepoDialog$en.internal(_root);
 }
 
 // Path: settings
@@ -3229,6 +3230,87 @@ class Translations$cockpit$panelView$en {
 	String get openAsHtml => 'Open as HTML';
 }
 
+// Path: cockpit.cloneRepoDialog
+class Translations$cockpit$cloneRepoDialog$en {
+	Translations$cockpit$cloneRepoDialog$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Clone repository'
+	String get menuItem => 'Clone repository';
+
+	/// en: 'Clone Git repository'
+	String get title => 'Clone Git repository';
+
+	/// en: 'Repository URL (SSH or HTTPS)'
+	String get urlLabel => 'Repository URL (SSH or HTTPS)';
+
+	/// en: 'git@github.com:org/repo.git'
+	String get urlPlaceholder => 'git@github.com:org/repo.git';
+
+	/// en: 'Paste'
+	String get paste => 'Paste';
+
+	/// en: 'Destination folder'
+	String get parentLabel => 'Destination folder';
+
+	/// en: 'Choose…'
+	String get choose => 'Choose…';
+
+	/// en: 'Choose where to clone the repository'
+	String get chooseParentDialogTitle => 'Choose where to clone the repository';
+
+	/// en: 'Folder name'
+	String get folderLabel => 'Folder name';
+
+	/// en: 'Clones into ${path}'
+	String targetPreview({required Object path}) => 'Clones into ${path}';
+
+	/// en: 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.'
+	String get errUrl => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.';
+
+	/// en: 'Pick an existing destination folder.'
+	String get errParent => 'Pick an existing destination folder.';
+
+	/// en: 'Folder name required, without / or \.'
+	String get errFolder => 'Folder name required, without / or \.';
+
+	/// en: '${path} already exists and is not empty.'
+	String errExists({required Object path}) => '${path} already exists and is not empty.';
+
+	/// en: 'Clone'
+	String get cloneAction => 'Clone';
+
+	/// en: 'Cloning ${name}'
+	String progressTitle({required Object name}) => 'Cloning ${name}';
+
+	/// en: 'Windows does not allow < > : " | ? * in folder names.'
+	String get errFolderChars => 'Windows does not allow < > : " | ? * in folder names.';
+
+	/// en: '"${name}" is a reserved name on Windows.'
+	String errFolderReserved({required Object name}) => '"${name}" is a reserved name on Windows.';
+
+	/// en: 'On Windows a folder name cannot end with a dot or a space.'
+	String get errFolderTrailing => 'On Windows a folder name cannot end with a dot or a space.';
+
+	/// en: 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.'
+	String get hintGitMissing => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.';
+
+	/// en: 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.'
+	String get hintXcodeTools => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.';
+
+	/// en: 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).'
+	String get hintSshMissing => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).';
+
+	/// en: 'The server's SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.'
+	String get hintHostKey => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.';
+
+	/// en: 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).'
+	String get hintAuth => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).';
+}
+
 // Path: settings.language
 class Translations$settings$language$en {
 	Translations$settings$language$en.internal(this._root);
@@ -5256,6 +5338,30 @@ extension on Translations {
 			'cockpit.panelView.unavailable' => 'Panels need the embedded web view, which is not available on Linux yet.',
 			'cockpit.panelView.openInBrowser' => 'Open in browser',
 			'cockpit.panelView.openAsHtml' => 'Open as HTML',
+			'cockpit.cloneRepoDialog.menuItem' => 'Clone repository',
+			'cockpit.cloneRepoDialog.title' => 'Clone Git repository',
+			'cockpit.cloneRepoDialog.urlLabel' => 'Repository URL (SSH or HTTPS)',
+			'cockpit.cloneRepoDialog.urlPlaceholder' => 'git@github.com:org/repo.git',
+			'cockpit.cloneRepoDialog.paste' => 'Paste',
+			'cockpit.cloneRepoDialog.parentLabel' => 'Destination folder',
+			'cockpit.cloneRepoDialog.choose' => 'Choose…',
+			'cockpit.cloneRepoDialog.chooseParentDialogTitle' => 'Choose where to clone the repository',
+			'cockpit.cloneRepoDialog.folderLabel' => 'Folder name',
+			'cockpit.cloneRepoDialog.targetPreview' => ({required Object path}) => 'Clones into ${path}',
+			'cockpit.cloneRepoDialog.errUrl' => 'Paste an SSH (git@host:org/repo.git) or HTTPS Git URL.',
+			'cockpit.cloneRepoDialog.errParent' => 'Pick an existing destination folder.',
+			'cockpit.cloneRepoDialog.errFolder' => 'Folder name required, without / or \.',
+			'cockpit.cloneRepoDialog.errExists' => ({required Object path}) => '${path} already exists and is not empty.',
+			'cockpit.cloneRepoDialog.cloneAction' => 'Clone',
+			'cockpit.cloneRepoDialog.progressTitle' => ({required Object name}) => 'Cloning ${name}',
+			'cockpit.cloneRepoDialog.errFolderChars' => 'Windows does not allow < > : " | ? * in folder names.',
+			'cockpit.cloneRepoDialog.errFolderReserved' => ({required Object name}) => '"${name}" is a reserved name on Windows.',
+			'cockpit.cloneRepoDialog.errFolderTrailing' => 'On Windows a folder name cannot end with a dot or a space.',
+			'cockpit.cloneRepoDialog.hintGitMissing' => 'Git was not found. Install it and try again: on macOS run xcode-select --install (or brew install git); on Windows install Git for Windows from git-scm.com.',
+			'cockpit.cloneRepoDialog.hintXcodeTools' => 'macOS Command Line Tools are missing. Run xcode-select --install in Terminal, then try again.',
+			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH is not available for this URL. Use the HTTPS URL, or install OpenSSH (Git for Windows ships one).',
+			'cockpit.cloneRepoDialog.hintHostKey' => 'The server\'s SSH host key could not be verified or has changed. Check ~/.ssh/known_hosts before trying again.',
+			'cockpit.cloneRepoDialog.hintAuth' => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -5472,6 +5578,8 @@ extension on Translations {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',
@@ -5496,8 +5604,6 @@ extension on Translations {
 			'fileOperation.error.notScratchTab' => 'This tab is not a scratch file.',
 			'fileOperation.error.writeFailed' => 'Could not write the file.',
 			'fileOperation.error.formatterEmptyCommand' => 'Empty formatter command.',
-			_ => null,
-		} ?? switch (path) {
 			'fileOperation.error.formatterMissingPlaceholder' => 'Formatter command must include the %FILE% placeholder.',
 			'fileOperation.error.formatterTimeout' => 'Formatter timed out.',
 			'fileOperation.error.formatterExitCode' => ({required Object code}) => 'Formatter exited with ${code}.',
