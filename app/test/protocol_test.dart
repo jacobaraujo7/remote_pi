@@ -6,6 +6,61 @@ import 'package:app/protocol/protocol.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  group('Subagent workflow events', () {
+    test('decodes live progress and preserves terminal history details', () {
+      final details = {
+        'mode': 'chain',
+        'results': [
+          {'index': 0, 'agent': 'scout', 'exitCode': 0},
+        ],
+      };
+      final update =
+          ServerMessage.fromJson({
+                'type': 'tool_update',
+                'tool_call_id': 'tc',
+                'tool': 'subagent',
+                'args': {'workflow': 'review'},
+                'result': 'Working',
+                'details': details,
+              })
+              as ToolUpdate;
+      expect(update.tool, 'subagent');
+      expect(update.result, 'Working');
+      expect(update.details, details);
+
+      final result =
+          ServerMessage.fromJson({
+                'type': 'tool_result',
+                'tool_call_id': 'tc',
+                'result': 'Done',
+                'details': details,
+              })
+              as ToolResult;
+      final history =
+          SessionHistoryEvent.fromJson({
+                'ts': 1,
+                'type': 'tool_result',
+                'tool_call_id': 'tc',
+                'result': 'Done',
+                'details': details,
+              })
+              as ToolResultEvt;
+      expect(history.details, result.details);
+      expect(history.result, result.result);
+    });
+
+    test('older tool results without details still decode', () {
+      final result =
+          ServerMessage.fromJson({
+                'type': 'tool_result',
+                'tool_call_id': 'old',
+                'result': 'Done',
+              })
+              as ToolResult;
+      expect(result.details, isNull);
+    });
+  });
+
   group('decode fixtures', () {
     final fixtureDir = Directory('../.orchestration/contracts/fixtures');
 

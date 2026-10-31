@@ -1,6 +1,7 @@
 import 'package:app/domain/session_state.dart';
 import 'package:app/protocol/protocol.dart';
 import 'package:app/ui/core/themes/themes.dart';
+import 'package:app/ui/chat/widgets/subagent_workflow.dart';
 import 'package:flutter/material.dart';
 
 // Inline tool execution card that appears in the chat flow.
@@ -65,7 +66,10 @@ class ToolRequestCard extends StatelessWidget {
           children: [
             _buildHeader(context, color),
             const SizedBox(height: 10),
-            _buildCodeBlock(context),
+            if (tool.tool.toLowerCase() == 'subagent')
+              SubagentWorkflow(tool: tool)
+            else
+              _buildCodeBlock(context),
             const SizedBox(height: 8),
             _buildOutcome(color),
           ],
