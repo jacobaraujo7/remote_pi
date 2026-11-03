@@ -1,15 +1,17 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/editor_line_cut.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/gestures.dart' show PointerHoverEvent;
 import 'package:flutter/material.dart'
     show
@@ -24,7 +26,13 @@ import 'package:flutter/material.dart'
         TextInputType;
 import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, KeyDownEvent, LogicalKeyboardKey;
+    show
+        Clipboard,
+        ClipboardData,
+        HardwareKeyboard,
+        KeyDownEvent,
+        LogicalKeyboardKey,
+        SelectionChangedCause;
 import 'package:flutter/widgets.dart';
 
 import 'editor_wrap_layout.dart';
@@ -547,7 +555,8 @@ class _CodeEditorState extends State<CodeEditor> {
   void _updateDefinitionMode() {
     final keys = HardwareKeyboard.instance;
     final isCmd =
-        (Platform.isMacOS && keys.isMetaPressed) || keys.isControlPressed;
+        (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
+        keys.isControlPressed;
     if (isCmd != _definitionModeActive) {
       setState(() => _definitionModeActive = isCmd);
     }
@@ -688,7 +697,8 @@ class _CodeEditorState extends State<CodeEditor> {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     final keys = HardwareKeyboard.instance;
     final cmd =
-        (Platform.isMacOS && keys.isMetaPressed) || keys.isControlPressed;
+        (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
+        keys.isControlPressed;
     final key = event.logicalKey;
     if (_chordPending) {
       _cancelChord();
@@ -719,7 +729,71 @@ class _CodeEditorState extends State<CodeEditor> {
       _applyComment(_CommentOp.toggle);
       return KeyEventResult.handled;
     }
+    // Shift/Alt (AltGr no Windows é Ctrl+Alt) e composição de IME em curso
+    // ficam com o campo.
+    if (keys.isShiftPressed ||
+        keys.isAltPressed ||
+        widget.controller.value.composing.isValid) {
+      return KeyEventResult.ignored;
+    }
+    if (key == LogicalKeyboardKey.keyX) return _cutLine();
+    if (key == LogicalKeyboardKey.keyV) return _pasteLine();
     return KeyEventResult.ignored;
+  }
+
+  // ---- Recorte de linha (VS Code): Cmd/Ctrl+X sem seleção recorta a linha
+  // inteira; Cmd/Ctrl+V sem seleção, com aquela mesma linha ainda na área de
+  // transferência, cola acima da linha do cursor. Com seleção, os dois seguem
+  // o caminho normal do campo. [_lineClipboard] é estático para valer entre
+  // editores, como no VS Code (recorta num arquivo, cola em outro).
+  static String? _lineClipboard;
+
+  KeyEventResult _cutLine() {
+    final ctrl = widget.controller;
+    final cut = cutLine(ctrl.value);
+    if (cut == null) {
+      // Arquivo vazio: nada a recortar, mas o atalho não cai no recorte normal.
+      return ctrl.selection.isCollapsed
+          ? KeyEventResult.handled
+          : KeyEventResult.ignored;
+    }
+    _lineClipboard = cut.clipboard;
+    unawaited(Clipboard.setData(ClipboardData(text: cut.clipboard)));
+    ctrl.value = cut.value;
+    return KeyEventResult.handled;
+  }
+
+  KeyEventResult _pasteLine() {
+    final line = _lineClipboard;
+    if (line == null || !widget.controller.selection.isCollapsed) {
+      return KeyEventResult.ignored;
+    }
+    // A leitura da área de transferência é assíncrona e o atalho precisa ser
+    // decidido agora: o editor assume a tecla e, se o conteúdo mudou desde o
+    // recorte (copiado de outro lugar), devolve ao colar normal do campo.
+    unawaited(_pasteLineAsync(line));
+    return KeyEventResult.handled;
+  }
+
+  Future<void> _pasteLineAsync(String line) async {
+    final before = widget.controller.value;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (!mounted) return;
+    final ctrl = widget.controller;
+    if (data?.text != line) {
+      _lineClipboard = null;
+      final fieldContext = widget.focusNode.context;
+      if (fieldContext != null && fieldContext.mounted) {
+        Actions.maybeInvoke(
+          fieldContext,
+          const PasteTextIntent(SelectionChangedCause.keyboard),
+        );
+      }
+      return;
+    }
+    // O usuário mexeu no texto durante a leitura: não cola em lugar velho.
+    if (ctrl.value != before) return;
+    ctrl.value = pasteLineAbove(ctrl.value, line);
   }
 
   void _applyComment(_CommentOp op) {
