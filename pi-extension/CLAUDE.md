@@ -1,8 +1,9 @@
 # Remote Pi — Pi Extension (Node + TypeScript)
 
 Extensão para o [Pi coding agent](https://github.com/earendil-works/pi) que
-adiciona o slash command `/remote-pi`. Embarca o SDK do Pi
-(`@earendil-works/pi-coding-agent`) e expõe via WebSocket pro relay.
+adiciona o slash command `/remote-pi`. Usa o SDK do Pi
+(`@earendil-works/pi-coding-agent`, fornecido pelo host — é peerDependency)
+e expõe via WebSocket pro relay.
 
 Faz parte da **mesh de agentes coding cross-PC** do Remote Pi: cada PC
 roda esta extensão (Node daemon) com uma Pi-key Ed25519 no keyring do
