@@ -64,6 +64,16 @@ void main() {
     expect(activator.meta, Platform.isMacOS);
     expect(activator.control, !Platform.isMacOS);
     expect(activator.shift, isFalse);
+
+    // The shell's global handler binds the key outside macOS so the focused
+    // terminal cannot consume it: the menu must not register it again.
+    expect(newTerminal.shortcutHandledExternally, isTrue);
+    expect(
+      menuShortcuts(
+        menus,
+      ).keys.any((a) => a.trigger == LogicalKeyboardKey.keyT),
+      isFalse,
+    );
   });
 
   test('Go to File carries ⌘P/Ctrl+P and reaches the shell callback', () {
