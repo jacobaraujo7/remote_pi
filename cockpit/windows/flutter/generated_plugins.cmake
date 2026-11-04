@@ -9,11 +9,11 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_inappwebview_windows
   flutter_secure_storage_windows
   media_kit_libs_windows_video
+  media_kit_video
   pasteboard
   screen_retriever_windows
   url_launcher_windows
   volume_controller
-  media_kit_video
   window_manager
 )
 
