@@ -82,6 +82,7 @@ List<MenuBarMenu> buildAppMenus(
         MenuAction(
           tr.newTerminal,
           accelerator: const MenuAccelerator(LogicalKeyboardKey.keyT),
+          shortcutHandledExternally: true,
           onSelected: workspace.hasWorkspace ? workspace.newTerminal : null,
         ),
       // ⌘N abre um buffer "Untitled-N" (VSCode-style): sem arquivo até o
