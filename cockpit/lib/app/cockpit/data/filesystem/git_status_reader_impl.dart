@@ -50,15 +50,21 @@ class GitStatusReaderImpl implements GitStatusReader {
       // default (traditional) combinado com `-uall` enumeraria o conteúdo de
       // um node_modules inteiro. Mapa path→status + set de raízes ignoradas;
       // renames consomem o path antigo.
-      final statusRes = await Process.run(git, [
-        '-C',
-        path,
-        'status',
-        '--porcelain=v1',
-        '-z',
-        '-uall',
-        '--ignored=matching',
-      ]);
+      // O status é uma leitura: impedir o refresh opcional do index evita que
+      // ele dispute index.lock com restore/rm durante descarte em lote.
+      final statusRes = await Process.run(
+        git,
+        [
+          '-C',
+          path,
+          'status',
+          '--porcelain=v1',
+          '-z',
+          '-uall',
+          '--ignored=matching',
+        ],
+        environment: {'GIT_OPTIONAL_LOCKS': '0'},
+      );
       final (
         files,
         stagedFiles,
