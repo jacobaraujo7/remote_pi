@@ -610,6 +610,24 @@ REMOTE_PI_RELAY=https://staging.example.tld pi
 
 ## Troubleshooting
 
+**Pi warns about host-provided packages in `dependencies`.** Upgrade Remote Pi.
+Pi supplies `@earendil-works/pi-coding-agent`, `@earendil-works/pi-tui`, and
+`typebox` through its extension loader; Remote Pi declares them as wildcard
+peers, not runtime dependencies. Development installs keep copies for typechecking
+and tests. The standalone CLI skips those host-only imports, so it also works
+when Pi's managed installer omits peers.
+
+For a local source checkout:
+
+```bash
+cd pi-extension
+pnpm install
+pnpm build
+pi install "$(pwd)"
+```
+
+Local packages are not built or installed by Pi; rebuild after changing source.
+
 **Footer says `🟡 relay waiting for pairing` even though I paired a device.**
 The icon reflects whether *any* device has been paired on this machine, not
 whether one is connected right now. If you really have a paired device in
