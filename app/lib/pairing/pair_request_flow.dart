@@ -57,6 +57,20 @@ class PairingResult {
   const PairingResult({required this.peer, this.hostnameHint});
 }
 
+/// Explains which relay was tried when a pairing attempt times out.
+String pairingTimeoutMessage({
+  required QrPairPayload qr,
+  required String currentRelayUrl,
+}) {
+  final relaySource = qr.relayUrl == null
+      ? 'This QR does not include a relay URL, so the app used '
+          '"$currentRelayUrl".'
+      : 'The app used "$currentRelayUrl".';
+  return 'Timed out waiting for the Pi. $relaySource '
+      'Verify that the app relay, including its port, matches the Pi relay '
+      'and that /remote-pi is still running.';
+}
+
 // ---------------------------------------------------------------------------
 // performPairing
 // ---------------------------------------------------------------------------
