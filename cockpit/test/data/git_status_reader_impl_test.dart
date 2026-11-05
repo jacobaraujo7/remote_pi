@@ -62,6 +62,26 @@ void main() {
     expect(info.behind, 0);
   });
 
+  test('leitura de status não regrava o index', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    final index = File('${repo.path}/.git/index');
+    final original = DateTime.utc(2020);
+    await index.setLastModified(original);
+    // Força o Git a reexaminar um arquivo rastreado, sem mudar o conteúdo.
+    await File('${repo.path}/README.md')
+        .setLastModified(DateTime.now().add(const Duration(seconds: 2)));
+
+    final info = await reader.read(repo.path);
+
+    expect(info, isNotNull);
+    expect(info!.isDirty, isFalse);
+    expect(await index.lastModified(), original);
+    expect(await File('${repo.path}/.git/index.lock').exists(), isFalse);
+  });
+
   test('classifica modified / staged / untracked / deleted', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git não disponível');

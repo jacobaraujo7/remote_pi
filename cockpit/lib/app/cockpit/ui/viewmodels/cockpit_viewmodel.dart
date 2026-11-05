@@ -5142,7 +5142,7 @@ class CockpitViewModel extends ChangeNotifier
         if (err != null) return _gitFailure(err);
       }
       final res = await deletePath(absPath);
-      unawaited(git.refresh(pid));
+      await git.refresh(pid);
       return res.fold((_) => null, (e) => e);
     }
     final err = await git.collect(root, [
@@ -5153,7 +5153,7 @@ class CockpitViewModel extends ChangeNotifier
       '--',
       rel,
     ]);
-    unawaited(git.refresh(pid));
+    await git.refresh(pid);
     _fileTreeRevision++;
     notifyListeners();
     return err == null ? null : _gitFailure(err);
