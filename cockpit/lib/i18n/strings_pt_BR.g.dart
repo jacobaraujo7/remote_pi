@@ -1557,6 +1557,7 @@ class _Translations$settings$page$pt_BR extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$pt_BR header = _Translations$settings$page$header$pt_BR._(_root);
 	@override late final _Translations$settings$page$nav$pt_BR nav = _Translations$settings$page$nav$pt_BR._(_root);
+	@override late final _Translations$settings$page$explorer$pt_BR explorer = _Translations$settings$page$explorer$pt_BR._(_root);
 	@override late final _Translations$settings$page$general$pt_BR general = _Translations$settings$page$general$pt_BR._(_root);
 	@override late final _Translations$settings$page$diagnostics$pt_BR diagnostics = _Translations$settings$page$diagnostics$pt_BR._(_root);
 	@override late final _Translations$settings$page$storage$pt_BR storage = _Translations$settings$page$storage$pt_BR._(_root);
@@ -1859,6 +1860,7 @@ class _Translations$settings$page$nav$pt_BR extends Translations$settings$page$n
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => 'Explorer';
 	@override String get general => 'Geral';
 	@override String get appearance => 'Aparência';
 	@override String get terminal => 'Terminal';
@@ -1867,6 +1869,26 @@ class _Translations$settings$page$nav$pt_BR extends Translations$settings$page$n
 	@override String get notifications => 'Notificações';
 	@override String get automations => 'Automações';
 	@override String get remoteHosts => 'Hosts remotos';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$pt_BR extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => 'Aninhamento de arquivos';
+	@override String get enabledTitle => 'Ativar aninhamento';
+	@override String get enabledDesc => 'Agrupa arquivos relacionados sob o arquivo principal.';
+	@override String get autoExpandTitle => 'Expandir automaticamente';
+	@override String get autoExpandDesc => 'Abre os grupos aninhados ao carregar o explorer.';
+	@override String get newPattern => 'Novo padrão';
+	@override String get patternsTitle => 'Patterns';
+	@override String get patternsDesc => 'Pattern do arquivo principal à esquerda; patterns dos filhos separados por vírgula à direita. Use * no principal; os filhos podem usar:';
+	@override String get parentPlaceholder => 'Pattern principal';
+	@override String get childrenPlaceholder => 'Arquivos aninhados';
+	@override String get remove => 'Remover pattern';
 }
 
 // Path: settings.page.general
@@ -2970,6 +2992,7 @@ extension on TranslationsPtBr {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Voltar',
 			'settings.page.header.title' => 'Configurações',
+			'settings.page.nav.explorer' => 'Explorer',
 			'settings.page.nav.general' => 'Geral',
 			'settings.page.nav.appearance' => 'Aparência',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -2978,6 +3001,17 @@ extension on TranslationsPtBr {
 			'settings.page.nav.notifications' => 'Notificações',
 			'settings.page.nav.automations' => 'Automações',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
+			'settings.page.explorer.sectionNesting' => 'Aninhamento de arquivos',
+			'settings.page.explorer.enabledTitle' => 'Ativar aninhamento',
+			'settings.page.explorer.enabledDesc' => 'Agrupa arquivos relacionados sob o arquivo principal.',
+			'settings.page.explorer.autoExpandTitle' => 'Expandir automaticamente',
+			'settings.page.explorer.autoExpandDesc' => 'Abre os grupos aninhados ao carregar o explorer.',
+			'settings.page.explorer.newPattern' => 'Novo padrão',
+			'settings.page.explorer.patternsTitle' => 'Patterns',
+			'settings.page.explorer.patternsDesc' => 'Pattern do arquivo principal à esquerda; patterns dos filhos separados por vírgula à direita. Use * no principal; os filhos podem usar:',
+			'settings.page.explorer.parentPlaceholder' => 'Pattern principal',
+			'settings.page.explorer.childrenPlaceholder' => 'Arquivos aninhados',
+			'settings.page.explorer.remove' => 'Remover pattern',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Motor',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (padrão)',
@@ -3166,6 +3200,8 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.deviceKeyDesc' => 'Adicione esta chave pública ao ~/.ssh/authorized_keys do host para este dispositivo poder conectar.',
 			'settings.remoteHosts.deviceKeyCopy' => 'Copiar chave pública',
 			'settings.remoteHosts.deviceKeyCopied' => 'Chave pública copiada',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
@@ -3178,8 +3214,6 @@ extension on TranslationsPtBr {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} não respondeu em ${seconds} segundos.',
 			'automation.error.cancelled' => 'A geração da mensagem de commit foi cancelada.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} não conseguiu gerar uma mensagem de commit.',
 			'automation.error.invalidResponse' => 'A automação devolveu uma mensagem de commit vazia.',

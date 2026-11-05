@@ -969,6 +969,7 @@
         "title": "Configuración"
       },
       "nav": {
+        "explorer": "Explorador",
         "general": "General",
         "appearance": "Apariencia",
         "terminal": "Terminal",
@@ -977,6 +978,19 @@
         "notifications": "Notificaciones",
         "automations": "Automatizaciones",
         "remoteHosts": "Hosts remotos"
+      },
+      "explorer": {
+        "sectionNesting": "Anidamiento de archivos",
+        "enabledTitle": "Activar anidamiento",
+        "enabledDesc": "Agrupa archivos relacionados bajo el archivo principal.",
+        "autoExpandTitle": "Expandir automáticamente",
+        "autoExpandDesc": "Abre los grupos anidados al cargar el explorador.",
+        "newPattern": "Nuevo patrón",
+        "patternsTitle": "Patrones",
+        "patternsDesc": "Patrón principal a la izquierda; patrones secundarios separados por comas a la derecha. Usa * en el principal; los hijos pueden usar:",
+        "parentPlaceholder": "Patrón principal",
+        "childrenPlaceholder": "Archivos anidados",
+        "remove": "Eliminar patrón"
       },
       "general": {
         "sectionEditor": "Editor",

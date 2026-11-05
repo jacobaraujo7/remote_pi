@@ -1229,6 +1229,18 @@ class _TreePanel extends StatelessWidget {
           width: treeWidth,
           rootPath: vm.treeRootPath,
           sourceControlViewMode: sourceControlViewMode,
+          fileNestingEnabled: context
+              .watch<SettingsController>()
+              .settings
+              .fileNestingEnabled,
+          fileNestingAutoExpand: context
+              .watch<SettingsController>()
+              .settings
+              .fileNestingAutoExpand,
+          fileNestingPatterns: context
+              .watch<SettingsController>()
+              .settings
+              .fileNestingPatterns,
           onSourceControlViewModeChanged: context
               .read<SettingsController>()
               .setSourceControlViewMode,
