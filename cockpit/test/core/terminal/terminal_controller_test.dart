@@ -24,6 +24,32 @@ void main() {
         expect(terminal.plainLines().join('\n'), contains('hello'));
       });
 
+      test('plainText removes ANSI and synthetic trailing grid rows', () {
+        terminal.write('\x1b[31mfirst\x1b[0m\r\nsecond');
+
+        expect(terminal.plainText(), 'first\nsecond');
+      });
+
+      test('plainText keeps content in the last terminal column', () {
+        terminal.write(List.filled(80, 'x').join());
+
+        expect(terminal.plainText(), List.filled(80, 'x').join());
+      });
+
+      test('clearBuffer clears screen without emitting PTY input', () {
+        if (terminal case final GhosttyTerminalController ghostty) {
+          ghostty.handleResize(80, 25);
+        }
+        final output = <int>[];
+        terminal.onOutput = output.addAll;
+        terminal.write('visible');
+
+        terminal.clearBuffer();
+
+        expect(terminal.plainText(), isEmpty);
+        expect(output, isEmpty);
+      });
+
       test('paste emits bytes for the PTY', () {
         final output = <int>[];
         terminal.onOutput = output.addAll;

@@ -1142,6 +1142,27 @@ class Translations$cockpit$tasksPanel$en {
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
 
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
+
+	/// en: 'Copy'
+	String get copy => 'Copy';
+
+	/// en: 'Copy All'
+	String get copyAll => 'Copy All';
+
+	/// en: 'Clear Console'
+	String get clearConsole => 'Clear Console';
+
 	/// en: 'Generate Compose tasks'
 	String get generateComposeTasks => 'Generate Compose tasks';
 
@@ -4696,6 +4717,13 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
+			'cockpit.tasksPanel.copy' => 'Copy',
+			'cockpit.tasksPanel.copyAll' => 'Copy All',
+			'cockpit.tasksPanel.clearConsole' => 'Clear Console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Generate Compose tasks',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Choose a Compose engine',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose or Podman Compose was not found.',
@@ -5057,6 +5085,8 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
@@ -5064,8 +5094,6 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5571,6 +5599,8 @@ extension on Translations {
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
@@ -5578,8 +5608,6 @@ extension on Translations {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',
