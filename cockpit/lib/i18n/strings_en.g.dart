@@ -1159,6 +1159,24 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Kept non-Compose tasks with conflicting labels: ${labels}'
 	String composeConflicts({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}';
+
+	/// en: 'Run on ${name}'
+	String deviceTooltip({required Object name}) => 'Run on ${name}';
+
+	/// en: '${name} is unavailable'
+	String deviceUnavailableTooltip({required Object name}) => '${name} is unavailable';
+
+	/// en: 'No compatible device'
+	String get noDevicesTooltip => 'No compatible device';
+
+	/// en: 'No compatible devices'
+	String get noDevicesMenu => 'No compatible devices';
+
+	/// en: 'Looking for devices…'
+	String get lookingForDevices => 'Looking for devices…';
+
+	/// en: 'Open DevTools'
+	String get openDevTools => 'Open DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -4702,6 +4720,12 @@ extension on Translations {
 			'cockpit.tasksPanel.invalidComposeFile' => 'The active file is not a valid Compose file with services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json is invalid. No changes were written.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Run on ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} is unavailable',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'No compatible device',
+			'cockpit.tasksPanel.noDevicesMenu' => 'No compatible devices',
+			'cockpit.tasksPanel.lookingForDevices' => 'Looking for devices…',
+			'cockpit.tasksPanel.openDevTools' => 'Open DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -5058,14 +5082,14 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5572,14 +5596,14 @@ extension on Translations {
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
 			'settings.remoteHosts.helpTitle' => 'How it works',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',

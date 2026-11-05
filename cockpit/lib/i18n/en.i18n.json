@@ -176,7 +176,13 @@
       "noComposeEngine": "Docker Compose or Podman Compose was not found.",
       "invalidComposeFile": "The active file is not a valid Compose file with services.",
       "invalidTasksJson": "tasks.json is invalid. No changes were written.",
-      "composeConflicts": "Kept non-Compose tasks with conflicting labels: ${labels}"
+      "composeConflicts": "Kept non-Compose tasks with conflicting labels: ${labels}",
+      "deviceTooltip": "Run on ${name}",
+      "deviceUnavailableTooltip": "${name} is unavailable",
+      "noDevicesTooltip": "No compatible device",
+      "noDevicesMenu": "No compatible devices",
+      "lookingForDevices": "Looking for devices…",
+      "openDevTools": "Open DevTools"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Choose the project folder",

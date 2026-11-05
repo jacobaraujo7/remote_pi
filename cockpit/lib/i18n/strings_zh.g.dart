@@ -519,6 +519,12 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get invalidComposeFile => '当前文件不是包含服务的有效 Compose 文件。';
 	@override String get invalidTasksJson => 'tasks.json 无效。未写入任何更改。';
 	@override String composeConflicts({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}';
+	@override String deviceTooltip({required Object name}) => '在 ${name} 上运行';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} 不可用';
+	@override String get noDevicesTooltip => '没有兼容的设备';
+	@override String get noDevicesMenu => '没有兼容的设备';
+	@override String get lookingForDevices => '正在查找设备…';
+	@override String get openDevTools => '打开 DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -2224,6 +2230,12 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.invalidComposeFile' => '当前文件不是包含服务的有效 Compose 文件。',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json 无效。未写入任何更改。',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => '在 ${name} 上运行',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} 不可用',
+			'cockpit.tasksPanel.noDevicesTooltip' => '没有兼容的设备',
+			'cockpit.tasksPanel.noDevicesMenu' => '没有兼容的设备',
+			'cockpit.tasksPanel.lookingForDevices' => '正在查找设备…',
+			'cockpit.tasksPanel.openDevTools' => '打开 DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => '选择项目文件夹',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => '选择工作区文件夹',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => '工作区已重命名',
@@ -2580,14 +2592,14 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.invalidUrl' => '不是有效的连接 URL。',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3094,14 +3106,14 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
 			'settings.remoteHosts.helpTitle' => '工作原理',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

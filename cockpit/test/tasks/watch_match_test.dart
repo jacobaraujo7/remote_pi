@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/telemetry_ingest.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -50,7 +51,7 @@ void main() {
   });
 
   test('runner expõe startWatch/stopWatch sem lançar p/ task sem watch', () {
-    final runner = PtyTaskRunner(_NoTelemetry());
+    final runner = PtyTaskRunner(_NoTelemetry(), DevToolRegistry(const []));
     const def = TaskDefinition(
       id: 'x',
       label: 'x',
