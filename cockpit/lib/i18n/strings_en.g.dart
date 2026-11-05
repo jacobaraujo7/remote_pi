@@ -1688,6 +1688,18 @@ class Translations$cockpit$fileTreePanel$en {
 	/// en: 'No changes.'
 	String get diffNoChanges => 'No changes.';
 
+	/// en: 'Side by Side'
+	String get diffSideBySide => 'Side by Side';
+
+	/// en: 'Inline'
+	String get diffInline => 'Inline';
+
+	/// en: 'Modified content'
+	String get diffModifiedContent => 'Modified content';
+
+	/// en: 'The modified file is empty because it was deleted.'
+	String get diffDeletedContent => 'The modified file is empty because it was deleted.';
+
 	/// en: 'Could not read the diff: ${detail}'
 	String diffError({required Object detail}) => 'Could not read the diff: ${detail}';
 
@@ -4865,6 +4877,10 @@ extension on Translations {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Side by Side',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Modified content',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'The modified file is empty because it was deleted.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Could not read the diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Gallery',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALLERY',
@@ -5060,12 +5076,12 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5574,12 +5590,12 @@ extension on Translations {
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',

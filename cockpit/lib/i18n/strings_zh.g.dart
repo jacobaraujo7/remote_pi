@@ -721,6 +721,10 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => '工作树';
 	@override String get diffBinaryFile => '二进制文件——没有文本差异。';
 	@override String get diffNoChanges => '没有更改。';
+	@override String get diffSideBySide => '并排显示';
+	@override String get diffInline => '行内显示';
+	@override String get diffModifiedContent => '修改后的内容';
+	@override String get diffDeletedContent => '文件已删除，修改后的内容为空。';
 	@override String diffError({required Object detail}) => '无法读取差异：${detail}';
 	@override String get galleryTooltip => '画廊';
 	@override String get sectionGallery => '画廊';
@@ -2387,6 +2391,10 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.diffWorkingTree' => '工作树',
 			'cockpit.fileTreePanel.diffBinaryFile' => '二进制文件——没有文本差异。',
 			'cockpit.fileTreePanel.diffNoChanges' => '没有更改。',
+			'cockpit.fileTreePanel.diffSideBySide' => '并排显示',
+			'cockpit.fileTreePanel.diffInline' => '行内显示',
+			'cockpit.fileTreePanel.diffModifiedContent' => '修改后的内容',
+			'cockpit.fileTreePanel.diffDeletedContent' => '文件已删除，修改后的内容为空。',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => '无法读取差异：${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => '画廊',
 			'cockpit.fileTreePanel.sectionGallery' => '画廊',
@@ -2582,12 +2590,12 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3096,12 +3104,12 @@ extension on TranslationsZh {
 			'settings.remoteHosts.helpTitle' => '工作原理',
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

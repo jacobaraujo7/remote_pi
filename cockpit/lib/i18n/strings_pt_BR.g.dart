@@ -799,6 +799,10 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String get diffWorkingTree => 'Diretorio de trabalho';
 	@override String get diffBinaryFile => 'Arquivo binario - sem diff de texto.';
 	@override String get diffNoChanges => 'Sem alteracoes.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'Inline';
+	@override String get diffModifiedContent => 'Conteúdo modificado';
+	@override String get diffDeletedContent => 'O arquivo modificado está vazio porque foi removido.';
 	@override String diffError({required Object detail}) => 'Não foi possível ler o diff: ${detail}';
 	@override String get galleryTooltip => 'Galeria';
 	@override String get sectionGallery => 'GALERIA';
@@ -2465,6 +2469,10 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Diretorio de trabalho',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Arquivo binario - sem diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sem alteracoes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Conteúdo modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'O arquivo modificado está vazio porque foi removido.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Não foi possível ler o diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galeria',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERIA',
@@ -2660,12 +2668,12 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
@@ -3174,12 +3182,12 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está disponível para ${harness}. Escolha outro modelo em Configurações.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} não respondeu em ${seconds} segundos.',
 			'automation.error.cancelled' => 'A geração da mensagem de commit foi cancelada.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} não conseguiu gerar uma mensagem de commit.',
 			'automation.error.invalidResponse' => 'A automação devolveu uma mensagem de commit vazia.',

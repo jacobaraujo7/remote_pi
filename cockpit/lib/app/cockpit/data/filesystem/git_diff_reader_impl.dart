@@ -14,6 +14,25 @@ class GitDiffReaderImpl implements GitDiffReader {
   final GitBinary _gitBinary;
 
   @override
+  Future<String> readCommitContent(
+    String repoPath,
+    String commitHash,
+    String relativePath,
+  ) async {
+    final git = await _gitBinary.resolve();
+    final result = await Process.run(git, [
+      '-C',
+      repoPath,
+      'show',
+      '$commitHash:$relativePath',
+    ], stdoutEncoding: utf8);
+    if (result.exitCode != 0) {
+      throw StateError(result.stderr.toString());
+    }
+    return result.stdout as String;
+  }
+
+  @override
   Future<FileDiff> read(String repoPath, String absPath) async {
     try {
       final git = await _gitBinary.resolve();
