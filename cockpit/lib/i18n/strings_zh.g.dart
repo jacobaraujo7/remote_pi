@@ -1479,6 +1479,7 @@ class _Translations$settings$page$zh extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$zh header = _Translations$settings$page$header$zh._(_root);
 	@override late final _Translations$settings$page$nav$zh nav = _Translations$settings$page$nav$zh._(_root);
+	@override late final _Translations$settings$page$explorer$zh explorer = _Translations$settings$page$explorer$zh._(_root);
 	@override late final _Translations$settings$page$general$zh general = _Translations$settings$page$general$zh._(_root);
 	@override late final _Translations$settings$page$diagnostics$zh diagnostics = _Translations$settings$page$diagnostics$zh._(_root);
 	@override late final _Translations$settings$page$storage$zh storage = _Translations$settings$page$storage$zh._(_root);
@@ -1781,6 +1782,7 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => '资源管理器';
 	@override String get general => '通用';
 	@override String get appearance => '外观';
 	@override String get terminal => '终端';
@@ -1789,6 +1791,26 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	@override String get notifications => '通知';
 	@override String get automations => '自动化';
 	@override String get remoteHosts => '远程主机';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$zh extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => '文件嵌套';
+	@override String get enabledTitle => '启用文件嵌套';
+	@override String get enabledDesc => '将相关文件归组到主文件下。';
+	@override String get autoExpandTitle => '自动展开';
+	@override String get autoExpandDesc => '加载资源管理器时展开嵌套组。';
+	@override String get newPattern => '新建模式';
+	@override String get patternsTitle => '匹配模式';
+	@override String get patternsDesc => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：';
+	@override String get parentPlaceholder => '主文件模式';
+	@override String get childrenPlaceholder => '嵌套文件';
+	@override String get remove => '删除模式';
 }
 
 // Path: settings.page.general
@@ -2892,6 +2914,7 @@ extension on TranslationsZh {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => '返回',
 			'settings.page.header.title' => '设置',
+			'settings.page.nav.explorer' => '资源管理器',
 			'settings.page.nav.general' => '通用',
 			'settings.page.nav.appearance' => '外观',
 			'settings.page.nav.terminal' => '终端',
@@ -2900,6 +2923,17 @@ extension on TranslationsZh {
 			'settings.page.nav.notifications' => '通知',
 			'settings.page.nav.automations' => '自动化',
 			'settings.page.nav.remoteHosts' => '远程主机',
+			'settings.page.explorer.sectionNesting' => '文件嵌套',
+			'settings.page.explorer.enabledTitle' => '启用文件嵌套',
+			'settings.page.explorer.enabledDesc' => '将相关文件归组到主文件下。',
+			'settings.page.explorer.autoExpandTitle' => '自动展开',
+			'settings.page.explorer.autoExpandDesc' => '加载资源管理器时展开嵌套组。',
+			'settings.page.explorer.newPattern' => '新建模式',
+			'settings.page.explorer.patternsTitle' => '匹配模式',
+			'settings.page.explorer.patternsDesc' => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：',
+			'settings.page.explorer.parentPlaceholder' => '主文件模式',
+			'settings.page.explorer.childrenPlaceholder' => '嵌套文件',
+			'settings.page.explorer.remove' => '删除模式',
 			'settings.page.general.sectionEditor' => '编辑器',
 			'settings.page.general.editorEngineTitle' => '引擎',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit（默认）',
@@ -3088,6 +3122,8 @@ extension on TranslationsZh {
 			'settings.remoteHosts.deviceKeyDesc' => '将此公钥添加到主机的 ~/.ssh/authorized_keys，本设备即可连接。',
 			'settings.remoteHosts.deviceKeyCopy' => '复制公钥',
 			'settings.remoteHosts.deviceKeyCopied' => '公钥已复制',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.statusConnected' => '已连接',
 			'settings.remoteHosts.statusConnecting' => '连接中…',
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',
@@ -3100,8 +3136,6 @@ extension on TranslationsZh {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

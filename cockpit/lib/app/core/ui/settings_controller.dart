@@ -76,6 +76,15 @@ class SettingsController extends ChangeNotifier {
   void setSourceControlViewMode(SourceControlViewMode mode) =>
       _apply(_settings.copyWith(sourceControlViewMode: mode));
 
+  void setFileNestingEnabled(bool value) =>
+      _apply(_settings.copyWith(fileNestingEnabled: value));
+
+  void setFileNestingAutoExpand(bool value) =>
+      _apply(_settings.copyWith(fileNestingAutoExpand: value));
+
+  void setFileNestingPatterns(Map<String, String> value) =>
+      _apply(_settings.copyWith(fileNestingPatterns: Map.of(value)));
+
   void setAutomationHarness(HarnessKind? id) {
     _apply(
       _settings.copyWith(

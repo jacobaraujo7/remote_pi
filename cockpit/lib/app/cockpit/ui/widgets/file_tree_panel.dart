@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
+import 'package:cockpit/app/cockpit/domain/services/file_nesting.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_commit.dart';
@@ -129,6 +130,9 @@ class FileTreePanel extends StatefulWidget {
     this.tasksPanel,
     this.roots = const <WorkspaceRoot>[],
     this.sourceControlViewMode = SourceControlViewMode.list,
+    this.fileNestingEnabled = true,
+    this.fileNestingAutoExpand = false,
+    this.fileNestingPatterns = defaultFileNestingPatterns,
     this.onSourceControlViewModeChanged,
     this.onStageFile,
     this.onStageFiles,
@@ -218,6 +222,9 @@ class FileTreePanel extends StatefulWidget {
   /// do header é o único controle: alterna aqui e persiste via
   /// [onSourceControlViewModeChanged] (não há opção equivalente em Settings).
   final SourceControlViewMode sourceControlViewMode;
+  final bool fileNestingEnabled;
+  final bool fileNestingAutoExpand;
+  final Map<String, String> fileNestingPatterns;
 
   /// Notificado quando o toggle do header troca o layout, para persistir a
   /// escolha. `null` = alterna só enquanto o painel estiver montado.
@@ -1115,6 +1122,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
       revealExpand: _revealExpand,
       revealGen: _revealGen,
       collapseGen: _collapseGen,
+      fileNestingEnabled: widget.fileNestingEnabled,
+      fileNestingAutoExpand: widget.fileNestingAutoExpand,
+      fileNestingPatterns: widget.fileNestingPatterns,
       onSelect: _select,
       onOpenFile: widget.onOpenFile,
       onTapFile: widget.onTapFile,
@@ -1764,6 +1774,9 @@ class _TreeEdit {
     required this.revealExpand,
     required this.revealGen,
     required this.collapseGen,
+    required this.fileNestingEnabled,
+    required this.fileNestingAutoExpand,
+    required this.fileNestingPatterns,
     required this.onSelect,
     required this.onOpenFile,
     required this.onTapFile,
@@ -1804,6 +1817,9 @@ class _TreeEdit {
 
   /// Geração do "Collapse all": [_Folder] fecha quando ela avança.
   final int collapseGen;
+  final bool fileNestingEnabled;
+  final bool fileNestingAutoExpand;
+  final Map<String, String> fileNestingPatterns;
 
   final void Function(String path, bool isFolder) onSelect;
   final ValueChanged<String> onOpenFile;
@@ -1892,11 +1908,94 @@ class _DirViewState extends State<_DirView> {
     if (mounted) setState(() => _children = children);
   }
 
+  Widget _nestedFile(
+    FileNode node,
+    Map<String, List<FileNode>> groups,
+    int depth,
+  ) {
+    final nested = groups[node.path] ?? const <FileNode>[];
+    if (nested.isEmpty) return _fileRow(node, depth);
+    return _NestedFile(
+      key: ValueKey(node.path),
+      path: node.path,
+      depth: depth,
+      autoExpand: widget.edit.fileNestingAutoExpand,
+      collapseGen: widget.edit.collapseGen,
+      revealPath: widget.edit.revealPath,
+      revealGen: widget.edit.revealGen,
+      row: _fileRow(node, depth),
+      children: [
+        for (final child in nested) _nestedFile(child, groups, depth + 1),
+      ],
+    );
+  }
+
+  Widget _fileRow(FileNode node, int depth) {
+    final edit = widget.edit;
+    return _NodeDraggable(
+      path: node.path,
+      name: node.name,
+      child: _RevealTarget(
+        active: node.path == edit.revealPath,
+        generation: edit.revealGen,
+        child: _Row(
+          depth: depth,
+          isFolder: false,
+          name: node.name,
+          path: node.path,
+          rootPath: widget.rootPath,
+          selected: node.path == edit.selectedPath,
+          renaming: edit.renaming == node.path,
+          gitStatus: edit.gitStatusOf(node.path),
+          onTap: () {
+            edit.onSelect(node.path, false);
+            edit.onSelectFile?.call(node.path);
+            edit.onTapFile?.call(node.path);
+          },
+          onDoubleTap: () => edit.onOpenFile(node.path),
+          onOpenWith: () => edit.onOpenWith(node.path),
+          onOpenInWindow: edit.onOpenInWindow == null
+              ? null
+              : () => edit.onOpenInWindow!(node.path),
+          onOpenLayout:
+              edit.onOpenLayout == null ||
+                  !node.name.toLowerCase().endsWith('.ckp')
+              ? null
+              : () => edit.onOpenLayout!(node.path),
+          onOpenAsSource:
+              edit.onOpenAsSource == null ||
+                  !(node.name.toLowerCase().endsWith('.kanban') ||
+                      node.name.toLowerCase().endsWith('.panel') ||
+                      OrchestrationDocument.isFilePath(node.path))
+              ? null
+              : () => edit.onOpenAsSource!(node.path),
+          onStartRename: () => edit.onStartRename(node.path),
+          onCommitRename: (name) => edit.onCommitRename(node.path, name),
+          onCancelRename: edit.onCancelRename,
+          onDelete: () => edit.onRequestDelete(node.path),
+          onShowDiff: () => edit.onShowDiff(node.path),
+          onCopy: () => edit.onCopy(node.path),
+          onCut: () => edit.onCut(node.path),
+          // Arquivo cola na pasta-mãe.
+          onPaste: () => edit.onRequestPaste(widget.path),
+          canPaste: edit.canPaste,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final children = _children;
     if (children == null) return const SizedBox.shrink();
     final edit = widget.edit;
+    final groups = edit.fileNestingEnabled
+        ? nestFiles(children, edit.fileNestingPatterns)
+        : const <String, List<FileNode>>{};
+    final hidden = {
+      for (final group in groups.values)
+        for (final file in group) file.path,
+    };
     final pending = edit.pending;
     final showCreate = pending != null && pending.parentPath == widget.path;
 
@@ -1931,12 +2030,7 @@ class _DirViewState extends State<_DirView> {
             child: const SizedBox(height: 26, width: double.infinity),
           ),
         for (final node in children)
-          // Pasta `.notebook` é um documento (caderno): vira linha de arquivo,
-          // sem expandir — duplo clique abre a tab. Mesmo espírito do `.app`
-          // do Finder (plano 62, passo 4).
           if (node.isDirectory && !isNotebookFolder(node.name))
-            // Arrastável (mover pra outra pasta / citar no composer) e também
-            // alvo de drop (o DragTarget fica dentro do _Folder, na linha).
             _NodeDraggable(
               path: node.path,
               name: node.name,
@@ -1947,62 +2041,96 @@ class _DirViewState extends State<_DirView> {
                 edit: edit,
               ),
             )
-          else
-            // Arrasta o arquivo até o input (vira `@<rel>`).
-            _NodeDraggable(
-              path: node.path,
-              name: node.name,
-              child: _RevealTarget(
-                active: node.path == edit.revealPath,
-                generation: edit.revealGen,
-                child: _Row(
-                  depth: widget.depth,
-                  isFolder: false,
-                  name: node.name,
-                  path: node.path,
-                  rootPath: widget.rootPath,
-                  selected: node.path == edit.selectedPath,
-                  renaming: edit.renaming == node.path,
-                  gitStatus: edit.gitStatusOf(node.path),
-                  onTap: () {
-                    edit.onSelect(node.path, false);
-                    edit.onSelectFile?.call(node.path);
-                    edit.onTapFile?.call(node.path);
-                  },
-                  onDoubleTap: () => edit.onOpenFile(node.path),
-                  onOpenWith: () => edit.onOpenWith(node.path),
-                  onOpenInWindow: edit.onOpenInWindow == null
-                      ? null
-                      : () => edit.onOpenInWindow!(node.path),
-                  onOpenLayout:
-                      edit.onOpenLayout == null ||
-                          !node.name.toLowerCase().endsWith('.ckp')
-                      ? null
-                      : () => edit.onOpenLayout!(node.path),
-                  onOpenAsSource:
-                      edit.onOpenAsSource == null ||
-                          !(node.name.toLowerCase().endsWith('.kanban') ||
-                              node.name.toLowerCase().endsWith('.panel') ||
-                              OrchestrationDocument.isFilePath(node.path))
-                      ? null
-                      : () => edit.onOpenAsSource!(node.path),
-                  onStartRename: () => edit.onStartRename(node.path),
-                  onCommitRename: (name) =>
-                      edit.onCommitRename(node.path, name),
-                  onCancelRename: edit.onCancelRename,
-                  onDelete: () => edit.onRequestDelete(node.path),
-                  onShowDiff: () => edit.onShowDiff(node.path),
-                  onCopy: () => edit.onCopy(node.path),
-                  onCut: () => edit.onCut(node.path),
-                  // Arquivo cola na pasta-mãe.
-                  onPaste: () => edit.onRequestPaste(widget.path),
-                  canPaste: edit.canPaste,
-                ),
-              ),
-            ),
+          else if (!hidden.contains(node.path))
+            _nestedFile(node, groups, widget.depth),
       ],
     );
   }
+}
+
+class _NestedFile extends StatefulWidget {
+  const _NestedFile({
+    super.key,
+    required this.path,
+    required this.depth,
+    required this.autoExpand,
+    required this.collapseGen,
+    required this.revealPath,
+    required this.revealGen,
+    required this.row,
+    required this.children,
+  });
+
+  final String path;
+  final int depth;
+  final bool autoExpand;
+  final int collapseGen;
+  final String? revealPath;
+  final int revealGen;
+  final Widget row;
+  final List<Widget> children;
+
+  @override
+  State<_NestedFile> createState() => _NestedFileState();
+}
+
+class _NestedFileState extends State<_NestedFile> {
+  late bool _expanded = widget.autoExpand;
+  int _collapseGen = -1;
+  int _revealGen = -1;
+
+  @override
+  void didUpdateWidget(_NestedFile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.autoExpand != widget.autoExpand) {
+      _expanded = widget.autoExpand;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_collapseGen != widget.collapseGen) {
+      if (_collapseGen >= 0) _expanded = false;
+      _collapseGen = widget.collapseGen;
+    }
+    if (_revealGen != widget.revealGen) {
+      _revealGen = widget.revealGen;
+      if (widget.revealPath != null &&
+          widget.children.any(
+            (child) => _containsPath(child, widget.revealPath!),
+          )) {
+        _expanded = true;
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Stack(
+          children: [
+            widget.row,
+            Positioned(
+              left: 6 + widget.depth * 14,
+              top: 0,
+              bottom: 0,
+              child: HoverTap(
+                onTap: () => setState(() => _expanded = !_expanded),
+                child: Icon(
+                  _expanded ? Icons.expand_more : Icons.chevron_right,
+                  size: 16,
+                  color: context.colors.text3,
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (_expanded) ...widget.children,
+      ],
+    );
+  }
+
+  bool _containsPath(Widget child, String path) =>
+      child is _NestedFile &&
+      (child.path == path || child.children.any((c) => _containsPath(c, path)));
 }
 
 /// Rola a árvore quando o alvo finalmente é montado. Como os diretórios são

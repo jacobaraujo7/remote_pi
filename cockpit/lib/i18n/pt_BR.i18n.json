@@ -969,6 +969,7 @@
         "title": "Configurações"
       },
       "nav": {
+        "explorer": "Explorer",
         "general": "Geral",
         "appearance": "Aparência",
         "terminal": "Terminal",
@@ -977,6 +978,19 @@
         "notifications": "Notificações",
         "automations": "Automações",
         "remoteHosts": "Hosts remotos"
+      },
+      "explorer": {
+        "sectionNesting": "Aninhamento de arquivos",
+        "enabledTitle": "Ativar aninhamento",
+        "enabledDesc": "Agrupa arquivos relacionados sob o arquivo principal.",
+        "autoExpandTitle": "Expandir automaticamente",
+        "autoExpandDesc": "Abre os grupos aninhados ao carregar o explorer.",
+        "newPattern": "Novo padrão",
+        "patternsTitle": "Patterns",
+        "patternsDesc": "Pattern do arquivo principal à esquerda; patterns dos filhos separados por vírgula à direita. Use * no principal; os filhos podem usar:",
+        "parentPlaceholder": "Pattern principal",
+        "childrenPlaceholder": "Arquivos aninhados",
+        "remove": "Remover pattern"
       },
       "general": {
         "sectionEditor": "Editor",
