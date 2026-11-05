@@ -459,8 +459,10 @@ class SyncService extends Service {
       case AgentChunk(:final inReplyTo, :final delta):
         _chunkBuffer.write(delta);
         _chunkReplyTo = inReplyTo;
-        _flushTimer?.cancel();
-        _flushTimer = Timer(const Duration(milliseconds: 16), _flushChunks);
+        _flushTimer ??= Timer(const Duration(milliseconds: 16), () {
+          _flushTimer = null;
+          _flushChunks();
+        });
         _setWorking(true, replyTo: inReplyTo);
 
       case AgentDone(:final inReplyTo):
