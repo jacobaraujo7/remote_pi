@@ -11,6 +11,8 @@ import 'package:cockpit/app/cockpit/ui/widgets/terminal_session_view.dart';
 import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:flterm/flterm.dart' as ghost;
@@ -33,6 +35,69 @@ class _Gateway extends AttachmentTerminalGateway {
 }
 
 void main() {
+  testWidgets('ghostty view reattaches after its old parent releases it', (
+    tester,
+  ) async {
+    final terminal = GhosttyTerminalController();
+    final focus = FocusNode();
+    final parent = ValueNotifier('first');
+    addTearDown(() {
+      terminal.dispose();
+      focus.dispose();
+      parent.dispose();
+    });
+
+    await tester.pumpWidget(
+      ModularApp(
+        module: createModule(register: (_) {}),
+        provide: (scope) => scope.addChangeNotifier<SettingsController>(
+          () => SettingsController(_Settings()),
+        ),
+        child: ShadcnApp(
+          builder: (context, child) {
+            final tokens = buildTokens(
+              brightness: Brightness.dark,
+              settings: const AppSettings(),
+            );
+            return CockpitTheme(
+              colors: tokens.colors,
+              typo: tokens.typo,
+              syntax: tokens.syntax,
+              terminal: tokens.terminal,
+              child: ghost.TerminalScope(child: child!),
+            );
+          },
+          home: SizedBox(
+            width: 800,
+            height: 400,
+            child: ValueListenableBuilder<String>(
+              valueListenable: parent,
+              builder: (_, id, _) => KeyedSubtree(
+                key: ValueKey(id),
+                child: AdaptiveTerminalPane(
+                  terminal: terminal,
+                  active: true,
+                  focusNode: focus,
+                  textStyle: const xterm.TerminalStyle(),
+                  theme: xterm.TerminalThemes.defaultTheme,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    final view = find.byType(ghost.TerminalView);
+    final original = tester.state(view);
+    parent.value = 'second';
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(tester.state(view), isNot(same(original)));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final engine in TerminalEngine.values) {
     testWidgets(
       '${engine.name}: shared renderer keeps sessions and find shortcuts across inner tab/split changes',

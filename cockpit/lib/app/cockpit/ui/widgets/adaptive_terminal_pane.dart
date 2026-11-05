@@ -214,7 +214,14 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       ),
     );
 
-    final view = TerminalUnzoomBox(scale: uiScale, child: terminalView);
+    final view = TerminalUnzoomBox(
+      scale: uiScale,
+      child: _GhosttyViewLease(
+        key: ObjectKey(widget.terminal.controller),
+        controller: widget.terminal.controller,
+        child: terminalView,
+      ),
+    );
 
     // Aba inativa: a TerminalView fica MONTADA, só não é pintada. Antes ela era
     // trocada por um `SizedBox` e cada volta pra aba pagava um `initState`
@@ -294,6 +301,88 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       onOpenFile: widget.onOpenFile,
     );
   }
+}
+
+/// flterm allows one TerminalView per controller. When Flutter replaces a
+/// presentation parent, the new subtree can mount before the old subtree is
+/// disposed at the end of the frame. Wait for that disposal before attaching
+/// the replacement view. GlobalKey reparenting is unsafe here: flterm releases
+/// its attachment on deactivate while its render object is still attached.
+class _GhosttyViewLease extends StatefulWidget {
+  const _GhosttyViewLease({
+    super.key,
+    required this.controller,
+    required this.child,
+  });
+
+  final ghost.TerminalController controller;
+  final Widget child;
+
+  @override
+  State<_GhosttyViewLease> createState() => _GhosttyViewLeaseState();
+}
+
+class _GhosttyViewLeaseState extends State<_GhosttyViewLease> {
+  static final _owners = <ghost.TerminalController, _GhosttyViewLeaseState>{};
+  static final _waiting =
+      <ghost.TerminalController, Set<_GhosttyViewLeaseState>>{};
+
+  bool _owns = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _acquire();
+  }
+
+  void _acquire() {
+    final owner = _owners[widget.controller];
+    if (owner == null || identical(owner, this)) {
+      _owners[widget.controller] = this;
+      _waiting[widget.controller]?.remove(this);
+      _owns = true;
+    } else {
+      (_waiting[widget.controller] ??= {}).add(this);
+      _owns = false;
+    }
+  }
+
+  @override
+  void didUpdateWidget(_GhosttyViewLease oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller == widget.controller) return;
+    _release(oldWidget.controller);
+    _acquire();
+  }
+
+  void _release(ghost.TerminalController controller) {
+    final waiters = _waiting[controller];
+    waiters?.remove(this);
+    if (waiters != null && waiters.isEmpty) _waiting.remove(controller);
+    if (_owners[controller] != this) return;
+    _owners.remove(controller);
+    final next = _waiting[controller];
+    if (next == null || next.isEmpty) return;
+    // Flutter disposes the old TerminalView during tree finalization. Mount a
+    // waiting view in the next frame, after flterm has detached its controller.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final waiter in next.toList()) {
+        if (!waiter.mounted || waiter.widget.controller != controller) continue;
+        waiter.setState(waiter._acquire);
+      }
+      if (next.isEmpty) _waiting.remove(controller);
+    });
+  }
+
+  @override
+  void dispose() {
+    _release(widget.controller);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _owns ? widget.child : const SizedBox.shrink();
 }
 
 /// Traduz o tema do xterm para o do flterm. [uiScale] multiplica **só** o
