@@ -35,17 +35,27 @@ class _Gateway extends AttachmentTerminalGateway {
 }
 
 void main() {
-  testWidgets('ghostty view reattaches after its old parent releases it', (
+  testWidgets('ghostty view moves to the visible owner after a parent change', (
     tester,
   ) async {
     final terminal = GhosttyTerminalController();
     final focus = FocusNode();
+    final otherFocus = FocusNode();
     final parent = ValueNotifier('first');
     addTearDown(() {
       terminal.dispose();
       focus.dispose();
+      otherFocus.dispose();
       parent.dispose();
     });
+
+    Widget pane(FocusNode node, bool active) => AdaptiveTerminalPane(
+      terminal: terminal,
+      active: active,
+      focusNode: node,
+      textStyle: const xterm.TerminalStyle(),
+      theme: xterm.TerminalThemes.defaultTheme,
+    );
 
     await tester.pumpWidget(
       ModularApp(
@@ -72,16 +82,24 @@ void main() {
             height: 400,
             child: ValueListenableBuilder<String>(
               valueListenable: parent,
-              builder: (_, id, _) => KeyedSubtree(
-                key: ValueKey(id),
-                child: AdaptiveTerminalPane(
-                  terminal: terminal,
-                  active: true,
-                  focusNode: focus,
-                  textStyle: const xterm.TerminalStyle(),
-                  theme: xterm.TerminalThemes.defaultTheme,
-                ),
-              ),
+              builder: (_, id, _) => id.startsWith('shared')
+                  ? Column(
+                      children: [
+                        Expanded(
+                          child: KeyedSubtree(
+                            key: const ValueKey('left-owner'),
+                            child: pane(focus, id == 'shared-left'),
+                          ),
+                        ),
+                        Expanded(
+                          child: KeyedSubtree(
+                            key: const ValueKey('right-owner'),
+                            child: pane(otherFocus, id == 'shared-right'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : KeyedSubtree(key: ValueKey(id), child: pane(focus, true)),
             ),
           ),
         ),
@@ -95,6 +113,22 @@ void main() {
     await tester.pump();
     expect(tester.takeException(), isNull);
     expect(tester.state(view), isNot(same(original)));
+
+    Future<void> expectOwner(String id) async {
+      parent.value = 'shared-$id';
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      for (final name in ['left', 'right']) {
+        final ownedView = find.descendant(
+          of: find.byKey(ValueKey('$name-owner'), skipOffstage: false),
+          matching: find.byType(ghost.TerminalView, skipOffstage: false),
+        );
+        expect(ownedView, name == id ? findsOneWidget : findsNothing);
+      }
+    }
+
+    await expectOwner('right');
+    await expectOwner('left');
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
