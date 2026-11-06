@@ -45,6 +45,7 @@ void main() {
         'Upload',
       ]);
       expect(doc.requests.map((r) => r.method), ['GET', 'POST', 'PUT']);
+      expect(doc.requests.map((r) => r.requestLine), [6, 11, 20]);
     });
 
     test('headers ficam na ordem, sem o body', () {
@@ -101,6 +102,7 @@ void main() {
     expect(r.headers.single, (name: 'X-A', value: '1'));
     expect(r.body, 'hello');
     expect(r.label, 'POST https://a.b');
+    expect(r.requestLine, 0);
   });
 
   test('arquivo vazio ou só comentário não vira request', () {

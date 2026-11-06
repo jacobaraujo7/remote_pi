@@ -5,9 +5,11 @@ import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart'
     as m
     show Scrollbar, ScrollbarOrientation;
+import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -27,6 +29,11 @@ void main() {
     Brightness brightness = Brightness.dark,
     double width = 300,
     double height = 200,
+    Map<int, VoidCallback> lineActions = const {},
+    Map<int, VoidCallback> foldActions = const {},
+    Set<int> foldedLines = const {},
+    List<int>? lineNumbers,
+    bool compactGutter = false,
   }) {
     return ShadcnApp(
       theme: buildTheme(brightness: brightness),
@@ -44,6 +51,11 @@ void main() {
               scmDecorations: scmDecorations,
               revealMatchStart: revealStart,
               revealMatchTick: tick,
+              lineActions: lineActions,
+              foldActions: foldActions,
+              foldedLines: foldedLines,
+              lineNumbers: lineNumbers,
+              compactGutter: compactGutter,
             ),
           ),
         ),
@@ -80,6 +92,73 @@ void main() {
     await tester.pumpWidget(harness(ctrl, revealStart: matchStart, tick: 1));
     await tester.pumpAndSettle(const Duration(seconds: 2));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('ação do gutter executa somente a linha indicada', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(text: text, language: 'http');
+    var calls = 0;
+    await tester.pumpWidget(harness(ctrl, lineActions: {1: () => calls++}));
+    await tester.tap(find.byIcon(Icons.play_arrow));
+    expect(calls, 1);
+    expect(ctrl.text, text);
+  });
+
+  testWidgets('fold aparece no hover e preserva a numeração original', (
+    tester,
+  ) async {
+    final ctrl = CodeEditingController(
+      text: 'GET /a\n\nGET /b',
+      language: 'http',
+    );
+    var folds = 0;
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        lineActions: {0: () {}},
+        foldActions: {0: () => folds++},
+        lineNumbers: const [2, 4, 10],
+      ),
+    );
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('10'), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.moveTo(tester.getCenter(find.text('2')));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
+    expect(folds, 1);
+    await mouse.removePointer();
+  });
+
+  testWidgets('números e ações do gutter alinham com as linhas HTTP', (
+    tester,
+  ) async {
+    const source = 'GET /a\nAccept: json\nGET /b';
+    final ctrl = CodeEditingController(text: source, language: 'http');
+    addTearDown(ctrl.dispose);
+    await tester.pumpWidget(
+      harness(
+        ctrl,
+        compactGutter: true,
+        lineActions: {0: () {}, 2: () {}},
+        foldActions: {0: () {}, 2: () {}},
+      ),
+    );
+    await tester.pumpAndSettle();
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    for (final (line, offset) in [(1, 0), (2, 7), (3, 20)]) {
+      final caret = render.getLocalRectForCaret(TextPosition(offset: offset));
+      final codeTop = render.localToGlobal(caret.topLeft).dy;
+      // O Text do gutter desenha o glifo ~5 px abaixo da caixa do widget.
+      expect(
+        tester.getTopLeft(find.text('$line')).dy,
+        inInclusiveRange(codeTop - 6, codeTop - 4),
+      );
+    }
   });
 
   testWidgets('mudancas Git decoram o gutter sem selecionar a linha', (

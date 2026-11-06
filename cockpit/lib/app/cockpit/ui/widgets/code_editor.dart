@@ -77,6 +77,14 @@ class CodeEditor extends StatefulWidget {
     this.onGoToDefinition,
     this.filePath,
     this.wordWrap = false,
+    this.lineActions = const {},
+    this.lineActionTooltip,
+    this.foldActions = const {},
+    this.foldedLines = const {},
+    this.lineNumbers,
+    this.readOnly = false,
+    this.onCodeTap,
+    this.compactGutter = false,
   });
 
   final CodeEditingController controller;
@@ -113,6 +121,18 @@ class CodeEditor extends StatefulWidget {
   /// Quebra linhas longas na largura da pane (soft wrap), sem scroll
   /// horizontal. `false` = layout de código (uma linha visual por linha).
   final bool wordWrap;
+
+  /// Ações no slot esquerdo do gutter, indexadas por linha base 0.
+  final Map<int, VoidCallback> lineActions;
+  final String? lineActionTooltip;
+  final Map<int, VoidCallback> foldActions;
+  final Set<int> foldedLines;
+  final List<int>? lineNumbers;
+  final bool readOnly;
+  final VoidCallback? onCodeTap;
+
+  /// Reserva as colunas de ação mesmo enquanto elas estão temporariamente vazias.
+  final bool compactGutter;
 
   @override
   State<CodeEditor> createState() => _CodeEditorState();
@@ -580,7 +600,8 @@ class _CodeEditorState extends State<CodeEditor> {
     }
 
     final scrollH = _horizontal.hasClients ? _horizontal.offset : 0.0;
-    final codeLocalX = event.localPosition.dx - _gutterWidth - 14 + scrollH;
+    final codeLocalX =
+        event.localPosition.dx - _gutterWidth - _codeLeftPadding + scrollH;
     if (codeLocalX < 0) return _clearDefinitionHover();
 
     final text = widget.controller.text;
@@ -883,14 +904,44 @@ class _CodeEditorState extends State<CodeEditor> {
   /// (mesmo sem diagnostic) pra que a coluna do gutter não mude de largura e
   /// empurre o código quando um erro aparece/some.
   static const double _iconSlot = 16;
+  bool get _hasLineControls =>
+      widget.compactGutter ||
+      widget.lineActions.isNotEmpty ||
+      widget.foldActions.isNotEmpty;
+  double get _gutterRightPadding => _hasLineControls ? 4 : 14;
+  double get _codeLeftPadding => _hasLineControls ? 6 : 14;
+  bool _hoveringGutter = false;
 
   /// Uma linha do gutter: um slot fixo (ícone de severity quando há diagnostic,
   /// senão vazio) + o número. O ícone (12px) cabe na altura da linha de texto,
   /// mantendo o alinhamento 1:1 com o código.
   Widget _gutterLine(int oneBased, TextStyle numStyle) {
     final severity = widget.controller.severityForLine(oneBased - 1);
+    final action = widget.lineActions[oneBased - 1];
+    final foldAction = widget.foldActions[oneBased - 1];
+    final hasControls = _hasLineControls;
     final Widget slot;
-    if (severity == null) {
+    if (action != null) {
+      final button = Semantics(
+        button: true,
+        label: widget.lineActionTooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: action,
+            child: SizedBox(
+              width: _iconSlot,
+              height: _lineHeight,
+              child: Icon(Icons.play_arrow, size: 17, color: context.colors.ok),
+            ),
+          ),
+        ),
+      );
+      slot = widget.lineActionTooltip == null
+          ? button
+          : AppTooltip(message: widget.lineActionTooltip!, child: button);
+    } else if (severity == null) {
       slot = const SizedBox(width: _iconSlot);
     } else {
       final messages = widget.controller.messagesForLine(oneBased - 1);
@@ -917,7 +968,7 @@ class _CodeEditorState extends State<CodeEditor> {
         oneBased == _lineCount && scm.removalBoundaries.contains(_lineCount);
     final hasScm = marker != null || removalBefore || removalAfter;
     final deleted = context.colors.gitDeleted;
-    return Stack(
+    final row = Stack(
       key: hasScm ? ValueKey('git-change-line:$oneBased') : null,
       children: [
         if (marker != null)
@@ -953,16 +1004,56 @@ class _CodeEditorState extends State<CodeEditor> {
               ),
             ),
           ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            slot,
-            Text('$oneBased', style: numStyle),
-          ],
+        Transform.translate(
+          // Os glifos de Text no gutter têm mais leading que os do EditableText.
+          offset: Offset(0, _hasLineControls ? -_lineHeight * 0.25 : 0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!hasControls) slot,
+              SizedBox(
+                width: _digitsWidth,
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Text(
+                    '${widget.lineNumbers?[oneBased - 1] ?? oneBased}',
+                    style: numStyle,
+                  ),
+                ),
+              ),
+              if (hasControls) ...[
+                slot,
+                SizedBox(
+                  width: _iconSlot,
+                  height: _lineHeight,
+                  child:
+                      foldAction != null &&
+                          (_hoveringGutter ||
+                              widget.foldedLines.contains(oneBased - 1))
+                      ? MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: foldAction,
+                            child: Icon(
+                              widget.foldedLines.contains(oneBased - 1)
+                                  ? Icons.chevron_right
+                                  : Icons.keyboard_arrow_down,
+                              size: 14,
+                              color: context.colors.text3,
+                            ),
+                          ),
+                        )
+                      : null,
+                ),
+              ],
+            ],
+          ),
         ),
       ],
     );
+    return row;
   }
 
   IconData _severityIcon(LspSeverity severity) => switch (severity) {
@@ -992,11 +1083,15 @@ class _CodeEditorState extends State<CodeEditor> {
     // maior nº de linha + pad direito + divisor) — usada pra converter posição
     // X do mouse em offset de texto (hover do go-to-definition).
     final digitsProbe = TextPainter(
-      text: TextSpan(text: '$_lineCount', style: codeStyle),
+      text: TextSpan(
+        text: '${widget.lineNumbers?.last ?? _lineCount}',
+        style: codeStyle,
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     _digitsWidth = digitsProbe.width;
-    _gutterWidth = 14 + _iconSlot + _digitsWidth + 14 + 1;
+    final controlsWidth = _hasLineControls ? _iconSlot * 2 : _iconSlot;
+    _gutterWidth = 14 + controlsWidth + _digitsWidth + _gutterRightPadding + 1;
 
     // Clicar em qualquer ponto do editor (gutter, padding, espaço abaixo da
     // última linha) foca o campo — como num editor de verdade. Cliques sobre o
@@ -1082,6 +1177,7 @@ class _CodeEditorState extends State<CodeEditor> {
           actions: _indentActions,
           child: TextField(
             controller: widget.controller,
+            readOnly: widget.readOnly,
             focusNode: widget.focusNode,
             scrollController: _vertical,
             style: codeStyle,
@@ -1090,7 +1186,9 @@ class _CodeEditorState extends State<CodeEditor> {
             minLines: null,
             expands: true,
             keyboardType: TextInputType.multiline,
-            onTap: _definitionModeActive ? _onDefinitionTap : null,
+            onTap:
+                widget.onCodeTap ??
+                (_definitionModeActive ? _onDefinitionTap : null),
             mouseCursor: _defCursor,
             decoration: const InputDecoration(
               isCollapsed: true,
@@ -1119,23 +1217,27 @@ class _CodeEditorState extends State<CodeEditor> {
     // Largura fixa porque a ListView, ao contrário da Column dentro do
     // SingleChildScrollView, não é intrínseca: sem isso o gutter esticaria e
     // comeria o campo.
-    final gutter = Padding(
-      padding: const EdgeInsets.only(left: 14, right: 14),
-      child: SizedBox(
-        width: _iconSlot + _digitsWidth,
-        child: ListView.builder(
-          controller: _gutter,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: _padBottom),
-          itemExtent: wrap ? null : _lineHeight,
-          itemExtentBuilder: wrap
-              ? (i, _) {
-                  _ensureWrap();
-                  return _wrap.height(i);
-                }
-              : null,
-          itemCount: lineCount,
-          itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
+    final gutter = MouseRegion(
+      onEnter: (_) => setState(() => _hoveringGutter = true),
+      onExit: (_) => setState(() => _hoveringGutter = false),
+      child: Padding(
+        padding: EdgeInsets.only(left: 14, right: _gutterRightPadding),
+        child: SizedBox(
+          width: (_hasLineControls ? _iconSlot * 2 : _iconSlot) + _digitsWidth,
+          child: ListView.builder(
+            controller: _gutter,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: _padBottom),
+            itemExtent: wrap ? null : _lineHeight,
+            itemExtentBuilder: wrap
+                ? (i, _) {
+                    _ensureWrap();
+                    return _wrap.height(i);
+                  }
+                : null,
+            itemCount: lineCount,
+            itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
+          ),
         ),
       ),
     );
@@ -1154,10 +1256,9 @@ class _CodeEditorState extends State<CodeEditor> {
       // layout do gutter (primeiro filho, antes do campo) via [_ensureWrap].
       body = LayoutBuilder(
         builder: (context, constraints) {
-          final fieldWidth = (constraints.maxWidth - _gutterWidth - 30).clamp(
-            0.0,
-            double.infinity,
-          );
+          final fieldWidth =
+              (constraints.maxWidth - _gutterWidth - _codeLeftPadding - 16)
+                  .clamp(0.0, double.infinity);
           _wrapWidth = (fieldWidth - kEditorWrapCaretMargin).clamp(
             1.0,
             double.infinity,
@@ -1170,7 +1271,7 @@ class _CodeEditorState extends State<CodeEditor> {
               divider,
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  padding: EdgeInsets.only(left: _codeLeftPadding, right: 16),
                   child: field,
                 ),
               ),
@@ -1190,14 +1291,12 @@ class _CodeEditorState extends State<CodeEditor> {
                 // Largura mínima = viewport (menos o padding H). Sem isso, o
                 // IntrinsicWidth colapsa o campo a ~0 quando o arquivo está
                 // vazio → sem área pra clicar/digitar.
-                final minWidth = (constraints.maxWidth - 30).clamp(
-                  0.0,
-                  double.infinity,
-                );
+                final minWidth = (constraints.maxWidth - _codeLeftPadding - 16)
+                    .clamp(0.0, double.infinity);
                 return SingleChildScrollView(
                   controller: _horizontal,
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  padding: EdgeInsets.only(left: _codeLeftPadding, right: 16),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minWidth: minWidth),
                     child: IntrinsicWidth(child: field),

@@ -36,6 +36,7 @@ class HttpRequestSpec {
     this.body,
     this.bodyFile,
     required this.startLine,
+    required this.requestLine,
     required this.endLine,
   });
 
@@ -57,6 +58,9 @@ class HttpRequestSpec {
   /// Faixa de linhas `[startLine, endLine)`, base 0 — usada para casar o cursor
   /// do editor com o request corrente.
   final int startLine;
+
+  /// Linha do verbo HTTP, usada para posicionar a ação de executar no editor.
+  final int requestLine;
   final int endLine;
 
   /// Rótulo curto para a UI e para a CLI.
@@ -74,6 +78,7 @@ class HttpRequestSpec {
     body: body ?? this.body,
     bodyFile: bodyFile,
     startLine: startLine,
+    requestLine: requestLine,
     endLine: endLine,
   );
 }
@@ -120,6 +125,7 @@ class HttpDocument {
     String? bodyFile;
     var inBody = false;
     var start = 0;
+    var requestLine = 0;
 
     void flush(int end) {
       if (method != null && url != null) {
@@ -137,6 +143,7 @@ class HttpDocument {
             body: bodyLines.isEmpty ? null : bodyLines.join('\n'),
             bodyFile: bodyFile,
             startLine: start,
+            requestLine: requestLine,
             endLine: end,
           ),
         );
@@ -192,6 +199,7 @@ class HttpDocument {
         }
         method = req.group(1);
         url = req.group(2);
+        requestLine = i;
         continue;
       }
 

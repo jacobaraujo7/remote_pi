@@ -16,9 +16,6 @@ class HttpTabState {
   double split = 0.5;
   HttpResponsePane pane = HttpResponsePane.body;
 
-  /// Índice do request executado por último (o seletor da top bar).
-  int selected = 0;
-
   /// Corpo JSON mostrado cru em vez de indentado.
   bool rawBody = false;
 }

@@ -6,12 +6,12 @@ import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
-import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -27,7 +27,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 ///
 /// O arquivo **é** a fonte de verdade: nada de estado escondido em
 /// frontmatter, ao contrário do `.dbq`. O request executado é o que estiver
-/// sob o cursor (ou o escolhido no seletor da top bar).
+/// sob o cursor (ou o acionado no gutter do editor).
 class HttpRequestView extends StatefulWidget {
   const HttpRequestView({
     super.key,
@@ -50,6 +50,12 @@ class HttpRequestView extends StatefulWidget {
 
 class _HttpRequestViewState extends State<HttpRequestView> {
   late final CodeEditingController _text;
+  late String _lastSourceText;
+  late final CodeEditingController _foldedText;
+  final Set<int> _foldedStarts = {};
+  late HttpRequestFolds _foldProjection;
+  int? _revealFoldLine;
+  int _foldTick = 0;
   final FocusNode _focus = FocusNode();
   EditorMenuBridge? _menuBridge;
 
@@ -67,6 +73,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     _view = context.read<HttpViewModel>().tabStateFor(widget.session.id);
     _baseline = _diskText();
     _text = CodeEditingController(text: _baseline, language: 'http');
+    _lastSourceText = _baseline;
+    _foldedText = CodeEditingController(text: _baseline, language: 'http');
+    _foldProjection = HttpRequestFolds.build(_baseline, _foldedStarts);
     _text.addListener(_onEdited);
     widget.session.addListener(_onSession);
     widget.session.saveDraft = _save;
@@ -90,6 +99,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _text.removeListener(_onEdited);
     _text.dispose();
+    _foldedText.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -105,10 +115,40 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   bool get _dirty => widget.session.scratch || _text.text != _baseline;
 
   void _onEdited() {
-    // Editar pode mudar quantos requests existem — o seletor da top bar
-    // acompanha, então repinta.
-    if (mounted) setState(() {});
+    // Editar pode mover as linhas dos requests e seus botões no gutter.
+    final textChanged = _text.text != _lastSourceText;
+    if (textChanged) {
+      if (_foldedStarts.isNotEmpty) _foldedStarts.clear();
+      _rebuildFoldedText();
+    }
+    _lastSourceText = _text.text;
+    if (mounted && (textChanged || _foldedStarts.isEmpty)) setState(() {});
     widget.session.setDirty(_dirty);
+  }
+
+  void _rebuildFoldedText() {
+    _foldProjection = HttpRequestFolds.build(_text.text, _foldedStarts);
+    _foldedText.text = _foldProjection.text;
+    _foldedText.selection = const TextSelection.collapsed(offset: 0);
+  }
+
+  void _toggleFold(int sourceLine) {
+    if (!_foldedStarts.remove(sourceLine)) _foldedStarts.add(sourceLine);
+    _rebuildFoldedText();
+    _revealFoldLine =
+        (_foldedStarts.isEmpty
+            ? sourceLine
+            : _foldProjection.visibleBySource[sourceLine] ?? 0) +
+        1;
+    _foldTick++;
+    setState(() {});
+  }
+
+  void _expandForEdit() {
+    if (_foldedStarts.isEmpty) return;
+    _foldedStarts.clear();
+    _rebuildFoldedText();
+    setState(() {});
   }
 
   /// Mudança vinda do disco (watcher / agente salvou): adota o conteúdo novo
@@ -237,23 +277,24 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   /// Linha (base 0) onde está o cursor — casa com o request corrente.
   int get _cursorLine {
-    final sel = _text.selection;
+    final display = _foldedStarts.isEmpty ? _text : _foldedText;
+    final sel = display.selection;
     final offset = sel.isValid ? sel.baseOffset : 0;
-    final upto = _text.text.substring(0, offset.clamp(0, _text.text.length));
-    return '\n'.allMatches(upto).length;
+    final upto = display.text.substring(
+      0,
+      offset.clamp(0, display.text.length),
+    );
+    final line = '\n'.allMatches(upto).length;
+    return _foldedStarts.isEmpty ? line : _foldProjection.lineNumbers[line] - 1;
   }
 
-  /// Índice do request a executar: o escolhido explicitamente no seletor, ou
-  /// o que estiver sob o cursor.
+  /// Índice do request sob o cursor.
   int _targetIndex(HttpDocument doc) {
-    if (_view.selected < doc.requests.length && _view.selected > 0) {
-      return _view.selected;
-    }
     final at = doc.requestIndexAtLine(_cursorLine);
     return at < 0 ? 0 : at;
   }
 
-  Future<void> _run() async {
+  Future<void> _run([int? requestIndex]) async {
     if (_running) return;
     final doc = _doc;
     if (doc.requests.isEmpty) {
@@ -268,7 +309,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       if (!await _save() || !mounted) return;
     }
 
-    final index = _targetIndex(doc);
+    final index = requestIndex ?? _targetIndex(doc);
+    if (index >= doc.requests.length) return;
     final spec = doc.resolveRequest(doc.requests[index]);
     final baseDir = widget.session.scratch
         ? ''
@@ -277,7 +319,6 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     setState(() {
       _running = true;
       _view.error = null;
-      _view.selected = index;
     });
     final result = await context.read<HttpViewModel>().runner.send(
       spec,
@@ -294,30 +335,6 @@ class _HttpRequestViewState extends State<HttpRequestView> {
           _view.error = error;
       }
     });
-  }
-
-  Future<void> _pickRequest(BuildContext anchor) async {
-    final doc = _doc;
-    final picked = await showAppMenu<int>(
-      anchor,
-      items: [
-        for (var i = 0; i < doc.requests.length; i++)
-          AppMenuItem(
-            value: i,
-            label: doc.requests[i].label,
-            selected: i == _targetIndex(doc),
-          ),
-        if (doc.requests.isEmpty)
-          AppMenuItem(
-            value: -1,
-            label: context.t.cockpit.httpView.noRequests,
-            enabled: false,
-          ),
-      ],
-    );
-    if (picked == null || picked < 0 || !mounted) return;
-    setState(() => _view.selected = picked);
-    await _run();
   }
 
   void _syncMenuBridge() {
@@ -341,6 +358,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final doc = _doc;
+    final foldEnds = _foldProjection.foldEnds;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _syncMenuBridge();
     });
@@ -367,7 +386,60 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                     children: [
                       SizedBox(
                         height: editorH,
-                        child: CodeEditor(controller: _text, focusNode: _focus),
+                        child: CodeEditor(
+                          key: ValueKey(_foldedStarts.isNotEmpty),
+                          controller: _foldedStarts.isEmpty
+                              ? _text
+                              : _foldedText,
+                          compactGutter: true,
+                          focusNode: _focus,
+                          revealLine: _revealFoldLine,
+                          revealSelect: false,
+                          revealTick: _foldTick,
+                          readOnly: _foldedStarts.isNotEmpty,
+                          onCodeTap: _foldedStarts.isEmpty
+                              ? null
+                              : _expandForEdit,
+                          lineNumbers: _foldedStarts.isEmpty
+                              ? null
+                              : _foldProjection.lineNumbers,
+                          lineActions: _running
+                              ? const {}
+                              : {
+                                  for (var i = 0; i < doc.requests.length; i++)
+                                    if (_foldedStarts.isEmpty ||
+                                        _foldProjection.visibleBySource
+                                            .containsKey(
+                                              doc.requests[i].requestLine,
+                                            ))
+                                      (_foldedStarts.isEmpty
+                                          ? doc.requests[i].requestLine
+                                          : _foldProjection.visibleBySource[doc
+                                                .requests[i]
+                                                .requestLine]!): () =>
+                                          _run(i),
+                                },
+                          foldActions: {
+                            for (final sourceLine in foldEnds.keys)
+                              if (_foldedStarts.isEmpty ||
+                                  _foldProjection.visibleBySource.containsKey(
+                                    sourceLine,
+                                  ))
+                                (_foldedStarts.isEmpty
+                                    ? sourceLine
+                                    : _foldProjection
+                                          .visibleBySource[sourceLine]!): () =>
+                                    _toggleFold(sourceLine),
+                          },
+                          foldedLines: {
+                            for (final sourceLine in _foldedStarts)
+                              if (_foldProjection.visibleBySource.containsKey(
+                                sourceLine,
+                              ))
+                                _foldProjection.visibleBySource[sourceLine]!,
+                          },
+                          lineActionTooltip: context.t.cockpit.httpView.run,
+                        ),
                       ),
                       MouseRegion(
                         cursor: SystemMouseCursors.resizeUpDown,
@@ -421,58 +493,20 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       ),
       child: Row(
         children: [
-          Icon(Icons.swap_horiz, size: 14, color: colors.accent),
+          Icon(Icons.language, size: 14, color: colors.accent),
           const SizedBox(width: 8),
           Expanded(
-            child: Builder(
-              builder: (anchor) => Align(
-                alignment: Alignment.centerLeft,
-                child: HoverTap(
-                  onTap: empty ? null : () => _pickRequest(anchor),
-                  color: colors.panel3,
-                  borderRadius: const BorderRadius.all(Radius.circular(4)),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 3,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (target != null) ...[
-                        Text(
-                          target.method,
-                          style: typo.label.copyWith(
-                            fontSize: 11,
-                            color: colors.accent,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                      ],
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 420),
-                        child: Text(
-                          target?.label ?? tr.selectRequest,
-                          overflow: TextOverflow.ellipsis,
-                          style: typo.label.copyWith(
-                            fontSize: 11,
-                            color: empty ? colors.warn : colors.text2,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Icon(
-                        Icons.keyboard_arrow_down,
-                        size: 12,
-                        color: colors.text3,
-                      ),
-                    ],
-                  ),
-                ),
+            child: Text(
+              target?.label ?? tr.noRequests,
+              overflow: TextOverflow.ellipsis,
+              style: typo.label.copyWith(
+                fontSize: 11,
+                color: empty ? colors.warn : colors.text2,
               ),
             ),
           ),
           HoverTap(
-            onTap: _running || empty ? null : _run,
+            onTap: _running || empty ? null : () => _run(),
             color: runBg,
             hoverColor: colors.accent.withValues(alpha: 0.85),
             borderRadius: const BorderRadius.all(Radius.circular(5)),
