@@ -467,6 +467,10 @@
       "body": "JSON",
       "headers": "Headers",
       "raw": "Text",
+      "tests": "Tests",
+      "script": "Script",
+      "noTests": "No tests registered.",
+      "noScriptOutput": "No script output.",
       "truncatedSuffix": " · truncated (response too large)",
       "error": {
         "title": "Request failed",

@@ -464,6 +464,10 @@
       "body": "JSON",
       "headers": "标头",
       "raw": "文本",
+      "tests": "测试",
+      "script": "脚本",
+      "noTests": "没有注册的测试。",
+      "noScriptOutput": "脚本没有输出。",
       "truncatedSuffix": " · 已截断（响应过大）",
       "error": {
         "title": "请求失败",

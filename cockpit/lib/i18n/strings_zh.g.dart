@@ -876,6 +876,10 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get body => 'JSON';
 	@override String get headers => '标头';
 	@override String get raw => '文本';
+	@override String get tests => '测试';
+	@override String get script => '脚本';
+	@override String get noTests => '没有注册的测试。';
+	@override String get noScriptOutput => '脚本没有输出。';
 	@override String get truncatedSuffix => ' · 已截断（响应过大）';
 	@override late final _Translations$cockpit$httpView$error$zh error = _Translations$cockpit$httpView$error$zh._(_root);
 }
@@ -2478,6 +2482,10 @@ extension on TranslationsZh {
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => '标头',
 			'cockpit.httpView.raw' => '文本',
+			'cockpit.httpView.tests' => '测试',
+			'cockpit.httpView.script' => '脚本',
+			'cockpit.httpView.noTests' => '没有注册的测试。',
+			'cockpit.httpView.noScriptOutput' => '脚本没有输出。',
 			'cockpit.httpView.truncatedSuffix' => ' · 已截断（响应过大）',
 			'cockpit.httpView.error.title' => '请求失败',
 			'cockpit.httpView.error.noRequest' => '光标处未找到请求。',
@@ -2584,12 +2592,12 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.invalidUrl' => '不是有效的连接 URL。',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
@@ -3098,12 +3106,12 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
 			'settings.remoteHosts.helpTitle' => '工作原理',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',

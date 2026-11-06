@@ -2,11 +2,12 @@ import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter/foundation.dart';
 
 /// Aba de baixo da view `.http`.
-enum HttpResponsePane { body, headers, raw }
+enum HttpResponsePane { body, headers, raw, tests, script }
 
 enum HttpRequestRunStatus { idle, loading, success, error }
 
@@ -14,6 +15,9 @@ class HttpRequestOutcome {
   HttpRequestRunStatus status = HttpRequestRunStatus.idle;
   HttpResponseResult? result;
   HttpRequestError? error;
+  String? scriptError;
+  List<String> logs = const [];
+  List<HttpScriptTest> tests = const [];
 }
 
 /// Estado de VISUALIZAÇÃO de uma tab `.http` que precisa sobreviver ao
@@ -57,6 +61,8 @@ class HttpTabState extends ChangeNotifier {
     List<HttpRequestSpec> requests, {
     required String baseDir,
     int? onlyIndex,
+    HttpDocument? document,
+    Map<String, String> environment = const {},
   }) async {
     if (isRunning || requests.length != outcomes.length) return;
     isRunning = true;
@@ -81,9 +87,33 @@ class HttpTabState extends ChangeNotifier {
         outcome
           ..status = HttpRequestRunStatus.loading
           ..result = null
-          ..error = null;
+          ..error = null
+          ..scriptError = null
+          ..logs = const []
+          ..tests = const [];
         notifyListeners();
         try {
+          if (document != null) {
+            final execution = await HttpScriptSession.shared.run(
+              runner,
+              document,
+              requests[index],
+              baseDir: baseDir,
+              environment: environment,
+            );
+            if (generation != _sourceGeneration) break;
+            outcome
+              ..result = execution.response
+              ..error = execution.transportError
+              ..scriptError = execution.scriptError
+              ..logs = execution.logs
+              ..tests = execution.tests
+              ..status = execution.failed
+                  ? HttpRequestRunStatus.error
+                  : HttpRequestRunStatus.success;
+            notifyListeners();
+            continue;
+          }
           final sent = await runner.send(requests[index], baseDir: baseDir);
           if (generation != _sourceGeneration) break;
           switch (sent) {

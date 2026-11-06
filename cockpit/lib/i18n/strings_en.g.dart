@@ -2030,6 +2030,18 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Text'
 	String get raw => 'Text';
 
+	/// en: 'Tests'
+	String get tests => 'Tests';
+
+	/// en: 'Script'
+	String get script => 'Script';
+
+	/// en: 'No tests registered.'
+	String get noTests => 'No tests registered.';
+
+	/// en: 'No script output.'
+	String get noScriptOutput => 'No script output.';
+
 	/// en: ' · truncated (response too large)'
 	String get truncatedSuffix => ' · truncated (response too large)';
 
@@ -4972,6 +4984,10 @@ extension on Translations {
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Tests',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'No tests registered.',
+			'cockpit.httpView.noScriptOutput' => 'No script output.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncated (response too large)',
 			'cockpit.httpView.error.title' => 'Request failed',
 			'cockpit.httpView.error.noRequest' => 'No request found at the cursor.',
@@ -5075,12 +5091,12 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.editTitle' => 'Edit connection',
 			'cockpit.dbConnectionDialog.newTitle' => 'New connection',
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
@@ -5589,12 +5605,12 @@ extension on Translations {
 			'settings.remoteHosts.statusConnected' => 'Connected',
 			'settings.remoteHosts.statusConnecting' => 'Connecting…',
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',

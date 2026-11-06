@@ -957,6 +957,10 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
 	@override String get raw => 'Text';
+	@override String get tests => 'Pruebas';
+	@override String get script => 'Script';
+	@override String get noTests => 'No hay pruebas registradas.';
+	@override String get noScriptOutput => 'El script no produjo ninguna salida.';
 	@override String get truncatedSuffix => ' · truncado (respuesta demasiado grande)';
 	@override late final _Translations$cockpit$httpView$error$es error = _Translations$cockpit$httpView$error$es._(_root);
 }
@@ -2562,6 +2566,10 @@ extension on TranslationsEs {
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Pruebas',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'No hay pruebas registradas.',
+			'cockpit.httpView.noScriptOutput' => 'El script no produjo ninguna salida.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncado (respuesta demasiado grande)',
 			'cockpit.httpView.error.title' => 'Falló el request',
 			'cockpit.httpView.error.noRequest' => 'No se encontró ningún request en la posición del cursor.',
@@ -2665,12 +2673,12 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexión',
 			'cockpit.dbConnectionDialog.newTitle' => 'Nueva conexión',
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexión no válida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
@@ -3179,12 +3187,12 @@ extension on TranslationsEs {
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.statusOffline' => 'Sin conexión',
 			'settings.remoteHosts.statusIdle' => 'No conectado',
 			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',

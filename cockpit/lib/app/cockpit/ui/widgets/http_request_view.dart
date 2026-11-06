@@ -585,22 +585,17 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     }
 
     if (requestIndex != null && requestIndex >= doc.requests.length) return;
-    final resolved = [
-      for (final request in doc.requests)
-        doc.resolveRequest(
-          request,
-          environment: catalog.valuesFor(widget.session.httpEnvironment),
-        ),
-    ];
     final baseDir = widget.session.scratch
         ? ''
         : widget.session.workingDirectory;
 
     await _view.runRequests(
       context.read<HttpViewModel>().runner,
-      resolved,
+      doc.requests,
       baseDir: baseDir,
       onlyIndex: requestIndex,
+      document: doc,
+      environment: catalog.valuesFor(widget.session.httpEnvironment),
     );
   }
 
@@ -992,6 +987,45 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final tr = context.t.cockpit.httpView;
 
     final outcome = _view.selectedOutcome;
+    if (_view.pane == HttpResponsePane.tests && outcome != null) {
+      final lines = outcome.tests.isEmpty
+          ? tr.noTests
+          : outcome.tests
+                .map(
+                  (test) =>
+                      '${test.passed ? '✓' : '✕'} ${test.name}${test.message == null ? '' : ' — ${test.message}'}',
+                )
+                .join('\n');
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(14),
+        child: SelectableText(
+          lines,
+          style: typo.mono.copyWith(fontSize: 12, color: colors.text2),
+        ),
+      );
+    }
+    if (_view.pane == HttpResponsePane.script && outcome != null) {
+      final text = [
+        if (outcome.scriptError != null) outcome.scriptError!,
+        ...outcome.logs,
+      ].join('\n');
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(14),
+        child: SelectableText(
+          text.isEmpty ? tr.noScriptOutput : text,
+          style: typo.mono.copyWith(fontSize: 12, color: colors.text2),
+        ),
+      );
+    }
+    if (outcome?.scriptError != null && outcome?.result == null) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(14),
+        child: SelectableText(
+          outcome!.scriptError!,
+          style: typo.mono.copyWith(fontSize: 12, color: colors.error),
+        ),
+      );
+    }
     final error = outcome?.error;
     if (error != null) {
       return Container(
@@ -1054,6 +1088,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       HttpResponsePane.body => result.prettyJson != null ? 'json' : null,
       HttpResponsePane.headers => 'http',
       HttpResponsePane.raw => null,
+      HttpResponsePane.tests => null,
+      HttpResponsePane.script => null,
     };
     final span = language == null
         ? null
@@ -1087,6 +1123,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     ].join('\n'),
     HttpResponsePane.raw => result.bodyText,
     HttpResponsePane.body => result.prettyJson ?? result.bodyText,
+    HttpResponsePane.tests => '',
+    HttpResponsePane.script => '',
   };
 
   Widget _footer(BuildContext context) {
@@ -1120,31 +1158,59 @@ class _HttpRequestViewState extends State<HttpRequestView> {
             ),
             const SizedBox(width: 6),
           ],
-          Text(
-            info.toString(),
-            style: typo.label.copyWith(fontSize: 10.5, color: colors.text3),
+          Expanded(
+            child: Text(
+              info.toString(),
+              overflow: TextOverflow.ellipsis,
+              style: typo.label.copyWith(fontSize: 10.5, color: colors.text3),
+            ),
           ),
-          const Spacer(),
           // Seletor da view da resposta — mesmo lugar e mesmo estilo do
           // toggle Table/JSON da tab `.dbq`.
-          if (result != null) ...[
-            _PaneToggle(
-              label: tr.body,
-              active: _view.pane == HttpResponsePane.body,
-              onTap: () => setState(() => _view.pane = HttpResponsePane.body),
+          Flexible(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (result != null) ...[
+                    _PaneToggle(
+                      label: tr.body,
+                      active: _view.pane == HttpResponsePane.body,
+                      onTap: () =>
+                          setState(() => _view.pane = HttpResponsePane.body),
+                    ),
+                    _PaneToggle(
+                      label: tr.headers,
+                      active: _view.pane == HttpResponsePane.headers,
+                      onTap: () =>
+                          setState(() => _view.pane = HttpResponsePane.headers),
+                    ),
+                    _PaneToggle(
+                      label: tr.raw,
+                      active: _view.pane == HttpResponsePane.raw,
+                      onTap: () =>
+                          setState(() => _view.pane = HttpResponsePane.raw),
+                    ),
+                  ],
+                  if (_view.selectedOutcome?.status !=
+                      HttpRequestRunStatus.idle) ...[
+                    _PaneToggle(
+                      label: tr.tests,
+                      active: _view.pane == HttpResponsePane.tests,
+                      onTap: () =>
+                          setState(() => _view.pane = HttpResponsePane.tests),
+                    ),
+                    _PaneToggle(
+                      label: tr.script,
+                      active: _view.pane == HttpResponsePane.script,
+                      onTap: () =>
+                          setState(() => _view.pane = HttpResponsePane.script),
+                    ),
+                  ],
+                ],
+              ),
             ),
-            _PaneToggle(
-              label: tr.headers,
-              active: _view.pane == HttpResponsePane.headers,
-              onTap: () =>
-                  setState(() => _view.pane = HttpResponsePane.headers),
-            ),
-            _PaneToggle(
-              label: tr.raw,
-              active: _view.pane == HttpResponsePane.raw,
-              onTap: () => setState(() => _view.pane = HttpResponsePane.raw),
-            ),
-          ],
+          ),
         ],
       ),
     );
