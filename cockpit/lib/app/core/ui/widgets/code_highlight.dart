@@ -170,7 +170,7 @@ hl.Mode _httpFileMode() {
         subLanguage: ['json'],
         relevance: 0,
       ),
-      // Header `Nome: valor` — só o nome é `attribute`; o valor segue neutro
+      // Header `Nome: valor` — só o nome ganha estilo de header HTTP; o valor segue neutro
       // (com interpolação pintada). O begin valida a linha inteira até o `:` e
       // `returnBegin` devolve o cursor: nada de `illegal` para delimitar o
       // nome, porque `illegal` num submode aborta o highlight do arquivo
@@ -181,7 +181,7 @@ hl.Mode _httpFileMode() {
         relevance: 0,
         contains: [
           hl.Mode(
-            className: 'attribute',
+            className: 'http-header',
             begin: r'[A-Za-z][A-Za-z0-9_-]*',
             endsParent: true,
             relevance: 0,

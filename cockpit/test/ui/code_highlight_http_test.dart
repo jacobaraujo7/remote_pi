@@ -37,6 +37,36 @@ Future<(String, List<String>)> _paint(
   return (full.toString(), colored);
 }
 
+Future<Map<String, TextStyle?>> _styles(
+  WidgetTester tester,
+  String source,
+) async {
+  TextSpan? span;
+  await tester.pumpWidget(
+    ShadcnApp(
+      theme: buildTheme(brightness: Brightness.dark),
+      home: Builder(
+        builder: (context) {
+          span = buildCodeSpan(
+            context,
+            source: source,
+            language: 'http',
+            baseStyle: const TextStyle(),
+          );
+          return const SizedBox();
+        },
+      ),
+    ),
+  );
+  final styles = <String, TextStyle?>{};
+  span!.visitChildren((v) {
+    final leaf = v as TextSpan;
+    styles[leaf.text!] = leaf.style;
+    return true;
+  });
+  return styles;
+}
+
 const _source = '''
 @baseUrl = https://api.example.com
 @token = abc123
@@ -97,6 +127,30 @@ void main() {
       expect(colored, contains('PUT'));
     },
   );
+
+  testWidgets('nomes de headers HTTP ficam em itálico, valores não', (
+    tester,
+  ) async {
+    final styles = await _styles(
+      tester,
+      'GET https://example.com\n'
+      'Content-Type: application/json\n'
+      'Accept: text/plain\n'
+      'Cookie: session=abc\n',
+    );
+    for (final name in ['Content-Type', 'Accept', 'Cookie']) {
+      expect(styles[name]?.fontStyle, FontStyle.italic, reason: name);
+    }
+    for (final value in ['application/json', 'text/plain', 'session=abc']) {
+      final fragments = styles.entries.where((e) => e.key.contains(value));
+      expect(fragments, isNotEmpty, reason: value);
+      expect(
+        fragments.every((e) => e.value?.fontStyle != FontStyle.italic),
+        isTrue,
+        reason: value,
+      );
+    }
+  });
 
   testWidgets('lista de headers solta (painel de resposta) também pinta', (
     tester,
