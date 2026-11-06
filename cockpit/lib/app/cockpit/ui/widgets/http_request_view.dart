@@ -1573,44 +1573,47 @@ class _PaneToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return HoverTap(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 9),
-      child: SizedBox(
-        height: 37,
-        child: Column(
-          children: [
-            Expanded(
-              child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      label,
-                      style: context.typo.label.copyWith(
-                        fontSize: 11,
-                        color: active ? colors.text : colors.text3,
-                      ),
-                    ),
-                    if (count != null && count! > 0) ...[
-                      const SizedBox(width: 3),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: HoverTap(
+        onTap: onTap,
+        padding: const EdgeInsets.symmetric(horizontal: 9),
+        child: SizedBox(
+          height: 31,
+          child: Column(
+            children: [
+              Expanded(
+                child: Center(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
                       Text(
-                        '$count',
+                        label,
                         style: context.typo.label.copyWith(
-                          fontSize: 9,
-                          color: colors.text4,
+                          fontSize: 11,
+                          color: active ? colors.text : colors.text3,
                         ),
                       ),
+                      if (count != null && count! > 0) ...[
+                        const SizedBox(width: 3),
+                        Text(
+                          '$count',
+                          style: context.typo.label.copyWith(
+                            fontSize: 9,
+                            color: colors.text4,
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-            Container(
-              height: 2,
-              color: active ? colors.accent : const Color(0x00000000),
-            ),
-          ],
+              Container(
+                height: 2,
+                color: active ? colors.accent : const Color(0x00000000),
+              ),
+            ],
+          ),
         ),
       ),
     );
