@@ -29,6 +29,7 @@ class HttpRequestOutcome {
 /// direto.
 class HttpTabState extends ChangeNotifier {
   List<HttpRequestOutcome> outcomes = [];
+  final Set<int> foldedStarts = {};
   List<HttpRequestSpec> _requests = [];
   final List<({HttpRequestSpec request, HttpRequestOutcome outcome})>
   _detached = [];
@@ -60,6 +61,7 @@ class HttpTabState extends ChangeNotifier {
   /// Uma linha de request temporariamente inválida não descarta a resposta.
   void syncSource(String source, int requestCount) {
     if (_source == source && outcomes.length == requestCount) return;
+    if (_source != null && _source != source) foldedStarts.clear();
     _source = source;
     _sourceGeneration++;
     final next = HttpDocument.parse(source).requests;

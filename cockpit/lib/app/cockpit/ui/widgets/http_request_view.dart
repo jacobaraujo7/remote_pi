@@ -71,7 +71,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   late final CodeEditingController _text;
   late String _lastSourceText;
   late final CodeEditingController _foldedText;
-  final Set<int> _foldedStarts = {};
+  late final Set<int> _foldedStarts;
   late HttpRequestFolds _foldProjection;
   ({int oldLine, int newLine, int tick})? _foldScrollAnchor;
   int _foldTick = 0;
@@ -105,6 +105,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       projectId: widget.session.scratch ? null : widget.session.projectId,
       path: widget.session.scratch ? null : widget.session.path,
     );
+    _foldedStarts = _view.foldedStarts;
     widget.session.httpEnvironment ??= context
         .read<CockpitViewModel>()
         .httpEnvironmentFor(widget.session.projectId, widget.session.path);
@@ -115,8 +116,11 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     HttpScriptSession.shared.addListener(_onGlobalsChanged);
     _text = CodeEditingController(text: _baseline, language: 'http');
     _lastSourceText = _baseline;
-    _foldedText = CodeEditingController(text: _baseline, language: 'http');
     _foldProjection = HttpRequestFolds.build(_baseline, _foldedStarts);
+    _foldedText = CodeEditingController(
+      text: _foldProjection.text,
+      language: 'http',
+    );
     _text.addListener(_onEdited);
     widget.session.addListener(_onSession);
     widget.session.saveDraft = _save;

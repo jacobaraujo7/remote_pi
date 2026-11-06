@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -87,6 +88,33 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('folds permanecem fechados ao reabrir a aba', () {
+    const text = '### first\nGET https://example.test/a\nAccept: json\n';
+    final vm = HttpViewModel(_StubRunner());
+    final opened = vm.tabStateFor(
+      'first-session',
+      projectId: 'project',
+      path: '/api/requests.http',
+    );
+    opened.syncSource(text, 1);
+    opened.foldedStarts.add(1);
+
+    final reopened = vm.tabStateFor(
+      'second-session',
+      projectId: 'project',
+      path: '/api/requests.http',
+    );
+    reopened.syncSource(text, 1);
+    expect(reopened.foldedStarts, {1});
+    expect(
+      HttpRequestFolds.build(text, reopened.foldedStarts).text,
+      '### first\nGET https://example.test/a\n',
+    );
+
+    reopened.syncSource('$text\n# edited', 1);
+    expect(reopened.foldedStarts, isEmpty);
   });
 
   group('HttpResponseResult', () {
