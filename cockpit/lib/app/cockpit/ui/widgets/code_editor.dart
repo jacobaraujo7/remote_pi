@@ -93,6 +93,8 @@ class CodeEditor extends StatefulWidget {
     this.autoEditHttpScripts = false,
     this.completionVisible = false,
     this.completionItems = const [],
+    this.completionDetails = const {},
+    this.completionMethods = const {},
     this.completionIndex = 0,
     this.completionEmptyLabel = '',
     this.onCompletionSelected,
@@ -153,6 +155,8 @@ class CodeEditor extends StatefulWidget {
   final bool autoEditHttpScripts;
   final bool completionVisible;
   final List<String> completionItems;
+  final Map<String, String> completionDetails;
+  final Set<String> completionMethods;
   final int completionIndex;
   final String completionEmptyLabel;
   final ValueChanged<String>? onCompletionSelected;
@@ -356,7 +360,7 @@ class _CodeEditorState extends State<CodeEditor> {
             !listEquals(widget.completionItems, old.completionItems))) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_completionScroll.hasClients) return;
-        const itemHeight = 31.0;
+        final itemHeight = widget.completionDetails.isEmpty ? 31.0 : 43.0;
         final top = widget.completionIndex * itemHeight;
         final bottom = top + itemHeight;
         final current = _completionScroll.offset;
@@ -1222,7 +1226,7 @@ class _CodeEditorState extends State<CodeEditor> {
     double viewportWidth,
     double viewportHeight,
   ) {
-    const popupWidth = 286.0;
+    final popupWidth = widget.completionDetails.isEmpty ? 286.0 : 350.0;
     final width = (viewportWidth - 12).clamp(0.0, popupWidth);
     final caret = widget.controller.selection.baseOffset.clamp(
       0,
@@ -1244,7 +1248,8 @@ class _CodeEditorState extends State<CodeEditor> {
       (viewportWidth - width).clamp(0.0, viewportWidth),
     );
     final below = _padTop + (pos.line + 1) * _lineHeight - scrollV + 3;
-    final popupHeight = (widget.completionItems.length * 31.0 + 14).clamp(
+    final itemHeight = widget.completionDetails.isEmpty ? 31.0 : 43.0;
+    final popupHeight = (widget.completionItems.length * itemHeight + 14).clamp(
       46.0,
       236.0,
     );
@@ -1306,9 +1311,10 @@ class _CodeEditorState extends State<CodeEditor> {
                           shrinkWrap: true,
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           itemCount: widget.completionItems.length,
-                          itemExtent: 31,
+                          itemExtent: itemHeight,
                           itemBuilder: (context, index) {
                             final name = widget.completionItems[index];
+                            final detail = widget.completionDetails[name];
                             final selected = index == widget.completionIndex;
                             return MouseRegion(
                               cursor: SystemMouseCursors.click,
@@ -1327,20 +1333,52 @@ class _CodeEditorState extends State<CodeEditor> {
                                   child: Row(
                                     children: [
                                       Icon(
-                                        Icons.data_object,
+                                        widget.completionMethods.contains(name)
+                                            ? Icons.functions
+                                            : Icons.data_object,
                                         size: 14,
                                         color: colors.accent,
                                       ),
                                       const SizedBox(width: 8),
                                       Expanded(
-                                        child: Text(
-                                          name,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: context.typo.mono.copyWith(
-                                            fontSize: 11.5,
-                                            color: colors.text,
-                                          ),
-                                        ),
+                                        child: detail != null
+                                            ? Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    name,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: context.typo.mono
+                                                        .copyWith(
+                                                          fontSize: 11.5,
+                                                          color: colors.text,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    detail,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: context.typo.label
+                                                        .copyWith(
+                                                          fontSize: 10,
+                                                          color: colors.text3,
+                                                        ),
+                                                  ),
+                                                ],
+                                              )
+                                            : Text(
+                                                name,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: context.typo.mono
+                                                    .copyWith(
+                                                      fontSize: 11.5,
+                                                      color: colors.text,
+                                                    ),
+                                              ),
                                       ),
                                     ],
                                   ),

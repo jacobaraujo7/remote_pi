@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
@@ -10,6 +11,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_script_completion.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
@@ -74,6 +76,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   bool _completionVisible = false;
   int _completionIndex = 0;
   int? _plainCompletionOffset;
+  HttpResponseResult? _completionBodyResult;
+  Object? _completionBodyJson;
+  final Map<String, Object?> _responseBodiesForCompletion = {};
 
   /// Conteúdo do disco como o conhecemos (baseline de dirty/discard).
   late String _baseline;
@@ -191,6 +196,29 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     // Editar pode mover as linhas dos requests e seus botões no gutter.
     final textChanged = _text.text != _lastSourceText;
     if (textChanged) {
+      if (_view.outcomes.any((outcome) => outcome.result != null)) {
+        final previous = HttpDocument.parse(_lastSourceText);
+        for (
+          var i = 0;
+          i < previous.requests.length && i < _view.outcomes.length;
+          i++
+        ) {
+          final result = _view.outcomes[i].result;
+          if (result != null) {
+            _responseBodiesForCompletion[_responseCompletionKey(
+              i,
+              previous.requests[i],
+            )] = _decodeCompletionBody(
+              result,
+            );
+          }
+        }
+        while (_responseBodiesForCompletion.length > 24) {
+          _responseBodiesForCompletion.remove(
+            _responseBodiesForCompletion.keys.first,
+          );
+        }
+      }
       if (_foldedStarts.isNotEmpty) _foldedStarts.clear();
       _rebuildFoldedText();
     }
@@ -205,10 +233,75 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   HttpVariableSlot? get _variableSlot {
     final selection = _text.selection;
     if (!selection.isValid || !selection.isCollapsed) return null;
+    if (HttpScriptCompletion.insideBlock(_text.text, selection.baseOffset)) {
+      return null;
+    }
     return HttpVariableCompletion.slotAt(_text.text, selection.baseOffset);
   }
 
+  HttpScriptSlot? get _scriptSlot {
+    final selection = _text.selection;
+    if (!selection.isValid || !selection.isCollapsed) return null;
+    return HttpScriptCompletion.slotAt(_text.text, selection.baseOffset);
+  }
+
+  Object? get _responseBodyForCompletion {
+    final document = _doc;
+    final index = document.requestIndexAtLine(_cursorLine);
+    final result = index >= 0 && index < _view.outcomes.length
+        ? _view.outcomes[index].result
+        : null;
+    if (result == null) {
+      return index >= 0
+          ? _responseBodiesForCompletion[_responseCompletionKey(
+              index,
+              document.requests[index],
+            )]
+          : null;
+    }
+    final body = _decodeCompletionBody(result);
+    _responseBodiesForCompletion[_responseCompletionKey(
+          index,
+          document.requests[index],
+        )] =
+        body;
+    return body;
+  }
+
+  String _responseCompletionKey(int index, HttpRequestSpec request) =>
+      '$index|${request.method}|${request.url}';
+
+  Object? _decodeCompletionBody(HttpResponseResult result) {
+    if (identical(result, _completionBodyResult)) return _completionBodyJson;
+    _completionBodyResult = result;
+    try {
+      _completionBodyJson = jsonDecode(result.bodyText);
+    } on FormatException {
+      _completionBodyJson = result.bodyText;
+    }
+    return _completionBodyJson;
+  }
+
+  List<HttpScriptSuggestion> get _scriptOptions {
+    final slot = _scriptSlot;
+    if (slot == null) return const [];
+    return HttpScriptCompletion.options(
+      slot,
+      responseBody: slot.receiver?.startsWith('response.body') == true
+          ? _responseBodyForCompletion
+          : null,
+    );
+  }
+
   List<String> get _completionOptions {
+    if (_scriptSlot != null) {
+      return [for (final item in _scriptOptions) item.name];
+    }
+    final selection = _text.selection;
+    if (selection.isValid &&
+        HttpScriptCompletion.insideBlock(_text.text, selection.baseOffset)) {
+      return const [];
+    }
     final slot = _variableSlot;
     if (slot == null && _plainCompletionOffset == null) return const [];
     final names = <String>{
@@ -226,6 +319,26 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         _completionVisible = false;
         _completionIndex = 0;
       }
+      return;
+    }
+    final scriptSlot = _scriptSlot;
+    if (scriptSlot != null) {
+      if (textChanged) {
+        _completionVisible = scriptSlot.autoShow && _scriptOptions.isNotEmpty;
+        _completionIndex = 0;
+      } else if (_completionVisible) {
+        final count = _scriptOptions.length;
+        if (count > 0 && _completionIndex >= count) {
+          _completionIndex = count - 1;
+        }
+      }
+      return;
+    }
+    final selection = _text.selection;
+    if (selection.isValid &&
+        HttpScriptCompletion.insideBlock(_text.text, selection.baseOffset)) {
+      _completionVisible = false;
+      _completionIndex = 0;
       return;
     }
     final slot = _variableSlot;
@@ -252,8 +365,12 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                 keys.isMetaPressed))) {
       final selection = _text.selection;
       if (!selection.isValid || !selection.isCollapsed) return false;
+      if (HttpScriptCompletion.insideBlock(_text.text, selection.baseOffset) &&
+          _scriptSlot == null) {
+        return true;
+      }
       setState(() {
-        _plainCompletionOffset = _variableSlot == null
+        _plainCompletionOffset = _scriptSlot == null && _variableSlot == null
             ? selection.baseOffset
             : null;
         _completionVisible = true;
@@ -288,7 +405,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     }
     if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.tab) {
       if (options.isNotEmpty) {
-        _completeVariable(
+        _completeCompletion(
           options[_completionIndex.clamp(0, options.length - 1)],
         );
       } else {
@@ -302,7 +419,23 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     return false;
   }
 
-  void _completeVariable(String name) {
+  void _completeCompletion(String name) {
+    final scriptSlot = _scriptSlot;
+    if (scriptSlot != null) {
+      final choices = _scriptOptions.where((item) => item.name == name);
+      if (choices.isEmpty) return;
+      _text.value = HttpScriptCompletion.complete(
+        _text.value,
+        scriptSlot,
+        choices.first,
+      );
+      setState(() {
+        _completionVisible = false;
+        _plainCompletionOffset = null;
+      });
+      _focus.requestFocus();
+      return;
+    }
     final slot = _variableSlot;
     if (slot != null) {
       _text.value = HttpVariableCompletion.complete(_text.value, slot, name);
@@ -710,9 +843,18 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                               _foldedStarts.isEmpty && _completionVisible,
                           completionItems: _completionOptions,
                           completionIndex: _completionIndex,
-                          completionEmptyLabel:
-                              context.t.cockpit.httpView.noMatchingVariables,
-                          onCompletionSelected: _completeVariable,
+                          completionEmptyLabel: _scriptSlot == null
+                              ? context.t.cockpit.httpView.noMatchingVariables
+                              : context.t.cockpit.httpView.noScriptSuggestions,
+                          completionDetails: {
+                            for (final item in _scriptOptions)
+                              item.name: item.detail,
+                          },
+                          completionMethods: {
+                            for (final item in _scriptOptions)
+                              if (item.method) item.name,
+                          },
+                          onCompletionSelected: _completeCompletion,
                           onCompletionKey: _completionKey,
                           lineNumbers: _foldedStarts.isEmpty
                               ? null

@@ -124,6 +124,21 @@ GET https://example.test/post
     expect(post.tests.single.message, contains('nope'));
   });
 
+  test('tests declared in pre-request scripts remain visible', () async {
+    final doc = HttpDocument.parse('''
+GET https://example.test/pre-test
+< {% client.test('ready', () => client.assert(true)); %}
+''');
+    final result = await HttpScriptSession().run(
+      _Transport(),
+      doc,
+      doc.requests.single,
+      baseDir: '/tmp',
+    );
+    expect(result.tests.single.name, 'ready');
+    expect(result.tests.single.passed, isTrue);
+  });
+
   test('text response is exposed as a string to post scripts', () async {
     final doc = HttpDocument.parse('''
 GET https://example.test/text

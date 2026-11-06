@@ -452,6 +452,7 @@
       "run": "运行",
       "runAll": "运行全部",
       "noMatchingVariables": "没有匹配的变量",
+      "noScriptSuggestions": "此表达式没有建议",
       "running": "运行中…",
       "noRequests": "此文件中没有请求——写一个，如 GET https://example.com",
       "selectRequest": "选择请求",

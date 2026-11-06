@@ -53,4 +53,46 @@ void main() {
     controller.dispose();
     focus.dispose();
   });
+
+  testWidgets('popup de script mostra assinatura e permite seleção', (
+    tester,
+  ) async {
+    final controller = CodeEditingController(
+      text: '< {% client.global.',
+      language: 'http',
+    );
+    final focus = FocusNode();
+    String? chosen;
+    addTearDown(() {
+      controller.dispose();
+      focus.dispose();
+    });
+    await tester.pumpWidget(
+      ShadcnApp(
+        theme: buildTheme(brightness: Brightness.dark),
+        home: Scaffold(
+          child: SizedBox(
+            width: 500,
+            height: 300,
+            child: CodeEditor(
+              controller: controller,
+              focusNode: focus,
+              completionVisible: true,
+              completionItems: const ['set', 'get'],
+              completionDetails: const {
+                'set': 'set(name, value)',
+                'get': 'get(name)',
+              },
+              completionMethods: const {'set', 'get'},
+              onCompletionSelected: (name) => chosen = name,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('set(name, value)'), findsOneWidget);
+    await tester.tap(find.text('get'));
+    expect(chosen, 'get');
+  });
 }

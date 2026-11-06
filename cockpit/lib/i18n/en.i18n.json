@@ -452,6 +452,7 @@
       "run": "Run",
       "runAll": "Run All",
       "noMatchingVariables": "No matching variables",
+      "noScriptSuggestions": "No suggestions for this expression",
       "running": "Running…",
       "noEnvironment": "No Environment",
       "unresolvedVariableNoEnvironment": "No environment selected. Cannot resolve variable '${name}'.",

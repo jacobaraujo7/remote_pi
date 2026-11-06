@@ -60,10 +60,12 @@ class HttpScriptSession {
       _globals.addAll(pre.globals);
       vars.addAll(pre.variables);
       logs.addAll(pre.logs);
+      tests.addAll(pre.tests);
       if (pre.error != null) {
         return HttpScriptExecution(
           scriptError: 'Pre-request: ${pre.error}',
           logs: logs,
+          tests: tests,
         );
       }
     }
@@ -81,7 +83,11 @@ class HttpScriptSession {
     );
     switch (sent) {
       case Failure(:final error):
-        return HttpScriptExecution(transportError: error, logs: logs);
+        return HttpScriptExecution(
+          transportError: error,
+          logs: logs,
+          tests: tests,
+        );
       case Success(:final value):
         if (request.postScript != null) {
           Object? body = value.bodyText;
@@ -114,7 +120,7 @@ class HttpScriptSession {
             tests: tests,
           );
         }
-        return HttpScriptExecution(response: value, logs: logs);
+        return HttpScriptExecution(response: value, logs: logs, tests: tests);
     }
   }
 }

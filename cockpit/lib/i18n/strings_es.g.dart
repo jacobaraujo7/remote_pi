@@ -942,6 +942,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get run => 'Ejecutar';
 	@override String get runAll => 'Ejecutar todos';
 	@override String get noMatchingVariables => 'No hay variables coincidentes';
+	@override String get noScriptSuggestions => 'No hay sugerencias para esta expresión';
 	@override String get running => 'Ejecutando…';
 	@override String get noEnvironment => 'No Environment';
 	@override String unresolvedVariableNoEnvironment({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.';
@@ -2554,6 +2555,7 @@ extension on TranslationsEs {
 			'cockpit.httpView.run' => 'Ejecutar',
 			'cockpit.httpView.runAll' => 'Ejecutar todos',
 			'cockpit.httpView.noMatchingVariables' => 'No hay variables coincidentes',
+			'cockpit.httpView.noScriptSuggestions' => 'No hay sugerencias para esta expresión',
 			'cockpit.httpView.running' => 'Ejecutando…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.',
@@ -2672,9 +2674,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Fallo en la conexión',
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexión',
 			'cockpit.dbConnectionDialog.newTitle' => 'Nueva conexión',
-			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexión no válida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
@@ -3186,9 +3188,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.deviceKeyCopied' => 'Clave pública copiada',
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
-			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Sin conexión',
 			'settings.remoteHosts.statusIdle' => 'No conectado',
 			'settings.remoteHosts.helpTitle' => 'Cómo funciona',

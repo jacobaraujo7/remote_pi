@@ -1991,6 +1991,9 @@ class Translations$cockpit$httpView$en {
 	/// en: 'No matching variables'
 	String get noMatchingVariables => 'No matching variables';
 
+	/// en: 'No suggestions for this expression'
+	String get noScriptSuggestions => 'No suggestions for this expression';
+
 	/// en: 'Running…'
 	String get running => 'Running…';
 
@@ -4972,6 +4975,7 @@ extension on Translations {
 			'cockpit.httpView.run' => 'Run',
 			'cockpit.httpView.runAll' => 'Run All',
 			'cockpit.httpView.noMatchingVariables' => 'No matching variables',
+			'cockpit.httpView.noScriptSuggestions' => 'No suggestions for this expression',
 			'cockpit.httpView.running' => 'Running…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
@@ -5090,9 +5094,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Connection failed',
 			'cockpit.dbConnectionDialog.editTitle' => 'Edit connection',
 			'cockpit.dbConnectionDialog.newTitle' => 'New connection',
-			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
@@ -5604,9 +5608,9 @@ extension on Translations {
 			'settings.remoteHosts.deviceKeyCopied' => 'Public key copied',
 			'settings.remoteHosts.statusConnected' => 'Connected',
 			'settings.remoteHosts.statusConnecting' => 'Connecting…',
-			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
 			'settings.remoteHosts.helpTitle' => 'How it works',

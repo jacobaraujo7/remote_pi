@@ -864,6 +864,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get run => '运行';
 	@override String get runAll => '运行全部';
 	@override String get noMatchingVariables => '没有匹配的变量';
+	@override String get noScriptSuggestions => '此表达式没有建议';
 	@override String get running => '运行中…';
 	@override String get noRequests => '此文件中没有请求——写一个，如 GET https://example.com';
 	@override String get selectRequest => '选择请求';
@@ -2473,6 +2474,7 @@ extension on TranslationsZh {
 			'cockpit.httpView.run' => '运行',
 			'cockpit.httpView.runAll' => '运行全部',
 			'cockpit.httpView.noMatchingVariables' => '没有匹配的变量',
+			'cockpit.httpView.noScriptSuggestions' => '此表达式没有建议',
 			'cockpit.httpView.running' => '运行中…',
 			'cockpit.httpView.noRequests' => '此文件中没有请求——写一个，如 GET https://example.com',
 			'cockpit.httpView.selectRequest' => '选择请求',
@@ -2591,9 +2593,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.connectionString' => '连接字符串',
 			'cockpit.dbConnectionDialog.invalidUrl' => '不是有效的连接 URL。',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
-			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
@@ -3105,9 +3107,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
-			'settings.remoteHosts.helpTitle' => '工作原理',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.helpTitle' => '工作原理',
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
