@@ -68,11 +68,13 @@ describe("dialog_bridge", () => {
     const { sent, bridge, ui } = setup();
     const p = ui.confirm("Run?", "rm -rf build");
     const desk = ui.open[0];
-    bridge.respond(response({ id: lastRequestId(sent), confirmed: true }));
+    const id = lastRequestId(sent);
+    bridge.respond(response({ id, confirmed: true }));
     await expect(p).resolves.toBe(true);
     expect(desk?.signal?.aborted).toBe(true);
-    // App answered: no dismiss notify needed.
-    expect(sent.filter((m) => m.type === "extension_ui_request" && m.method === "notify")).toHaveLength(0);
+    // The app holds its sheet open until a same-id notify dismisses it.
+    expect(sent.at(-1)).toMatchObject({ type: "extension_ui_request", id, method: "notify" });
+    expect(sent.at(-1)).not.toHaveProperty("notify_type");
   });
 
   it("dismisses the app request when the desk answers first", async () => {

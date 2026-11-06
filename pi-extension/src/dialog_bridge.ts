@@ -12,8 +12,10 @@
 // (TUI or RPC) against the app:
 //   - app answers first  -> abort the original via its signal, return the
 //     app's value;
-//   - original settles first (desk answer, timeout, caller abort) -> broadcast
-//     a `notify` with the same id, which the app treats as "dismiss".
+//   - original settles first (desk answer, timeout, caller abort) -> return
+//     its value.
+// Either way a `notify` with the same id is broadcast, which the app treats
+// as "dismiss" (it holds the sheet open after answering until then).
 // Pending requests are replayed on `session_sync` for late-joining peers.
 
 import { randomUUID } from "node:crypto";
@@ -111,26 +113,27 @@ export function createDialogBridge(
     let settled = false;
 
     return new Promise<T>((resolve, reject) => {
-      const finish = (fromApp: boolean): boolean => {
+      // Always dismiss with a same-id notify: the app keeps its sheet open
+      // ("submitting") after answering until that notify arrives, and other
+      // paired owners need it to close theirs too.
+      const finish = (): boolean => {
         if (settled) return false;
         settled = true;
         pending.delete(request.id);
         detach();
-        if (!fromApp) {
-          broadcast({
-            type: "extension_ui_request",
-            id: request.id,
-            method: "notify",
-            message: "Dialog resolved.",
-          });
-        }
+        broadcast({
+          type: "extension_ui_request",
+          id: request.id,
+          method: "notify",
+          message: "Dialog resolved.",
+        });
         return true;
       };
 
       pending.set(request.id, {
         request,
         answer: (msg) => {
-          if (!finish(true)) return;
+          if (!finish()) return;
           local.abort();
           resolve(fromResponse(msg));
         },
@@ -139,10 +142,10 @@ export function createDialogBridge(
 
       original(local.signal).then(
         (value) => {
-          if (finish(false)) resolve(value);
+          if (finish()) resolve(value);
         },
         (err: unknown) => {
-          if (finish(false)) reject(err);
+          if (finish()) reject(err);
         },
       );
     });
