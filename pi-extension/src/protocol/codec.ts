@@ -9,6 +9,7 @@ const SERVER_TYPES = new Set<ServerMessage["type"]>([
   "agent_done",
   "agent_message",
   "tool_request",
+  "tool_update",
   "tool_result",
   "error",
   "cancelled",

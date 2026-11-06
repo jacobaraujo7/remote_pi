@@ -2445,6 +2445,90 @@ describe("tool visibility", () => {
     await stop("", makeMockCtx());
   });
 
+  test("subagent updates and terminal details reach mobile and history", async () => {
+    await _pairForTest("peer-subagent");
+    const details = {
+      mode: "chain", results: [{ index: 0, agent: "scout", exitCode: 0, finalOutput: "Found files" }],
+    };
+    captureEventHandler("tool_execution_update")({
+      type: "tool_execution_update", toolCallId: "tc_sub", toolName: "subagent",
+      args: { chain: [{ agent: "scout", task: "Find files" }] },
+      partialResult: { content: [{ type: "text", text: "Scouting" }], details },
+    });
+    captureEventHandler("tool_execution_end")({
+      type: "tool_execution_end", toolCallId: "tc_sub", toolName: "subagent",
+      result: { content: [{ type: "text", text: "Finished" }], details }, isError: false,
+    });
+    const sent = relayRef.current!.send.mock.calls.map((c) => decodeSentCt(c[0] as string).inner);
+    expect(sent.find((m) => m.type === "tool_update")).toMatchObject({
+      tool_call_id: "tc_sub", result: "Scouting", details,
+    });
+    expect(sent.find((m) => m.type === "tool_result")).toMatchObject({
+      tool_call_id: "tc_sub", result: "Finished", details,
+    });
+    expect(_mapAgentMessagesToEvents([{
+      role: "toolResult", toolCallId: "tc_sub", timestamp: 1,
+      content: [{ type: "text", text: "Finished" }], details,
+    }])[0]).toMatchObject({ type: "tool_result", result: "Finished", details });
+  });
+
+  test("background completion notices are live and use stable history identities", async () => {
+    await _pairForTest("peer-subagent-notify");
+    const notice = {
+      role: "custom", customType: "subagent-notify", timestamp: 123,
+      content: "Review complete", details: { runs: [{ id: "run-1", state: "complete" }] },
+    };
+    captureEventHandler("message_end")({ type: "message_end", message: notice });
+    const live = relayRef.current!.send.mock.calls
+      .map((c) => decodeSentCt(c[0] as string).inner)
+      .filter((m) => m.type === "tool_result");
+    const history = _mapAgentMessagesToEvents([
+      { role: "user", timestamp: 1, content: "Review" }, notice,
+    ]);
+    expect(history.at(-1)).toMatchObject({
+      type: "tool_result", tool_call_id: live.at(-1)!.tool_call_id,
+      result: "Review complete", details: notice.details,
+    });
+    expect(_mapAgentMessagesToEvents([
+      { ...notice, customType: "unrelated-extension" },
+    ])).toEqual([]);
+  });
+
+  test("recovers idle completion notices from only the current session branch", async () => {
+    await _pairForTest("peer-idle-subagent");
+    _setMessageBufferForTest([]);
+    const harness = captureEventHarness();
+    const details = { runs: [{ id: "idle-run", state: "complete" }] };
+    const ctx = {
+      ...makeMockCtx(),
+      sessionManager: {
+        getBranch: () => [{
+          type: "custom_message", id: "entry-notice", parentId: null,
+          timestamp: "2026-01-01T00:00:00.000Z",
+          customType: "subagent-notify", content: "Idle child report", details,
+        }],
+      },
+    };
+    harness.handler("session_start")({ type: "session_start" }, ctx);
+    await vi.waitFor(() => {
+      expect(_getMessageBufferForTest()).toContainEqual(expect.objectContaining({
+        customType: "subagent-notify", content: "Idle child report", details,
+      }));
+    });
+    harness.handler("message_end")({
+      type: "message_end",
+      message: { role: "custom", customType: "subagent-notify",
+        timestamp: Date.parse("2026-01-01T00:00:00.000Z") + 1,
+        content: "Idle child report", details },
+    });
+    expect(_getMessageBufferForTest()).toHaveLength(1);
+    const sent = relayRef.current!.send.mock.calls
+      .map((c) => decodeSentCt(c[0] as string).inner)
+      .filter((m) => m.type === "tool_result" && m.result === "Idle child report");
+    expect(sent).toHaveLength(1);
+    harness.handler("session_start")({ type: "session_start" }, makeMockCtx());
+  });
+
   test("tool_execution_start → tool_request emitted via channel", async () => {
     await _pairForTest("peer-tool");
     const sendsBefore = relayRef.current!.send.mock.calls.length;

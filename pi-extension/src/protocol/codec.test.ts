@@ -56,6 +56,12 @@ describe("fixtures", () => {
 });
 
 describe("rejects junk", () => {
+  test("decodes tool progress with optional structured details", () => {
+    expect(decodeServer(JSON.stringify({
+      type: "tool_update", tool_call_id: "tc", tool: "subagent",
+      args: {}, result: "Working", details: { mode: "parallel", results: [] },
+    }))).toMatchObject({ type: "tool_update", details: { mode: "parallel" } });
+  });
   test("invalid JSON → DecodeError invalid_message", () => {
     let err: unknown;
     try {

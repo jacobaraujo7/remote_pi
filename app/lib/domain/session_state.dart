@@ -127,6 +127,7 @@ class ToolEvent extends ChatMessage {
   final ToolEventStatus status;
   final dynamic result;
   final String? error;
+  final Map<String, dynamic>? details;
 
   const ToolEvent({
     required super.id,
@@ -136,12 +137,14 @@ class ToolEvent extends ChatMessage {
     this.status = ToolEventStatus.pending,
     this.result,
     this.error,
+    this.details,
   });
 
   ToolEvent copyWith({
     ToolEventStatus? status,
     dynamic result,
     String? error,
+    Map<String, dynamic>? details,
   }) => ToolEvent(
     id: id,
     toolCallId: toolCallId,
@@ -150,6 +153,7 @@ class ToolEvent extends ChatMessage {
     status: status ?? this.status,
     result: result ?? this.result,
     error: error ?? this.error,
+    details: details ?? this.details,
   );
 
   @override
@@ -157,10 +161,14 @@ class ToolEvent extends ChatMessage {
       other is ToolEvent &&
       other.id == id &&
       other.toolCallId == toolCallId &&
-      other.status == status;
+      other.status == status &&
+      other.result == result &&
+      other.error == error &&
+      other.details == details;
 
   @override
-  int get hashCode => Object.hash(id, toolCallId, status);
+  int get hashCode =>
+      Object.hash(id, toolCallId, status, result, error, details);
 }
 
 /// Plan/32 — `denied` = the user/SDK declined the tool; `failed` = the tool

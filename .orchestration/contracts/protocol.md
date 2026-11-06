@@ -189,12 +189,30 @@ nenhuma. Cada conexão peer↔peer já é exclusiva daquela sessão.
 | `agent_done` | `in_reply_to`, `usage?` | Push terminal |
 | `agent_message` | `in_reply_to`, `text`, `usage?` | Usado **apenas** em `session_history`: representa uma resposta consolidada do agente (texto final). Em real-time o pareamento é `agent_chunk`* + `agent_done` |
 | `tool_request` | `tool_call_id`, `tool`, `args` | Push (notificação visual; sem approval pós plano 10.2) |
-| `tool_result` | `tool_call_id`, `result?`, `error?` | Push após tool executar |
+| `tool_update` | `tool_call_id`, `tool`, `args`, `result?`, `details?` (objeto JSON) | Progresso de `tool_execution_update`; atualiza a mesma linha sem concluir tool ou turno. Ignorado se a linha já terminou |
+| `tool_result` | `tool_call_id`, `result?`, `error?`, `details?` (objeto JSON) | Push após tool executar; detalhes estruturados também preservados no histórico |
 | `session_history` | `in_reply_to`, `session_started_at` (number, diagnóstico), `events: [{ts, type, ...}]`, `eos` (bool), `truncated` (bool, plano 16) | Resposta a `session_sync` — **mirror das últimas N** (não delta). Eventos têm os mesmos shapes dos types acima (user_input, agent_message, tool_request, tool_result) com `ts` (epoch ms) adicional. Pós-plano 16: server sempre devolve em 1 frame (eos:true), `truncated` indica se Pi tem mais que o limit |
 | `error` | `in_reply_to?`, `code`, `message` | Qualquer falha não-pair |
 | `cancelled` | `in_reply_to`, `target_id` | Push após cancel |
 | `pong` | `in_reply_to` | Resposta ao ping |
 | `bye` | `reason: "peer_stop" \| "session_replaced" \| "shutdown"` | Push final antes de o pi fechar a conexão (graceful disconnect). App marca offline imediato e PARA tentativas de retry até user reconectar manualmente |
+
+### Workflows pi-subagents (opcional, read-only)
+
+`details` preserva os metadados públicos do resultado do Pi: `mode`,
+`results[]`, `progress[]`, `workflowChildren` (inventário v1), estados e outputs
+dos filhos. Scripts correlacionam filhos por `workflowKey`/`childId`, não
+pelo `index` local de cada execução. O texto legível
+continua em `result`/`error`; clientes antigos podem ignorar `details`.
+Updates em andamento são reenviados depois de `session_history`, inclusive
+quando o celular não recebeu o início da tool.
+
+Background usa o RPC in-process `subagents:rpc:v1:request` com `method: status`,
+reativo aos eventos públicos de lifecycle (coalescidos, sem polling periódico).
+Snapshots v1 de `asyncSnapshot` viram linhas `subagent-run:<run-id>` com filhos
+aninhados. Ausência do package/API é tolerada; erros RPC são logados.
+O bridge não inicia nem controla runs. Mensagens custom `subagent-notify`
+viram notificações de conclusão com ID estável e entram no replay do chat.
 
 ---
 
