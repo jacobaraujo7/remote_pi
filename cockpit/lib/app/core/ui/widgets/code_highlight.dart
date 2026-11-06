@@ -95,6 +95,11 @@ hl.Mode _httpFileMode() {
     begin: r'\{\{[^{}\n]*\}\}',
     relevance: 0,
   );
+  final bodyVariable = hl.Mode(
+    className: 'http-json-variable',
+    begin: r'\{\{[^{}\n]*\}\}',
+    relevance: 0,
+  );
   final comment = hl.Mode(
     className: 'comment',
     begin: r'^[ \t]*(#|//)',
@@ -177,18 +182,45 @@ hl.Mode _httpFileMode() {
         begin: r'^[ \t]*[<>][ \t]+\S.*$',
         relevance: 0,
       ),
-      // Body JSON: começa na linha em branco seguida de `{` ou `[` e vai até o
-      // próximo separador (ou o fim do arquivo). `returnBegin` devolve o
-      // cursor para o sub-idioma ver o objeto inteiro.
+      // Body JSON: aceita os placeholders do HTTP Client em posições onde
+      // JSON puro exigiria um literal. A gramática JSON do highlight.js não
+      // reconhece `{{variavel}}` sem aspas e perde o realce nesses trechos.
       hl.Mode(
         begin: '\n[ \t]*\n[ \t]*[\\{\\[]',
         returnBegin: true,
-        // O body termina antes do pós-script; caso contrário o sub-idioma
-        // JSON engole `> {% ... %}` até o próximo `###`.
         end: r'^[ \t]*(?:###|[<>][ \t]*\{%)',
         returnEnd: true,
-        subLanguage: ['json'],
         relevance: 0,
+        contains: [
+          // Chaves incluem o `:` no token para evitar lookahead no begin,
+          // que não funciona no port Dart do highlight.js.
+          hl.Mode(
+            className: 'attr',
+            begin: r'"(?:\\.|[^"\\])*"[ \t]*:',
+            relevance: 0,
+          ),
+          hl.Mode(
+            className: 'string',
+            begin: '"',
+            end: '"',
+            contains: [
+              hl.Mode(begin: r'\\.', relevance: 0),
+              bodyVariable,
+            ],
+            relevance: 0,
+          ),
+          bodyVariable,
+          hl.Mode(
+            className: 'number',
+            begin: r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?',
+            relevance: 0,
+          ),
+          hl.Mode(
+            className: 'literal',
+            begin: r'\b(?:true|false|null)\b',
+            relevance: 0,
+          ),
+        ],
       ),
       // Header `Nome: valor` — só o nome ganha estilo de header HTTP; o valor segue neutro
       // (com interpolação pintada). O begin valida a linha inteira até o `:` e

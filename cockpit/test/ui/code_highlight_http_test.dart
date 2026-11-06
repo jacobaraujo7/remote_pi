@@ -39,12 +39,13 @@ Future<(String, List<String>)> _paint(
 
 Future<Map<String, TextStyle?>> _styles(
   WidgetTester tester,
-  String source,
-) async {
+  String source, {
+  Brightness brightness = Brightness.dark,
+}) async {
   TextSpan? span;
   await tester.pumpWidget(
     ShadcnApp(
-      theme: buildTheme(brightness: Brightness.dark),
+      theme: buildTheme(brightness: brightness),
       home: Builder(
         builder: (context) {
           span = buildCodeSpan(
@@ -186,6 +187,51 @@ Content-Type: application/json
       expect(colored, contains('PUT'));
     },
   );
+
+  testWidgets('body JSON destaca chaves, valores e variáveis HTTP', (
+    tester,
+  ) async {
+    const source = '''POST https://example.test/gifts
+Content-Type: application/json
+
+{
+  "customerId": {{customerIdSap}},
+  "imageUrl": "https://cdn.example.test/image.png",
+  "customerDocument": "{{customerDocument}}",
+  "isMigrated": true,
+  "count": 12,
+  "products": {{randomGiftList}}
+}
+''';
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      final styles = await _styles(tester, source, brightness: brightness);
+      expect(styles['"customerId":']?.color, isNotNull);
+      expect(styles['"imageUrl":']?.color, styles['"customerId":']?.color);
+      expect(styles['{{customerIdSap}}']?.color, isNotNull);
+      expect(
+        styles['{{customerIdSap}}']?.color,
+        isNot(styles['"customerId":']?.color),
+      );
+      expect(
+        styles['{{randomGiftList}}']?.color,
+        styles['{{customerIdSap}}']?.color,
+      );
+      expect(
+        styles['{{customerDocument}}']?.color,
+        styles['{{customerIdSap}}']?.color,
+      );
+      expect(
+        styles['"https://cdn.example.test/image.png"']?.color,
+        isNot(styles['"customerId":']?.color),
+      );
+      expect(
+        styles['"https://cdn.example.test/image.png"']?.color,
+        isNot(styles['{{customerIdSap}}']?.color),
+      );
+      expect(styles['true']?.color, isNotNull);
+      expect(styles['12']?.color, styles['true']?.color);
+    }
+  });
 
   testWidgets('nomes de headers HTTP ficam em itálico, valores não', (
     tester,

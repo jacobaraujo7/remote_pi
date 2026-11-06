@@ -305,6 +305,7 @@ class SyntaxColors {
         return variable;
       case 'meta':
       case 'http-script':
+      case 'http-json-variable':
       case 'meta-keyword':
       case 'doctag':
       case 'tag':
