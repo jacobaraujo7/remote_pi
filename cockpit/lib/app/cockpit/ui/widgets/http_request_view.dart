@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
-import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_code_navigation.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -11,7 +10,6 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
-import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
@@ -21,7 +19,8 @@ import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
@@ -33,8 +32,8 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 /// render diverge.
 ///
 /// O arquivo **é** a fonte de verdade: nada de estado escondido em
-/// frontmatter, ao contrário do `.dbq`. O request executado é o que estiver
-/// sob o cursor (ou o acionado no gutter do editor).
+/// frontmatter, ao contrário do `.dbq`. Run executa todas as seções em ordem;
+/// os botões do gutter executam uma seção específica.
 class HttpRequestView extends StatefulWidget {
   const HttpRequestView({
     super.key,
@@ -73,7 +72,6 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   /// Conteúdo do disco como o conhecemos (baseline de dirty/discard).
   late String _baseline;
-  bool _running = false;
   bool _starting = false;
 
   /// Estado de view (resposta, split, aba) — mora no [HttpViewModel] para
@@ -89,6 +87,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         .httpEnvironmentFor(widget.session.projectId, widget.session.path);
     _lastEnvironmentSelection = widget.session.httpEnvironment;
     _baseline = _diskText();
+    _view.syncSource(_baseline, HttpDocument.parse(_baseline).requests.length);
+    _view.addListener(_onViewState);
     _text = CodeEditingController(text: _baseline, language: 'http');
     _lastSourceText = _baseline;
     _foldedText = CodeEditingController(text: _baseline, language: 'http');
@@ -119,6 +119,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       unawaited(watch.cancel());
     }
     widget.session.removeListener(_onSession);
+    _view.removeListener(_onViewState);
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _text.removeListener(_onEdited);
     _text.dispose();
@@ -132,6 +133,10 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     FileViewMarkdown(:final text) => text,
     _ => '',
   };
+
+  void _onViewState() {
+    if (mounted) setState(() {});
+  }
 
   HttpDocument get _doc => HttpDocument.parse(_text.text);
 
@@ -182,6 +187,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       _rebuildFoldedText();
     }
     _lastSourceText = _text.text;
+    if (textChanged) _view.syncSource(_text.text, _doc.requests.length);
     if (textChanged) _refreshUnresolvedVariables();
     if (mounted && (textChanged || _foldedStarts.isEmpty)) setState(() {});
     widget.session.setDirty(_dirty);
@@ -404,27 +410,32 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     widget.session.setDirty(_dirty);
   }
 
-  /// Linha (base 0) onde está o cursor — casa com o request corrente.
   int get _cursorLine {
     final display = _foldedStarts.isEmpty ? _text : _foldedText;
-    final sel = display.selection;
-    final offset = sel.isValid ? sel.baseOffset : 0;
-    final upto = display.text.substring(
-      0,
-      offset.clamp(0, display.text.length),
-    );
-    final line = '\n'.allMatches(upto).length;
+    final selection = display.selection;
+    final offset = selection.isValid ? selection.baseOffset : 0;
+    final line = '\n'
+        .allMatches(
+          display.text.substring(0, offset.clamp(0, display.text.length)),
+        )
+        .length;
     return _foldedStarts.isEmpty ? line : _foldProjection.lineNumbers[line] - 1;
   }
 
-  /// Índice do request sob o cursor.
-  int _targetIndex(HttpDocument doc) {
-    final at = doc.requestIndexAtLine(_cursorLine);
-    return at < 0 ? 0 : at;
+  int _currentRequestIndex(HttpDocument doc) {
+    final index = doc.requestIndexAtLine(_cursorLine);
+    return index < 0 ? 0 : index;
   }
 
+  void _runCurrent() {
+    final doc = _doc;
+    if (doc.requests.isNotEmpty) unawaited(_run(_currentRequestIndex(doc)));
+  }
+
+  void _runAll() => unawaited(_run());
+
   Future<void> _run([int? requestIndex]) async {
-    if (_running || _starting) return;
+    if (_view.isRunning || _starting) return;
     setState(() => _starting = true);
     try {
       await _runResolved(requestIndex);
@@ -437,47 +448,30 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final catalog = await _loadEnvironments();
     if (!mounted) return;
     final doc = _doc;
-    if (doc.requests.isEmpty) {
-      setState(() {
-        _view.result = null;
-        _view.error = const HttpRequestError(HttpRequestErrorKind.noRequest);
-      });
-      return;
-    }
+    if (doc.requests.isEmpty) return;
     // Arquivo real: Run salva antes (o arquivo é o que o agente e a CLI leem).
     if (!widget.session.scratch && _dirty) {
       if (!await _save() || !mounted) return;
     }
 
-    final index = requestIndex ?? _targetIndex(doc);
-    if (index >= doc.requests.length) return;
-    final spec = doc.resolveRequest(
-      doc.requests[index],
-      environment: catalog.valuesFor(widget.session.httpEnvironment),
-    );
+    if (requestIndex != null && requestIndex >= doc.requests.length) return;
+    final resolved = [
+      for (final request in doc.requests)
+        doc.resolveRequest(
+          request,
+          environment: catalog.valuesFor(widget.session.httpEnvironment),
+        ),
+    ];
     final baseDir = widget.session.scratch
         ? ''
         : widget.session.workingDirectory;
 
-    setState(() {
-      _running = true;
-      _view.error = null;
-    });
-    final result = await context.read<HttpViewModel>().runner.send(
-      spec,
+    await _view.runRequests(
+      context.read<HttpViewModel>().runner,
+      resolved,
       baseDir: baseDir,
+      onlyIndex: requestIndex,
     );
-    if (!mounted) return;
-    setState(() {
-      _running = false;
-      switch (result) {
-        case Success(:final value):
-          _view.result = value;
-          _view.error = null;
-        case Failure(:final error):
-          _view.error = error;
-      }
-    });
   }
 
   Future<void> _pickEnvironment(BuildContext anchor) async {
@@ -533,8 +527,20 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyS, meta: true): _save,
         const SingleActivator(LogicalKeyboardKey.keyS, control: true): _save,
-        const SingleActivator(LogicalKeyboardKey.enter, meta: true): _run,
-        const SingleActivator(LogicalKeyboardKey.enter, control: true): _run,
+        const SingleActivator(LogicalKeyboardKey.enter, meta: true):
+            _runCurrent,
+        const SingleActivator(LogicalKeyboardKey.enter, control: true):
+            _runCurrent,
+        const SingleActivator(
+          LogicalKeyboardKey.enter,
+          meta: true,
+          shift: true,
+        ): _runAll,
+        const SingleActivator(
+          LogicalKeyboardKey.enter,
+          control: true,
+          shift: true,
+        ): _runAll,
       },
       child: ColoredBox(
         color: colors.panel,
@@ -576,7 +582,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           lineNumbers: _foldedStarts.isEmpty
                               ? null
                               : _foldProjection.lineNumbers,
-                          lineActions: _running || _starting
+                          lineActions: _view.isRunning || _starting
                               ? const {}
                               : {
                                   for (var i = 0; i < doc.requests.length; i++)
@@ -657,7 +663,6 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final empty = doc.requests.isEmpty;
     final runBg = empty ? colors.panel3 : colors.accent;
     final runFg = onColor(runBg);
-    final target = empty ? null : doc.requests[_targetIndex(doc)];
     return Container(
       height: 36,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -670,7 +675,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              target?.label ?? tr.noRequests,
+              empty ? tr.noRequests : tr.requestCount(n: doc.requests.length),
               overflow: TextOverflow.ellipsis,
               style: typo.label.copyWith(
                 fontSize: 11,
@@ -710,7 +715,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
           ),
           const SizedBox(width: 8),
           HoverTap(
-            onTap: _running || _starting || empty ? null : () => _run(),
+            onTap: _view.isRunning || _starting || empty ? null : _runAll,
             color: runBg,
             hoverColor: colors.accent.withValues(alpha: 0.85),
             borderRadius: const BorderRadius.all(Radius.circular(5)),
@@ -719,7 +724,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _running || _starting
+                  _view.isRunning || _starting
                       ? Icons.hourglass_top
                       : Icons.play_arrow,
                   size: 13,
@@ -727,12 +732,14 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _running || _starting ? tr.running : tr.run,
+                  _view.isRunning || _starting ? tr.running : tr.runAll,
                   style: typo.label.copyWith(fontSize: 11.5, color: runFg),
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  '⌘↵',
+                  defaultTargetPlatform == TargetPlatform.macOS
+                      ? '⌘⇧↵'
+                      : 'Ctrl+Shift+↵',
                   style: typo.label.copyWith(
                     fontSize: 9.5,
                     color: runFg.withValues(alpha: 0.7),
@@ -747,11 +754,106 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   }
 
   Widget _responseArea(BuildContext context) {
+    final doc = _doc;
+    return Column(
+      children: [
+        if (doc.requests.isNotEmpty) _resultSelector(context, doc),
+        Expanded(child: _responseContent(context)),
+      ],
+    );
+  }
+
+  String _requestOptionLabel(HttpDocument doc, int index) {
+    final name = doc.requests[index].name.trim();
+    return name.isEmpty ? '#${index + 1}' : name;
+  }
+
+  Widget _requestStatusIcon(BuildContext context, HttpRequestRunStatus status) {
+    final colors = context.colors;
+    return Icon(
+      switch (status) {
+        HttpRequestRunStatus.idle => Icons.radio_button_unchecked,
+        HttpRequestRunStatus.loading => Icons.hourglass_top,
+        HttpRequestRunStatus.success => Icons.check_circle_outline,
+        HttpRequestRunStatus.error => Icons.cancel_outlined,
+      },
+      size: 15,
+      color: switch (status) {
+        HttpRequestRunStatus.idle => colors.text3,
+        HttpRequestRunStatus.loading => colors.accent,
+        HttpRequestRunStatus.success => colors.ok,
+        HttpRequestRunStatus.error => colors.warn,
+      },
+    );
+  }
+
+  Future<void> _pickResult(BuildContext anchor, HttpDocument doc) async {
+    final picked = await showAppMenu<int>(
+      anchor,
+      minWidth: 250,
+      items: [
+        for (var i = 0; i < doc.requests.length; i++)
+          AppMenuItem(
+            value: i,
+            label: _requestOptionLabel(doc, i),
+            leading: _requestStatusIcon(context, _view.outcomes[i].status),
+            selected: i == _view.selectedRequest,
+          ),
+      ],
+    );
+    if (!mounted || picked == null || picked >= _view.outcomes.length) return;
+    setState(() => _view.selectedRequest = picked);
+  }
+
+  Widget _resultSelector(BuildContext context, HttpDocument doc) {
+    final colors = context.colors;
+    final selected = _view.selectedRequest.clamp(0, doc.requests.length - 1);
+    final outcome = _view.outcomes[selected];
+    return Container(
+      height: 37,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.centerLeft,
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Builder(
+        builder: (anchor) => HoverTap(
+          onTap: () => _pickResult(anchor, doc),
+          color: colors.panel3,
+          borderRadius: const BorderRadius.all(Radius.circular(4)),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _requestStatusIcon(context, outcome.status),
+              const SizedBox(width: 7),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  _requestOptionLabel(doc, selected),
+                  overflow: TextOverflow.ellipsis,
+                  style: context.typo.label.copyWith(
+                    fontSize: 11.5,
+                    color: colors.text2,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(Icons.keyboard_arrow_down, size: 14, color: colors.text3),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _responseContent(BuildContext context) {
     final colors = context.colors;
     final typo = context.typo;
     final tr = context.t.cockpit.httpView;
 
-    final error = _view.error;
+    final outcome = _view.selectedOutcome;
+    final error = outcome?.error;
     if (error != null) {
       return Container(
         alignment: Alignment.topLeft,
@@ -782,11 +884,13 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       );
     }
 
-    final result = _view.result;
+    final result = outcome?.result;
     if (result == null) {
       return Center(
         child: Text(
-          tr.runHint,
+          outcome?.status == HttpRequestRunStatus.loading
+              ? tr.running
+              : tr.runHint,
           style: typo.label.copyWith(fontSize: 12, color: colors.text3),
         ),
       );
@@ -850,7 +954,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final colors = context.colors;
     final typo = context.typo;
     final tr = context.t.cockpit.httpView;
-    final result = _view.result;
+    final result = _view.selectedOutcome?.result;
     final info = StringBuffer();
     if (result != null) {
       info.write('${result.statusCode} ${result.reasonPhrase}'.trim());

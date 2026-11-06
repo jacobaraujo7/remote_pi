@@ -1985,6 +1985,9 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Run'
 	String get run => 'Run';
 
+	/// en: 'Run All'
+	String get runAll => 'Run All';
+
 	/// en: 'Running…'
 	String get running => 'Running…';
 
@@ -2009,8 +2012,8 @@ class Translations$cockpit$httpView$en {
 		other: '${n} requests',
 	);
 
-	/// en: 'Run the request (⌘↵) to see the response here.'
-	String get runHint => 'Run the request (⌘↵) to see the response here.';
+	/// en: 'Run this request to see its response here.'
+	String get runHint => 'Run this request to see its response here.';
 
 	/// en: 'Empty response body.'
 	String get emptyBody => 'Empty response body.';
@@ -4952,6 +4955,7 @@ extension on Translations {
 			'cockpit.httpView.saveRequestAs' => 'Save request as',
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
+			'cockpit.httpView.runAll' => 'Run All',
 			'cockpit.httpView.running' => 'Running…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
@@ -4959,7 +4963,7 @@ extension on Translations {
 			'cockpit.httpView.noRequests' => 'No request in this file — write one, e.g. GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Select request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Run the request (⌘↵) to see the response here.',
+			'cockpit.httpView.runHint' => 'Run this request to see its response here.',
 			'cockpit.httpView.emptyBody' => 'Empty response body.',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
@@ -5072,9 +5076,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
-			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
@@ -5586,9 +5590,9 @@ extension on Translations {
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
-			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',

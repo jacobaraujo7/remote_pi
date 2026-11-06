@@ -862,6 +862,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
+	@override String get runAll => '运行全部';
 	@override String get running => '运行中…';
 	@override String get noRequests => '此文件中没有请求——写一个，如 GET https://example.com';
 	@override String get selectRequest => '选择请求';
@@ -869,7 +870,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 		one: '1 个请求',
 		other: '${n} 个请求',
 	);
-	@override String get runHint => '运行请求（⌘↵）后响应将显示在这里。';
+	@override String get runHint => '运行此请求后，响应将显示在这里。';
 	@override String get emptyBody => '响应体为空。';
 	@override String get body => 'JSON';
 	@override String get headers => '标头';
@@ -2465,11 +2466,12 @@ extension on TranslationsZh {
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
+			'cockpit.httpView.runAll' => '运行全部',
 			'cockpit.httpView.running' => '运行中…',
 			'cockpit.httpView.noRequests' => '此文件中没有请求——写一个，如 GET https://example.com',
 			'cockpit.httpView.selectRequest' => '选择请求',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个请求', other: '${n} 个请求', ), 
-			'cockpit.httpView.runHint' => '运行请求（⌘↵）后响应将显示在这里。',
+			'cockpit.httpView.runHint' => '运行此请求后，响应将显示在这里。',
 			'cockpit.httpView.emptyBody' => '响应体为空。',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => '标头',
@@ -2585,9 +2587,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
-			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3099,9 +3101,9 @@ extension on TranslationsZh {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
-			'automation.error.cancelled' => '提交信息生成已取消。',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.cancelled' => '提交信息生成已取消。',
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

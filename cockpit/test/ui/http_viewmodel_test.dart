@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
@@ -28,17 +29,50 @@ HttpResponseResult _result(String body, {String type = 'application/json'}) =>
       requestLabel: 'GET /x',
     );
 
+class _ControlledRunner implements HttpRequestRunner {
+  final sent = <HttpRequestSpec>[];
+  final pending = <Completer<Result<HttpResponseResult, HttpRequestError>>>[];
+
+  @override
+  Future<Result<HttpResponseResult, HttpRequestError>> send(
+    HttpRequestSpec spec, {
+    required String baseDir,
+    Duration timeout = const Duration(seconds: 30),
+    bool followRedirects = true,
+  }) {
+    sent.add(spec);
+    final completer = Completer<Result<HttpResponseResult, HttpRequestError>>();
+    pending.add(completer);
+    return completer.future;
+  }
+
+  void succeed(int index, {int status = 200}) => pending[index].complete(
+    Success(
+      HttpResponseResult(
+        statusCode: status,
+        reasonPhrase: 'OK',
+        headers: const [],
+        bodyBytes: Uint8List(0),
+        elapsed: const Duration(milliseconds: 1),
+        requestLabel: sent[index].label,
+      ),
+    ),
+  );
+
+  void fail(int index) => pending[index].complete(
+    const Failure(HttpRequestError(HttpRequestErrorKind.timeout)),
+  );
+}
+
 void main() {
   test('side-car por tab sobrevive a re-mount e gira em LRU', () {
     final vm = HttpViewModel(_StubRunner());
     final a = vm.tabStateFor('tab-a');
     a.split = 0.3;
-    // Mesmo id → mesmo estado (é o que salva o resultado ao mover a tab).
     expect(identical(vm.tabStateFor('tab-a'), a), isTrue);
     expect(vm.tabStateFor('tab-a').split, 0.3);
     expect(identical(vm.tabStateFor('tab-b'), a), isFalse);
 
-    // Cap: a tab mais antiga sai do mapa, a recém-tocada fica.
     for (var i = 0; i < 30; i++) {
       vm.tabStateFor('tab-$i');
     }
@@ -69,5 +103,101 @@ void main() {
       expect(_result('{}').headerValue('Content-Type'), 'application/json');
       expect(_result('{}').isJson, isTrue);
     });
+  });
+
+  const source =
+      '### first\nGET https://example.com/1\n'
+      '###\nGET https://example.com/2\n'
+      '### third\nGET https://example.com/3\n';
+  final requests = HttpDocument.parse(source).requests;
+
+  test(
+    'Run percorre as seções em ordem, selecionando loading e resultado',
+    () async {
+      final state = HttpTabState()..syncSource(source, requests.length);
+      final runner = _ControlledRunner();
+      final events = <(int, List<HttpRequestRunStatus>)>[];
+      void changed() => events.add((
+        state.selectedRequest,
+        state.outcomes.map((e) => e.status).toList(),
+      ));
+      state.addListener(changed);
+
+      final run = state.runRequests(runner, requests, baseDir: '/api');
+      expect(runner.sent.map((e) => e.url), ['https://example.com/1']);
+      expect(events.last.$1, 0);
+      expect(events.last.$2, [
+        HttpRequestRunStatus.loading,
+        HttpRequestRunStatus.idle,
+        HttpRequestRunStatus.idle,
+      ]);
+
+      runner.succeed(0);
+      await Future<void>.delayed(Duration.zero);
+      expect(runner.sent.map((e) => e.url), [
+        'https://example.com/1',
+        'https://example.com/2',
+      ]);
+      expect(events.last.$1, 1);
+      expect(events.last.$2[0], HttpRequestRunStatus.success);
+      expect(events.last.$2[1], HttpRequestRunStatus.loading);
+
+      runner.fail(1);
+      await Future<void>.delayed(Duration.zero);
+      expect(runner.sent.length, 3);
+      expect(events.last.$1, 2);
+      expect(events.last.$2[1], HttpRequestRunStatus.error);
+      expect(events.last.$2[2], HttpRequestRunStatus.loading);
+
+      runner.succeed(2, status: 404);
+      await run;
+      expect(state.outcomes.map((e) => e.status), [
+        HttpRequestRunStatus.success,
+        HttpRequestRunStatus.error,
+        HttpRequestRunStatus.error,
+      ]);
+      expect(state.outcomes[2].result?.statusCode, 404);
+    },
+  );
+
+  test('Run individual preserva os outros resultados', () async {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    final runner = _ControlledRunner();
+    final first = state.runRequests(
+      runner,
+      requests,
+      baseDir: '/api',
+      onlyIndex: 0,
+    );
+    runner.succeed(0);
+    await first;
+
+    final second = state.runRequests(
+      runner,
+      requests,
+      baseDir: '/api',
+      onlyIndex: 2,
+    );
+    expect(state.selectedRequest, 2);
+    expect(state.outcomes[0].status, HttpRequestRunStatus.success);
+    expect(state.outcomes[1].status, HttpRequestRunStatus.idle);
+    runner.fail(1);
+    await second;
+    expect(state.outcomes[0].status, HttpRequestRunStatus.success);
+    expect(state.outcomes[2].status, HttpRequestRunStatus.error);
+  });
+
+  test('editar o documento invalida resultados anteriores', () async {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    final runner = _ControlledRunner();
+    final run = state.runRequests(runner, requests, baseDir: '/api');
+    state.syncSource('$source\n# changed', requests.length);
+    runner.succeed(0);
+    await run;
+    expect(runner.sent.length, 1);
+    expect(
+      state.outcomes.every((e) => e.status == HttpRequestRunStatus.idle),
+      isTrue,
+    );
   });
 }

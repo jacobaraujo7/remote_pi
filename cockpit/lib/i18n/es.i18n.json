@@ -450,6 +450,7 @@
       "saveRequestAs": "Guardar request como",
       "couldNotSave": "No se pudo guardar",
       "run": "Ejecutar",
+      "runAll": "Ejecutar todos",
       "running": "Ejecutando…",
       "noEnvironment": "No Environment",
       "unresolvedVariableNoEnvironment": "No hay ningún entorno seleccionado. No se puede resolver la variable '${name}'.",
@@ -460,7 +461,7 @@
         "one": "1 request",
         "other": "${n} requests"
       },
-      "runHint": "Ejecuta el request (⌘↵) para ver la respuesta aquí.",
+      "runHint": "Ejecuta este request para ver su respuesta aquí.",
       "emptyBody": "Cuerpo de la respuesta vacío.",
       "body": "JSON",
       "headers": "Headers",

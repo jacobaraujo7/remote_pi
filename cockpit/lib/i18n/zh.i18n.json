@@ -450,6 +450,7 @@
       "saveRequestAs": "请求另存为",
       "couldNotSave": "无法保存",
       "run": "运行",
+      "runAll": "运行全部",
       "running": "运行中…",
       "noRequests": "此文件中没有请求——写一个，如 GET https://example.com",
       "selectRequest": "选择请求",
@@ -457,7 +458,7 @@
         "one": "1 个请求",
         "other": "${n} 个请求"
       },
-      "runHint": "运行请求（⌘↵）后响应将显示在这里。",
+      "runHint": "运行此请求后，响应将显示在这里。",
       "emptyBody": "响应体为空。",
       "body": "JSON",
       "headers": "标头",

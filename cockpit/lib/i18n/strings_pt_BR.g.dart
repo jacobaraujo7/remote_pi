@@ -940,6 +940,7 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	@override String get saveRequestAs => 'Salvar request como';
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
+	@override String get runAll => 'Executar todos';
 	@override String get running => 'Executando…';
 	@override String get noEnvironment => 'No Environment';
 	@override String unresolvedVariableNoEnvironment({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.';
@@ -950,7 +951,7 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 		one: '1 request',
 		other: '${n} requests',
 	);
-	@override String get runHint => 'Execute o request (⌘↵) para ver a resposta aqui.';
+	@override String get runHint => 'Execute este request para ver a resposta aqui.';
 	@override String get emptyBody => 'Corpo da resposta vazio.';
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
@@ -2546,6 +2547,7 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.saveRequestAs' => 'Salvar request como',
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
+			'cockpit.httpView.runAll' => 'Executar todos',
 			'cockpit.httpView.running' => 'Executando…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.',
@@ -2553,7 +2555,7 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.noRequests' => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Selecionar request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Execute o request (⌘↵) para ver a resposta aqui.',
+			'cockpit.httpView.runHint' => 'Execute este request para ver a resposta aqui.',
 			'cockpit.httpView.emptyBody' => 'Corpo da resposta vazio.',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
@@ -2666,9 +2668,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
-			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
@@ -3180,9 +3182,9 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',
-			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está disponível para ${harness}. Escolha outro modelo em Configurações.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está disponível para ${harness}. Escolha outro modelo em Configurações.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} não respondeu em ${seconds} segundos.',
 			'automation.error.cancelled' => 'A geração da mensagem de commit foi cancelada.',
