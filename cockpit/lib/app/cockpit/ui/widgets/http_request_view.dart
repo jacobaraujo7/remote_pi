@@ -73,7 +73,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   late final CodeEditingController _foldedText;
   final Set<int> _foldedStarts = {};
   late HttpRequestFolds _foldProjection;
-  int? _revealFoldLine;
+  ({int oldLine, int newLine, int tick})? _foldScrollAnchor;
   int _foldTick = 0;
   final FocusNode _focus = FocusNode();
   EditorMenuBridge? _menuBridge;
@@ -503,31 +503,64 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   void _rebuildFoldedText() {
     _foldProjection = HttpRequestFolds.build(_text.text, _foldedStarts);
     _foldedText.text = _foldProjection.text;
-    _foldedText.selection = const TextSelection.collapsed(offset: 0);
+  }
+
+  static int _lineStartOffset(String text, int line) {
+    var offset = 0;
+    for (var i = 0; i < line; i++) {
+      final next = text.indexOf('\n', offset);
+      if (next < 0) return text.length;
+      offset = next + 1;
+    }
+    return offset;
   }
 
   void _toggleFold(int sourceLine) {
     _completionVisible = false;
     _plainCompletionOffset = null;
+    final oldLine = _foldedStarts.isEmpty
+        ? sourceLine
+        : _foldProjection.visibleBySource[sourceLine] ?? 0;
     if (!_foldedStarts.remove(sourceLine)) _foldedStarts.add(sourceLine);
     _rebuildFoldedText();
     _refreshUnresolvedVariables();
-    _revealFoldLine =
-        (_foldedStarts.isEmpty
-            ? sourceLine
-            : _foldProjection.visibleBySource[sourceLine] ?? 0) +
-        1;
-    _foldTick++;
+    final newLine = _foldedStarts.isEmpty
+        ? sourceLine
+        : _foldProjection.visibleBySource[sourceLine] ?? 0;
+    final target = _foldedStarts.isEmpty ? _text : _foldedText;
+    target.selection = TextSelection.collapsed(
+      offset: _lineStartOffset(target.text, newLine),
+    );
+    _foldScrollAnchor = (oldLine: oldLine, newLine: newLine, tick: ++_foldTick);
     setState(() {});
   }
 
   void _expandForEdit() {
     if (_foldedStarts.isEmpty) return;
+    final selection = _foldedText.selection;
+    final offset = selection.isValid ? selection.baseOffset : 0;
+    final oldLine = '\n'
+        .allMatches(_foldedText.text.substring(0, offset))
+        .length;
+    final sourceLine =
+        _foldProjection.lineNumbers[oldLine.clamp(
+          0,
+          _foldProjection.lineNumbers.length - 1,
+        )] -
+        1;
     _completionVisible = false;
     _plainCompletionOffset = null;
     _foldedStarts.clear();
     _rebuildFoldedText();
     _refreshUnresolvedVariables();
+    _text.selection = TextSelection.collapsed(
+      offset: _lineStartOffset(_text.text, sourceLine),
+    );
+    _foldScrollAnchor = (
+      oldLine: oldLine,
+      newLine: sourceLine,
+      tick: ++_foldTick,
+    );
     setState(() {});
   }
 
@@ -847,15 +880,12 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                       SizedBox(
                         height: editorH,
                         child: CodeEditor(
-                          key: ValueKey(_foldedStarts.isNotEmpty),
                           controller: _foldedStarts.isEmpty
                               ? _text
                               : _foldedText,
                           compactGutter: true,
                           focusNode: _focus,
-                          revealLine: _revealFoldLine,
-                          revealSelect: false,
-                          revealTick: _foldTick,
+                          scrollAnchor: _foldScrollAnchor,
                           readOnly: _foldedStarts.isNotEmpty,
                           onCodeTap: _foldedStarts.isEmpty
                               ? null

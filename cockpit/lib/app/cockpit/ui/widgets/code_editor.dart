@@ -73,6 +73,7 @@ class CodeEditor extends StatefulWidget {
     this.revealLine,
     this.revealSelect = true,
     this.revealTick = 0,
+    this.scrollAnchor,
     this.scmDecorations = ScmLineDecorations.empty,
     this.revealMatchStart,
     this.revealMatchTick = 0,
@@ -124,6 +125,10 @@ class CodeEditor extends StatefulWidget {
 
   /// Sobe a cada novo pedido de reveal → re-dispara mesmo pra mesma linha.
   final int revealTick;
+
+  /// Preserva a posição visual de uma linha quando o texto projetado muda
+  /// (por exemplo, ao recolher uma seção HTTP). Índices base 0.
+  final ({int oldLine, int newLine, int tick})? scrollAnchor;
 
   /// Decorações SCM no gutter (linhas base 1 + fronteiras de remoção).
   final ScmLineDecorations scmDecorations;
@@ -354,6 +359,36 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void didUpdateWidget(CodeEditor old) {
     super.didUpdateWidget(old);
+    final anchor = widget.scrollAnchor;
+    final anchorChanged =
+        anchor != null && anchor.tick != old.scrollAnchor?.tick;
+    final oldScroll = _vertical.hasClients ? _vertical.offset : 0.0;
+    final oldAnchorY = anchorChanged
+        ? _lineTop(anchor.oldLine) - oldScroll
+        : 0.0;
+    if (widget.controller != old.controller) {
+      old.controller.removeListener(_onChanged);
+      old.controller.removeListener(_keepHorizontalOnSelection);
+      widget.controller.addListener(_onChanged);
+      widget.controller.addListener(_keepHorizontalOnSelection);
+      _rebuildLineStarts();
+      _lineCount = _lineStarts.length;
+      _lastText = widget.controller.text;
+      _lastDiag = widget.controller.diagnostics;
+      _wrapDirty = true;
+      _overviewContentExtent = null;
+      _overviewViewportExtent = null;
+    }
+    if (anchorChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_vertical.hasClients) return;
+        final target = (_lineTop(anchor.newLine) - oldAnchorY).clamp(
+          0.0,
+          _vertical.position.maxScrollExtent,
+        );
+        if ((_vertical.offset - target).abs() > 0.5) _vertical.jumpTo(target);
+      });
+    }
     if (widget.completionVisible &&
         (!old.completionVisible ||
             widget.completionIndex != old.completionIndex ||
