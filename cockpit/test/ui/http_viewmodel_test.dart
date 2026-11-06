@@ -65,19 +65,28 @@ class _ControlledRunner implements HttpRequestRunner {
 }
 
 void main() {
-  test('side-car por tab sobrevive a re-mount e gira em LRU', () {
+  test('estado da resposta sobrevive a re-mount e reabertura do arquivo', () {
     final vm = HttpViewModel(_StubRunner());
-    final a = vm.tabStateFor('tab-a');
+    final a = vm.tabStateFor(
+      'tab-a',
+      projectId: 'project',
+      path: '/api/login.http',
+    );
     a.split = 0.3;
     expect(identical(vm.tabStateFor('tab-a'), a), isTrue);
     expect(vm.tabStateFor('tab-a').split, 0.3);
     expect(identical(vm.tabStateFor('tab-b'), a), isFalse);
-
-    for (var i = 0; i < 30; i++) {
-      vm.tabStateFor('tab-$i');
-    }
-    final fresh = vm.tabStateFor('tab-a');
-    expect(fresh.split, 0.5, reason: 'tab-a saiu do cap e voltou zerada');
+    expect(
+      identical(
+        vm.tabStateFor(
+          'reopened',
+          projectId: 'project',
+          path: '/api/login.http',
+        ),
+        a,
+      ),
+      isTrue,
+    );
   });
 
   group('HttpResponseResult', () {
@@ -207,17 +216,84 @@ void main() {
     expect(state.pane, HttpResponsePane.response);
   });
 
-  test('editar o documento invalida resultados anteriores', () async {
+  test('editar o documento mantém as respostas anteriores', () async {
     final state = HttpTabState()..syncSource(source, requests.length);
     final runner = _ControlledRunner();
-    final run = state.runRequests(runner, requests, baseDir: '/api');
-    state.syncSource('$source\n# changed', requests.length);
+    final run = state.runRequests(
+      runner,
+      requests,
+      baseDir: '/api',
+      onlyIndex: 0,
+    );
     runner.succeed(0);
     await run;
-    expect(runner.sent.length, 1);
-    expect(
-      state.outcomes.every((e) => e.status == HttpRequestRunStatus.idle),
-      isTrue,
+    final response = state.outcomes[0].result;
+
+    state.syncSource('$source\n# changed', requests.length);
+    expect(state.outcomes[0].result, same(response));
+    expect(state.outcomes[0].status, HttpRequestRunStatus.success);
+
+    state.syncSource(
+      source.replaceFirst('example.com/1', 'example.com/edited'),
+      requests.length,
     );
+    expect(state.outcomes[0].result, same(response));
+
+    state.syncSource('### first\nGET \n', 0);
+    expect(state.selectedOutcome?.result, same(response));
+    state.syncSource(source, requests.length);
+    expect(state.outcomes[0].result, same(response));
+  });
+
+  test('inserir uma seção mantém as respostas das seções existentes', () {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    final response = _result('{"ok":true}');
+    state.outcomes[1]
+      ..result = response
+      ..status = HttpRequestRunStatus.success;
+    state.selectedRequest = 1;
+    final inserted = '### new\nGET https://example.com/new\n$source';
+
+    state.syncSource(inserted, 4);
+
+    expect(state.outcomes[0].status, HttpRequestRunStatus.idle);
+    expect(state.outcomes[2].result, same(response));
+    expect(state.selectedRequest, 2);
+  });
+
+  test('remover e restaurar uma seção recupera sua última resposta', () {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    final response = _result('previous');
+    state.outcomes[1]
+      ..result = response
+      ..status = HttpRequestRunStatus.success;
+    final removed = source.replaceFirst('###\nGET https://example.com/2\n', '');
+    state.syncSource(removed, 2);
+    state.syncSource(source, 3);
+    expect(state.outcomes[1].result, same(response));
+  });
+
+  test('editar durante nova execução preserva a resposta anterior', () async {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    final response = _result('previous');
+    state.outcomes[0]
+      ..result = response
+      ..status = HttpRequestRunStatus.success;
+    final runner = _ControlledRunner();
+    final run = state.runRequests(
+      runner,
+      requests,
+      baseDir: '/api',
+      onlyIndex: 0,
+    );
+    expect(state.outcomes[0].status, HttpRequestRunStatus.loading);
+    expect(state.outcomes[0].result, same(response));
+
+    state.syncSource('$source\n# edit', requests.length);
+    expect(state.outcomes[0].status, HttpRequestRunStatus.success);
+    expect(state.outcomes[0].result, same(response));
+    runner.succeed(0);
+    await run;
+    expect(state.outcomes[0].result, same(response));
   });
 }

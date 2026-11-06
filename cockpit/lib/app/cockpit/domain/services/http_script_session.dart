@@ -7,6 +7,7 @@ import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
+import 'package:flutter/foundation.dart';
 import 'package:quickjs_engine/quickjs_engine.dart';
 
 class HttpScriptTest {
@@ -39,9 +40,19 @@ class HttpScriptExecution {
 
 /// Estado de `client.global` durante a vida do app. Compartilhado pela aba e
 /// pela CLI; nenhuma variável é gravada em disco.
-class HttpScriptSession {
+class HttpScriptSession extends ChangeNotifier {
   static final HttpScriptSession shared = HttpScriptSession();
   final Map<String, String> _globals = {};
+
+  Map<String, String> get globals => Map.unmodifiable(_globals);
+
+  void _mergeGlobals(Map<String, String> values) {
+    if (values.entries.every((entry) => _globals[entry.key] == entry.value)) {
+      return;
+    }
+    _globals.addAll(values);
+    notifyListeners();
+  }
 
   Future<HttpScriptExecution> run(
     HttpRequestRunner transport,
@@ -57,7 +68,7 @@ class HttpScriptSession {
 
     if (request.preScript != null) {
       final pre = await _execute(request.preScript!, _globals, vars);
-      _globals.addAll(pre.globals);
+      _mergeGlobals(pre.globals);
       vars.addAll(pre.variables);
       logs.addAll(pre.logs);
       tests.addAll(pre.tests);
@@ -108,7 +119,7 @@ class HttpScriptSession {
               },
             },
           );
-          _globals.addAll(post.globals);
+          _mergeGlobals(post.globals);
           logs.addAll(post.logs);
           tests.addAll(post.tests);
           return HttpScriptExecution(

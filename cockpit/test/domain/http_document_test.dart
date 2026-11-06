@@ -112,6 +112,22 @@ void main() {
     );
   });
 
+  test('globais de outra request resolvem placeholders em outro arquivo', () {
+    const source = 'GET https://example.test/{{accessToken}}/{{missing}}\n';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      globals: {'accessToken': 'token-from-login'},
+    );
+    expect(missing.map((item) => item.name), ['missing']);
+
+    final document = HttpDocument.parse(source);
+    final resolved = document.resolveRequest(
+      document.requests.single,
+      globals: {'accessToken': 'token-from-login'},
+    );
+    expect(resolved.url, 'https://example.test/token-from-login/{{missing}}');
+  });
+
   test('casa o cursor com o request corrente', () {
     final doc = HttpDocument.parse(_source);
     expect(doc.requestIndexAtLine(0), 0); // preâmbulo cai no primeiro

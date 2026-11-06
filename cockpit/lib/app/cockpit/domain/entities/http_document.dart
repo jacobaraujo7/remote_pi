@@ -342,6 +342,7 @@ class HttpDocument {
   static List<({int start, int end, String name})> unresolvedPlaceholders(
     String source, {
     Map<String, String> environment = const {},
+    Map<String, String> globals = const {},
   }) {
     final doc = HttpDocument.parse(source);
     final missing = <({int start, int end, String name})>[];
@@ -354,7 +355,8 @@ class HttpDocument {
       if (!inScript && !trimmed.startsWith('#') && !trimmed.startsWith('//')) {
         for (final match in interpolation.allMatches(line)) {
           final token = match.group(0)!;
-          if (doc.interpolate(token, extra: environment) == token) {
+          if (doc.interpolate(token, extra: {...environment, ...globals}) ==
+              token) {
             missing.add((
               start: lineStart + match.start,
               end: lineStart + match.end,

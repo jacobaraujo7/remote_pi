@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_code_navigation.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -99,7 +100,11 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   @override
   void initState() {
     super.initState();
-    _view = context.read<HttpViewModel>().tabStateFor(widget.session.id);
+    _view = context.read<HttpViewModel>().tabStateFor(
+      widget.session.id,
+      projectId: widget.session.scratch ? null : widget.session.projectId,
+      path: widget.session.scratch ? null : widget.session.path,
+    );
     widget.session.httpEnvironment ??= context
         .read<CockpitViewModel>()
         .httpEnvironmentFor(widget.session.projectId, widget.session.path);
@@ -107,6 +112,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     _baseline = _diskText();
     _view.syncSource(_baseline, HttpDocument.parse(_baseline).requests.length);
     _view.addListener(_onViewState);
+    HttpScriptSession.shared.addListener(_onGlobalsChanged);
     _text = CodeEditingController(text: _baseline, language: 'http');
     _lastSourceText = _baseline;
     _foldedText = CodeEditingController(text: _baseline, language: 'http');
@@ -138,6 +144,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     }
     widget.session.removeListener(_onSession);
     _view.removeListener(_onViewState);
+    HttpScriptSession.shared.removeListener(_onGlobalsChanged);
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _text.removeListener(_onEdited);
     _text.dispose();
@@ -154,6 +161,12 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   void _onViewState() {
     if (mounted) setState(() {});
+  }
+
+  void _onGlobalsChanged() {
+    if (!mounted) return;
+    _refreshUnresolvedVariables();
+    setState(() {});
   }
 
   HttpDocument get _doc => HttpDocument.parse(_text.text);
@@ -314,6 +327,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     if (slot == null && _plainCompletionOffset == null) return const [];
     final names = <String>{
       ..._catalog.valuesFor(widget.session.httpEnvironment).keys,
+      ...HttpScriptSession.shared.globals.keys,
       ..._doc.variables.keys,
     }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final query = slot?.prefix.trim().toLowerCase() ?? '';
@@ -468,6 +482,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       final missing = HttpDocument.unresolvedPlaceholders(
         controller.text,
         environment: environment,
+        globals: HttpScriptSession.shared.globals,
       );
       controller.setUnresolvedVariables([
         for (final item in missing)
@@ -553,6 +568,13 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   /// do `.dbq`: request tem efeito colateral no servidor: quem dispara é o
   /// humano.
   void _onSession() {
+    if (!widget.session.scratch) {
+      context.read<HttpViewModel>().tabStateFor(
+        widget.session.id,
+        projectId: widget.session.projectId,
+        path: widget.session.path,
+      );
+    }
     if (_lastEnvironmentSelection != widget.session.httpEnvironment) {
       _lastEnvironmentSelection = widget.session.httpEnvironment;
       _completionIndex = 0;

@@ -15,6 +15,7 @@ enum HttpRequestRunStatus { idle, loading, success, error }
 
 class HttpRequestOutcome {
   HttpRequestRunStatus status = HttpRequestRunStatus.idle;
+  HttpRequestRunStatus? statusBeforeLoading;
   HttpResponseResult? result;
   HttpRequestError? error;
   String? scriptError;
@@ -28,6 +29,9 @@ class HttpRequestOutcome {
 /// direto.
 class HttpTabState extends ChangeNotifier {
   List<HttpRequestOutcome> outcomes = [];
+  List<HttpRequestSpec> _requests = [];
+  final List<({HttpRequestSpec request, HttpRequestOutcome outcome})>
+  _detached = [];
   int selectedRequest = 0;
   bool isRunning = false;
   String? _source;
@@ -52,17 +56,104 @@ class HttpTabState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Resultados só pertencem ao texto de onde vieram; editar o arquivo
-  /// invalida a associação entre índices e seções.
+  /// Mantém o último resultado de cada seção enquanto o arquivo é editado.
+  /// Uma linha de request temporariamente inválida não descarta a resposta.
   void syncSource(String source, int requestCount) {
     if (_source == source && outcomes.length == requestCount) return;
     _source = source;
     _sourceGeneration++;
-    outcomes = List.generate(requestCount, (_) => HttpRequestOutcome());
-    selectedRequest = selectedRequest.clamp(
-      0,
-      requestCount > 0 ? requestCount - 1 : 0,
+    final next = HttpDocument.parse(source).requests;
+    if (next.isEmpty) {
+      for (final outcome in outcomes) {
+        if (outcome.status == HttpRequestRunStatus.loading) {
+          outcome.status =
+              outcome.statusBeforeLoading ?? HttpRequestRunStatus.idle;
+          outcome.statusBeforeLoading = null;
+        }
+      }
+      notifyListeners();
+      return;
+    }
+
+    final previous = <({HttpRequestSpec request, HttpRequestOutcome outcome})>[
+      for (var i = 0; i < _requests.length && i < outcomes.length; i++)
+        (request: _requests[i], outcome: outcomes[i]),
+      ..._detached,
+    ];
+    final assigned = List<HttpRequestOutcome?>.filled(next.length, null);
+    final used = <int>{};
+
+    void match(bool Function(HttpRequestSpec, HttpRequestSpec) matches) {
+      for (var i = 0; i < next.length; i++) {
+        if (assigned[i] != null) continue;
+        for (var j = 0; j < previous.length; j++) {
+          if (used.contains(j) || !matches(previous[j].request, next[i])) {
+            continue;
+          }
+          assigned[i] = previous[j].outcome;
+          used.add(j);
+          break;
+        }
+      }
+    }
+
+    // Primeiro identidades fortes, depois o índice para uma URL ainda em edição.
+    match(
+      (old, current) =>
+          old.method == current.method &&
+          old.url == current.url &&
+          old.name == current.name,
     );
+    match(
+      (old, current) => old.method == current.method && old.url == current.url,
+    );
+    match(
+      (old, current) =>
+          old.name.isNotEmpty &&
+          old.name == current.name &&
+          old.method == current.method,
+    );
+    for (var i = 0; i < next.length; i++) {
+      if (assigned[i] != null || i >= _requests.length || used.contains(i)) {
+        continue;
+      }
+      assigned[i] = previous[i].outcome;
+      used.add(i);
+    }
+
+    final selectedOutcomeBefore = selectedOutcome;
+    for (final item in previous) {
+      if (item.outcome.status == HttpRequestRunStatus.loading) {
+        item.outcome.status =
+            item.outcome.statusBeforeLoading ?? HttpRequestRunStatus.idle;
+        item.outcome.statusBeforeLoading = null;
+      }
+    }
+    _detached
+      ..clear()
+      ..addAll([
+        for (var i = 0; i < previous.length; i++)
+          if (!used.contains(i) &&
+              previous[i].outcome.status != HttpRequestRunStatus.idle)
+            previous[i],
+      ]);
+    outcomes = [
+      for (final outcome in assigned) outcome ?? HttpRequestOutcome(),
+    ];
+    _requests = next;
+    for (final outcome in outcomes) {
+      if (outcome.status == HttpRequestRunStatus.loading) {
+        outcome.status =
+            outcome.statusBeforeLoading ?? HttpRequestRunStatus.idle;
+        outcome.statusBeforeLoading = null;
+      }
+    }
+    final selectedIndex = outcomes.indexWhere(
+      (outcome) => identical(outcome, selectedOutcomeBefore),
+    );
+    selectedRequest = selectedIndex >= 0
+        ? selectedIndex
+        : selectedRequest.clamp(0, next.length - 1);
     notifyListeners();
   }
 
@@ -80,10 +171,6 @@ class HttpTabState extends ChangeNotifier {
     notifyListeners();
     final generation = _sourceGeneration;
     try {
-      if (onlyIndex == null) {
-        outcomes = List.generate(requests.length, (_) => HttpRequestOutcome());
-        notifyListeners();
-      }
       final indexes = onlyIndex == null
           ? Iterable<int>.generate(requests.length)
           : <int>[onlyIndex];
@@ -95,9 +182,9 @@ class HttpTabState extends ChangeNotifier {
         }
         final outcome = outcomes[index];
         selectedRequest = index;
+        outcome.statusBeforeLoading = outcome.status;
         outcome
           ..status = HttpRequestRunStatus.loading
-          ..result = null
           ..error = null
           ..scriptError = null
           ..logs = const []
@@ -121,7 +208,8 @@ class HttpTabState extends ChangeNotifier {
               ..tests = execution.tests
               ..status = execution.failed
                   ? HttpRequestRunStatus.error
-                  : HttpRequestRunStatus.success;
+                  : HttpRequestRunStatus.success
+              ..statusBeforeLoading = null;
             notifyListeners();
             continue;
           }
@@ -134,17 +222,20 @@ class HttpTabState extends ChangeNotifier {
                   ? HttpRequestRunStatus.error
                   : HttpRequestRunStatus.success;
             case Failure(:final error):
+              outcome.result = null;
               outcome.error = error;
               outcome.status = HttpRequestRunStatus.error;
           }
         } catch (error) {
           if (generation != _sourceGeneration) break;
+          outcome.result = null;
           outcome.error = HttpRequestError(
             HttpRequestErrorKind.connectionFailed,
             detail: '$error',
           );
           outcome.status = HttpRequestRunStatus.error;
         }
+        outcome.statusBeforeLoading = null;
         notifyListeners();
       }
     } finally {
@@ -164,21 +255,24 @@ class HttpViewModel extends ChangeNotifier {
   final HttpRequestRunner runner;
 
   final _tabStates = <String, HttpTabState>{};
-  static const _maxTabStates = 24;
+  final _statesByPath = <String, HttpTabState>{};
 
-  /// Side-car por tab (chave = session id), com cap LRU barato: tab fechada
-  /// some do mapa quando ele gira.
-  HttpTabState tabStateFor(String sessionId) {
-    final existing = _tabStates.remove(sessionId);
-    if (existing != null) {
-      _tabStates[sessionId] = existing; // re-insere no fim
-      return existing;
-    }
-    final fresh = HttpTabState();
-    _tabStates[sessionId] = fresh;
-    if (_tabStates.length > _maxTabStates) {
-      _tabStates.remove(_tabStates.keys.first);
-    }
-    return fresh;
+  /// O estado de arquivos reais é indexado também pelo caminho: fechar e
+  /// reabrir a aba não perde a resposta durante a vida do Cockpit.
+  HttpTabState tabStateFor(
+    String sessionId, {
+    String? projectId,
+    String? path,
+  }) {
+    final key = projectId == null || path == null
+        ? null
+        : '$projectId\u0000$path';
+    final state =
+        _tabStates[sessionId] ??
+        (key == null ? null : _statesByPath[key]) ??
+        HttpTabState();
+    _tabStates[sessionId] = state;
+    if (key != null) _statesByPath[key] = state;
+    return state;
   }
 }
