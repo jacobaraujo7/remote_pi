@@ -451,6 +451,9 @@
       "couldNotSave": "Não foi possível salvar",
       "run": "Executar",
       "running": "Executando…",
+      "noEnvironment": "No Environment",
+      "unresolvedVariableNoEnvironment": "Nenhum ambiente selecionado. Não foi possível resolver a variável '${name}'.",
+      "unresolvedVariableInEnvironment": "A variável '${name}' não está definida no ambiente '${environment}'.",
       "noRequests": "Nenhum request neste arquivo — escreva um, ex.: GET https://example.com",
       "selectRequest": "Selecionar request",
       "requestCount": {

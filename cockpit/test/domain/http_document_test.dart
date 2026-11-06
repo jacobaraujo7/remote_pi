@@ -87,6 +87,31 @@ void main() {
     expect(HttpDocument.unresolvedIn(r), ['missing']);
   });
 
+  test('ambiente resolve placeholders e variável local pode sobrescrever', () {
+    final doc = HttpDocument.parse(
+      '@host = https://local.example\nGET {{host}}/x?token={{token}}\n',
+    );
+    final resolved = doc.resolveRequest(
+      doc.requests.single,
+      environment: {'host': 'https://env.example', 'token': 'secret'},
+    );
+    expect(resolved.url, 'https://local.example/x?token=secret');
+    expect(HttpDocument.unresolvedIn(resolved), isEmpty);
+  });
+
+  test('destaca apenas placeholders sem valor, fora de comentários', () {
+    const source = '// {{comentario}}\nGET {{host}}/x?token={{token}}\n';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      environment: {'host': 'https://example.com'},
+    );
+    expect(missing.map((m) => m.name), ['token']);
+    expect(
+      source.substring(missing.single.start, missing.single.end),
+      '{{token}}',
+    );
+  });
+
   test('casa o cursor com o request corrente', () {
     final doc = HttpDocument.parse(_source);
     expect(doc.requestIndexAtLine(0), 0); // preâmbulo cai no primeiro

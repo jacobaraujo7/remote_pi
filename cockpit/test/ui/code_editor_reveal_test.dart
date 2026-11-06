@@ -9,7 +9,6 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart'
     as m
     show Scrollbar, ScrollbarOrientation;
-import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -159,6 +158,41 @@ void main() {
         inInclusiveRange(codeTop - 6, codeTop - 4),
       );
     }
+  });
+
+  testWidgets('variável HTTP sem valor tem sublinhado e tooltip no hover', (
+    tester,
+  ) async {
+    const source = 'GET https://example.com/{{missing}}';
+    final ctrl = CodeEditingController(text: source, language: 'http');
+    addTearDown(ctrl.dispose);
+    final start = source.indexOf('{{missing}}');
+    ctrl.setUnresolvedVariables([
+      UnresolvedCodeVariable(start, start + '{{missing}}'.length, 'Sem valor'),
+    ]);
+    await tester.pumpWidget(harness(ctrl, compactGutter: true));
+    await tester.pumpAndSettle();
+
+    final render = tester
+        .state<EditableTextState>(find.byType(EditableText))
+        .renderEditable;
+    var underlined = false;
+    render.text!.visitChildren((span) {
+      final leaf = span as TextSpan;
+      if (leaf.text?.contains('missing') == true &&
+          leaf.style?.decorationStyle == TextDecorationStyle.wavy) {
+        underlined = true;
+      }
+      return true;
+    });
+    expect(underlined, isTrue);
+
+    final caret = render.getLocalRectForCaret(TextPosition(offset: start + 3));
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.moveTo(render.localToGlobal(caret.center));
+    await tester.pump();
+    expect(find.text('Sem valor'), findsOneWidget);
+    await mouse.removePointer();
   });
 
   testWidgets('mudancas Git decoram o gutter sem selecionar a linha', (

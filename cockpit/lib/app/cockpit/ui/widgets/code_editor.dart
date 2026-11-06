@@ -11,7 +11,7 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, defaultTargetPlatform, listEquals;
 import 'package:flutter/gestures.dart' show PointerHoverEvent;
 import 'package:flutter/material.dart'
     show
@@ -563,8 +563,13 @@ class _CodeEditorState extends State<CodeEditor> {
     final contentY = event.localPosition.dy - _padTop + scroll;
     if (contentY < 0 || _lineHeight <= 0) return _clearHover();
     final line = _lineAtY(contentY); // base 0
-    if (line == _hoverLine) return; // mesma linha → nada a fazer
-    final msgs = widget.controller.messagesForLine(line);
+    final unresolved = widget.controller.unresolvedVariableMessageAt(
+      _offsetAtHover(event) ?? -1,
+    );
+    final msgs = unresolved == null
+        ? widget.controller.messagesForLine(line)
+        : [unresolved];
+    if (line == _hoverLine && listEquals(msgs, _hoverMsgs)) return;
     setState(() {
       _hoverLine = line;
       _hoverMsgs = msgs;
@@ -582,56 +587,60 @@ class _CodeEditorState extends State<CodeEditor> {
     }
   }
 
-  /// Converte a posição do mouse em offset de texto (via largura medida do
-  /// gutter + scroll horizontal + `TextPainter.getPositionForOffset` na linha
-  /// hovered) e atualiza o range sublinhado no controller — só quando o
-  /// modificador está ativo. Fora dele, limpa (sem sublinhado/cursor de mão).
-  void _updateDefinitionHoverRange(PointerHoverEvent event) {
-    if (!_definitionModeActive) return _clearDefinitionHover();
+  /// Converte a posição do mouse em offset do buffer, descontando gutter,
+  /// scroll horizontal e quebra de linha. Compartilhado pelo hover de variável
+  /// HTTP e pelo go-to-definition.
+  int? _offsetAtHover(PointerHoverEvent event) {
     final codeStyle = _codeStyle;
-    if (codeStyle == null) return _clearDefinitionHover();
+    if (codeStyle == null) return null;
 
     final scrollV = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scrollV;
-    if (_lineHeight <= 0) return _clearDefinitionHover();
+    if (_lineHeight <= 0) return null;
     final line = _lineAtY(contentY);
     if (contentY < 0 || line < 0 || line >= _lineStarts.length) {
-      return _clearDefinitionHover();
+      return null;
     }
 
     final scrollH = _horizontal.hasClients ? _horizontal.offset : 0.0;
     final codeLocalX =
         event.localPosition.dx - _gutterWidth - _codeLeftPadding + scrollH;
-    if (codeLocalX < 0) return _clearDefinitionHover();
+    if (codeLocalX < 0) return null;
 
     final text = widget.controller.text;
-    final int offset;
     if (widget.wordWrap) {
       // Com quebra, x/y viram (linha visual, coluna) dentro de uma linha
       // lógica — o `RenderEditable` resolve o ponto global já descontando o
       // scroll interno do campo.
       final editable = _renderEditable();
-      if (editable == null) return _clearDefinitionHover();
-      offset = editable
+      if (editable == null) return null;
+      return editable
           .getPositionForPoint(event.position)
           .offset
           .clamp(0, text.length);
-    } else {
-      final lineStart = _lineStarts[line];
-      final lineEnd = line + 1 < _lineStarts.length
-          ? _lineStarts[line + 1] - 1
-          : text.length;
-      final lineText = text.substring(
-        lineStart,
-        lineEnd.clamp(lineStart, text.length),
-      );
-      final painter = TextPainter(
-        text: TextSpan(text: lineText, style: codeStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
-      offset = (lineStart + pos.offset).clamp(0, text.length);
     }
+    final lineStart = _lineStarts[line];
+    final lineEnd = line + 1 < _lineStarts.length
+        ? _lineStarts[line + 1] - 1
+        : text.length;
+    final lineText = text.substring(
+      lineStart,
+      lineEnd.clamp(lineStart, text.length),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: lineText, style: codeStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
+    painter.dispose();
+    return (lineStart + pos.offset).clamp(0, text.length);
+  }
+
+  /// Atualiza o range de go-to-definition só com Cmd/Ctrl pressionado.
+  void _updateDefinitionHoverRange(PointerHoverEvent event) {
+    if (!_definitionModeActive) return _clearDefinitionHover();
+    final offset = _offsetAtHover(event);
+    if (offset == null) return _clearDefinitionHover();
     final range = widget.controller.wordRangeAt(offset);
 
     final hovered = range != null;

@@ -250,11 +250,10 @@ class HttpDocument {
   /// variáveis na ordem de declaração. Nome desconhecido fica **intacto** — a
   /// execução acusa como variável não resolvida em vez de mandar `{{x}}` no ar.
   String interpolate(String input, {Map<String, String> extra = const {}}) {
-    final resolved = <String, String>{};
+    final resolved = <String, String>{...extra};
     for (final e in variables.entries) {
       resolved[e.key] = _expand(e.value, resolved);
     }
-    resolved.addAll(extra);
     return _expand(input, resolved);
   }
 
@@ -262,12 +261,18 @@ class HttpDocument {
       .replaceAllMapped(interpolation, (m) => vars[m.group(1)!] ?? m.group(0)!);
 
   /// [spec] com URL, headers e body já interpolados.
-  HttpRequestSpec resolveRequest(HttpRequestSpec spec) => spec.copyWith(
-    url: interpolate(spec.url),
+  HttpRequestSpec resolveRequest(
+    HttpRequestSpec spec, {
+    Map<String, String> environment = const {},
+  }) => spec.copyWith(
+    url: interpolate(spec.url, extra: environment),
     headers: [
-      for (final h in spec.headers) (name: h.name, value: interpolate(h.value)),
+      for (final h in spec.headers)
+        (name: h.name, value: interpolate(h.value, extra: environment)),
     ],
-    body: spec.body == null ? null : interpolate(spec.body!),
+    body: spec.body == null
+        ? null
+        : interpolate(spec.body!, extra: environment),
   );
 
   /// Nomes de variáveis ainda não resolvidas em [spec] (depois de
@@ -282,4 +287,32 @@ class HttpDocument {
     ))
       m.group(1)!,
   ];
+
+  /// Placeholders sem valor no editor, ignorando comentários de linha.
+  /// Offsets são UTF-16, iguais aos usados pelo `TextEditingController`.
+  static List<({int start, int end, String name})> unresolvedPlaceholders(
+    String source, {
+    Map<String, String> environment = const {},
+  }) {
+    final doc = HttpDocument.parse(source);
+    final missing = <({int start, int end, String name})>[];
+    var lineStart = 0;
+    for (final line in source.split('\n')) {
+      final trimmed = line.trimLeft();
+      if (!trimmed.startsWith('#') && !trimmed.startsWith('//')) {
+        for (final match in interpolation.allMatches(line)) {
+          final token = match.group(0)!;
+          if (doc.interpolate(token, extra: environment) == token) {
+            missing.add((
+              start: lineStart + match.start,
+              end: lineStart + match.end,
+              name: match.group(1)!,
+            ));
+          }
+        }
+      }
+      lineStart += line.length + 1;
+    }
+    return missing;
+  }
 }

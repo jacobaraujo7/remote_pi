@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
@@ -12,12 +15,14 @@ import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Tab de um arquivo `.http`: editor em cima, resposta embaixo, split
@@ -58,10 +63,16 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   int _foldTick = 0;
   final FocusNode _focus = FocusNode();
   EditorMenuBridge? _menuBridge;
+  HttpEnvironmentCatalog _catalog = const HttpEnvironmentCatalog({});
+  final List<StreamSubscription<void>> _environmentWatches = [];
+  String? _environmentPath;
+  String? _lastEnvironmentSelection;
+  int _environmentReadSeq = 0;
 
   /// Conteúdo do disco como o conhecemos (baseline de dirty/discard).
   late String _baseline;
   bool _running = false;
+  bool _starting = false;
 
   /// Estado de view (resposta, split, aba) — mora no [HttpViewModel] para
   /// sobreviver ao re-mount quando a tab muda de pane.
@@ -71,6 +82,10 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   void initState() {
     super.initState();
     _view = context.read<HttpViewModel>().tabStateFor(widget.session.id);
+    widget.session.httpEnvironment ??= context
+        .read<CockpitViewModel>()
+        .httpEnvironmentFor(widget.session.projectId, widget.session.path);
+    _lastEnvironmentSelection = widget.session.httpEnvironment;
     _baseline = _diskText();
     _text = CodeEditingController(text: _baseline, language: 'http');
     _lastSourceText = _baseline;
@@ -79,6 +94,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     _text.addListener(_onEdited);
     widget.session.addListener(_onSession);
     widget.session.saveDraft = _save;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_loadEnvironments(rewatch: true).then((_) {}));
+    });
     if (widget.session.scratch) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.session.setDirty(true);
@@ -95,6 +113,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   @override
   void dispose() {
     _menuBridge?.clear(this);
+    for (final watch in _environmentWatches) {
+      unawaited(watch.cancel());
+    }
     widget.session.removeListener(_onSession);
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _text.removeListener(_onEdited);
@@ -112,6 +133,43 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   HttpDocument get _doc => HttpDocument.parse(_text.text);
 
+  Future<HttpEnvironmentCatalog> _loadEnvironments({
+    bool rewatch = false,
+  }) async {
+    if (!mounted || widget.session.scratch) return _catalog;
+    final vm = context.read<CockpitViewModel>();
+    final path = widget.session.path;
+    final root =
+        vm.rootContaining(widget.session.projectId, path) ??
+        (path.startsWith('/') ? p.posix.dirname(path) : p.dirname(path));
+    if (rewatch || _environmentPath != path) {
+      _environmentPath = path;
+      for (final watch in _environmentWatches) {
+        unawaited(watch.cancel());
+      }
+      _environmentWatches.clear();
+      for (final folder in HttpEnvironmentCatalog.directoriesFor(path, root)) {
+        _environmentWatches.add(
+          vm
+              .watchFolder(folder)
+              .listen((_) => unawaited(_loadEnvironments().then((_) {}))),
+        );
+      }
+    }
+    final seq = ++_environmentReadSeq;
+    final catalog = await HttpEnvironmentCatalog.load(
+      httpPath: path,
+      rootPath: root,
+      readText: vm.readTextAt,
+    );
+    if (!mounted || seq != _environmentReadSeq || path != widget.session.path) {
+      return catalog;
+    }
+    setState(() => _catalog = catalog);
+    _refreshUnresolvedVariables();
+    return catalog;
+  }
+
   bool get _dirty => widget.session.scratch || _text.text != _baseline;
 
   void _onEdited() {
@@ -122,8 +180,35 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       _rebuildFoldedText();
     }
     _lastSourceText = _text.text;
+    if (textChanged) _refreshUnresolvedVariables();
     if (mounted && (textChanged || _foldedStarts.isEmpty)) setState(() {});
     widget.session.setDirty(_dirty);
+  }
+
+  void _refreshUnresolvedVariables() {
+    if (!mounted) return;
+    final selected = widget.session.httpEnvironment;
+    final environment = _catalog.valuesFor(selected);
+    final tr = context.t.cockpit.httpView;
+    for (final controller in [_text, _foldedText]) {
+      final missing = HttpDocument.unresolvedPlaceholders(
+        controller.text,
+        environment: environment,
+      );
+      controller.setUnresolvedVariables([
+        for (final item in missing)
+          UnresolvedCodeVariable(
+            item.start,
+            item.end,
+            selected == null
+                ? tr.unresolvedVariableNoEnvironment(name: item.name)
+                : tr.unresolvedVariableInEnvironment(
+                    name: item.name,
+                    environment: selected,
+                  ),
+          ),
+      ]);
+    }
   }
 
   void _rebuildFoldedText() {
@@ -135,6 +220,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   void _toggleFold(int sourceLine) {
     if (!_foldedStarts.remove(sourceLine)) _foldedStarts.add(sourceLine);
     _rebuildFoldedText();
+    _refreshUnresolvedVariables();
     _revealFoldLine =
         (_foldedStarts.isEmpty
             ? sourceLine
@@ -148,6 +234,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     if (_foldedStarts.isEmpty) return;
     _foldedStarts.clear();
     _rebuildFoldedText();
+    _refreshUnresolvedVariables();
     setState(() {});
   }
 
@@ -156,6 +243,14 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   /// do `.dbq`: request tem efeito colateral no servidor: quem dispara é o
   /// humano.
   void _onSession() {
+    if (_lastEnvironmentSelection != widget.session.httpEnvironment) {
+      _lastEnvironmentSelection = widget.session.httpEnvironment;
+      _refreshUnresolvedVariables();
+      if (mounted) setState(() {});
+    }
+    if (_environmentPath != widget.session.path && !widget.session.scratch) {
+      unawaited(_loadEnvironments(rewatch: true).then((_) {}));
+    }
     if (widget.session.scratch) return;
     final text = _diskText();
     if (text == _baseline || widget.session.dirty) return;
@@ -295,7 +390,18 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   }
 
   Future<void> _run([int? requestIndex]) async {
-    if (_running) return;
+    if (_running || _starting) return;
+    setState(() => _starting = true);
+    try {
+      await _runResolved(requestIndex);
+    } finally {
+      if (mounted) setState(() => _starting = false);
+    }
+  }
+
+  Future<void> _runResolved(int? requestIndex) async {
+    final catalog = await _loadEnvironments();
+    if (!mounted) return;
     final doc = _doc;
     if (doc.requests.isEmpty) {
       setState(() {
@@ -311,7 +417,10 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
     final index = requestIndex ?? _targetIndex(doc);
     if (index >= doc.requests.length) return;
-    final spec = doc.resolveRequest(doc.requests[index]);
+    final spec = doc.resolveRequest(
+      doc.requests[index],
+      environment: catalog.valuesFor(widget.session.httpEnvironment),
+    );
     final baseDir = widget.session.scratch
         ? ''
         : widget.session.workingDirectory;
@@ -335,6 +444,29 @@ class _HttpRequestViewState extends State<HttpRequestView> {
           _view.error = error;
       }
     });
+  }
+
+  Future<void> _pickEnvironment(BuildContext anchor) async {
+    final catalog = await _loadEnvironments();
+    if (!mounted || !anchor.mounted) return;
+    final selected = widget.session.httpEnvironment;
+    final picked = await showAppMenu<String>(
+      anchor,
+      items: [
+        AppMenuItem(
+          value: '',
+          label: context.t.cockpit.httpView.noEnvironment,
+          selected: selected == null,
+        ),
+        for (final name in catalog.names)
+          AppMenuItem(value: name, label: name, selected: name == selected),
+      ],
+    );
+    if (!mounted || picked == null) return;
+    context.read<CockpitViewModel>().setHttpEnvironment(
+      widget.session.id,
+      picked.isEmpty ? null : picked,
+    );
   }
 
   void _syncMenuBridge() {
@@ -403,7 +535,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           lineNumbers: _foldedStarts.isEmpty
                               ? null
                               : _foldProjection.lineNumbers,
-                          lineActions: _running
+                          lineActions: _running || _starting
                               ? const {}
                               : {
                                   for (var i = 0; i < doc.requests.length; i++)
@@ -505,8 +637,39 @@ class _HttpRequestViewState extends State<HttpRequestView> {
               ),
             ),
           ),
+          Builder(
+            builder: (anchor) => HoverTap(
+              onTap: () => _pickEnvironment(anchor),
+              color: colors.panel3,
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 150),
+                    child: Text(
+                      widget.session.httpEnvironment ?? tr.noEnvironment,
+                      overflow: TextOverflow.ellipsis,
+                      style: typo.label.copyWith(
+                        fontSize: 11,
+                        color: colors.text2,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.keyboard_arrow_down,
+                    size: 13,
+                    color: colors.text3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
           HoverTap(
-            onTap: _running || empty ? null : () => _run(),
+            onTap: _running || _starting || empty ? null : () => _run(),
             color: runBg,
             hoverColor: colors.accent.withValues(alpha: 0.85),
             borderRadius: const BorderRadius.all(Radius.circular(5)),
@@ -515,13 +678,15 @@ class _HttpRequestViewState extends State<HttpRequestView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  _running ? Icons.hourglass_top : Icons.play_arrow,
+                  _running || _starting
+                      ? Icons.hourglass_top
+                      : Icons.play_arrow,
                   size: 13,
                   color: runFg,
                 ),
                 const SizedBox(width: 4),
                 Text(
-                  _running ? tr.running : tr.run,
+                  _running || _starting ? tr.running : tr.run,
                   style: typo.label.copyWith(fontSize: 11.5, color: runFg),
                 ),
                 const SizedBox(width: 6),

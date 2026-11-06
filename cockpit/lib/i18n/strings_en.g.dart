@@ -1988,6 +1988,15 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Running…'
 	String get running => 'Running…';
 
+	/// en: 'No Environment'
+	String get noEnvironment => 'No Environment';
+
+	/// en: 'No environment selected. Cannot resolve variable '${name}'.'
+	String unresolvedVariableNoEnvironment({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.';
+
+	/// en: 'Variable '${name}' is not defined in environment '${environment}'.'
+	String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.';
+
 	/// en: 'No request in this file — write one, e.g. GET https://example.com'
 	String get noRequests => 'No request in this file — write one, e.g. GET https://example.com';
 
@@ -4944,6 +4953,9 @@ extension on Translations {
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
 			'cockpit.httpView.running' => 'Running…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'No request in this file — write one, e.g. GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Select request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 request', other: '${n} requests', ), 
@@ -5061,11 +5073,11 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5575,11 +5587,11 @@ extension on Translations {
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',

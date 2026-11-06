@@ -941,6 +941,9 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
 	@override String get running => 'Ejecutando…';
+	@override String get noEnvironment => 'No Environment';
+	@override String unresolvedVariableNoEnvironment({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.';
+	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.';
 	@override String get noRequests => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com';
 	@override String get selectRequest => 'Seleccionar request';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n,
@@ -2544,6 +2547,9 @@ extension on TranslationsEs {
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
 			'cockpit.httpView.running' => 'Ejecutando…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Seleccionar request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 request', other: '${n} requests', ), 
@@ -2661,11 +2667,11 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Frase de contraseña de la clave',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Guardar frase de contraseña',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'La contraseña se guarda en el host, no en esta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconocido',
@@ -3175,11 +3181,11 @@ extension on TranslationsEs {
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
+			_ => null,
+		} ?? switch (path) {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} no respondió en ${seconds} segundos.',
 			'automation.error.cancelled' => 'Se canceló la generación del mensaje de commit.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} no pudo generar un mensaje de commit.',
 			'automation.error.invalidResponse' => 'La automatización devolvió un mensaje de commit vacío.',
