@@ -83,7 +83,7 @@ void _ensureCustomLanguages() {
 /// parse e o arquivo inteiro cairia em plaintext. Esta gramática cobre o
 /// formato de arquivo: separador `###`, variáveis `@nome = valor`,
 /// interpolação `{{nome}}`, request-line sem versão, headers, `< body.json` /
-/// `> saida.json` e o body JSON como sub-idioma.
+/// `> saida.json`, scripts `< {%`/`> {%` e o body JSON como sub-idioma.
 ///
 /// Mesma restrição do dotenv: lookahead `(?=...)` em `begin` não casa no port
 /// Dart — as regras se ancoram em `^` e usam `returnBegin`/`excludeEnd`. E
@@ -153,6 +153,16 @@ hl.Mode _httpFileMode() {
           ],
         ),
       ),
+      // Scripts pré/pós-request: os delimitadores mantêm a cor de metadados,
+      // enquanto o conteúdo usa a gramática JavaScript (strings, chamadas,
+      // palavras-chave). Precisa vir antes da regra genérica `< arquivo`.
+      hl.Mode(
+        className: 'http-script',
+        begin: r'^[ \t]*[<>][ \t]*\{%',
+        end: r'%\}',
+        subLanguage: ['javascript'],
+        relevance: 10,
+      ),
       // `< ./body.json` (importa body) e `> ./out.json` (salva resposta).
       hl.Mode(
         className: 'meta',
@@ -165,7 +175,9 @@ hl.Mode _httpFileMode() {
       hl.Mode(
         begin: '\n[ \t]*\n[ \t]*[\\{\\[]',
         returnBegin: true,
-        end: r'^[ \t]*###',
+        // O body termina antes do pós-script; caso contrário o sub-idioma
+        // JSON engole `> {% ... %}` até o próximo `###`.
+        end: r'^[ \t]*(?:###|[<>][ \t]*\{%)',
         returnEnd: true,
         subLanguage: ['json'],
         relevance: 0,
@@ -712,20 +724,43 @@ void _flatten(
   hl.Node node,
   TextStyle? inherited,
   SyntaxColors palette,
-  List<_Leaf> out,
-) {
+  List<_Leaf> out, {
+  bool inHttpScript = false,
+}) {
+  if (node.className == 'http-script') {
+    // O container do sub-idioma inclui também os delimitadores. Colorir o
+    // container inteiro deixaria o JavaScript comum na cor de metadados.
+    for (final child in node.children ?? const <hl.Node>[]) {
+      _flatten(child, inherited, palette, out, inHttpScript: true);
+    }
+    return;
+  }
   final own = node.className == null ? null : palette.styleFor(node.className!);
   final style = own == null
       ? inherited
       : (inherited ?? const TextStyle()).merge(own);
   if (node.value != null) {
-    out.add(_Leaf(node.value!, style));
+    if (inHttpScript && node.className == null) {
+      final value = node.value!;
+      final markers = RegExp(r'^[ \t]*[<>][ \t]*\{%|%\}$');
+      var offset = 0;
+      for (final marker in markers.allMatches(value)) {
+        if (marker.start > offset) {
+          out.add(_Leaf(value.substring(offset, marker.start), style));
+        }
+        out.add(_Leaf(marker.group(0)!, palette.styleFor('http-script')));
+        offset = marker.end;
+      }
+      if (offset < value.length) out.add(_Leaf(value.substring(offset), style));
+    } else {
+      out.add(_Leaf(node.value!, style));
+    }
     return;
   }
   final children = node.children;
   if (children == null) return;
   for (final child in children) {
-    _flatten(child, style, palette, out);
+    _flatten(child, style, palette, out, inHttpScript: inHttpScript);
   }
 }
 

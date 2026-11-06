@@ -19,12 +19,26 @@ class HttpRequestFolds {
     final lines = source.split('\n');
     final doc = HttpDocument.parse(source);
     final ends = <int, int>{};
+    final scriptStarts = <int>{};
     for (final request in doc.requests) {
       var end = request.endLine.clamp(0, lines.length);
       while (end > request.requestLine + 1 && lines[end - 1].trim().isEmpty) {
         end--;
       }
       if (end > request.requestLine + 1) ends[request.requestLine] = end;
+    }
+    final scriptOpen = RegExp(r'^[ \t]*[<>][ \t]*\{%');
+    for (var line = 0; line < lines.length; line++) {
+      final start = scriptOpen.firstMatch(lines[line]);
+      if (start == null) continue;
+      if (lines[line].indexOf('%}', start.end) >= 0) continue;
+      for (var end = line + 1; end < lines.length; end++) {
+        if (!lines[end].contains('%}')) continue;
+        ends[line] = end + 1;
+        scriptStarts.add(line);
+        line = end;
+        break;
+      }
     }
 
     final visible = <String>[];
@@ -35,6 +49,15 @@ class HttpRequestFolds {
       numbers.add(line + 1);
       final end = ends[line];
       if (end != null && foldedStarts.contains(line)) {
+        if (scriptStarts.contains(line)) {
+          final prefix = lines[line].substring(
+            0,
+            scriptOpen.firstMatch(lines[line])!.end,
+          );
+          visible.add('$prefix ... %}');
+          line = end - 1;
+          continue;
+        }
         final urlContinuation = lines
             .sublist(line + 1, end)
             .map((s) => s.trim())

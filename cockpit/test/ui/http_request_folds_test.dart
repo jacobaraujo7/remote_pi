@@ -35,4 +35,28 @@ GET https://example.com/b
     final projection = HttpRequestFolds.build(text, {0});
     expect(projection.text, 'GET https://example.com/get?show_env=1\n');
   });
+
+  test(
+    'fold de script mostra só delimitadores e preserva linhas do gutter',
+    () {
+      const text = '''### Login
+< {%
+  request.variables.set('id', '1');
+%}
+POST https://example.com/login
+
+> {%
+  client.global.set('token', response.body.token);
+%}
+''';
+      final open = HttpRequestFolds.build(text, {});
+      expect(open.foldEnds[1], 4);
+      expect(open.foldEnds[6], 9);
+      final folded = HttpRequestFolds.build(text, {1, 6});
+      expect(folded.text, contains('< {% ... %}'));
+      expect(folded.text, contains('> {% ... %}'));
+      expect(folded.text, isNot(contains('client.global.set')));
+      expect(folded.lineNumbers, [1, 2, 5, 6, 7, 10]);
+    },
+  );
 }

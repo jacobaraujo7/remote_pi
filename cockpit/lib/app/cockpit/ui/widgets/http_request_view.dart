@@ -705,6 +705,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           },
                           onLinkTap: _openCodeLink,
                           autoCloseHttpVariables: _foldedStarts.isEmpty,
+                          autoEditHttpScripts: _foldedStarts.isEmpty,
                           completionVisible:
                               _foldedStarts.isEmpty && _completionVisible,
                           completionItems: _completionOptions,

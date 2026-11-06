@@ -304,6 +304,7 @@ class SyntaxColors {
       case 'selector-class':
         return variable;
       case 'meta':
+      case 'http-script':
       case 'meta-keyword':
       case 'doctag':
       case 'tag':

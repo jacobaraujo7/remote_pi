@@ -91,6 +91,53 @@ PUT {{baseUrl}}/users/1
 ''';
 
 void main() {
+  testWidgets('script HTTP realça JavaScript sem engolir o próximo request', (
+    tester,
+  ) async {
+    const source = '''### Login
+< {% request.variables.set('id', '42') %}
+POST https://example.com/login
+> {%
+  client.global.set('token', response.body.token);
+%}
+### Próximo
+GET https://example.com/next
+''';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    final joined = colored.join();
+    expect(joined, contains('> {%'));
+    expect(joined, contains("'token'"));
+    expect(colored, contains('### Próximo'));
+    expect(colored, contains('GET'));
+  });
+
+  testWidgets('pós-script após body JSON usa realce JavaScript', (
+    tester,
+  ) async {
+    const source = '''POST https://example.com/login
+Content-Type: application/json
+
+{"key":"sample"}
+
+> {%
+  client.global.set('token', response.body.data.accessToken);
+%}
+''';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    expect(colored.join(), contains('> {%'));
+    expect(colored.join(), contains("'token'"));
+  });
+  testWidgets('texto JS comum não herda a cor do delimitador', (tester) async {
+    final styles = await _styles(
+      tester,
+      '> {%\n  client.global.set("token", response.body.token);\n%}',
+    );
+    final script = styles.entries.firstWhere((e) => e.key.contains('client'));
+    final delimiter = styles.entries.firstWhere((e) => e.key.contains('> {%'));
+    expect(script.value?.color, isNot(delimiter.value?.color));
+  });
   testWidgets(
     'gramática httpfile pinta separador, variáveis, verbo e headers',
     (tester) async {

@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_line_cut.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_script_editing.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -89,6 +90,7 @@ class CodeEditor extends StatefulWidget {
     this.onCodeTap,
     this.compactGutter = false,
     this.autoCloseHttpVariables = false,
+    this.autoEditHttpScripts = false,
     this.completionVisible = false,
     this.completionItems = const [],
     this.completionIndex = 0,
@@ -148,6 +150,7 @@ class CodeEditor extends StatefulWidget {
   /// Reserva as colunas de ação mesmo enquanto elas estão temporariamente vazias.
   final bool compactGutter;
   final bool autoCloseHttpVariables;
+  final bool autoEditHttpScripts;
   final bool completionVisible;
   final List<String> completionItems;
   final int completionIndex;
@@ -1410,8 +1413,14 @@ class _CodeEditorState extends State<CodeEditor> {
           actions: _indentActions,
           child: TextField(
             controller: widget.controller,
-            inputFormatters: widget.autoCloseHttpVariables
-                ? const [HttpVariableBraceFormatter()]
+            inputFormatters:
+                widget.autoCloseHttpVariables || widget.autoEditHttpScripts
+                ? [
+                    if (widget.autoCloseHttpVariables)
+                      const HttpVariableBraceFormatter(),
+                    if (widget.autoEditHttpScripts)
+                      const HttpScriptEditingFormatter(),
+                  ]
                 : null,
             readOnly: widget.readOnly,
             focusNode: widget.focusNode,
