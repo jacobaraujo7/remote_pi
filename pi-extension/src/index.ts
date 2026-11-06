@@ -74,6 +74,7 @@ import {
   createExtensionUiBridge,
   type ExtensionUiBridge,
 } from "./extension_ui_bridge.js";
+import { createDialogBridge, type DialogBridge } from "./dialog_bridge.js";
 import { roomIdFor } from "./rooms.js";
 import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
@@ -1105,6 +1106,10 @@ let _pi: ExtensionAPI | null = null;
 // Plan/57 — Bridge to pi-ask's clarification-flow events. null until the
 // extension factory wires it (and null if the SDK exposes no events bus).
 let _extensionUiBridge: ExtensionUiBridge | null = null;
+
+// Issue #87 — forwards generic ctx.ui dialogs (select/confirm/input/editor)
+// to paired apps. Installed on the shared ui object at every session_start.
+let _dialogBridge: DialogBridge | null = null;
 
 let _stopAutoListener: (() => void) | null = null;
 
@@ -2346,6 +2351,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (!_extensionUiBridge) {
       _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
     }
+    // Wrap the session's shared ui object so any extension's dialog also
+    // reaches the app. Idempotent per ui object; re-run when pi swaps it.
+    _dialogBridge ??= createDialogBridge(_broadcastToActive);
+    try {
+      _dialogBridge.install(ctx.ui);
+    } catch {
+      // ui unavailable on this host — dialogs stay desk-only.
+    }
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2448,6 +2461,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // module instances create their bridge in the factory.
     _extensionUiBridge?.dispose();
     _extensionUiBridge = null;
+    _dialogBridge?.dispose();
+    _dialogBridge = null;
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
@@ -4411,6 +4426,7 @@ export function _routeClientMessageFrom(
     return;
   }
   if (msg.type === "extension_ui_response") {
+    if (_dialogBridge?.respond(msg)) return;
     _extensionUiBridge?.respond(msg);
     return;
   }
@@ -4677,6 +4693,10 @@ function _handleSessionSync(
   // pop a modal on owner B. Flows past FLOW_TTL_MS are already gone from the
   // bridge, so an abandoned flow is never resurrected.
   for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
+    sender.send(req);
+  }
+  // Issue #87 — same replay for generic dialogs still waiting on an answer.
+  for (const req of _dialogBridge?.pendingRequests() ?? []) {
     sender.send(req);
   }
 }
