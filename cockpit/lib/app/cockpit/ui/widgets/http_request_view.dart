@@ -10,6 +10,7 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
@@ -21,7 +22,8 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
-import 'package:flutter/services.dart' show LogicalKeyboardKey;
+import 'package:flutter/services.dart'
+    show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -69,6 +71,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   String? _environmentPath;
   String? _lastEnvironmentSelection;
   int _environmentReadSeq = 0;
+  bool _completionVisible = false;
+  int _completionIndex = 0;
+  int? _plainCompletionOffset;
 
   /// Conteúdo do disco como o conhecemos (baseline de dirty/discard).
   late String _baseline;
@@ -172,7 +177,10 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     if (!mounted || seq != _environmentReadSeq || path != widget.session.path) {
       return catalog;
     }
-    setState(() => _catalog = catalog);
+    setState(() {
+      _catalog = catalog;
+      if (_completionVisible) _completionIndex = 0;
+    });
     _refreshUnresolvedVariables();
     return catalog;
   }
@@ -187,10 +195,127 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       _rebuildFoldedText();
     }
     _lastSourceText = _text.text;
+    _updateCompletion(textChanged: textChanged);
     if (textChanged) _view.syncSource(_text.text, _doc.requests.length);
     if (textChanged) _refreshUnresolvedVariables();
     if (mounted && (textChanged || _foldedStarts.isEmpty)) setState(() {});
     widget.session.setDirty(_dirty);
+  }
+
+  HttpVariableSlot? get _variableSlot {
+    final selection = _text.selection;
+    if (!selection.isValid || !selection.isCollapsed) return null;
+    return HttpVariableCompletion.slotAt(_text.text, selection.baseOffset);
+  }
+
+  List<String> get _completionOptions {
+    final slot = _variableSlot;
+    if (slot == null && _plainCompletionOffset == null) return const [];
+    final names = <String>{
+      ..._catalog.valuesFor(widget.session.httpEnvironment).keys,
+      ..._doc.variables.keys,
+    }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+    final query = slot?.prefix.trim().toLowerCase() ?? '';
+    return names.where((name) => name.toLowerCase().startsWith(query)).toList();
+  }
+
+  void _updateCompletion({required bool textChanged}) {
+    if (_plainCompletionOffset != null) {
+      if (textChanged || _text.selection.baseOffset != _plainCompletionOffset) {
+        _plainCompletionOffset = null;
+        _completionVisible = false;
+        _completionIndex = 0;
+      }
+      return;
+    }
+    final slot = _variableSlot;
+    if (slot == null) {
+      _completionVisible = false;
+      _completionIndex = 0;
+    } else if (textChanged) {
+      _completionVisible = slot.prefix.isNotEmpty;
+      _completionIndex = 0;
+    } else if (_completionVisible) {
+      final count = _completionOptions.length;
+      if (count > 0 && _completionIndex >= count) _completionIndex = count - 1;
+    }
+  }
+
+  bool _completionKey(KeyEvent event) {
+    if (event is! KeyDownEvent) return false;
+    if (_foldedStarts.isNotEmpty) return false;
+    final key = event.logicalKey;
+    final keys = HardwareKeyboard.instance;
+    if (key == LogicalKeyboardKey.space &&
+        (keys.isControlPressed ||
+            (defaultTargetPlatform == TargetPlatform.macOS &&
+                keys.isMetaPressed))) {
+      final selection = _text.selection;
+      if (!selection.isValid || !selection.isCollapsed) return false;
+      setState(() {
+        _plainCompletionOffset = _variableSlot == null
+            ? selection.baseOffset
+            : null;
+        _completionVisible = true;
+        _completionIndex = 0;
+      });
+      return true;
+    }
+    if (!_completionVisible) return false;
+    if (key == LogicalKeyboardKey.escape) {
+      setState(() {
+        _completionVisible = false;
+        _plainCompletionOffset = null;
+      });
+      return true;
+    }
+    if (keys.isControlPressed || keys.isMetaPressed || keys.isAltPressed) {
+      return false;
+    }
+    final options = _completionOptions;
+    if (key == LogicalKeyboardKey.arrowDown && options.isNotEmpty) {
+      setState(
+        () => _completionIndex = (_completionIndex + 1) % options.length,
+      );
+      return true;
+    }
+    if (key == LogicalKeyboardKey.arrowUp && options.isNotEmpty) {
+      setState(
+        () => _completionIndex =
+            (_completionIndex - 1 + options.length) % options.length,
+      );
+      return true;
+    }
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.tab) {
+      if (options.isNotEmpty) {
+        _completeVariable(
+          options[_completionIndex.clamp(0, options.length - 1)],
+        );
+      } else {
+        setState(() {
+          _completionVisible = false;
+          _plainCompletionOffset = null;
+        });
+      }
+      return true;
+    }
+    return false;
+  }
+
+  void _completeVariable(String name) {
+    final slot = _variableSlot;
+    if (slot != null) {
+      _text.value = HttpVariableCompletion.complete(_text.value, slot, name);
+    } else if (_plainCompletionOffset case final offset?) {
+      _text.value = HttpVariableCompletion.insertAt(_text.value, offset, name);
+    } else {
+      return;
+    }
+    setState(() {
+      _completionVisible = false;
+      _plainCompletionOffset = null;
+    });
+    _focus.requestFocus();
   }
 
   void _refreshUnresolvedVariables() {
@@ -226,6 +351,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   }
 
   void _toggleFold(int sourceLine) {
+    _completionVisible = false;
+    _plainCompletionOffset = null;
     if (!_foldedStarts.remove(sourceLine)) _foldedStarts.add(sourceLine);
     _rebuildFoldedText();
     _refreshUnresolvedVariables();
@@ -240,6 +367,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   void _expandForEdit() {
     if (_foldedStarts.isEmpty) return;
+    _completionVisible = false;
+    _plainCompletionOffset = null;
     _foldedStarts.clear();
     _rebuildFoldedText();
     _refreshUnresolvedVariables();
@@ -285,6 +414,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   void _onSession() {
     if (_lastEnvironmentSelection != widget.session.httpEnvironment) {
       _lastEnvironmentSelection = widget.session.httpEnvironment;
+      _completionIndex = 0;
       _refreshUnresolvedVariables();
       if (mounted) setState(() {});
     }
@@ -579,6 +709,15 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                                 : (start: link.start, end: link.end);
                           },
                           onLinkTap: _openCodeLink,
+                          autoCloseHttpVariables: _foldedStarts.isEmpty,
+                          completionVisible:
+                              _foldedStarts.isEmpty && _completionVisible,
+                          completionItems: _completionOptions,
+                          completionIndex: _completionIndex,
+                          completionEmptyLabel:
+                              context.t.cockpit.httpView.noMatchingVariables,
+                          onCompletionSelected: _completeVariable,
+                          onCompletionKey: _completionKey,
                           lineNumbers: _foldedStarts.isEmpty
                               ? null
                               : _foldProjection.lineNumbers,

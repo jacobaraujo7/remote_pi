@@ -941,6 +941,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
 	@override String get runAll => 'Ejecutar todos';
+	@override String get noMatchingVariables => 'No hay variables coincidentes';
 	@override String get running => 'Ejecutando…';
 	@override String get noEnvironment => 'No Environment';
 	@override String unresolvedVariableNoEnvironment({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.';
@@ -2548,6 +2549,7 @@ extension on TranslationsEs {
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
 			'cockpit.httpView.runAll' => 'Ejecutar todos',
+			'cockpit.httpView.noMatchingVariables' => 'No hay variables coincidentes',
 			'cockpit.httpView.running' => 'Ejecutando…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.',
@@ -2667,9 +2669,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
-			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
@@ -3181,9 +3183,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.statusIdle' => 'No conectado',
 			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
-			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} no respondió en ${seconds} segundos.',

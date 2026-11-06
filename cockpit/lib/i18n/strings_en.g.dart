@@ -1988,6 +1988,9 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Run All'
 	String get runAll => 'Run All';
 
+	/// en: 'No matching variables'
+	String get noMatchingVariables => 'No matching variables';
+
 	/// en: 'Running…'
 	String get running => 'Running…';
 
@@ -4956,6 +4959,7 @@ extension on Translations {
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
 			'cockpit.httpView.runAll' => 'Run All',
+			'cockpit.httpView.noMatchingVariables' => 'No matching variables',
 			'cockpit.httpView.running' => 'Running…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
@@ -5075,9 +5079,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
-			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
@@ -5589,9 +5593,9 @@ extension on Translations {
 			'settings.remoteHosts.statusIdle' => 'Not connected',
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
-			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			_ => null,
 		} ?? switch (path) {
+			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',

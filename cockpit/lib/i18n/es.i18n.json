@@ -451,6 +451,7 @@
       "couldNotSave": "No se pudo guardar",
       "run": "Ejecutar",
       "runAll": "Ejecutar todos",
+      "noMatchingVariables": "No hay variables coincidentes",
       "running": "Ejecutando…",
       "noEnvironment": "No Environment",
       "unresolvedVariableNoEnvironment": "No hay ningún entorno seleccionado. No se puede resolver la variable '${name}'.",

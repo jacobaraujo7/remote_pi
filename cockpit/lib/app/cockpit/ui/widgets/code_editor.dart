@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_line_cut.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -87,6 +88,13 @@ class CodeEditor extends StatefulWidget {
     this.readOnly = false,
     this.onCodeTap,
     this.compactGutter = false,
+    this.autoCloseHttpVariables = false,
+    this.completionVisible = false,
+    this.completionItems = const [],
+    this.completionIndex = 0,
+    this.completionEmptyLabel = '',
+    this.onCompletionSelected,
+    this.onCompletionKey,
   });
 
   final CodeEditingController controller;
@@ -139,6 +147,13 @@ class CodeEditor extends StatefulWidget {
 
   /// Reserva as colunas de ação mesmo enquanto elas estão temporariamente vazias.
   final bool compactGutter;
+  final bool autoCloseHttpVariables;
+  final bool completionVisible;
+  final List<String> completionItems;
+  final int completionIndex;
+  final String completionEmptyLabel;
+  final ValueChanged<String>? onCompletionSelected;
+  final bool Function(KeyEvent)? onCompletionKey;
 
   @override
   State<CodeEditor> createState() => _CodeEditorState();
@@ -169,6 +184,7 @@ class _CodeEditorState extends State<CodeEditor> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   final _gutter = ScrollController();
+  final _completionScroll = ScrollController();
 
   /// Alturas por linha lógica no modo [CodeEditor.wordWrap]. Medida sob
   /// demanda ([_ensureWrap]) no layout do gutter — o primeiro a precisar dela
@@ -331,6 +347,29 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void didUpdateWidget(CodeEditor old) {
     super.didUpdateWidget(old);
+    if (widget.completionVisible &&
+        (!old.completionVisible ||
+            widget.completionIndex != old.completionIndex ||
+            !listEquals(widget.completionItems, old.completionItems))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_completionScroll.hasClients) return;
+        const itemHeight = 31.0;
+        final top = widget.completionIndex * itemHeight;
+        final bottom = top + itemHeight;
+        final current = _completionScroll.offset;
+        final viewport = _completionScroll.position.viewportDimension;
+        if (top < current) {
+          _completionScroll.jumpTo(top);
+        } else if (bottom > current + viewport) {
+          _completionScroll.jumpTo(
+            (bottom - viewport).clamp(
+              0.0,
+              _completionScroll.position.maxScrollExtent,
+            ),
+          );
+        }
+      });
+    }
     if (widget.wordWrap != old.wordWrap) _keepTopLineOnWrapToggle(old.wordWrap);
     if (widget.revealLine != null && widget.revealTick != old.revealTick) {
       _scheduleReveal(widget.revealLine!);
@@ -759,6 +798,9 @@ class _CodeEditorState extends State<CodeEditor> {
 
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (widget.onCompletionKey?.call(event) == true) {
+      return KeyEventResult.handled;
+    }
     final keys = HardwareKeyboard.instance;
     final cmd =
         (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
@@ -938,6 +980,7 @@ class _CodeEditorState extends State<CodeEditor> {
     widget.controller.definitionHoverRange = null;
     _vertical.dispose();
     _horizontal.dispose();
+    _completionScroll.dispose();
     _gutter.dispose();
     _wrap.dispose();
     super.dispose();
@@ -1155,11 +1198,158 @@ class _CodeEditorState extends State<CodeEditor> {
             builder: (context, viewport) => Stack(
               children: [
                 _editorScroll(),
+                if (widget.onCompletionSelected != null)
+                  _completionOverlay(
+                    context,
+                    viewport.maxWidth,
+                    viewport.maxHeight,
+                  ),
                 if (_hoverMsgs.isNotEmpty && _hoverLine != null)
                   _hoverOverlay(context, viewport.maxWidth),
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _completionOverlay(
+    BuildContext context,
+    double viewportWidth,
+    double viewportHeight,
+  ) {
+    const popupWidth = 286.0;
+    final width = (viewportWidth - 12).clamp(0.0, popupWidth);
+    final caret = widget.controller.selection.baseOffset.clamp(
+      0,
+      widget.controller.text.length,
+    );
+    final pos = widget.controller.offsetToLineChar(caret);
+    final lineStart = caret - pos.character;
+    final prefix = widget.controller.text.substring(lineStart, caret);
+    final painter = TextPainter(
+      text: TextSpan(text: prefix, style: _codeStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final scrollH = _horizontal.hasClients ? _horizontal.offset : 0.0;
+    final scrollV = _vertical.hasClients ? _vertical.offset : 0.0;
+    final x = _gutterWidth + _codeLeftPadding + painter.width - scrollH;
+    painter.dispose();
+    final left = x.clamp(
+      0.0,
+      (viewportWidth - width).clamp(0.0, viewportWidth),
+    );
+    final below = _padTop + (pos.line + 1) * _lineHeight - scrollV + 3;
+    final popupHeight = (widget.completionItems.length * 31.0 + 14).clamp(
+      46.0,
+      236.0,
+    );
+    final top = below + popupHeight > viewportHeight
+        ? (_padTop + pos.line * _lineHeight - scrollV - popupHeight - 3).clamp(
+            4.0,
+            viewportHeight,
+          )
+        : below;
+    final colors = context.colors;
+    return Positioned(
+      left: left,
+      top: top,
+      width: width,
+      child: IgnorePointer(
+        ignoring: !widget.completionVisible,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 150),
+          reverseDuration: const Duration(milliseconds: 120),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -0.06),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: widget.completionVisible
+              ? Container(
+                  key: const ValueKey('http-variable-completion'),
+                  constraints: BoxConstraints(maxHeight: viewportHeight * 0.55),
+                  decoration: BoxDecoration(
+                    color: colors.panel2,
+                    border: Border.all(color: colors.border),
+                    borderRadius: BorderRadius.circular(7),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.shadow,
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: widget.completionItems.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Text(
+                            widget.completionEmptyLabel,
+                            style: context.typo.label.copyWith(
+                              fontSize: 11,
+                              color: colors.text3,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _completionScroll,
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          itemCount: widget.completionItems.length,
+                          itemExtent: 31,
+                          itemBuilder: (context, index) {
+                            final name = widget.completionItems[index];
+                            final selected = index == widget.completionIndex;
+                            return MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    widget.onCompletionSelected?.call(name),
+                                child: Container(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  color: selected
+                                      ? colors.accent.withValues(alpha: 0.16)
+                                      : null,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.data_object,
+                                        size: 14,
+                                        color: colors.accent,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: context.typo.mono.copyWith(
+                                            fontSize: 11.5,
+                                            color: colors.text,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                )
+              : const SizedBox.shrink(
+                  key: ValueKey('http-variable-completion-empty'),
+                ),
         ),
       ),
     );
@@ -1220,6 +1410,9 @@ class _CodeEditorState extends State<CodeEditor> {
           actions: _indentActions,
           child: TextField(
             controller: widget.controller,
+            inputFormatters: widget.autoCloseHttpVariables
+                ? const [HttpVariableBraceFormatter()]
+                : null,
             readOnly: widget.readOnly,
             focusNode: widget.focusNode,
             scrollController: _vertical,
