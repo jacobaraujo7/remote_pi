@@ -21,6 +21,7 @@ class HttpRequestOutcome {
   String? scriptError;
   List<String> logs = const [];
   List<HttpScriptTest> tests = const [];
+  final Map<HttpResponseFormat, Set<int>> responseFolds = {};
 }
 
 /// Estado de VISUALIZAÇÃO de uma tab `.http` que precisa sobreviver ao
@@ -202,6 +203,7 @@ class HttpTabState extends ChangeNotifier {
               environment: environment,
             );
             if (generation != _sourceGeneration) break;
+            outcome.responseFolds.clear();
             outcome
               ..result = execution.response
               ..error = execution.transportError
@@ -217,6 +219,7 @@ class HttpTabState extends ChangeNotifier {
           }
           final sent = await runner.send(requests[index], baseDir: baseDir);
           if (generation != _sourceGeneration) break;
+          outcome.responseFolds.clear();
           switch (sent) {
             case Success(:final value):
               outcome.result = value;

@@ -840,6 +840,7 @@ class _CodeEditorState extends State<CodeEditor> {
 
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (widget.readOnly) return KeyEventResult.ignored;
     if (widget.onCompletionKey?.call(event) == true) {
       return KeyEventResult.handled;
     }
@@ -973,6 +974,7 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   Object? _applyIndent({required bool outdent}) {
+    if (widget.readOnly) return null;
     final ctrl = widget.controller;
     final unit = _resolveIndentUnit();
     final next = outdent

@@ -13,6 +13,8 @@ import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_response_code_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_response_folds.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_script_completion.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
@@ -21,7 +23,6 @@ import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
-import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:file_picker/file_picker.dart';
@@ -1309,9 +1310,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       );
     }
 
-    final baseStyle = typo.mono.copyWith(fontSize: 12, color: colors.text2);
+    final format = _effectiveFormat(result);
     final language = switch (_view.pane) {
-      HttpResponsePane.response => switch (_effectiveFormat(result)) {
+      HttpResponsePane.response => switch (format) {
         HttpResponseFormat.json => result.prettyJson != null ? 'json' : null,
         HttpResponseFormat.html => 'xml',
         HttpResponseFormat.xml => 'xml',
@@ -1321,14 +1322,28 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       HttpResponsePane.headers => 'http',
       HttpResponsePane.tests => null,
     };
-    final span = language == null
-        ? null
-        : buildCodeSpan(
-            context,
-            source: text,
-            language: language,
-            baseStyle: baseStyle,
-          );
+    if (_view.pane == HttpResponsePane.headers ||
+        format != HttpResponseFormat.hex &&
+            format != HttpResponseFormat.base64) {
+      final foldSyntax = _view.pane == HttpResponsePane.headers
+          ? null
+          : switch (format) {
+              HttpResponseFormat.json when result.prettyJson != null =>
+                HttpResponseFoldSyntax.json,
+              HttpResponseFormat.xml => HttpResponseFoldSyntax.xml,
+              HttpResponseFormat.html => HttpResponseFoldSyntax.html,
+              _ => null,
+            };
+      return HttpResponseCodeView(
+        key: ValueKey((outcome, result, _view.pane, format)),
+        text: text,
+        language: language,
+        foldSyntax: foldSyntax,
+        foldedStarts: foldSyntax == null
+            ? <int>{}
+            : outcome.responseFolds.putIfAbsent(format, () => <int>{}),
+      );
+    }
 
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
@@ -1338,9 +1353,11 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       // explícito prendem tudo à esquerda.
       child: SizedBox(
         width: double.infinity,
-        child: span == null
-            ? SelectableText(text, textAlign: TextAlign.start, style: baseStyle)
-            : SelectableText.rich(span, textAlign: TextAlign.start),
+        child: SelectableText(
+          text,
+          textAlign: TextAlign.start,
+          style: typo.mono.copyWith(fontSize: 12, color: colors.text2),
+        ),
       ),
     );
   }

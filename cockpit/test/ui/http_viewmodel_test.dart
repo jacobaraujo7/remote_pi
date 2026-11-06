@@ -224,6 +224,23 @@ void main() {
     expect(state.outcomes[2].status, HttpRequestRunStatus.error);
   });
 
+  test('nova resposta reinicia somente seus próprios folds', () async {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    state.outcomes[0].responseFolds[HttpResponseFormat.json] = {1};
+    state.outcomes[1].responseFolds[HttpResponseFormat.xml] = {2};
+    final runner = _ControlledRunner();
+    final run = state.runRequests(
+      runner,
+      requests,
+      baseDir: '/api',
+      onlyIndex: 0,
+    );
+    runner.succeed(0);
+    await run;
+    expect(state.outcomes[0].responseFolds, isEmpty);
+    expect(state.outcomes[1].responseFolds[HttpResponseFormat.xml], {2});
+  });
+
   test('limpar resposta zera apenas o resultado selecionado', () {
     final state = HttpTabState()..syncSource(source, requests.length);
     state.outcomes[0]
