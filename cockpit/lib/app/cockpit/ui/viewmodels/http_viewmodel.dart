@@ -7,7 +7,9 @@ import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter/foundation.dart';
 
 /// Aba de baixo da view `.http`.
-enum HttpResponsePane { body, headers, raw, tests, script }
+enum HttpResponsePane { response, headers, tests }
+
+enum HttpResponseFormat { json, html, xml, javascript, raw, hex, base64 }
 
 enum HttpRequestRunStatus { idle, loading, success, error }
 
@@ -31,15 +33,24 @@ class HttpTabState extends ChangeNotifier {
   String? _source;
   int _sourceGeneration = 0;
   double split = 0.5;
-  HttpResponsePane pane = HttpResponsePane.body;
-
-  /// Corpo JSON mostrado cru em vez de indentado.
-  bool rawBody = false;
+  HttpResponsePane pane = HttpResponsePane.response;
+  HttpResponseFormat? format;
 
   HttpRequestOutcome? get selectedOutcome =>
       selectedRequest >= 0 && selectedRequest < outcomes.length
       ? outcomes[selectedRequest]
       : null;
+
+  void clearSelectedResponse() {
+    if (isRunning ||
+        selectedRequest < 0 ||
+        selectedRequest >= outcomes.length) {
+      return;
+    }
+    outcomes[selectedRequest] = HttpRequestOutcome();
+    pane = HttpResponsePane.response;
+    notifyListeners();
+  }
 
   /// Resultados só pertencem ao texto de onde vieram; editar o arquivo
   /// invalida a associação entre índices e seções.

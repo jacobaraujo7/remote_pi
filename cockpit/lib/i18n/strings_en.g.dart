@@ -2024,6 +2024,18 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Empty response body.'
 	String get emptyBody => 'Empty response body.';
 
+	/// en: 'Response'
+	String get response => 'Response';
+
+	/// en: 'Copy content'
+	String get copyResponse => 'Copy content';
+
+	/// en: 'Save response'
+	String get saveResponse => 'Save response';
+
+	/// en: 'Clear response'
+	String get clearResponse => 'Clear response';
+
 	/// en: 'JSON'
 	String get body => 'JSON';
 
@@ -4985,6 +4997,10 @@ extension on Translations {
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 request', other: '${n} requests', ), 
 			'cockpit.httpView.runHint' => 'Run this request to see its response here.',
 			'cockpit.httpView.emptyBody' => 'Empty response body.',
+			'cockpit.httpView.response' => 'Response',
+			'cockpit.httpView.copyResponse' => 'Copy content',
+			'cockpit.httpView.saveResponse' => 'Save response',
+			'cockpit.httpView.clearResponse' => 'Clear response',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
@@ -5090,12 +5106,12 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.visibleToAgents' => 'Visible to agents',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => 'off = hidden from the CLI, GUI only',
 			'cockpit.dbConnectionDialog.testing' => 'Testing connection…',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionOk' => 'Connection OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Connection failed',
 			'cockpit.dbConnectionDialog.editTitle' => 'Edit connection',
 			'cockpit.dbConnectionDialog.newTitle' => 'New connection',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
@@ -5604,12 +5620,12 @@ extension on Translations {
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} workspace(s)',
 			'settings.remoteHosts.deviceKeyTitle' => 'This device\'s key',
 			'settings.remoteHosts.deviceKeyDesc' => 'Add this public key to ~/.ssh/authorized_keys on the host so this device can connect.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.deviceKeyCopy' => 'Copy public key',
 			'settings.remoteHosts.deviceKeyCopied' => 'Public key copied',
 			'settings.remoteHosts.statusConnected' => 'Connected',
 			'settings.remoteHosts.statusConnecting' => 'Connecting…',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',

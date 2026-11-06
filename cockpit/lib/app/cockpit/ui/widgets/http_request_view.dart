@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
@@ -22,10 +23,17 @@ import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
+    show
+        Clipboard,
+        ClipboardData,
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -1034,7 +1042,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final doc = _doc;
     return Column(
       children: [
-        if (doc.requests.isNotEmpty) _resultSelector(context, doc),
+        if (doc.requests.isNotEmpty) _responseToolbar(context, doc),
         Expanded(child: _responseContent(context)),
       ],
     );
@@ -1082,44 +1090,87 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     setState(() => _view.selectedRequest = picked);
   }
 
-  Widget _resultSelector(BuildContext context, HttpDocument doc) {
+  Widget _responseToolbar(BuildContext context, HttpDocument doc) {
     final colors = context.colors;
     final selected = _view.selectedRequest.clamp(0, doc.requests.length - 1);
     final outcome = _view.outcomes[selected];
+    final tr = context.t.cockpit.httpView;
     return Container(
-      height: 37,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.centerLeft,
+      height: 38,
+      padding: const EdgeInsets.only(left: 10, right: 6),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Builder(
-        builder: (anchor) => HoverTap(
-          onTap: () => _pickResult(anchor, doc),
-          color: colors.panel3,
-          borderRadius: const BorderRadius.all(Radius.circular(4)),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _requestStatusIcon(context, outcome.status),
-              const SizedBox(width: 7),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 320),
-                child: Text(
-                  _requestOptionLabel(doc, selected),
-                  overflow: TextOverflow.ellipsis,
-                  style: context.typo.label.copyWith(
-                    fontSize: 11.5,
-                    color: colors.text2,
+      child: Row(
+        children: [
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Builder(
+                builder: (anchor) => HoverTap(
+                  onTap: () => _pickResult(anchor, doc),
+                  color: colors.panel3,
+                  borderRadius: const BorderRadius.all(Radius.circular(4)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _requestStatusIcon(context, outcome.status),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          _requestOptionLabel(doc, selected),
+                          overflow: TextOverflow.ellipsis,
+                          style: context.typo.label.copyWith(
+                            fontSize: 11.5,
+                            color: colors.text2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(
+                        Icons.keyboard_arrow_down,
+                        size: 14,
+                        color: colors.text3,
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 6),
-              Icon(Icons.keyboard_arrow_down, size: 14, color: colors.text3),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(width: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _PaneToggle(
+                  label: tr.response,
+                  active: _view.pane == HttpResponsePane.response,
+                  onTap: () =>
+                      setState(() => _view.pane = HttpResponsePane.response),
+                ),
+                _PaneToggle(
+                  label: tr.headers,
+                  count: outcome.result?.headers.length ?? 0,
+                  active: _view.pane == HttpResponsePane.headers,
+                  onTap: () =>
+                      setState(() => _view.pane = HttpResponsePane.headers),
+                ),
+                _PaneToggle(
+                  label: tr.tests,
+                  count: outcome.tests.length,
+                  active: _view.pane == HttpResponsePane.tests,
+                  onTap: () =>
+                      setState(() => _view.pane = HttpResponsePane.tests),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1131,31 +1182,11 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
     final outcome = _view.selectedOutcome;
     if (_view.pane == HttpResponsePane.tests && outcome != null) {
-      final lines = outcome.tests.isEmpty
-          ? tr.noTests
-          : outcome.tests
-                .map(
-                  (test) =>
-                      '${test.passed ? '✓' : '✕'} ${test.name}${test.message == null ? '' : ' — ${test.message}'}',
-                )
-                .join('\n');
+      final lines = _testsText(outcome, tr.noTests);
       return SingleChildScrollView(
         padding: const EdgeInsets.all(14),
         child: SelectableText(
           lines,
-          style: typo.mono.copyWith(fontSize: 12, color: colors.text2),
-        ),
-      );
-    }
-    if (_view.pane == HttpResponsePane.script && outcome != null) {
-      final text = [
-        if (outcome.scriptError != null) outcome.scriptError!,
-        ...outcome.logs,
-      ].join('\n');
-      return SingleChildScrollView(
-        padding: const EdgeInsets.all(14),
-        child: SelectableText(
-          text.isEmpty ? tr.noScriptOutput : text,
           style: typo.mono.copyWith(fontSize: 12, color: colors.text2),
         ),
       );
@@ -1212,7 +1243,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       );
     }
 
-    final text = _paneText(result);
+    final text = _paneText(result, outcome!);
     if (text.isEmpty) {
       return Center(
         child: Text(
@@ -1223,16 +1254,16 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     }
 
     final baseStyle = typo.mono.copyWith(fontSize: 12, color: colors.text2);
-    // Realce da resposta: JSON no Body (quando parseia), gramática do `.http`
-    // nos Headers (`Nome: valor`). Raw fica cru de propósito — é o modo "me
-    // mostra exatamente o que veio". `buildCodeSpan` devolve null quando não
-    // há o que pintar; aí cai no texto simples.
     final language = switch (_view.pane) {
-      HttpResponsePane.body => result.prettyJson != null ? 'json' : null,
+      HttpResponsePane.response => switch (_effectiveFormat(result)) {
+        HttpResponseFormat.json => result.prettyJson != null ? 'json' : null,
+        HttpResponseFormat.html => 'xml',
+        HttpResponseFormat.xml => 'xml',
+        HttpResponseFormat.javascript => 'javascript',
+        _ => null,
+      },
       HttpResponsePane.headers => 'http',
-      HttpResponsePane.raw => null,
       HttpResponsePane.tests => null,
-      HttpResponsePane.script => null,
     };
     final span = language == null
         ? null
@@ -1258,105 +1289,254 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     );
   }
 
-  /// Texto da aba corrente (Body/Headers/Raw) — mesma fonte para o render e
-  /// para o Copy, para nunca copiarem coisas diferentes.
-  String _paneText(HttpResponseResult result) => switch (_view.pane) {
-    HttpResponsePane.headers => [
-      for (final h in result.headers) '${h.name}: ${h.value}',
-    ].join('\n'),
-    HttpResponsePane.raw => result.bodyText,
-    HttpResponsePane.body => result.prettyJson ?? result.bodyText,
-    HttpResponsePane.tests => '',
-    HttpResponsePane.script => '',
-  };
+  String _testsText(HttpRequestOutcome outcome, String emptyLabel) {
+    final tests = outcome.tests
+        .map(
+          (test) =>
+              '${test.passed ? '✓' : '✕'} ${test.name}${test.message == null ? '' : ' — ${test.message}'}',
+        )
+        .toList();
+    final script = [
+      if (outcome.scriptError != null) outcome.scriptError!,
+      ...outcome.logs,
+    ];
+    return [
+      if (tests.isEmpty) emptyLabel else ...tests,
+      if (script.isNotEmpty) ...['', 'Script', ...script],
+    ].join('\n');
+  }
+
+  HttpResponseFormat _effectiveFormat(HttpResponseResult result) {
+    if (_view.format case final selected?) return selected;
+    final type = result.contentType.toLowerCase();
+    if (type.contains('html')) return HttpResponseFormat.html;
+    if (type.contains('xml')) return HttpResponseFormat.xml;
+    if (type.contains('javascript')) return HttpResponseFormat.javascript;
+    return result.prettyJson != null
+        ? HttpResponseFormat.json
+        : HttpResponseFormat.raw;
+  }
+
+  String _formatBody(HttpResponseResult result) =>
+      switch (_effectiveFormat(result)) {
+        HttpResponseFormat.json => result.prettyJson ?? result.bodyText,
+        HttpResponseFormat.html ||
+        HttpResponseFormat.xml ||
+        HttpResponseFormat.javascript ||
+        HttpResponseFormat.raw => result.bodyText,
+        HttpResponseFormat.hex =>
+          result.bodyBytes
+              .map((b) => b.toRadixString(16).padLeft(2, '0'))
+              .join(' '),
+        HttpResponseFormat.base64 => base64Encode(result.bodyBytes),
+      };
+
+  String _paneText(HttpResponseResult result, HttpRequestOutcome outcome) =>
+      switch (_view.pane) {
+        HttpResponsePane.headers => [
+          for (final h in result.headers) '${h.name}: ${h.value}',
+        ].join('\n'),
+        HttpResponsePane.response => _formatBody(result),
+        HttpResponsePane.tests => _testsText(
+          outcome,
+          context.t.cockpit.httpView.noTests,
+        ),
+      };
 
   Widget _footer(BuildContext context) {
     final colors = context.colors;
     final typo = context.typo;
     final tr = context.t.cockpit.httpView;
-    final result = _view.selectedOutcome?.result;
-    final info = StringBuffer();
-    if (result != null) {
-      info.write('${result.statusCode} ${result.reasonPhrase}'.trim());
-      info.write(' · ${result.elapsed.inMilliseconds} ms');
-      info.write(' · ${_humanBytes(result.sizeBytes)}');
-      if (result.truncated) info.write(tr.truncatedSuffix);
-    }
+    final outcome = _view.selectedOutcome;
+    final result = outcome?.result;
     return Container(
-      height: 26,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
+          if (result != null && _view.pane == HttpResponsePane.response)
+            Builder(
+              builder: (anchor) => HoverTap(
+                onTap: () => _pickResponseFormat(anchor),
+                color: colors.panel3,
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _formatLabel(_effectiveFormat(result)),
+                      style: typo.label.copyWith(
+                        fontSize: 10.5,
+                        color: colors.text2,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_drop_down, size: 14, color: colors.text3),
+                  ],
+                ),
+              ),
+            ),
+          const Spacer(),
           if (result != null) ...[
-            Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
+            Text(
+              '${result.statusCode} ${result.reasonPhrase}'.trim(),
+              style: typo.label.copyWith(
+                fontSize: 10.5,
                 color: _statusColor(context, result.statusCode),
               ),
             ),
-            const SizedBox(width: 6),
-          ],
-          Expanded(
-            child: Text(
-              info.toString(),
-              overflow: TextOverflow.ellipsis,
+            const SizedBox(width: 9),
+            Text(
+              '${(result.elapsed.inMilliseconds / 1000).toStringAsFixed(2)}s',
               style: typo.label.copyWith(fontSize: 10.5, color: colors.text3),
             ),
-          ),
-          // Seletor da view da resposta — mesmo lugar e mesmo estilo do
-          // toggle Table/JSON da tab `.dbq`.
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  if (result != null) ...[
-                    _PaneToggle(
-                      label: tr.body,
-                      active: _view.pane == HttpResponsePane.body,
-                      onTap: () =>
-                          setState(() => _view.pane = HttpResponsePane.body),
-                    ),
-                    _PaneToggle(
-                      label: tr.headers,
-                      active: _view.pane == HttpResponsePane.headers,
-                      onTap: () =>
-                          setState(() => _view.pane = HttpResponsePane.headers),
-                    ),
-                    _PaneToggle(
-                      label: tr.raw,
-                      active: _view.pane == HttpResponsePane.raw,
-                      onTap: () =>
-                          setState(() => _view.pane = HttpResponsePane.raw),
-                    ),
-                  ],
-                  if (_view.selectedOutcome?.status !=
-                      HttpRequestRunStatus.idle) ...[
-                    _PaneToggle(
-                      label: tr.tests,
-                      active: _view.pane == HttpResponsePane.tests,
-                      onTap: () =>
-                          setState(() => _view.pane = HttpResponsePane.tests),
-                    ),
-                    _PaneToggle(
-                      label: tr.script,
-                      active: _view.pane == HttpResponsePane.script,
-                      onTap: () =>
-                          setState(() => _view.pane = HttpResponsePane.script),
-                    ),
-                  ],
-                ],
-              ),
+            const SizedBox(width: 9),
+            Text(
+              _humanBytes(result.sizeBytes),
+              style: typo.label.copyWith(fontSize: 10.5, color: colors.text3),
             ),
+            if (result.truncated)
+              Tooltip(
+                tooltip: (_) => Text(tr.truncatedSuffix.trim()),
+                child: Icon(Icons.info_outline, size: 13, color: colors.warn),
+              ),
+            const SizedBox(width: 7),
+          ],
+          _responseAction(
+            context,
+            Icons.copy_outlined,
+            tr.copyResponse,
+            result == null
+                ? null
+                : () => Clipboard.setData(
+                    ClipboardData(text: _paneText(result, outcome!)),
+                  ),
+          ),
+          _responseAction(
+            context,
+            Icons.save_alt,
+            tr.saveResponse,
+            result == null ? null : _saveResponse,
+          ),
+          _responseAction(
+            context,
+            Icons.close,
+            tr.clearResponse,
+            outcome == null ||
+                    outcome.status == HttpRequestRunStatus.idle ||
+                    _view.isRunning
+                ? null
+                : _view.clearSelectedResponse,
           ),
         ],
       ),
     );
+  }
+
+  Widget _responseAction(
+    BuildContext context,
+    IconData icon,
+    String label,
+    VoidCallback? action,
+  ) {
+    final colors = context.colors;
+    return Tooltip(
+      tooltip: (_) => Text(label),
+      child: HoverTap(
+        onTap: action,
+        borderRadius: const BorderRadius.all(Radius.circular(4)),
+        padding: const EdgeInsets.all(4),
+        child: Icon(
+          icon,
+          size: 15,
+          color: action == null ? colors.text4 : colors.text2,
+        ),
+      ),
+    );
+  }
+
+  String _formatLabel(HttpResponseFormat format) => switch (format) {
+    HttpResponseFormat.json => 'JSON',
+    HttpResponseFormat.html => 'HTML',
+    HttpResponseFormat.xml => 'XML',
+    HttpResponseFormat.javascript => 'JavaScript',
+    HttpResponseFormat.raw => 'Raw',
+    HttpResponseFormat.hex => 'Hex',
+    HttpResponseFormat.base64 => 'Base64',
+  };
+
+  Future<void> _pickResponseFormat(BuildContext anchor) async {
+    final picked = await showAppMenu<HttpResponseFormat>(
+      anchor,
+      minWidth: 155,
+      items: [
+        for (final format in HttpResponseFormat.values)
+          AppMenuItem(
+            value: format,
+            label: _formatLabel(format),
+            selected:
+                format == _effectiveFormat(_view.selectedOutcome!.result!),
+          ),
+      ],
+    );
+    if (mounted && picked != null) setState(() => _view.format = picked);
+  }
+
+  Future<void> _saveResponse() async {
+    final outcome = _view.selectedOutcome;
+    final result = outcome?.result;
+    if (outcome == null || result == null) return;
+    final pane = _view.pane;
+    final format = _effectiveFormat(result);
+    final content = _paneText(result, outcome);
+    final rawBody =
+        pane == HttpResponsePane.response && format == HttpResponseFormat.raw;
+    final contentType = result.contentType.toLowerCase();
+    final extension = switch (pane) {
+      HttpResponsePane.headers || HttpResponsePane.tests => 'txt',
+      HttpResponsePane.response => switch (format) {
+        HttpResponseFormat.json => 'json',
+        HttpResponseFormat.html => 'html',
+        HttpResponseFormat.xml => 'xml',
+        HttpResponseFormat.javascript => 'js',
+        HttpResponseFormat.raw when contentType.contains('pdf') => 'pdf',
+        HttpResponseFormat.raw when contentType.contains('png') => 'png',
+        HttpResponseFormat.raw when contentType.contains('jpeg') => 'jpg',
+        HttpResponseFormat.raw when contentType.contains('svg') => 'svg',
+        HttpResponseFormat.raw when contentType.contains('text/plain') => 'txt',
+        HttpResponseFormat.raw => 'bin',
+        _ => 'txt',
+      },
+    };
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: context.t.cockpit.httpView.saveResponse,
+      fileName: 'response.$extension',
+      type: FileType.any,
+    );
+    if (path == null) return;
+    try {
+      if (rawBody) {
+        await File(path).writeAsBytes(result.bodyBytes);
+      } else {
+        await File(path).writeAsString(content);
+      }
+    } catch (_) {
+      if (!mounted) return;
+      showToast(
+        context: context,
+        location: ToastLocation.bottomRight,
+        builder: (context, _) => SurfaceCard(
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(context.t.cockpit.httpView.couldNotSave),
+          ),
+        ),
+      );
+    }
   }
 
   Color _statusColor(BuildContext context, int status) {
@@ -1376,31 +1556,61 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   }
 }
 
-/// Botão compacto do seletor Body/Headers/Raw no rodapé.
+/// Aba compacta da barra de resultados.
 class _PaneToggle extends StatelessWidget {
   const _PaneToggle({
     required this.label,
     required this.active,
     required this.onTap,
+    this.count,
   });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     return HoverTap(
       onTap: onTap,
-      color: active ? colors.panel3 : null,
-      borderRadius: const BorderRadius.all(Radius.circular(4)),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Text(
-        label,
-        style: context.typo.label.copyWith(
-          fontSize: 10.5,
-          color: active ? colors.text : colors.text4,
+      padding: const EdgeInsets.symmetric(horizontal: 9),
+      child: SizedBox(
+        height: 37,
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: context.typo.label.copyWith(
+                        fontSize: 11,
+                        color: active ? colors.text : colors.text3,
+                      ),
+                    ),
+                    if (count != null && count! > 0) ...[
+                      const SizedBox(width: 3),
+                      Text(
+                        '$count',
+                        style: context.typo.label.copyWith(
+                          fontSize: 9,
+                          color: colors.text4,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              height: 2,
+              color: active ? colors.accent : const Color(0x00000000),
+            ),
+          ],
         ),
       ),
     );

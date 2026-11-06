@@ -187,6 +187,26 @@ void main() {
     expect(state.outcomes[2].status, HttpRequestRunStatus.error);
   });
 
+  test('limpar resposta zera apenas o resultado selecionado', () {
+    final state = HttpTabState()..syncSource(source, requests.length);
+    state.outcomes[0]
+      ..status = HttpRequestRunStatus.success
+      ..result = _result('{"ok":true}');
+    state.outcomes[1]
+      ..status = HttpRequestRunStatus.error
+      ..error = const HttpRequestError(HttpRequestErrorKind.timeout);
+    state.selectedRequest = 1;
+    state.pane = HttpResponsePane.tests;
+
+    state.clearSelectedResponse();
+
+    expect(state.outcomes[0].status, HttpRequestRunStatus.success);
+    expect(state.outcomes[0].result, isNotNull);
+    expect(state.outcomes[1].status, HttpRequestRunStatus.idle);
+    expect(state.outcomes[1].error, isNull);
+    expect(state.pane, HttpResponsePane.response);
+  });
+
   test('editar o documento invalida resultados anteriores', () async {
     final state = HttpTabState()..syncSource(source, requests.length);
     final runner = _ControlledRunner();

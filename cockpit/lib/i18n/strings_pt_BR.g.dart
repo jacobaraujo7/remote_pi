@@ -955,6 +955,10 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	);
 	@override String get runHint => 'Execute este request para ver a resposta aqui.';
 	@override String get emptyBody => 'Corpo da resposta vazio.';
+	@override String get response => 'Resposta';
+	@override String get copyResponse => 'Copiar conteúdo';
+	@override String get saveResponse => 'Salvar resposta';
+	@override String get clearResponse => 'Limpar resposta';
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
 	@override String get raw => 'Text';
@@ -2565,6 +2569,10 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 request', other: '${n} requests', ), 
 			'cockpit.httpView.runHint' => 'Execute este request para ver a resposta aqui.',
 			'cockpit.httpView.emptyBody' => 'Corpo da resposta vazio.',
+			'cockpit.httpView.response' => 'Resposta',
+			'cockpit.httpView.copyResponse' => 'Copiar conteúdo',
+			'cockpit.httpView.saveResponse' => 'Salvar resposta',
+			'cockpit.httpView.clearResponse' => 'Limpar resposta',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
@@ -2670,12 +2678,12 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.visibleToAgents' => 'Visível para agentes',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => 'desligado = oculto da CLI, só na GUI',
 			'cockpit.dbConnectionDialog.testing' => 'Testando conexão…',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionOk' => 'Conexão OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Falha na conexão',
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexão',
 			'cockpit.dbConnectionDialog.newTitle' => 'Nova conexão',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexão inválida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
@@ -3184,12 +3192,12 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} workspace(s)',
 			'settings.remoteHosts.deviceKeyTitle' => 'Chave deste dispositivo',
 			'settings.remoteHosts.deviceKeyDesc' => 'Adicione esta chave pública ao ~/.ssh/authorized_keys do host para este dispositivo poder conectar.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.deviceKeyCopy' => 'Copiar chave pública',
 			'settings.remoteHosts.deviceKeyCopied' => 'Chave pública copiada',
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Não conectado',
