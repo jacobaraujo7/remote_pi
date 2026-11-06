@@ -153,6 +153,14 @@ hl.Mode _httpFileMode() {
           ],
         ),
       ),
+      // Continuação da URL (`?page=1` / `&size=20`) com a mesma cor do link.
+      hl.Mode(
+        className: 'string',
+        begin: r'^[ \t]*[?&]',
+        end: r'$',
+        relevance: 0,
+        contains: [interpolation],
+      ),
       // Scripts pré/pós-request: os delimitadores mantêm a cor de metadados,
       // enquanto o conteúdo usa a gramática JavaScript (strings, chamadas,
       // palavras-chave). Precisa vir antes da regra genérica `< arquivo`.

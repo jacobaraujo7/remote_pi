@@ -62,7 +62,7 @@ class HttpRequestFolds {
             .sublist(line + 1, end)
             .map((s) => s.trim())
             .where((s) => s.startsWith('?') || s.startsWith('&'))
-            .join(' ');
+            .join();
         visible.add(
           urlContinuation.isEmpty
               ? lines[line]

@@ -36,6 +36,16 @@ GET https://example.com/b
     expect(projection.text, 'GET https://example.com/get?show_env=1\n');
   });
 
+  test('fold mostra parâmetros de URL em uma linha, sem headers', () {
+    const text =
+        'GET https://example.com/products\n    ?page=1\n    &size=20\nAccept: application/json\n';
+    final folded = HttpRequestFolds.build(text, {0});
+    expect(
+      folded.text,
+      'GET https://example.com/products    ?page=1&size=20\n',
+    );
+  });
+
   test(
     'fold de script mostra só delimitadores e preserva linhas do gutter',
     () {

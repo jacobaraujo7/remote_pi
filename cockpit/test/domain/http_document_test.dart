@@ -80,6 +80,40 @@ void main() {
     expect(HttpDocument.unresolvedIn(r), isEmpty);
   });
 
+  test('parâmetros em linhas seguintes compõem a URL sem virar body', () {
+    const source = '''@baseUrl = https://shop.example
+GET {{baseUrl}}/api/products
+    ?page=1
+    &pageSize=20
+    &category=electronics
+    &sortBy=price
+    &sortOrder=asc
+    &includeInactive=false
+Accept: application/json
+''';
+    final document = HttpDocument.parse(source);
+    final request = document.requests.single;
+    expect(
+      request.url,
+      '{{baseUrl}}/api/products?page=1&pageSize=20&category=electronics&sortBy=price&sortOrder=asc&includeInactive=false',
+    );
+    expect(request.body, isNull);
+    expect(request.headers.single.name, 'Accept');
+    expect(
+      document.resolveRequest(request).url,
+      'https://shop.example/api/products?page=1&pageSize=20&category=electronics&sortBy=price&sortOrder=asc&includeInactive=false',
+    );
+  });
+
+  test('parâmetros no body não alteram a URL', () {
+    final document = HttpDocument.parse(
+      'POST https://example.test/x\n\n?page=1\n&size=2\n',
+    );
+    final request = document.requests.single;
+    expect(request.url, 'https://example.test/x');
+    expect(request.body, '?page=1\n&size=2');
+  });
+
   test('variável desconhecida sobra intacta e é reportada', () {
     final doc = HttpDocument.parse('GET https://a.b/{{missing}}\n');
     final r = doc.resolveRequest(doc.requests.single);

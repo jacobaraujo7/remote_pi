@@ -242,6 +242,17 @@ class HttpDocument {
 
       if (method == null) continue; // preâmbulo solto — ignora
 
+      // JetBrains HTTP Client: parâmetros da URL podem continuar nas linhas
+      // imediatamente abaixo do verbo. Não incluem espaços de indentação e
+      // não entram no body nem nos headers.
+      final continuation = line.trim();
+      if (headers.isEmpty &&
+          bodyFile == null &&
+          (continuation.startsWith('?') || continuation.startsWith('&'))) {
+        url = '${url!}$continuation';
+        continue;
+      }
+
       final file = _bodyFileLine.firstMatch(line);
       if (file != null) {
         bodyFile = file.group(1)!.trim();

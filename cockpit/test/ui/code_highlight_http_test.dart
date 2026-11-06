@@ -162,6 +162,18 @@ Content-Type: application/json
     },
   );
 
+  testWidgets('continuação da URL recebe realce e preserva variáveis', (
+    tester,
+  ) async {
+    const source =
+        'GET https://example.test/products\n    ?page={{page}}\n    &size=20';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    expect(colored.join(), contains('?page='));
+    expect(colored, contains('{{page}}'));
+    expect(colored.join(), contains('&size=20'));
+  });
+
   testWidgets(
     'body JSON é pintado como sub-idioma sem vazar para o próximo request',
     (tester) async {

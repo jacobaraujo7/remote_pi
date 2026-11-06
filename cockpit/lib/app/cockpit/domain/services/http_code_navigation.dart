@@ -71,18 +71,8 @@ class HttpCodeNavigation {
     final document = HttpDocument.parse(sourceText);
     for (final request in document.requests) {
       if (request.requestLine != sourceLine) continue;
-      var url = request.url;
-      final lines = sourceText.split('\n');
-      for (var i = request.requestLine + 1; i < request.endLine; i++) {
-        final continuation = lines[i].trim();
-        if (continuation.startsWith('?') || continuation.startsWith('&')) {
-          url += continuation;
-        } else {
-          break;
-        }
-      }
       final resolved = document.resolveRequest(
-        request.copyWith(url: url),
+        request,
         environment: catalog.valuesFor(environment),
       );
       final uri = Uri.tryParse(resolved.url);
