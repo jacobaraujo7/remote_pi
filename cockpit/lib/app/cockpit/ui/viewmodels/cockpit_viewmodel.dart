@@ -2790,7 +2790,10 @@ class CockpitViewModel extends ChangeNotifier
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
     try {
-      return await url_launcher.launchUrl(uri);
+      return await url_launcher.launchUrl(
+        uri,
+        mode: url_launcher.LaunchMode.externalApplication,
+      );
     } on PlatformException {
       return false;
     }

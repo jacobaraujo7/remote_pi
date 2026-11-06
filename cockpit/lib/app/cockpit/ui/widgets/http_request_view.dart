@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_code_navigation.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
@@ -20,6 +21,7 @@ import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
@@ -236,6 +238,38 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     _rebuildFoldedText();
     _refreshUnresolvedVariables();
     setState(() {});
+  }
+
+  HttpCodeLink? _codeLinkAt(int offset) {
+    final display = _foldedStarts.isEmpty ? _text.text : _foldedText.text;
+    if (offset < 0 || offset >= display.length) return null;
+    final displayLine = '\n'.allMatches(display.substring(0, offset)).length;
+    final sourceLine = _foldedStarts.isEmpty
+        ? displayLine
+        : _foldProjection.lineNumbers[displayLine] - 1;
+    return HttpCodeNavigation.linkAt(
+      displayText: display,
+      offset: offset,
+      sourceText: _text.text,
+      sourcePath: widget.session.path,
+      sourceLine: sourceLine,
+      environment: widget.session.httpEnvironment,
+      catalog: _catalog,
+    );
+  }
+
+  void _openCodeLink(int offset) {
+    final link = _codeLinkAt(offset);
+    if (link == null) return;
+    final vm = context.read<CockpitViewModel>();
+    if (link.path case final path?) {
+      unawaited(vm.openFile(path, isPreview: false, revealLine: link.line));
+    } else if (link.url case final url?) {
+      if (defaultTargetPlatform == TargetPlatform.linux ||
+          vm.openWebBrowser(url, projectId: widget.session.projectId) == null) {
+        unawaited(vm.openUrlExternally(url));
+      }
+    }
   }
 
   /// Mudança vinda do disco (watcher / agente salvou): adota o conteúdo novo
@@ -532,6 +566,13 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           onCodeTap: _foldedStarts.isEmpty
                               ? null
                               : _expandForEdit,
+                          linkRangeAt: (offset) {
+                            final link = _codeLinkAt(offset);
+                            return link == null
+                                ? null
+                                : (start: link.start, end: link.end);
+                          },
+                          onLinkTap: _openCodeLink,
                           lineNumbers: _foldedStarts.isEmpty
                               ? null
                               : _foldProjection.lineNumbers,

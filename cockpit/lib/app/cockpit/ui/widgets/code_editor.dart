@@ -75,6 +75,8 @@ class CodeEditor extends StatefulWidget {
     this.revealMatchStart,
     this.revealMatchTick = 0,
     this.onGoToDefinition,
+    this.linkRangeAt,
+    this.onLinkTap,
     this.filePath,
     this.wordWrap = false,
     this.lineActions = const {},
@@ -92,6 +94,10 @@ class CodeEditor extends StatefulWidget {
 
   /// Callback quando Cmd/Ctrl+clique (go-to-definition). Passa {line, character}.
   final void Function(({int line, int character}))? onGoToDefinition;
+
+  /// Alvos próprios do editor (por exemplo, referências de arquivos HTTP).
+  final ({int start, int end})? Function(int offset)? linkRangeAt;
+  final void Function(int offset)? onLinkTap;
 
   /// Caminho do arquivo (só a extensão é usada: fallback da largura de
   /// indentação quando o conteúdo não dá pista). `null` = 4 espaços.
@@ -547,6 +553,7 @@ class _CodeEditorState extends State<CodeEditor> {
   // Go-to-definition: detecta modificador (Cmd/Ctrl) + hover + tap.
   bool _definitionModeActive = false;
   bool _definitionModeHovered = false;
+  int? _definitionHoverOffset;
   MouseCursor _defCursor = SystemMouseCursors.text;
   TextStyle? _codeStyle; // cache do build(), usado pro hit-test do hover
   double _gutterWidth = 0; // idem — largura medida do bloco do gutter
@@ -578,13 +585,17 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   void _updateDefinitionMode() {
-    final keys = HardwareKeyboard.instance;
-    final isCmd =
-        (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
-        keys.isControlPressed;
+    final isCmd = _definitionModifierPressed;
     if (isCmd != _definitionModeActive) {
       setState(() => _definitionModeActive = isCmd);
     }
+  }
+
+  bool get _definitionModifierPressed {
+    final keys = HardwareKeyboard.instance;
+    return (defaultTargetPlatform == TargetPlatform.macOS &&
+            keys.isMetaPressed) ||
+        keys.isControlPressed;
   }
 
   /// Converte a posição do mouse em offset do buffer, descontando gutter,
@@ -641,7 +652,11 @@ class _CodeEditorState extends State<CodeEditor> {
     if (!_definitionModeActive) return _clearDefinitionHover();
     final offset = _offsetAtHover(event);
     if (offset == null) return _clearDefinitionHover();
-    final range = widget.controller.wordRangeAt(offset);
+    final range = widget.linkRangeAt != null
+        ? widget.linkRangeAt!(offset)
+        : widget.onGoToDefinition != null
+        ? widget.controller.wordRangeAt(offset)
+        : null;
 
     final hovered = range != null;
     if (hovered != _definitionModeHovered) {
@@ -653,6 +668,7 @@ class _CodeEditorState extends State<CodeEditor> {
       });
     }
     widget.controller.definitionHoverRange = range;
+    _definitionHoverOffset = range == null ? null : offset;
   }
 
   void _clearDefinitionHover() {
@@ -663,13 +679,31 @@ class _CodeEditorState extends State<CodeEditor> {
       });
     }
     widget.controller.definitionHoverRange = null;
+    _definitionHoverOffset = null;
   }
 
   void _onDefinitionTap() {
+    if (widget.onLinkTap != null) {
+      final offset = _linkOffsetAtTap();
+      if (offset != null) widget.onLinkTap!(offset);
+      return;
+    }
     final offset = widget.controller.selection.baseOffset;
     if (offset < 0) return;
     final pos = widget.controller.offsetToLineChar(offset);
     widget.onGoToDefinition?.call(pos);
+  }
+
+  int? _linkOffsetAtTap() {
+    final selection = widget.controller.selection.baseOffset;
+    for (final offset in [selection, selection - 1, _definitionHoverOffset]) {
+      if (offset != null &&
+          offset >= 0 &&
+          widget.linkRangeAt?.call(offset) != null) {
+        return offset;
+      }
+    }
+    return null;
   }
 
   void _clearHover() {
@@ -1195,9 +1229,14 @@ class _CodeEditorState extends State<CodeEditor> {
             minLines: null,
             expands: true,
             keyboardType: TextInputType.multiline,
-            onTap:
-                widget.onCodeTap ??
-                (_definitionModeActive ? _onDefinitionTap : null),
+            onTap: () {
+              if (_definitionModifierPressed &&
+                  (_definitionModeHovered || _linkOffsetAtTap() != null)) {
+                _onDefinitionTap();
+              } else {
+                widget.onCodeTap?.call();
+              }
+            },
             mouseCursor: _defCursor,
             decoration: const InputDecoration(
               isCollapsed: true,

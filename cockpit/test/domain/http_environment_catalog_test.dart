@@ -32,6 +32,16 @@ void main() {
         'client.port': '8080',
       });
       expect(catalog.valuesFor('prod'), {'host': 'production'});
+      expect(
+        catalog.definitionFor('dev', 'host')?.path,
+        '/api/auth/http-client.env.json',
+      );
+      expect(catalog.definitionFor('dev', 'host')?.line, 1);
+      expect(
+        catalog.definitionFor('dev', 'token')?.path,
+        '/api/auth/http-client.private.env.json',
+      );
+      expect(catalog.definitionFor('dev', 'client.port')?.line, 2);
     },
   );
 
