@@ -378,6 +378,7 @@ class _Translations$core$menu$zh extends Translations$core$menu$en {
 	@override String get file => '文件';
 	@override String get newTerminal => '新建终端';
 	@override String get newFile => '新建文件';
+	@override String get closeTab => '关闭标签页';
 	@override String get openWorkspace => '打开工作区';
 	@override String get goToFile => '转到文件…';
 	@override String get save => '保存';
@@ -419,6 +420,10 @@ class _Translations$cockpit$confirmDialog$zh extends Translations$cockpit$confir
 	@override String unsavedChangesMessage({required Object fileName}) => '「${fileName}」有未保存的更改。关闭前要保存吗？';
 	@override String get dontSave => '不保存';
 	@override String get saveAndClose => '保存并关闭';
+	@override String get closeTerminalTitle => '关闭终端？';
+	@override String get closeTerminalMessage => '确定要关闭此终端标签页吗？';
+	@override String get doNotAskAgain => '不再询问';
+	@override String get close => '关闭';
 }
 
 // Path: cockpit.neovim
@@ -1884,6 +1889,8 @@ class _Translations$settings$page$terminal$zh extends Translations$settings$page
 	@override String get sectionBehavior => '行为';
 	@override String get closeOnExitTitle => 'shell 退出时关闭标签页';
 	@override String get closeOnExitDesc => '当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。';
+	@override String get confirmCloseTerminalTitle => '关闭终端前确认';
+	@override String get confirmCloseTerminalDesc => '关闭终端标签页前显示确认对话框。';
 }
 
 // Path: settings.page.appearance
@@ -2105,6 +2112,7 @@ extension on TranslationsZh {
 			'core.menu.file' => '文件',
 			'core.menu.newTerminal' => '新建终端',
 			'core.menu.newFile' => '新建文件',
+			'core.menu.closeTab' => '关闭标签页',
 			'core.menu.openWorkspace' => '打开工作区',
 			'core.menu.goToFile' => '转到文件…',
 			'core.menu.save' => '保存',
@@ -2160,6 +2168,10 @@ extension on TranslationsZh {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '「${fileName}」有未保存的更改。关闭前要保存吗？',
 			'cockpit.confirmDialog.dontSave' => '不保存',
 			'cockpit.confirmDialog.saveAndClose' => '保存并关闭',
+			'cockpit.confirmDialog.closeTerminalTitle' => '关闭终端？',
+			'cockpit.confirmDialog.closeTerminalMessage' => '确定要关闭此终端标签页吗？',
+			'cockpit.confirmDialog.doNotAskAgain' => '不再询问',
+			'cockpit.confirmDialog.close' => '关闭',
 			'cockpit.neovim.unavailable' => 'Neovim 不可用。改为在 Cockpit 中打开。',
 			'cockpit.neovim.openFailed' => '无法连接 Neovim。改为在 Cockpit 中打开。',
 			'cockpit.neovim.unsavedTitle' => 'Neovim 有未保存的缓冲区',
@@ -2581,13 +2593,13 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -2964,6 +2976,8 @@ extension on TranslationsZh {
 			'settings.page.terminal.sectionBehavior' => '行为',
 			'settings.page.terminal.closeOnExitTitle' => 'shell 退出时关闭标签页',
 			'settings.page.terminal.closeOnExitDesc' => '当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。',
+			'settings.page.terminal.confirmCloseTerminalTitle' => '关闭终端前确认',
+			'settings.page.terminal.confirmCloseTerminalDesc' => '关闭终端标签页前显示确认对话框。',
 			'settings.page.appearance.sectionTheme' => '主题',
 			'settings.page.appearance.themeTitle' => '主题',
 			'settings.page.appearance.themeDesc' => '应用颜色、代码高亮和终端配色。',
@@ -3093,6 +3107,8 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => '工作原理',
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
@@ -3100,8 +3116,6 @@ extension on TranslationsZh {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

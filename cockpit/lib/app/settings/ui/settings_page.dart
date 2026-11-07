@@ -1158,6 +1158,14 @@ class _TerminalPanel extends StatelessWidget {
                         onChanged: controller.setCloseTabOnShellExit,
                       ),
                     ),
+                    _Row(
+                      title: tr.confirmCloseTerminalTitle,
+                      description: tr.confirmCloseTerminalDesc,
+                      trailing: Switch(
+                        value: controller.settings.confirmCloseTerminal,
+                        onChanged: controller.setConfirmCloseTerminal,
+                      ),
+                    ),
                   ],
                 ),
               ),

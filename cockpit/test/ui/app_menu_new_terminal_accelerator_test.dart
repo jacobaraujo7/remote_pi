@@ -66,6 +66,40 @@ void main() {
     expect(activator.shift, isFalse);
   });
 
+  test('Close Tab carries the primary-modifier + W accelerator and is handled externally', () {
+    final t = AppLocale.en.buildSync();
+    final controller = SettingsController(_FakeSettingsStore());
+    final editor = EditorMenuBridge();
+    var closed = 0;
+    final workspace = WorkspaceMenuBridge()
+      ..setWorkspace(hasWorkspace: true, onCloseTab: () => closed++);
+
+    final menus = buildAppMenus(t, controller, editor, workspace);
+    final closeTab = _findAction(menus, t.core.menu.closeTab);
+
+    expect(closeTab, isNotNull, reason: 'Close Tab item must exist');
+    expect(closeTab!.onSelected, isNotNull, reason: 'enabled while workspace is active');
+
+    final accelerator = closeTab.accelerator;
+    expect(accelerator, isNotNull, reason: 'Close Tab must have a shortcut');
+    expect(accelerator!.key, LogicalKeyboardKey.keyW);
+    expect(accelerator.shift, isFalse);
+
+    final activator = accelerator.resolve();
+    expect(activator.trigger, LogicalKeyboardKey.keyW);
+    expect(activator.meta, Platform.isMacOS);
+    expect(activator.control, !Platform.isMacOS);
+
+    closeTab.onSelected!();
+    expect(closed, 1);
+
+    expect(closeTab.shortcutHandledExternally, isTrue);
+    expect(
+      menuShortcuts(menus).keys.any((a) => a.trigger == LogicalKeyboardKey.keyW),
+      isFalse,
+    );
+  });
+
   test('Go to File carries ⌘P/Ctrl+P and reaches the shell callback', () {
     final t = AppLocale.en.buildSync();
     final controller = SettingsController(_FakeSettingsStore());
