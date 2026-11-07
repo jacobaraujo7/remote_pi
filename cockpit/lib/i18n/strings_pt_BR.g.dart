@@ -456,6 +456,7 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get file => 'Arquivo';
 	@override String get newTerminal => 'Novo Terminal';
 	@override String get newFile => 'Novo Arquivo';
+	@override String get closeTab => 'Fechar Aba';
 	@override String get openWorkspace => 'Abrir Workspace';
 	@override String get goToFile => 'Ir para Arquivo…';
 	@override String get save => 'Salvar';
@@ -497,6 +498,10 @@ class _Translations$cockpit$confirmDialog$pt_BR extends Translations$cockpit$con
 	@override String unsavedChangesMessage({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?';
 	@override String get dontSave => 'Não salvar';
 	@override String get saveAndClose => 'Salvar e fechar';
+	@override String get closeTerminalTitle => 'Fechar terminal?';
+	@override String get closeTerminalMessage => 'Deseja realmente fechar esta aba de terminal?';
+	@override String get doNotAskAgain => 'Não perguntar novamente';
+	@override String get close => 'Fechar';
 }
 
 // Path: cockpit.neovim
@@ -1962,6 +1967,8 @@ class _Translations$settings$page$terminal$pt_BR extends Translations$settings$p
 	@override String get sectionBehavior => 'Comportamento';
 	@override String get closeOnExitTitle => 'Fechar a aba quando o shell encerrar';
 	@override String get closeOnExitDesc => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.';
+	@override String get confirmCloseTerminalTitle => 'Confirmar antes de fechar terminal';
+	@override String get confirmCloseTerminalDesc => 'Exibir diálogo de confirmação antes de fechar uma aba de terminal.';
 }
 
 // Path: settings.page.appearance
@@ -2183,6 +2190,7 @@ extension on TranslationsPtBr {
 			'core.menu.file' => 'Arquivo',
 			'core.menu.newTerminal' => 'Novo Terminal',
 			'core.menu.newFile' => 'Novo Arquivo',
+			'core.menu.closeTab' => 'Fechar Aba',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
 			'core.menu.goToFile' => 'Ir para Arquivo…',
 			'core.menu.save' => 'Salvar',
@@ -2238,6 +2246,10 @@ extension on TranslationsPtBr {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?',
 			'cockpit.confirmDialog.dontSave' => 'Não salvar',
 			'cockpit.confirmDialog.saveAndClose' => 'Salvar e fechar',
+			'cockpit.confirmDialog.closeTerminalTitle' => 'Fechar terminal?',
+			'cockpit.confirmDialog.closeTerminalMessage' => 'Deseja realmente fechar esta aba de terminal?',
+			'cockpit.confirmDialog.doNotAskAgain' => 'Não perguntar novamente',
+			'cockpit.confirmDialog.close' => 'Fechar',
 			'cockpit.neovim.unavailable' => 'O Neovim não está disponível. Abrindo no Cockpit.',
 			'cockpit.neovim.openFailed' => 'Não foi possível acessar o Neovim. Abrindo no Cockpit.',
 			'cockpit.neovim.unsavedTitle' => 'Buffers não salvos no Neovim',
@@ -2659,13 +2671,13 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Escolher chave privada SSH',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Senha da chave',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Salvar senha da chave',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'A senha fica salva no host, não nesta máquina.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Host SSH desconhecido',
@@ -3042,6 +3054,8 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
+			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirmar antes de fechar terminal',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Exibir diálogo de confirmação antes de fechar uma aba de terminal.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
@@ -3171,6 +3185,8 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Não conectado',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',
@@ -3178,8 +3194,6 @@ extension on TranslationsPtBr {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} não respondeu em ${seconds} segundos.',
 			'automation.error.cancelled' => 'A geração da mensagem de commit foi cancelada.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} não conseguiu gerar uma mensagem de commit.',
 			'automation.error.invalidResponse' => 'A automação devolveu uma mensagem de commit vazia.',

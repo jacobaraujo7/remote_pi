@@ -5,6 +5,7 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:flutter/services.dart';
 import '../../../core/ui/themes/themes.dart';
 import '../../../../i18n/strings.g.dart';
+import '../actions/tab_actions.dart';
 import '../session/orchestration_session.dart';
 import '../states/pane_node.dart';
 import 'pane_divider.dart';
@@ -193,6 +194,10 @@ class OrchestrationTerminalsView extends StatelessWidget {
                     shift: true,
                   ): () =>
                       session.context.cycleTerminalTab(-1),
+                  ...terminalOwnerShortcuts(
+                    onNewTerminal: () => session.context.newTerminal(),
+                    onCloseTab: () => unawaited(closeActiveTab(context)),
+                  ),
                 },
               ),
             );

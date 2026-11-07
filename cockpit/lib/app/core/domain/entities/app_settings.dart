@@ -46,6 +46,7 @@ class AppSettings {
     this.formatOnSave = false,
     this.editorWordWrap,
     this.closeTabOnShellExit = false,
+    this.confirmCloseTerminal = true,
     this.fileEditorEngine = FileEditorEngine.cockpit,
     this.notificationsEnabled = true,
     this.soundEvents = const <SoundEvent, bool>{},
@@ -131,6 +132,9 @@ class AppSettings {
   /// Fecha a aba quando o shell encerra sozinho (ex.: `exit`, Ctrl-D), em vez
   /// de deixar um terminal morto na tela. Só vale para abas de shell.
   final bool closeTabOnShellExit;
+
+  /// Pede confirmação antes de fechar uma aba de terminal.
+  final bool confirmCloseTerminal;
 
   /// Motor global de arquivos comuns. Visualizações especializadas e arquivos
   /// remotos continuam no Cockpit, independentemente desta preferência.
@@ -274,6 +278,7 @@ class AppSettings {
     bool? editorWordWrap,
     bool clearEditorWordWrap = false,
     bool? closeTabOnShellExit,
+    bool? confirmCloseTerminal,
     FileEditorEngine? fileEditorEngine,
     bool? notificationsEnabled,
     Map<SoundEvent, bool>? soundEvents,
@@ -327,6 +332,7 @@ class AppSettings {
           ? null
           : (editorWordWrap ?? this.editorWordWrap),
       closeTabOnShellExit: closeTabOnShellExit ?? this.closeTabOnShellExit,
+      confirmCloseTerminal: confirmCloseTerminal ?? this.confirmCloseTerminal,
       fileEditorEngine: fileEditorEngine ?? this.fileEditorEngine,
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       soundEvents: soundEvents ?? this.soundEvents,
@@ -379,6 +385,7 @@ class AppSettings {
     // Só quando escolhido: ausência = padrão da linguagem.
     if (editorWordWrap != null) 'editor.wordWrap': editorWordWrap,
     if (closeTabOnShellExit) 'closeTabOnShellExit': true,
+    if (!confirmCloseTerminal) 'confirmCloseTerminal': false,
     'editor.engine': fileEditorEngine.name,
     if (!notificationsEnabled) 'notificationsEnabled': false,
     if (soundEvents.isNotEmpty)
@@ -464,6 +471,7 @@ class AppSettings {
       formatOnSave: json['formatOnSave'] as bool? ?? false,
       editorWordWrap: json['editor.wordWrap'] as bool?,
       closeTabOnShellExit: json['closeTabOnShellExit'] as bool? ?? false,
+      confirmCloseTerminal: json['confirmCloseTerminal'] as bool? ?? true,
       fileEditorEngine: _enumByName(
         FileEditorEngine.values,
         json['editor.engine'],

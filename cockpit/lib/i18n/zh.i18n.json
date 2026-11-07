@@ -44,6 +44,7 @@
       "file": "文件",
       "newTerminal": "新建终端",
       "newFile": "新建文件",
+      "closeTab": "关闭标签页",
       "openWorkspace": "打开工作区",
       "goToFile": "转到文件…",
       "save": "保存",
@@ -104,7 +105,11 @@
       "unsavedChangesTitle": "未保存的更改",
       "unsavedChangesMessage": "「${fileName}」有未保存的更改。关闭前要保存吗？",
       "dontSave": "不保存",
-      "saveAndClose": "保存并关闭"
+      "saveAndClose": "保存并关闭",
+      "closeTerminalTitle": "关闭终端？",
+      "closeTerminalMessage": "确定要关闭此终端标签页吗？",
+      "doNotAskAgain": "不再询问",
+      "close": "关闭"
     },
     "neovim": {
       "unavailable": "Neovim 不可用。改为在 Cockpit 中打开。",
@@ -1052,7 +1057,9 @@
         "noWslMessage": "未找到 WSL 发行版。安装一个（wsl.exe --install）并重启 Cockpit 后，它会出现在这里。",
         "sectionBehavior": "行为",
         "closeOnExitTitle": "shell 退出时关闭标签页",
-        "closeOnExitDesc": "当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。"
+        "closeOnExitDesc": "当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。",
+        "confirmCloseTerminalTitle": "关闭终端前确认",
+        "confirmCloseTerminalDesc": "关闭终端标签页前显示确认对话框。"
       },
       "appearance": {
         "sectionTheme": "主题",
