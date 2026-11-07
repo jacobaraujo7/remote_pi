@@ -4187,6 +4187,10 @@ class CockpitViewModel extends ChangeNotifier
   Future<void> openWithDefaultApp(String path) =>
       _launcher.openWithDefaultApp(path);
 
+  /// Revela [path] no gerenciador de arquivos do SO (Explorer / Finder / Files).
+  Future<void> revealInFileManager(String path) =>
+      _launcher.revealInFileManager(path);
+
   // ---- realms ---------------------------------------------------------------
   /// Troca o recorte do rail pro realm [id], **sem reiniciar nada**: sessões de
   /// workspaces do realm anterior seguem vivas (notificações inclusas); só a

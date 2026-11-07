@@ -12,4 +12,8 @@ abstract class AppLauncherGateway {
   /// Abre [path] no **app padrão do SO** para aquele tipo de arquivo (macOS
   /// `open`, Linux `xdg-open`, Windows `start`). Funciona para arquivo e pasta.
   Future<void> openWithDefaultApp(String path);
+
+  /// Revela [path] no gerenciador de arquivos do SO (Explorer /select no Windows,
+  /// open -R no macOS, xdg-open no Linux).
+  Future<void> revealInFileManager(String path);
 }
