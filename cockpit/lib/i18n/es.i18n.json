@@ -44,6 +44,7 @@
       "file": "Archivo",
       "newTerminal": "Nueva Terminal",
       "newFile": "Nuevo Archivo",
+      "closeTab": "Cerrar Pestaña",
       "openWorkspace": "Abrir Workspace",
       "goToFile": "Ir a Archivo…",
       "save": "Guardar",
@@ -104,7 +105,11 @@
       "unsavedChangesTitle": "Cambios sin guardar",
       "unsavedChangesMessage": "“${fileName}” tiene cambios sin guardar. ¿Guardarlos antes de cerrar?",
       "dontSave": "No guardar",
-      "saveAndClose": "Guardar y cerrar"
+      "saveAndClose": "Guardar y cerrar",
+      "closeTerminalTitle": "¿Cerrar terminal?",
+      "closeTerminalMessage": "¿Seguro que deseas cerrar esta pestaña de terminal?",
+      "doNotAskAgain": "No volver a preguntar",
+      "close": "Cerrar"
     },
     "neovim": {
       "unavailable": "Neovim no está disponible. Abriendo en Cockpit.",
@@ -1073,7 +1078,9 @@
         "noWslMessage": "No se encontraron distros de WSL. Instala una (wsl.exe --install) y reinicia Cockpit para verla listada aquí.",
         "sectionBehavior": "Comportamiento",
         "closeOnExitTitle": "Cerrar la pestaña cuando el shell termine",
-        "closeOnExitDesc": "Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto."
+        "closeOnExitDesc": "Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.",
+        "confirmCloseTerminalTitle": "Confirmar antes de cerrar terminal",
+        "confirmCloseTerminalDesc": "Mostrar un diálogo de confirmación antes de cerrar una pestaña de terminal."
       },
       "appearance": {
         "sectionTheme": "Tema",

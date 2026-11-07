@@ -467,6 +467,7 @@ class _CockpitPageState extends State<CockpitPage> {
       hasWorkspace: vm.selectedProject != null,
       onNewTerminal: vm.newTerminalForFocusedTab,
       onNewFile: vm.openScratchText,
+      onCloseTab: _closeActiveTab,
       onGoToFile: _openFileFinder,
       onSplitRight: () => _splitFocused(SplitDir.vertical),
       onSplitDown: () => _splitFocused(SplitDir.horizontal),
@@ -673,13 +674,25 @@ class _CockpitPageState extends State<CockpitPage> {
         _focusContentSearch,
     const SingleActivator(LogicalKeyboardKey.keyF, control: true, shift: true):
         _focusContentSearch,
-    // ⌘W / Ctrl+W fecha a ABA (não a janela): é o que a aba de um editor
-    // significa em qualquer IDE. Passa pela mesma confirmação do X do título,
-    // então arquivo não salvo continua perguntando antes de sumir.
+    // Cmd+T / Ctrl+T: nova aba de terminal na pane focada.
+    const SingleActivator(LogicalKeyboardKey.keyT, meta: true): _newTerminal,
+    const SingleActivator(LogicalKeyboardKey.keyT, control: true): _newTerminal,
+    // Cmd+W / Ctrl+W fecha a ABA (nao a janela): e o que a aba de um editor
+    // significa em qualquer IDE. Passa pela mesma confirmacao do X do titulo,
+    // entao arquivo nao salvo continua perguntando antes de sumir.
     const SingleActivator(LogicalKeyboardKey.keyW, meta: true): _closeActiveTab,
     const SingleActivator(LogicalKeyboardKey.keyW, control: true):
         _closeActiveTab,
+    const SingleActivator(LogicalKeyboardKey.keyW, meta: true, shift: true):
+        _closeActiveTab,
+    const SingleActivator(LogicalKeyboardKey.keyW, control: true, shift: true):
+        _closeActiveTab,
   };
+
+  void _newTerminal() {
+    if (_vm.selectedProject == null) return;
+    _vm.newTerminalForFocusedTab();
+  }
 
   void _closeActiveTab() => unawaited(closeActiveTab(context));
 
@@ -687,10 +700,10 @@ class _CockpitPageState extends State<CockpitPage> {
   /// [HardwareKeyboard] (registrado no initState), não um `CallbackShortcuts`:
   ///
   /// - `CallbackShortcuts` só recebe teclas com o foco primário DENTRO da
-  ///   subtree — ciclar o realm destrói o nó focado (terminal/agente da árvore
+  ///   subtree - ciclar o realm destrói o nó focado (terminal/agente da árvore
   ///   antiga), o foco cai pro scope raiz e o atalho morria após o 1º uso;
   /// - casa pela **physical key**: a logical de ⇧` no macOS vira `~` (e a
-  ///   combinação ⌘⇧ não batia com backquote nem tilde de forma confiável) —
+  ///   combinação ⌘⇧ não batia com backquote nem tilde de forma confiável) -
   ///   pela física, Shift só decide a direção.
   ///
   /// Só `KeyDownEvent` (repeat não re-dispara); com Alt junto, ignora.

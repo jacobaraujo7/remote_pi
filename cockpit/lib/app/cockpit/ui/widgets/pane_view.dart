@@ -361,6 +361,7 @@ class _TabStripState extends State<_TabStrip> {
         context,
         widget.vm.session(id),
         () => widget.vm.closeTab(widget.pane.id, id),
+        skipTerminalConfirmation: true,
       );
       if (!mounted || !closed) return;
     }
@@ -1872,6 +1873,11 @@ class _PaneBodyState extends State<_PaneBody> {
                     cwd: item.workingDirectory,
                     line: line,
                   ),
+              ownerShortcuts: terminalOwnerShortcuts(
+                onNewTerminal: () =>
+                    context.read<CockpitViewModel>().newTerminalForFocusedTab(),
+                onCloseTab: () => unawaited(closeActiveTab(context)),
+              ),
               theme: context.terminalTheme,
               textStyle: termStyle,
             ),
@@ -1894,6 +1900,11 @@ class _PaneBodyState extends State<_PaneBody> {
               cwd: item.currentDirectory ?? item.workingDirectory,
               line: line,
             ),
+        ownerShortcuts: terminalOwnerShortcuts(
+          onNewTerminal: () =>
+              context.read<CockpitViewModel>().newTerminalForFocusedTab(),
+          onCloseTab: () => unawaited(closeActiveTab(context)),
+        ),
       );
     }
 

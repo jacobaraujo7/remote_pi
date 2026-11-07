@@ -462,6 +462,7 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get file => 'Archivo';
 	@override String get newTerminal => 'Nueva Terminal';
 	@override String get newFile => 'Nuevo Archivo';
+	@override String get closeTab => 'Cerrar Pestaña';
 	@override String get openWorkspace => 'Abrir Workspace';
 	@override String get goToFile => 'Ir a Archivo…';
 	@override String get save => 'Guardar';
@@ -503,6 +504,10 @@ class _Translations$cockpit$confirmDialog$es extends Translations$cockpit$confir
 	@override String unsavedChangesMessage({required Object fileName}) => '“${fileName}” tiene cambios sin guardar. ¿Guardarlos antes de cerrar?';
 	@override String get dontSave => 'No guardar';
 	@override String get saveAndClose => 'Guardar y cerrar';
+	@override String get closeTerminalTitle => '¿Cerrar terminal?';
+	@override String get closeTerminalMessage => '¿Seguro que deseas cerrar esta pestaña de terminal?';
+	@override String get doNotAskAgain => 'No volver a preguntar';
+	@override String get close => 'Cerrar';
 }
 
 // Path: cockpit.neovim
@@ -1989,6 +1994,8 @@ class _Translations$settings$page$terminal$es extends Translations$settings$page
 	@override String get sectionBehavior => 'Comportamiento';
 	@override String get closeOnExitTitle => 'Cerrar la pestaña cuando el shell termine';
 	@override String get closeOnExitDesc => 'Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.';
+	@override String get confirmCloseTerminalTitle => 'Confirmar antes de cerrar terminal';
+	@override String get confirmCloseTerminalDesc => 'Mostrar un diálogo de confirmación antes de cerrar una pestaña de terminal.';
 }
 
 // Path: settings.page.appearance
@@ -2210,6 +2217,7 @@ extension on TranslationsEs {
 			'core.menu.file' => 'Archivo',
 			'core.menu.newTerminal' => 'Nueva Terminal',
 			'core.menu.newFile' => 'Nuevo Archivo',
+			'core.menu.closeTab' => 'Cerrar Pestaña',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
 			'core.menu.goToFile' => 'Ir a Archivo…',
 			'core.menu.save' => 'Guardar',
@@ -2265,6 +2273,10 @@ extension on TranslationsEs {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tiene cambios sin guardar. ¿Guardarlos antes de cerrar?',
 			'cockpit.confirmDialog.dontSave' => 'No guardar',
 			'cockpit.confirmDialog.saveAndClose' => 'Guardar y cerrar',
+			'cockpit.confirmDialog.closeTerminalTitle' => '¿Cerrar terminal?',
+			'cockpit.confirmDialog.closeTerminalMessage' => '¿Seguro que deseas cerrar esta pestaña de terminal?',
+			'cockpit.confirmDialog.doNotAskAgain' => 'No volver a preguntar',
+			'cockpit.confirmDialog.close' => 'Cerrar',
 			'cockpit.neovim.unavailable' => 'Neovim no está disponible. Abriendo en Cockpit.',
 			'cockpit.neovim.openFailed' => 'No se pudo acceder a Neovim. Abriendo en Cockpit.',
 			'cockpit.neovim.unsavedTitle' => 'Búferes de Neovim sin guardar',
@@ -2709,6 +2721,8 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
@@ -3090,6 +3104,8 @@ extension on TranslationsEs {
 			'settings.page.terminal.sectionBehavior' => 'Comportamiento',
 			'settings.page.terminal.closeOnExitTitle' => 'Cerrar la pestaña cuando el shell termine',
 			'settings.page.terminal.closeOnExitDesc' => 'Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.',
+			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirmar antes de cerrar terminal',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Mostrar un diálogo de confirmación antes de cerrar una pestaña de terminal.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
@@ -3221,6 +3237,8 @@ extension on TranslationsEs {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Sin conexión',
 			'settings.remoteHosts.statusIdle' => 'No conectado',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',

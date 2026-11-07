@@ -845,6 +845,9 @@ class Translations$core$menu$en {
 	/// en: 'New File'
 	String get newFile => 'New File';
 
+	/// en: 'Close Tab'
+	String get closeTab => 'Close Tab';
+
 	/// en: 'Open Workspace'
 	String get openWorkspace => 'Open Workspace';
 
@@ -949,6 +952,18 @@ class Translations$cockpit$confirmDialog$en {
 
 	/// en: 'Save & close'
 	String get saveAndClose => 'Save & close';
+
+	/// en: 'Close terminal?'
+	String get closeTerminalTitle => 'Close terminal?';
+
+	/// en: 'Are you sure you want to close this terminal tab?'
+	String get closeTerminalMessage => 'Are you sure you want to close this terminal tab?';
+
+	/// en: 'Don't ask again'
+	String get doNotAskAgain => 'Don\'t ask again';
+
+	/// en: 'Close'
+	String get close => 'Close';
 }
 
 // Path: cockpit.neovim
@@ -4221,6 +4236,12 @@ class Translations$settings$page$terminal$en {
 
 	/// en: 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.'
 	String get closeOnExitDesc => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.';
+
+	/// en: 'Confirm before closing terminal'
+	String get confirmCloseTerminalTitle => 'Confirm before closing terminal';
+
+	/// en: 'Show a confirmation dialog before closing a terminal tab.'
+	String get confirmCloseTerminalDesc => 'Show a confirmation dialog before closing a terminal tab.';
 }
 
 // Path: settings.page.appearance
@@ -4676,6 +4697,7 @@ extension on Translations {
 			'core.menu.file' => 'File',
 			'core.menu.newTerminal' => 'New Terminal',
 			'core.menu.newFile' => 'New File',
+			'core.menu.closeTab' => 'Close Tab',
 			'core.menu.openWorkspace' => 'Open Workspace',
 			'core.menu.goToFile' => 'Go to File…',
 			'core.menu.save' => 'Save',
@@ -4731,6 +4753,10 @@ extension on Translations {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” has unsaved changes. Save them before closing?',
 			'cockpit.confirmDialog.dontSave' => 'Don\'t save',
 			'cockpit.confirmDialog.saveAndClose' => 'Save & close',
+			'cockpit.confirmDialog.closeTerminalTitle' => 'Close terminal?',
+			'cockpit.confirmDialog.closeTerminalMessage' => 'Are you sure you want to close this terminal tab?',
+			'cockpit.confirmDialog.doNotAskAgain' => 'Don\'t ask again',
+			'cockpit.confirmDialog.close' => 'Close',
 			'cockpit.neovim.unavailable' => 'Neovim is not available. Opening in Cockpit instead.',
 			'cockpit.neovim.openFailed' => 'Could not reach Neovim. Opening in Cockpit instead.',
 			'cockpit.neovim.unsavedTitle' => 'Unsaved Neovim buffers',
@@ -5179,6 +5205,8 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
@@ -5560,6 +5588,8 @@ extension on Translations {
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
+			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirm before closing terminal',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Show a confirmation dialog before closing a terminal tab.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
@@ -5691,6 +5721,8 @@ extension on Translations {
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
