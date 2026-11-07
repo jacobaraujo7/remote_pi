@@ -100,6 +100,37 @@ class AppLauncherImpl implements AppLauncherGateway {
     }
   }
 
+  @override
+  Future<void> revealInFileManager(String path) async {
+    if (Platform.isMacOS) {
+      final isDir = await Directory(path).exists();
+      if (isDir) {
+        await Process.run('open', [path]);
+      } else {
+        await Process.run('open', ['-R', path]);
+      }
+    } else if (Platform.isWindows) {
+      final isDir = await Directory(path).exists();
+      final isFile = !isDir && await File(path).exists();
+      final winPath = path.replaceAll('/', '\\');
+      if (isDir) {
+        await Process.run('explorer', [winPath]);
+      } else if (isFile) {
+        await Process.run('explorer', ['/select,$winPath']);
+      } else {
+        final parent = File(path).parent.path;
+        if (await Directory(parent).exists()) {
+          await Process.run('explorer', [parent.replaceAll('/', '\\')]);
+        }
+      }
+    } else if (Platform.isLinux) {
+      final isDir = await Directory(path).exists();
+      final target = isDir ? path : File(path).parent.path;
+      final xdg = await unixWhich('xdg-open') ?? 'xdg-open';
+      await Process.run(xdg, [target]);
+    }
+  }
+
   // ---- macOS ----------------------------------------------------------------
 
   Future<List<LaunchableApp>> _probeMacOS() async {

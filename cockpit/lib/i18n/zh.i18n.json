@@ -251,7 +251,10 @@
       "openAsPanel": "以面板打开",
       "openAsHtml": "以 HTML 打开",
       "openAsJson": "以 JSON 打开",
-      "openAsOrchestration": "以编排打开"
+      "openAsOrchestration": "以编排打开",
+      "revealInFinder": "在 Finder 中打开",
+      "revealInExplorer": "在资源管理器中打开",
+      "revealInFileManager": "在文件管理器中打开"
     },
     "fileTreePanel": {
       "viewDiff": "查看差异",
