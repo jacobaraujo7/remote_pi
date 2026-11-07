@@ -621,6 +621,9 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openAsHtml => '以 HTML 打开';
 	@override String get openAsJson => '以 JSON 打开';
 	@override String get openAsOrchestration => '以编排打开';
+	@override String get revealInFinder => '在 Finder 中打开';
+	@override String get revealInExplorer => '在资源管理器中打开';
+	@override String get revealInFileManager => '在文件管理器中打开';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2314,6 +2317,9 @@ extension on TranslationsZh {
 			'cockpit.paneView.openAsHtml' => '以 HTML 打开',
 			'cockpit.paneView.openAsJson' => '以 JSON 打开',
 			'cockpit.paneView.openAsOrchestration' => '以编排打开',
+			'cockpit.paneView.revealInFinder' => '在 Finder 中打开',
+			'cockpit.paneView.revealInExplorer' => '在资源管理器中打开',
+			'cockpit.paneView.revealInFileManager' => '在文件管理器中打开',
 			'cockpit.fileTreePanel.viewDiff' => '查看差异',
 			'cockpit.fileTreePanel.commit' => '提交',
 			'cockpit.fileTreePanel.stageAndCommit' => '暂存并提交',
@@ -2607,11 +2613,11 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.file' => '文件',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => '选择一个 SQLite 文件…',
 			'cockpit.dbConnectionDialog.name' => '名称',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3121,11 +3127,11 @@ extension on TranslationsZh {
 			'settings.remoteHosts.empty' => '还没有远程主机。',
 			'settings.remoteHosts.add' => '添加主机',
 			'settings.remoteHosts.edit' => '编辑',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

@@ -1405,6 +1405,15 @@ class Translations$cockpit$paneView$en {
 
 	/// en: 'Open as orchestration'
 	String get openAsOrchestration => 'Open as orchestration';
+
+	/// en: 'Open in Finder'
+	String get revealInFinder => 'Open in Finder';
+
+	/// en: 'Open in Explorer'
+	String get revealInExplorer => 'Open in Explorer';
+
+	/// en: 'Open in file manager'
+	String get revealInFileManager => 'Open in file manager';
 }
 
 // Path: cockpit.fileTreePanel
@@ -4861,6 +4870,9 @@ extension on Translations {
 			'cockpit.paneView.openAsHtml' => 'Open as HTML',
 			'cockpit.paneView.openAsJson' => 'Open as JSON',
 			'cockpit.paneView.openAsOrchestration' => 'Open as orchestration',
+			'cockpit.paneView.revealInFinder' => 'Open in Finder',
+			'cockpit.paneView.revealInExplorer' => 'Open in Explorer',
+			'cockpit.paneView.revealInFileManager' => 'Open in file manager',
 			'cockpit.fileTreePanel.viewDiff' => 'View Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage and Commit',
@@ -5154,11 +5166,11 @@ extension on Translations {
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5668,11 +5680,11 @@ extension on Translations {
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',

@@ -772,6 +772,13 @@ class _TabState extends State<_Tab> {
   Future<void> _requestClose() =>
       requestCloseTab(context, widget.item, widget.onClose);
 
+  String _tabFileExplorerLabel(BuildContext context) {
+    final tr = context.t.cockpit.paneView;
+    if (Platform.isMacOS) return tr.revealInFinder;
+    if (Platform.isWindows) return tr.revealInExplorer;
+    return tr.revealInFileManager;
+  }
+
   Future<void> _showTabMenu(BuildContext menuCtx) async {
     final s = widget.item;
     if (s == null) return;
@@ -784,6 +791,21 @@ class _TabState extends State<_Tab> {
     final canOpenWindow =
         !isMobilePlatform &&
         context.read<CockpitViewModel>().canOpenInWindow(s.projectId);
+    final String? revealTarget = switch (s) {
+      final FileViewerSession v => v.scratch ? null : v.path,
+      final NotebookSession n => n.path,
+      final OrchestrationSession o => o.path,
+      final NeovimSession n => n.lastPath.isNotEmpty
+          ? n.lastPath
+          : (n.currentDirectory ?? n.workingDirectory),
+      final TerminalSession t => t.currentDirectory ?? t.workingDirectory,
+      final TaskOutputSession task => task.workingDirectory,
+      _ => null,
+    };
+    final canReveal = !isMobilePlatform &&
+        revealTarget != null &&
+        revealTarget.isNotEmpty &&
+        context.read<CockpitViewModel>().canOpenInWindow(s.projectId);
 
     final tr = context.t.cockpit.paneView;
     final value = await showAppMenu<String>(
@@ -795,6 +817,12 @@ class _TabState extends State<_Tab> {
             value: 'pin',
             label: tr.pinTab,
             icon: Icons.push_pin_outlined,
+          ),
+        if (canReveal)
+          AppMenuItem(
+            value: 'reveal',
+            label: _tabFileExplorerLabel(context),
+            icon: Icons.folder_open_outlined,
           ),
         // Aba de arquivo também renomeia: o rótulo manual é do [PaneItem], não
         // do terminal, e um quadro aberto o dia todo merece um nome melhor que
@@ -925,6 +953,12 @@ class _TabState extends State<_Tab> {
     );
     if (!mounted) return;
     switch (value) {
+      case 'reveal':
+        if (revealTarget != null && revealTarget.isNotEmpty) {
+          unawaited(
+            context.read<CockpitViewModel>().revealInFileManager(revealTarget),
+          );
+        }
       case 'configure-box':
         if (terminal != null) {
           context.read<CockpitViewModel>().configureBoxForTab(terminal.id);
