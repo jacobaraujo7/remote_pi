@@ -60,9 +60,12 @@ class HttpScriptSession extends ChangeNotifier {
     HttpRequestSpec request, {
     required String baseDir,
     Map<String, String> environment = const {},
+    Map<String, String> overrides = const {},
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    final vars = <String, String>{};
+    // O script pode consultar o valor temporário via request.variables.get;
+    // mesmo que ele defina a mesma chave, o override vence na interpolação.
+    final vars = <String, String>{...overrides};
     final logs = <String>[];
     final tests = <HttpScriptTest>[];
 
@@ -70,6 +73,7 @@ class HttpScriptSession extends ChangeNotifier {
       final pre = await _execute(request.preScript!, _globals, vars);
       _mergeGlobals(pre.globals);
       vars.addAll(pre.variables);
+      vars.addAll(overrides);
       logs.addAll(pre.logs);
       tests.addAll(pre.tests);
       if (pre.error != null) {
@@ -86,6 +90,7 @@ class HttpScriptSession extends ChangeNotifier {
       environment: environment,
       globals: _globals,
       requestVariables: vars,
+      overrides: overrides,
     );
     final sent = await transport.send(
       resolved,

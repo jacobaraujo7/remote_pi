@@ -28,6 +28,8 @@ class HttpCodeNavigation {
     required int sourceLine,
     required String? environment,
     required HttpEnvironmentCatalog catalog,
+    Map<String, String> globals = const {},
+    Map<String, String> overrides = const {},
   }) {
     if (offset < 0 || offset >= displayText.length) return null;
     final start = displayText.lastIndexOf('\n', offset - 1) + 1;
@@ -74,6 +76,8 @@ class HttpCodeNavigation {
       final resolved = document.resolveRequest(
         request,
         environment: catalog.valuesFor(environment),
+        globals: globals,
+        overrides: overrides,
       );
       final uri = Uri.tryParse(resolved.url);
       if (uri != null &&

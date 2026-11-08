@@ -100,6 +100,8 @@ class CodeEditor extends StatefulWidget {
     this.completionEmptyLabel = '',
     this.onCompletionSelected,
     this.onCompletionKey,
+    this.variableNameAt,
+    this.variablePopoverBuilder,
   });
 
   final CodeEditingController controller;
@@ -166,6 +168,10 @@ class CodeEditor extends StatefulWidget {
   final String completionEmptyLabel;
   final ValueChanged<String>? onCompletionSelected;
   final bool Function(KeyEvent)? onCompletionKey;
+
+  /// Hover interativo de placeholders no editor HTTP.
+  final String? Function(int offset)? variableNameAt;
+  final Widget Function(String name)? variablePopoverBuilder;
 
   @override
   State<CodeEditor> createState() => _CodeEditorState();
@@ -295,6 +301,8 @@ class _CodeEditorState extends State<CodeEditor> {
     widget.controller.addListener(_keepHorizontalOnSelection);
     _horizontal.addListener(_onHorizontalScroll);
     _vertical.addListener(_syncGutter);
+    _vertical.addListener(_onVariableScroll);
+    _horizontal.addListener(_onVariableScroll);
     if (widget.revealLine != null) _scheduleReveal(widget.revealLine!);
   }
 
@@ -367,6 +375,7 @@ class _CodeEditorState extends State<CodeEditor> {
         ? _lineTop(anchor.oldLine) - oldScroll
         : 0.0;
     if (widget.controller != old.controller) {
+      _closeVariablePopover();
       old.controller.removeListener(_onChanged);
       old.controller.removeListener(_keepHorizontalOnSelection);
       widget.controller.addListener(_onChanged);
@@ -630,6 +639,17 @@ class _CodeEditorState extends State<CodeEditor> {
   int? _hoverLine;
   List<String> _hoverMsgs = const <String>[];
   double _hoverDx = 0;
+  final OverlayPortalController _variablePortal = OverlayPortalController();
+  late final Listenable _variablePosition = Listenable.merge([
+    _vertical,
+    _horizontal,
+  ]);
+  String? _hoverVariable;
+  int? _hoverVariableStart;
+  bool _pointerOnVariable = false;
+  bool _pointerOnPopover = false;
+  bool _focusInPopover = false;
+  Timer? _variableHideTimer;
 
   // Go-to-definition: detecta modificador (Cmd/Ctrl) + hover + tap.
   bool _definitionModeActive = false;
@@ -647,6 +667,23 @@ class _CodeEditorState extends State<CodeEditor> {
     _updateDefinitionMode();
     _updateDefinitionHoverRange(event);
 
+    if (widget.variableNameAt != null && !_pointerOnPopover) {
+      final offset = _offsetAtHover(event);
+      final name = offset == null ? null : widget.variableNameAt!(offset);
+      _pointerOnVariable = name != null;
+      if (name != null && !_focusInPopover) {
+        final start = widget.controller.text.lastIndexOf('{{', offset!);
+        if (start >= 0 &&
+            (name != _hoverVariable || start != _hoverVariableStart)) {
+          _hoverVariable = name;
+          _hoverVariableStart = start;
+          _variablePortal.show();
+          setState(() {});
+        }
+      }
+      _reconcileVariablePopover();
+    }
+
     final scroll = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scroll;
     if (contentY < 0 || _lineHeight <= 0) return _clearHover();
@@ -654,7 +691,9 @@ class _CodeEditorState extends State<CodeEditor> {
     final unresolved = widget.controller.unresolvedVariableMessageAt(
       _offsetAtHover(event) ?? -1,
     );
-    final msgs = unresolved == null
+    final msgs = _hoverVariable != null
+        ? const <String>[]
+        : unresolved == null
         ? widget.controller.messagesForLine(line)
         : [unresolved];
     if (line == _hoverLine && listEquals(msgs, _hoverMsgs)) return;
@@ -663,6 +702,48 @@ class _CodeEditorState extends State<CodeEditor> {
       _hoverMsgs = msgs;
       _hoverDx = event.localPosition.dx;
     });
+  }
+
+  void _reconcileVariablePopover() {
+    if (_hoverVariable == null) return;
+    if (_pointerOnVariable || _pointerOnPopover || _focusInPopover) {
+      _variableHideTimer?.cancel();
+      return;
+    }
+    if (_variableHideTimer?.isActive == true) return;
+    _variableHideTimer?.cancel();
+    _variableHideTimer = Timer(const Duration(milliseconds: 260), () {
+      if (!mounted ||
+          _pointerOnVariable ||
+          _pointerOnPopover ||
+          _focusInPopover) {
+        return;
+      }
+      _closeVariablePopover();
+    });
+  }
+
+  void _closeVariablePopover() {
+    _variableHideTimer?.cancel();
+    if (_hoverVariable == null) return;
+    _variablePortal.hide();
+    _hoverVariable = null;
+    _hoverVariableStart = null;
+    _pointerOnVariable = false;
+    _pointerOnPopover = false;
+    _focusInPopover = false;
+    if (mounted) setState(() {});
+  }
+
+  void _onPopoverFocusChange(bool focused) {
+    _focusInPopover = focused;
+    _reconcileVariablePopover();
+  }
+
+  void _onVariableScroll() {
+    if (_hoverVariable == null || _focusInPopover || _pointerOnPopover) return;
+    _pointerOnVariable = false;
+    _reconcileVariablePopover();
   }
 
   void _updateDefinitionMode() {
@@ -789,6 +870,8 @@ class _CodeEditorState extends State<CodeEditor> {
 
   void _clearHover() {
     _clearDefinitionHover();
+    _pointerOnVariable = false;
+    _reconcileVariablePopover();
     if (_hoverLine == null && _hoverMsgs.isEmpty) return;
     setState(() {
       _hoverLine = null;
@@ -840,6 +923,11 @@ class _CodeEditorState extends State<CodeEditor> {
 
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape &&
+        _hoverVariable != null) {
+      _closeVariablePopover();
+      return KeyEventResult.handled;
+    }
     if (widget.readOnly) return KeyEventResult.ignored;
     if (widget.onCompletionKey?.call(event) == true) {
       return KeyEventResult.handled;
@@ -995,11 +1083,17 @@ class _CodeEditorState extends State<CodeEditor> {
     // mudar o nº de linhas: o gutter (alturas da tabela) também precisa de
     // rebuild a cada mudança de **texto** (seleção sozinha não conta).
     final wrapTextChanged = widget.wordWrap && !identical(text, _lastText);
+    final variableTextChanged =
+        !identical(text, _lastText) && _hoverVariable != null;
+    if (variableTextChanged) _closeVariablePopover();
     _lastText = text;
     if (wrapTextChanged) _wrapDirty = true;
     // Rebuild do gutter quando o nº de linhas OU os diagnostics mudam (o campo
     // de texto repinta sozinho via buildTextSpan; o gutter depende de setState).
-    if ((n != _lineCount || !identical(diag, _lastDiag) || wrapTextChanged) &&
+    if ((n != _lineCount ||
+            !identical(diag, _lastDiag) ||
+            wrapTextChanged ||
+            variableTextChanged) &&
         mounted) {
       setState(() {
         if (n != _lineCount) {
@@ -1017,10 +1111,13 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void dispose() {
     _chordTimer?.cancel();
+    _variableHideTimer?.cancel();
     widget.controller.removeListener(_onChanged);
     widget.controller.removeListener(_keepHorizontalOnSelection);
     _horizontal.removeListener(_onHorizontalScroll);
     _vertical.removeListener(_syncGutter);
+    _vertical.removeListener(_onVariableScroll);
+    _horizontal.removeListener(_onVariableScroll);
     widget.controller.definitionHoverRange = null;
     _vertical.dispose();
     _horizontal.dispose();
@@ -1227,7 +1324,7 @@ class _CodeEditorState extends State<CodeEditor> {
     // última linha) foca o campo — como num editor de verdade. Cliques sobre o
     // próprio TextField ganham a arena de gestos e posicionam o cursor; os
     // demais caem aqui. `translucent` pra não roubar o tap do campo.
-    return GestureDetector(
+    final editor = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () {
         if (!widget.focusNode.hasFocus) widget.focusNode.requestFocus();
@@ -1256,6 +1353,84 @@ class _CodeEditorState extends State<CodeEditor> {
         ),
       ),
     );
+    if (widget.variableNameAt == null) return editor;
+    return OverlayPortal(
+      controller: _variablePortal,
+      overlayChildBuilder: _variablePopoverOverlay,
+      child: editor,
+    );
+  }
+
+  Widget _variablePopoverOverlay(BuildContext overlayContext) {
+    final name = _hoverVariable;
+    if (name == null || widget.variablePopoverBuilder == null) {
+      return const SizedBox.shrink();
+    }
+    return AnimatedBuilder(
+      animation: _variablePosition,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final anchor = _variableAnchor(overlayContext);
+          if (anchor == null) return const SizedBox.shrink();
+          final width = (constraints.maxWidth - 16).clamp(0.0, 340.0);
+          return CustomSingleChildLayout(
+            delegate: _VariablePopoverPosition(anchor),
+            child: SizedBox(
+              width: width,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: (constraints.maxHeight - 16).clamp(
+                    0.0,
+                    double.infinity,
+                  ),
+                ),
+                child: MouseRegion(
+                  onEnter: (_) {
+                    _pointerOnPopover = true;
+                    _reconcileVariablePopover();
+                  },
+                  onExit: (_) {
+                    _pointerOnPopover = false;
+                    _reconcileVariablePopover();
+                  },
+                  child: Focus(
+                    onFocusChange: _onPopoverFocusChange,
+                    onKeyEvent: (_, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.escape) {
+                        _closeVariablePopover();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: TapRegion(
+                      onTapOutside: (_) => _closeVariablePopover(),
+                      child: widget.variablePopoverBuilder!(name),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Rect? _variableAnchor(BuildContext overlayContext) {
+    final start = _hoverVariableStart;
+    final editable = _renderEditable();
+    final overlay = Overlay.maybeOf(overlayContext)?.context.findRenderObject();
+    if (start == null ||
+        editable == null ||
+        !editable.hasSize ||
+        overlay is! RenderBox ||
+        !overlay.hasSize) {
+      return null;
+    }
+    final caret = editable.getLocalRectForCaret(TextPosition(offset: start));
+    return editable.localToGlobal(caret.topLeft, ancestor: overlay) &
+        caret.size;
   }
 
   Widget _completionOverlay(
@@ -1709,6 +1884,34 @@ class _CodeEditorState extends State<CodeEditor> {
       child: column,
     );
   }
+}
+
+/// Posiciona pelo caret inicial da variável; usa o tamanho real do conteúdo
+/// para inverter acima/abaixo e manter o popover dentro do overlay da janela.
+class _VariablePopoverPosition extends SingleChildLayoutDelegate {
+  const _VariablePopoverPosition(this.anchor);
+
+  final Rect anchor;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(constraints.biggest);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final maxX = (size.width - childSize.width - 8).clamp(8.0, size.width);
+    final maxY = (size.height - childSize.height - 8).clamp(8.0, size.height);
+    final x = anchor.left.clamp(8.0, maxX);
+    final below = anchor.bottom + 4;
+    final y = below + childSize.height <= size.height - 8
+        ? below
+        : anchor.top - childSize.height - 4;
+    return Offset(x, y.clamp(8.0, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_VariablePopoverPosition oldDelegate) =>
+      anchor != oldDelegate.anchor;
 }
 
 /// Converte [ScmLineDecorations] em marcas da coluna Git do overview.

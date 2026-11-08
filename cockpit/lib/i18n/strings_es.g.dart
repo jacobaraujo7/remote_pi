@@ -945,6 +945,16 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get noScriptSuggestions => 'No hay sugerencias para esta expresión';
 	@override String get running => 'Ejecutando…';
 	@override String get noEnvironment => 'No Environment';
+	@override String get overrideTemporary => 'Temporal';
+	@override String get overrideFile => 'Archivo HTTP';
+	@override String get overrideEnvironment => 'Entorno';
+	@override String get overrideGlobal => 'Global';
+	@override String get overrideRestore => 'Restaurar';
+	@override String get overrideApply => 'Aplicar';
+	@override String get overrideInvalidNumber => 'Número no válido';
+	@override String get overrideNonFiniteNumber => 'Introduce un número finito';
+	@override String get overrideInvalidBoolean => 'Usa true o false';
+	@override String get overrideInvalidJson => 'JSON no válido';
 	@override String unresolvedVariableNoEnvironment({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.';
 	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.';
 	@override String get noRequests => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com';
@@ -2558,6 +2568,16 @@ extension on TranslationsEs {
 			'cockpit.httpView.noScriptSuggestions' => 'No hay sugerencias para esta expresión',
 			'cockpit.httpView.running' => 'Ejecutando…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporal',
+			'cockpit.httpView.overrideFile' => 'Archivo HTTP',
+			'cockpit.httpView.overrideEnvironment' => 'Entorno',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restaurar',
+			'cockpit.httpView.overrideApply' => 'Aplicar',
+			'cockpit.httpView.overrideInvalidNumber' => 'Número no válido',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Introduce un número finito',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Usa true o false',
+			'cockpit.httpView.overrideInvalidJson' => 'JSON no válido',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.',
 			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com',
@@ -2664,6 +2684,8 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nombre',
 			'cockpit.dbConnectionDialog.password' => 'Contraseña',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
 			'cockpit.dbConnectionDialog.allowWritesHint' => 'desactivado = los agentes solo leen vía CLI',
@@ -2674,8 +2696,6 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Fallo en la conexión',
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexión',
 			'cockpit.dbConnectionDialog.newTitle' => 'Nueva conexión',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexión no válida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
@@ -3178,6 +3198,8 @@ extension on TranslationsEs {
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
 			'settings.remoteHosts.reconnect' => 'Reconectar',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '¿Eliminar "${name}" y todos sus workspaces? No se borra nada en el host.',
@@ -3188,8 +3210,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.deviceKeyCopied' => 'Clave pública copiada',
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Sin conexión',
 			'settings.remoteHosts.statusIdle' => 'No conectado',

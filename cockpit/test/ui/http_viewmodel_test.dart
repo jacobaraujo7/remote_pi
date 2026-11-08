@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
+import 'package:cockpit/app/cockpit/domain/entities/http_runtime_variable.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/http_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
@@ -89,6 +90,93 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'override fica em memória, isolado por ambiente, e restaura original',
+    () {
+      final vm = HttpViewModel(_StubRunner());
+      final state = vm.tabStateFor(
+        'tab-a',
+        projectId: 'project',
+        path: '/api/login.http',
+      );
+      state.setRuntimeVariable(
+        'qa',
+        'id',
+        const HttpRuntimeVariable('42', HttpRuntimeValueType.number),
+      );
+      expect(state.runtimeValuesFor('qa'), {'id': '42'});
+      expect(state.runtimeValuesFor('prod'), isEmpty);
+      expect(state.runtimeValuesFor(null), isEmpty);
+      final reopened = vm.tabStateFor(
+        'tab-b',
+        projectId: 'project',
+        path: '/api/login.http',
+      );
+      expect(reopened.runtimeValuesFor('qa'), {'id': '42'});
+      reopened.clearRuntimeVariable('qa', 'id');
+      expect(state.runtimeValuesFor('qa'), isEmpty);
+      expect(
+        HttpViewModel(_StubRunner())
+            .tabStateFor(
+              'new-app',
+              projectId: 'project',
+              path: '/api/login.http',
+            )
+            .runtimeValuesFor('qa'),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
+    'Run usa override sem alterar arquivo e restaura na próxima execução',
+    () async {
+      const source = '@host = https://original.test\nGET {{host}}/items/{{id}}';
+      final doc = HttpDocument.parse(source);
+      final state = HttpTabState()..syncSource(source, 1);
+      state.setRuntimeVariable(
+        'qa',
+        'host',
+        const HttpRuntimeVariable(
+          'https://temporary.test',
+          HttpRuntimeValueType.string,
+        ),
+      );
+      state.setRuntimeVariable(
+        'qa',
+        'id',
+        const HttpRuntimeVariable('42', HttpRuntimeValueType.number),
+      );
+      final runner = _ControlledRunner();
+      final first = state.runRequests(
+        runner,
+        doc.requests,
+        baseDir: '/api',
+        document: doc,
+        environment: {'id': '1'},
+        overrides: state.runtimeValuesFor('qa'),
+      );
+      expect(runner.sent.single.url, 'https://temporary.test/items/42');
+      runner.succeed(0);
+      await first;
+
+      state.clearRuntimeVariable('qa', 'host');
+      state.clearRuntimeVariable('qa', 'id');
+      final second = state.runRequests(
+        runner,
+        doc.requests,
+        baseDir: '/api',
+        document: doc,
+        environment: {'id': '1'},
+        overrides: state.runtimeValuesFor('qa'),
+      );
+      expect(runner.sent.last.url, 'https://original.test/items/1');
+      runner.succeed(1);
+      await second;
+      expect(doc.variables['host'], 'https://original.test');
+    },
+  );
 
   test('folds permanecem fechados ao reabrir a aba', () {
     const text = '### first\nGET https://example.test/a\nAccept: json\n';

@@ -833,6 +833,16 @@ class _Translations$cockpit$dbQueryView$zh extends Translations$cockpit$dbQueryV
 	@override String get selectDatabase => '选择数据库';
 	@override String get noSqlConnections => '没有 SQL 连接';
 	@override String get running => '运行中…';
+	@override String get overrideTemporary => '临时';
+	@override String get overrideFile => 'HTTP 文件';
+	@override String get overrideEnvironment => '环境';
+	@override String get overrideGlobal => '全局';
+	@override String get overrideRestore => '恢复';
+	@override String get overrideApply => '应用';
+	@override String get overrideInvalidNumber => '无效数字';
+	@override String get overrideNonFiniteNumber => '请输入有限数字';
+	@override String get overrideInvalidBoolean => '请使用 true 或 false';
+	@override String get overrideInvalidJson => '无效 JSON';
 	@override String get runSelection => '运行选中部分';
 	@override String get run => '运行';
 	@override String get pickDatabaseHint => '先在上方选择数据库，然后运行（⌘↵）。';
@@ -2455,6 +2465,16 @@ extension on TranslationsZh {
 			'cockpit.dbQueryView.selectDatabase' => '选择数据库',
 			'cockpit.dbQueryView.noSqlConnections' => '没有 SQL 连接',
 			'cockpit.dbQueryView.running' => '运行中…',
+			'cockpit.dbQueryView.overrideTemporary' => '临时',
+			'cockpit.dbQueryView.overrideFile' => 'HTTP 文件',
+			'cockpit.dbQueryView.overrideEnvironment' => '环境',
+			'cockpit.dbQueryView.overrideGlobal' => '全局',
+			'cockpit.dbQueryView.overrideRestore' => '恢复',
+			'cockpit.dbQueryView.overrideApply' => '应用',
+			'cockpit.dbQueryView.overrideInvalidNumber' => '无效数字',
+			'cockpit.dbQueryView.overrideNonFiniteNumber' => '请输入有限数字',
+			'cockpit.dbQueryView.overrideInvalidBoolean' => '请使用 true 或 false',
+			'cockpit.dbQueryView.overrideInvalidJson' => '无效 JSON',
 			'cockpit.dbQueryView.runSelection' => '运行选中部分',
 			'cockpit.dbQueryView.run' => '运行',
 			'cockpit.dbQueryView.pickDatabaseHint' => '先在上方选择数据库，然后运行（⌘↵）。',
@@ -2583,6 +2603,8 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
 			'cockpit.dbConnectionDialog.testing' => '正在测试连接…',
@@ -2593,8 +2615,6 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.connectionString' => '连接字符串',
 			'cockpit.dbConnectionDialog.invalidUrl' => '不是有效的连接 URL。',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
@@ -3097,6 +3117,8 @@ extension on TranslationsZh {
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
 			'settings.remoteHosts.deviceKeyDesc' => '将此公钥添加到主机的 ~/.ssh/authorized_keys，本设备即可连接。',
@@ -3107,8 +3129,6 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => '工作原理',
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',

@@ -94,4 +94,18 @@ void main() {
     );
     expect(target?.url, 'https://api.test/users?active=true&limit=2');
   });
+
+  test('verbo usa sobrescrita temporária ao abrir URL', () {
+    final target = HttpCodeNavigation.linkAt(
+      displayText: source,
+      offset: source.indexOf('GET'),
+      sourceText: source,
+      sourcePath: '/api/requests.http',
+      sourceLine: 1,
+      environment: 'dev',
+      catalog: catalog,
+      overrides: {'host': 'https://temporary.test'},
+    );
+    expect(target?.url, 'https://temporary.test/users');
+  });
 }

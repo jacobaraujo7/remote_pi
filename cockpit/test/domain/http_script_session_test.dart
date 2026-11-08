@@ -93,6 +93,27 @@ GET https://example.test/{{token}}/{{id}}
     expect(transport.sent.last.url, 'https://example.test/abc/42');
   });
 
+  test(
+    'override de execução vence request.variables.set no pré-request',
+    () async {
+      final doc = HttpDocument.parse('''
+@id = original
+GET https://example.test/{{id}}
+< {% request.variables.set('id', 'script'); %}
+''');
+      final transport = _Transport();
+      await HttpScriptSession().run(
+        transport,
+        doc,
+        doc.requests.single,
+        baseDir: '/tmp',
+        overrides: {'id': 'temporary'},
+      );
+      expect(transport.sent.single.url, 'https://example.test/temporary');
+      expect(doc.variables['id'], 'original');
+    },
+  );
+
   test('pre error prevents sending; failed test retains response', () async {
     final doc = HttpDocument.parse('''
 ### Pre

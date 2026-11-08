@@ -945,6 +945,16 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	@override String get noScriptSuggestions => 'Nenhuma sugestão para esta expressão';
 	@override String get running => 'Executando…';
 	@override String get noEnvironment => 'No Environment';
+	@override String get overrideTemporary => 'Temporária';
+	@override String get overrideFile => 'Arquivo HTTP';
+	@override String get overrideEnvironment => 'Ambiente';
+	@override String get overrideGlobal => 'Global';
+	@override String get overrideRestore => 'Restaurar';
+	@override String get overrideApply => 'Aplicar';
+	@override String get overrideInvalidNumber => 'Número inválido';
+	@override String get overrideNonFiniteNumber => 'Informe um número finito';
+	@override String get overrideInvalidBoolean => 'Use true ou false';
+	@override String get overrideInvalidJson => 'JSON inválido';
 	@override String unresolvedVariableNoEnvironment({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.';
 	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.';
 	@override String get noRequests => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com';
@@ -2562,6 +2572,16 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.noScriptSuggestions' => 'Nenhuma sugestão para esta expressão',
 			'cockpit.httpView.running' => 'Executando…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporária',
+			'cockpit.httpView.overrideFile' => 'Arquivo HTTP',
+			'cockpit.httpView.overrideEnvironment' => 'Ambiente',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restaurar',
+			'cockpit.httpView.overrideApply' => 'Aplicar',
+			'cockpit.httpView.overrideInvalidNumber' => 'Número inválido',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Informe um número finito',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true ou false',
+			'cockpit.httpView.overrideInvalidJson' => 'JSON inválido',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.',
 			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com',
@@ -2668,6 +2688,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nome',
@@ -2678,8 +2700,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.visibleToAgents' => 'Visível para agentes',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => 'desligado = oculto da CLI, só na GUI',
 			'cockpit.dbConnectionDialog.testing' => 'Testando conexão…',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionOk' => 'Conexão OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Falha na conexão',
 			'cockpit.dbConnectionDialog.editTitle' => 'Editar conexão',
@@ -3182,6 +3202,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',
 			'settings.remoteHosts.edit' => 'Editar',
@@ -3192,8 +3214,6 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} workspace(s)',
 			'settings.remoteHosts.deviceKeyTitle' => 'Chave deste dispositivo',
 			'settings.remoteHosts.deviceKeyDesc' => 'Adicione esta chave pública ao ~/.ssh/authorized_keys do host para este dispositivo poder conectar.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.deviceKeyCopy' => 'Copiar chave pública',
 			'settings.remoteHosts.deviceKeyCopied' => 'Chave pública copiada',
 			'settings.remoteHosts.statusConnected' => 'Conectado',

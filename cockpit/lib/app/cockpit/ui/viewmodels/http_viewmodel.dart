@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
+import 'package:cockpit/app/cockpit/domain/entities/http_runtime_variable.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
@@ -29,6 +30,32 @@ class HttpRequestOutcome {
 /// [DbTabViewState] no `DatabaseViewModel`). Mutável; o widget lê/escreve
 /// direto.
 class HttpTabState extends ChangeNotifier {
+  final Map<String, Map<String, HttpRuntimeVariable>> _runtimeVariables = {};
+
+  Map<String, HttpRuntimeVariable> runtimeVariablesFor(String? environment) =>
+      Map.unmodifiable(_runtimeVariables[environment ?? ''] ?? const {});
+
+  Map<String, String> runtimeValuesFor(String? environment) => {
+    for (final entry in runtimeVariablesFor(environment).entries)
+      entry.key: entry.value.value,
+  };
+
+  void setRuntimeVariable(
+    String? environment,
+    String name,
+    HttpRuntimeVariable value,
+  ) {
+    if (value.validationError != null) return;
+    _runtimeVariables.putIfAbsent(environment ?? '', () => {})[name] = value;
+    notifyListeners();
+  }
+
+  void clearRuntimeVariable(String? environment, String name) {
+    if (_runtimeVariables[environment ?? '']?.remove(name) != null) {
+      notifyListeners();
+    }
+  }
+
   List<HttpRequestOutcome> outcomes = [];
   final Set<int> foldedStarts = {};
   List<HttpRequestSpec> _requests = [];
@@ -168,6 +195,7 @@ class HttpTabState extends ChangeNotifier {
     int? onlyIndex,
     HttpDocument? document,
     Map<String, String> environment = const {},
+    Map<String, String> overrides = const {},
   }) async {
     if (isRunning || requests.length != outcomes.length) return;
     isRunning = true;
@@ -201,6 +229,7 @@ class HttpTabState extends ChangeNotifier {
               requests[index],
               baseDir: baseDir,
               environment: environment,
+              overrides: overrides,
             );
             if (generation != _sourceGeneration) break;
             outcome.responseFolds.clear();

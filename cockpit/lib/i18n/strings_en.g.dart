@@ -2000,6 +2000,36 @@ class Translations$cockpit$httpView$en {
 	/// en: 'No Environment'
 	String get noEnvironment => 'No Environment';
 
+	/// en: 'Temporary'
+	String get overrideTemporary => 'Temporary';
+
+	/// en: 'HTTP file'
+	String get overrideFile => 'HTTP file';
+
+	/// en: 'Environment'
+	String get overrideEnvironment => 'Environment';
+
+	/// en: 'Global'
+	String get overrideGlobal => 'Global';
+
+	/// en: 'Restore'
+	String get overrideRestore => 'Restore';
+
+	/// en: 'Apply'
+	String get overrideApply => 'Apply';
+
+	/// en: 'Invalid number'
+	String get overrideInvalidNumber => 'Invalid number';
+
+	/// en: 'Enter a finite number'
+	String get overrideNonFiniteNumber => 'Enter a finite number';
+
+	/// en: 'Use true or false'
+	String get overrideInvalidBoolean => 'Use true or false';
+
+	/// en: 'Invalid JSON'
+	String get overrideInvalidJson => 'Invalid JSON';
+
 	/// en: 'No environment selected. Cannot resolve variable '${name}'.'
 	String unresolvedVariableNoEnvironment({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.';
 
@@ -4990,6 +5020,16 @@ extension on Translations {
 			'cockpit.httpView.noScriptSuggestions' => 'No suggestions for this expression',
 			'cockpit.httpView.running' => 'Running…',
 			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporary',
+			'cockpit.httpView.overrideFile' => 'HTTP file',
+			'cockpit.httpView.overrideEnvironment' => 'Environment',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restore',
+			'cockpit.httpView.overrideApply' => 'Apply',
+			'cockpit.httpView.overrideInvalidNumber' => 'Invalid number',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Enter a finite number',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true or false',
+			'cockpit.httpView.overrideInvalidJson' => 'Invalid JSON',
 			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
 			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'No request in this file — write one, e.g. GET https://example.com',
@@ -5096,6 +5136,8 @@ extension on Translations {
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
 			'cockpit.dbConnectionDialog.name' => 'Name',
@@ -5106,8 +5148,6 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.visibleToAgents' => 'Visible to agents',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => 'off = hidden from the CLI, GUI only',
 			'cockpit.dbConnectionDialog.testing' => 'Testing connection…',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.connectionOk' => 'Connection OK',
 			'cockpit.dbConnectionDialog.connectionFailed' => 'Connection failed',
 			'cockpit.dbConnectionDialog.editTitle' => 'Edit connection',
@@ -5610,6 +5650,8 @@ extension on Translations {
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
 			'settings.remoteHosts.edit' => 'Edit',
@@ -5620,8 +5662,6 @@ extension on Translations {
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} workspace(s)',
 			'settings.remoteHosts.deviceKeyTitle' => 'This device\'s key',
 			'settings.remoteHosts.deviceKeyDesc' => 'Add this public key to ~/.ssh/authorized_keys on the host so this device can connect.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.deviceKeyCopy' => 'Copy public key',
 			'settings.remoteHosts.deviceKeyCopied' => 'Public key copied',
 			'settings.remoteHosts.statusConnected' => 'Connected',

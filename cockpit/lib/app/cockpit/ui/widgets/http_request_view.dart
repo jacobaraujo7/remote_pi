@@ -17,6 +17,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/http_response_code_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_response_folds.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_script_completion.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_variable_override_popover.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
 import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
@@ -334,6 +335,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       ..._catalog.valuesFor(widget.session.httpEnvironment).keys,
       ...HttpScriptSession.shared.globals.keys,
       ..._doc.variables.keys,
+      ..._view.runtimeVariablesFor(widget.session.httpEnvironment).keys,
     }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final query = slot?.prefix.trim().toLowerCase() ?? '';
     return names.where((name) => name.toLowerCase().startsWith(query)).toList();
@@ -488,6 +490,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         controller.text,
         environment: environment,
         globals: HttpScriptSession.shared.globals,
+        overrides: _view.runtimeValuesFor(selected),
       );
       controller.setUnresolvedVariables([
         for (final item in missing)
@@ -584,6 +587,68 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       sourceLine: sourceLine,
       environment: widget.session.httpEnvironment,
       catalog: _catalog,
+      globals: HttpScriptSession.shared.globals,
+      overrides: _view.runtimeValuesFor(widget.session.httpEnvironment),
+    );
+  }
+
+  String? _variableNameAt(int offset) {
+    final display = _foldedStarts.isEmpty ? _text.text : _foldedText.text;
+    if (offset < 0 || offset >= display.length) return null;
+    final start = display.lastIndexOf('\n', offset - 1) + 1;
+    final endBreak = display.indexOf('\n', offset);
+    final end = endBreak < 0 ? display.length : endBreak;
+    final line = display.substring(start, end);
+    final trimmed = line.trimLeft();
+    if (trimmed.startsWith('#') ||
+        trimmed.startsWith('//') ||
+        HttpScriptCompletion.insideBlock(display, offset)) {
+      return null;
+    }
+    for (final match in HttpDocument.interpolation.allMatches(line)) {
+      if (offset >= start + match.start && offset < start + match.end) {
+        return match.group(1);
+      }
+    }
+    return null;
+  }
+
+  Widget _variablePopover(String name) {
+    final tr = context.t.cockpit.httpView;
+    final environmentName = widget.session.httpEnvironment;
+    final overrides = _view.runtimeValuesFor(environmentName);
+    final override = _view.runtimeVariablesFor(environmentName)[name];
+    final token = '{{$name}}';
+    final resolved = _doc.interpolate(
+      token,
+      extra: {
+        ..._catalog.valuesFor(environmentName),
+        ...HttpScriptSession.shared.globals,
+      },
+      overrides: overrides,
+    );
+    final value = resolved == token ? null : resolved;
+    final origin = _doc.variables.containsKey(name)
+        ? tr.overrideFile
+        : _catalog.valuesFor(environmentName).containsKey(name)
+        ? tr.overrideEnvironment
+        : HttpScriptSession.shared.globals.containsKey(name)
+        ? tr.overrideGlobal
+        : 'undefined';
+    return HttpVariableOverridePopover(
+      key: ValueKey('$environmentName:$name'),
+      name: name,
+      effectiveValue: value,
+      origin: origin,
+      runtimeOverride: override,
+      onApply: (entry) {
+        _view.setRuntimeVariable(environmentName, name, entry);
+        _refreshUnresolvedVariables();
+      },
+      onClear: () {
+        _view.clearRuntimeVariable(environmentName, name);
+        _refreshUnresolvedVariables();
+      },
     );
   }
 
@@ -797,6 +862,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       onlyIndex: requestIndex,
       document: doc,
       environment: catalog.valuesFor(widget.session.httpEnvironment),
+      overrides: _view.runtimeValuesFor(widget.session.httpEnvironment),
     );
   }
 
@@ -902,6 +968,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                                 : (start: link.start, end: link.end);
                           },
                           onLinkTap: _openCodeLink,
+                          variableNameAt: _variableNameAt,
+                          variablePopoverBuilder: _variablePopover,
                           autoCloseHttpVariables: _foldedStarts.isEmpty,
                           autoEditHttpScripts: _foldedStarts.isEmpty,
                           completionVisible:

@@ -297,10 +297,16 @@ class HttpDocument {
   /// Substitui `{{nome}}` por [variables], resolvendo referências entre
   /// variáveis na ordem de declaração. Nome desconhecido fica **intacto** — a
   /// execução acusa como variável não resolvida em vez de mandar `{{x}}` no ar.
-  String interpolate(String input, {Map<String, String> extra = const {}}) {
-    final resolved = <String, String>{...extra};
+  String interpolate(
+    String input, {
+    Map<String, String> extra = const {},
+    Map<String, String> overrides = const {},
+  }) {
+    final resolved = <String, String>{...extra, ...overrides};
     for (final e in variables.entries) {
-      resolved[e.key] = _expand(e.value, resolved);
+      if (!overrides.containsKey(e.key)) {
+        resolved[e.key] = _expand(e.value, resolved);
+      }
     }
     return _expand(input, resolved);
   }
@@ -314,14 +320,17 @@ class HttpDocument {
     Map<String, String> environment = const {},
     Map<String, String> globals = const {},
     Map<String, String> requestVariables = const {},
+    Map<String, String> overrides = const {},
   }) {
     final values = <String, String>{
       ...environment,
       ...globals,
       ...requestVariables,
+      ...overrides,
     };
     for (final e in variables.entries) {
-      if (!requestVariables.containsKey(e.key)) {
+      if (!requestVariables.containsKey(e.key) &&
+          !overrides.containsKey(e.key)) {
         values[e.key] = _expand(e.value, values);
       }
     }
@@ -354,6 +363,7 @@ class HttpDocument {
     String source, {
     Map<String, String> environment = const {},
     Map<String, String> globals = const {},
+    Map<String, String> overrides = const {},
   }) {
     final doc = HttpDocument.parse(source);
     final missing = <({int start, int end, String name})>[];
@@ -366,7 +376,11 @@ class HttpDocument {
       if (!inScript && !trimmed.startsWith('#') && !trimmed.startsWith('//')) {
         for (final match in interpolation.allMatches(line)) {
           final token = match.group(0)!;
-          if (doc.interpolate(token, extra: {...environment, ...globals}) ==
+          if (doc.interpolate(
+                token,
+                extra: {...environment, ...globals},
+                overrides: overrides,
+              ) ==
               token) {
             missing.add((
               start: lineStart + match.start,

@@ -133,6 +133,59 @@ Accept: application/json
     expect(HttpDocument.unresolvedIn(resolved), isEmpty);
   });
 
+  test(
+    'sobrescrita temporária vence ambiente, global, @ e variável de script',
+    () {
+      final doc = HttpDocument.parse('''
+@host = https://local.example
+@path = {{host}}/items
+GET {{path}}/{{id}}
+X-Token: {{token}}
+
+{"enabled": {{enabled}}}
+''');
+      final overrides = {
+        'host': 'https://temporary.example',
+        'id': '42',
+        'token': 'temporary',
+        'enabled': 'true',
+      };
+      final resolved = doc.resolveRequest(
+        doc.requests.single,
+        environment: {'host': 'https://environment.example', 'id': '1'},
+        globals: {'token': 'global'},
+        requestVariables: {'id': '2'},
+        overrides: overrides,
+      );
+      expect(resolved.url, 'https://temporary.example/items/42');
+      expect(resolved.headers.single.value, 'temporary');
+      expect(resolved.body, '{"enabled": true}');
+      expect(
+        doc.interpolate('{{path}}', overrides: overrides),
+        'https://temporary.example/items',
+      );
+      expect(doc.variables['host'], 'https://local.example');
+    },
+  );
+
+  test('variável indefinida aceita override vazio e volta a undefined', () {
+    const source = 'GET https://example.test/{{missing}}';
+    final doc = HttpDocument.parse(source);
+    expect(HttpDocument.unresolvedPlaceholders(source), hasLength(1));
+    expect(
+      HttpDocument.unresolvedPlaceholders(source, overrides: {'missing': ''}),
+      isEmpty,
+    );
+    expect(
+      doc.resolveRequest(doc.requests.single, overrides: {'missing': ''}).url,
+      'https://example.test/',
+    );
+    expect(
+      doc.resolveRequest(doc.requests.single).url,
+      contains('{{missing}}'),
+    );
+  });
+
   test('destaca apenas placeholders sem valor, fora de comentários', () {
     const source = '// {{comentario}}\nGET {{host}}/x?token={{token}}\n';
     final missing = HttpDocument.unresolvedPlaceholders(
