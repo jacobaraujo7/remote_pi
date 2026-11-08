@@ -94,6 +94,36 @@ GET https://example.test/{{token}}/{{id}}
   });
 
   test(
+    'request.environment.get lê ambiente efetivo nos dois scripts',
+    () async {
+      final doc = HttpDocument.parse('''
+### Users
+< {%
+  client.assert(request.environment.get('missing') === undefined);
+  request.variables.set('pageLimit', request.environment.get('limit'));
+%}
+GET https://example.test/users?limit={{pageLimit}}
+> {%
+  client.test('environment', () =>
+    client.assert(request.environment.get('limit') === '7'));
+%}
+''');
+      final transport = _Transport();
+      final result = await HttpScriptSession().run(
+        transport,
+        doc,
+        doc.requests.single,
+        baseDir: '/tmp',
+        environment: {'limit': '20'},
+        overrides: {'limit': '7'},
+      );
+      expect(result.failed, isFalse);
+      expect(result.tests.single.passed, isTrue);
+      expect(transport.sent.single.url, 'https://example.test/users?limit=7');
+    },
+  );
+
+  test(
     'override de execução vence request.variables.set no pré-request',
     () async {
       final doc = HttpDocument.parse('''

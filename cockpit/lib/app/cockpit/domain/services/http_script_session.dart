@@ -66,11 +66,17 @@ class HttpScriptSession extends ChangeNotifier {
     // O script pode consultar o valor temporário via request.variables.get;
     // mesmo que ele defina a mesma chave, o override vence na interpolação.
     final vars = <String, String>{...overrides};
+    final scriptEnvironment = <String, String>{...environment, ...overrides};
     final logs = <String>[];
     final tests = <HttpScriptTest>[];
 
     if (request.preScript != null) {
-      final pre = await _execute(request.preScript!, _globals, vars);
+      final pre = await _execute(
+        request.preScript!,
+        _globals,
+        vars,
+        environment: scriptEnvironment,
+      );
       _mergeGlobals(pre.globals);
       vars.addAll(pre.variables);
       vars.addAll(overrides);
@@ -116,6 +122,7 @@ class HttpScriptSession extends ChangeNotifier {
             request.postScript!,
             _globals,
             vars,
+            environment: scriptEnvironment,
             response: {
               'body': body,
               'status': value.statusCode,
@@ -153,6 +160,7 @@ Future<_ScriptResult> _execute(
   String script,
   Map<String, String> globals,
   Map<String, String> variables, {
+  Map<String, String> environment = const {},
   Map<String, Object?>? response,
 }) async {
   final port = ReceivePort();
@@ -161,6 +169,7 @@ Future<_ScriptResult> _execute(
     script,
     globals,
     variables,
+    environment,
     response,
   ]);
   try {
@@ -199,7 +208,8 @@ void _scriptWorker(List<dynamic> args) {
   final script = args[1] as String;
   final globals = args[2] as Map<String, String>;
   final variables = args[3] as Map<String, String>;
-  final response = args[4] as Map<String, Object?>?;
+  final environment = args[4] as Map<String, String>;
+  final response = args[5] as Map<String, Object?>?;
   final js = QuickJsRuntime2(
     memoryLimit: 64 * 1024 * 1024,
     stackSize: 512 * 1024,
@@ -209,14 +219,18 @@ void _scriptWorker(List<dynamic> args) {
         '''
       globalThis.__state = {
         globals: ${jsonEncode(globals)}, variables: ${jsonEncode(variables)},
+        environment: ${jsonEncode(environment)},
         logs: [], tests: [], response: ${jsonEncode(response)}
       };
       const __value = value => typeof value === 'string' ? value :
         (value === undefined ? 'undefined' : JSON.stringify(value));
-      globalThis.request = {variables: {
-        set: (name, value) => { __state.variables[String(name)] = __value(value); },
-        get: name => __state.variables[String(name)]
-      }};
+      globalThis.request = {
+        variables: {
+          set: (name, value) => { __state.variables[String(name)] = __value(value); },
+          get: name => __state.variables[String(name)]
+        },
+        environment: {get: name => __state.environment[String(name)]}
+      };
       globalThis.client = {
         global: {
           set: (name, value) => { __state.globals[String(name)] = __value(value); },

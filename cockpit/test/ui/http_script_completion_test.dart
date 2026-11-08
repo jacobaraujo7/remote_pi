@@ -18,8 +18,9 @@ void main() {
     expect(_names('< {%\n  '), containsAll(['request', 'client', 'console']));
     expect(_names('< {%\n  '), isNot(contains('response')));
     expect(_names('> {%\n  '), contains('response'));
-    expect(_names('< {% request.'), ['variables']);
+    expect(_names('< {% request.'), ['variables', 'environment']);
     expect(_names('< {% request.variables.'), ['set', 'get']);
+    expect(_names('< {% request.environment.'), ['get']);
     expect(_names('< {% client.'), ['global', 'test', 'assert', 'log']);
     expect(_names('> {% client.global.'), ['set', 'get']);
     expect(_names('> {% response.'), ['body', 'status', 'headers']);

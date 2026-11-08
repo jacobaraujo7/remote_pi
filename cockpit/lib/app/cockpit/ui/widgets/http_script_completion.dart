@@ -93,7 +93,10 @@ class HttpScriptCompletion {
   }) {
     final candidates = switch (slot.receiver) {
       null => [
-        const HttpScriptSuggestion('request', 'Request variables'),
+        const HttpScriptSuggestion(
+          'request',
+          'Request and environment variables',
+        ),
         const HttpScriptSuggestion(
           'client',
           'Tests, logs and global variables',
@@ -136,9 +139,13 @@ class HttpScriptCompletion {
       ],
       'request' => [
         const HttpScriptSuggestion('variables', 'Variables for this request'),
+        const HttpScriptSuggestion('environment', 'Selected HTTP environment'),
       ],
       'request.variables' => [
         const HttpScriptSuggestion('set', 'set(name, value)', method: true),
+        const HttpScriptSuggestion('get', 'get(name)', method: true),
+      ],
+      'request.environment' => [
         const HttpScriptSuggestion('get', 'get(name)', method: true),
       ],
       'client' => [
