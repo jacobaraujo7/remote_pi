@@ -171,7 +171,7 @@ class CodeEditor extends StatefulWidget {
 
   /// Hover interativo de placeholders no editor HTTP.
   final String? Function(int offset)? variableNameAt;
-  final Widget Function(String name)? variablePopoverBuilder;
+  final Widget Function(String name, int startOffset)? variablePopoverBuilder;
 
   @override
   State<CodeEditor> createState() => _CodeEditorState();
@@ -1405,7 +1405,10 @@ class _CodeEditorState extends State<CodeEditor> {
                     },
                     child: TapRegion(
                       onTapOutside: (_) => _closeVariablePopover(),
-                      child: widget.variablePopoverBuilder!(name),
+                      child: widget.variablePopoverBuilder!(
+                        name,
+                        _hoverVariableStart!,
+                      ),
                     ),
                   ),
                 ),

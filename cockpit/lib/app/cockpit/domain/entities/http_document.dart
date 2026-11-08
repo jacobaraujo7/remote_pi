@@ -300,11 +300,17 @@ class HttpDocument {
   String interpolate(
     String input, {
     Map<String, String> extra = const {},
+    Map<String, String> requestVariables = const {},
     Map<String, String> overrides = const {},
   }) {
-    final resolved = <String, String>{...extra, ...overrides};
+    final resolved = <String, String>{
+      ...extra,
+      ...requestVariables,
+      ...overrides,
+    };
     for (final e in variables.entries) {
-      if (!overrides.containsKey(e.key)) {
+      if (!requestVariables.containsKey(e.key) &&
+          !overrides.containsKey(e.key)) {
         resolved[e.key] = _expand(e.value, resolved);
       }
     }
@@ -364,12 +370,18 @@ class HttpDocument {
     Map<String, String> environment = const {},
     Map<String, String> globals = const {},
     Map<String, String> overrides = const {},
+    Map<int, Map<String, String>> requestVariablesByIndex = const {},
   }) {
     final doc = HttpDocument.parse(source);
     final missing = <({int start, int end, String name})>[];
     var lineStart = 0;
+    var lineNumber = 0;
     var inScript = false;
     for (final line in source.split('\n')) {
+      final requestIndex = doc.requestIndexAtLine(lineNumber);
+      final requestVariables = requestIndex < 0
+          ? const <String, String>{}
+          : requestVariablesByIndex[requestIndex] ?? const <String, String>{};
       final trimmed = line.trimLeft();
       final startsScript = RegExp(r'^[<>]\s*\{%').hasMatch(trimmed);
       if (startsScript) inScript = true;
@@ -379,6 +391,7 @@ class HttpDocument {
           if (doc.interpolate(
                 token,
                 extra: {...environment, ...globals},
+                requestVariables: requestVariables,
                 overrides: overrides,
               ) ==
               token) {
@@ -392,6 +405,7 @@ class HttpDocument {
       }
       if (inScript && line.contains('%}')) inScript = false;
       lineStart += line.length + 1;
+      lineNumber++;
     }
     return missing;
   }

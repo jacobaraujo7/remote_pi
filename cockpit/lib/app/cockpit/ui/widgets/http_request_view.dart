@@ -166,7 +166,9 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   };
 
   void _onViewState() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    _refreshUnresolvedVariables();
+    setState(() {});
   }
 
   void _onGlobalsChanged() {
@@ -331,11 +333,14 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     }
     final slot = _variableSlot;
     if (slot == null && _plainCompletionOffset == null) return const [];
+    final requestIndex = _doc.requestIndexAtLine(_cursorLine);
     final names = <String>{
       ..._catalog.valuesFor(widget.session.httpEnvironment).keys,
       ...HttpScriptSession.shared.globals.keys,
       ..._doc.variables.keys,
       ..._view.runtimeVariablesFor(widget.session.httpEnvironment).keys,
+      if (requestIndex >= 0 && requestIndex < _view.outcomes.length)
+        ..._view.outcomes[requestIndex].requestVariables.keys,
     }.toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
     final query = slot?.prefix.trim().toLowerCase() ?? '';
     return names.where((name) => name.toLowerCase().startsWith(query)).toList();
@@ -491,6 +496,10 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         environment: environment,
         globals: HttpScriptSession.shared.globals,
         overrides: _view.runtimeValuesFor(selected),
+        requestVariablesByIndex: {
+          for (var i = 0; i < _view.outcomes.length; i++)
+            i: _view.outcomes[i].requestVariables,
+        },
       );
       controller.setUnresolvedVariables([
         for (final item in missing)
@@ -613,11 +622,23 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     return null;
   }
 
-  Widget _variablePopover(String name) {
+  Widget _variablePopover(String name, int displayOffset) {
     final tr = context.t.cockpit.httpView;
     final environmentName = widget.session.httpEnvironment;
     final overrides = _view.runtimeValuesFor(environmentName);
     final override = _view.runtimeVariablesFor(environmentName)[name];
+    final display = _foldedStarts.isEmpty ? _text.text : _foldedText.text;
+    final displayLine = '\n'
+        .allMatches(display.substring(0, displayOffset))
+        .length;
+    final sourceLine = _foldedStarts.isEmpty
+        ? displayLine
+        : _foldProjection.lineNumbers[displayLine] - 1;
+    final requestIndex = _doc.requestIndexAtLine(sourceLine);
+    final requestVariables =
+        requestIndex >= 0 && requestIndex < _view.outcomes.length
+        ? _view.outcomes[requestIndex].requestVariables
+        : const <String, String>{};
     final token = '{{$name}}';
     final resolved = _doc.interpolate(
       token,
@@ -625,10 +646,13 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         ..._catalog.valuesFor(environmentName),
         ...HttpScriptSession.shared.globals,
       },
+      requestVariables: requestVariables,
       overrides: overrides,
     );
     final value = resolved == token ? null : resolved;
-    final origin = _doc.variables.containsKey(name)
+    final origin = requestVariables.containsKey(name)
+        ? 'request.variables'
+        : _doc.variables.containsKey(name)
         ? tr.overrideFile
         : _catalog.valuesFor(environmentName).containsKey(name)
         ? tr.overrideEnvironment
@@ -636,7 +660,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
         ? tr.overrideGlobal
         : 'undefined';
     return HttpVariableOverridePopover(
-      key: ValueKey('$environmentName:$name'),
+      key: ValueKey('$environmentName:$requestIndex:$name'),
       name: name,
       effectiveValue: value,
       origin: origin,

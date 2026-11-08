@@ -36,14 +36,15 @@ void main() {
                 focusNode: focus,
                 variableNameAt: (offset) =>
                     offset >= start && offset < start + 9 ? 'value' : null,
-                variablePopoverBuilder: (name) => HttpVariableOverridePopover(
-                  name: name,
-                  effectiveValue: 'original',
-                  origin: 'Arquivo HTTP',
-                  runtimeOverride: null,
-                  onApply: (_) {},
-                  onClear: () {},
-                ),
+                variablePopoverBuilder: (name, _) =>
+                    HttpVariableOverridePopover(
+                      name: name,
+                      effectiveValue: 'original',
+                      origin: 'Arquivo HTTP',
+                      runtimeOverride: null,
+                      onApply: (_) {},
+                      onClear: () {},
+                    ),
               ),
             ),
           ),
@@ -103,14 +104,15 @@ void main() {
                           offset < source.indexOf('{{value}}') + 9
                       ? 'value'
                       : null,
-                  variablePopoverBuilder: (name) => HttpVariableOverridePopover(
-                    name: name,
-                    effectiveValue: 'original',
-                    origin: 'Arquivo HTTP',
-                    runtimeOverride: null,
-                    onApply: (_) {},
-                    onClear: () {},
-                  ),
+                  variablePopoverBuilder: (name, _) =>
+                      HttpVariableOverridePopover(
+                        name: name,
+                        effectiveValue: 'original',
+                        origin: 'Arquivo HTTP',
+                        runtimeOverride: null,
+                        onApply: (_) {},
+                        onClear: () {},
+                      ),
                 ),
               ),
             ),
@@ -178,15 +180,16 @@ void main() {
                   focusNode: focus,
                   variableNameAt: (offset) =>
                       offset >= 4 && offset < 13 ? 'value' : null,
-                  variablePopoverBuilder: (name) => HttpVariableOverridePopover(
-                    key: ValueKey(name),
-                    name: name,
-                    effectiveValue: current?.value ?? 'original',
-                    origin: 'Arquivo HTTP',
-                    runtimeOverride: current,
-                    onApply: (value) => update(() => current = value),
-                    onClear: () => update(() => current = null),
-                  ),
+                  variablePopoverBuilder: (name, _) =>
+                      HttpVariableOverridePopover(
+                        key: ValueKey(name),
+                        name: name,
+                        effectiveValue: current?.value ?? 'original',
+                        origin: 'Arquivo HTTP',
+                        runtimeOverride: current,
+                        onApply: (value) => update(() => current = value),
+                        onClear: () => update(() => current = null),
+                      ),
                 ),
               ),
             ),
@@ -268,7 +271,7 @@ void main() {
               focusNode: focus,
               variableNameAt: (offset) =>
                   offset >= 4 && offset < 13 ? 'value' : null,
-              variablePopoverBuilder: (name) => Container(
+              variablePopoverBuilder: (name, _) => Container(
                 color: const Color(0xFFFFFFFF),
                 child: Text('popover-$name'),
               ),

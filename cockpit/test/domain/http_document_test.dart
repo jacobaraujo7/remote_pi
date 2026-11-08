@@ -199,6 +199,36 @@ X-Token: {{token}}
     );
   });
 
+  test('variáveis do script resolvem só a seção que foi executada', () {
+    const source = '''
+### Primeira
+GET https://example.test/users?limit={{pageLimit}}
+
+### Segunda
+GET https://example.test/other?limit={{pageLimit}}
+''';
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      requestVariablesByIndex: {
+        0: {'pageLimit': '7'},
+      },
+    );
+    expect(
+      HttpDocument.parse(source).interpolate(
+        '{{pageLimit}}',
+        requestVariables: {'pageLimit': '7'},
+      ),
+      '7',
+    );
+    expect(missing.map((item) => item.name), ['pageLimit']);
+    expect(
+      source.substring(missing.single.start, missing.single.end),
+      '{{pageLimit}}',
+    );
+    expect(missing.single.start, source.lastIndexOf('{{pageLimit}}'));
+    expect(HttpDocument.unresolvedPlaceholders(source), hasLength(2));
+  });
+
   test('globais de outra request resolvem placeholders em outro arquivo', () {
     const source = 'GET https://example.test/{{accessToken}}/{{missing}}\n';
     final missing = HttpDocument.unresolvedPlaceholders(

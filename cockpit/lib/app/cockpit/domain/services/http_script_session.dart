@@ -22,6 +22,7 @@ class HttpScriptExecution {
     this.response,
     this.transportError,
     this.scriptError,
+    this.variables = const {},
     this.logs = const [],
     this.tests = const [],
   });
@@ -29,6 +30,7 @@ class HttpScriptExecution {
   final HttpResponseResult? response;
   final HttpRequestError? transportError;
   final String? scriptError;
+  final Map<String, String> variables;
   final List<String> logs;
   final List<HttpScriptTest> tests;
   bool get failed =>
@@ -63,9 +65,9 @@ class HttpScriptSession extends ChangeNotifier {
     Map<String, String> overrides = const {},
     Duration timeout = const Duration(seconds: 30),
   }) async {
-    // O script pode consultar o valor temporário via request.variables.get;
-    // mesmo que ele defina a mesma chave, o override vence na interpolação.
-    final vars = <String, String>{...overrides};
+    // Apenas valores escritos pelo script entram no resultado. Overrides são
+    // consultáveis, mas continuam em uma camada separada para poder restaurar.
+    final vars = <String, String>{};
     final scriptEnvironment = <String, String>{...environment, ...overrides};
     final logs = <String>[];
     final tests = <HttpScriptTest>[];
@@ -76,15 +78,16 @@ class HttpScriptSession extends ChangeNotifier {
         _globals,
         vars,
         environment: scriptEnvironment,
+        overrides: overrides,
       );
       _mergeGlobals(pre.globals);
       vars.addAll(pre.variables);
-      vars.addAll(overrides);
       logs.addAll(pre.logs);
       tests.addAll(pre.tests);
       if (pre.error != null) {
         return HttpScriptExecution(
           scriptError: 'Pre-request: ${pre.error}',
+          variables: Map.unmodifiable(vars),
           logs: logs,
           tests: tests,
         );
@@ -107,6 +110,7 @@ class HttpScriptSession extends ChangeNotifier {
       case Failure(:final error):
         return HttpScriptExecution(
           transportError: error,
+          variables: Map.unmodifiable(vars),
           logs: logs,
           tests: tests,
         );
@@ -123,6 +127,7 @@ class HttpScriptSession extends ChangeNotifier {
             _globals,
             vars,
             environment: scriptEnvironment,
+            overrides: overrides,
             response: {
               'body': body,
               'status': value.statusCode,
@@ -132,10 +137,12 @@ class HttpScriptSession extends ChangeNotifier {
             },
           );
           _mergeGlobals(post.globals);
+          vars.addAll(post.variables);
           logs.addAll(post.logs);
           tests.addAll(post.tests);
           return HttpScriptExecution(
             response: value,
+            variables: Map.unmodifiable(vars),
             scriptError: post.error == null
                 ? null
                 : 'Post-request: ${post.error}',
@@ -143,7 +150,12 @@ class HttpScriptSession extends ChangeNotifier {
             tests: tests,
           );
         }
-        return HttpScriptExecution(response: value, logs: logs, tests: tests);
+        return HttpScriptExecution(
+          response: value,
+          variables: Map.unmodifiable(vars),
+          logs: logs,
+          tests: tests,
+        );
     }
   }
 }
@@ -161,6 +173,7 @@ Future<_ScriptResult> _execute(
   Map<String, String> globals,
   Map<String, String> variables, {
   Map<String, String> environment = const {},
+  Map<String, String> overrides = const {},
   Map<String, Object?>? response,
 }) async {
   final port = ReceivePort();
@@ -170,6 +183,7 @@ Future<_ScriptResult> _execute(
     globals,
     variables,
     environment,
+    overrides,
     response,
   ]);
   try {
@@ -209,7 +223,8 @@ void _scriptWorker(List<dynamic> args) {
   final globals = args[2] as Map<String, String>;
   final variables = args[3] as Map<String, String>;
   final environment = args[4] as Map<String, String>;
-  final response = args[5] as Map<String, Object?>?;
+  final overrides = args[5] as Map<String, String>;
+  final response = args[6] as Map<String, Object?>?;
   final js = QuickJsRuntime2(
     memoryLimit: 64 * 1024 * 1024,
     stackSize: 512 * 1024,
@@ -219,7 +234,7 @@ void _scriptWorker(List<dynamic> args) {
         '''
       globalThis.__state = {
         globals: ${jsonEncode(globals)}, variables: ${jsonEncode(variables)},
-        environment: ${jsonEncode(environment)},
+        environment: ${jsonEncode(environment)}, overrides: ${jsonEncode(overrides)},
         logs: [], tests: [], response: ${jsonEncode(response)}
       };
       const __value = value => typeof value === 'string' ? value :
@@ -227,7 +242,11 @@ void _scriptWorker(List<dynamic> args) {
       globalThis.request = {
         variables: {
           set: (name, value) => { __state.variables[String(name)] = __value(value); },
-          get: name => __state.variables[String(name)]
+          get: name => {
+            const key = String(name);
+            return Object.prototype.hasOwnProperty.call(__state.variables, key)
+              ? __state.variables[key] : __state.overrides[key];
+          }
         },
         environment: {get: name => __state.environment[String(name)]}
       };

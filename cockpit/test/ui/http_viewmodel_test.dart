@@ -205,6 +205,18 @@ void main() {
     expect(reopened.foldedStarts, isEmpty);
   });
 
+  test('editar o script invalida as variáveis calculadas anteriormente', () {
+    const source = '''
+### Users
+< {% request.variables.set('pageLimit', '7'); %}
+GET https://example.test/users?limit={{pageLimit}}
+''';
+    final state = HttpTabState()..syncSource(source, 1);
+    state.outcomes.single.requestVariables = {'pageLimit': '7'};
+    state.syncSource(source.replaceFirst("'7'", "'8'"), 1);
+    expect(state.outcomes.single.requestVariables, isEmpty);
+  });
+
   group('HttpResponseResult', () {
     test('JSON válido vira corpo indentado', () {
       expect(_result('{"a":1}').prettyJson, '{\n  "a": 1\n}');

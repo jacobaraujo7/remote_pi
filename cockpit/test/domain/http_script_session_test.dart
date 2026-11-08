@@ -118,6 +118,8 @@ GET https://example.test/users?limit={{pageLimit}}
         overrides: {'limit': '7'},
       );
       expect(result.failed, isFalse);
+      expect(result.variables['pageLimit'], '7');
+      expect(result.variables.containsKey('limit'), isFalse);
       expect(result.tests.single.passed, isTrue);
       expect(transport.sent.single.url, 'https://example.test/users?limit=7');
     },
@@ -143,6 +145,39 @@ GET https://example.test/{{id}}
       expect(doc.variables['id'], 'original');
     },
   );
+
+  test('variável criada no pré-request atualiza só sua seção', () async {
+    const source = '''
+### Primeiro
+< {% request.variables.set('pageLimit', '7'); %}
+GET https://example.test/users?limit={{pageLimit}}
+
+### Segundo
+GET https://example.test/other?limit={{pageLimit}}
+''';
+    final doc = HttpDocument.parse(source);
+    final state = HttpTabState()..syncSource(source, doc.requests.length);
+    expect(HttpDocument.unresolvedPlaceholders(source), hasLength(2));
+
+    await state.runRequests(
+      _Transport(),
+      doc.requests,
+      baseDir: '/tmp',
+      document: doc,
+      onlyIndex: 0,
+    );
+    expect(state.outcomes.first.requestVariables, {'pageLimit': '7'});
+    expect(state.outcomes.last.requestVariables, isEmpty);
+    final missing = HttpDocument.unresolvedPlaceholders(
+      source,
+      requestVariablesByIndex: {
+        for (var i = 0; i < state.outcomes.length; i++)
+          i: state.outcomes[i].requestVariables,
+      },
+    );
+    expect(missing, hasLength(1));
+    expect(missing.single.start, source.lastIndexOf('{{pageLimit}}'));
+  });
 
   test('pre error prevents sending; failed test retains response', () async {
     final doc = HttpDocument.parse('''

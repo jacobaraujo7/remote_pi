@@ -22,6 +22,7 @@ class HttpRequestOutcome {
   String? scriptError;
   List<String> logs = const [];
   List<HttpScriptTest> tests = const [];
+  Map<String, String> requestVariables = const {};
   final Map<HttpResponseFormat, Set<int>> responseFolds = {};
 }
 
@@ -111,6 +112,7 @@ class HttpTabState extends ChangeNotifier {
       ..._detached,
     ];
     final assigned = List<HttpRequestOutcome?>.filled(next.length, null);
+    final matchedRequest = List<HttpRequestSpec?>.filled(next.length, null);
     final used = <int>{};
 
     void match(bool Function(HttpRequestSpec, HttpRequestSpec) matches) {
@@ -121,6 +123,7 @@ class HttpTabState extends ChangeNotifier {
             continue;
           }
           assigned[i] = previous[j].outcome;
+          matchedRequest[i] = previous[j].request;
           used.add(j);
           break;
         }
@@ -148,6 +151,7 @@ class HttpTabState extends ChangeNotifier {
         continue;
       }
       assigned[i] = previous[i].outcome;
+      matchedRequest[i] = previous[i].request;
       used.add(i);
     }
 
@@ -170,6 +174,14 @@ class HttpTabState extends ChangeNotifier {
     outcomes = [
       for (final outcome in assigned) outcome ?? HttpRequestOutcome(),
     ];
+    for (var i = 0; i < next.length; i++) {
+      final before = matchedRequest[i];
+      if (before != null &&
+          (before.preScript != next[i].preScript ||
+              before.postScript != next[i].postScript)) {
+        outcomes[i].requestVariables = const {};
+      }
+    }
     _requests = next;
     for (final outcome in outcomes) {
       if (outcome.status == HttpRequestRunStatus.loading) {
@@ -239,6 +251,7 @@ class HttpTabState extends ChangeNotifier {
               ..scriptError = execution.scriptError
               ..logs = execution.logs
               ..tests = execution.tests
+              ..requestVariables = execution.variables
               ..status = execution.failed
                   ? HttpRequestRunStatus.error
                   : HttpRequestRunStatus.success
