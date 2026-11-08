@@ -941,6 +941,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
 	@override String get runAll => 'Ejecutar todos';
+	@override String get expandToEdit => 'Expandir para editar';
 	@override String get noMatchingVariables => 'No hay variables coincidentes';
 	@override String get noScriptSuggestions => 'No hay sugerencias para esta expresión';
 	@override String get running => 'Ejecutando…';
@@ -2564,6 +2565,7 @@ extension on TranslationsEs {
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
 			'cockpit.httpView.runAll' => 'Ejecutar todos',
+			'cockpit.httpView.expandToEdit' => 'Expandir para editar',
 			'cockpit.httpView.noMatchingVariables' => 'No hay variables coincidentes',
 			'cockpit.httpView.noScriptSuggestions' => 'No hay sugerencias para esta expresión',
 			'cockpit.httpView.running' => 'Ejecutando…',
@@ -2683,9 +2685,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nombre',
-			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
 			'cockpit.dbConnectionDialog.allowWritesHint' => 'desactivado = los agentes solo leen vía CLI',
@@ -3197,9 +3199,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			'settings.remoteHosts.reconnect' => 'Reconectar',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '¿Eliminar "${name}" y todos sus workspaces? No se borra nada en el host.',

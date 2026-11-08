@@ -451,6 +451,7 @@
       "couldNotSave": "无法保存",
       "run": "运行",
       "runAll": "运行全部",
+      "expandToEdit": "展开以编辑",
       "noMatchingVariables": "没有匹配的变量",
       "noScriptSuggestions": "此表达式没有建议",
       "running": "运行中…",

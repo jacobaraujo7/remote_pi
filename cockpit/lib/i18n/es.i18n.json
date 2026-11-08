@@ -451,6 +451,7 @@
       "couldNotSave": "No se pudo guardar",
       "run": "Ejecutar",
       "runAll": "Ejecutar todos",
+      "expandToEdit": "Expandir para editar",
       "noMatchingVariables": "No hay variables coincidentes",
       "noScriptSuggestions": "No hay sugerencias para esta expresión",
       "running": "Ejecutando…",

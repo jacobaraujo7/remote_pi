@@ -29,6 +29,25 @@ GET https://example.com/b
     expect(projection.lineNumbers.last, source.split('\n').length);
   });
 
+  test('edição em outra parte preserva o fold e ajusta sua linha', () {
+    final inserted = source.replaceFirst('### second', '# nota\n### second');
+    expect(HttpRequestFolds.remapStarts(source, inserted, {1, 5}), {1, 6});
+    expect(
+      HttpRequestFolds.build(inserted, {1, 6}).text,
+      isNot(contains('Accept: application/json')),
+    );
+  });
+
+  test('edição da URL mantém seu fold; remoção da chamada o descarta', () {
+    final changed = source.replaceFirst('/b', '/updated');
+    expect(HttpRequestFolds.remapStarts(source, changed, {1, 5}), {1, 5});
+    final removed = source.replaceFirst(
+      'GET https://example.com/b\n?page=1',
+      '# sem request',
+    );
+    expect(HttpRequestFolds.remapStarts(source, removed, {1, 5}), {1});
+  });
+
   test('header não aparece no resumo de URL já completa', () {
     const text =
         'GET https://example.com/get?show_env=1\nAccept: application/json\n';

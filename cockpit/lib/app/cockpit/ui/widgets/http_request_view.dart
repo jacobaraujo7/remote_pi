@@ -23,6 +23,7 @@ import 'package:cockpit/app/core/ui/http_request_error_message.dart';
 import 'package:cockpit/app/core/ui/menu/editor_menu_bridge.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
@@ -248,12 +249,11 @@ class _HttpRequestViewState extends State<HttpRequestView> {
           );
         }
       }
-      if (_foldedStarts.isNotEmpty) _foldedStarts.clear();
+      _view.syncSource(_text.text, _doc.requests.length);
       _rebuildFoldedText();
     }
     _lastSourceText = _text.text;
     _updateCompletion(textChanged: textChanged);
-    if (textChanged) _view.syncSource(_text.text, _doc.requests.length);
     if (textChanged) _refreshUnresolvedVariables();
     if (mounted && (textChanged || _foldedStarts.isEmpty)) setState(() {});
     widget.session.setDirty(_dirty);
@@ -982,9 +982,6 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           focusNode: _focus,
                           scrollAnchor: _foldScrollAnchor,
                           readOnly: _foldedStarts.isNotEmpty,
-                          onCodeTap: _foldedStarts.isEmpty
-                              ? null
-                              : _expandForEdit,
                           linkRangeAt: (offset) {
                             final link = _codeLinkAt(offset);
                             return link == null
@@ -1117,6 +1114,19 @@ class _HttpRequestViewState extends State<HttpRequestView> {
               ),
             ),
           ),
+          if (_foldedStarts.isNotEmpty) ...[
+            AppTooltip(
+              message: tr.expandToEdit,
+              child: HoverTap(
+                onTap: _expandForEdit,
+                color: colors.panel3,
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
+                padding: const EdgeInsets.all(5),
+                child: Icon(Icons.edit, size: 14, color: colors.text2),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           Builder(
             builder: (anchor) => HoverTap(
               onTap: () => _pickEnvironment(anchor),

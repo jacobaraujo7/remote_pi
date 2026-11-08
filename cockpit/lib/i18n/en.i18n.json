@@ -451,6 +451,7 @@
       "couldNotSave": "Could not save",
       "run": "Run",
       "runAll": "Run All",
+      "expandToEdit": "Expand to edit",
       "noMatchingVariables": "No matching variables",
       "noScriptSuggestions": "No suggestions for this expression",
       "running": "Running…",

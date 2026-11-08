@@ -15,6 +15,48 @@ class HttpRequestFolds {
   final List<int> lineNumbers;
   final Map<int, int> visibleBySource;
 
+  /// Mantém os folds ligados às linhas correspondentes após uma edição.
+  /// Edições comuns alteram apenas um trecho; o prefixo e o sufixo intactos
+  /// dão uma âncora estável mesmo quando linhas são inseridas antes do fold.
+  static Set<int> remapStarts(
+    String previous,
+    String current,
+    Set<int> foldedStarts,
+  ) {
+    if (foldedStarts.isEmpty || previous == current) return {...foldedStarts};
+    final oldLines = previous.split('\n');
+    final newLines = current.split('\n');
+    var prefix = 0;
+    while (prefix < oldLines.length &&
+        prefix < newLines.length &&
+        oldLines[prefix] == newLines[prefix]) {
+      prefix++;
+    }
+    var suffix = 0;
+    while (suffix < oldLines.length - prefix &&
+        suffix < newLines.length - prefix &&
+        oldLines[oldLines.length - suffix - 1] ==
+            newLines[newLines.length - suffix - 1]) {
+      suffix++;
+    }
+    final oldEnd = oldLines.length - suffix;
+    final newEnd = newLines.length - suffix;
+    final delta = newLines.length - oldLines.length;
+    final available = build(current, const {}).foldEnds.keys.toSet();
+    return {
+      for (final start in foldedStarts)
+        if (start < prefix && available.contains(start))
+          start
+        else if (start >= oldEnd && available.contains(start + delta))
+          start + delta
+        else if (start >= prefix &&
+            start < oldEnd &&
+            start - prefix < newEnd - prefix &&
+            available.contains(start))
+          start,
+    };
+  }
+
   static HttpRequestFolds build(String source, Set<int> foldedStarts) {
     final lines = source.split('\n');
     final doc = HttpDocument.parse(source);

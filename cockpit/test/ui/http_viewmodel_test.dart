@@ -202,7 +202,7 @@ void main() {
     );
 
     reopened.syncSource('$text\n# edited', 1);
-    expect(reopened.foldedStarts, isEmpty);
+    expect(reopened.foldedStarts, {1});
   });
 
   test('editar o script invalida as variáveis calculadas anteriormente', () {

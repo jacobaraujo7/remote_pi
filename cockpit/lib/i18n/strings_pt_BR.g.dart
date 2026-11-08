@@ -941,6 +941,7 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
 	@override String get runAll => 'Executar todos';
+	@override String get expandToEdit => 'Expandir para editar';
 	@override String get noMatchingVariables => 'Nenhuma variável encontrada';
 	@override String get noScriptSuggestions => 'Nenhuma sugestão para esta expressão';
 	@override String get running => 'Executando…';
@@ -2568,6 +2569,7 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
 			'cockpit.httpView.runAll' => 'Executar todos',
+			'cockpit.httpView.expandToEdit' => 'Expandir para editar',
 			'cockpit.httpView.noMatchingVariables' => 'Nenhuma variável encontrada',
 			'cockpit.httpView.noScriptSuggestions' => 'Nenhuma sugestão para esta expressão',
 			'cockpit.httpView.running' => 'Executando…',
@@ -2687,9 +2689,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
-			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nome',
@@ -3201,9 +3203,9 @@ extension on TranslationsPtBr {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',
 			'settings.remoteHosts.edit' => 'Editar',

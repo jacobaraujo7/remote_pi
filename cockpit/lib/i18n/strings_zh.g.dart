@@ -863,6 +863,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
 	@override String get runAll => '运行全部';
+	@override String get expandToEdit => '展开以编辑';
 	@override String get noMatchingVariables => '没有匹配的变量';
 	@override String get noScriptSuggestions => '此表达式没有建议';
 	@override String get running => '运行中…';
@@ -2483,6 +2484,7 @@ extension on TranslationsZh {
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
 			'cockpit.httpView.runAll' => '运行全部',
+			'cockpit.httpView.expandToEdit' => '展开以编辑',
 			'cockpit.httpView.noMatchingVariables' => '没有匹配的变量',
 			'cockpit.httpView.noScriptSuggestions' => '此表达式没有建议',
 			'cockpit.httpView.running' => '运行中…',
@@ -2602,9 +2604,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
 			'cockpit.dbConnectionDialog.testing' => '正在测试连接…',
@@ -3116,9 +3118,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
 			'settings.remoteHosts.deviceKeyDesc' => '将此公钥添加到主机的 ~/.ssh/authorized_keys，本设备即可连接。',

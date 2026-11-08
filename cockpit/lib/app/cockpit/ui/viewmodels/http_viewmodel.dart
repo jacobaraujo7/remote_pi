@@ -4,6 +4,7 @@ import 'package:cockpit/app/cockpit/domain/entities/http_runtime_variable.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_request_folds.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter/foundation.dart';
 
@@ -90,7 +91,16 @@ class HttpTabState extends ChangeNotifier {
   /// Uma linha de request temporariamente inválida não descarta a resposta.
   void syncSource(String source, int requestCount) {
     if (_source == source && outcomes.length == requestCount) return;
-    if (_source != null && _source != source) foldedStarts.clear();
+    if (_source != null && _source != source && foldedStarts.isNotEmpty) {
+      final remapped = HttpRequestFolds.remapStarts(
+        _source!,
+        source,
+        foldedStarts,
+      );
+      foldedStarts
+        ..clear()
+        ..addAll(remapped);
+    }
     _source = source;
     _sourceGeneration++;
     final next = HttpDocument.parse(source).requests;

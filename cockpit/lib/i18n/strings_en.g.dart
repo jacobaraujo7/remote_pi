@@ -1988,6 +1988,9 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Run All'
 	String get runAll => 'Run All';
 
+	/// en: 'Expand to edit'
+	String get expandToEdit => 'Expand to edit';
+
 	/// en: 'No matching variables'
 	String get noMatchingVariables => 'No matching variables';
 
@@ -5016,6 +5019,7 @@ extension on Translations {
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
 			'cockpit.httpView.runAll' => 'Run All',
+			'cockpit.httpView.expandToEdit' => 'Expand to edit',
 			'cockpit.httpView.noMatchingVariables' => 'No matching variables',
 			'cockpit.httpView.noScriptSuggestions' => 'No suggestions for this expression',
 			'cockpit.httpView.running' => 'Running…',
@@ -5135,9 +5139,9 @@ extension on Translations {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
 			'cockpit.dbConnectionDialog.name' => 'Name',
@@ -5649,9 +5653,9 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
 			'settings.remoteHosts.edit' => 'Edit',
