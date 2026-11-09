@@ -1654,8 +1654,10 @@ class _PaneBodyState extends State<_PaneBody> {
         session: item,
         active: widget.active,
         focused: widget.focused,
-        onEditSource: () =>
-            context.read<CockpitViewModel>().openFileAsSource(item.path),
+        displayPath: context.read<CockpitViewModel>().displayPath(
+          item.projectId,
+          item.path,
+        ),
       );
     }
     // Viewer de diff (read-only, split): comparação com o HEAD do git.

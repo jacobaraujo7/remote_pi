@@ -258,14 +258,14 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 
 	// Translations
 	@override String get terminals => 'Terminais';
-	@override String get boxes => 'Boxes';
+	@override String get boxes => 'Lista';
 	@override String get graph => 'Grafo';
 	@override String get newTerminal => 'Novo terminal';
-	@override String get configure => 'Configurar box';
+	@override String get configure => 'Configurar terminal';
 	@override String get closeInspector => 'Fechar inspector';
 	@override String get search => 'Buscar nome ou função';
 	@override String get allStates => 'Todos os estados';
-	@override String get name => 'Box';
+	@override String get name => 'Terminal';
 	@override String get state => 'Estado';
 	@override String get tool => 'Ferramenta';
 	@override String get role => 'Função';
@@ -281,10 +281,10 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get disconnected => 'Desconectado';
 	@override String get unavailable => 'Indisponível';
 	@override String get noRole => 'Adicionar função';
-	@override String get noBoxes => 'Nenhuma box ainda';
-	@override String get noMatches => 'Nenhuma box corresponde à busca';
+	@override String get noBoxes => 'Nenhum terminal ainda';
+	@override String get noMatches => 'Nenhum terminal corresponde à busca';
 	@override String get selectBox => 'Selecione uma box para visualizar o terminal';
-	@override String get noSession => 'Esta box está sem sessão de terminal';
+	@override String get noSession => 'Este terminal não tem sessão';
 	@override String get startShell => 'Iniciar terminal';
 	@override String get openTerminal => 'Abrir em Terminais';
 	@override String get save => 'Salvar';
@@ -302,16 +302,21 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get planned => 'Conexão planejada';
 	@override String get observed => 'Atividade observada';
 	@override String get temporary => 'Subagente temporário';
-	@override String get linkBoxes => 'Ligar boxes';
+	@override String get linkBoxes => 'Ligar terminais';
 	@override String get selectEndpoints => 'Selecione origem e destino';
 	@override String get zoomFit => 'Redefinir zoom';
 	@override String get session => 'Sessão';
 	@override String get configuration => 'Configuração';
-	@override String get nameRequired => 'Informe o nome da box';
+	@override String get nameRequired => 'Informe um nome para o terminal';
 	@override String get removeLink => 'Remover conexão';
 	@override String get handoffSummary => 'Resumo';
 	@override String get copyRole => 'Copiar função';
 	@override String get showInspector => 'Mostrar inspector';
+	@override String get addConnection => 'Ligar a outro terminal';
+	@override String get actions => 'Ações';
+	@override String get closeTerminal => 'Ocultar terminal';
+	@override String get legend => 'Legenda';
+	@override String get portableHint => 'Salvo no arquivo .orc. Ações de sessão ficam no menu do terminal.';
 }
 
 // Path: terminalAttachment
@@ -362,6 +367,7 @@ class _Translations$orchestration$pt_BR extends Translations$orchestration$en {
 	@override String get roleChanged => 'O terminal ou documento mudou. Consulte novamente.';
 	@override String get roleTimeout => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.';
 	@override String get roleInvalid => 'O agente retornou uma sugestão de função inválida.';
+	@override String get noBoxSelected => 'Selecione um terminal na lista ou no grafo para trabalhar nele.';
 }
 
 // Path: core.bootstrapError
@@ -3316,14 +3322,14 @@ extension on TranslationsPtBr {
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',
 			'workspaceView.terminals' => 'Terminais',
-			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.boxes' => 'Lista',
 			'workspaceView.graph' => 'Grafo',
 			'workspaceView.newTerminal' => 'Novo terminal',
-			'workspaceView.configure' => 'Configurar box',
+			'workspaceView.configure' => 'Configurar terminal',
 			'workspaceView.closeInspector' => 'Fechar inspector',
 			'workspaceView.search' => 'Buscar nome ou função',
 			'workspaceView.allStates' => 'Todos os estados',
-			'workspaceView.name' => 'Box',
+			'workspaceView.name' => 'Terminal',
 			'workspaceView.state' => 'Estado',
 			'workspaceView.tool' => 'Ferramenta',
 			'workspaceView.role' => 'Função',
@@ -3339,10 +3345,10 @@ extension on TranslationsPtBr {
 			'workspaceView.disconnected' => 'Desconectado',
 			'workspaceView.unavailable' => 'Indisponível',
 			'workspaceView.noRole' => 'Adicionar função',
-			'workspaceView.noBoxes' => 'Nenhuma box ainda',
-			'workspaceView.noMatches' => 'Nenhuma box corresponde à busca',
+			'workspaceView.noBoxes' => 'Nenhum terminal ainda',
+			'workspaceView.noMatches' => 'Nenhum terminal corresponde à busca',
 			'workspaceView.selectBox' => 'Selecione uma box para visualizar o terminal',
-			'workspaceView.noSession' => 'Esta box está sem sessão de terminal',
+			'workspaceView.noSession' => 'Este terminal não tem sessão',
 			'workspaceView.startShell' => 'Iniciar terminal',
 			'workspaceView.openTerminal' => 'Abrir em Terminais',
 			'workspaceView.save' => 'Salvar',
@@ -3360,16 +3366,21 @@ extension on TranslationsPtBr {
 			'workspaceView.planned' => 'Conexão planejada',
 			'workspaceView.observed' => 'Atividade observada',
 			'workspaceView.temporary' => 'Subagente temporário',
-			'workspaceView.linkBoxes' => 'Ligar boxes',
+			'workspaceView.linkBoxes' => 'Ligar terminais',
 			'workspaceView.selectEndpoints' => 'Selecione origem e destino',
 			'workspaceView.zoomFit' => 'Redefinir zoom',
 			'workspaceView.session' => 'Sessão',
 			'workspaceView.configuration' => 'Configuração',
-			'workspaceView.nameRequired' => 'Informe o nome da box',
+			'workspaceView.nameRequired' => 'Informe um nome para o terminal',
 			'workspaceView.removeLink' => 'Remover conexão',
 			'workspaceView.handoffSummary' => 'Resumo',
 			'workspaceView.copyRole' => 'Copiar função',
 			'workspaceView.showInspector' => 'Mostrar inspector',
+			'workspaceView.addConnection' => 'Ligar a outro terminal',
+			'workspaceView.actions' => 'Ações',
+			'workspaceView.closeTerminal' => 'Ocultar terminal',
+			'workspaceView.legend' => 'Legenda',
+			'workspaceView.portableHint' => 'Salvo no arquivo .orc. Ações de sessão ficam no menu do terminal.',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Colagem da imagem solicitada ao agente.',
 			'terminalAttachment.referenced' => 'Referências locais inseridas.',
@@ -3402,6 +3413,7 @@ extension on TranslationsPtBr {
 			'orchestration.roleChanged' => 'O terminal ou documento mudou. Consulte novamente.',
 			'orchestration.roleTimeout' => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.',
 			'orchestration.roleInvalid' => 'O agente retornou uma sugestão de função inválida.',
+			'orchestration.noBoxSelected' => 'Selecione um terminal na lista ou no grafo para trabalhar nele.',
 			_ => null,
 		};
 	}

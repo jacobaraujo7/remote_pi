@@ -195,14 +195,14 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 
 	// Translations
 	@override String get terminals => '终端';
-	@override String get boxes => '会话';
+	@override String get boxes => '列表';
 	@override String get graph => '关系图';
 	@override String get newTerminal => '新建终端';
-	@override String get configure => '配置会话';
+	@override String get configure => '配置终端';
 	@override String get closeInspector => 'Close inspector';
 	@override String get search => 'Search name or function';
 	@override String get allStates => 'All states';
-	@override String get name => '名称';
+	@override String get name => '终端';
 	@override String get state => '状态';
 	@override String get tool => '工具';
 	@override String get role => '功能';
@@ -218,10 +218,10 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get disconnected => '已断开';
 	@override String get unavailable => 'Unavailable';
 	@override String get noRole => 'Add a function';
-	@override String get noBoxes => 'No boxes yet';
-	@override String get noMatches => 'No boxes match your search';
+	@override String get noBoxes => '还没有终端';
+	@override String get noMatches => '没有匹配的终端';
 	@override String get selectBox => 'Select a box to preview its terminal';
-	@override String get noSession => 'This box has no terminal session';
+	@override String get noSession => '此终端没有会话';
 	@override String get startShell => 'Start terminal';
 	@override String get openTerminal => 'Open in Terminals';
 	@override String get save => '保存';
@@ -239,16 +239,21 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get planned => 'Planned connection';
 	@override String get observed => 'Observed activity';
 	@override String get temporary => 'Temporary subagent';
-	@override String get linkBoxes => 'Connect boxes';
+	@override String get linkBoxes => '连接终端';
 	@override String get selectEndpoints => 'Select source and target';
 	@override String get zoomFit => 'Reset zoom';
 	@override String get session => '会话';
 	@override String get configuration => '配置';
-	@override String get nameRequired => 'Enter a box name';
+	@override String get nameRequired => '请输入终端名称';
 	@override String get removeLink => 'Remove connection';
 	@override String get handoffSummary => 'Summary';
 	@override String get copyRole => 'Copy function';
 	@override String get showInspector => 'Show inspector';
+	@override String get addConnection => '连接到另一个终端';
+	@override String get actions => '操作';
+	@override String get closeTerminal => '隐藏终端';
+	@override String get legend => '图例';
+	@override String get portableHint => '保存在 .orc 文件中。会话操作位于终端菜单。';
 }
 
 // Path: terminalAttachment
@@ -284,6 +289,7 @@ class _Translations$orchestration$zh extends Translations$orchestration$en {
 	@override String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
 	@override String get createWithoutImport => 'Create without importing';
 	@override String get importLegacy => 'Import configuration';
+	@override String get noBoxSelected => '在列表或图中选择一个终端以在其中工作。';
 }
 
 // Path: core.bootstrapError
@@ -3181,14 +3187,14 @@ extension on TranslationsZh {
 			'theme.error.unknownBase' => ({required Object value}) => '「extends」中的基础主题「${value}」未知。',
 			'theme.error.noVariants' => '主题未声明任何变体。请在「variants」下添加「dark」「light」或两者。',
 			'workspaceView.terminals' => '终端',
-			'workspaceView.boxes' => '会话',
+			'workspaceView.boxes' => '列表',
 			'workspaceView.graph' => '关系图',
 			'workspaceView.newTerminal' => '新建终端',
-			'workspaceView.configure' => '配置会话',
+			'workspaceView.configure' => '配置终端',
 			'workspaceView.closeInspector' => 'Close inspector',
 			'workspaceView.search' => 'Search name or function',
 			'workspaceView.allStates' => 'All states',
-			'workspaceView.name' => '名称',
+			'workspaceView.name' => '终端',
 			'workspaceView.state' => '状态',
 			'workspaceView.tool' => '工具',
 			'workspaceView.role' => '功能',
@@ -3204,10 +3210,10 @@ extension on TranslationsZh {
 			'workspaceView.disconnected' => '已断开',
 			'workspaceView.unavailable' => 'Unavailable',
 			'workspaceView.noRole' => 'Add a function',
-			'workspaceView.noBoxes' => 'No boxes yet',
-			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.noBoxes' => '还没有终端',
+			'workspaceView.noMatches' => '没有匹配的终端',
 			'workspaceView.selectBox' => 'Select a box to preview its terminal',
-			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.noSession' => '此终端没有会话',
 			'workspaceView.startShell' => 'Start terminal',
 			'workspaceView.openTerminal' => 'Open in Terminals',
 			'workspaceView.save' => '保存',
@@ -3225,16 +3231,21 @@ extension on TranslationsZh {
 			'workspaceView.planned' => 'Planned connection',
 			'workspaceView.observed' => 'Observed activity',
 			'workspaceView.temporary' => 'Temporary subagent',
-			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.linkBoxes' => '连接终端',
 			'workspaceView.selectEndpoints' => 'Select source and target',
 			'workspaceView.zoomFit' => 'Reset zoom',
 			'workspaceView.session' => '会话',
 			'workspaceView.configuration' => '配置',
-			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.nameRequired' => '请输入终端名称',
 			'workspaceView.removeLink' => 'Remove connection',
 			'workspaceView.handoffSummary' => 'Summary',
 			'workspaceView.copyRole' => 'Copy function',
 			'workspaceView.showInspector' => 'Show inspector',
+			'workspaceView.addConnection' => '连接到另一个终端',
+			'workspaceView.actions' => '操作',
+			'workspaceView.closeTerminal' => '隐藏终端',
+			'workspaceView.legend' => '图例',
+			'workspaceView.portableHint' => '保存在 .orc 文件中。会话操作位于终端菜单。',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => '正在复制附件：${completed}/${total}',
 			'terminalAttachment.nativeImage' => '已请求代理粘贴图片。',
 			'terminalAttachment.referenced' => '已插入本地引用。',
@@ -3252,6 +3263,7 @@ extension on TranslationsZh {
 			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
 			'orchestration.createWithoutImport' => 'Create without importing',
 			'orchestration.importLegacy' => 'Import configuration',
+			'orchestration.noBoxSelected' => '在列表或图中选择一个终端以在其中工作。',
 			_ => null,
 		};
 	}
