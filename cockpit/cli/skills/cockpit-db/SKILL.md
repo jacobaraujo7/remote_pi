@@ -1,6 +1,6 @@
 ---
 name: cockpit-db
-description: Query and inspect the workspace's databases from a Cockpit terminal: SQL (SQLite, Postgres, MySQL, MSSQL) through registered connections or `.dbq` files, Redis commands, MongoDB runCommand, listing connections and schemas, registering a connection in `.cockpit/databases.json`, and reaching a database through an SSH bastion. Use whenever the task mentions a database, a table, a query, a cache key, a collection, or a connection string.
+description: "Query and inspect the workspace's databases from a Cockpit terminal: SQL (SQLite, Postgres, MySQL, MSSQL) through registered connections or `.dbq` files, Redis commands, MongoDB runCommand, listing connections and schemas, registering a connection in `.cockpit/databases.json`, and reaching a database through an SSH bastion. Use whenever the task mentions a database, a table, a query, a cache key, a collection, or a connection string."
 ---
 
 # cockpit db / redis / mongo

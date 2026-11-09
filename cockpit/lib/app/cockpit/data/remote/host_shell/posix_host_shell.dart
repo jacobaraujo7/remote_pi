@@ -52,28 +52,50 @@ PY
   /// Caminho do socket, com o `$HOME` deixado para o shell do host expandir.
   static const _socketPath = r'$HOME/.cockpit/cockpit-server.sock';
 
+  /// O mesmo caminho, já resolvido a partir da home do probe — é o que vai no
+  /// [UnixSocketEndpoint] (o cliente resolve local, sem SSH extra).
+  String get _unixPath => '${probe.home}/.cockpit/cockpit-server.sock';
+
   @override
   bool get installsFromHostBundle => false;
 
-  /// Determinístico a partir da home já resolvida no probe — sem SSH extra.
-  ///
-  /// "Não há servidor" NÃO é decidido aqui: quem descobre é o túnel, que falha
-  /// ao conectar e leva ao bootstrap. É assim desde o plano 58, e manter
-  /// preserva a latência de abertura do caminho POSIX.
+  /// O anúncio no host pode ser de duas formas no MESMO caminho (ver
+  /// `LocalEndpoint`): socket UNIX (modo clássico) ou arquivo de rendezvous
+  /// JSON `{v, port, token}` (servidor subido com `--tcp` — o fallback pra
+  /// hosts cujo SSH não faz forward de socket UNIX, como o Tailscale SSH).
+  /// Um único comando decide: `test -S` identifica o socket; senão, se há
+  /// arquivo comum, é o rendezvous e o `cat` traz o JSON.
   @override
-  Future<RemoteEndpoint?> readEndpoint() async =>
-      UnixSocketEndpoint('${probe.home}/.cockpit/cockpit-server.sock');
+  Future<RemoteEndpoint?> readEndpoint() async {
+    final (code, out, _) = await exec(
+      'if [ -S $_socketPath ]; then echo unix; '
+      'elif [ -f $_socketPath ]; then cat $_socketPath; fi',
+    );
+    if (code != 0) return null;
+    final raw = out.trim();
+    if (raw == 'unix') return UnixSocketEndpoint(_unixPath);
+    if (raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final port = decoded['port'];
+      if (port is! int) return null;
+      return TcpEndpoint(port: port, token: decoded['token'] as String?);
+    } on FormatException {
+      // Arquivo pela metade (servidor escrevendo agora) — o poll tenta de novo.
+      return null;
+    }
+  }
 
   @override
   Future<RemoteEndpoint?> awaitEndpoint() async {
-    // O socket UNIX aparece quando o servidor faz bind. `test -S` é o sinal
-    // exato: arquivo comum com o mesmo nome não serviria.
+    // O anúncio aparece quando o servidor faz bind: socket UNIX no modo
+    // clássico; rendezvous por ÚLTIMO, já com a porta aceitando conexão. Um
+    // JSON pela metade volta `null` de [readEndpoint] e o poll tenta de novo.
     for (var attempt = 0; attempt < 10; attempt++) {
       await Future<void>.delayed(Duration(milliseconds: 150 + attempt * 100));
-      final (code, out, _) = await exec(
-        'test -S $_socketPath && echo up || echo down',
-      );
-      if (code == 0 && out.trim().endsWith('up')) return readEndpoint();
+      final endpoint = await readEndpoint();
+      if (endpoint != null) return endpoint;
     }
     return null;
   }
@@ -323,6 +345,12 @@ fi
       'COCKPIT_PTY_DYLIB=\$HOME/.cockpit/server/lib/$ptyLib '
       'nohup $serverBinaryPath '
       '--socket $_socketPath '
+      // Sempre TCP + rendezvous (ver `--tcp` no cockpit-server): o fallback
+      // pra hosts cujo SSH não faz forward de socket UNIX custa nada quando
+      // o forward UNIX funciona — o cliente lê o anúncio e monta o `-L` certo.
+      // Um binário VELHO no host ignora a flag e segue no socket UNIX, e o
+      // [readEndpoint] devolve o endpoint que o anúncio de fato for.
+      '--tcp '
       '--exit-on-idle $idleSeconds '
       '--idle-keeps-sessions '
       '>$bootLogPath 2>&1 & echo started',

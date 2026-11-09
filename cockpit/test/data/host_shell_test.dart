@@ -302,12 +302,12 @@ void main() {
     });
   });
 
-  group('PosixHostShell (comportamento preservado)', () {
+  group('PosixHostShell', () {
     PosixHostShell shellWith(_FakeExec exec) =>
         PosixHostShell(probe: _posixProbe, exec: exec.call);
 
-    test('readEndpoint é determinístico e não gasta SSH', () async {
-      final exec = _FakeExec((_) => [(0, '', '')]);
+    test('readEndpoint devolve socket UNIX quando o anúncio é um socket', () async {
+      final exec = _FakeExec((_) => [(0, 'unix', '')]);
       final endpoint = await shellWith(exec).readEndpoint();
 
       expect(endpoint, isA<UnixSocketEndpoint>());
@@ -315,9 +315,44 @@ void main() {
         (endpoint! as UnixSocketEndpoint).path,
         '/Users/jacob/.cockpit/cockpit-server.sock',
       );
-      // A ausência de servidor segue sendo descoberta pelo túnel, como antes
-      // do plano 61 — é o que preserva a latência de abertura.
-      expect(exec.commands, isEmpty);
+      // O tipo é decidido no host num único comando: `test -S` primeiro,
+      // rendezvous só se não for socket.
+      expect(exec.commands.single, contains('test -S'));
+    });
+
+    test('readEndpoint devolve porta e token do rendezvous TCP (--tcp)', () async {
+      final exec = _FakeExec(
+        (_) => [(0, '{"v":1,"port":4242,"token":"tok-xyz"}', '')],
+      );
+      final endpoint = await shellWith(exec).readEndpoint();
+
+      expect(endpoint, isA<TcpEndpoint>());
+      expect((endpoint! as TcpEndpoint).port, 4242);
+      expect(endpoint.token, 'tok-xyz');
+    });
+
+    test('readEndpoint devolve null sem servidor (nada anunciado)', () async {
+      final exec = _FakeExec((_) => [(0, '', '')]);
+      expect(await shellWith(exec).readEndpoint(), isNull);
+    });
+
+    test('readEndpoint tolera JSON pela metade (escrita em curso)', () async {
+      final exec = _FakeExec((_) => [(0, '{"v":1,"por', '')]);
+      expect(await shellWith(exec).readEndpoint(), isNull);
+    });
+
+    test('awaitEndpoint devolve o rendezvous TCP quando ele aparece', () async {
+      // Primeiras sondagens vazias; o rendezvous chega depois.
+      var calls = 0;
+      final exec = _FakeExec((_) {
+        calls++;
+        return calls < 3 ? [(0, '', '')] : [(0, '{"v":1,"port":99,"token":"t"}', '')];
+      });
+      final endpoint = await shellWith(exec).awaitEndpoint();
+
+      expect(endpoint, isA<TcpEndpoint>());
+      expect((endpoint! as TcpEndpoint).port, 99);
+      expect(endpoint.token, 't');
     });
 
     test('startServer segue no nohup, com log de arranque', () async {
@@ -329,6 +364,10 @@ void main() {
       expect(command, contains('libcockpit_pty.dylib'));
       expect(command, contains('--exit-on-idle 120'));
       expect(command, contains('server-boot.log'));
+      // Sempre sobe com rendezvous TCP: é o fallback pra hosts cujo SSH não
+      // faz forward de socket UNIX (Tailscale SSH). Binário velho no host
+      // ignora a flag e segue no socket UNIX, sem quebrar nada.
+      expect(command, contains('--tcp'));
     });
 
     test('startServer no Linux pede a .so', () async {
