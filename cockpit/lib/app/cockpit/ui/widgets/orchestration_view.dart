@@ -739,26 +739,33 @@ class _Footer extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Flexible(
-            child: Text(
-              path,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: muted,
+          // Flexible + Spacer dividiriam a largura em partes iguais e o
+          // segmentado ficaria no meio; o lado esquerdo precisa ser Expanded.
+          Expanded(
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    path,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: muted,
+                  ),
+                ),
+                if (selectedTitle case final title?) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      '· $title',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: muted,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (selectedTitle case final title?) ...[
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                '· $title',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: muted,
-              ),
-            ),
-          ],
-          const Spacer(),
           if (mode == OrchestrationViewMode.graph)
             AppTooltip(
               message: legend,
