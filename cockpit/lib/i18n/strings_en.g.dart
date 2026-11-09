@@ -1985,8 +1985,59 @@ class Translations$cockpit$httpView$en {
 	/// en: 'Run'
 	String get run => 'Run';
 
+	/// en: 'Run All'
+	String get runAll => 'Run All';
+
+	/// en: 'Expand to edit'
+	String get expandToEdit => 'Expand to edit';
+
+	/// en: 'No matching variables'
+	String get noMatchingVariables => 'No matching variables';
+
+	/// en: 'No suggestions for this expression'
+	String get noScriptSuggestions => 'No suggestions for this expression';
+
 	/// en: 'Running…'
 	String get running => 'Running…';
+
+	/// en: 'No Environment'
+	String get noEnvironment => 'No Environment';
+
+	/// en: 'Temporary'
+	String get overrideTemporary => 'Temporary';
+
+	/// en: 'HTTP file'
+	String get overrideFile => 'HTTP file';
+
+	/// en: 'Environment'
+	String get overrideEnvironment => 'Environment';
+
+	/// en: 'Global'
+	String get overrideGlobal => 'Global';
+
+	/// en: 'Restore'
+	String get overrideRestore => 'Restore';
+
+	/// en: 'Apply'
+	String get overrideApply => 'Apply';
+
+	/// en: 'Invalid number'
+	String get overrideInvalidNumber => 'Invalid number';
+
+	/// en: 'Enter a finite number'
+	String get overrideNonFiniteNumber => 'Enter a finite number';
+
+	/// en: 'Use true or false'
+	String get overrideInvalidBoolean => 'Use true or false';
+
+	/// en: 'Invalid JSON'
+	String get overrideInvalidJson => 'Invalid JSON';
+
+	/// en: 'No environment selected. Cannot resolve variable '${name}'.'
+	String unresolvedVariableNoEnvironment({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.';
+
+	/// en: 'Variable '${name}' is not defined in environment '${environment}'.'
+	String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.';
 
 	/// en: 'No request in this file — write one, e.g. GET https://example.com'
 	String get noRequests => 'No request in this file — write one, e.g. GET https://example.com';
@@ -2000,11 +2051,23 @@ class Translations$cockpit$httpView$en {
 		other: '${n} requests',
 	);
 
-	/// en: 'Run the request (⌘↵) to see the response here.'
-	String get runHint => 'Run the request (⌘↵) to see the response here.';
+	/// en: 'Run this request to see its response here.'
+	String get runHint => 'Run this request to see its response here.';
 
 	/// en: 'Empty response body.'
 	String get emptyBody => 'Empty response body.';
+
+	/// en: 'Response'
+	String get response => 'Response';
+
+	/// en: 'Copy content'
+	String get copyResponse => 'Copy content';
+
+	/// en: 'Save response'
+	String get saveResponse => 'Save response';
+
+	/// en: 'Clear response'
+	String get clearResponse => 'Clear response';
 
 	/// en: 'JSON'
 	String get body => 'JSON';
@@ -2014,6 +2077,18 @@ class Translations$cockpit$httpView$en {
 
 	/// en: 'Text'
 	String get raw => 'Text';
+
+	/// en: 'Tests'
+	String get tests => 'Tests';
+
+	/// en: 'Script'
+	String get script => 'Script';
+
+	/// en: 'No tests registered.'
+	String get noTests => 'No tests registered.';
+
+	/// en: 'No script output.'
+	String get noScriptOutput => 'No script output.';
 
 	/// en: ' · truncated (response too large)'
 	String get truncatedSuffix => ' · truncated (response too large)';
@@ -4943,15 +5018,40 @@ extension on Translations {
 			'cockpit.httpView.saveRequestAs' => 'Save request as',
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
+			'cockpit.httpView.runAll' => 'Run All',
+			'cockpit.httpView.expandToEdit' => 'Expand to edit',
+			'cockpit.httpView.noMatchingVariables' => 'No matching variables',
+			'cockpit.httpView.noScriptSuggestions' => 'No suggestions for this expression',
 			'cockpit.httpView.running' => 'Running…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporary',
+			'cockpit.httpView.overrideFile' => 'HTTP file',
+			'cockpit.httpView.overrideEnvironment' => 'Environment',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restore',
+			'cockpit.httpView.overrideApply' => 'Apply',
+			'cockpit.httpView.overrideInvalidNumber' => 'Invalid number',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Enter a finite number',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true or false',
+			'cockpit.httpView.overrideInvalidJson' => 'Invalid JSON',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No environment selected. Cannot resolve variable \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'Variable \'${name}\' is not defined in environment \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'No request in this file — write one, e.g. GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Select request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Run the request (⌘↵) to see the response here.',
+			'cockpit.httpView.runHint' => 'Run this request to see its response here.',
 			'cockpit.httpView.emptyBody' => 'Empty response body.',
+			'cockpit.httpView.response' => 'Response',
+			'cockpit.httpView.copyResponse' => 'Copy content',
+			'cockpit.httpView.saveResponse' => 'Save response',
+			'cockpit.httpView.clearResponse' => 'Clear response',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Tests',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'No tests registered.',
+			'cockpit.httpView.noScriptOutput' => 'No script output.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncated (response too large)',
 			'cockpit.httpView.error.title' => 'Request failed',
 			'cockpit.httpView.error.noRequest' => 'No request found at the cursor.',
@@ -5039,6 +5139,8 @@ extension on Translations {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5064,8 +5166,6 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Choose SSH private key',
 			'cockpit.dbConnectionDialog.keyPassphrase' => 'Key passphrase',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => 'Save passphrase',
 			'cockpit.dbConnectionDialog.passwordOnHost' => 'The password is stored on the host, not on this machine.',
 			'cockpit.sshPrompts.unknownSshHostTitle' => 'Unknown SSH host',
@@ -5553,6 +5653,8 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
@@ -5578,8 +5680,6 @@ extension on Translations {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} did not respond within ${seconds} seconds.',
 			'automation.error.cancelled' => 'Commit message generation was cancelled.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} could not generate a commit message.',
 			'automation.error.invalidResponse' => 'The automation returned an empty commit message.',

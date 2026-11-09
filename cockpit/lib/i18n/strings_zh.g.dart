@@ -862,18 +862,36 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
+	@override String get runAll => '运行全部';
+	@override String get expandToEdit => '展开以编辑';
+	@override String get noMatchingVariables => '没有匹配的变量';
+	@override String get noScriptSuggestions => '此表达式没有建议';
 	@override String get running => '运行中…';
+	@override String get overrideTemporary => '临时';
+	@override String get overrideFile => 'HTTP 文件';
+	@override String get overrideEnvironment => '环境';
+	@override String get overrideGlobal => '全局';
+	@override String get overrideRestore => '恢复';
+	@override String get overrideApply => '应用';
+	@override String get overrideInvalidNumber => '无效数字';
+	@override String get overrideNonFiniteNumber => '请输入有限数字';
+	@override String get overrideInvalidBoolean => '请使用 true 或 false';
+	@override String get overrideInvalidJson => '无效 JSON';
 	@override String get noRequests => '此文件中没有请求——写一个，如 GET https://example.com';
 	@override String get selectRequest => '选择请求';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n,
 		one: '1 个请求',
 		other: '${n} 个请求',
 	);
-	@override String get runHint => '运行请求（⌘↵）后响应将显示在这里。';
+	@override String get runHint => '运行此请求后，响应将显示在这里。';
 	@override String get emptyBody => '响应体为空。';
 	@override String get body => 'JSON';
 	@override String get headers => '标头';
 	@override String get raw => '文本';
+	@override String get tests => '测试';
+	@override String get script => '脚本';
+	@override String get noTests => '没有注册的测试。';
+	@override String get noScriptOutput => '脚本没有输出。';
 	@override String get truncatedSuffix => ' · 已截断（响应过大）';
 	@override late final _Translations$cockpit$httpView$error$zh error = _Translations$cockpit$httpView$error$zh._(_root);
 }
@@ -2465,15 +2483,33 @@ extension on TranslationsZh {
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
+			'cockpit.httpView.runAll' => '运行全部',
+			'cockpit.httpView.expandToEdit' => '展开以编辑',
+			'cockpit.httpView.noMatchingVariables' => '没有匹配的变量',
+			'cockpit.httpView.noScriptSuggestions' => '此表达式没有建议',
 			'cockpit.httpView.running' => '运行中…',
+			'cockpit.httpView.overrideTemporary' => '临时',
+			'cockpit.httpView.overrideFile' => 'HTTP 文件',
+			'cockpit.httpView.overrideEnvironment' => '环境',
+			'cockpit.httpView.overrideGlobal' => '全局',
+			'cockpit.httpView.overrideRestore' => '恢复',
+			'cockpit.httpView.overrideApply' => '应用',
+			'cockpit.httpView.overrideInvalidNumber' => '无效数字',
+			'cockpit.httpView.overrideNonFiniteNumber' => '请输入有限数字',
+			'cockpit.httpView.overrideInvalidBoolean' => '请使用 true 或 false',
+			'cockpit.httpView.overrideInvalidJson' => '无效 JSON',
 			'cockpit.httpView.noRequests' => '此文件中没有请求——写一个，如 GET https://example.com',
 			'cockpit.httpView.selectRequest' => '选择请求',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个请求', other: '${n} 个请求', ), 
-			'cockpit.httpView.runHint' => '运行请求（⌘↵）后响应将显示在这里。',
+			'cockpit.httpView.runHint' => '运行此请求后，响应将显示在这里。',
 			'cockpit.httpView.emptyBody' => '响应体为空。',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => '标头',
 			'cockpit.httpView.raw' => '文本',
+			'cockpit.httpView.tests' => '测试',
+			'cockpit.httpView.script' => '脚本',
+			'cockpit.httpView.noTests' => '没有注册的测试。',
+			'cockpit.httpView.noScriptOutput' => '脚本没有输出。',
 			'cockpit.httpView.truncatedSuffix' => ' · 已截断（响应过大）',
 			'cockpit.httpView.error.title' => '请求失败',
 			'cockpit.httpView.error.noRequest' => '光标处未找到请求。',
@@ -2568,6 +2604,8 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -2586,8 +2624,6 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3082,6 +3118,8 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
@@ -3100,8 +3138,6 @@ extension on TranslationsZh {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',

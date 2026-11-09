@@ -17,6 +17,7 @@ import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/dbq_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
@@ -1229,14 +1230,34 @@ class CockpitCliHandler {
           }
           final path = (c.args['path'] ?? '').toString();
           final timeout = int.tryParse('${c.args['timeout'] ?? ''}');
-          final result = await _http.send(
-            doc.resolveRequest(doc.requests[index]),
+          final result = await HttpScriptSession.shared.run(
+            _http,
+            doc,
+            doc.requests[index],
             baseDir: Directory(path).parent.path,
             timeout: Duration(seconds: timeout ?? 30),
           );
-          return result.fold(
-            (value) => CockpitCommandResult.ok(value.toJson()),
-            (error) => CockpitCommandResult.fail(_httpErrorText(error)),
+          if (result.transportError case final error?) {
+            return CockpitCommandResult.fail(_httpErrorText(error));
+          }
+          if (result.response case final response?) {
+            return CockpitCommandResult.ok({
+              ...response.toJson(),
+              'passed': !result.failed,
+              'tests': [
+                for (final test in result.tests)
+                  {
+                    'name': test.name,
+                    'passed': test.passed,
+                    'message': test.message,
+                  },
+              ],
+              'logs': result.logs,
+              if (result.scriptError != null) 'scriptError': result.scriptError,
+            });
+          }
+          return CockpitCommandResult.fail(
+            result.scriptError ?? 'script_failed',
           );
         });
 
