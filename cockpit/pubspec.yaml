@@ -180,6 +180,7 @@ dependencies:
   # processo (core/utils/child_process_lifetime.dart). O `win32` saiu junto com
   # o named pipe do supervisor; quem ainda precisa dele é o cockpit_keepawake.
   ffi: ^2.1.0
+  quickjs_engine: ^0.1.7
 
   # Aviso de atualização in-app (plano 43, passo 7): versão atual do app
   # (package_info_plus) + abrir a URL do artefato no navegador (url_launcher).

@@ -947,18 +947,43 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	@override String get saveRequestAs => 'Salvar request como';
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
+	@override String get runAll => 'Executar todos';
+	@override String get expandToEdit => 'Expandir para editar';
+	@override String get noMatchingVariables => 'Nenhuma variável encontrada';
+	@override String get noScriptSuggestions => 'Nenhuma sugestão para esta expressão';
 	@override String get running => 'Executando…';
+	@override String get noEnvironment => 'No Environment';
+	@override String get overrideTemporary => 'Temporária';
+	@override String get overrideFile => 'Arquivo HTTP';
+	@override String get overrideEnvironment => 'Ambiente';
+	@override String get overrideGlobal => 'Global';
+	@override String get overrideRestore => 'Restaurar';
+	@override String get overrideApply => 'Aplicar';
+	@override String get overrideInvalidNumber => 'Número inválido';
+	@override String get overrideNonFiniteNumber => 'Informe um número finito';
+	@override String get overrideInvalidBoolean => 'Use true ou false';
+	@override String get overrideInvalidJson => 'JSON inválido';
+	@override String unresolvedVariableNoEnvironment({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.';
+	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.';
 	@override String get noRequests => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com';
 	@override String get selectRequest => 'Selecionar request';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
 		one: '1 request',
 		other: '${n} requests',
 	);
-	@override String get runHint => 'Execute o request (⌘↵) para ver a resposta aqui.';
+	@override String get runHint => 'Execute este request para ver a resposta aqui.';
 	@override String get emptyBody => 'Corpo da resposta vazio.';
+	@override String get response => 'Resposta';
+	@override String get copyResponse => 'Copiar conteúdo';
+	@override String get saveResponse => 'Salvar resposta';
+	@override String get clearResponse => 'Limpar resposta';
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
 	@override String get raw => 'Text';
+	@override String get tests => 'Testes';
+	@override String get script => 'Script';
+	@override String get noTests => 'Nenhum teste registrado.';
+	@override String get noScriptOutput => 'Nenhuma saída do script.';
 	@override String get truncatedSuffix => ' · truncado (resposta grande demais)';
 	@override late final _Translations$cockpit$httpView$error$pt_BR error = _Translations$cockpit$httpView$error$pt_BR._(_root);
 }
@@ -2557,15 +2582,40 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.saveRequestAs' => 'Salvar request como',
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
+			'cockpit.httpView.runAll' => 'Executar todos',
+			'cockpit.httpView.expandToEdit' => 'Expandir para editar',
+			'cockpit.httpView.noMatchingVariables' => 'Nenhuma variável encontrada',
+			'cockpit.httpView.noScriptSuggestions' => 'Nenhuma sugestão para esta expressão',
 			'cockpit.httpView.running' => 'Executando…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporária',
+			'cockpit.httpView.overrideFile' => 'Arquivo HTTP',
+			'cockpit.httpView.overrideEnvironment' => 'Ambiente',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restaurar',
+			'cockpit.httpView.overrideApply' => 'Aplicar',
+			'cockpit.httpView.overrideInvalidNumber' => 'Número inválido',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Informe um número finito',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true ou false',
+			'cockpit.httpView.overrideInvalidJson' => 'JSON inválido',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Selecionar request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Execute o request (⌘↵) para ver a resposta aqui.',
+			'cockpit.httpView.runHint' => 'Execute este request para ver a resposta aqui.',
 			'cockpit.httpView.emptyBody' => 'Corpo da resposta vazio.',
+			'cockpit.httpView.response' => 'Resposta',
+			'cockpit.httpView.copyResponse' => 'Copiar conteúdo',
+			'cockpit.httpView.saveResponse' => 'Salvar resposta',
+			'cockpit.httpView.clearResponse' => 'Limpar resposta',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Testes',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'Nenhum teste registrado.',
+			'cockpit.httpView.noScriptOutput' => 'Nenhuma saída do script.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncado (resposta grande demais)',
 			'cockpit.httpView.error.title' => 'Falha no request',
 			'cockpit.httpView.error.noRequest' => 'Nenhum request encontrado na posição do cursor.',
@@ -2646,6 +2696,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Excluir o documento com _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ex.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
@@ -2671,8 +2723,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexão inválida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
@@ -3160,6 +3210,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
@@ -3185,8 +3237,6 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Não conectado',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',

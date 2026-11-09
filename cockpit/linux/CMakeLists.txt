@@ -74,6 +74,14 @@ set_target_properties(${BINARY_NAME}
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# QuickJS exports generic symbols such as js_malloc/js_free. libmujs.so (loaded
+# by another Cockpit dependency) exports the same names; without local binding
+# the dynamic linker can route QuickJS allocations to MuJS and crash in
+# JS_NewContext. Keep references inside this library bound to its own symbols.
+if(TARGET quickjs_c_bridge_plugin)
+  target_link_options(quickjs_c_bridge_plugin PRIVATE "-Wl,-Bsymbolic")
+endif()
+
 # flutter_secure_storage_linux 1.x bundles an older nlohmann/json header. New
 # Clang versions warn about its pre-C++14 literal-operator syntax; plugins share
 # APPLY_STANDARD_SETTINGS, so our global -Werror turned that upstream warning

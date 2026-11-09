@@ -215,6 +215,7 @@ Future<Module> buildCockpitModule({
         ..addLazySingleton<SshTunnel>(SshTunnelImpl.new)
         ..addLazySingleton<DbQueryService>(DbQueryService.new)
         ..addLazySingleton<HttpRequestRunner>(HttpRequestRunnerImpl.new)
+        ..addLazySingleton<HttpViewModel>(HttpViewModel.new)
         ..addInstance<FileSearcher>(FileSearcherImpl())
         ..addInstance<ContentSearcher>(const ContentSearcherImpl())
         ..addInstance<GitBinary>(GitBinary())
@@ -340,7 +341,11 @@ Future<Module> buildCockpitModule({
             ..addChangeNotifier<UpdateViewModel>(UpdateViewModel.new)
             ..addChangeNotifier<DatabaseViewModel>(DatabaseViewModel.new)
             ..addChangeNotifier<TelemetryViewModel>(TelemetryViewModel.new)
-            ..addChangeNotifier<HttpViewModel>(HttpViewModel.new),
+            ..addListenable<HttpViewModel>(
+              () => inject<HttpViewModel>(),
+              (vm) => vm,
+              (_) {},
+            ),
           child: (context, state) => const CockpitPage(),
         );
     },
