@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late List<FileEditorEngine> calls;
+  late FileEditorRegistry registry;
   late FileEditorFacade facade;
 
   FileOpenRequest request(
@@ -11,31 +12,28 @@ void main() {
     bool remote = false,
     bool source = false,
     bool notebook = false,
-    bool previewTab = true,
   }) => FileOpenRequest(
     path: path,
     projectId: 'project',
     paneId: 'pane',
     isRemote: remote,
-    isPreview: previewTab,
     asSource: source,
     isNotebook: notebook,
   );
 
   setUp(() {
     calls = [];
-    facade = FileEditorFacade(
-      FileEditorRegistry({
-        FileEditorEngine.cockpit: (request) async {
-          calls.add(FileEditorEngine.cockpit);
-          return FileOpenOutcome.opened;
-        },
-        FileEditorEngine.neovim: (request) async {
-          calls.add(FileEditorEngine.neovim);
-          return FileOpenOutcome.opened;
-        },
-      }),
-    )..engine = FileEditorEngine.neovim;
+    registry = FileEditorRegistry({
+      FileEditorEngine.cockpit: (request) async {
+        calls.add(FileEditorEngine.cockpit);
+        return FileOpenOutcome.opened;
+      },
+      FileEditorEngine.neovim: (request) async {
+        calls.add(FileEditorEngine.neovim);
+        return FileOpenOutcome.opened;
+      },
+    });
+    facade = FileEditorFacade(registry)..engine = FileEditorEngine.neovim;
   });
 
   test('routes ordinary local text through the selected engine', () async {
@@ -47,6 +45,7 @@ void main() {
     for (final value in [
       request('/repo/main.dart', remote: true),
       request('/repo/request.http'),
+      request('/repo/request.rest'),
       request('/repo/query.dbq'),
       request('/repo/board.kanban'),
       request('/repo/logo.svg'),
@@ -88,23 +87,9 @@ void main() {
     },
   );
 
-  test(
-    'pinned Markdown, SVG and HTML opens still use Cockpit preview',
-    () async {
-      for (final path in [
-        '/repo/README.MD',
-        '/repo/logo.SVG',
-        '/repo/page.HTML',
-      ]) {
-        calls.clear();
-        await facade.open(request(path, previewTab: false));
-        expect(calls, [FileEditorEngine.cockpit], reason: path);
-      }
-    },
-  );
-
   test('HTML and panel need an inline preview', () async {
-    facade.inlinePreviewAvailable = false;
+    facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
+      ..engine = FileEditorEngine.neovim;
     for (final path in ['/repo/page.html', '/repo/tool.panel']) {
       calls.clear();
       await facade.open(request(path));

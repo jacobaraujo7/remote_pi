@@ -978,6 +978,7 @@ class _TabState extends State<_Tab> {
           if (vm.canEditPreviewInNeovim(viewer.projectId) &&
               !viewer.rawSource) {
             final opened = await vm.editPreviewInNeovim(
+              viewer.projectId,
               viewer.path,
               inPane: widget.paneId,
             );
@@ -1809,6 +1810,9 @@ class _PaneBodyState extends State<_PaneBody> {
     if (item is FileViewerSession &&
         item.path.toLowerCase().endsWith('.panel')) {
       final vm = context.read<CockpitViewModel>();
+      final canEditInNeovim = context.select<CockpitViewModel, bool>(
+        (vm) => vm.canEditPreviewInNeovim(item.projectId),
+      );
       return ListenableBuilder(
         listenable: item,
         builder: (context, _) => item.rawSource
@@ -1827,14 +1831,15 @@ class _PaneBodyState extends State<_PaneBody> {
                 session: item,
                 onCall: (line, cwd) =>
                     vm.runPanelCommand(line, sessionId: item.id, cwd: cwd),
-                editSourceLabel: vm.canEditPreviewInNeovim(item.projectId)
+                editSourceLabel: canEditInNeovim
                     ? context.t.cockpit.paneView.editInNeovim
                     : null,
-                onEditSource: vm.canEditPreviewInNeovim(item.projectId)
+                onEditSource: canEditInNeovim
                     ? () {
                         unawaited(
                           vm
                               .editPreviewInNeovim(
+                                item.projectId,
                                 item.path,
                                 inPane: widget.paneId,
                               )

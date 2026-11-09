@@ -560,7 +560,10 @@ class _FileViewerState extends State<FileViewer> {
   }
 
   Future<void> _editWithNeovim(CockpitViewModel vm) async {
-    final opened = await vm.editPreviewInNeovim(widget.session.path);
+    final opened = await vm.editPreviewInNeovim(
+      widget.session.projectId,
+      widget.session.path,
+    );
     if (!opened && mounted) {
       setState(() => _editing = true);
       widget.session.pin();
@@ -956,6 +959,12 @@ class _FileViewerState extends State<FileViewer> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final host = documentHostOf(context);
+    final canEditInNeovim =
+        host is CockpitViewModel &&
+        context.select<CockpitViewModel, bool>(
+          (vm) => vm.canEditPreviewInNeovim(widget.session.projectId),
+        );
     final editable = _editableText != null;
     // Texto/código sem preview edita direto; markdown/svg só editam quando o
     // switch está em "Source".
@@ -1049,11 +1058,7 @@ class _FileViewerState extends State<FileViewer> {
             hasPreview: _hasPreview,
             editing: editingNow,
             previewing: _hasPreview && !_editing,
-            editInNeovim:
-                documentHostOf(context) is CockpitViewModel &&
-                (documentHostOf(context) as CockpitViewModel)
-                    .canEditPreviewInNeovim(widget.session.projectId) &&
-                !editingNow,
+            editInNeovim: canEditInNeovim && !editingNow,
             dirty: _dirty,
             saving: _saving,
             onToggle: _toggleEditing,

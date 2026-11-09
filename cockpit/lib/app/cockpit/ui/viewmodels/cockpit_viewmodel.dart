@@ -213,6 +213,7 @@ class CockpitViewModel extends ChangeNotifier
         FileEditorEngine.cockpit: _openWithCockpitEditor,
         FileEditorEngine.neovim: _openWithNeovimEditor,
       }),
+      inlinePreviewAvailable: BrowserCapability.resolve().isInline,
     );
     _worktreeReconciler = WorktreeReconciler(_worktreeMgr);
     // Contexto do shell que o GitController precisa (page-scoped, mesma vida).
@@ -1283,15 +1284,20 @@ class CockpitViewModel extends ChangeNotifier
   late final FileEditorFacade _fileEditorFacade;
 
   void setFileEditorEngine(FileEditorEngine engine) {
-    _fileEditorFacade
-      ..engine = engine
-      ..inlinePreviewAvailable = BrowserCapability.resolve().isInline;
+    if (_fileEditorFacade.engine == engine) return;
+    _fileEditorFacade.engine = engine;
+    // A preferência chega também durante o initState da página. Avisar no
+    // microtask seguinte evita notificar o provider no meio do build.
+    scheduleMicrotask(() {
+      if (hasListeners) notifyListeners();
+    });
   }
 
   bool get usesNeovimFileEditor =>
       _fileEditorFacade.engine == FileEditorEngine.neovim;
 
   bool canEditPreviewInNeovim(String projectId) =>
+      _projectById(projectId) != null &&
       !_isRemoteWorkspace(projectId) &&
       (usesNeovimFileEditor ||
           _sessions.values.any(
@@ -1301,9 +1307,14 @@ class CockpitViewModel extends ChangeNotifier
 
   /// Abre a fonte no Neovim, preservando a aba de preview. Com o editor
   /// Cockpit selecionado, usa apenas uma sessão Neovim já aberta.
-  Future<bool> editPreviewInNeovim(String path, {String? inPane}) async {
-    final projectId = _selectedProjectId;
-    if (projectId == null || _isRemoteWorkspace(projectId)) return false;
+  Future<bool> editPreviewInNeovim(
+    String projectId,
+    String path, {
+    String? inPane,
+  }) async {
+    if (_projectById(projectId) == null || _isRemoteWorkspace(projectId)) {
+      return false;
+    }
     final paneId = inPane ?? _focused[projectId];
     if (paneId == null) return false;
     return _enqueueNeovimOpen(

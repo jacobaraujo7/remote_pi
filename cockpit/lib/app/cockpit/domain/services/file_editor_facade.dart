@@ -56,11 +56,11 @@ class FileEditorRegistry {
 /// Orquestra classificação, escolha do motor e fallback. Não conhece árvore,
 /// tabs ou sessões: essas mutações pertencem ao host registrado.
 class FileEditorFacade {
-  FileEditorFacade(this._registry);
+  FileEditorFacade(this._registry, {this.inlinePreviewAvailable = true});
 
   final FileEditorRegistry _registry;
   FileEditorEngine engine = FileEditorEngine.cockpit;
-  bool inlinePreviewAvailable = true;
+  final bool inlinePreviewAvailable;
 
   static const Set<String> _cockpitExtensions = {
     // Experiências especializadas.
