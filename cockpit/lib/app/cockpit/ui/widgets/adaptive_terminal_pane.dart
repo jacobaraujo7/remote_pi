@@ -219,7 +219,6 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       child: _GhosttyViewLease(
         key: ObjectKey(widget.terminal.controller),
         controller: widget.terminal.controller,
-        active: widget.active,
         child: terminalView,
       ),
     );
@@ -309,18 +308,14 @@ class _GhosttyPaneState extends State<_GhosttyPane>
 /// disposed at the end of the frame. Wait for that disposal before attaching
 /// the replacement view. GlobalKey reparenting is unsafe here: flterm releases
 /// its attachment on deactivate while its render object is still attached.
-/// When two task-output tabs share a controller, an inactive owner yields to
-/// the visible tab so an offstage workspace cannot leave the panel blank.
 class _GhosttyViewLease extends StatefulWidget {
   const _GhosttyViewLease({
     super.key,
     required this.controller,
-    required this.active,
     required this.child,
   });
 
   final ghost.TerminalController controller;
-  final bool active;
   final Widget child;
 
   @override
@@ -333,7 +328,6 @@ class _GhosttyViewLeaseState extends State<_GhosttyViewLease> {
       <ghost.TerminalController, Set<_GhosttyViewLeaseState>>{};
 
   bool _owns = false;
-  bool _handoffScheduled = false;
 
   @override
   void initState() {
@@ -350,47 +344,15 @@ class _GhosttyViewLeaseState extends State<_GhosttyViewLease> {
     } else {
       (_waiting[widget.controller] ??= {}).add(this);
       _owns = false;
-      if (widget.active) owner._yieldToActiveView();
     }
-  }
-
-  void _yieldToActiveView() {
-    if (_handoffScheduled || widget.active) return;
-    _handoffScheduled = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _handoffScheduled = false;
-      if (!mounted || !_owns || widget.active) return;
-      final waiters = _waiting[widget.controller];
-      if (waiters == null || !waiters.any((waiter) => waiter.widget.active)) {
-        return;
-      }
-      final controller = widget.controller;
-      setState(() => _owns = false);
-      // The view is removed in the next build; release the lease only after
-      // that frame has finalized and flterm has disposed its attachment.
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_owns && widget.controller == controller) {
-          _release(controller);
-        }
-      });
-      WidgetsBinding.instance.scheduleFrame();
-    });
   }
 
   @override
   void didUpdateWidget(_GhosttyViewLease oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
-      _release(oldWidget.controller);
-      _acquire();
-    } else if (!_owns && widget.active) {
-      _acquire();
-    } else if (_owns && !widget.active) {
-      final waiters = _waiting[widget.controller];
-      if (waiters != null && waiters.any((waiter) => waiter.widget.active)) {
-        _yieldToActiveView();
-      }
-    }
+    if (oldWidget.controller == widget.controller) return;
+    _release(oldWidget.controller);
+    _acquire();
   }
 
   void _release(ghost.TerminalController controller) {
@@ -410,7 +372,6 @@ class _GhosttyViewLeaseState extends State<_GhosttyViewLease> {
       }
       if (next.isEmpty) _waiting.remove(controller);
     });
-    WidgetsBinding.instance.scheduleFrame();
   }
 
   @override
