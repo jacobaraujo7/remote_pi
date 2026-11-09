@@ -85,7 +85,7 @@ void main() {
         ),
       ]),
       runner,
-      TaskDeviceCoordinator(
+      TaskDeviceCoordinatorImpl(
         DevToolRegistry([
           FlutterTool(
             runProcess: (exe, args, {workingDirectory}) async {

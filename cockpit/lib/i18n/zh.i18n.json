@@ -182,6 +182,7 @@
       "noDevicesTooltip": "没有兼容的设备",
       "noDevicesMenu": "没有兼容的设备",
       "lookingForDevices": "正在查找设备…",
+      "deviceDiscoveryFailed": "无法列出设备。仍可运行；打开此菜单可重试。",
       "openDevTools": "打开 DevTools"
     },
     "cockpitPage": {

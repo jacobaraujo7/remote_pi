@@ -602,6 +602,7 @@ class _Translations$cockpit$tasksPanel$es extends Translations$cockpit$tasksPane
 	@override String get noDevicesTooltip => 'Ningún dispositivo compatible';
 	@override String get noDevicesMenu => 'Ningún dispositivo compatible';
 	@override String get lookingForDevices => 'Buscando dispositivos…';
+	@override String get deviceDiscoveryFailed => 'No se pudieron listar los dispositivos. La ejecución sigue disponible; abre este menú para reintentar.';
 	@override String get openDevTools => 'Abrir DevTools';
 }
 
@@ -2313,6 +2314,7 @@ extension on TranslationsEs {
 			'cockpit.tasksPanel.noDevicesTooltip' => 'Ningún dispositivo compatible',
 			'cockpit.tasksPanel.noDevicesMenu' => 'Ningún dispositivo compatible',
 			'cockpit.tasksPanel.lookingForDevices' => 'Buscando dispositivos…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'No se pudieron listar los dispositivos. La ejecución sigue disponible; abre este menú para reintentar.',
 			'cockpit.tasksPanel.openDevTools' => 'Abrir DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Elige la carpeta del proyecto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Elige la carpeta del workspace',
@@ -2669,9 +2671,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexión no válida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
-			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
@@ -3183,9 +3185,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Sin conexión',
 			'settings.remoteHosts.statusIdle' => 'No conectado',
-			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',

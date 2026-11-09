@@ -121,7 +121,7 @@ void main() {
       vm = TasksViewModel(
         _FixedDiscovery(const []),
         runner,
-        TaskDeviceCoordinator(
+        TaskDeviceCoordinatorImpl(
           DevToolRegistry(const [FlutterTool()]),
           _MemoryDevices(),
           HostOs.linux,

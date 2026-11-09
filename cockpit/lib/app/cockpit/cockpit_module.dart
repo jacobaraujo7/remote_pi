@@ -1,5 +1,4 @@
 import 'package:cockpit_core/cockpit_core.dart';
-
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/terminal/local_terminal_attachments.dart';
@@ -44,6 +43,7 @@ import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/tools/flutter_tool.dart';
 import 'package:cockpit/app/cockpit/data/tasks/tools/json_device_selection_store.dart';
 import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/device_selection_store.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/line_parser/telemetry_line_parser_impl.dart';
@@ -288,7 +288,7 @@ Future<Module> buildCockpitModule({
           JsonDeviceSelectionStore(taskDeviceStore),
         )
         ..addInstance<HostOs>(_currentHostOs())
-        ..addLazySingleton<TaskDeviceCoordinator>(TaskDeviceCoordinator.new)
+        ..addLazySingleton<TaskDeviceCoordinator>(TaskDeviceCoordinatorImpl.new)
         ..addLazySingleton(TaskTerminalStore.new)
         ..addInstance<TaskDiscovery>(TaskDiscoveryImpl(const []))
         ..addInstance<LayoutLoader>(const CkpLayoutLoader())

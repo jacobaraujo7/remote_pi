@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
@@ -24,12 +24,6 @@ class TasksViewModel extends ChangeNotifier {
   final TaskRunnerGateway _localRunner;
   final TaskDeviceCoordinator _devices;
 
-  /// Intervalo da reconsulta de devices. Curto o bastante para um aparelho
-  /// recém-conectado aparecer, longo o bastante para não disparar `flutter
-  /// devices` o tempo todo.
-  static const _devicePollInterval = Duration(seconds: 8);
-
-  Timer? _devicePoll;
   bool _closed = false;
 
   /// Contexto de tasks REMOTO por cwd (plano 58): setado pela `CockpitPage`,
@@ -281,16 +275,10 @@ class TasksViewModel extends ChangeNotifier {
   }
 
   Future<void> _syncDevices() async {
-    _devicePoll?.cancel();
-    _devicePoll = null;
     if (_closed || _remote != null || _cwd.isEmpty) return;
     final runnable = _tasks.where((def) => deviceState(def).offered);
     if (runnable.isEmpty) return;
     await _refreshDevices();
-    if (_closed) return;
-    _devicePoll = Timer.periodic(_devicePollInterval, (_) {
-      unawaited(_refreshDevices());
-    });
   }
 
   Future<void> _refreshDevices() async {
@@ -364,7 +352,6 @@ class TasksViewModel extends ChangeNotifier {
     _sessionSub?.cancel();
     _configWatch?.cancel();
     _reloadDebounce?.cancel();
-    _devicePoll?.cancel();
     super.dispose();
   }
 }

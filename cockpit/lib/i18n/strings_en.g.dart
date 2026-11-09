@@ -1175,6 +1175,9 @@ class Translations$cockpit$tasksPanel$en {
 	/// en: 'Looking for devices…'
 	String get lookingForDevices => 'Looking for devices…';
 
+	/// en: 'Could not list devices. Run remains available; open this menu to retry.'
+	String get deviceDiscoveryFailed => 'Could not list devices. Run remains available; open this menu to retry.';
+
 	/// en: 'Open DevTools'
 	String get openDevTools => 'Open DevTools';
 }
@@ -4725,6 +4728,7 @@ extension on Translations {
 			'cockpit.tasksPanel.noDevicesTooltip' => 'No compatible device',
 			'cockpit.tasksPanel.noDevicesMenu' => 'No compatible devices',
 			'cockpit.tasksPanel.lookingForDevices' => 'Looking for devices…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Could not list devices. Run remains available; open this menu to retry.',
 			'cockpit.tasksPanel.openDevTools' => 'Open DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
@@ -5081,9 +5085,9 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'Not a valid connection URL.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
-			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
@@ -5595,9 +5599,9 @@ extension on Translations {
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
-			'settings.remoteHosts.helpTitle' => 'How it works',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'Model "${model}" is not available for ${harness}. Choose another model in Settings.',

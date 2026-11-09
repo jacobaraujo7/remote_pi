@@ -1,12 +1,8 @@
 import '../document/open_files_channel.dart';
 import '../document/native_document_router.dart';
-
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.dart';
-
 import 'dart:async';
-
 import 'package:path/path.dart' as path;
-
 import '../session/orchestration_session.dart';
 import '../session/orchestration_file_presentation.dart';
 import '../document/worktree_document_host.dart';
@@ -18,7 +14,6 @@ import '../services/orchestration_ownership_migration.dart';
 import '../services/agent_role_suggestion_service.dart';
 import '../../data/terminal/local_terminal_attachments.dart';
 import '../../domain/entities/orchestration_document.dart';
-
 import 'dart:convert';
 import 'dart:io'
     show
@@ -127,7 +122,7 @@ import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
-import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/telemetry_case_session.dart';

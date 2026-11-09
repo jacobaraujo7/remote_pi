@@ -97,24 +97,22 @@ class DevSessionHint {
   final List<String> consumedUrls;
 }
 
-/// Ação contextual de uma execução, pronta para a linha da task.
-///
-/// A UI desenha [label] e [icon] e, no clique, abre [url]. Não interpreta o
-/// comando.
+/// Ação contextual de uma execução. A UI traduz [kind] na hora de desenhar.
+enum TaskRunActionKind { openDevTools }
+
+enum TaskRunActionIcon { devtools }
+
 class TaskRunAction {
   const TaskRunAction({
     required this.id,
-    required this.label,
+    required this.kind,
     required this.icon,
     required this.url,
   });
 
   final String id;
-  final String label;
-
-  /// Token de ícone (`devtools`, `refresh`). A linha da task mapeia o token;
-  /// um desconhecido cai no fallback de texto.
-  final String icon;
+  final TaskRunActionKind kind;
+  final TaskRunActionIcon icon;
   final String url;
 }
 

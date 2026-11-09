@@ -182,6 +182,7 @@
       "noDevicesTooltip": "No compatible device",
       "noDevicesMenu": "No compatible devices",
       "lookingForDevices": "Looking for devices…",
+      "deviceDiscoveryFailed": "Could not list devices. Run remains available; open this menu to retry.",
       "openDevTools": "Open DevTools"
     },
     "cockpitPage": {

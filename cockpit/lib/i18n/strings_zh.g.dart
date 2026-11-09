@@ -524,6 +524,7 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get noDevicesTooltip => '没有兼容的设备';
 	@override String get noDevicesMenu => '没有兼容的设备';
 	@override String get lookingForDevices => '正在查找设备…';
+	@override String get deviceDiscoveryFailed => '无法列出设备。仍可运行；打开此菜单可重试。';
 	@override String get openDevTools => '打开 DevTools';
 }
 
@@ -2235,6 +2236,7 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.noDevicesTooltip' => '没有兼容的设备',
 			'cockpit.tasksPanel.noDevicesMenu' => '没有兼容的设备',
 			'cockpit.tasksPanel.lookingForDevices' => '正在查找设备…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => '无法列出设备。仍可运行；打开此菜单可重试。',
 			'cockpit.tasksPanel.openDevTools' => '打开 DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => '选择项目文件夹',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => '选择工作区文件夹',
@@ -2591,9 +2593,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.connectionString' => '连接字符串',
 			'cockpit.dbConnectionDialog.invalidUrl' => '不是有效的连接 URL。',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH 隧道',
-			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.sshHost' => 'SSH 主机',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH 端口',
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH 用户',
 			'cockpit.dbConnectionDialog.privateKey' => '私钥',
@@ -3105,9 +3107,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',
 			'settings.remoteHosts.statusOffline' => '离线',
 			'settings.remoteHosts.statusIdle' => '未连接',
-			'settings.remoteHosts.helpTitle' => '工作原理',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.helpTitle' => '工作原理',
 			'settings.remoteHosts.helpBody' => 'Cockpit 通过 SSH 连接到你的机器，并与一个小型服务器通信，由它运行终端、文件和 git。主机必须安装并运行 Cockpit（桌面版）或 cockpit-server，并将本设备的公钥添加到其 ~/.ssh/authorized_keys。',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} 未安装或不在 PATH 中。',
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中不可用。请在设置中选择其他模型。',

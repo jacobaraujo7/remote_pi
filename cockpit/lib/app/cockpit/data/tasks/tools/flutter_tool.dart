@@ -5,7 +5,6 @@ import 'package:cockpit/app/cockpit/data/tasks/preview_url_scan.dart';
 import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/core/utils/login_shell.dart';
-import 'package:cockpit/i18n/strings.g.dart';
 
 /// Roda um executável e devolve o [ProcessResult]. Injetável nos testes.
 typedef FlutterCommandRunner =
@@ -139,19 +138,24 @@ class FlutterTool implements DeviceRunTool, RunSessionTool {
   Future<List<DevDevice>> devices(String cwd, ParsedDevCommand command) async {
     final enabled = await platforms(cwd);
     if (enabled.isEmpty || command.invocation.isEmpty) return const [];
-    try {
-      final result = await _run(command.invocation.first, [
-        ...command.invocation.skip(1),
-        'devices',
-        '--machine',
-      ], workingDirectory: cwd).timeout(deviceTimeout);
-      if (result.exitCode != 0) return const [];
-      final stdout = result.stdout;
-      if (stdout is! String) return const [];
-      return _parseDevices(stdout, enabled);
-    } on Object {
-      return const [];
+    final result = await _run(command.invocation.first, [
+      ...command.invocation.skip(1),
+      'devices',
+      '--machine',
+    ], workingDirectory: cwd).timeout(deviceTimeout);
+    if (result.exitCode != 0) {
+      throw ProcessException(
+        command.invocation.first,
+        [...command.invocation.skip(1), 'devices', '--machine'],
+        '${result.stderr}',
+        result.exitCode,
+      );
     }
+    final stdout = result.stdout;
+    if (stdout is! String) {
+      throw const FormatException('flutter devices returned non-text output');
+    }
+    return _parseDevices(stdout, enabled);
   }
 
   @override
@@ -227,8 +231,8 @@ class FlutterTool implements DeviceRunTool, RunSessionTool {
     if (url == null) return null;
     return TaskRunAction(
       id: 'devtools',
-      label: t.cockpit.tasksPanel.openDevTools,
-      icon: 'devtools',
+      kind: TaskRunActionKind.openDevTools,
+      icon: TaskRunActionIcon.devtools,
       url: url,
     );
   }
@@ -449,14 +453,13 @@ class FlutterTool implements DeviceRunTool, RunSessionTool {
   ) {
     final start = stdout.indexOf('[');
     final end = stdout.lastIndexOf(']');
-    if (start < 0 || end < start) return const [];
-    final Object? decoded;
-    try {
-      decoded = jsonDecode(stdout.substring(start, end + 1));
-    } on FormatException {
-      return const [];
+    if (start < 0 || end < start) {
+      throw const FormatException('flutter devices returned no JSON array');
     }
-    if (decoded is! List) return const [];
+    final decoded = jsonDecode(stdout.substring(start, end + 1));
+    if (decoded is! List) {
+      throw const FormatException('flutter devices returned invalid JSON');
+    }
     final devices = <DevDevice>[];
     for (final item in decoded) {
       if (item is! Map) continue;

@@ -1,7 +1,6 @@
 import '../document/open_files_channel.dart';
 import '../session/orchestration_session.dart';
 import 'orchestration_cli_handler.dart';
-
 import 'dart:async' show unawaited;
 import 'dart:convert';
 import 'dart:io' show Directory, File, FileSystemException, Platform;
@@ -11,7 +10,7 @@ import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
-import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
@@ -94,6 +93,7 @@ class CockpitCliHandler {
     String root,
     TaskDiscovery discovery,
     TaskRunnerGateway runner,
+    bool remote,
   })?
   _taskContext(CockpitCommand c) {
     final sender = c.tabId == null ? null : _vm.session(c.tabId!);
@@ -110,6 +110,7 @@ class CockpitCliHandler {
       root: root,
       discovery: remote?.discovery ?? _tasks,
       runner: remote?.runner ?? _taskRuns,
+      remote: project.remoteHostId != null,
     );
   }
 
@@ -120,6 +121,7 @@ class CockpitCliHandler {
       String root,
       TaskDiscovery discovery,
       TaskRunnerGateway runner,
+      bool remote,
     })
     ctx,
     String taskId,
@@ -137,12 +139,13 @@ class CockpitCliHandler {
   Future<CockpitCommandResult?> _startPrepared(
     TaskRunnerGateway runner,
     TaskDefinition def, {
+    required bool remote,
     String? profileName,
   }) async {
     final plan = await _devices.plan(
       def,
       profileName: profileName,
-      remote: !identical(runner, _taskRuns),
+      remote: remote,
     );
     if (plan.blocked) {
       return CockpitCommandResult.fail('no compatible device for "${def.id}"');
@@ -1026,6 +1029,7 @@ class CockpitCliHandler {
             final started = await _startPrepared(
               ctx.runner,
               def,
+              remote: ctx.remote,
               profileName: profile.isEmpty ? null : profile,
             );
             if (started != null) return started;
@@ -1038,7 +1042,11 @@ class CockpitCliHandler {
             if (running) {
               await ctx.runner.restart(def.id);
             } else {
-              final started = await _startPrepared(ctx.runner, def);
+              final started = await _startPrepared(
+                ctx.runner,
+                def,
+                remote: ctx.remote,
+              );
               if (started != null) return started;
             }
           case 'send-task-key':

@@ -630,30 +630,28 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final dir = Directory(root);
     if (!dir.existsSync()) return null;
     try {
-      return dir
-          .watch(recursive: true)
-          .listen(
-            (event) {
-              if (!_matchesWatch(def.cwd, w, event.path)) return;
-              _watchDebounce[def.id]?.cancel();
-              _watchDebounce[def.id] = Timer(
-                Duration(milliseconds: w.debounceMs),
-                () => _dispatchWatch(def, w),
-              );
-            },
-            // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
-            // de deixar o erro vazar (uncaught) e o watch morrer.
-            onError: (Object e) {
-              DiagnosticsLog.instance.warn('task', 'watch $root: $e');
-              Timer(const Duration(seconds: 2), () {
-                final current = _watchers[def.id];
-                if (current == null) return; // stopWatch nesse meio tempo
-                final again = _watchDir(def, w, root);
-                if (again != null) current.add(again);
-              });
-            },
-            cancelOnError: true,
+      return dir.watch(recursive: true).listen(
+        (event) {
+          if (!_matchesWatch(def.cwd, w, event.path)) return;
+          _watchDebounce[def.id]?.cancel();
+          _watchDebounce[def.id] = Timer(
+            Duration(milliseconds: w.debounceMs),
+            () => _dispatchWatch(def, w),
           );
+        },
+        // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
+        // de deixar o erro vazar (uncaught) e o watch morrer.
+        onError: (Object e) {
+          DiagnosticsLog.instance.warn('task', 'watch $root: $e');
+          Timer(const Duration(seconds: 2), () {
+            final current = _watchers[def.id];
+            if (current == null) return; // stopWatch nesse meio tempo
+            final again = _watchDir(def, w, root);
+            if (again != null) current.add(again);
+          });
+        },
+        cancelOnError: true,
+      );
     } on FileSystemException {
       // FS sem suporte a watch recursivo → silencioso (sem reload automático).
       return null;

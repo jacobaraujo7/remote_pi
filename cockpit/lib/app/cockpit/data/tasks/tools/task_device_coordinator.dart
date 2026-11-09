@@ -1,13 +1,17 @@
+import 'dart:developer' as developer;
+import 'dart:async' show unawaited;
+
 import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/device_selection_store.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_device_snapshot.dart';
 
 /// Catálogo de devices e escolha efetiva por task. Não conhece Flutter: pergunta
 /// ao [DevToolRegistry]. A UI e o `run-task` da CLI consomem só esta classe.
-class TaskDeviceCoordinator {
-  TaskDeviceCoordinator(this._tools, this._store, this._host);
+class TaskDeviceCoordinatorImpl implements TaskDeviceCoordinator {
+  TaskDeviceCoordinatorImpl(this._tools, this._store, this._host);
 
   final DevToolRegistry _tools;
   final DeviceSelectionStore _store;
@@ -15,7 +19,9 @@ class TaskDeviceCoordinator {
 
   final _catalogs = <String, _Catalog>{};
   final _inflight = <String, Future<bool>>{};
+  final _failures = <String>{};
 
+  @override
   bool offers(
     TaskDefinition def, {
     required String? profileName,
@@ -27,6 +33,7 @@ class TaskDeviceCoordinator {
 
   /// Ação da execução, ou null se a ferramenta não oferece uma, se [sessionUrl]
   /// não serve, ou se o workspace é remoto (a URL seria do loopback do host).
+  @override
   TaskRunAction? sessionAction(
     TaskDefinition def, {
     required String? profileName,
@@ -41,6 +48,7 @@ class TaskDeviceCoordinator {
     );
   }
 
+  @override
   TaskDeviceSnapshot snapshot(
     TaskDefinition def, {
     required String? profileName,
@@ -55,6 +63,7 @@ class TaskDeviceCoordinator {
     final key = _catalogKey(def.cwd, parsed.invocation);
     final catalog = _catalogs[key];
     final ready = catalog != null;
+    final failed = _failures.contains(key);
     final devices = catalog?.devices ?? const <DevDevice>[];
     final platforms = catalog?.platforms ?? const <DevPlatform>{};
     final selectedId = _selectedId(
@@ -69,9 +78,10 @@ class TaskDeviceCoordinator {
     final inList = selectedName != null;
     return TaskDeviceSnapshot(
       offered: true,
-      loading: !ready,
+      loading: !ready && !failed,
       unavailable: ready && selectedId != null && !inList,
       canStart: !ready || inList,
+      discoveryFailed: failed,
       devices: devices,
       selectedId: selectedId,
       selectedName: selectedName,
@@ -80,6 +90,7 @@ class TaskDeviceCoordinator {
 
   /// Atualiza o catálogo do projeto da task. `false` quando a lista não mudou
   /// (ou a task não executa em device). Falha de listagem preserva a anterior.
+  @override
   Future<bool> refresh(TaskDefinition def, {required String? profileName}) {
     final parsed = _parsed(def, profileName);
     if (parsed == null || parsed.operation != DevOperation.runOnDevice) {
@@ -98,11 +109,13 @@ class TaskDeviceCoordinator {
     return future;
   }
 
+  @override
   Future<void> select(TaskDefinition def, String deviceId) {
     return _store.write(def.cwd, def.id, deviceId);
   }
 
   /// Argv para o tooltip. Inclui `-d` quando já há um id efetivo.
+  @override
   List<String> previewArgs(
     TaskDefinition def, {
     required String? profileName,
@@ -120,6 +133,7 @@ class TaskDeviceCoordinator {
 
   /// Prepara o start. No remoto, e em tasks que não rodam em device, não mexe
   /// no argv. Sem device compatível, [TaskLaunchPlan.blocked] impede o spawn.
+  @override
   Future<TaskLaunchPlan> plan(
     TaskDefinition def, {
     required String? profileName,
@@ -128,7 +142,23 @@ class TaskDeviceCoordinator {
     if (remote || !offers(def, profileName: profileName, remote: false)) {
       return TaskLaunchPlan.plain;
     }
-    await refresh(def, profileName: profileName);
+    final parsed = _parsed(def, profileName)!;
+    final key = _catalogKey(def.cwd, parsed.invocation);
+    if (!_catalogs.containsKey(key)) {
+      // The first probe can take up to 20 seconds. Keep the play action
+      // immediate; a later start can use the catalog once it arrives.
+      if (!_inflight.containsKey(key) && !_failures.contains(key)) {
+        unawaited(refresh(def, profileName: profileName));
+      }
+      final manual = _store.read(def.cwd, def.id)?.deviceId;
+      if (manual == null) return TaskLaunchPlan.plain;
+      final tool = _tools.deviceTool(parsed.toolId);
+      if (tool == null) return TaskLaunchPlan.plain;
+      return TaskLaunchPlan(
+        blocked: false,
+        argsOverride: tool.withDevice(_resolvedArgs(def, profileName), manual),
+      );
+    }
     final snap = snapshot(def, profileName: profileName, remote: false);
     final id = snap.selectedId;
     if (!snap.canStart || id == null || snap.unavailable) {
@@ -155,11 +185,15 @@ class TaskDeviceCoordinator {
       final previous = _catalogs[key];
       final changed = previous == null || !_same(previous, next);
       _catalogs[key] = next;
-      return changed;
-    } on Object {
-      if (_catalogs.containsKey(key)) return false;
-      _catalogs[key] = const _Catalog(platforms: {}, devices: []);
-      return true;
+      return _failures.remove(key) || changed;
+    } on Object catch (error, stack) {
+      developer.log(
+        'Device discovery failed for $cwd',
+        name: 'cockpit.tasks.devices',
+        error: error,
+        stackTrace: stack,
+      );
+      return _failures.add(key);
     }
   }
 

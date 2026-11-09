@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -416,7 +417,7 @@ void main() {
         '',
       ),
     );
-    final coordinator = TaskDeviceCoordinator(
+    final coordinator = TaskDeviceCoordinatorImpl(
       DevToolRegistry([probing]),
       _MemoryDevices(),
       HostOs.macos,
@@ -428,6 +429,7 @@ void main() {
       command: 'flutter',
       args: const ['run', '-d', 'iphone', '--release'],
     );
+    await coordinator.refresh(pinned, profileName: null);
     final plan = await coordinator.plan(
       pinned,
       profileName: null,
@@ -467,6 +469,164 @@ void main() {
       coordinator.offers(pinned, profileName: null, remote: true),
       isFalse,
     );
+  });
+
+  test(
+    'failed device listing keeps play available and does not repoll on start',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'flutter_device_failure',
+      );
+      addTearDown(() async {
+        if (await root.exists()) await root.delete(recursive: true);
+      });
+      await Directory(joinPath(root.path, 'linux')).create();
+      var probes = 0;
+      final coordinator = TaskDeviceCoordinatorImpl(
+        DevToolRegistry([
+          FlutterTool(
+            runProcess: (_, _, {workingDirectory}) async {
+              probes++;
+              return ProcessResult(0, 1, '', 'device service unavailable');
+            },
+          ),
+        ]),
+        _MemoryDevices(),
+        HostOs.linux,
+      );
+      final task = TaskDefinition(
+        id: 'json:run',
+        label: 'run',
+        cwd: root.path,
+        command: 'flutter',
+        args: const ['run'],
+      );
+
+      expect(await coordinator.refresh(task, profileName: null), isTrue);
+      final snapshot = coordinator.snapshot(
+        task,
+        profileName: null,
+        remote: false,
+      );
+      expect(snapshot.discoveryFailed, isTrue);
+      expect(snapshot.loading, isFalse);
+      expect(snapshot.canStart, isTrue);
+      expect(
+        (await coordinator.plan(
+          task,
+          profileName: null,
+          remote: false,
+        )).blocked,
+        isFalse,
+      );
+      expect(
+        (await coordinator.plan(
+          task,
+          profileName: null,
+          remote: false,
+        )).argsOverride,
+        isNull,
+      );
+      expect(probes, 1);
+      await coordinator.refresh(task, profileName: null);
+      expect(probes, 2);
+    },
+  );
+
+  test('device listing timeout remains a visible failure', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'flutter_device_timeout',
+    );
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    await Directory(joinPath(root.path, 'linux')).create();
+    final coordinator = TaskDeviceCoordinatorImpl(
+      DevToolRegistry([
+        FlutterTool(
+          deviceTimeout: const Duration(milliseconds: 1),
+          runProcess: (_, _, {workingDirectory}) async {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+            return ProcessResult(0, 0, '[]', '');
+          },
+        ),
+      ]),
+      _MemoryDevices(),
+      HostOs.linux,
+    );
+    final task = TaskDefinition(
+      id: 'json:run',
+      label: 'run',
+      cwd: root.path,
+      command: 'flutter',
+      args: const ['run'],
+    );
+    await coordinator.refresh(task, profileName: null);
+    expect(
+      coordinator
+          .snapshot(task, profileName: null, remote: false)
+          .discoveryFailed,
+      isTrue,
+    );
+    expect(
+      (await coordinator.plan(task, profileName: null, remote: false)).blocked,
+      isFalse,
+    );
+  });
+
+  test('cold start does not wait for a pending device probe', () async {
+    final root = await Directory.systemTemp.createTemp('flutter_device_cold');
+    addTearDown(() async {
+      if (await root.exists()) await root.delete(recursive: true);
+    });
+    await Directory(joinPath(root.path, 'linux')).create();
+    final probe = Completer<ProcessResult>();
+    var calls = 0;
+    final coordinator = TaskDeviceCoordinatorImpl(
+      DevToolRegistry([
+        FlutterTool(
+          runProcess: (_, _, {workingDirectory}) {
+            calls++;
+            return probe.future;
+          },
+        ),
+      ]),
+      _MemoryDevices(),
+      HostOs.linux,
+    );
+    final task = TaskDefinition(
+      id: 'json:run',
+      label: 'run',
+      cwd: root.path,
+      command: 'flutter',
+      args: const ['run'],
+    );
+
+    final first = await coordinator.plan(
+      task,
+      profileName: null,
+      remote: false,
+    );
+    expect(first.blocked, isFalse);
+    expect(first.argsOverride, isNull);
+    probe.complete(
+      ProcessResult(
+        0,
+        0,
+        jsonEncode([
+          {'id': 'linux', 'name': 'Linux', 'targetPlatform': 'linux-x64'},
+        ]),
+        '',
+      ),
+    );
+    await coordinator.refresh(task, profileName: null);
+    final second = await coordinator.plan(
+      task,
+      profileName: null,
+      remote: false,
+    );
+    expect(second.argsOverride, ['run', '-d', 'linux']);
+    expect(calls, 1);
   });
 
   group('devtools session', () {
@@ -522,10 +682,10 @@ The Flutter DevTools debugger and profiler on macOS is available at: $devtools
       final action = tool.action(run(), sessionUrl: devtools);
       expect(action, isNotNull);
       expect(action!.id, 'devtools');
-      expect(action.icon, 'devtools');
+      expect(action.icon, TaskRunActionIcon.devtools);
+      expect(action.kind, TaskRunActionKind.openDevTools);
       expect(_serviceTarget(action.url), vm);
       expect(action.url, contains('%3D'));
-      expect(action.label, 'Open DevTools');
     });
 
     test('a service uri cut before the auth padding is not opened', () {

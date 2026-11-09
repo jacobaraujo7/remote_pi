@@ -8,6 +8,7 @@ class TaskDeviceSnapshot {
     required this.unavailable,
     required this.canStart,
     required this.devices,
+    this.discoveryFailed = false,
     this.selectedId,
     this.selectedName,
   });
@@ -33,6 +34,9 @@ class TaskDeviceSnapshot {
 
   /// `false` quando já sabemos que não dá para executar num device compatível.
   final bool canStart;
+
+  /// Device listing failed. The task can still run without an injected `-d`.
+  final bool discoveryFailed;
 
   final List<DevDevice> devices;
 

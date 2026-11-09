@@ -410,8 +410,13 @@ class _TaskRow extends StatelessWidget {
             // ícone de restart (ex.: Flutter "Hot restart") — evita 2 ícones iguais.
             for (final action in actions)
               _IconAction(
-                tooltip: action.label,
-                icon: _iconFor(action.icon),
+                tooltip: switch (action.kind) {
+                  TaskRunActionKind.openDevTools =>
+                    context.t.cockpit.tasksPanel.openDevTools,
+                },
+                icon: switch (action.icon) {
+                  TaskRunActionIcon.devtools => Icons.developer_mode,
+                },
                 onTap: () => onAction(action),
               ),
             if (!def.interactiveKeys.any(
@@ -576,7 +581,13 @@ class _DeviceSelector extends StatelessWidget {
             enabled: false,
           ),
         if (fresh.devices.isEmpty)
-          AppMenuItem(value: '', label: tr.noDevicesMenu, enabled: false)
+          AppMenuItem(
+            value: '',
+            label: fresh.discoveryFailed
+                ? tr.deviceDiscoveryFailed
+                : tr.noDevicesMenu,
+            enabled: false,
+          )
         else
           for (final device in fresh.devices)
             AppMenuItem(
@@ -595,7 +606,7 @@ class _DeviceSelector extends StatelessWidget {
     return _IconAction(
       tooltip: _deviceTooltip(context, state),
       icon: Icons.smartphone,
-      color: state.unavailable ? colors.warn : null,
+      color: state.unavailable || state.discoveryFailed ? colors.warn : null,
       onTap: () => unawaited(_open(context)),
     );
   }
@@ -603,6 +614,7 @@ class _DeviceSelector extends StatelessWidget {
 
 String _deviceTooltip(BuildContext context, TaskDeviceSnapshot state) {
   final tr = context.t.cockpit.tasksPanel;
+  if (state.discoveryFailed) return tr.deviceDiscoveryFailed;
   if (state.loading) return tr.lookingForDevices;
   if (state.unavailable) {
     return tr.deviceUnavailableTooltip(
