@@ -1520,8 +1520,10 @@ class _PaneTools extends StatelessWidget {
     // num relance: empilhado = dividir abaixo; girado 90° (colunas lado-a-lado)
     // = dividir à direita. (Mockup.)
 
+    // Respiro simétrico: sem o seletor de perfil (POSIX) o grupo encostava na
+    // divisória do "+", e os ícones liam como um botão só.
     return Padding(
-      padding: const EdgeInsets.only(right: spacing),
+      padding: const EdgeInsets.symmetric(horizontal: spacing),
       child: Row(
         spacing: 12,
         children: [
@@ -1685,8 +1687,10 @@ class _PaneBodyState extends State<_PaneBody> {
         session: item,
         active: widget.active,
         focused: widget.focused,
-        onEditSource: () =>
-            context.read<CockpitViewModel>().openFileAsSource(item.path),
+        displayPath: context.read<CockpitViewModel>().displayPath(
+          item.projectId,
+          item.path,
+        ),
       );
     }
     // Viewer de diff (read-only, split): comparação com o HEAD do git.

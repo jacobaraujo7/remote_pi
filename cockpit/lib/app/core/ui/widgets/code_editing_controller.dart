@@ -5,6 +5,15 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:flutter/widgets.dart';
 
+/// Placeholder sem valor no contexto do editor, com offsets UTF-16 `[start,end)`.
+class UnresolvedCodeVariable {
+  const UnresolvedCodeVariable(this.start, this.end, this.message);
+
+  final int start;
+  final int end;
+  final String message;
+}
+
 /// `TextEditingController` que pinta o texto editável com o **mesmo** syntax
 /// highlight do viewer read-only e sobrepõe os **diagnostics do LSP** (sublinhado
 /// ondulado). O Flutter desenha o conteúdo de um campo via [buildTextSpan];
@@ -22,6 +31,35 @@ class CodeEditingController extends TextEditingController {
   final String? language;
 
   List<LspDiagnostic> _diagnostics = const <LspDiagnostic>[];
+
+  List<UnresolvedCodeVariable> _unresolvedVariables = const [];
+
+  void setUnresolvedVariables(List<UnresolvedCodeVariable> value) {
+    if (_unresolvedVariables.length == value.length &&
+        _unresolvedVariables.asMap().entries.every((e) {
+          final a = e.value;
+          final b = value[e.key];
+          return a.start == b.start && a.end == b.end && a.message == b.message;
+        })) {
+      return;
+    }
+    _unresolvedVariables = value;
+    notifyListeners();
+  }
+
+  String? unresolvedVariableMessageAt(int offset) {
+    for (final v in _unresolvedVariables) {
+      if (v.start <= offset && offset < v.end) return v.message;
+    }
+    return null;
+  }
+
+  List<DiagnosticRange> _highlightRanges(String source) => [
+    ...diagnosticRangesFor(source, _diagnostics),
+    for (final v in _unresolvedVariables)
+      if (v.start >= 0 && v.end <= source.length && v.start < v.end)
+        DiagnosticRange(v.start, v.end, LspSeverity.warning),
+  ];
 
   /// Diagnostics publicados pelo servidor para este documento. Setar repinta.
   List<LspDiagnostic> get diagnostics => _diagnostics;
@@ -256,6 +294,7 @@ class CodeEditingController extends TextEditingController {
   TextStyle? _cachedStyle;
   Object? _cachedColors;
   List<LspDiagnostic>? _cachedDiagnostics;
+  List<UnresolvedCodeVariable>? _cachedUnresolvedVariables;
   List<MatchSpan>? _cachedMatches;
   int? _cachedCurrentMatch;
   List<SemanticRange>? _cachedSemanticTokens;
@@ -275,6 +314,7 @@ class CodeEditingController extends TextEditingController {
         _cachedStyle == style &&
         identical(_cachedColors, colors) &&
         identical(_cachedDiagnostics, _diagnostics) &&
+        identical(_cachedUnresolvedVariables, _unresolvedVariables) &&
         identical(_cachedMatches, _matches) &&
         _cachedCurrentMatch == _currentMatch &&
         identical(_cachedSemanticTokens, _semanticTokens) &&
@@ -296,7 +336,7 @@ class CodeEditingController extends TextEditingController {
         previousSource: base,
         language: language,
         baseStyle: style ?? const TextStyle(),
-        diagnostics: diagnosticRangesFor(text, _diagnostics),
+        diagnostics: _highlightRanges(text),
         matches: _matches,
         currentMatch: _currentMatch,
         matchColor: colors.warn.withValues(alpha: 0.28),
@@ -319,7 +359,7 @@ class CodeEditingController extends TextEditingController {
             source: text,
             language: language,
             baseStyle: style ?? const TextStyle(),
-            diagnostics: diagnosticRangesFor(text, _diagnostics),
+            diagnostics: _highlightRanges(text),
             matches: _matches,
             currentMatch: _currentMatch,
             matchColor: colors.warn.withValues(alpha: 0.28),
@@ -338,6 +378,7 @@ class CodeEditingController extends TextEditingController {
     _cachedStyle = style;
     _cachedColors = colors;
     _cachedDiagnostics = _diagnostics;
+    _cachedUnresolvedVariables = _unresolvedVariables;
     _cachedMatches = _matches;
     _cachedCurrentMatch = _currentMatch;
     _cachedSemanticTokens = _semanticTokens;
