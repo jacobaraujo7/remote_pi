@@ -1177,6 +1177,27 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Kept non-Compose tasks with conflicting labels: ${labels}'
 	String composeConflicts({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}';
+
+	/// en: 'Run on ${name}'
+	String deviceTooltip({required Object name}) => 'Run on ${name}';
+
+	/// en: '${name} is unavailable'
+	String deviceUnavailableTooltip({required Object name}) => '${name} is unavailable';
+
+	/// en: 'No compatible device'
+	String get noDevicesTooltip => 'No compatible device';
+
+	/// en: 'No compatible devices'
+	String get noDevicesMenu => 'No compatible devices';
+
+	/// en: 'Looking for devices…'
+	String get lookingForDevices => 'Looking for devices…';
+
+	/// en: 'Could not list devices. Run remains available; open this menu to retry.'
+	String get deviceDiscoveryFailed => 'Could not list devices. Run remains available; open this menu to retry.';
+
+	/// en: 'Open DevTools'
+	String get openDevTools => 'Open DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -4795,6 +4816,13 @@ extension on Translations {
 			'cockpit.tasksPanel.invalidComposeFile' => 'The active file is not a valid Compose file with services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json is invalid. No changes were written.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Run on ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} is unavailable',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'No compatible device',
+			'cockpit.tasksPanel.noDevicesMenu' => 'No compatible devices',
+			'cockpit.tasksPanel.lookingForDevices' => 'Looking for devices…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Could not list devices. Run remains available; open this menu to retry.',
+			'cockpit.tasksPanel.openDevTools' => 'Open DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -5150,6 +5178,8 @@ extension on Translations {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Refresh',
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
@@ -5157,8 +5187,6 @@ extension on Translations {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5664,6 +5692,8 @@ extension on Translations {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
@@ -5671,8 +5701,6 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',

@@ -176,7 +176,14 @@
       "noComposeEngine": "未找到 Docker Compose 或 Podman Compose。",
       "invalidComposeFile": "当前文件不是包含服务的有效 Compose 文件。",
       "invalidTasksJson": "tasks.json 无效。未写入任何更改。",
-      "composeConflicts": "保留了与 Compose 标签冲突的非 Compose 任务：${labels}"
+      "composeConflicts": "保留了与 Compose 标签冲突的非 Compose 任务：${labels}",
+      "deviceTooltip": "在 ${name} 上运行",
+      "deviceUnavailableTooltip": "${name} 不可用",
+      "noDevicesTooltip": "没有兼容的设备",
+      "noDevicesMenu": "没有兼容的设备",
+      "lookingForDevices": "正在查找设备…",
+      "deviceDiscoveryFailed": "无法列出设备。仍可运行；打开此菜单可重试。",
+      "openDevTools": "打开 DevTools"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "选择项目文件夹",

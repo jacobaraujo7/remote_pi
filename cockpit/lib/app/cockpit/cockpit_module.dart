@@ -39,6 +39,13 @@ import 'package:cockpit/app/cockpit/data/repositories/json_workspace_layout_stor
 import 'package:cockpit/app/cockpit/data/repositories/project_schema_migrator.dart';
 import 'package:cockpit/app/cockpit/data/hooks/terminal_status_server_impl.dart';
 import 'package:cockpit/app/cockpit/data/tasks/pty_task_runner.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/flutter_tool.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/json_device_selection_store.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/device_selection_store.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/line_parser/telemetry_line_parser_impl.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_ingest_impl.dart';
 import 'package:cockpit/app/cockpit/data/telemetry/telemetry_store_registry.dart';
@@ -158,6 +165,10 @@ Future<Module> buildCockpitModule({
     stateDir,
     JsonSettingsStore.storeName,
   );
+  final taskDeviceStore = await JsonStateStore.open(
+    stateDir,
+    JsonDeviceSelectionStore.storeName,
+  );
   final appVersion = (await PackageInfo.fromPlatform()).version;
 
   // Notificações do SO — init pede permissão; falha não pode derrubar o boot.
@@ -272,7 +283,13 @@ Future<Module> buildCockpitModule({
           const TelemetryLineParserFactoryImpl(),
         )
         ..addLazySingleton<TelemetryIngest>(TelemetryIngestImpl.new)
+        ..addInstance<DevToolRegistry>(DevToolRegistry(const [FlutterTool()]))
         ..addLazySingleton<TaskRunnerGateway>(PtyTaskRunner.new)
+        ..addInstance<DeviceSelectionStore>(
+          JsonDeviceSelectionStore(taskDeviceStore),
+        )
+        ..addInstance<HostOs>(_currentHostOs())
+        ..addLazySingleton<TaskDeviceCoordinator>(TaskDeviceCoordinatorImpl.new)
         ..addLazySingleton(TaskTerminalStore.new)
         ..addInstance<TaskDiscovery>(TaskDiscoveryImpl(const []))
         ..addInstance<LayoutLoader>(const CkpLayoutLoader())
@@ -386,4 +403,12 @@ SelfUpdater _buildSelfUpdater(UpdateTarget target) {
   final feed = target.selfUpdateFeedUrl;
   if (feed == null) return const NoopSelfUpdater();
   return AutoUpdaterSelfUpdater(feedUrl: feed, autoDownloads: Platform.isMacOS);
+}
+
+/// SO desta máquina, para a prioridade automática de device. Linux cobre o
+/// resto (o Cockpit desktop não roda em mobile).
+HostOs _currentHostOs() {
+  if (Platform.isMacOS) return HostOs.macos;
+  if (Platform.isWindows) return HostOs.windows;
+  return HostOs.linux;
 }

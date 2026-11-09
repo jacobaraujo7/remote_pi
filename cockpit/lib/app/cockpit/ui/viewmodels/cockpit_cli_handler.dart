@@ -10,6 +10,7 @@ import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart';
 import 'package:cockpit/app/cockpit/domain/entities/layout_spec.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart';
@@ -65,6 +66,7 @@ class CockpitCliHandler {
     this._taskRuns,
     this._taskTerms,
     this._telemetry,
+    this._devices,
   );
 
   final CockpitViewModel _vm;
@@ -74,6 +76,7 @@ class CockpitCliHandler {
   final TaskDiscovery _tasks;
   final TaskRunnerGateway _taskRuns;
   final TaskTerminalStore _taskTerms;
+  final TaskDeviceCoordinator _devices;
 
   /// Contexto de tasks REMOTO por workspace (plano 58): a página pluga a
   /// mesma fábrica que serve o painel Tasks (par descoberta + runner do host,
@@ -92,6 +95,7 @@ class CockpitCliHandler {
     String root,
     TaskDiscovery discovery,
     TaskRunnerGateway runner,
+    bool remote,
   })?
   _taskContext(CockpitCommand c) {
     final sender = c.tabId == null ? null : _vm.session(c.tabId!);
@@ -108,6 +112,7 @@ class CockpitCliHandler {
       root: root,
       discovery: remote?.discovery ?? _tasks,
       runner: remote?.runner ?? _taskRuns,
+      remote: project.remoteHostId != null,
     );
   }
 
@@ -118,6 +123,7 @@ class CockpitCliHandler {
       String root,
       TaskDiscovery discovery,
       TaskRunnerGateway runner,
+      bool remote,
     })
     ctx,
     String taskId,
@@ -126,6 +132,31 @@ class CockpitCliHandler {
     for (final d in defs) {
       if (d.id == taskId) return d;
     }
+    return null;
+  }
+
+  /// Aplica a seleção de device no workspace local e inicia a task. No remoto
+  /// o argv não muda — devices da máquina do Cockpit não servem no host.
+  /// Devolve um erro quando não há device compatível; null quando o start ocorreu.
+  Future<CockpitCommandResult?> _startPrepared(
+    TaskRunnerGateway runner,
+    TaskDefinition def, {
+    required bool remote,
+    String? profileName,
+  }) async {
+    final plan = await _devices.plan(
+      def,
+      profileName: profileName,
+      remote: remote,
+    );
+    if (plan.blocked) {
+      return CockpitCommandResult.fail('no compatible device for "${def.id}"');
+    }
+    await runner.start(
+      def,
+      profileName: profileName,
+      argsOverride: plan.argsOverride,
+    );
     return null;
   }
 
@@ -514,9 +545,9 @@ class CockpitCliHandler {
           }
           final now = DateTime.now();
           var name = NotebookNote.fileNameFor(title, now);
-          final taken = (await _vm.listChildren(
-            dir,
-          )).map((e) => e.name).toSet();
+          final taken = (await _vm.listChildren(dir))
+              .map((e) => e.name)
+              .toSet();
           var i = 2;
           while (taken.contains(name)) {
             name = NotebookNote.fileNameFor('$title $i', now);
@@ -1009,10 +1040,13 @@ class CockpitCliHandler {
               }
               await ctx.runner.stop(def.id);
             }
-            await ctx.runner.start(
+            final started = await _startPrepared(
+              ctx.runner,
               def,
+              remote: ctx.remote,
               profileName: profile.isEmpty ? null : profile,
             );
+            if (started != null) return started;
           case 'stop-task':
             if (!running) {
               return CockpitCommandResult.fail('"$taskId" is not running');
@@ -1022,7 +1056,12 @@ class CockpitCliHandler {
             if (running) {
               await ctx.runner.restart(def.id);
             } else {
-              await ctx.runner.start(def);
+              final started = await _startPrepared(
+                ctx.runner,
+                def,
+                remote: ctx.remote,
+              );
+              if (started != null) return started;
             }
           case 'send-task-key':
             final key = (c.args['key'] ?? '').toString();

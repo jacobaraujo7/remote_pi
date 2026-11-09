@@ -12,6 +12,15 @@ class TaskPreviewUrl {
   final String url;
 }
 
+/// URL de sessão de uma execução (DevTools etc.). [url] vazia invalida a
+/// sessão desta task — stop, restart ou uma execução que ainda não anunciou
+/// o serviço. Não abre sozinha; a UI oferece a ação.
+class TaskSessionUrl {
+  const TaskSessionUrl(this.taskId, this.url);
+  final String taskId;
+  final String url;
+}
+
 abstract class TaskRunnerGateway {
   /// Stream de estados vivos de TODAS as tasks (uma emissão por transição).
   Stream<TaskRun> runs();
@@ -20,6 +29,15 @@ abstract class TaskRunnerGateway {
   /// fixa da task, no start). No máximo uma emissão por execução; tasks com
   /// `preview: false` nunca emitem.
   Stream<TaskPreviewUrl> previewUrls();
+
+  /// URL de sessão por task. Emite de novo quando a URL muda e emite [url]
+  /// vazia quando a execução acaba ou recomeça. O runner remoto não emite:
+  /// o endereço é o loopback do host.
+  Stream<TaskSessionUrl> sessionUrls();
+
+  /// URL de sessão corrente, se esta execução ainda a tem. Null depois do
+  /// stop/restart até o output novo anunciar outra.
+  String? sessionUrlOf(String taskId);
 
   /// Texto decodificado do stdout/stderr de uma task — alimenta o terminal.
   /// Stream vazio se a task não está rodando.
@@ -30,10 +48,15 @@ abstract class TaskRunnerGateway {
 
   /// Spawna [def] com o [profileName] escolhido (+ [adHocArgs] de uma execução
   /// só). Idempotente: se já roda, é no-op.
+  ///
+  /// [argsOverride], quando não-nulo, substitui o argv resolvido (profile +
+  /// ad-hoc) pelo que o preparador de ferramenta já montou. [restart] reusa
+  /// o argv desta execução — o device não muda no meio do processo.
   Future<void> start(
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
+    List<String>? argsOverride,
   });
 
   /// Mata a task limpo (SIGTERM → timeout → SIGKILL).

@@ -525,6 +525,13 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get invalidComposeFile => '当前文件不是包含服务的有效 Compose 文件。';
 	@override String get invalidTasksJson => 'tasks.json 无效。未写入任何更改。';
 	@override String composeConflicts({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}';
+	@override String deviceTooltip({required Object name}) => '在 ${name} 上运行';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} 不可用';
+	@override String get noDevicesTooltip => '没有兼容的设备';
+	@override String get noDevicesMenu => '没有兼容的设备';
+	@override String get lookingForDevices => '正在查找设备…';
+	@override String get deviceDiscoveryFailed => '无法列出设备。仍可运行；打开此菜单可重试。';
+	@override String get openDevTools => '打开 DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -2248,6 +2255,13 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.invalidComposeFile' => '当前文件不是包含服务的有效 Compose 文件。',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json 无效。未写入任何更改。',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => '在 ${name} 上运行',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} 不可用',
+			'cockpit.tasksPanel.noDevicesTooltip' => '没有兼容的设备',
+			'cockpit.tasksPanel.noDevicesMenu' => '没有兼容的设备',
+			'cockpit.tasksPanel.lookingForDevices' => '正在查找设备…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => '无法列出设备。仍可运行；打开此菜单可重试。',
+			'cockpit.tasksPanel.openDevTools' => '打开 DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => '选择项目文件夹',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => '选择工作区文件夹',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => '工作区已重命名',
@@ -2603,6 +2617,8 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.loadMore' => '加载更多',
 			'cockpit.dbMongoView.edit' => '编辑',
 			'cockpit.dbMongoView.insert' => '插入',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
 			'cockpit.dbConnectionDialog.file' => '文件',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => '选择一个 SQLite 文件…',
@@ -2610,8 +2626,6 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3117,6 +3131,8 @@ extension on TranslationsZh {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => '通过 SSH 访问的机器。在这里添加主机与从工作区「+」菜单添加效果相同。',
 			'settings.remoteHosts.empty' => '还没有远程主机。',
 			'settings.remoteHosts.add' => '添加主机',
@@ -3124,8 +3140,6 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

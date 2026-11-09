@@ -122,6 +122,7 @@ import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/cockpit/ui/session/browser_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/telemetry_case_session.dart';
@@ -207,6 +208,7 @@ class CockpitViewModel extends ChangeNotifier
     this._neovim,
     this._telemetryStores,
     this._telemetryIngest,
+    this._taskDevices,
   ) {
     _fileEditorFacade = FileEditorFacade(
       FileEditorRegistry({
@@ -255,6 +257,10 @@ class CockpitViewModel extends ChangeNotifier
   }
 
   StreamSubscription<TaskPreviewUrl>? _previewSub;
+
+  /// Painel de sessão (DevTools) já aberto por task. O segundo clique foca
+  /// o mesmo painel; outra task não reusa, mesmo que a porta seja a mesma.
+  final _taskBrowsers = <String, ({String sessionId, String url})>{};
 
   /// Assinatura do turn-status remoto (Wave G); cancelada no dispose.
   StreamSubscription<RemoteTurnStatus>? _remoteTurnSub;
@@ -1469,7 +1475,10 @@ class CockpitViewModel extends ChangeNotifier
       lastEditAt: (id) => _lastEditAt[id],
       rootsOf: rootsOf,
     ),
+    _taskDevices,
   );
+
+  final TaskDeviceCoordinator _taskDevices;
 
   // Telemetria (plano 66): stores por workspace + ingest, e o último save do
   // editor por projeto (janela `--since-edit` da CLI).
@@ -2797,6 +2806,50 @@ class CockpitViewModel extends ChangeNotifier
     } on PlatformException {
       return false;
     }
+  }
+
+  /// Abre a URL de sessão de uma task (DevTools). Mesmo destino do auto-open
+  /// de preview: painel embutido no macOS/Windows, browser do SO no Linux.
+  /// Não usa o reuse por origem — duas apps em `127.0.0.1:9100` com `?uri=`
+  /// diferente ficam em painéis separados. O segundo clique na mesma task
+  /// foca o painel e só navega se a URL mudou (restart).
+  void openTaskSession(String taskId, String url) {
+    final normalized = normalizeBrowserUrl(url);
+    if (normalized.isEmpty || taskId.isEmpty) return;
+    if (!BrowserCapability.resolve().isInline) {
+      unawaited(openUrlExternally(normalized));
+      return;
+    }
+    final known = _taskBrowsers[taskId];
+    if (known != null) {
+      final existing = _sessions[known.sessionId];
+      if (existing is BrowserSession) {
+        final leaf = _leafWithTab(existing.projectId, existing.id);
+        if (leaf != null) {
+          if (known.url != normalized) {
+            existing.requestUrl(normalized);
+            _taskBrowsers[taskId] = (sessionId: existing.id, url: normalized);
+          }
+          if (existing.projectId == _selectedProjectId) {
+            selectTab(leaf.id, existing.id);
+          }
+          return;
+        }
+      }
+    }
+    final created = openWebBrowser(normalized, reuse: false);
+    if (created != null) {
+      _taskBrowsers[taskId] = (sessionId: created.id, url: normalized);
+    }
+  }
+
+  LeafPane? _leafWithTab(String projectId, String tabId) {
+    final tree = _trees[projectId];
+    if (tree == null) return null;
+    for (final leaf in leaves(tree)) {
+      if (leaf.tabs.contains(tabId)) return leaf;
+    }
+    return null;
   }
 
   /// Abre uma aba de **navegador** (plano 58). [url] vazia = aba em branco com

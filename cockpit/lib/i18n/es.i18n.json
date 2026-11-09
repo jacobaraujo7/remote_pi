@@ -176,7 +176,14 @@
       "noComposeEngine": "No se encontró Docker Compose ni Podman Compose.",
       "invalidComposeFile": "El archivo activo no es un Compose válido con servicios.",
       "invalidTasksJson": "tasks.json no es válido. No se guardaron cambios.",
-      "composeConflicts": "Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}"
+      "composeConflicts": "Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}",
+      "deviceTooltip": "Ejecutar en ${name}",
+      "deviceUnavailableTooltip": "${name} no está disponible",
+      "noDevicesTooltip": "Ningún dispositivo compatible",
+      "noDevicesMenu": "Ningún dispositivo compatible",
+      "lookingForDevices": "Buscando dispositivos…",
+      "deviceDiscoveryFailed": "No se pudieron listar los dispositivos. La ejecución sigue disponible; abre este menú para reintentar.",
+      "openDevTools": "Abrir DevTools"
     },
     "cockpitPage": {
       "chooseProjectFolderDialogTitle": "Elige la carpeta del proyecto",
