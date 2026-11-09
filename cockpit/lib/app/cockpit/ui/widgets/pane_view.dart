@@ -1489,8 +1489,10 @@ class _PaneTools extends StatelessWidget {
     // num relance: empilhado = dividir abaixo; girado 90° (colunas lado-a-lado)
     // = dividir à direita. (Mockup.)
 
+    // Respiro simétrico: sem o seletor de perfil (POSIX) o grupo encostava na
+    // divisória do "+", e os ícones liam como um botão só.
     return Padding(
-      padding: const EdgeInsets.only(right: spacing),
+      padding: const EdgeInsets.symmetric(horizontal: spacing),
       child: Row(
         spacing: 12,
         children: [
