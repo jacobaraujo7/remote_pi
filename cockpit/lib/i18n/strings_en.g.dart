@@ -395,8 +395,8 @@ class Translations$workspaceView$en {
 	/// en: 'Terminals'
 	String get terminals => 'Terminals';
 
-	/// en: 'Boxes'
-	String get boxes => 'Boxes';
+	/// en: 'List'
+	String get boxes => 'List';
 
 	/// en: 'Graph'
 	String get graph => 'Graph';
@@ -404,8 +404,8 @@ class Translations$workspaceView$en {
 	/// en: 'New terminal'
 	String get newTerminal => 'New terminal';
 
-	/// en: 'Configure box'
-	String get configure => 'Configure box';
+	/// en: 'Configure terminal'
+	String get configure => 'Configure terminal';
 
 	/// en: 'Close inspector'
 	String get closeInspector => 'Close inspector';
@@ -416,8 +416,8 @@ class Translations$workspaceView$en {
 	/// en: 'All states'
 	String get allStates => 'All states';
 
-	/// en: 'Box'
-	String get name => 'Box';
+	/// en: 'Terminal'
+	String get name => 'Terminal';
 
 	/// en: 'State'
 	String get state => 'State';
@@ -464,17 +464,17 @@ class Translations$workspaceView$en {
 	/// en: 'Add a function'
 	String get noRole => 'Add a function';
 
-	/// en: 'No boxes yet'
-	String get noBoxes => 'No boxes yet';
+	/// en: 'No terminals yet'
+	String get noBoxes => 'No terminals yet';
 
-	/// en: 'No boxes match your search'
-	String get noMatches => 'No boxes match your search';
+	/// en: 'No terminals match your search'
+	String get noMatches => 'No terminals match your search';
 
 	/// en: 'Select a box to preview its terminal'
 	String get selectBox => 'Select a box to preview its terminal';
 
-	/// en: 'This box has no terminal session'
-	String get noSession => 'This box has no terminal session';
+	/// en: 'This terminal has no session'
+	String get noSession => 'This terminal has no session';
 
 	/// en: 'Start terminal'
 	String get startShell => 'Start terminal';
@@ -527,8 +527,8 @@ class Translations$workspaceView$en {
 	/// en: 'Temporary subagent'
 	String get temporary => 'Temporary subagent';
 
-	/// en: 'Connect boxes'
-	String get linkBoxes => 'Connect boxes';
+	/// en: 'Connect terminals'
+	String get linkBoxes => 'Connect terminals';
 
 	/// en: 'Select source and target'
 	String get selectEndpoints => 'Select source and target';
@@ -542,8 +542,8 @@ class Translations$workspaceView$en {
 	/// en: 'Configuration'
 	String get configuration => 'Configuration';
 
-	/// en: 'Enter a box name'
-	String get nameRequired => 'Enter a box name';
+	/// en: 'Enter a terminal name'
+	String get nameRequired => 'Enter a terminal name';
 
 	/// en: 'Remove connection'
 	String get removeLink => 'Remove connection';
@@ -556,6 +556,21 @@ class Translations$workspaceView$en {
 
 	/// en: 'Show inspector'
 	String get showInspector => 'Show inspector';
+
+	/// en: 'Connect to another terminal'
+	String get addConnection => 'Connect to another terminal';
+
+	/// en: 'Actions'
+	String get actions => 'Actions';
+
+	/// en: 'Hide terminal'
+	String get closeTerminal => 'Hide terminal';
+
+	/// en: 'Legend'
+	String get legend => 'Legend';
+
+	/// en: 'Saved in the .orc file. Session actions live in the terminal menu.'
+	String get portableHint => 'Saved in the .orc file. Session actions live in the terminal menu.';
 }
 
 // Path: terminalAttachment
@@ -670,6 +685,9 @@ class Translations$orchestration$en {
 
 	/// en: 'The agent returned an invalid role suggestion.'
 	String get roleInvalid => 'The agent returned an invalid role suggestion.';
+
+	/// en: 'Select a terminal in the list or graph to work in it.'
+	String get noBoxSelected => 'Select a terminal in the list or graph to work in it.';
 }
 
 // Path: core.bootstrapError
@@ -5794,14 +5812,14 @@ extension on Translations {
 			'theme.error.unknownBase' => ({required Object value}) => 'Unknown base theme "${value}" in "extends".',
 			'theme.error.noVariants' => 'The theme declares no variant. Add "dark", "light" or both under "variants".',
 			'workspaceView.terminals' => 'Terminals',
-			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.boxes' => 'List',
 			'workspaceView.graph' => 'Graph',
 			'workspaceView.newTerminal' => 'New terminal',
-			'workspaceView.configure' => 'Configure box',
+			'workspaceView.configure' => 'Configure terminal',
 			'workspaceView.closeInspector' => 'Close inspector',
 			'workspaceView.search' => 'Search name or function',
 			'workspaceView.allStates' => 'All states',
-			'workspaceView.name' => 'Box',
+			'workspaceView.name' => 'Terminal',
 			'workspaceView.state' => 'State',
 			'workspaceView.tool' => 'Tool',
 			'workspaceView.role' => 'Function',
@@ -5817,10 +5835,10 @@ extension on Translations {
 			'workspaceView.disconnected' => 'Disconnected',
 			'workspaceView.unavailable' => 'Unavailable',
 			'workspaceView.noRole' => 'Add a function',
-			'workspaceView.noBoxes' => 'No boxes yet',
-			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.noBoxes' => 'No terminals yet',
+			'workspaceView.noMatches' => 'No terminals match your search',
 			'workspaceView.selectBox' => 'Select a box to preview its terminal',
-			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.noSession' => 'This terminal has no session',
 			'workspaceView.startShell' => 'Start terminal',
 			'workspaceView.openTerminal' => 'Open in Terminals',
 			'workspaceView.save' => 'Save',
@@ -5838,16 +5856,21 @@ extension on Translations {
 			'workspaceView.planned' => 'Planned connection',
 			'workspaceView.observed' => 'Observed activity',
 			'workspaceView.temporary' => 'Temporary subagent',
-			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.linkBoxes' => 'Connect terminals',
 			'workspaceView.selectEndpoints' => 'Select source and target',
 			'workspaceView.zoomFit' => 'Reset zoom',
 			'workspaceView.session' => 'Session',
 			'workspaceView.configuration' => 'Configuration',
-			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.nameRequired' => 'Enter a terminal name',
 			'workspaceView.removeLink' => 'Remove connection',
 			'workspaceView.handoffSummary' => 'Summary',
 			'workspaceView.copyRole' => 'Copy function',
 			'workspaceView.showInspector' => 'Show inspector',
+			'workspaceView.addConnection' => 'Connect to another terminal',
+			'workspaceView.actions' => 'Actions',
+			'workspaceView.closeTerminal' => 'Hide terminal',
+			'workspaceView.legend' => 'Legend',
+			'workspaceView.portableHint' => 'Saved in the .orc file. Session actions live in the terminal menu.',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copying attachments: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Image paste requested from the agent.',
 			'terminalAttachment.referenced' => 'Local references inserted.',
@@ -5880,6 +5903,7 @@ extension on Translations {
 			'orchestration.roleChanged' => 'The terminal or document changed. Ask again.',
 			'orchestration.roleTimeout' => 'The agent did not return a suggestion in time. You can try again or fill the role manually.',
 			'orchestration.roleInvalid' => 'The agent returned an invalid role suggestion.',
+			'orchestration.noBoxSelected' => 'Select a terminal in the list or graph to work in it.',
 			_ => null,
 		};
 	}

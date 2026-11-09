@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.1.23+121
+version: 2.1.24+122
 
 environment:
   sdk: ^3.12.0
@@ -107,7 +107,11 @@ dependencies:
   path: ^1.9.0
 
   # Wave 2 — fontes da identidade visual (Space Grotesk / Hanken Grotesk /
-  # JetBrains Mono), servidas em runtime + cacheadas pelo google_fonts.
+  # JetBrains Mono). Os .ttf vêm EMPACOTADOS em assets/google_fonts/ (o
+  # google_fonts procura `<Family>-<Weight>.ttf` no AssetManifest antes de
+  # qualquer rede) e `allowRuntimeFetching` fica desligado no main: sem isso o
+  # primeiro boot offline/atrás de proxy morria tentando baixar de
+  # fonts.gstatic.com (issue #61).
   google_fonts: ^6.2.1
 
   # Wave 2 — renderiza o Markdown (GFM + code) da resposta do agente.
@@ -292,6 +296,8 @@ flutter:
   # Ícones de arquivo/pasta por extensão (material-icon-theme, MIT). O mapa
   # arquivo->ícone é gerado em lib/ui/core/file_icons/file_icon_map.g.dart.
   assets:
+    # Fontes da identidade visual, pré-baixadas (ver google_fonts em deps).
+    - assets/google_fonts/
     - assets/file_icons/
     - assets/db_icons/
     - assets/harness_icons/

@@ -80,9 +80,15 @@
 
   /* ---- terminal sob demanda ---- */
   .divider { height: 6px; background: var(--border); cursor: row-resize; }
-  .terminals { height: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; transition: height .22s ease; }
+  .terminals { height: 0; display: flex; flex-direction: column; align-items: center; min-height: 0; overflow: hidden; transition: height .22s ease; background: var(--panel); }
   body.open .terminals { height: 58%; }
   body:not(.open) .divider { display: none; }
+  /* ConstrainedBox: em tela larga o terminal não vai de borda a borda.
+     Largura máxima + centralizado; abaixo do teto ele ocupa 100%. */
+  .term-box { width: 100%; max-width: 1100px; flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--bg); border-left: 1px solid var(--border); border-right: 1px solid var(--border); }
+  .term-box .term-head { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid var(--border); font-size: 11.5px; color: var(--text3); }
+  .term-box .term-head .dot { width: 7px; height: 7px; }
+  .term-box .term-head .x { margin-left: auto; color: var(--text3); cursor: default; }
   .term { flex: 1; padding: 10px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
   .prompt .path { background: #1e4a8f; color: #fff; padding: 2px 8px; }
   .prompt .git { background: #b58a1e; color: #1a1a1a; padding: 2px 8px; }
@@ -213,9 +219,12 @@
 <div class="divider"></div>
 
 <div class="terminals">
-  <div class="term">
+  <div class="term-box">
+    <div class="term-head"><span class="dot wait"></span><span id="term-title"></span><span class="x" id="term-close" title="Fechar (Esc)">×</span></div>
+    <div class="term">
     <div class="prompt"><span class="path">~/Projects/notebox/app</span><span class="git">main &gt;6 !10 ?12</span></div>
     <div><span class="caret">&gt;</span><span class="cursor"></span></div>
+    </div>
   </div>
 </div>
 
@@ -258,7 +267,9 @@
     items.forEach(el => el.classList.toggle('selected', el.dataset.id === id));
     body.classList.toggle('open', !!id);
     sel.textContent = id ? '· ' + id : '';
+    document.getElementById('term-title').textContent = id ?? '';
   }
+  document.getElementById('term-close').addEventListener('click', e => { e.stopPropagation(); select(null); });
   items.forEach(el => el.addEventListener('click', e => { e.stopPropagation(); select(el.dataset.id); }));
   document.getElementById('overview').addEventListener('click', () => select(null));
 
