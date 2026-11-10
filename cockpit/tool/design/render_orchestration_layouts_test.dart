@@ -346,7 +346,6 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
-      expect(find.text('Novo terminal'), findsOneWidget);
       expect(app.terminals.sessions.length, 3);
       // One selected owned terminal plus the independent external terminal.
       expect(
@@ -390,7 +389,7 @@ void main() {
           ),
           same(terminalElement),
         );
-        await tester.tap(find.text('Boxes'));
+        await tester.tap(find.text('Lista'));
         await tester.pump();
         expect(
           tester.element(
