@@ -58,6 +58,7 @@ class _Translations$core$zh extends Translations$core$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$zh clipboard = _Translations$core$clipboard$zh._(_root);
 	@override late final _Translations$core$bootstrapError$zh bootstrapError = _Translations$core$bootstrapError$zh._(_root);
 	@override late final _Translations$core$macosNotifications$zh macosNotifications = _Translations$core$macosNotifications$zh._(_root);
 	@override late final _Translations$core$appErrorView$zh appErrorView = _Translations$core$appErrorView$zh._(_root);
@@ -290,6 +291,16 @@ class _Translations$orchestration$zh extends Translations$orchestration$en {
 	@override String get createWithoutImport => 'Create without importing';
 	@override String get importLegacy => 'Import configuration';
 	@override String get noBoxSelected => '在列表或图中选择一个终端以在其中工作。';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$zh extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => '无法复制到剪贴板。请重试。';
 }
 
 // Path: core.bootstrapError
@@ -2098,6 +2109,7 @@ class _Translations$settings$page$general$wordWrap$zh extends Translations$setti
 extension on TranslationsZh {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => '无法复制到剪贴板。请重试。',
 			'core.bootstrapError.title' => 'Cockpit 初始化失败',
 			'core.bootstrapError.retry' => '重试',
 			'core.macosNotifications.title' => '在 macOS 上启用通知',
@@ -2609,9 +2621,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.name' => '名称',
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
-			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3123,9 +3135,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.edit' => '编辑',
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
-			'settings.remoteHosts.removeTitle' => '移除主机',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.removeTitle' => '移除主机',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

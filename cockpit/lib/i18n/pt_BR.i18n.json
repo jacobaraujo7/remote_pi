@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "Não foi possível copiar para a área de transferência. Tente novamente."
+    },
     "bootstrapError": {
       "title": "Falha ao inicializar o Cockpit",
       "retry": "Tentar novamente"

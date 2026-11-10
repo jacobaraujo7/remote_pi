@@ -62,6 +62,7 @@ class Translations$core$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$core$clipboard$en clipboard = Translations$core$clipboard$en.internal(_root);
 	late final Translations$core$bootstrapError$en bootstrapError = Translations$core$bootstrapError$en.internal(_root);
 	late final Translations$core$macosNotifications$en macosNotifications = Translations$core$macosNotifications$en.internal(_root);
 	late final Translations$core$appErrorView$en appErrorView = Translations$core$appErrorView$en.internal(_root);
@@ -688,6 +689,18 @@ class Translations$orchestration$en {
 
 	/// en: 'Select a terminal in the list or graph to work in it.'
 	String get noBoxSelected => 'Select a terminal in the list or graph to work in it.';
+}
+
+// Path: core.clipboard
+class Translations$core$clipboard$en {
+	Translations$core$clipboard$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Could not copy to the clipboard. Try again.'
+	String get writeFailed => 'Could not copy to the clipboard. Try again.';
 }
 
 // Path: core.bootstrapError
@@ -4645,6 +4658,7 @@ class Translations$settings$page$general$updateFrequency$en {
 extension on Translations {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Could not copy to the clipboard. Try again.',
 			'core.bootstrapError.title' => 'Failed to initialize Cockpit',
 			'core.bootstrapError.retry' => 'Retry',
 			'core.macosNotifications.title' => 'Enable Notifications on macOS',
@@ -5156,9 +5170,9 @@ extension on Translations {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
-			'cockpit.dbMongoView.insert' => 'Insert',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.insert' => 'Insert',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5670,9 +5684,9 @@ extension on Translations {
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
-			'settings.remoteHosts.title' => 'Remote hosts',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',

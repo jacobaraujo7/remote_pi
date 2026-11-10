@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "Could not copy to the clipboard. Try again."
+    },
     "bootstrapError": {
       "title": "Failed to initialize Cockpit",
       "retry": "Retry"

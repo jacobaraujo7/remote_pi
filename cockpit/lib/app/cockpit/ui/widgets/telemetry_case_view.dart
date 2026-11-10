@@ -1,3 +1,4 @@
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 // Corpo da aba de caso da Telemetry (plano 66, passo 6): cabeçalho (origem,
 // tipo, mensagem, id, status, blame), ações, stats e as seções Stack,
 // Log correlacionado, Ocorrências por run e Contexto cru. Espelha o mockup.
@@ -12,7 +13,6 @@ import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -247,10 +247,9 @@ class _TelemetryCaseViewState extends State<TelemetryCaseView> {
                     icon: Icons.copy_outlined,
                     mono: 'cockpit telemetry show ${c.shortId}',
                     label: tr.copyCommand,
-                    onTap: () => Clipboard.setData(
-                      ClipboardData(
-                        text: 'cockpit telemetry show ${c.shortId}',
-                      ),
+                    onTap: () => TextClipboardService.instance.write(
+                      'cockpit telemetry show ${c.shortId}',
+                      operation: 'telemetry_case_view',
                     ),
                   ),
                   if (open) ...[

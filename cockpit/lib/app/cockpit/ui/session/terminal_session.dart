@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_attachments.dart';
 import 'package:cockpit/app/cockpit/domain/services/terminal_attachment_service.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
@@ -22,7 +23,6 @@ import 'package:cockpit/app/core/utils/bounded_text_buffer.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_input.dart';
 import 'package:flutter/foundation.dart';
-import 'package:pasteboard/pasteboard.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 
 /// Status de um `claude` (ou outro harness) rodando dentro de uma aba de
@@ -514,12 +514,12 @@ class TerminalSession extends PaneItem {
   ///
   /// Existe para o botão de copiar da barra de teclas do mobile: lá não há
   /// atalho de teclado nem menu de contexto, então o único caminho é este.
-  /// Usa o mesmo `Pasteboard` do paste (e não o `Clipboard` do Flutter) pra a
-  /// aba ficar com um clipboard só, coerente nos dois sentidos.
+  /// Usa o serviço compartilhado de texto, preservando as leituras de arquivos
+  /// e imagens do fluxo de paste. Falhas aparecem no feedback da janela.
   void copySelection() {
     final text = terminal.selectedText();
     if (text.isEmpty) return;
-    Pasteboard.writeText(text);
+    TextClipboardService.instance.write(text, operation: 'terminal_session');
   }
 
   final TerminalAttachmentService? attachmentService;
