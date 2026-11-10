@@ -151,17 +151,19 @@ class _Waveform extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Right-align so the newest sample sits next to the hint and the wave
-    // appears to scroll leftward as it fills. ClipRect + OverflowBox lets the
-    // bar row keep its natural width on narrow composers (no overflow assert);
-    // the oldest bars are clipped off the left, newest stay visible.
+    // End-align (directional) so the newest sample sits next to the cancel
+    // hint and the wave scrolls away from it as it fills — mirrored under
+    // RTL, where the strip itself flips sides. ClipRect + OverflowBox lets
+    // the bar row keep its natural width on narrow composers (no overflow
+    // assert); the oldest bars are clipped off the far edge, newest stay
+    // visible.
     final pad = RecordingStrip.barCount - samples.length;
     return SizedBox(
       height: 26,
       child: ClipRect(
         child: OverflowBox(
           maxWidth: double.infinity,
-          alignment: Alignment.centerRight,
+          alignment: AlignmentDirectional.centerEnd,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.center,
