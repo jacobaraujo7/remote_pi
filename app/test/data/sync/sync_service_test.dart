@@ -822,6 +822,62 @@ void main() {
     },
   );
 
+  test(
+    'relay working=false arriving before agent_done preserves streamed '
+    'assistant chunks in DB (turn_end precedes agent_end on Pi)',
+    () async {
+      final s = await setup();
+      s.ch.push(UserInput(id: 'u1', text: 'Hello'));
+      await _settle();
+
+      s.ch.pushControl(
+        RoomAnnounced(peer: s.epk, roomId: 'main', startedAt: 1),
+      );
+      s.ch.pushControl(
+        RoomMetaUpdated(
+          peer: s.epk,
+          roomId: 'main',
+          working: true,
+          hasModel: false,
+          hasThinking: false,
+        ),
+      );
+      await _settle();
+
+      s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'Hi there! '));
+      s.ch.push(AgentChunk(inReplyTo: 'u1', delta: 'How can I help?'));
+      await _settle();
+
+      // Pi emits turn_end (working=false) BEFORE agent_end (agent_done).
+      s.ch.pushControl(
+        RoomMetaUpdated(
+          peer: s.epk,
+          roomId: 'main',
+          working: false,
+          hasModel: false,
+          hasThinking: false,
+        ),
+      );
+      await _settle();
+
+      // And then agent_done arrives shortly after.
+      s.ch.push(AgentDone(inReplyTo: 'u1'));
+      await _settle();
+
+      final rows = messages(s.epk);
+      expect(rows, hasLength(2));
+      expect(rows[0].role, MsgRole.user);
+      expect(rows[0].text, 'Hello');
+      expect(rows[1].role, MsgRole.assistant);
+      expect(rows[1].text, 'Hi there! How can I help?');
+      expect(s.sync.isWorking, isFalse);
+      expect(s.sync.streaming, isNull);
+
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
   // Plan/32 safety net — a sent message whose echo never comes back must not
   // spin forever; the optimistic bubble is removed SILENTLY after the timeout.
   group('no-echo send timeout', () {
