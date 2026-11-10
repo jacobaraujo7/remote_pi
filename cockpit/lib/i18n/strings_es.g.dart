@@ -1584,6 +1584,7 @@ class _Translations$settings$page$es extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$es header = _Translations$settings$page$header$es._(_root);
 	@override late final _Translations$settings$page$nav$es nav = _Translations$settings$page$nav$es._(_root);
+	@override late final _Translations$settings$page$explorer$es explorer = _Translations$settings$page$explorer$es._(_root);
 	@override late final _Translations$settings$page$general$es general = _Translations$settings$page$general$es._(_root);
 	@override late final _Translations$settings$page$diagnostics$es diagnostics = _Translations$settings$page$diagnostics$es._(_root);
 	@override late final _Translations$settings$page$storage$es storage = _Translations$settings$page$storage$es._(_root);
@@ -1886,6 +1887,7 @@ class _Translations$settings$page$nav$es extends Translations$settings$page$nav$
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => 'Explorador';
 	@override String get general => 'General';
 	@override String get appearance => 'Apariencia';
 	@override String get terminal => 'Terminal';
@@ -1894,6 +1896,26 @@ class _Translations$settings$page$nav$es extends Translations$settings$page$nav$
 	@override String get notifications => 'Notificaciones';
 	@override String get automations => 'Automatizaciones';
 	@override String get remoteHosts => 'Hosts remotos';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$es extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => 'Anidamiento de archivos';
+	@override String get enabledTitle => 'Activar anidamiento';
+	@override String get enabledDesc => 'Agrupa archivos relacionados bajo el archivo principal.';
+	@override String get autoExpandTitle => 'Expandir automáticamente';
+	@override String get autoExpandDesc => 'Abre los grupos anidados al cargar el explorador.';
+	@override String get newPattern => 'Nuevo patrón';
+	@override String get patternsTitle => 'Patrones';
+	@override String get patternsDesc => 'Patrón principal a la izquierda; patrones secundarios separados por comas a la derecha. Usa * en el principal; los hijos pueden usar:';
+	@override String get parentPlaceholder => 'Patrón principal';
+	@override String get childrenPlaceholder => 'Archivos anidados';
+	@override String get remove => 'Eliminar patrón';
 }
 
 // Path: settings.page.general
@@ -3018,6 +3040,7 @@ extension on TranslationsEs {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Atrás',
 			'settings.page.header.title' => 'Configuración',
+			'settings.page.nav.explorer' => 'Explorador',
 			'settings.page.nav.general' => 'General',
 			'settings.page.nav.appearance' => 'Apariencia',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -3026,6 +3049,17 @@ extension on TranslationsEs {
 			'settings.page.nav.notifications' => 'Notificaciones',
 			'settings.page.nav.automations' => 'Automatizaciones',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
+			'settings.page.explorer.sectionNesting' => 'Anidamiento de archivos',
+			'settings.page.explorer.enabledTitle' => 'Activar anidamiento',
+			'settings.page.explorer.enabledDesc' => 'Agrupa archivos relacionados bajo el archivo principal.',
+			'settings.page.explorer.autoExpandTitle' => 'Expandir automáticamente',
+			'settings.page.explorer.autoExpandDesc' => 'Abre los grupos anidados al cargar el explorador.',
+			'settings.page.explorer.newPattern' => 'Nuevo patrón',
+			'settings.page.explorer.patternsTitle' => 'Patrones',
+			'settings.page.explorer.patternsDesc' => 'Patrón principal a la izquierda; patrones secundarios separados por comas a la derecha. Usa * en el principal; los hijos pueden usar:',
+			'settings.page.explorer.parentPlaceholder' => 'Patrón principal',
+			'settings.page.explorer.childrenPlaceholder' => 'Archivos anidados',
+			'settings.page.explorer.remove' => 'Eliminar patrón',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Motor',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (predeterminado)',
@@ -3193,6 +3227,8 @@ extension on TranslationsEs {
 			'settings.page.automations.modelCliDefault' => 'Predeterminado de la CLI',
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',
 			'settings.page.automations.generateFromSourceControl' => 'Generar desde Control de versiones',
@@ -3205,8 +3241,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

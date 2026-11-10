@@ -70,6 +70,7 @@ enum _Category {
   general,
   appearance,
   terminal,
+  explorer,
   languages,
   automations,
   shortcuts,
@@ -82,6 +83,7 @@ extension on _Category {
   /// General, Appearance, Shortcuts, Notifications e Remote hosts.
   bool get hiddenOnMobile =>
       this == _Category.terminal ||
+      this == _Category.explorer ||
       this == _Category.languages ||
       this == _Category.automations;
 }
@@ -124,6 +126,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _Category.general => const _GeneralPanel(),
       _Category.appearance => const _AppearancePanel(),
       _Category.terminal => const _TerminalPanel(),
+      _Category.explorer => const _ExplorerPanel(),
       _Category.languages => const _LanguagesPanel(),
       _Category.automations => const _AutomationsPanel(),
       _Category.shortcuts => const _ShortcutsPanel(),
@@ -272,6 +275,12 @@ class _CategoryNav extends StatelessWidget {
               label: context.t.settings.page.nav.terminal,
               selected: selected == _Category.terminal,
               onTap: () => onSelect(_Category.terminal),
+            ),
+            _NavItem(
+              icon: Icons.account_tree_outlined,
+              label: context.t.settings.page.nav.explorer,
+              selected: selected == _Category.explorer,
+              onTap: () => onSelect(_Category.explorer),
             ),
             _NavItem(
               icon: Icons.code,
@@ -1082,8 +1091,341 @@ class _StorageSectionState extends State<_StorageSection> {
   }
 }
 
-// Aparência
+// Explorer
 // ---------------------------------------------------------------------------
+class _ExplorerPanel extends StatefulWidget {
+  const _ExplorerPanel();
+
+  @override
+  State<_ExplorerPanel> createState() => _ExplorerPanelState();
+}
+
+class _NestingPatternDraft {
+  _NestingPatternDraft(this.id, String pattern, String children)
+    : pattern = TextEditingController(text: pattern),
+      children = TextEditingController(text: children),
+      parentFocus = FocusNode(),
+      childrenFocus = FocusNode();
+
+  final int id;
+  final TextEditingController pattern;
+  final TextEditingController children;
+  final FocusNode parentFocus;
+  final FocusNode childrenFocus;
+
+  void dispose() {
+    pattern.dispose();
+    children.dispose();
+    parentFocus.dispose();
+    childrenFocus.dispose();
+  }
+}
+
+class _ExplorerPanelState extends State<_ExplorerPanel> {
+  final _drafts = <_NestingPatternDraft>[];
+  late SettingsController _settingsController;
+  int _nextDraftId = 0;
+  bool _initialized = false;
+
+  _NestingPatternDraft _draft(String pattern, String children) {
+    final draft = _NestingPatternDraft(_nextDraftId++, pattern, children);
+    void onFocusChanged() {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_drafts.contains(draft)) return;
+        if (draft.parentFocus.hasFocus || draft.childrenFocus.hasFocus) return;
+        if (draft == _drafts.last) return;
+        if (draft.pattern.text.trim().isEmpty &&
+            draft.children.text.trim().isEmpty) {
+          _remove(draft);
+        }
+      });
+    }
+
+    draft.parentFocus.addListener(onFocusChanged);
+    draft.childrenFocus.addListener(onFocusChanged);
+    return draft;
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialized) return;
+    _initialized = true;
+    _settingsController = context.read<SettingsController>();
+    final patterns = _settingsController.settings.fileNestingPatterns;
+    for (final entry in patterns.entries) {
+      _drafts.add(_draft(entry.key, entry.value));
+    }
+    _drafts.add(_draft('', ''));
+  }
+
+  @override
+  void dispose() {
+    for (final draft in _drafts) {
+      draft.dispose();
+    }
+    super.dispose();
+  }
+
+  void _changed() {
+    // The last empty row is always ready for the next pattern. Typing a parent
+    // creates another row immediately, while the current input keeps focus.
+    setState(() {
+      if (_drafts.last.pattern.text.trim().isNotEmpty) {
+        _drafts.add(_draft('', ''));
+      }
+    });
+    // Persist before route disposal. JsonStateStore already debounces disk I/O.
+    _persist();
+  }
+
+  void _remove(_NestingPatternDraft draft) {
+    setState(() => _drafts.remove(draft));
+    WidgetsBinding.instance.addPostFrameCallback((_) => draft.dispose());
+    _persist();
+  }
+
+  void _persist() {
+    final patterns = <String, String>{};
+    for (final draft in _drafts) {
+      final parent = draft.pattern.text.trim();
+      final children = draft.children.text.trim();
+      if (parent.isNotEmpty && children.isNotEmpty) {
+        patterns[parent] = children;
+      }
+    }
+    final current = _settingsController.settings.fileNestingPatterns;
+    if (current.length == patterns.length &&
+        current.entries.every((entry) => patterns[entry.key] == entry.value)) {
+      return;
+    }
+    _settingsController.setFileNestingPatterns(patterns);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = context.watch<SettingsController>();
+    final settings = controller.settings;
+    final tr = context.t.settings.page.explorer;
+    final colors = context.colors;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _Section(
+                label: tr.sectionNesting,
+                child: _Card(
+                  children: [
+                    _Row(
+                      title: tr.enabledTitle,
+                      description: tr.enabledDesc,
+                      trailing: Switch(
+                        value: settings.fileNestingEnabled,
+                        onChanged: controller.setFileNestingEnabled,
+                      ),
+                    ),
+                    _Row(
+                      title: tr.autoExpandTitle,
+                      description: tr.autoExpandDesc,
+                      trailing: Switch(
+                        value: settings.fileNestingAutoExpand,
+                        onChanged: controller.setFileNestingAutoExpand,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              _Section(
+                label: tr.patternsTitle,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 10),
+                      child: Text(
+                        '${tr.patternsDesc} ${r'${capture}'}',
+                        style: context.typo.label.copyWith(color: colors.text3),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: colors.panel2,
+                        border: Border.all(color: colors.border),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    tr.parentPlaceholder,
+                                    style: context.typo.label.copyWith(
+                                      color: colors.text3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 2,
+                                  child: Text(
+                                    tr.childrenPlaceholder,
+                                    style: context.typo.label.copyWith(
+                                      color: colors.text3,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 38),
+                              ],
+                            ),
+                          ),
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: colors.border,
+                          ),
+                          for (final draft in _drafts) ...[
+                            _NestingPatternRow(
+                              key: ValueKey(draft.id),
+                              draft: draft,
+                              isEmptyRow:
+                                  draft == _drafts.last &&
+                                  draft.pattern.text.trim().isEmpty,
+                              onChanged: _changed,
+                              onDelete: () => _remove(draft),
+                            ),
+                            if (draft != _drafts.last)
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: colors.border,
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NestingPatternRow extends StatelessWidget {
+  const _NestingPatternRow({
+    super.key,
+    required this.draft,
+    required this.isEmptyRow,
+    required this.onChanged,
+    required this.onDelete,
+  });
+
+  final _NestingPatternDraft draft;
+  final bool isEmptyRow;
+  final VoidCallback onChanged;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final placeholderStyle = context.typo.mono.copyWith(
+      fontSize: 12.5,
+      color: colors.text4,
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: isEmptyRow
+              ? const EdgeInsets.fromLTRB(14, 12, 14, 0)
+              : EdgeInsets.zero,
+          child: isEmptyRow
+              ? Row(
+                  children: [
+                    Icon(Icons.add, size: 15, color: colors.text3),
+                    const SizedBox(width: 5),
+                    Text(
+                      context.t.settings.page.explorer.newPattern,
+                      style: context.typo.label.copyWith(color: colors.text3),
+                    ),
+                  ],
+                )
+              : const SizedBox.shrink(),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: draft.pattern,
+                  focusNode: draft.parentFocus,
+                  onChanged: (_) => onChanged(),
+                  placeholder: isEmptyRow
+                      ? Text('*.ts', style: placeholderStyle)
+                      : null,
+                  style: context.typo.mono.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: TextField(
+                  controller: draft.children,
+                  focusNode: draft.childrenFocus,
+                  onChanged: (_) => onChanged(),
+                  placeholder: isEmptyRow
+                      ? Text(
+                          r'${capture}.js, ${capture}.js.map',
+                          style: placeholderStyle,
+                        )
+                      : null,
+                  style: context.typo.mono.copyWith(
+                    fontSize: 12.5,
+                    color: colors.text,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 28,
+                height: 28,
+                child: isEmptyRow
+                    ? null
+                    : AppTooltip(
+                        message: context.t.settings.page.explorer.remove,
+                        child: HoverTap(
+                          borderRadius: BorderRadius.circular(6),
+                          onTap: onDelete,
+                          child: Icon(
+                            Icons.close,
+                            size: 16,
+                            color: colors.text3,
+                          ),
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// **Terminal** — escolhe o motor VT e, no Windows, o shell padrão.
 ///
 /// O padrão é gravado **por id** (`defaultTerminalProfileId`), nunca o objeto:

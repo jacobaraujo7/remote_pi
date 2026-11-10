@@ -987,6 +987,7 @@
         "title": "设置"
       },
       "nav": {
+        "explorer": "资源管理器",
         "general": "通用",
         "appearance": "外观",
         "terminal": "终端",
@@ -995,6 +996,19 @@
         "notifications": "通知",
         "automations": "自动化",
         "remoteHosts": "远程主机"
+      },
+      "explorer": {
+        "sectionNesting": "文件嵌套",
+        "enabledTitle": "启用文件嵌套",
+        "enabledDesc": "将相关文件归组到主文件下。",
+        "autoExpandTitle": "自动展开",
+        "autoExpandDesc": "加载资源管理器时展开嵌套组。",
+        "newPattern": "新建模式",
+        "patternsTitle": "匹配模式",
+        "patternsDesc": "左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：",
+        "parentPlaceholder": "主文件模式",
+        "childrenPlaceholder": "嵌套文件",
+        "remove": "删除模式"
       },
       "general": {
         "sectionEditor": "编辑器",

@@ -1503,6 +1503,7 @@ class _Translations$settings$page$zh extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$zh header = _Translations$settings$page$header$zh._(_root);
 	@override late final _Translations$settings$page$nav$zh nav = _Translations$settings$page$nav$zh._(_root);
+	@override late final _Translations$settings$page$explorer$zh explorer = _Translations$settings$page$explorer$zh._(_root);
 	@override late final _Translations$settings$page$general$zh general = _Translations$settings$page$general$zh._(_root);
 	@override late final _Translations$settings$page$diagnostics$zh diagnostics = _Translations$settings$page$diagnostics$zh._(_root);
 	@override late final _Translations$settings$page$storage$zh storage = _Translations$settings$page$storage$zh._(_root);
@@ -1805,6 +1806,7 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => '资源管理器';
 	@override String get general => '通用';
 	@override String get appearance => '外观';
 	@override String get terminal => '终端';
@@ -1813,6 +1815,26 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	@override String get notifications => '通知';
 	@override String get automations => '自动化';
 	@override String get remoteHosts => '远程主机';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$zh extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => '文件嵌套';
+	@override String get enabledTitle => '启用文件嵌套';
+	@override String get enabledDesc => '将相关文件归组到主文件下。';
+	@override String get autoExpandTitle => '自动展开';
+	@override String get autoExpandDesc => '加载资源管理器时展开嵌套组。';
+	@override String get newPattern => '新建模式';
+	@override String get patternsTitle => '匹配模式';
+	@override String get patternsDesc => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：';
+	@override String get parentPlaceholder => '主文件模式';
+	@override String get childrenPlaceholder => '嵌套文件';
+	@override String get remove => '删除模式';
 }
 
 // Path: settings.page.general
@@ -2934,6 +2956,7 @@ extension on TranslationsZh {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => '返回',
 			'settings.page.header.title' => '设置',
+			'settings.page.nav.explorer' => '资源管理器',
 			'settings.page.nav.general' => '通用',
 			'settings.page.nav.appearance' => '外观',
 			'settings.page.nav.terminal' => '终端',
@@ -2942,6 +2965,17 @@ extension on TranslationsZh {
 			'settings.page.nav.notifications' => '通知',
 			'settings.page.nav.automations' => '自动化',
 			'settings.page.nav.remoteHosts' => '远程主机',
+			'settings.page.explorer.sectionNesting' => '文件嵌套',
+			'settings.page.explorer.enabledTitle' => '启用文件嵌套',
+			'settings.page.explorer.enabledDesc' => '将相关文件归组到主文件下。',
+			'settings.page.explorer.autoExpandTitle' => '自动展开',
+			'settings.page.explorer.autoExpandDesc' => '加载资源管理器时展开嵌套组。',
+			'settings.page.explorer.newPattern' => '新建模式',
+			'settings.page.explorer.patternsTitle' => '匹配模式',
+			'settings.page.explorer.patternsDesc' => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：',
+			'settings.page.explorer.parentPlaceholder' => '主文件模式',
+			'settings.page.explorer.childrenPlaceholder' => '嵌套文件',
+			'settings.page.explorer.remove' => '删除模式',
 			'settings.page.general.sectionEditor' => '编辑器',
 			'settings.page.general.editorEngineTitle' => '引擎',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit（默认）',
@@ -3112,6 +3146,8 @@ extension on TranslationsZh {
 			'settings.page.automations.modelAutoRouted' => '此工具自动路由模型。',
 			'settings.page.automations.modelAccountOnly' => '仅列出你的账户可用的模型。',
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
@@ -3124,8 +3160,6 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

@@ -994,6 +994,7 @@
         "title": "Settings"
       },
       "nav": {
+        "explorer": "Explorer",
         "general": "General",
         "appearance": "Appearance",
         "terminal": "Terminal",
@@ -1002,6 +1003,19 @@
         "notifications": "Notifications",
         "automations": "Automations",
         "remoteHosts": "Remote hosts"
+      },
+      "explorer": {
+        "sectionNesting": "File nesting",
+        "enabledTitle": "Enable file nesting",
+        "enabledDesc": "Group related files under their parent file.",
+        "autoExpandTitle": "Auto expand",
+        "autoExpandDesc": "Open nested groups when the explorer loads.",
+        "newPattern": "New pattern",
+        "patternsTitle": "Patterns",
+        "patternsDesc": "Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:",
+        "parentPlaceholder": "Parent pattern",
+        "childrenPlaceholder": "Nested files",
+        "remove": "Remove pattern"
       },
       "general": {
         "sectionEditor": "Editor",
