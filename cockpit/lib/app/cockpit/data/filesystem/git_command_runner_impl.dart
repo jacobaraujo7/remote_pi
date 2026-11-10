@@ -184,7 +184,7 @@ class GitCommandRunnerImpl implements GitCommandRunner {
       path,
       'status',
       '--porcelain',
-    ], environment: await envWithNodeOnPath());
+    ], environment: gitReadOnlyEnvironment(await envWithNodeOnPath()));
     if (res.exitCode != 0) return false; // não-git → nada a bloquear
     return (res.stdout as String).trim().isNotEmpty;
   }

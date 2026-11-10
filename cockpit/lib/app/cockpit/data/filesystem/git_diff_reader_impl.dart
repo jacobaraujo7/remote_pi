@@ -21,14 +21,12 @@ class GitDiffReaderImpl implements GitDiffReader {
 
       // Untracked? `git diff HEAD` não mostra arquivo não rastreado — detecta via
       // status e lê o arquivo inteiro como adicionado.
-      final status = await Process.run(git, [
-        '-C',
-        repoPath,
-        'status',
-        '--porcelain',
-        '--',
-        rel,
-      ], stdoutEncoding: utf8);
+      final status = await Process.run(
+        git,
+        ['-C', repoPath, 'status', '--porcelain', '--', rel],
+        stdoutEncoding: utf8,
+        environment: gitReadOnlyEnvironment(),
+      );
       final statusOut = status.exitCode == 0 ? (status.stdout as String) : '';
       if (statusOut.startsWith('??')) {
         return await _untrackedDiff(absPath);
