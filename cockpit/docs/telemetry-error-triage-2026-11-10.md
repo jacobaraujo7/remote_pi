@@ -43,3 +43,16 @@ Local artifacts are kept in `build/`: `telemetry-regressions-final.log`, `teleme
 Direct repository PR inventory was refreshed before implementation. No open PR by the implementing user was found. Related open PRs [#267](https://github.com/jacobaraujo7/remote_pi/pull/267) and [#309](https://github.com/jacobaraujo7/remote_pi/pull/309) remain with pretodev; [#257](https://github.com/jacobaraujo7/remote_pi/pull/257) remains with cfbraun. Disposition: continue with their authors; no blocking dependency or delivered coverage of these new fixes is assumed. Existing Neovim protection from merged [#272](https://github.com/jacobaraujo7/remote_pi/pull/272) is reused. This personal repository requires no BTN.
 
 Clipboard/cache corrections and spawn instrumentation are delivered as independent changes targeting main. No PR is closed as superseded. CI, Release build and GUI acceptance are reported only when actually observed; a short error-free window is not sufficient to resolve historical cases.
+
+## Release and isolated native acceptance
+
+- Product integration source: `0d6cdf18` (clipboard/cache commit `34133d6e` plus the patch of spawn commit `b18e4eb7`). Windows Release build passed in 282.5 seconds after restoring missing generated wrapper/engine artifacts from the installed Flutter x64 SDK. The earlier build attempts failed on the Zig long raw path and missing generated SDK files; neither required a dependency/source change. Existing CMake/plugin C++ warnings remain.
+- A separate runtime root was used. The Release opened its welcome screen, created one disposable workspace through the authenticated CLI, and rendered the synthetic text file in the editor. The isolated app telemetry contained zero error cases and zero warning events at the end of this observation.
+- Native shortcut effects were **not confirmed**: the automation observed focus/minimization changes and did not demonstrate Ctrl+X/Ctrl+A. This is not reported as passing clipboard/keyboard acceptance. Neovim rapid-close GUI acceptance also remains pending; deterministic late-completion tests passed.
+- A proposed real clipboard-contention probe was not executed because replacing the current OS clipboard requires operator consent. The result above is startup/rendering/CLI acceptance only; real clipboard contention and physical keyboard input remain owned by Codex + operator. The isolated workspace and only its own process were closed; the installed app was not restarted.
+
+## Delivery references
+
+- [PR #316 — clipboard and scrollback](https://github.com/jacobaraujo7/remote_pi/pull/316), draft, target main. Owner: Codex. Next: obtain native clipboard/keyboard acceptance, review and check CI; no merge authorized.
+- [PR #317 — spawn lifecycle instrumentation](https://github.com/jacobaraujo7/remote_pi/pull/317), draft, target main. Owner: Codex. Next: review/check CI and capture the original slow workload if it recurs; no optimization or merge claimed.
+- GitHub CI Windows, macOS ARM and macOS Intel was in progress when first inspected. No remote pass or Datadog finding is claimed from local evidence.
