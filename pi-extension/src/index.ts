@@ -37,7 +37,6 @@ import type {
   ExtensionContext,
   ExtensionFactory,
 } from "@earendil-works/pi-coding-agent";
-import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
 import { buildQRUri, qrSession, renderQRAscii, clampPairTtlMs, TOKEN_TTL_MS } from "./pairing/qr.js";
 import {
@@ -75,7 +74,6 @@ import {
   type ExtensionUiBridge,
 } from "./extension_ui_bridge.js";
 import { roomIdFor } from "./rooms.js";
-import { registerAgentTools } from "./session/tools.js";
 import { formatPeerInventory } from "./session/peer_inventory.js";
 import { MeshNode } from "./session/mesh_node.js";
 import {
@@ -122,7 +120,18 @@ import {
   isWebSocketScheme,
   toWebSocketUrl,
 } from "./config.js";
-import { Box, Container, Image, Text } from "@earendil-works/pi-tui";
+// Pi supplies these modules through its extension loader. The standalone CLI
+// never uses them and must also work after a managed install omits Pi peers.
+let piSdk: typeof import("@earendil-works/pi-coding-agent");
+let piTui: typeof import("@earendil-works/pi-tui");
+let agentTools: typeof import("./session/tools.js");
+if (!_isDirectRun()) {
+  [piSdk, piTui, agentTools] = await Promise.all([
+    import("@earendil-works/pi-coding-agent"),
+    import("@earendil-works/pi-tui"),
+    import("./session/tools.js"),
+  ]);
+}
 
 // ── State machine ─────────────────────────────────────────────────────────────
 //
@@ -372,7 +381,7 @@ async function _renderablePngPathFromImage(
   if (mime === IMAGE_PREVIEW_MIME) return undefined;
 
   try {
-    const converted = await convertToPng(imageData, mime);
+    const converted = await piSdk.convertToPng(imageData, mime);
     if (!converted || converted.mimeType !== IMAGE_PREVIEW_MIME || !converted.data) {
       return undefined;
     }
@@ -582,16 +591,16 @@ function _registerReceivedImageRenderer(pi: ExtensionAPI): void {
       if (reason) lines.push(theme.fg("customMessageText", `Reason: ${reason}`));
       if (text) lines.push(theme.fg("customMessageText", `Text: ${text}`));
 
-      const container = new Container();
-      const metadata = new Box(1, 1, (line) => theme.bg("customMessageBg", line));
-      metadata.addChild(new Text(lines.join("\n")));
+      const container = new piTui.Container();
+      const metadata = new piTui.Box(1, 1, (line) => theme.bg("customMessageBg", line));
+      metadata.addChild(new piTui.Text(lines.join("\n")));
       container.addChild(metadata);
 
       if (inlineImagePath && !error) {
         try {
           const imageData = readFileSync(inlineImagePath).toString("base64");
           if (imageData.length > 0) {
-            const image = new Image(imageData, IMAGE_PREVIEW_MIME, {
+            const image = new piTui.Image(imageData, IMAGE_PREVIEW_MIME, {
               fallbackColor: (str) => theme.fg("customMessageText", str),
             });
             // Keep Kitty image rows out of Box padding/background so pi-tui can
@@ -2099,7 +2108,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // Plano 20: agent_send + agent_request tools so the LLM can drive the
   // session network natively. Getter captures `_meshNode` live so the
   // tool always sees the current state.
-  registerAgentTools(pi, () => _meshNode?.peer() ?? null);
+  agentTools.registerAgentTools(pi, () => _meshNode?.peer() ?? null);
   _registerReceivedImageRenderer(pi);
 
   // Received-image preview entries are for local TUI display only. Pi's custom
@@ -2931,7 +2940,7 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
       if (live) {
         _currentModel = live.name ?? live.id ?? undefined;
       } else {
-        const sm = SettingsManager.create(cwd);
+        const sm = piSdk.SettingsManager.create(cwd);
         const provider = sm.getDefaultProvider();
         const modelId = sm.getDefaultModel();
         if (modelId) {
