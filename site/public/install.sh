@@ -6,7 +6,7 @@
 #   curl -fsSL https://remote-pi.jacobmoura.work/install.sh | bash
 #
 # What it does (all user-space, NO sudo, idempotent):
-#   1. Node      — uses the system Node if it's >= 20.6.0; otherwise installs
+#   1. Node      — uses the system Node if it's >= 22.19.0; otherwise installs
 #                  it via nvm under ~/.nvm (never touches the system Node).
 #   2. Pi        — installs the Pi coding agent (npm package
 #                  @earendil-works/pi-coding-agent) into a user-space prefix
@@ -27,7 +27,7 @@ set -euo pipefail
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-MIN_NODE="20.6.0"               # Pi requires Node >= 20.6.0
+MIN_NODE="22.19.0"              # Pi requires Node >= 22.19.0
 NODE_LTS="22"                   # what we install via nvm when Node is missing
 PI_PKG="@earendil-works/pi-coding-agent"
 PLUGIN_SPEC="npm:remote-pi"

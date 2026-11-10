@@ -15,7 +15,7 @@ Protocolo, identidades, ACK, roteamento cross-PC e trust model: ver
 
 ## Stack
 
-- Node 20+ / TypeScript 6
+- Node 22.19+ / TypeScript 6
 - **Module system**: ESM only (NodeNext). Imports com extensão `.js` mesmo em `.ts`
 - Package manager: **pnpm** (não usar npm/yarn)
 - Crypto: libsodium-wrappers (Curve25519 + ChaCha20-Poly1305)
