@@ -5,13 +5,15 @@ import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_line_cut.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_script_editing.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform;
+    show TargetPlatform, defaultTargetPlatform, listEquals;
 import 'package:flutter/gestures.dart' show PointerHoverEvent;
 import 'package:flutter/material.dart'
     show
@@ -71,12 +73,35 @@ class CodeEditor extends StatefulWidget {
     this.revealLine,
     this.revealSelect = true,
     this.revealTick = 0,
+    this.scrollAnchor,
     this.scmDecorations = ScmLineDecorations.empty,
     this.revealMatchStart,
     this.revealMatchTick = 0,
     this.onGoToDefinition,
+    this.linkRangeAt,
+    this.onLinkTap,
     this.filePath,
     this.wordWrap = false,
+    this.lineActions = const {},
+    this.lineActionTooltip,
+    this.foldActions = const {},
+    this.foldedLines = const {},
+    this.lineNumbers,
+    this.readOnly = false,
+    this.onCodeTap,
+    this.compactGutter = false,
+    this.autoCloseHttpVariables = false,
+    this.autoEditHttpScripts = false,
+    this.completionVisible = false,
+    this.completionItems = const [],
+    this.completionDetails = const {},
+    this.completionMethods = const {},
+    this.completionIndex = 0,
+    this.completionEmptyLabel = '',
+    this.onCompletionSelected,
+    this.onCompletionKey,
+    this.variableNameAt,
+    this.variablePopoverBuilder,
   });
 
   final CodeEditingController controller;
@@ -84,6 +109,10 @@ class CodeEditor extends StatefulWidget {
 
   /// Callback quando Cmd/Ctrl+clique (go-to-definition). Passa {line, character}.
   final void Function(({int line, int character}))? onGoToDefinition;
+
+  /// Alvos próprios do editor (por exemplo, referências de arquivos HTTP).
+  final ({int start, int end})? Function(int offset)? linkRangeAt;
+  final void Function(int offset)? onLinkTap;
 
   /// Caminho do arquivo (só a extensão é usada: fallback da largura de
   /// indentação quando o conteúdo não dá pista). `null` = 4 espaços.
@@ -99,6 +128,10 @@ class CodeEditor extends StatefulWidget {
   /// Sobe a cada novo pedido de reveal → re-dispara mesmo pra mesma linha.
   final int revealTick;
 
+  /// Preserva a posição visual de uma linha quando o texto projetado muda
+  /// (por exemplo, ao recolher uma seção HTTP). Índices base 0.
+  final ({int oldLine, int newLine, int tick})? scrollAnchor;
+
   /// Decorações SCM no gutter (linhas base 1 + fronteiras de remoção).
   final ScmLineDecorations scmDecorations;
 
@@ -113,6 +146,32 @@ class CodeEditor extends StatefulWidget {
   /// Quebra linhas longas na largura da pane (soft wrap), sem scroll
   /// horizontal. `false` = layout de código (uma linha visual por linha).
   final bool wordWrap;
+
+  /// Ações no slot esquerdo do gutter, indexadas por linha base 0.
+  final Map<int, VoidCallback> lineActions;
+  final String? lineActionTooltip;
+  final Map<int, VoidCallback> foldActions;
+  final Set<int> foldedLines;
+  final List<int>? lineNumbers;
+  final bool readOnly;
+  final VoidCallback? onCodeTap;
+
+  /// Reserva as colunas de ação mesmo enquanto elas estão temporariamente vazias.
+  final bool compactGutter;
+  final bool autoCloseHttpVariables;
+  final bool autoEditHttpScripts;
+  final bool completionVisible;
+  final List<String> completionItems;
+  final Map<String, String> completionDetails;
+  final Set<String> completionMethods;
+  final int completionIndex;
+  final String completionEmptyLabel;
+  final ValueChanged<String>? onCompletionSelected;
+  final bool Function(KeyEvent)? onCompletionKey;
+
+  /// Hover interativo de placeholders no editor HTTP.
+  final String? Function(int offset)? variableNameAt;
+  final Widget Function(String name, int startOffset)? variablePopoverBuilder;
 
   @override
   State<CodeEditor> createState() => _CodeEditorState();
@@ -143,6 +202,7 @@ class _CodeEditorState extends State<CodeEditor> {
   final _vertical = ScrollController();
   final _horizontal = ScrollController();
   final _gutter = ScrollController();
+  final _completionScroll = ScrollController();
 
   /// Alturas por linha lógica no modo [CodeEditor.wordWrap]. Medida sob
   /// demanda ([_ensureWrap]) no layout do gutter — o primeiro a precisar dela
@@ -241,6 +301,8 @@ class _CodeEditorState extends State<CodeEditor> {
     widget.controller.addListener(_keepHorizontalOnSelection);
     _horizontal.addListener(_onHorizontalScroll);
     _vertical.addListener(_syncGutter);
+    _vertical.addListener(_onVariableScroll);
+    _horizontal.addListener(_onVariableScroll);
     if (widget.revealLine != null) _scheduleReveal(widget.revealLine!);
   }
 
@@ -305,6 +367,60 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void didUpdateWidget(CodeEditor old) {
     super.didUpdateWidget(old);
+    final anchor = widget.scrollAnchor;
+    final anchorChanged =
+        anchor != null && anchor.tick != old.scrollAnchor?.tick;
+    final oldScroll = _vertical.hasClients ? _vertical.offset : 0.0;
+    final oldAnchorY = anchorChanged
+        ? _lineTop(anchor.oldLine) - oldScroll
+        : 0.0;
+    if (widget.controller != old.controller) {
+      _closeVariablePopover();
+      old.controller.removeListener(_onChanged);
+      old.controller.removeListener(_keepHorizontalOnSelection);
+      widget.controller.addListener(_onChanged);
+      widget.controller.addListener(_keepHorizontalOnSelection);
+      _rebuildLineStarts();
+      _lineCount = _lineStarts.length;
+      _lastText = widget.controller.text;
+      _lastDiag = widget.controller.diagnostics;
+      _wrapDirty = true;
+      _overviewContentExtent = null;
+      _overviewViewportExtent = null;
+    }
+    if (anchorChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_vertical.hasClients) return;
+        final target = (_lineTop(anchor.newLine) - oldAnchorY).clamp(
+          0.0,
+          _vertical.position.maxScrollExtent,
+        );
+        if ((_vertical.offset - target).abs() > 0.5) _vertical.jumpTo(target);
+      });
+    }
+    if (widget.completionVisible &&
+        (!old.completionVisible ||
+            widget.completionIndex != old.completionIndex ||
+            !listEquals(widget.completionItems, old.completionItems))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_completionScroll.hasClients) return;
+        final itemHeight = widget.completionDetails.isEmpty ? 31.0 : 43.0;
+        final top = widget.completionIndex * itemHeight;
+        final bottom = top + itemHeight;
+        final current = _completionScroll.offset;
+        final viewport = _completionScroll.position.viewportDimension;
+        if (top < current) {
+          _completionScroll.jumpTo(top);
+        } else if (bottom > current + viewport) {
+          _completionScroll.jumpTo(
+            (bottom - viewport).clamp(
+              0.0,
+              _completionScroll.position.maxScrollExtent,
+            ),
+          );
+        }
+      });
+    }
     if (widget.wordWrap != old.wordWrap) _keepTopLineOnWrapToggle(old.wordWrap);
     if (widget.revealLine != null && widget.revealTick != old.revealTick) {
       _scheduleReveal(widget.revealLine!);
@@ -523,10 +639,22 @@ class _CodeEditorState extends State<CodeEditor> {
   int? _hoverLine;
   List<String> _hoverMsgs = const <String>[];
   double _hoverDx = 0;
+  final OverlayPortalController _variablePortal = OverlayPortalController();
+  late final Listenable _variablePosition = Listenable.merge([
+    _vertical,
+    _horizontal,
+  ]);
+  String? _hoverVariable;
+  int? _hoverVariableStart;
+  bool _pointerOnVariable = false;
+  bool _pointerOnPopover = false;
+  bool _focusInPopover = false;
+  Timer? _variableHideTimer;
 
   // Go-to-definition: detecta modificador (Cmd/Ctrl) + hover + tap.
   bool _definitionModeActive = false;
   bool _definitionModeHovered = false;
+  int? _definitionHoverOffset;
   MouseCursor _defCursor = SystemMouseCursors.text;
   TextStyle? _codeStyle; // cache do build(), usado pro hit-test do hover
   double _gutterWidth = 0; // idem — largura medida do bloco do gutter
@@ -539,12 +667,36 @@ class _CodeEditorState extends State<CodeEditor> {
     _updateDefinitionMode();
     _updateDefinitionHoverRange(event);
 
+    if (widget.variableNameAt != null && !_pointerOnPopover) {
+      final offset = _offsetAtHover(event);
+      final name = offset == null ? null : widget.variableNameAt!(offset);
+      _pointerOnVariable = name != null;
+      if (name != null && !_focusInPopover) {
+        final start = widget.controller.text.lastIndexOf('{{', offset!);
+        if (start >= 0 &&
+            (name != _hoverVariable || start != _hoverVariableStart)) {
+          _hoverVariable = name;
+          _hoverVariableStart = start;
+          _variablePortal.show();
+          setState(() {});
+        }
+      }
+      _reconcileVariablePopover();
+    }
+
     final scroll = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scroll;
     if (contentY < 0 || _lineHeight <= 0) return _clearHover();
     final line = _lineAtY(contentY); // base 0
-    if (line == _hoverLine) return; // mesma linha → nada a fazer
-    final msgs = widget.controller.messagesForLine(line);
+    final unresolved = widget.controller.unresolvedVariableMessageAt(
+      _offsetAtHover(event) ?? -1,
+    );
+    final msgs = _hoverVariable != null
+        ? const <String>[]
+        : unresolved == null
+        ? widget.controller.messagesForLine(line)
+        : [unresolved];
+    if (line == _hoverLine && listEquals(msgs, _hoverMsgs)) return;
     setState(() {
       _hoverLine = line;
       _hoverMsgs = msgs;
@@ -552,66 +704,121 @@ class _CodeEditorState extends State<CodeEditor> {
     });
   }
 
+  void _reconcileVariablePopover() {
+    if (_hoverVariable == null) return;
+    if (_pointerOnVariable || _pointerOnPopover || _focusInPopover) {
+      _variableHideTimer?.cancel();
+      return;
+    }
+    if (_variableHideTimer?.isActive == true) return;
+    _variableHideTimer?.cancel();
+    _variableHideTimer = Timer(const Duration(milliseconds: 260), () {
+      if (!mounted ||
+          _pointerOnVariable ||
+          _pointerOnPopover ||
+          _focusInPopover) {
+        return;
+      }
+      _closeVariablePopover();
+    });
+  }
+
+  void _closeVariablePopover() {
+    _variableHideTimer?.cancel();
+    if (_hoverVariable == null) return;
+    _variablePortal.hide();
+    _hoverVariable = null;
+    _hoverVariableStart = null;
+    _pointerOnVariable = false;
+    _pointerOnPopover = false;
+    _focusInPopover = false;
+    if (mounted) setState(() {});
+  }
+
+  void _onPopoverFocusChange(bool focused) {
+    _focusInPopover = focused;
+    _reconcileVariablePopover();
+  }
+
+  void _onVariableScroll() {
+    if (_hoverVariable == null || _focusInPopover || _pointerOnPopover) return;
+    _pointerOnVariable = false;
+    _reconcileVariablePopover();
+  }
+
   void _updateDefinitionMode() {
-    final keys = HardwareKeyboard.instance;
-    final isCmd =
-        (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
-        keys.isControlPressed;
+    final isCmd = _definitionModifierPressed;
     if (isCmd != _definitionModeActive) {
       setState(() => _definitionModeActive = isCmd);
     }
   }
 
-  /// Converte a posição do mouse em offset de texto (via largura medida do
-  /// gutter + scroll horizontal + `TextPainter.getPositionForOffset` na linha
-  /// hovered) e atualiza o range sublinhado no controller — só quando o
-  /// modificador está ativo. Fora dele, limpa (sem sublinhado/cursor de mão).
-  void _updateDefinitionHoverRange(PointerHoverEvent event) {
-    if (!_definitionModeActive) return _clearDefinitionHover();
+  bool get _definitionModifierPressed {
+    final keys = HardwareKeyboard.instance;
+    return (defaultTargetPlatform == TargetPlatform.macOS &&
+            keys.isMetaPressed) ||
+        keys.isControlPressed;
+  }
+
+  /// Converte a posição do mouse em offset do buffer, descontando gutter,
+  /// scroll horizontal e quebra de linha. Compartilhado pelo hover de variável
+  /// HTTP e pelo go-to-definition.
+  int? _offsetAtHover(PointerHoverEvent event) {
     final codeStyle = _codeStyle;
-    if (codeStyle == null) return _clearDefinitionHover();
+    if (codeStyle == null) return null;
 
     final scrollV = _vertical.hasClients ? _vertical.offset : 0.0;
     final contentY = event.localPosition.dy - _padTop + scrollV;
-    if (_lineHeight <= 0) return _clearDefinitionHover();
+    if (_lineHeight <= 0) return null;
     final line = _lineAtY(contentY);
     if (contentY < 0 || line < 0 || line >= _lineStarts.length) {
-      return _clearDefinitionHover();
+      return null;
     }
 
     final scrollH = _horizontal.hasClients ? _horizontal.offset : 0.0;
-    final codeLocalX = event.localPosition.dx - _gutterWidth - 14 + scrollH;
-    if (codeLocalX < 0) return _clearDefinitionHover();
+    final codeLocalX =
+        event.localPosition.dx - _gutterWidth - _codeLeftPadding + scrollH;
+    if (codeLocalX < 0) return null;
 
     final text = widget.controller.text;
-    final int offset;
     if (widget.wordWrap) {
       // Com quebra, x/y viram (linha visual, coluna) dentro de uma linha
       // lógica — o `RenderEditable` resolve o ponto global já descontando o
       // scroll interno do campo.
       final editable = _renderEditable();
-      if (editable == null) return _clearDefinitionHover();
-      offset = editable
+      if (editable == null) return null;
+      return editable
           .getPositionForPoint(event.position)
           .offset
           .clamp(0, text.length);
-    } else {
-      final lineStart = _lineStarts[line];
-      final lineEnd = line + 1 < _lineStarts.length
-          ? _lineStarts[line + 1] - 1
-          : text.length;
-      final lineText = text.substring(
-        lineStart,
-        lineEnd.clamp(lineStart, text.length),
-      );
-      final painter = TextPainter(
-        text: TextSpan(text: lineText, style: codeStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
-      offset = (lineStart + pos.offset).clamp(0, text.length);
     }
-    final range = widget.controller.wordRangeAt(offset);
+    final lineStart = _lineStarts[line];
+    final lineEnd = line + 1 < _lineStarts.length
+        ? _lineStarts[line + 1] - 1
+        : text.length;
+    final lineText = text.substring(
+      lineStart,
+      lineEnd.clamp(lineStart, text.length),
+    );
+    final painter = TextPainter(
+      text: TextSpan(text: lineText, style: codeStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final pos = painter.getPositionForOffset(Offset(codeLocalX, 0));
+    painter.dispose();
+    return (lineStart + pos.offset).clamp(0, text.length);
+  }
+
+  /// Atualiza o range de go-to-definition só com Cmd/Ctrl pressionado.
+  void _updateDefinitionHoverRange(PointerHoverEvent event) {
+    if (!_definitionModeActive) return _clearDefinitionHover();
+    final offset = _offsetAtHover(event);
+    if (offset == null) return _clearDefinitionHover();
+    final range = widget.linkRangeAt != null
+        ? widget.linkRangeAt!(offset)
+        : widget.onGoToDefinition != null
+        ? widget.controller.wordRangeAt(offset)
+        : null;
 
     final hovered = range != null;
     if (hovered != _definitionModeHovered) {
@@ -623,6 +830,7 @@ class _CodeEditorState extends State<CodeEditor> {
       });
     }
     widget.controller.definitionHoverRange = range;
+    _definitionHoverOffset = range == null ? null : offset;
   }
 
   void _clearDefinitionHover() {
@@ -633,17 +841,37 @@ class _CodeEditorState extends State<CodeEditor> {
       });
     }
     widget.controller.definitionHoverRange = null;
+    _definitionHoverOffset = null;
   }
 
   void _onDefinitionTap() {
+    if (widget.onLinkTap != null) {
+      final offset = _linkOffsetAtTap();
+      if (offset != null) widget.onLinkTap!(offset);
+      return;
+    }
     final offset = widget.controller.selection.baseOffset;
     if (offset < 0) return;
     final pos = widget.controller.offsetToLineChar(offset);
     widget.onGoToDefinition?.call(pos);
   }
 
+  int? _linkOffsetAtTap() {
+    final selection = widget.controller.selection.baseOffset;
+    for (final offset in [selection, selection - 1, _definitionHoverOffset]) {
+      if (offset != null &&
+          offset >= 0 &&
+          widget.linkRangeAt?.call(offset) != null) {
+        return offset;
+      }
+    }
+    return null;
+  }
+
   void _clearHover() {
     _clearDefinitionHover();
+    _pointerOnVariable = false;
+    _reconcileVariablePopover();
     if (_hoverLine == null && _hoverMsgs.isEmpty) return;
     setState(() {
       _hoverLine = null;
@@ -695,6 +923,15 @@ class _CodeEditorState extends State<CodeEditor> {
 
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape &&
+        _hoverVariable != null) {
+      _closeVariablePopover();
+      return KeyEventResult.handled;
+    }
+    if (widget.readOnly) return KeyEventResult.ignored;
+    if (widget.onCompletionKey?.call(event) == true) {
+      return KeyEventResult.handled;
+    }
     final keys = HardwareKeyboard.instance;
     final cmd =
         (defaultTargetPlatform == TargetPlatform.macOS && keys.isMetaPressed) ||
@@ -825,6 +1062,7 @@ class _CodeEditorState extends State<CodeEditor> {
   }
 
   Object? _applyIndent({required bool outdent}) {
+    if (widget.readOnly) return null;
     final ctrl = widget.controller;
     final unit = _resolveIndentUnit();
     final next = outdent
@@ -845,11 +1083,17 @@ class _CodeEditorState extends State<CodeEditor> {
     // mudar o nº de linhas: o gutter (alturas da tabela) também precisa de
     // rebuild a cada mudança de **texto** (seleção sozinha não conta).
     final wrapTextChanged = widget.wordWrap && !identical(text, _lastText);
+    final variableTextChanged =
+        !identical(text, _lastText) && _hoverVariable != null;
+    if (variableTextChanged) _closeVariablePopover();
     _lastText = text;
     if (wrapTextChanged) _wrapDirty = true;
     // Rebuild do gutter quando o nº de linhas OU os diagnostics mudam (o campo
     // de texto repinta sozinho via buildTextSpan; o gutter depende de setState).
-    if ((n != _lineCount || !identical(diag, _lastDiag) || wrapTextChanged) &&
+    if ((n != _lineCount ||
+            !identical(diag, _lastDiag) ||
+            wrapTextChanged ||
+            variableTextChanged) &&
         mounted) {
       setState(() {
         if (n != _lineCount) {
@@ -867,13 +1111,17 @@ class _CodeEditorState extends State<CodeEditor> {
   @override
   void dispose() {
     _chordTimer?.cancel();
+    _variableHideTimer?.cancel();
     widget.controller.removeListener(_onChanged);
     widget.controller.removeListener(_keepHorizontalOnSelection);
     _horizontal.removeListener(_onHorizontalScroll);
     _vertical.removeListener(_syncGutter);
+    _vertical.removeListener(_onVariableScroll);
+    _horizontal.removeListener(_onVariableScroll);
     widget.controller.definitionHoverRange = null;
     _vertical.dispose();
     _horizontal.dispose();
+    _completionScroll.dispose();
     _gutter.dispose();
     _wrap.dispose();
     super.dispose();
@@ -883,14 +1131,44 @@ class _CodeEditorState extends State<CodeEditor> {
   /// (mesmo sem diagnostic) pra que a coluna do gutter não mude de largura e
   /// empurre o código quando um erro aparece/some.
   static const double _iconSlot = 16;
+  bool get _hasLineControls =>
+      widget.compactGutter ||
+      widget.lineActions.isNotEmpty ||
+      widget.foldActions.isNotEmpty;
+  double get _gutterRightPadding => _hasLineControls ? 4 : 14;
+  double get _codeLeftPadding => _hasLineControls ? 6 : 14;
+  bool _hoveringGutter = false;
 
   /// Uma linha do gutter: um slot fixo (ícone de severity quando há diagnostic,
   /// senão vazio) + o número. O ícone (12px) cabe na altura da linha de texto,
   /// mantendo o alinhamento 1:1 com o código.
   Widget _gutterLine(int oneBased, TextStyle numStyle) {
     final severity = widget.controller.severityForLine(oneBased - 1);
+    final action = widget.lineActions[oneBased - 1];
+    final foldAction = widget.foldActions[oneBased - 1];
+    final hasControls = _hasLineControls;
     final Widget slot;
-    if (severity == null) {
+    if (action != null) {
+      final button = Semantics(
+        button: true,
+        label: widget.lineActionTooltip,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: action,
+            child: SizedBox(
+              width: _iconSlot,
+              height: _lineHeight,
+              child: Icon(Icons.play_arrow, size: 17, color: context.colors.ok),
+            ),
+          ),
+        ),
+      );
+      slot = widget.lineActionTooltip == null
+          ? button
+          : AppTooltip(message: widget.lineActionTooltip!, child: button);
+    } else if (severity == null) {
       slot = const SizedBox(width: _iconSlot);
     } else {
       final messages = widget.controller.messagesForLine(oneBased - 1);
@@ -917,7 +1195,7 @@ class _CodeEditorState extends State<CodeEditor> {
         oneBased == _lineCount && scm.removalBoundaries.contains(_lineCount);
     final hasScm = marker != null || removalBefore || removalAfter;
     final deleted = context.colors.gitDeleted;
-    return Stack(
+    final row = Stack(
       key: hasScm ? ValueKey('git-change-line:$oneBased') : null,
       children: [
         if (marker != null)
@@ -953,16 +1231,56 @@ class _CodeEditorState extends State<CodeEditor> {
               ),
             ),
           ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            slot,
-            Text('$oneBased', style: numStyle),
-          ],
+        Transform.translate(
+          // Os glifos de Text no gutter têm mais leading que os do EditableText.
+          offset: Offset(0, _hasLineControls ? -_lineHeight * 0.25 : 0),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (!hasControls) slot,
+              SizedBox(
+                width: _digitsWidth,
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Text(
+                    '${widget.lineNumbers?[oneBased - 1] ?? oneBased}',
+                    style: numStyle,
+                  ),
+                ),
+              ),
+              if (hasControls) ...[
+                slot,
+                SizedBox(
+                  width: _iconSlot,
+                  height: _lineHeight,
+                  child:
+                      foldAction != null &&
+                          (_hoveringGutter ||
+                              widget.foldedLines.contains(oneBased - 1))
+                      ? MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: foldAction,
+                            child: Icon(
+                              widget.foldedLines.contains(oneBased - 1)
+                                  ? Icons.chevron_right
+                                  : Icons.keyboard_arrow_down,
+                              size: 14,
+                              color: context.colors.text3,
+                            ),
+                          ),
+                        )
+                      : null,
+                ),
+              ],
+            ],
+          ),
         ),
       ],
     );
+    return row;
   }
 
   IconData _severityIcon(LspSeverity severity) => switch (severity) {
@@ -992,17 +1310,21 @@ class _CodeEditorState extends State<CodeEditor> {
     // maior nº de linha + pad direito + divisor) — usada pra converter posição
     // X do mouse em offset de texto (hover do go-to-definition).
     final digitsProbe = TextPainter(
-      text: TextSpan(text: '$_lineCount', style: codeStyle),
+      text: TextSpan(
+        text: '${widget.lineNumbers?.last ?? _lineCount}',
+        style: codeStyle,
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
     _digitsWidth = digitsProbe.width;
-    _gutterWidth = 14 + _iconSlot + _digitsWidth + 14 + 1;
+    final controlsWidth = _hasLineControls ? _iconSlot * 2 : _iconSlot;
+    _gutterWidth = 14 + controlsWidth + _digitsWidth + _gutterRightPadding + 1;
 
     // Clicar em qualquer ponto do editor (gutter, padding, espaço abaixo da
     // última linha) foca o campo — como num editor de verdade. Cliques sobre o
     // próprio TextField ganham a arena de gestos e posicionam o cursor; os
     // demais caem aqui. `translucent` pra não roubar o tap do campo.
-    return GestureDetector(
+    final editor = GestureDetector(
       behavior: HitTestBehavior.translucent,
       onTap: () {
         if (!widget.focusNode.hasFocus) widget.focusNode.requestFocus();
@@ -1017,11 +1339,273 @@ class _CodeEditorState extends State<CodeEditor> {
             builder: (context, viewport) => Stack(
               children: [
                 _editorScroll(),
+                if (widget.onCompletionSelected != null)
+                  _completionOverlay(
+                    context,
+                    viewport.maxWidth,
+                    viewport.maxHeight,
+                  ),
                 if (_hoverMsgs.isNotEmpty && _hoverLine != null)
                   _hoverOverlay(context, viewport.maxWidth),
               ],
             ),
           ),
+        ),
+      ),
+    );
+    if (widget.variableNameAt == null) return editor;
+    return OverlayPortal(
+      controller: _variablePortal,
+      overlayChildBuilder: _variablePopoverOverlay,
+      child: editor,
+    );
+  }
+
+  Widget _variablePopoverOverlay(BuildContext overlayContext) {
+    final name = _hoverVariable;
+    if (name == null || widget.variablePopoverBuilder == null) {
+      return const SizedBox.shrink();
+    }
+    return AnimatedBuilder(
+      animation: _variablePosition,
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, constraints) {
+          final anchor = _variableAnchor(overlayContext);
+          if (anchor == null) return const SizedBox.shrink();
+          final width = (constraints.maxWidth - 16).clamp(0.0, 340.0);
+          return CustomSingleChildLayout(
+            delegate: _VariablePopoverPosition(anchor),
+            child: SizedBox(
+              width: width,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: (constraints.maxHeight - 16).clamp(
+                    0.0,
+                    double.infinity,
+                  ),
+                ),
+                child: MouseRegion(
+                  onEnter: (_) {
+                    _pointerOnPopover = true;
+                    _reconcileVariablePopover();
+                  },
+                  onExit: (_) {
+                    _pointerOnPopover = false;
+                    _reconcileVariablePopover();
+                  },
+                  child: Focus(
+                    onFocusChange: _onPopoverFocusChange,
+                    onKeyEvent: (_, event) {
+                      if (event is KeyDownEvent &&
+                          event.logicalKey == LogicalKeyboardKey.escape) {
+                        _closeVariablePopover();
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: TapRegion(
+                      onTapOutside: (_) => _closeVariablePopover(),
+                      child: widget.variablePopoverBuilder!(
+                        name,
+                        _hoverVariableStart!,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Rect? _variableAnchor(BuildContext overlayContext) {
+    final start = _hoverVariableStart;
+    final editable = _renderEditable();
+    final overlay = Overlay.maybeOf(overlayContext)?.context.findRenderObject();
+    if (start == null ||
+        editable == null ||
+        !editable.hasSize ||
+        overlay is! RenderBox ||
+        !overlay.hasSize) {
+      return null;
+    }
+    final caret = editable.getLocalRectForCaret(TextPosition(offset: start));
+    return editable.localToGlobal(caret.topLeft, ancestor: overlay) &
+        caret.size;
+  }
+
+  Widget _completionOverlay(
+    BuildContext context,
+    double viewportWidth,
+    double viewportHeight,
+  ) {
+    final popupWidth = widget.completionDetails.isEmpty ? 286.0 : 350.0;
+    final width = (viewportWidth - 12).clamp(0.0, popupWidth);
+    final caret = widget.controller.selection.baseOffset.clamp(
+      0,
+      widget.controller.text.length,
+    );
+    final pos = widget.controller.offsetToLineChar(caret);
+    final lineStart = caret - pos.character;
+    final prefix = widget.controller.text.substring(lineStart, caret);
+    final painter = TextPainter(
+      text: TextSpan(text: prefix, style: _codeStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final scrollH = _horizontal.hasClients ? _horizontal.offset : 0.0;
+    final scrollV = _vertical.hasClients ? _vertical.offset : 0.0;
+    final x = _gutterWidth + _codeLeftPadding + painter.width - scrollH;
+    painter.dispose();
+    final left = x.clamp(
+      0.0,
+      (viewportWidth - width).clamp(0.0, viewportWidth),
+    );
+    final below = _padTop + (pos.line + 1) * _lineHeight - scrollV + 3;
+    final itemHeight = widget.completionDetails.isEmpty ? 31.0 : 43.0;
+    final popupHeight = (widget.completionItems.length * itemHeight + 14).clamp(
+      46.0,
+      236.0,
+    );
+    final top = below + popupHeight > viewportHeight
+        ? (_padTop + pos.line * _lineHeight - scrollV - popupHeight - 3).clamp(
+            4.0,
+            viewportHeight,
+          )
+        : below;
+    final colors = context.colors;
+    return Positioned(
+      left: left,
+      top: top,
+      width: width,
+      child: IgnorePointer(
+        ignoring: !widget.completionVisible,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 150),
+          reverseDuration: const Duration(milliseconds: 120),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, -0.06),
+                end: Offset.zero,
+              ).animate(animation),
+              child: child,
+            ),
+          ),
+          child: widget.completionVisible
+              ? Container(
+                  key: const ValueKey('http-variable-completion'),
+                  constraints: BoxConstraints(maxHeight: viewportHeight * 0.55),
+                  decoration: BoxDecoration(
+                    color: colors.panel2,
+                    border: Border.all(color: colors.border),
+                    borderRadius: BorderRadius.circular(7),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.shadow,
+                        blurRadius: 14,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: widget.completionItems.isEmpty
+                      ? Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Text(
+                            widget.completionEmptyLabel,
+                            style: context.typo.label.copyWith(
+                              fontSize: 11,
+                              color: colors.text3,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _completionScroll,
+                          shrinkWrap: true,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          itemCount: widget.completionItems.length,
+                          itemExtent: itemHeight,
+                          itemBuilder: (context, index) {
+                            final name = widget.completionItems[index];
+                            final detail = widget.completionDetails[name];
+                            final selected = index == widget.completionIndex;
+                            return MouseRegion(
+                              cursor: SystemMouseCursors.click,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: () =>
+                                    widget.onCompletionSelected?.call(name),
+                                child: Container(
+                                  alignment: Alignment.centerLeft,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                  ),
+                                  color: selected
+                                      ? colors.accent.withValues(alpha: 0.16)
+                                      : null,
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        widget.completionMethods.contains(name)
+                                            ? Icons.functions
+                                            : Icons.data_object,
+                                        size: 14,
+                                        color: colors.accent,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: detail != null
+                                            ? Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    name,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: context.typo.mono
+                                                        .copyWith(
+                                                          fontSize: 11.5,
+                                                          color: colors.text,
+                                                        ),
+                                                  ),
+                                                  Text(
+                                                    detail,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                    style: context.typo.label
+                                                        .copyWith(
+                                                          fontSize: 10,
+                                                          color: colors.text3,
+                                                        ),
+                                                  ),
+                                                ],
+                                              )
+                                            : Text(
+                                                name,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: context.typo.mono
+                                                    .copyWith(
+                                                      fontSize: 11.5,
+                                                      color: colors.text,
+                                                    ),
+                                              ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                )
+              : const SizedBox.shrink(
+                  key: ValueKey('http-variable-completion-empty'),
+                ),
         ),
       ),
     );
@@ -1082,6 +1666,16 @@ class _CodeEditorState extends State<CodeEditor> {
           actions: _indentActions,
           child: TextField(
             controller: widget.controller,
+            inputFormatters:
+                widget.autoCloseHttpVariables || widget.autoEditHttpScripts
+                ? [
+                    if (widget.autoCloseHttpVariables)
+                      const HttpVariableBraceFormatter(),
+                    if (widget.autoEditHttpScripts)
+                      const HttpScriptEditingFormatter(),
+                  ]
+                : null,
+            readOnly: widget.readOnly,
             focusNode: widget.focusNode,
             scrollController: _vertical,
             style: codeStyle,
@@ -1090,7 +1684,14 @@ class _CodeEditorState extends State<CodeEditor> {
             minLines: null,
             expands: true,
             keyboardType: TextInputType.multiline,
-            onTap: _definitionModeActive ? _onDefinitionTap : null,
+            onTap: () {
+              if (_definitionModifierPressed &&
+                  (_definitionModeHovered || _linkOffsetAtTap() != null)) {
+                _onDefinitionTap();
+              } else {
+                widget.onCodeTap?.call();
+              }
+            },
             mouseCursor: _defCursor,
             decoration: const InputDecoration(
               isCollapsed: true,
@@ -1119,23 +1720,27 @@ class _CodeEditorState extends State<CodeEditor> {
     // Largura fixa porque a ListView, ao contrário da Column dentro do
     // SingleChildScrollView, não é intrínseca: sem isso o gutter esticaria e
     // comeria o campo.
-    final gutter = Padding(
-      padding: const EdgeInsets.only(left: 14, right: 14),
-      child: SizedBox(
-        width: _iconSlot + _digitsWidth,
-        child: ListView.builder(
-          controller: _gutter,
-          physics: const NeverScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: _padBottom),
-          itemExtent: wrap ? null : _lineHeight,
-          itemExtentBuilder: wrap
-              ? (i, _) {
-                  _ensureWrap();
-                  return _wrap.height(i);
-                }
-              : null,
-          itemCount: lineCount,
-          itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
+    final gutter = MouseRegion(
+      onEnter: (_) => setState(() => _hoveringGutter = true),
+      onExit: (_) => setState(() => _hoveringGutter = false),
+      child: Padding(
+        padding: EdgeInsets.only(left: 14, right: _gutterRightPadding),
+        child: SizedBox(
+          width: (_hasLineControls ? _iconSlot * 2 : _iconSlot) + _digitsWidth,
+          child: ListView.builder(
+            controller: _gutter,
+            physics: const NeverScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(bottom: _padBottom),
+            itemExtent: wrap ? null : _lineHeight,
+            itemExtentBuilder: wrap
+                ? (i, _) {
+                    _ensureWrap();
+                    return _wrap.height(i);
+                  }
+                : null,
+            itemCount: lineCount,
+            itemBuilder: (context, i) => _gutterLine(i + 1, numStyle),
+          ),
         ),
       ),
     );
@@ -1154,10 +1759,9 @@ class _CodeEditorState extends State<CodeEditor> {
       // layout do gutter (primeiro filho, antes do campo) via [_ensureWrap].
       body = LayoutBuilder(
         builder: (context, constraints) {
-          final fieldWidth = (constraints.maxWidth - _gutterWidth - 30).clamp(
-            0.0,
-            double.infinity,
-          );
+          final fieldWidth =
+              (constraints.maxWidth - _gutterWidth - _codeLeftPadding - 16)
+                  .clamp(0.0, double.infinity);
           _wrapWidth = (fieldWidth - kEditorWrapCaretMargin).clamp(
             1.0,
             double.infinity,
@@ -1170,7 +1774,7 @@ class _CodeEditorState extends State<CodeEditor> {
               divider,
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  padding: EdgeInsets.only(left: _codeLeftPadding, right: 16),
                   child: field,
                 ),
               ),
@@ -1190,14 +1794,12 @@ class _CodeEditorState extends State<CodeEditor> {
                 // Largura mínima = viewport (menos o padding H). Sem isso, o
                 // IntrinsicWidth colapsa o campo a ~0 quando o arquivo está
                 // vazio → sem área pra clicar/digitar.
-                final minWidth = (constraints.maxWidth - 30).clamp(
-                  0.0,
-                  double.infinity,
-                );
+                final minWidth = (constraints.maxWidth - _codeLeftPadding - 16)
+                    .clamp(0.0, double.infinity);
                 return SingleChildScrollView(
                   controller: _horizontal,
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.only(left: 14, right: 16),
+                  padding: EdgeInsets.only(left: _codeLeftPadding, right: 16),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minWidth: minWidth),
                     child: IntrinsicWidth(child: field),
@@ -1285,6 +1887,34 @@ class _CodeEditorState extends State<CodeEditor> {
       child: column,
     );
   }
+}
+
+/// Posiciona pelo caret inicial da variável; usa o tamanho real do conteúdo
+/// para inverter acima/abaixo e manter o popover dentro do overlay da janela.
+class _VariablePopoverPosition extends SingleChildLayoutDelegate {
+  const _VariablePopoverPosition(this.anchor);
+
+  final Rect anchor;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(constraints.biggest);
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    final maxX = (size.width - childSize.width - 8).clamp(8.0, size.width);
+    final maxY = (size.height - childSize.height - 8).clamp(8.0, size.height);
+    final x = anchor.left.clamp(8.0, maxX);
+    final below = anchor.bottom + 4;
+    final y = below + childSize.height <= size.height - 8
+        ? below
+        : anchor.top - childSize.height - 4;
+    return Offset(x, y.clamp(8.0, maxY));
+  }
+
+  @override
+  bool shouldRelayout(_VariablePopoverPosition oldDelegate) =>
+      anchor != oldDelegate.anchor;
 }
 
 /// Converte [ScmLineDecorations] em marcas da coluna Git do overview.

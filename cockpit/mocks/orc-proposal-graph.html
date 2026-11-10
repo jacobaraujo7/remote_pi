@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration (proposta, Grafo)</title>
+<style>
+  :root {
+    --bg: #fdfdf6; --panel: #f2f2ea; --panel2: #e8e8df; --border: #d9d9cf;
+    --text: #1a1a1a; --text2: #4a4a46; --text3: #7a7a74;
+    --accent: #2f8278; --accent-soft: #dfe9e2; --warn: #b58a1e; --online: #3aa655;
+    --font: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; display: flex; flex-direction: column; height: 100vh; }
+  svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .dock-tabs { display: flex; height: 40px; border-bottom: 1px solid var(--border); }
+  .dock-tab { display: flex; align-items: center; gap: 8px; padding: 0 14px; width: 180px; border-right: 1px solid var(--border); color: var(--text2); white-space: nowrap; overflow: hidden; }
+  .dock-tab .x { margin-left: auto; color: var(--text3); }
+  .dock-tab.active { border-bottom: 2px solid var(--accent); color: var(--text); background: #fff; }
+  .dock-tools { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--text2); border-left: 1px solid var(--border); }
+
+  /* ---- canvas ---- */
+  .canvas { position: relative; flex: 1; min-height: 0; background: var(--panel);
+    background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 18px 18px; overflow: hidden; }
+  .canvas-tools { position: absolute; top: 8px; right: 8px; display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px; }
+  .canvas-tools span { width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; color: var(--text2); border-radius: 4px; }
+  .canvas-tools span:hover { background: var(--panel2); }
+
+  .card { position: absolute; width: 230px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px 8px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+  .card .title { display: flex; align-items: center; gap: 8px; font-weight: 500; }
+  .card .dot { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--text3); }
+  .card .dot.work { background: var(--online); border-color: var(--online); }
+  .card .dot.wait { background: linear-gradient(90deg, var(--warn) 50%, transparent 50%); border-color: var(--warn); }
+  .card .tool { font-size: 11.5px; color: var(--text3); margin-top: 3px; min-height: 14px; }
+  .card .role { font-size: 12px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
+  .card .ctx { margin-top: 8px; height: 3px; border-radius: 2px; background: var(--panel2); overflow: hidden; }
+  .card .ctx i { display: block; height: 100%; background: var(--accent); }
+  .card .gear { position: absolute; top: 7px; right: 8px; color: var(--text3); font-size: 13px; opacity: 0; }
+  .card:hover .gear { opacity: 1; }
+  .card.sub { width: 190px; border-style: dashed; padding: 7px 10px; }
+  .card.sub .title { font-size: 12.5px; font-weight: 400; }
+
+  .links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+  .divider { height: 6px; background: var(--border); cursor: row-resize; }
+
+  /* ---- terminal (sem abas): só aparece com um box selecionado ---- */
+  .terminals { height: 0; display: flex; flex-direction: column; min-height: 0; overflow: hidden; transition: height .22s ease; }
+  body.open .terminals { height: 58%; }
+  body:not(.open) .divider { display: none; }
+  .card { cursor: default; }
+  .term { flex: 1; padding: 10px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+  .prompt .path { background: #1e4a8f; color: #fff; padding: 2px 8px; }
+  .prompt .git { background: #b58a1e; color: #1a1a1a; padding: 2px 8px; }
+  .caret { color: var(--online); }
+  .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 6px; }
+
+  /* ---- footer ---- */
+  .footer { height: 30px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 10px; font-size: 11px; color: var(--text3); }
+  .footer .path { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .footer .spacer { flex: 1; }
+  .footer .ibtn { width: 24px; height: 24px; display: inline-flex; align-items: center; justify-content: center; color: var(--text2); font-size: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+  .seg span { padding: 2px 9px; color: var(--text3); }
+  .seg span.on { background: var(--panel2); color: var(--text); }
+
+  /* ---- dialog de configuração do box ---- */
+  .scrim { position: fixed; inset: 0; background: rgba(20,20,16,.28); display: none; align-items: center; justify-content: center; z-index: 10; }
+  body.dlg .scrim { display: flex; }
+  .dlg-box { width: 520px; max-width: calc(100vw - 32px); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 18px 20px 16px; font-size: 13px; }
+  .dlg-box h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .dlg-box h2 .x { margin-left: auto; color: var(--text3); font-weight: 400; cursor: default; }
+  .dlg-box label { display: block; color: var(--text3); font-size: 11.5px; margin: 12px 0 5px; }
+  .dlg-box .in { height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); padding: 0 10px; display: flex; align-items: center; color: var(--text); }
+  .dlg-box .in.ph { color: var(--text3); }
+  .dlg-box .ta { height: 96px; align-items: flex-start; padding: 8px 10px; line-height: 1.45; overflow: hidden; color: var(--text2); }
+  .dlg-box .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .dlg-box .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; height: 32px; }
+  .dlg-box .seg span { padding: 0 14px; display: flex; align-items: center; color: var(--text3); border-right: 1px solid var(--border); }
+  .dlg-box .seg span:last-child { border-right: 0; }
+  .dlg-box .seg span.on { background: var(--accent-soft); color: var(--accent); }
+  .dlg-box .link { color: var(--accent); font-size: 11.5px; margin-top: 6px; display: inline-block; }
+  .dlg-box .links { border: 1px solid var(--border); border-radius: 6px; }
+  .dlg-box .links div { display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .dlg-box .links div:last-child { border-bottom: 0; }
+  .dlg-box .links .rm { margin-left: auto; color: var(--text3); }
+  .dlg-box .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .dlg-box .b { height: 32px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); display: inline-flex; align-items: center; }
+  .dlg-box .b.p { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div class="dock-tabs">
+  <div class="dock-tab"><span>▦</span><span style="color:#2f8278">✳</span> Orquestrador …<span class="x">×</span></div>
+  <div class="dock-tab active"><span style="color:#2f8278">✦</span> notebox.orc<span class="x">×</span></div>
+  <div class="dock-tools"><span>+</span><span>◐</span><span>▯▯</span><span>▭</span><span>×</span></div>
+</div>
+
+<div class="canvas" id="canvas">
+  <svg class="links" viewBox="0 0 1000 420" preserveAspectRatio="none">
+    <!-- planejado: Orquestrador -> App (observado) -->
+    <line x1="500" y1="120" x2="260" y2="250" stroke="#2f8278" stroke-width="1.5" stroke-dasharray="6 5"/>
+    <!-- planejado: Orquestrador -> Backend -->
+    <line x1="500" y1="120" x2="740" y2="250" stroke="#b9b9af" stroke-width="1.5" stroke-dasharray="4 5"/>
+    <!-- subagente temporário do App -->
+    <line x1="200" y1="310" x2="200" y2="360" stroke="#b58a1e" stroke-width="1.5" stroke-dasharray="4 4"/>
+  </svg>
+
+  <div class="canvas-tools">
+    <span title="Novo terminal">+</span>
+    <span title="Ligar boxes"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg></span>
+    <span title="Redefinir zoom"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3M8 11h6"/></svg></span>
+  </div>
+
+  <div class="card" data-id="Orquestrador" style="left: 39%; top: 36px;">
+    <div class="title"><span class="dot work"></span>Orquestrador</div>
+    <div class="tool">Claude Code · opus</div>
+    <div class="role">Orquestrador do NoteBox. Recebe a demanda e…</div>
+    <div class="ctx"><i style="width:41%"></i></div>
+    <span class="gear">⚙</span>
+  </div>
+
+  <div class="card" data-id="App (Flutter)" style="left: 10%; top: 190px;">
+    <div class="title"><span class="dot wait"></span>App (Flutter)</div>
+    <div class="tool">Claude Code · sonnet</div>
+    <div class="role">Desenvolvedor do app Flutter em `app/`</div>
+    <div class="ctx"><i style="width:68%"></i></div>
+    <span class="gear">⚙</span>
+  </div>
+
+  <div class="card sub" style="left: 12%; top: 300px;">
+    <div class="title"><span class="dot work"></span>Explore · tests</div>
+    <div class="tool">subagente temporário</div>
+  </div>
+
+  <div class="card" data-id="Backend (Vaden)" style="left: 62%; top: 190px;">
+    <div class="title"><span class="dot"></span>Backend (Vaden)</div>
+    <div class="tool"></div>
+    <div class="role">Desenvolvedor do backend Dart em `backend/`</div>
+    <span class="gear">⚙</span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="terminals">
+  <div class="term">
+    <div class="prompt"><span class="path">~/Projects/notebox/app</span><span class="git">main &gt;6 !10 ?12</span></div>
+    <div><span class="caret">&gt;</span><span class="cursor"></span></div>
+  </div>
+</div>
+
+
+<div class="scrim" id="scrim">
+  <div class="dlg-box" id="dlg">
+    <h2><svg viewBox="0 0 24 24" style="width:16px;height:16px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg><span id="dlg-title">App (Flutter)</span><span class="x" id="dlg-x">×</span></h2>
+
+    <label>Nome</label>
+    <div class="in">App (Flutter)</div>
+
+    <label>Função <span style="opacity:.7">(opcional)</span></label>
+    <div class="in ta">Desenvolvedor do app Flutter em `app/`. Segue a Clean Architecture + MVVM do projeto: ViewModelProvider em toda página, Repository como SSoT, sealed class para estados, go_router para navegação…</div>
+    <span class="link">Pedir sugestão ao agente deste terminal</span>
+
+    <div class="grid">
+      <div>
+        <label>Ferramenta</label>
+        <div class="seg"><span>Nenhuma</span><span class="on">claude</span><span>codex</span><span>pi</span></div>
+      </div>
+      <div>
+        <label>Modelo <span style="opacity:.7">(vazio = padrão)</span></label>
+        <div class="in ph">sonnet</div>
+      </div>
+    </div>
+
+    <label>Diretório relativo à worktree</label>
+    <div class="in">app</div>
+
+    <label>Conexões planejadas</label>
+    <div class="links">
+      <div>Orquestrador → App (Flutter)<span class="rm">⊘</span></div>
+      <div style="color:var(--accent)">+ ligar a outro box</div>
+    </div>
+
+    <div class="actions">
+      <span class="b" id="dlg-cancel">Cancelar</span>
+      <span class="b p" id="dlg-save">Salvar</span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span class="path">notebox.orc</span>
+  <span id="sel"></span>
+  <span class="spacer"></span>
+  <span class="ibtn" title="Legenda&#10;⋯ vínculo planejado&#10;— troca observada&#10;⋯ subagente temporário&#10;● trabalhando  ◐ aguardando  ○ ocioso  × encerrado">?</span>
+  <span class="ibtn" title="Recarregar"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></span>
+  <span class="seg"><span>Boxes</span><span class="on">Grafo</span></span>
+</div>
+
+<script>
+  const body = document.body, sel = document.getElementById('sel');
+  const cards = [...document.querySelectorAll('.card[data-id]')];
+  function select(card) {
+    cards.forEach(c => c.classList.toggle('selected', c === card));
+    body.classList.toggle('open', !!card);
+    sel.textContent = card ? '· ' + card.dataset.id : '';
+  }
+  cards.forEach(c => c.addEventListener('click', e => { e.stopPropagation(); select(c); }));
+  document.getElementById('canvas').addEventListener('click', () => select(null));
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (body.classList.contains('dlg')) closeDlg(); else select(null); });
+  select(null);
+
+  const scrim = document.getElementById('scrim');
+  function openDlg(title) { document.getElementById('dlg-title').textContent = title; body.classList.add('dlg'); }
+  function closeDlg() { body.classList.remove('dlg'); }
+  document.querySelectorAll('.gear').forEach(g => g.addEventListener('click', e => {
+    e.stopPropagation();
+    const host = g.closest('[data-id]'); openDlg(host ? host.dataset.id : 'Terminal');
+  }));
+  scrim.addEventListener('click', e => { if (e.target === scrim) closeDlg(); });
+  document.getElementById('dlg-x').onclick = document.getElementById('dlg-cancel').onclick = document.getElementById('dlg-save').onclick = closeDlg;
+  document.getElementById('dlg').addEventListener('click', e => e.stopPropagation());
+</script>
+</body>
+</html>

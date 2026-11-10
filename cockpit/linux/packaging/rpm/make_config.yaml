@@ -4,6 +4,10 @@
 #
 # Artefato resultante: remote-pi-cockpit-<versão>.<arch>.rpm
 display_name: Remote Pi Cockpit
+# Nome do pacote (Name:, binário em /usr/bin e Exec do .desktop). Sem isto o
+# Fastforge usa o `name:` do pubspec (`cockpit`) e o RPM colide com o Cockpit
+# do Fedora (issue #198). Mesmo nome que o .deb já usa.
+package_name: remote-pi-cockpit
 summary: Cliente desktop multi-pane do Remote Pi
 license: LicenseRef-proprietary
 url: https://jacobmoura.work

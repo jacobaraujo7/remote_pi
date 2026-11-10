@@ -20,7 +20,7 @@
 /// do tempo inválido. Escopo suportado: `###` (separador + nome), `@var`,
 /// `{{var}}`, request-line com verbo + URL (versão `HTTP/1.1` opcional),
 /// headers, body e `< arquivo` (body importado de arquivo). Fora do escopo:
-/// scripts `> {% %}`, `> saida.json`, blocos gRPC/GraphQL/WebSocket.
+/// `> saida.json`, blocos gRPC/GraphQL/WebSocket.
 library;
 
 /// Um par header, preservando a ordem e permitindo repetição (`Set-Cookie`).
@@ -35,7 +35,10 @@ class HttpRequestSpec {
     required this.headers,
     this.body,
     this.bodyFile,
+    this.preScript,
+    this.postScript,
     required this.startLine,
+    required this.requestLine,
     required this.endLine,
   });
 
@@ -53,10 +56,15 @@ class HttpRequestSpec {
   /// Caminho de `< ./body.json` — resolvido contra a pasta do `.http` na hora
   /// de executar (o domínio não toca em disco).
   final String? bodyFile;
+  final String? preScript;
+  final String? postScript;
 
   /// Faixa de linhas `[startLine, endLine)`, base 0 — usada para casar o cursor
   /// do editor com o request corrente.
   final int startLine;
+
+  /// Linha do verbo HTTP, usada para posicionar a ação de executar no editor.
+  final int requestLine;
   final int endLine;
 
   /// Rótulo curto para a UI e para a CLI.
@@ -73,7 +81,10 @@ class HttpRequestSpec {
     headers: headers ?? this.headers,
     body: body ?? this.body,
     bodyFile: bodyFile,
+    preScript: preScript,
+    postScript: postScript,
     startLine: startLine,
+    requestLine: requestLine,
     endLine: endLine,
   );
 }
@@ -118,8 +129,11 @@ class HttpDocument {
     var headers = <HttpHeader>[];
     var bodyLines = <String>[];
     String? bodyFile;
+    final preScripts = <String>[];
+    final postScripts = <String>[];
     var inBody = false;
     var start = 0;
+    var requestLine = 0;
 
     void flush(int end) {
       if (method != null && url != null) {
@@ -136,7 +150,10 @@ class HttpDocument {
             headers: List.unmodifiable(headers),
             body: bodyLines.isEmpty ? null : bodyLines.join('\n'),
             bodyFile: bodyFile,
+            preScript: preScripts.isEmpty ? null : preScripts.join('\n'),
+            postScript: postScripts.isEmpty ? null : postScripts.join('\n'),
             startLine: start,
+            requestLine: requestLine,
             endLine: end,
           ),
         );
@@ -147,6 +164,8 @@ class HttpDocument {
       headers = <HttpHeader>[];
       bodyLines = <String>[];
       bodyFile = null;
+      preScripts.clear();
+      postScripts.clear();
       inBody = false;
     }
 
@@ -158,6 +177,31 @@ class HttpDocument {
         flush(i);
         start = i;
         name = sep.group(1)!.trim();
+        continue;
+      }
+
+      // Os delimitadores de script têm prioridade sobre o body e sobre
+      // `< arquivo`. O conteúdo JS nunca entra no payload HTTP.
+      final scriptStart = RegExp(r'^\s*([<>])\s*\{%').firstMatch(line);
+      if (scriptStart != null) {
+        final parts = <String>[];
+        var rest = line.substring(scriptStart.end);
+        while (true) {
+          final end = rest.indexOf('%}');
+          if (end >= 0) {
+            parts.add(rest.substring(0, end));
+            break;
+          }
+          parts.add(rest);
+          if (i + 1 >= lines.length) break;
+          rest = lines[++i];
+        }
+        final script = parts.join('\n').trim();
+        if (scriptStart.group(1) == '<') {
+          preScripts.add(script);
+        } else if (method != null) {
+          postScripts.add(script);
+        }
         continue;
       }
 
@@ -187,15 +231,27 @@ class HttpDocument {
         if (method != null) {
           flush(i);
           start = i;
-        } else if (requests.isEmpty && headers.isEmpty) {
+        } else if (requests.isEmpty && headers.isEmpty && preScripts.isEmpty) {
           start = i;
         }
         method = req.group(1);
         url = req.group(2);
+        requestLine = i;
         continue;
       }
 
       if (method == null) continue; // preâmbulo solto — ignora
+
+      // JetBrains HTTP Client: parâmetros da URL podem continuar nas linhas
+      // imediatamente abaixo do verbo. Não incluem espaços de indentação e
+      // não entram no body nem nos headers.
+      final continuation = line.trim();
+      if (headers.isEmpty &&
+          bodyFile == null &&
+          (continuation.startsWith('?') || continuation.startsWith('&'))) {
+        url = '${url!}$continuation';
+        continue;
+      }
 
       final file = _bodyFileLine.firstMatch(line);
       if (file != null) {
@@ -241,12 +297,23 @@ class HttpDocument {
   /// Substitui `{{nome}}` por [variables], resolvendo referências entre
   /// variáveis na ordem de declaração. Nome desconhecido fica **intacto** — a
   /// execução acusa como variável não resolvida em vez de mandar `{{x}}` no ar.
-  String interpolate(String input, {Map<String, String> extra = const {}}) {
-    final resolved = <String, String>{};
+  String interpolate(
+    String input, {
+    Map<String, String> extra = const {},
+    Map<String, String> requestVariables = const {},
+    Map<String, String> overrides = const {},
+  }) {
+    final resolved = <String, String>{
+      ...extra,
+      ...requestVariables,
+      ...overrides,
+    };
     for (final e in variables.entries) {
-      resolved[e.key] = _expand(e.value, resolved);
+      if (!requestVariables.containsKey(e.key) &&
+          !overrides.containsKey(e.key)) {
+        resolved[e.key] = _expand(e.value, resolved);
+      }
     }
-    resolved.addAll(extra);
     return _expand(input, resolved);
   }
 
@@ -254,13 +321,34 @@ class HttpDocument {
       .replaceAllMapped(interpolation, (m) => vars[m.group(1)!] ?? m.group(0)!);
 
   /// [spec] com URL, headers e body já interpolados.
-  HttpRequestSpec resolveRequest(HttpRequestSpec spec) => spec.copyWith(
-    url: interpolate(spec.url),
-    headers: [
-      for (final h in spec.headers) (name: h.name, value: interpolate(h.value)),
-    ],
-    body: spec.body == null ? null : interpolate(spec.body!),
-  );
+  HttpRequestSpec resolveRequest(
+    HttpRequestSpec spec, {
+    Map<String, String> environment = const {},
+    Map<String, String> globals = const {},
+    Map<String, String> requestVariables = const {},
+    Map<String, String> overrides = const {},
+  }) {
+    final values = <String, String>{
+      ...environment,
+      ...globals,
+      ...requestVariables,
+      ...overrides,
+    };
+    for (final e in variables.entries) {
+      if (!requestVariables.containsKey(e.key) &&
+          !overrides.containsKey(e.key)) {
+        values[e.key] = _expand(e.value, values);
+      }
+    }
+    String resolve(String input) => _expand(input, values);
+    return spec.copyWith(
+      url: resolve(spec.url),
+      headers: [
+        for (final h in spec.headers) (name: h.name, value: resolve(h.value)),
+      ],
+      body: spec.body == null ? null : resolve(spec.body!),
+    );
+  }
 
   /// Nomes de variáveis ainda não resolvidas em [spec] (depois de
   /// [resolveRequest]) — vira erro antes de tocar a rede.
@@ -274,4 +362,51 @@ class HttpDocument {
     ))
       m.group(1)!,
   ];
+
+  /// Placeholders sem valor no editor, ignorando comentários de linha.
+  /// Offsets são UTF-16, iguais aos usados pelo `TextEditingController`.
+  static List<({int start, int end, String name})> unresolvedPlaceholders(
+    String source, {
+    Map<String, String> environment = const {},
+    Map<String, String> globals = const {},
+    Map<String, String> overrides = const {},
+    Map<int, Map<String, String>> requestVariablesByIndex = const {},
+  }) {
+    final doc = HttpDocument.parse(source);
+    final missing = <({int start, int end, String name})>[];
+    var lineStart = 0;
+    var lineNumber = 0;
+    var inScript = false;
+    for (final line in source.split('\n')) {
+      final requestIndex = doc.requestIndexAtLine(lineNumber);
+      final requestVariables = requestIndex < 0
+          ? const <String, String>{}
+          : requestVariablesByIndex[requestIndex] ?? const <String, String>{};
+      final trimmed = line.trimLeft();
+      final startsScript = RegExp(r'^[<>]\s*\{%').hasMatch(trimmed);
+      if (startsScript) inScript = true;
+      if (!inScript && !trimmed.startsWith('#') && !trimmed.startsWith('//')) {
+        for (final match in interpolation.allMatches(line)) {
+          final token = match.group(0)!;
+          if (doc.interpolate(
+                token,
+                extra: {...environment, ...globals},
+                requestVariables: requestVariables,
+                overrides: overrides,
+              ) ==
+              token) {
+            missing.add((
+              start: lineStart + match.start,
+              end: lineStart + match.end,
+              name: match.group(1)!,
+            ));
+          }
+        }
+      }
+      if (inScript && line.contains('%}')) inScript = false;
+      lineStart += line.length + 1;
+      lineNumber++;
+    }
+    return missing;
+  }
 }
