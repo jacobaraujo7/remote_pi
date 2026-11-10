@@ -178,7 +178,9 @@ void main() {
     'long Windows-style project IDs preserve kept history and prune stale history',
     () async {
       final projectId = 'root::C:/worktrees/${List.filled(190, 'p').join()}';
-      final longRoot = Directory('${root.path}/${List.filled(4, 'long-parent-segment').join('/')}');
+      final longRoot = Directory(
+        '${root.path}/${List.filled(4, 'long-parent-segment').join('/')}',
+      );
       await longRoot.create(recursive: true);
       expect(longRoot.path.length + projectId.length + 12, greaterThan(260));
       final store = FileTerminalScrollbackStore(root: longRoot);
