@@ -452,6 +452,21 @@ describe("parseAddress", () => {
   test("multiple colons → split on first", () => {
     expect(parseAddress("trab:sub:agent")).toEqual({ pcLabel: "trab", peerName: "sub:agent" });
   });
+  // Windows local peer ids are "<drive>:\path@name" (e.g. a cwd-derived
+  // address like "C:\Users\ich\project@agent-1"). Without the drive-letter
+  // guard, the drive-letter colon looks exactly like a "<pcLabel>:" prefix
+  // and every local Windows peer gets misrouted as remote pc "C".
+  test("Windows drive-letter local path → null (not a remote pc prefix)", () => {
+    expect(parseAddress("C:\\Users\\ich\\project@agent-1")).toBeNull();
+  });
+  test("Windows drive-letter path with forward slashes → null", () => {
+    expect(parseAddress("D:/repos/project@agent-1")).toBeNull();
+  });
+  test("real remote label that happens to be one letter, but not a drive letter shape → still parses", () => {
+    // "x:agent-1" has no path separator right after the colon, so it's not
+    // mistakeable for a Windows drive letter and should parse normally.
+    expect(parseAddress("x:agent-1")).toEqual({ pcLabel: "x", peerName: "agent-1" });
+  });
 });
 
 // ── tryRouteOutbound ────────────────────────────────────────────────────────
