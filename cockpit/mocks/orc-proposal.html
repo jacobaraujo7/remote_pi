@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Orchestration (proposta)</title>
+<style>
+  :root {
+    --bg: #fdfdf6;
+    --panel: #f2f2ea;
+    --panel2: #e8e8df;
+    --border: #d9d9cf;
+    --text: #1a1a1a;
+    --text2: #4a4a46;
+    --text3: #7a7a74;
+    --accent: #2f8278;
+    --accent-soft: #dfe9e2;
+    --accent-text: #2f8278;
+    --font: -apple-system, "Inter", "Segoe UI", system-ui, sans-serif;
+    --mono: "JetBrains Mono", "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font-family: var(--font);
+    font-size: 14px; display: flex; flex-direction: column; height: 100vh;
+  }
+
+  /* ---- outer dock tabs ---- */
+  .dock-tabs { display: flex; align-items: stretch; height: 40px; border-bottom: 1px solid var(--border); background: var(--bg); }
+  .dock-tab { display: flex; align-items: center; gap: 8px; padding: 0 14px; width: 180px; border-right: 1px solid var(--border); color: var(--text2); white-space: nowrap; overflow: hidden; }
+  .dock-tab .x { margin-left: auto; color: var(--text3); }
+  .dock-tab.active { border-bottom: 2px solid var(--accent); color: var(--text); background: #fff; }
+  .dock-tab .ic { width: 14px; height: 14px; display: inline-block; }
+  .dock-tools { margin-left: auto; display: flex; align-items: center; gap: 14px; padding: 0 14px; color: var(--text2); border-left: 1px solid var(--border); }
+
+  /* ---- app toolbar ---- */
+  .toolbar { display: flex; align-items: center; gap: 8px; padding: 10px 8px; background: var(--bg); border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .toolbar .fname { width: 160px; text-align: center; font-size: 13px; }
+  .btn { height: 32px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); font: inherit; font-size: 14px; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+  .btn.on { color: var(--accent-text); background: var(--accent-soft); border-color: #cfd9d3; }
+  .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .ibtn { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; color: var(--text); }
+
+  /* ---- overview (boxes) ---- */
+  .overview { background: var(--panel); flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .filter { display: flex; gap: 8px; padding: 12px; }
+  .search { flex: 1; height: 36px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--border); padding: 0 12px; color: var(--text3); display: flex; align-items: center; }
+  .cols, .row { display: grid; grid-template-columns: 32px 3fr 2fr 2fr 3fr 100px 40px; align-items: center; }
+  .cols { padding: 6px 16px 6px 16px; color: var(--text3); font-size: 13px; }
+  .cols > span:first-child { grid-column: 1 / span 2; }
+  .row { height: 52px; border-bottom: 1px solid var(--border); border-left: 3px solid transparent; margin-left: 32px; grid-template-columns: 3fr 2fr 2fr 3fr 100px 40px; position: relative; }
+  .rowwrap { display: flex; align-items: center; }
+  .rowwrap .grip { width: 32px; height: 52px; display: flex; align-items: center; justify-content: center; color: var(--text3); }
+  .rowwrap .row { flex: 1; margin-left: 0; }
+  .row.hover { background: var(--panel2); }
+  .row.selected { background: var(--accent-soft); border-left-color: var(--accent); }
+  .row .name { display: flex; align-items: center; gap: 10px; padding-left: 10px; }
+  .row .state { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text3); }
+  .row .role { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row .ctx { color: var(--text2); }
+  .row .gear { color: var(--text); text-align: center; }
+  .rows { overflow: auto; }
+  .rows .tail { border-bottom: 1px solid var(--border); margin-left: 32px; }
+
+  /* ---- divider ---- */
+  .divider { height: 6px; background: var(--border); cursor: row-resize; }
+
+  /* ---- terminals ---- */
+  .terminals { height: 0; background: var(--bg); display: flex; flex-direction: column; min-height: 0; overflow: hidden; transition: height .22s ease; }
+  body.open .terminals { height: 58%; }
+  body:not(.open) .divider { display: none; }
+  .term { flex: 1; padding: 10px 14px; font-family: var(--mono); font-size: 13px; line-height: 1.5; }
+  .prompt .path { background: #1e4a8f; color: #fff; padding: 2px 8px; }
+  .prompt .git { background: #b58a1e; color: #1a1a1a; padding: 2px 8px; }
+  .caret { color: #3aa655; }
+  .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: -2px; margin-left: 6px; }
+
+  /* ---- footer (padrão file viewer / dbq) ---- */
+  .footer { height: 30px; padding: 0 10px; border-top: 1px solid var(--border); background: var(--bg); display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text3); }
+  .footer .path { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .footer .sum { margin-right: 6px; }
+  .footer .ibtn { width: 24px; height: 24px; color: var(--text2); font-size: 14px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+  .seg span { padding: 2px 9px; color: var(--text3); }
+  .seg span.on { background: var(--panel2); color: var(--text); }
+
+  svg { width: 1em; height: 1em; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---- dialog de configuração do box ---- */
+  .scrim { position: fixed; inset: 0; background: rgba(20,20,16,.28); display: none; align-items: center; justify-content: center; z-index: 10; }
+  body.dlg .scrim { display: flex; }
+  .dlg-box { width: 520px; max-width: calc(100vw - 32px); background: var(--bg); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.18); padding: 18px 20px 16px; font-size: 13px; }
+  .dlg-box h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; }
+  .dlg-box h2 .x { margin-left: auto; color: var(--text3); font-weight: 400; cursor: default; }
+  .dlg-box label { display: block; color: var(--text3); font-size: 11.5px; margin: 12px 0 5px; }
+  .dlg-box .in { height: 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); padding: 0 10px; display: flex; align-items: center; color: var(--text); }
+  .dlg-box .in.ph { color: var(--text3); }
+  .dlg-box .ta { height: 96px; align-items: flex-start; padding: 8px 10px; line-height: 1.45; overflow: hidden; color: var(--text2); }
+  .dlg-box .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .dlg-box .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; height: 32px; }
+  .dlg-box .seg span { padding: 0 14px; display: flex; align-items: center; color: var(--text3); border-right: 1px solid var(--border); }
+  .dlg-box .seg span:last-child { border-right: 0; }
+  .dlg-box .seg span.on { background: var(--accent-soft); color: var(--accent); }
+  .dlg-box .link { color: var(--accent); font-size: 11.5px; margin-top: 6px; display: inline-block; }
+  .dlg-box .links { border: 1px solid var(--border); border-radius: 6px; }
+  .dlg-box .links div { display: flex; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--border); color: var(--text2); }
+  .dlg-box .links div:last-child { border-bottom: 0; }
+  .dlg-box .links .rm { margin-left: auto; color: var(--text3); }
+  .dlg-box .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+  .dlg-box .b { height: 32px; padding: 0 16px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); display: inline-flex; align-items: center; }
+  .dlg-box .b.p { background: var(--accent); color: #fff; border-color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- outer dock -->
+<div class="dock-tabs">
+  <div class="dock-tab"><span>▦</span><span style="color:#2f8278">✳</span> Orquestrador …<span class="x">×</span></div>
+  <div class="dock-tab active"><span style="color:#2f8278">✦</span> notebox.orc<span class="x">×</span></div>
+  <div class="dock-tools"><span>+</span><span>◐</span><span>▯▯</span><span>▭</span><span>×</span></div>
+</div>
+
+
+<!-- overview: Boxes -->
+<div class="overview" id="overview">
+  <div class="filter">
+    <div class="search">Buscar nome ou função</div>
+    <button class="btn"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Todos os estados</button>
+  </div>
+  <div class="cols"><span>Box</span><span>Estado</span><span>Ferramenta</span><span>Função</span><span>Contexto</span><span></span></div>
+  <div class="rows">
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row" data-id="Orquestrador">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Orquestrador</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Orquestrador do NoteBox. Recebe a…</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row" data-id="App (Flutter)">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>App (Flutter)</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Desenvolvedor do app Flutter em `a…</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+    <div class="rowwrap">
+      <div class="grip">═</div>
+      <div class="row" data-id="Backend (Vaden)">
+        <div class="name"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Backend (Vaden)</div>
+        <div class="state"><span class="dot"></span>Shell</div>
+        <div>Nenhuma CLI detectada</div>
+        <div class="role">Desenvolvedor do backend Dart em …</div>
+        <div class="ctx">Indisponível</div>
+        <div class="gear">⚙</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- terminals -->
+<div class="terminals">
+  <div class="term">
+    <div class="prompt"><span class="path">~/Projects/notebox/app</span><span class="git">main &gt;6 !10 ?12</span></div>
+    <div><span class="caret">&gt;</span><span class="cursor"></span></div>
+  </div>
+</div>
+
+
+<div class="scrim" id="scrim">
+  <div class="dlg-box" id="dlg">
+    <h2><svg viewBox="0 0 24 24" style="width:16px;height:16px"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg><span id="dlg-title">App (Flutter)</span><span class="x" id="dlg-x">×</span></h2>
+
+    <label>Nome</label>
+    <div class="in">App (Flutter)</div>
+
+    <label>Função <span style="opacity:.7">(opcional)</span></label>
+    <div class="in ta">Desenvolvedor do app Flutter em `app/`. Segue a Clean Architecture + MVVM do projeto: ViewModelProvider em toda página, Repository como SSoT, sealed class para estados, go_router para navegação…</div>
+    <span class="link">Pedir sugestão ao agente deste terminal</span>
+
+    <div class="grid">
+      <div>
+        <label>Ferramenta</label>
+        <div class="seg"><span>Nenhuma</span><span class="on">claude</span><span>codex</span><span>pi</span></div>
+      </div>
+      <div>
+        <label>Modelo <span style="opacity:.7">(vazio = padrão)</span></label>
+        <div class="in ph">sonnet</div>
+      </div>
+    </div>
+
+    <label>Diretório relativo à worktree</label>
+    <div class="in">app</div>
+
+    <label>Conexões planejadas</label>
+    <div class="links">
+      <div>Orquestrador → App (Flutter)<span class="rm">⊘</span></div>
+      <div style="color:var(--accent)">+ ligar a outro box</div>
+    </div>
+
+    <div class="actions">
+      <span class="b" id="dlg-cancel">Cancelar</span>
+      <span class="b p" id="dlg-save">Salvar</span>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <span class="path">notebox.orc</span>
+  <span class="sum" id="sel"></span><span class="sum">3 boxes · 0 working</span>
+  <span class="ibtn"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v6h-6"/></svg></span>
+  <span class="seg"><span class="on">Boxes</span><span>Grafo</span></span>
+</div>
+
+<script>
+  const body = document.body, sel = document.getElementById('sel');
+  const rows = [...document.querySelectorAll('.row[data-id]')];
+  function select(row) {
+    rows.forEach(r => r.classList.toggle('selected', r === row));
+    body.classList.toggle('open', !!row);
+    sel.textContent = row ? row.dataset.id + ' ·' : '';
+  }
+  rows.forEach(r => r.addEventListener('click', e => { e.stopPropagation(); select(r); }));
+  document.getElementById('overview').addEventListener('click', () => select(null));
+  document.addEventListener('keydown', e => { if (e.key !== 'Escape') return; if (body.classList.contains('dlg')) closeDlg(); else select(null); });
+  select(null);
+
+  const scrim = document.getElementById('scrim');
+  function openDlg(title) { document.getElementById('dlg-title').textContent = title; body.classList.add('dlg'); }
+  function closeDlg() { body.classList.remove('dlg'); }
+  document.querySelectorAll('.gear').forEach(g => g.addEventListener('click', e => {
+    e.stopPropagation();
+    const host = g.closest('[data-id]'); openDlg(host ? host.dataset.id : 'Terminal');
+  }));
+  scrim.addEventListener('click', e => { if (e.target === scrim) closeDlg(); });
+  document.getElementById('dlg-x').onclick = document.getElementById('dlg-cancel').onclick = document.getElementById('dlg-save').onclick = closeDlg;
+  document.getElementById('dlg').addEventListener('click', e => e.stopPropagation());
+</script>
+</body>
+</html>

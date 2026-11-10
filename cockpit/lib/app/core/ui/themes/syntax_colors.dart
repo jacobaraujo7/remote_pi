@@ -243,11 +243,11 @@ class SyntaxColors {
   );
 
   /// Estilo de um escopo do highlight.js. `null` → herda o estilo base (texto
-  /// sem realce). Comentários ganham itálico.
+  /// sem realce). Comentários e nomes de headers HTTP ganham itálico.
   TextStyle? styleFor(String scope) {
     final color = _colorFor(scope);
     if (color == null) return null;
-    if (scope == 'comment' || scope == 'quote') {
+    if (scope == 'comment' || scope == 'quote' || scope == 'http-header') {
       return TextStyle(color: color, fontStyle: FontStyle.italic);
     }
     return TextStyle(color: color);
@@ -294,6 +294,7 @@ class SyntaxColors {
         return function;
       case 'attr':
       case 'attribute':
+      case 'http-header':
       case 'variable':
       case 'template-variable':
       case 'symbol':
@@ -303,6 +304,8 @@ class SyntaxColors {
       case 'selector-class':
         return variable;
       case 'meta':
+      case 'http-script':
+      case 'http-json-variable':
       case 'meta-keyword':
       case 'doctag':
       case 'tag':

@@ -195,14 +195,14 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 
 	// Translations
 	@override String get terminals => '终端';
-	@override String get boxes => '会话';
+	@override String get boxes => '列表';
 	@override String get graph => '关系图';
 	@override String get newTerminal => '新建终端';
-	@override String get configure => '配置会话';
+	@override String get configure => '配置终端';
 	@override String get closeInspector => 'Close inspector';
 	@override String get search => 'Search name or function';
 	@override String get allStates => 'All states';
-	@override String get name => '名称';
+	@override String get name => '终端';
 	@override String get state => '状态';
 	@override String get tool => '工具';
 	@override String get role => '功能';
@@ -218,10 +218,10 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get disconnected => '已断开';
 	@override String get unavailable => 'Unavailable';
 	@override String get noRole => 'Add a function';
-	@override String get noBoxes => 'No boxes yet';
-	@override String get noMatches => 'No boxes match your search';
+	@override String get noBoxes => '还没有终端';
+	@override String get noMatches => '没有匹配的终端';
 	@override String get selectBox => 'Select a box to preview its terminal';
-	@override String get noSession => 'This box has no terminal session';
+	@override String get noSession => '此终端没有会话';
 	@override String get startShell => 'Start terminal';
 	@override String get openTerminal => 'Open in Terminals';
 	@override String get save => '保存';
@@ -239,16 +239,21 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get planned => 'Planned connection';
 	@override String get observed => 'Observed activity';
 	@override String get temporary => 'Temporary subagent';
-	@override String get linkBoxes => 'Connect boxes';
+	@override String get linkBoxes => '连接终端';
 	@override String get selectEndpoints => 'Select source and target';
 	@override String get zoomFit => 'Reset zoom';
 	@override String get session => '会话';
 	@override String get configuration => '配置';
-	@override String get nameRequired => 'Enter a box name';
+	@override String get nameRequired => '请输入终端名称';
 	@override String get removeLink => 'Remove connection';
 	@override String get handoffSummary => 'Summary';
 	@override String get copyRole => 'Copy function';
 	@override String get showInspector => 'Show inspector';
+	@override String get addConnection => '连接到另一个终端';
+	@override String get actions => '操作';
+	@override String get closeTerminal => '隐藏终端';
+	@override String get legend => '图例';
+	@override String get portableHint => '保存在 .orc 文件中。会话操作位于终端菜单。';
 }
 
 // Path: terminalAttachment
@@ -284,6 +289,7 @@ class _Translations$orchestration$zh extends Translations$orchestration$en {
 	@override String get importHelp => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.';
 	@override String get createWithoutImport => 'Create without importing';
 	@override String get importLegacy => 'Import configuration';
+	@override String get noBoxSelected => '在列表或图中选择一个终端以在其中工作。';
 }
 
 // Path: core.bootstrapError
@@ -862,18 +868,36 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
+	@override String get runAll => '运行全部';
+	@override String get expandToEdit => '展开以编辑';
+	@override String get noMatchingVariables => '没有匹配的变量';
+	@override String get noScriptSuggestions => '此表达式没有建议';
 	@override String get running => '运行中…';
+	@override String get overrideTemporary => '临时';
+	@override String get overrideFile => 'HTTP 文件';
+	@override String get overrideEnvironment => '环境';
+	@override String get overrideGlobal => '全局';
+	@override String get overrideRestore => '恢复';
+	@override String get overrideApply => '应用';
+	@override String get overrideInvalidNumber => '无效数字';
+	@override String get overrideNonFiniteNumber => '请输入有限数字';
+	@override String get overrideInvalidBoolean => '请使用 true 或 false';
+	@override String get overrideInvalidJson => '无效 JSON';
 	@override String get noRequests => '此文件中没有请求——写一个，如 GET https://example.com';
 	@override String get selectRequest => '选择请求';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n,
 		one: '1 个请求',
 		other: '${n} 个请求',
 	);
-	@override String get runHint => '运行请求（⌘↵）后响应将显示在这里。';
+	@override String get runHint => '运行此请求后，响应将显示在这里。';
 	@override String get emptyBody => '响应体为空。';
 	@override String get body => 'JSON';
 	@override String get headers => '标头';
 	@override String get raw => '文本';
+	@override String get tests => '测试';
+	@override String get script => '脚本';
+	@override String get noTests => '没有注册的测试。';
+	@override String get noScriptOutput => '脚本没有输出。';
 	@override String get truncatedSuffix => ' · 已截断（响应过大）';
 	@override late final _Translations$cockpit$httpView$error$zh error = _Translations$cockpit$httpView$error$zh._(_root);
 }
@@ -2465,15 +2489,33 @@ extension on TranslationsZh {
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
+			'cockpit.httpView.runAll' => '运行全部',
+			'cockpit.httpView.expandToEdit' => '展开以编辑',
+			'cockpit.httpView.noMatchingVariables' => '没有匹配的变量',
+			'cockpit.httpView.noScriptSuggestions' => '此表达式没有建议',
 			'cockpit.httpView.running' => '运行中…',
+			'cockpit.httpView.overrideTemporary' => '临时',
+			'cockpit.httpView.overrideFile' => 'HTTP 文件',
+			'cockpit.httpView.overrideEnvironment' => '环境',
+			'cockpit.httpView.overrideGlobal' => '全局',
+			'cockpit.httpView.overrideRestore' => '恢复',
+			'cockpit.httpView.overrideApply' => '应用',
+			'cockpit.httpView.overrideInvalidNumber' => '无效数字',
+			'cockpit.httpView.overrideNonFiniteNumber' => '请输入有限数字',
+			'cockpit.httpView.overrideInvalidBoolean' => '请使用 true 或 false',
+			'cockpit.httpView.overrideInvalidJson' => '无效 JSON',
 			'cockpit.httpView.noRequests' => '此文件中没有请求——写一个，如 GET https://example.com',
 			'cockpit.httpView.selectRequest' => '选择请求',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个请求', other: '${n} 个请求', ), 
-			'cockpit.httpView.runHint' => '运行请求（⌘↵）后响应将显示在这里。',
+			'cockpit.httpView.runHint' => '运行此请求后，响应将显示在这里。',
 			'cockpit.httpView.emptyBody' => '响应体为空。',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => '标头',
 			'cockpit.httpView.raw' => '文本',
+			'cockpit.httpView.tests' => '测试',
+			'cockpit.httpView.script' => '脚本',
+			'cockpit.httpView.noTests' => '没有注册的测试。',
+			'cockpit.httpView.noScriptOutput' => '脚本没有输出。',
 			'cockpit.httpView.truncatedSuffix' => ' · 已截断（响应过大）',
 			'cockpit.httpView.error.title' => '请求失败',
 			'cockpit.httpView.error.noRequest' => '光标处未找到请求。',
@@ -2568,6 +2610,8 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -2586,8 +2630,6 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => '选择一个私钥…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => '选择 SSH 私钥',
 			'cockpit.dbConnectionDialog.keyPassphrase' => '密钥口令',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.savePassphrase' => '保存口令',
 			'cockpit.dbConnectionDialog.passwordOnHost' => '密码保存在主机上，而不是这台机器上。',
 			'cockpit.sshPrompts.unknownSshHostTitle' => '未知的 SSH 主机',
@@ -3082,6 +3124,8 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
@@ -3100,8 +3144,6 @@ extension on TranslationsZh {
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} 在 ${seconds} 秒内未响应。',
 			'automation.error.cancelled' => '提交信息生成已取消。',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.process' => ({required Object harness, required Object detail}) => '${harness}：${detail}',
 			'automation.error.processNoDetail' => ({required Object harness}) => '${harness} 无法生成提交信息。',
 			'automation.error.invalidResponse' => '自动化返回了空的提交信息。',
@@ -3145,14 +3187,14 @@ extension on TranslationsZh {
 			'theme.error.unknownBase' => ({required Object value}) => '「extends」中的基础主题「${value}」未知。',
 			'theme.error.noVariants' => '主题未声明任何变体。请在「variants」下添加「dark」「light」或两者。',
 			'workspaceView.terminals' => '终端',
-			'workspaceView.boxes' => '会话',
+			'workspaceView.boxes' => '列表',
 			'workspaceView.graph' => '关系图',
 			'workspaceView.newTerminal' => '新建终端',
-			'workspaceView.configure' => '配置会话',
+			'workspaceView.configure' => '配置终端',
 			'workspaceView.closeInspector' => 'Close inspector',
 			'workspaceView.search' => 'Search name or function',
 			'workspaceView.allStates' => 'All states',
-			'workspaceView.name' => '名称',
+			'workspaceView.name' => '终端',
 			'workspaceView.state' => '状态',
 			'workspaceView.tool' => '工具',
 			'workspaceView.role' => '功能',
@@ -3168,10 +3210,10 @@ extension on TranslationsZh {
 			'workspaceView.disconnected' => '已断开',
 			'workspaceView.unavailable' => 'Unavailable',
 			'workspaceView.noRole' => 'Add a function',
-			'workspaceView.noBoxes' => 'No boxes yet',
-			'workspaceView.noMatches' => 'No boxes match your search',
+			'workspaceView.noBoxes' => '还没有终端',
+			'workspaceView.noMatches' => '没有匹配的终端',
 			'workspaceView.selectBox' => 'Select a box to preview its terminal',
-			'workspaceView.noSession' => 'This box has no terminal session',
+			'workspaceView.noSession' => '此终端没有会话',
 			'workspaceView.startShell' => 'Start terminal',
 			'workspaceView.openTerminal' => 'Open in Terminals',
 			'workspaceView.save' => '保存',
@@ -3189,16 +3231,21 @@ extension on TranslationsZh {
 			'workspaceView.planned' => 'Planned connection',
 			'workspaceView.observed' => 'Observed activity',
 			'workspaceView.temporary' => 'Temporary subagent',
-			'workspaceView.linkBoxes' => 'Connect boxes',
+			'workspaceView.linkBoxes' => '连接终端',
 			'workspaceView.selectEndpoints' => 'Select source and target',
 			'workspaceView.zoomFit' => 'Reset zoom',
 			'workspaceView.session' => '会话',
 			'workspaceView.configuration' => '配置',
-			'workspaceView.nameRequired' => 'Enter a box name',
+			'workspaceView.nameRequired' => '请输入终端名称',
 			'workspaceView.removeLink' => 'Remove connection',
 			'workspaceView.handoffSummary' => 'Summary',
 			'workspaceView.copyRole' => 'Copy function',
 			'workspaceView.showInspector' => 'Show inspector',
+			'workspaceView.addConnection' => '连接到另一个终端',
+			'workspaceView.actions' => '操作',
+			'workspaceView.closeTerminal' => '隐藏终端',
+			'workspaceView.legend' => '图例',
+			'workspaceView.portableHint' => '保存在 .orc 文件中。会话操作位于终端菜单。',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => '正在复制附件：${completed}/${total}',
 			'terminalAttachment.nativeImage' => '已请求代理粘贴图片。',
 			'terminalAttachment.referenced' => '已插入本地引用。',
@@ -3216,6 +3263,7 @@ extension on TranslationsZh {
 			'orchestration.importHelp' => 'Existing box configuration was found. Include its roles, tools, order, positions and connections in the new document? Current terminals are included either way.',
 			'orchestration.createWithoutImport' => 'Create without importing',
 			'orchestration.importLegacy' => 'Import configuration',
+			'orchestration.noBoxSelected' => '在列表或图中选择一个终端以在其中工作。',
 			_ => null,
 		};
 	}

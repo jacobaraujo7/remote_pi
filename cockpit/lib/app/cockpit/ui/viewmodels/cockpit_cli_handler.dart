@@ -17,6 +17,7 @@ import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/domain/entities/dbq_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
@@ -28,6 +29,7 @@ import 'package:cockpit/app/cockpit/domain/entities/sql_statements.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_access_gate.dart';
 import 'package:cockpit/app/cockpit/domain/services/db_query_service.dart';
 import 'package:cockpit/app/cockpit/domain/services/mongo_browse_service.dart';
+import 'package:cockpit/app/cockpit/domain/services/open_target_resolver.dart';
 import 'package:cockpit/app/cockpit/domain/entities/browser_capability.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/utils/path_utils.dart';
@@ -282,15 +284,27 @@ class CockpitCliHandler {
           return CockpitCommandResult.fail('file not found: "$path"');
         }
         final from = c.tabId;
-        String? targetProject;
-        String? targetLeaf;
+        String? callerProject;
+        String? callerLeaf;
         if (from != null && from.isNotEmpty) {
           final s = _vm.session(from);
           if (s != null) {
-            targetProject = s.projectId;
-            targetLeaf = _vm.leafOfTab(targetProject, from);
+            callerProject = s.projectId;
+            callerLeaf = _vm.leafOfTab(callerProject, from);
           }
         }
+        // A aba emissora pode não ser a do agente: o daemon do Codex é
+        // compartilhado e herda o COCKPIT_TAB_ID da primeira aba. O caminho do
+        // arquivo desempata (ver `resolveOpenTargetProject`).
+        final targetProject = resolveOpenTargetProject(
+          path: path,
+          callerProjectId: callerProject,
+          projects: _vm.projects,
+          caseInsensitive: Platform.isWindows,
+        );
+        // Mudou de workspace → a folha do terminal emissor não existe lá; abre
+        // na folha em foco do destino.
+        final targetLeaf = targetProject == callerProject ? callerLeaf : null;
         if (targetProject != null && targetProject != _vm.selectedProjectId) {
           _vm.selectProject(targetProject);
         }
@@ -1216,14 +1230,34 @@ class CockpitCliHandler {
           }
           final path = (c.args['path'] ?? '').toString();
           final timeout = int.tryParse('${c.args['timeout'] ?? ''}');
-          final result = await _http.send(
-            doc.resolveRequest(doc.requests[index]),
+          final result = await HttpScriptSession.shared.run(
+            _http,
+            doc,
+            doc.requests[index],
             baseDir: Directory(path).parent.path,
             timeout: Duration(seconds: timeout ?? 30),
           );
-          return result.fold(
-            (value) => CockpitCommandResult.ok(value.toJson()),
-            (error) => CockpitCommandResult.fail(_httpErrorText(error)),
+          if (result.transportError case final error?) {
+            return CockpitCommandResult.fail(_httpErrorText(error));
+          }
+          if (result.response case final response?) {
+            return CockpitCommandResult.ok({
+              ...response.toJson(),
+              'passed': !result.failed,
+              'tests': [
+                for (final test in result.tests)
+                  {
+                    'name': test.name,
+                    'passed': test.passed,
+                    'message': test.message,
+                  },
+              ],
+              'logs': result.logs,
+              if (result.scriptError != null) 'scriptError': result.scriptError,
+            });
+          }
+          return CockpitCommandResult.fail(
+            result.scriptError ?? 'script_failed',
           );
         });
 
