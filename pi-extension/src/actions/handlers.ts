@@ -105,7 +105,8 @@ export interface ActionCtx {
  * but lets tests fake catalogs without instantiating the real one.
  */
 export interface ActionModelRegistry {
-  refresh(): void;
+  /** Pi 0.80.8+ refreshes asynchronously; legacy/test registries may be synchronous. */
+  refresh(): void | Promise<unknown>;
   getAvailable(): Model<any>[];
   find(provider: string, modelId: string): Model<any> | undefined;
 }
@@ -251,7 +252,7 @@ export async function handleModelSet(
     // Fall back to remote-pi's own disk-backed registry when no ctx exists.
     const liveReg = ctx?.modelRegistry ?? reg;
     // Refresh first so a model just-added via `/login` is visible.
-    liveReg.refresh();
+    await liveReg.refresh();
     const model = liveReg.find(msg.provider, msg.model_id);
     if (!model) {
       throw new Error(`model "${msg.provider}/${msg.model_id}" not in registry`);
@@ -268,12 +269,12 @@ export async function handleModelSet(
   });
 }
 
-export function handleListModels(
+export async function handleListModels(
   ctx: ActionCtx | null,
   reg: ActionModelRegistry,
   sender: ActionReplySender,
   msg: ListModelsMsg,
-): void {
+): Promise<void> {
   // refresh() can throw if `models.json` is malformed — wrap in try so the
   // app gets an explicit error reply instead of a silent drop.
   try {
@@ -281,7 +282,7 @@ export function handleListModels(
     // registered dynamically by extensions via `pi.registerProvider(...)`.
     // Fall back to remote-pi's own disk-backed registry when no ctx exists.
     const liveReg = ctx?.modelRegistry ?? reg;
-    liveReg.refresh();
+    await liveReg.refresh();
     const models = liveReg.getAvailable().map(wireFromModel);
     const current = ctx?.getModel?.();
     sender.send({
