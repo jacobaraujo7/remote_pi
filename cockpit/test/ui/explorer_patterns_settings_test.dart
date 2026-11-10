@@ -65,6 +65,16 @@ void main() {
     expect(tester.widget<TextField>(parent).controller?.text, 'new.ts');
     expect((tester.widget<TextField>(parent).focusNode?.hasFocus), isTrue);
 
+    final child = find.byType(TextField).at(initialFields - 1);
+    await tester.ensureVisible(child);
+    await tester.tap(child);
+    tester.testTextInput.enterText('new.js');
+    await tester.pump();
+    expect(settings.settings.fileNestingPatterns['new.ts'], 'new.js');
+
+    tester.testTextInput.enterText('');
+    await tester.pump();
+    await tester.tap(parent);
     tester.testTextInput.enterText('');
     tester.widget<TextField>(parent).focusNode?.unfocus();
     await tester.pump();

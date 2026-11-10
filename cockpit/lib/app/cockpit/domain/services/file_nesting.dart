@@ -8,6 +8,10 @@ Map<String, List<FileNode>> nestFiles(
   Map<String, String> patterns,
 ) {
   final files = nodes.where((n) => !n.isDirectory).toList();
+  final filesByName = <String, List<FileNode>>{};
+  for (final file in files) {
+    filesByName.putIfAbsent(file.name, () => []).add(file);
+  }
   final children = <String, List<FileNode>>{};
   final owner = <String, String>{};
   for (final parent in files) {
@@ -18,7 +22,12 @@ Map<String, List<FileNode>> nestFiles(
         final glob = childPattern.trim();
         if (glob.isEmpty) continue;
         final expanded = glob.replaceAll(r'${capture}', capture);
-        for (final child in files) {
+        // Most rules resolve to an exact name after capture expansion. Use the
+        // index so large directories do not scan every file for each rule.
+        final candidates = expanded.contains('*')
+            ? files
+            : (filesByName[expanded] ?? const <FileNode>[]);
+        for (final child in candidates) {
           if (child.path == parent.path || owner.containsKey(child.path)) {
             continue;
           }

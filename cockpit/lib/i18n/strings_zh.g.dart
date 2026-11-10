@@ -3146,6 +3146,8 @@ extension on TranslationsZh {
 			'settings.page.automations.modelAutoRouted' => '此工具自动路由模型。',
 			'settings.page.automations.modelAccountOnly' => '仅列出你的账户可用的模型。',
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
@@ -3158,16 +3160,12 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
 			'settings.remoteHosts.deviceKeyDesc' => '将此公钥添加到主机的 ~/.ssh/authorized_keys，本设备即可连接。',
 			'settings.remoteHosts.deviceKeyCopy' => '复制公钥',
 			'settings.remoteHosts.deviceKeyCopied' => '公钥已复制',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusConnected' => '已连接',
 			'settings.remoteHosts.statusConnecting' => '连接中…',
 			'settings.remoteHosts.statusReconnecting' => '重新连接中…',

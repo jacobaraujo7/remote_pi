@@ -1123,7 +1123,6 @@ class _NestingPatternDraft {
 
 class _ExplorerPanelState extends State<_ExplorerPanel> {
   final _drafts = <_NestingPatternDraft>[];
-  Timer? _persistTimer;
   late SettingsController _settingsController;
   int _nextDraftId = 0;
   bool _initialized = false;
@@ -1162,8 +1161,6 @@ class _ExplorerPanelState extends State<_ExplorerPanel> {
 
   @override
   void dispose() {
-    if (_persistTimer?.isActive ?? false) _persist();
-    _persistTimer?.cancel();
     for (final draft in _drafts) {
       draft.dispose();
     }
@@ -1178,14 +1175,13 @@ class _ExplorerPanelState extends State<_ExplorerPanel> {
         _drafts.add(_draft('', ''));
       }
     });
-    _persistTimer?.cancel();
-    _persistTimer = Timer(const Duration(milliseconds: 250), _persist);
+    // Persist before route disposal. JsonStateStore already debounces disk I/O.
+    _persist();
   }
 
   void _remove(_NestingPatternDraft draft) {
     setState(() => _drafts.remove(draft));
     WidgetsBinding.instance.addPostFrameCallback((_) => draft.dispose());
-    _persistTimer?.cancel();
     _persist();
   }
 
@@ -1430,7 +1426,13 @@ class _NestingPatternRow extends StatelessWidget {
   }
 }
 
-/// Motor VT e, no Windows, shell padrão. O perfil é persistido pelo id.
+/// **Terminal** — escolhe o motor VT e, no Windows, o shell padrão.
+///
+/// O padrão é gravado **por id** (`defaultTerminalProfileId`), nunca o objeto:
+/// os perfis são re-descobertos a cada boot. Sem escolha (ou com um id que
+/// sumiu — uma distro WSL desinstalada), o `effectiveDefault` cai no fallback da
+/// plataforma, que é o PowerShell — e é ele que aparece marcado aqui, porque é o
+/// que de fato vai abrir.
 class _TerminalPanel extends StatelessWidget {
   const _TerminalPanel();
 

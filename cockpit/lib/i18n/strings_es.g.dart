@@ -3227,6 +3227,8 @@ extension on TranslationsEs {
 			'settings.page.automations.modelCliDefault' => 'Predeterminado de la CLI',
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',
 			'settings.page.automations.generateFromSourceControl' => 'Generar desde Control de versiones',
@@ -3239,8 +3241,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',
@@ -3250,8 +3250,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.deviceKeyDesc' => 'Añade esta clave pública a ~/.ssh/authorized_keys del host para que este dispositivo pueda conectarse.',
 			'settings.remoteHosts.deviceKeyCopy' => 'Copiar clave pública',
 			'settings.remoteHosts.deviceKeyCopied' => 'Clave pública copiada',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusConnected' => 'Conectado',
 			'settings.remoteHosts.statusConnecting' => 'Conectando…',
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',

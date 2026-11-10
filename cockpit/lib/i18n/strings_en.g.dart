@@ -5717,6 +5717,8 @@ extension on Translations {
 			'settings.page.automations.notConfigured' => 'Not configured',
 			'settings.page.automations.model' => 'Model',
 			'settings.page.automations.modelUnavailable' => 'The model list is unavailable until the harness is found.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
 			'settings.page.automations.modelAuto' => 'Auto',
@@ -5729,8 +5731,6 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
@@ -5744,8 +5744,6 @@ extension on Translations {
 			'settings.remoteHosts.deviceKeyDesc' => 'Add this public key to ~/.ssh/authorized_keys on the host so this device can connect.',
 			'settings.remoteHosts.deviceKeyCopy' => 'Copy public key',
 			'settings.remoteHosts.deviceKeyCopied' => 'Public key copied',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.statusConnected' => 'Connected',
 			'settings.remoteHosts.statusConnecting' => 'Connecting…',
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',

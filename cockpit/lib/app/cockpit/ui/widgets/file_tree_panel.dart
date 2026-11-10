@@ -1890,6 +1890,9 @@ class _DirView extends StatefulWidget {
 
 class _DirViewState extends State<_DirView> {
   List<FileNode>? _children;
+  Map<String, List<FileNode>> _groups = const <String, List<FileNode>>{};
+  Map<String, Set<String>> _descendantPaths = const <String, Set<String>>{};
+  Set<String> _hidden = const <String>{};
 
   @override
   void initState() {
@@ -1901,11 +1904,51 @@ class _DirViewState extends State<_DirView> {
   void didUpdateWidget(_DirView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.refreshToken != widget.refreshToken) _load();
+    if (oldWidget.edit.fileNestingEnabled != widget.edit.fileNestingEnabled ||
+        !identical(
+          oldWidget.edit.fileNestingPatterns,
+          widget.edit.fileNestingPatterns,
+        )) {
+      final children = _children;
+      if (children != null) _updateNesting(children);
+    }
   }
 
   Future<void> _load() async {
     final children = await widget.edit.listChildren(widget.path);
-    if (mounted) setState(() => _children = children);
+    if (!mounted) return;
+    setState(() {
+      _children = children;
+      _updateNesting(children);
+    });
+  }
+
+  void _updateNesting(List<FileNode> children) {
+    if (!widget.edit.fileNestingEnabled) {
+      _groups = const <String, List<FileNode>>{};
+      _descendantPaths = const <String, Set<String>>{};
+      _hidden = const <String>{};
+      return;
+    }
+    final groups = nestFiles(children, widget.edit.fileNestingPatterns);
+    final descendants = <String, Set<String>>{};
+    Set<String> collect(String path) => descendants.putIfAbsent(path, () {
+      final paths = <String>{};
+      for (final child in groups[path] ?? const <FileNode>[]) {
+        paths.add(child.path);
+        paths.addAll(collect(child.path));
+      }
+      return paths;
+    });
+    for (final path in groups.keys) {
+      collect(path);
+    }
+    _groups = groups;
+    _descendantPaths = descendants;
+    _hidden = {
+      for (final group in groups.values)
+        for (final file in group) file.path,
+    };
   }
 
   Widget _nestedFile(
@@ -1917,12 +1960,12 @@ class _DirViewState extends State<_DirView> {
     if (nested.isEmpty) return _fileRow(node, depth);
     return _NestedFile(
       key: ValueKey(node.path),
-      path: node.path,
       depth: depth,
       autoExpand: widget.edit.fileNestingAutoExpand,
       collapseGen: widget.edit.collapseGen,
       revealPath: widget.edit.revealPath,
       revealGen: widget.edit.revealGen,
+      descendantPaths: _descendantPaths[node.path] ?? const <String>{},
       row: _fileRow(node, depth),
       children: [
         for (final child in nested) _nestedFile(child, groups, depth + 1),
@@ -1932,6 +1975,7 @@ class _DirViewState extends State<_DirView> {
 
   Widget _fileRow(FileNode node, int depth) {
     final edit = widget.edit;
+    // Arrasta o arquivo até o input (vira `@<rel>`).
     return _NodeDraggable(
       path: node.path,
       name: node.name,
@@ -1989,13 +2033,6 @@ class _DirViewState extends State<_DirView> {
     final children = _children;
     if (children == null) return const SizedBox.shrink();
     final edit = widget.edit;
-    final groups = edit.fileNestingEnabled
-        ? nestFiles(children, edit.fileNestingPatterns)
-        : const <String, List<FileNode>>{};
-    final hidden = {
-      for (final group in groups.values)
-        for (final file in group) file.path,
-    };
     final pending = edit.pending;
     final showCreate = pending != null && pending.parentPath == widget.path;
 
@@ -2030,7 +2067,12 @@ class _DirViewState extends State<_DirView> {
             child: const SizedBox(height: 26, width: double.infinity),
           ),
         for (final node in children)
+          // Pasta `.notebook` é um documento (caderno): vira linha de arquivo,
+          // sem expandir — duplo clique abre a tab. Mesmo espírito do `.app`
+          // do Finder (plano 62, passo 4).
           if (node.isDirectory && !isNotebookFolder(node.name))
+            // Arrastável (mover pra outra pasta / citar no composer) e também
+            // alvo de drop (o DragTarget fica dentro do _Folder, na linha).
             _NodeDraggable(
               path: node.path,
               name: node.name,
@@ -2041,8 +2083,8 @@ class _DirViewState extends State<_DirView> {
                 edit: edit,
               ),
             )
-          else if (!hidden.contains(node.path))
-            _nestedFile(node, groups, widget.depth),
+          else if (!_hidden.contains(node.path))
+            _nestedFile(node, _groups, widget.depth),
       ],
     );
   }
@@ -2051,22 +2093,22 @@ class _DirViewState extends State<_DirView> {
 class _NestedFile extends StatefulWidget {
   const _NestedFile({
     super.key,
-    required this.path,
     required this.depth,
     required this.autoExpand,
     required this.collapseGen,
     required this.revealPath,
     required this.revealGen,
+    required this.descendantPaths,
     required this.row,
     required this.children,
   });
 
-  final String path;
   final int depth;
   final bool autoExpand;
   final int collapseGen;
   final String? revealPath;
   final int revealGen;
+  final Set<String> descendantPaths;
   final Widget row;
   final List<Widget> children;
 
@@ -2096,9 +2138,7 @@ class _NestedFileState extends State<_NestedFile> {
     if (_revealGen != widget.revealGen) {
       _revealGen = widget.revealGen;
       if (widget.revealPath != null &&
-          widget.children.any(
-            (child) => _containsPath(child, widget.revealPath!),
-          )) {
+          widget.descendantPaths.contains(widget.revealPath)) {
         _expanded = true;
       }
     }
@@ -2115,9 +2155,9 @@ class _NestedFileState extends State<_NestedFile> {
               child: HoverTap(
                 onTap: () => setState(() => _expanded = !_expanded),
                 child: Icon(
-                  _expanded ? Icons.expand_more : Icons.chevron_right,
-                  size: 16,
-                  color: context.colors.text3,
+                  _expanded ? Icons.keyboard_arrow_down : Icons.chevron_right,
+                  size: 15,
+                  color: context.colors.text4,
                 ),
               ),
             ),
@@ -2127,10 +2167,6 @@ class _NestedFileState extends State<_NestedFile> {
       ],
     );
   }
-
-  bool _containsPath(Widget child, String path) =>
-      child is _NestedFile &&
-      (child.path == path || child.children.any((c) => _containsPath(c, path)));
 }
 
 /// Rola a árvore quando o alvo finalmente é montado. Como os diretórios são

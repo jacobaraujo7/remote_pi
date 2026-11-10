@@ -158,6 +158,94 @@ void main() {
       );
     });
 
+    testWidgets('reveal expands nested parents for a leaf file', (
+      tester,
+    ) async {
+      const target = '/workspace/app.js.map';
+      var revealGen = 0;
+      String? revealPath;
+      Map<String, String> patterns = const {
+        '*.ts': r'${capture}.js',
+        '*.js': r'${capture}.js.map',
+      };
+      late StateSetter rebuild;
+
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  rebuild = setState;
+                  return FileTreePanel(
+                    rootPath: '/workspace',
+                    revision: 1,
+                    revealPath: revealPath,
+                    revealGen: revealGen,
+                    fileNestingPatterns: patterns,
+                    listChildren: (_) async => const [
+                      FileNode(
+                        name: 'app.ts',
+                        path: '/workspace/app.ts',
+                        isDirectory: false,
+                      ),
+                      FileNode(
+                        name: 'app.js',
+                        path: '/workspace/app.js',
+                        isDirectory: false,
+                      ),
+                      FileNode(
+                        name: 'app.js.map',
+                        path: target,
+                        isDirectory: false,
+                      ),
+                    ],
+                    gitStatusOf: (_) => null,
+                    onOpenFile: (_) {},
+                    onOpenDiff: (_) {},
+                    isGitRepo: false,
+                    changedPaths: const [],
+                    onOpenWith: (_) {},
+                    onCreateInFolder: (_, {command}) {},
+                    onCreate: (_, _, _) async => const Success(null),
+                    onRename: (_, _) async => const Success(null),
+                    onDelete: (_) async => const Success(null),
+                    onMove: (_, _) async => const Success(null),
+                    onCopy: (_) {},
+                    onCut: (_) {},
+                    onPaste: (_) async => const Success(null),
+                    canPaste: false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsNothing);
+
+      rebuild(() => patterns = const {});
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsOneWidget);
+      rebuild(
+        () => patterns = const {
+          '*.ts': r'${capture}.js',
+          '*.js': r'${capture}.js.map',
+        },
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsNothing);
+
+      rebuild(() {
+        revealPath = target;
+        revealGen++;
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsOneWidget);
+    });
+
     testWidgets(
       'clicking on a file triggers onSelectFile and onTapFile callbacks',
       (tester) async {
