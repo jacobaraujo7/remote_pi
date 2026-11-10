@@ -34,4 +34,19 @@ enum AppFontScale {
     }
     return AppFontScale.standard;
   }
+
+  /// One step larger, or `null` when [extraLarge] is already selected.
+  ///
+  /// Used by the volume-key shortcut, which must not wrap around: holding the
+  /// top of the scale should stay put rather than jumping back to [small].
+  AppFontScale? get larger {
+    final next = index + 1;
+    return next < AppFontScale.values.length ? AppFontScale.values[next] : null;
+  }
+
+  /// One step smaller, or `null` when [small] is already selected.
+  AppFontScale? get smaller {
+    final next = index - 1;
+    return next >= 0 ? AppFontScale.values[next] : null;
+  }
 }

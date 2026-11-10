@@ -14,6 +14,7 @@ import 'package:app/data/transport/channel.dart'; // IChannel
 import 'package:app/data/transport/connection_manager.dart';
 import 'package:app/data/transport/peer_channel.dart';
 import 'package:app/data/images/image_picker_service.dart';
+import 'package:app/data/input/volume_keys.dart';
 import 'package:app/data/transport/relay_config.dart';
 import 'package:app/data/transport/ws_transport.dart';
 import 'package:app/data/update/secure_dismissed_update_store.dart';
@@ -107,6 +108,11 @@ Future<void> setupDependencies() async {
   // Plan 30 — image picker + on-device JPEG compression. Stateless, no
   // dispose hook needed.
   _injector.addOther<IImagePickerService>(() => ImagePickerService());
+
+  // Hardware volume keys as a text-size shortcut. Stateless channel adapter;
+  // the shell (main.dart) drives it from the Preferences toggle. Android-only
+  // in practice — the channel is absent elsewhere and every call is a no-op.
+  _injector.addOther<VolumeKeys>(() => VolumeKeys());
 
   // Plan 31 — SSOT writer + read-only repos. SyncService is the SINGLE
   // mutator of the message/index/runtime boxes; the read repos only watch.
