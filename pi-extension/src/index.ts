@@ -36,6 +36,7 @@ import type {
   ExtensionCommandContext,
   ExtensionContext,
   ExtensionFactory,
+  TurnEndEvent,
 } from "@earendil-works/pi-coding-agent";
 import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
@@ -858,6 +859,8 @@ let _pendingMeshMessages: MeshEnvelope[] = [];
 let _agentRunActive = false;
 let _agentRunGeneration = 0;
 let _meshDrainScheduled = false;
+/** `steer_mesh_messages` from the local config, read when this agent joins the mesh. */
+let _steerMeshMessages = false;
 
 function _queuedStateMessage(): ServerMessage {
   const first = _queuedItems[0];
@@ -2294,13 +2297,14 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
       _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: true } });
     }
   });
-  pi.on("turn_end", () => {
+  pi.on("turn_end", (event, ctx) => {
     // Plan/32 Part B: publish working=false as room_meta (raw, no debounce).
     if (_myRoomMeta) _myRoomMeta = { ..._myRoomMeta, working: false };
     if (_relay && _myRoomId) {
       _relay.sendControl({ type: "room_meta_update", room_id: _myRoomId, meta: { working: false } });
     }
     _maybeDrainQueuedItem();
+    _steerMeshMessagesAtTurnEnd(pi, event, ctx);
   });
 
   // Plan/32: compaction feedback. compact() doesn't run a turn, so bracket it
@@ -4100,6 +4104,8 @@ function _wakeAgent(
  * until the current `agent_end` listeners finish, then appended as one batch
  * before a single turn starts. This avoids calling `prompt()` during the gap
  * where Pi has stopped streaming but the current agent run is still active.
+ * With `steer_mesh_messages`, waiting messages are steered into the running
+ * agent at its next turn boundary instead (see `_steerMeshMessagesAtTurnEnd`).
  * `id` lets the LLM echo it via
  * `agent_send(..., re=<id>)`.
  */
@@ -4169,6 +4175,89 @@ function _deliverMeshMessageToAgent(env: MeshEnvelope): void {
   _scheduleMeshMessageDrain();
 }
 
+/**
+ * Opt-in (`steer_mesh_messages`): at a turn boundary of a running agent, hand
+ * the waiting mesh messages to Pi as steering, much like queued app messages
+ * are steered in on `turn_end`. Pi reads steering right after `turn_end`, so
+ * the agent sees them before its next response instead of after the whole run.
+ * Until then they stay in this module's queue, where an abort cannot discard
+ * them. They keep waiting, for a later boundary or the usual drain after
+ * `agent_end`, whenever a check shows Pi would not read them at once:
+ * - a turn that ended in an error or abort goes straight to `agent_end`;
+ * - a run being aborted (Escape during a tool call) reads steering but never
+ *   answers it;
+ * - with other messages queued, Pi's default `steeringMode: "one-at-a-time"`
+ *   reads those first, and ours would wait in Pi's queue, which Escape clears;
+ * - a `turn_end` from another runtime than `_pi` says nothing about `_pi`.
+ * This is best effort. Once handed over, a batch is Pi's to deliver, and the
+ * checks cannot see everything: steering other extensions queued on Pi before
+ * 0.99, an app message `_maybeDrainQueuedItem` handed over just before (Pi
+ * queues it after an async step), or an abort while later `turn_end`
+ * listeners run.
+ */
+function _steerMeshMessagesAtTurnEnd(pi: ExtensionAPI, event: TurnEndEvent, ctx: ExtensionContext): void {
+  if (!_steerMeshMessages || _pendingMeshMessages.length === 0 || pi !== _pi) return;
+  const { message } = event;
+  if (message.role === "assistant" && (message.stopReason === "error" || message.stopReason === "aborted")) return;
+  if (_piPreviewsQueuedMessages(event) || !_runWillReadSteering(ctx)) return;
+  _steerPendingMeshMessages(pi);
+}
+
+/**
+ * Pi 0.99 and later preview on `turn_end` what the agent reads next, custom
+ * steering from other extensions included. Older Pi has no preview.
+ */
+function _piPreviewsQueuedMessages(event: TurnEndEvent): boolean {
+  const pending = (event as { context?: { pendingMessages?: unknown } }).context?.pendingMessages;
+  return Array.isArray(pending) && pending.length > 0;
+}
+
+/**
+ * Whether the running agent reads steering next: streaming, not being aborted,
+ * nothing of the user's queued ahead. A stale context counts as no. Pi drops a
+ * queued user message from its count when that text starts, so an image-only
+ * steer can keep this false for the session, which only means the usual drain.
+ */
+function _runWillReadSteering(ctx: Pick<ExtensionContext, "isIdle" | "signal" | "hasPendingMessages">): boolean {
+  try {
+    return ctx.isIdle() === false && ctx.signal?.aborted !== true && ctx.hasPendingMessages() === false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Hands every waiting mesh message to Pi as one steering message, oldest
+ * first. One message, because with Pi's default `steeringMode:
+ * "one-at-a-time"` the rest of a batch would wait in Pi's own queue, where an
+ * abort discards it. While Pi is streaming, `sendMessage` only enqueues
+ * steering for the running agent, the one state with no `prompt()` race, so
+ * the caller checks it synchronously right before this call. If Pi refuses,
+ * the batch goes back to the queue.
+ */
+function _steerPendingMeshMessages(pi: ExtensionAPI): void {
+  const batch = _pendingMeshMessages.splice(0);
+  try {
+    pi.sendMessage(
+      {
+        ..._meshMessageForAgent(batch[0]!),
+        content: batch.map((env) => _meshMessageForAgent(env).content).join("\n\n"),
+      },
+      { triggerTurn: true, deliverAs: "steer" },
+    );
+  } catch (err) {
+    _pendingMeshMessages = [...batch, ..._pendingMeshMessages];
+    const detail = err instanceof Error ? err.message : String(err);
+    console.error(`[remote-pi] steering mesh messages failed, keeping them queued: ${detail}`);
+    _scheduleMeshMessageDrain();
+  }
+}
+
+/** Test-only: set what `steer_mesh_messages` would set on join. */
+export function _setSteerMeshMessagesForTest(value: boolean): void {
+  _steerMeshMessages = value;
+}
+
 /** Test-only entry point for verifying mesh-to-agent delivery semantics. */
 export function _deliverMeshMessageToAgentForTest(env: MeshEnvelope): void {
   _deliverMeshMessageToAgent(env);
@@ -4192,6 +4281,7 @@ async function _cmdJoin(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<void
   // Falls back to requestedName when join runs without a prior `_cmdRoot` lock
   // (e.g. legacy/test paths).
   const agentName = _lockedName ?? requestedName;
+  _steerMeshMessages = local.steer_mesh_messages === true;
 
   if (_meshNode) {
     ctx.ui.notify("[remote-pi] Already on the local mesh.", "warning");

@@ -149,3 +149,34 @@ describe("saveLocalConfig — unaffected by env (still writes the file)", () => 
     expect(loadLocalConfig(cwd)).toEqual({ agent_name: "saved", auto_start_relay: true });
   });
 });
+
+describe("steer_mesh_messages — opt-in steering of mesh messages", () => {
+  let cwd: string;
+
+  beforeEach(() => {
+    cwd = makeCwd();
+    delete process.env[ENV];
+  });
+  afterEach(() => {
+    delete process.env[ENV];
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  test("is read from the file and from the inline env", () => {
+    writeFileConfig(cwd, { agent_name: "a", steer_mesh_messages: true });
+    expect(loadLocalConfig(cwd)).toEqual({ agent_name: "a", steer_mesh_messages: true });
+    process.env[ENV] = JSON.stringify({ steer_mesh_messages: false });
+    expect(loadLocalConfig(cwd)).toEqual({ steer_mesh_messages: false });
+  });
+
+  test("ignores a value that is not a boolean", () => {
+    writeFileConfig(cwd, { agent_name: "a", steer_mesh_messages: "yes" });
+    expect(loadLocalConfig(cwd)).toEqual({ agent_name: "a" });
+  });
+
+  test("survives a save that patches another field", () => {
+    writeFileConfig(cwd, { agent_name: "a", auto_start_relay: false, steer_mesh_messages: true });
+    saveLocalConfig(cwd, { agent_name: "b" });
+    expect(loadLocalConfig(cwd)).toEqual({ agent_name: "b", auto_start_relay: false, steer_mesh_messages: true });
+  });
+});
