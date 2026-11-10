@@ -1010,8 +1010,11 @@ class SyncService extends Service {
       return;
     }
     if (_sawRemoteWorking && _working) {
-      _discardStreamingState();
-      _setWorking(false);
+      // `turn_end` (which broadcasts `room_meta_update: {working: false}`)
+      // fires BEFORE `agent_end` (`agent_done`) on the Pi. Finalize any
+      // accumulated streaming chunks into the DB instead of discarding them!
+      final text = _finalizeSegment();
+      _setWorking(false, preview: text.isEmpty ? null : text);
     }
     _sawRemoteWorking = false;
   }
