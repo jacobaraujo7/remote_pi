@@ -55,6 +55,20 @@ QrPairPayload _qr({String? relayUrl}) => QrPairPayload(
     );
 
 void main() {
+  group('pairingTimeoutMessage', () {
+    test('names configured relay and port when canonical QR omits r', () {
+      final message = pairingTimeoutMessage(
+        qr: _qr(),
+        currentRelayUrl: 'http://192.0.2.10:8787/ws',
+      );
+
+      expect(message, contains('http://192.0.2.10:8787/ws'));
+      expect(message, contains('does not include a relay URL'));
+      expect(message, contains('including its port'));
+      expect(message, contains('/remote-pi is still running'));
+    });
+  });
+
   group('performPairing — relay mismatch (plan 14)', () {
     test(
       'throws PairingError(relay_mismatch) when qr.relayUrl differs '
