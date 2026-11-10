@@ -243,9 +243,13 @@ export function installService(vars: RenderVars = defaultRenderVars()): InstallR
     _exec("launchctl", ["bootstrap", `gui/${uid}`, unitPath], log);
     log.push(`activated via launchctl bootstrap gui/${uid}`);
   } else if (plat === "linux") {
-    _exec("systemctl", ["--user", "daemon-reload"], log);
-    _exec("systemctl", ["--user", "enable", "--now", "remote-pi-supervisord.service"], log);
-    log.push("activated via systemctl --user enable --now");
+    try {
+      _exec("systemctl", ["--user", "daemon-reload"], log);
+      _exec("systemctl", ["--user", "enable", "--now", "remote-pi-supervisord.service"], log);
+      log.push("activated via systemctl --user enable --now");
+    } catch {
+      _installNonSystemdLinux(vars, log);
+    }
   } else {
     // windows — Task Scheduler (plan/40). The action runs `wscript.exe
     // <launcher.vbs>` (not node directly) so the supervisor starts hidden,
@@ -297,7 +301,8 @@ export function uninstallService(): UninstallResult {
     log.push("deactivated via launchctl bootout");
   } else if (plat === "linux") {
     _tryExec("systemctl", ["--user", "disable", "--now", "remote-pi-supervisord.service"], log);
-    log.push("deactivated via systemctl --user disable --now");
+    _uninstallNonSystemdLinux(log);
+    log.push("deactivated supervisor service");
   } else {
     // windows — Task Scheduler (plan/40): stop + delete the task. Only
     // `/Delete` modifies the root task store → that's the op that needs admin.
@@ -357,6 +362,79 @@ function _exec(cmd: string, args: string[], log: string[]): void {
  *  is expected (e.g., "unload" before "load" when nothing was loaded). */
 function _tryExec(cmd: string, args: string[], log: string[]): void {
   try { _exec(cmd, args, log); } catch { /* expected, suppress */ }
+}
+
+/** Path of the non-systemd Linux fallback launcher script (`~/.pi/remote/start-supervisord.sh`). */
+export function nonSystemdScriptPath(home: string = homedir()): string {
+  return join(home, ".pi", "remote", "start-supervisord.sh");
+}
+
+function _installNonSystemdLinux(vars: RenderVars, log: string[]): void {
+  const scriptPath = nonSystemdScriptPath(vars.home);
+  mkdirSync(dirname(scriptPath), { recursive: true });
+  mkdirSync(dirname(vars.logPath), { recursive: true });
+  const script = [
+    "#!/bin/sh",
+    `export HOME="${vars.home}"`,
+    `export PATH="${vars.path}"`,
+    `NODE_BIN="${vars.node}"`,
+    `SUPERVISOR_JS="${vars.supervisor}"`,
+    `LOG_FILE="${vars.logPath}"`,
+    'if [ "${1:-}" = "--restart" ]; then',
+    '  pkill -TERM -f \'[d]ist/bin/supervisord\\.js\' 2>/dev/null || true',
+    '  i=0',
+    '  while [ $i -lt 30 ] && pgrep -f \'[d]ist/bin/supervisord\\.js\' >/dev/null 2>&1; do',
+    '    sleep 0.1; i=$((i + 1))',
+    '  done',
+    '  pkill -KILL -f \'[d]ist/bin/supervisord\\.js\' 2>/dev/null || true',
+    'fi',
+    'if pgrep -f \'[d]ist/bin/supervisord\\.js\' >/dev/null 2>&1; then',
+    '  exit 0',
+    'fi',
+    'nohup "$NODE_BIN" "$SUPERVISOR_JS" >> "$LOG_FILE" 2>&1 </dev/null &',
+    "",
+  ].join("\n");
+  writeFileSync(scriptPath, script, { mode: 0o755 });
+  try { chmodSync(scriptPath, 0o755); } catch { /* best-effort */ }
+  log.push(`wrote ${scriptPath} (non-systemd Linux fallback)`);
+
+  try {
+    let currentCron = "";
+    try {
+      currentCron = execFileSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    } catch { /* empty crontab */ }
+    const cronReboot = `@reboot ${scriptPath} >/dev/null 2>&1`;
+    const cronWatchdog = `* * * * * ${scriptPath} >/dev/null 2>&1`;
+    const lines = currentCron.split("\n").filter((l) => !l.includes("start-supervisord.sh"));
+    while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
+    lines.push(cronReboot, cronWatchdog, "");
+    execFileSync("crontab", ["-"], { input: lines.join("\n"), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+    log.push("installed @reboot and 1-min watchdog entries in user crontab");
+  } catch (e) {
+    log.push(`note: could not update user crontab: ${String(e)}`);
+  }
+
+  _exec(scriptPath, ["--restart"], log);
+  log.push(`activated via ${scriptPath} --restart`);
+}
+
+function _uninstallNonSystemdLinux(log: string[]): void {
+  const scriptPath = nonSystemdScriptPath();
+  _tryExec("pkill", ["-f", findSupervisorScript()], log);
+  if (existsSync(scriptPath)) {
+    try {
+      unlinkSync(scriptPath);
+      log.push(`removed ${scriptPath}`);
+    } catch { /* ignore */ }
+  }
+  try {
+    const currentCron = execFileSync("crontab", ["-l"], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    if (currentCron.includes("start-supervisord.sh")) {
+      const lines = currentCron.split("\n").filter((l) => !l.includes("start-supervisord.sh"));
+      execFileSync("crontab", ["-"], { input: lines.join("\n"), encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+      log.push("removed start-supervisord.sh entries from user crontab");
+    }
+  } catch { /* ignore */ }
 }
 
 // ── Windows elevation (plan/40) ────────────────────────────────────────────

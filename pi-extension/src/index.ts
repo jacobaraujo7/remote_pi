@@ -98,7 +98,7 @@ import { addDaemon, listDaemons, removeDaemon } from "./daemon/registry.js";
 import { callSupervisor, supervisorOnline, SupervisorOfflineError } from "./daemon/client.js";
 import type { ControlRequest, DaemonInfo } from "./daemon/control_protocol.js";
 import { EXIT_DAEMON_FRESH_SESSION } from "./daemon/rpc_child.js";
-import { installService, uninstallService, linkCliBinaries, unlinkCliBinaries, LAUNCHD_LABEL, SYSTEMD_UNIT, WINDOWS_TASK_NAME } from "./daemon/install.js";
+import { installService, uninstallService, linkCliBinaries, unlinkCliBinaries, nonSystemdScriptPath, LAUNCHD_LABEL, SYSTEMD_UNIT, WINDOWS_TASK_NAME } from "./daemon/install.js";
 import {
   defaultAgentName,
   effectiveAutoStartRelay,
@@ -5043,6 +5043,16 @@ function _restartSupervisor(): void {
   }
   for (const step of steps) {
     const r = spawnSync(step.cmd, step.args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+    if ((r.error || r.status !== 0) && process.platform === "linux") {
+      const fallback = nonSystemdScriptPath(process.env.HOME);
+      if (existsSync(fallback)) {
+        const fb = spawnSync(fallback, ["--restart"], { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
+        if (!fb.error && fb.status === 0) {
+          console.log("[remote-pi] Supervisor restarted (non-systemd fallback).");
+          return;
+        }
+      }
+    }
     if (r.error) {
       if (step.ignoreFailure) continue;
       console.error(`[remote-pi] restart-supervisor failed: ${step.cmd} not runnable (${r.error.message}). Is the service installed? Run \`remote-pi install\`.`);
