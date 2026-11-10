@@ -3034,7 +3034,7 @@ class CockpitViewModel extends ChangeNotifier
         : path;
   }
 
-  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
+  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (só
   /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
   Future<void> openDiff(
     String path, {
@@ -3098,14 +3098,15 @@ class CockpitViewModel extends ChangeNotifier
     // Reutiliza a aba de preview de diff, se houver.
     if (isPreview && previewCandidate != null) {
       previewCandidate
-        ..path = path
-        ..diff = diff
+        ..replaceDiff(diff, path)
         ..commitHash = commitHash
         ..repoRoot = commitHash == null ? null : root
         ..previousRelativePath = commitHash == null
             ? null
-            : previousRelativePath
-        ..notifyListeners();
+            : previousRelativePath;
+      unawaited(
+        previewCandidate.ensureModifiedContent(loadModifiedDiffContent),
+      );
       _trees[projectId] = updateLeaf(
         tree,
         paneId,
@@ -3162,6 +3163,34 @@ class CockpitViewModel extends ChangeNotifier
       );
     }
     notifyListeners();
+  }
+
+  /// Conteúdo integral da versão direita do diff. Carregado somente quando o
+  /// usuário escolhe Modified content; os hunks não incluem o arquivo todo.
+  Future<String> loadModifiedDiffContent(DiffViewerSession session) async {
+    final path = session.path;
+    final hash = session.commitHash;
+    final root = session.repoRoot ?? rootContaining(session.projectId, path);
+    if (hash != null) {
+      if (root == null) throw const GitContentException();
+      final object = '$hash:${_relativePath(root, path)}';
+      if (_activeRemoteHost() != null) {
+        final result = await (await _activeRemoteGit()).run(root, [
+          'show',
+          object,
+        ]);
+        if (result.code != 0) throw GitContentException(result.stderr.trim());
+        return result.stdout;
+      }
+      return _gitDiff.readCommitContent(root, hash, _relativePath(root, path));
+    }
+    if (_activeRemoteHost() != null) {
+      final host = _activeRemoteHost()!;
+      final service = await _remoteHosts.fileServiceFor(host);
+      return utf8.decode(await service.read(path), allowMalformed: true);
+    }
+    final bytes = await File(path).readAsBytes();
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   /// Abre o diff que um commit introduziu em [relativePath].

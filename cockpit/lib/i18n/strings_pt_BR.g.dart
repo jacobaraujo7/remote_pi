@@ -805,6 +805,10 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String get diffWorkingTree => 'Diretorio de trabalho';
 	@override String get diffBinaryFile => 'Arquivo binario - sem diff de texto.';
 	@override String get diffNoChanges => 'Sem alteracoes.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'Inline';
+	@override String get diffModifiedContent => 'Conteúdo modificado';
+	@override String get diffDeletedContent => 'O arquivo modificado está vazio porque foi removido.';
 	@override String diffError({required Object detail}) => 'Não foi possível ler o diff: ${detail}';
 	@override String get galleryTooltip => 'Galeria';
 	@override String get sectionGallery => 'GALERIA';
@@ -2496,6 +2500,10 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Diretorio de trabalho',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Arquivo binario - sem diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sem alteracoes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Conteúdo modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'O arquivo modificado está vazio porque foi removido.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Não foi possível ler o diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galeria',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERIA',
@@ -2691,12 +2699,12 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -3205,12 +3213,12 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

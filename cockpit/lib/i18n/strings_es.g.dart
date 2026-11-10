@@ -805,6 +805,10 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => 'Directorio de trabajo';
 	@override String get diffBinaryFile => 'Archivo binario - sin diff de texto.';
 	@override String get diffNoChanges => 'Sin cambios.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'En línea';
+	@override String get diffModifiedContent => 'Contenido modificado';
+	@override String get diffDeletedContent => 'El archivo modificado está vacío porque se eliminó.';
 	@override String diffError({required Object detail}) => 'No se pudo leer el diff: ${detail}';
 	@override String get galleryTooltip => 'Galería';
 	@override String get sectionGallery => 'GALERÍA';
@@ -2492,6 +2496,10 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Directorio de trabajo',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Archivo binario - sin diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sin cambios.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'En línea',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Contenido modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'El archivo modificado está vacío porque se eliminó.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'No se pudo leer el diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galería',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERÍA',
@@ -2687,12 +2695,12 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.loadMore' => 'Cargar más',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Insertar',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Elegir base de datos SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nombre',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
@@ -3201,12 +3209,12 @@ extension on TranslationsEs {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'El modelo "${model}" ya no está disponible para ${harness}. Se usará el predeterminado de la CLI; elige otro modelo en Configuración si lo necesitas.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

@@ -1706,6 +1706,18 @@ class Translations$cockpit$fileTreePanel$en {
 	/// en: 'No changes.'
 	String get diffNoChanges => 'No changes.';
 
+	/// en: 'Side by Side'
+	String get diffSideBySide => 'Side by Side';
+
+	/// en: 'Inline'
+	String get diffInline => 'Inline';
+
+	/// en: 'Modified content'
+	String get diffModifiedContent => 'Modified content';
+
+	/// en: 'The modified file is empty because it was deleted.'
+	String get diffDeletedContent => 'The modified file is empty because it was deleted.';
+
 	/// en: 'Could not read the diff: ${detail}'
 	String diffError({required Object detail}) => 'Could not read the diff: ${detail}';
 
@@ -4958,6 +4970,10 @@ extension on Translations {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Side by Side',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Modified content',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'The modified file is empty because it was deleted.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Could not read the diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Gallery',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALLERY',
@@ -5153,12 +5169,12 @@ extension on Translations {
 			'cockpit.dbMongoView.refresh' => 'Refresh',
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5667,12 +5683,12 @@ extension on Translations {
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',

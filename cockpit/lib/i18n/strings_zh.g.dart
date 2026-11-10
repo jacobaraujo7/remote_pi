@@ -727,6 +727,10 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => '工作树';
 	@override String get diffBinaryFile => '二进制文件——没有文本差异。';
 	@override String get diffNoChanges => '没有更改。';
+	@override String get diffSideBySide => '并排显示';
+	@override String get diffInline => '行内显示';
+	@override String get diffModifiedContent => '修改后的内容';
+	@override String get diffDeletedContent => '文件已删除，修改后的内容为空。';
 	@override String diffError({required Object detail}) => '无法读取差异：${detail}';
 	@override String get galleryTooltip => '画廊';
 	@override String get sectionGallery => '画廊';
@@ -2411,6 +2415,10 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.diffWorkingTree' => '工作树',
 			'cockpit.fileTreePanel.diffBinaryFile' => '二进制文件——没有文本差异。',
 			'cockpit.fileTreePanel.diffNoChanges' => '没有更改。',
+			'cockpit.fileTreePanel.diffSideBySide' => '并排显示',
+			'cockpit.fileTreePanel.diffInline' => '行内显示',
+			'cockpit.fileTreePanel.diffModifiedContent' => '修改后的内容',
+			'cockpit.fileTreePanel.diffDeletedContent' => '文件已删除，修改后的内容为空。',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => '无法读取差异：${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => '画廊',
 			'cockpit.fileTreePanel.sectionGallery' => '画廊',
@@ -2606,12 +2614,12 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
 			'cockpit.dbConnectionDialog.file' => '文件',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => '选择一个 SQLite 文件…',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.name' => '名称',
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3120,12 +3128,12 @@ extension on TranslationsZh {
 			'settings.remoteHosts.description' => '通过 SSH 访问的机器。在这里添加主机与从工作区「+」菜单添加效果相同。',
 			'settings.remoteHosts.empty' => '还没有远程主机。',
 			'settings.remoteHosts.add' => '添加主机',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.edit' => '编辑',
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
