@@ -61,6 +61,24 @@ void main() {
     expect(removed.newLine, isNull);
   });
 
+  test('diff aberto não regrava o index ao consultar status', () async {
+    if (!await gitAvailable()) {
+      markTestSkipped('git não disponível');
+      return;
+    }
+    final index = File('${repo.path}/.git/index');
+    final original = DateTime.utc(2020);
+    await index.setLastModified(original);
+    await File(
+      '${repo.path}/a.txt',
+    ).setLastModified(DateTime.now().add(const Duration(seconds: 2)));
+
+    final diff = await reader.read(repo.path, '${repo.path}/a.txt');
+
+    expect(diff.kind, FileDiffKind.unchanged);
+    expect(await index.lastModified(), original);
+  });
+
   test('diff historico → mudanca introduzida pelo commit', () async {
     if (!await gitAvailable()) {
       markTestSkipped('git nao disponivel');
