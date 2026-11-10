@@ -24,6 +24,25 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.24] - 2026-11-09
+
+### Changed
+- Agent Orchestration (`.orc`) redesigned: no toolbar; the footer shows the file path, the selected terminal, the graph legend, reload and the List | Graph switch. The terminal appears only while a definition is selected, centered with a maximum width on wide screens, and hides with Esc, its close button or a click on the background. Internal tabs are gone: the list and the graph are the navigation
+- `.orc` configuration opens as a centered dialog with the portable fields only (name, function, tool, model, directory, connections); session actions (start shell or CLI, compact, handoff, copy function, close) moved to the terminal header menu. "Box" is now called "Terminal"
+- Fonts used by the app are bundled; the app no longer downloads them at startup, so offline machines render the intended typefaces (#61)
+- Linux RPM package is named `remote-pi-cockpit`, matching the deb (#198)
+
+### Added
+- HTTP Client: expanded request editor and workflow (#304)
+- Cut the whole line with Cmd/Ctrl+X when nothing is selected (#285)
+
+### Fixed
+- Pasting attachments into a terminal: the confirmation notice now disappears after a few seconds instead of staying forever
+- Pasting a URL into a terminal is no longer treated as a file path (macOS pasteboard returned the URL as a path, which failed to import)
+- Files open in the workspace that contains them (#307)
+- The native image paste notice is hidden (#275)
+- Pane tools (browser, split, close) no longer sit against the "+" button on macOS and Linux
+
 ## [2.1.23] - 2026-10-31
 
 ### Added

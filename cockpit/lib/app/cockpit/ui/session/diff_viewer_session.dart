@@ -1,4 +1,5 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:path/path.dart' as p;
 
@@ -51,6 +52,14 @@ class DiffViewerSession extends PaneItem {
   /// fixa).
   bool isPreview;
 
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
   DiffViewMode viewMode = DiffViewMode.sideBySide;
   String? modifiedContent;
   String? modifiedContentError;
@@ -78,17 +87,39 @@ class DiffViewerSession extends PaneItem {
   }
 
   void completeModifiedContentLoad(FileDiff expectedDiff, String content) {
-    if (!identical(diff, expectedDiff)) return;
+    if (_disposed || !identical(diff, expectedDiff)) return;
     modifiedContent = content;
     loadingModifiedContent = false;
     notifyListeners();
   }
 
   void failModifiedContentLoad(FileDiff expectedDiff, Object error) {
-    if (!identical(diff, expectedDiff)) return;
-    modifiedContentError = error.toString();
+    if (_disposed || !identical(diff, expectedDiff)) return;
+    modifiedContentError = error is GitContentException ? error.detail : '';
     loadingModifiedContent = false;
     notifyListeners();
+  }
+
+  Future<void> ensureModifiedContent(
+    Future<String> Function(DiffViewerSession) load,
+  ) async {
+    if (_disposed ||
+        viewMode != DiffViewMode.modifiedContent ||
+        diff.kind == FileDiffKind.deleted ||
+        diff.kind == FileDiffKind.binary ||
+        diff.kind == FileDiffKind.error ||
+        diff.kind == FileDiffKind.unchanged ||
+        modifiedContent != null ||
+        loadingModifiedContent) {
+      return;
+    }
+    final expected = diff;
+    startModifiedContentLoad();
+    try {
+      completeModifiedContentLoad(expected, await load(this));
+    } catch (error) {
+      failModifiedContentLoad(expected, error);
+    }
   }
 
   void pin() {

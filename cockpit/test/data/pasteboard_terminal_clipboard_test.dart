@@ -63,4 +63,31 @@ void main() {
       await expectLater(clipboard.read(), throwsA(isA<PlatformException>()));
     });
   }, skip: !Platform.isWindows);
+
+  group('existingFiles', () {
+    test(
+      'drops paths that are not on disk (http URL read as NSURL.path)',
+      () async {
+        final dir = await Directory.systemTemp.createTemp('cockpit-clip-');
+        final real = File('${dir.path}/doc.pdf')..writeAsStringSync('x');
+        try {
+          expect(
+            PasteboardTerminalClipboard.existingFiles([
+              '/jacobaraujo7/remote_pi', // https://github.com/jacobaraujo7/remote_pi
+              real.path,
+              dir.path,
+              Uri.file(real.path).toString(),
+              'file:///definitely/missing.txt',
+            ]),
+            [real.path, dir.path, Uri.file(real.path).toString()],
+          );
+        } finally {
+          await dir.delete(recursive: true);
+        }
+      },
+    );
+    test('malformed file: URI is ignored instead of throwing', () {
+      expect(PasteboardTerminalClipboard.existingFiles(['file:%zz']), isEmpty);
+    });
+  });
 }

@@ -67,22 +67,7 @@ class DiffViewer extends StatelessWidget {
 
   void _selectMode(DiffViewMode mode) {
     session.setViewMode(mode);
-    if (mode != DiffViewMode.modifiedContent ||
-        session.diff.kind == FileDiffKind.deleted ||
-        session.diff.kind == FileDiffKind.binary ||
-        session.modifiedContent != null ||
-        session.loadingModifiedContent) {
-      return;
-    }
-    final diff = session.diff;
-    session.startModifiedContentLoad();
-    loadModifiedContent(session)
-        .then((content) {
-          session.completeModifiedContentLoad(diff, content);
-        })
-        .catchError((Object error) {
-          session.failModifiedContentLoad(diff, error);
-        });
+    session.ensureModifiedContent(loadModifiedContent);
   }
 }
 
@@ -210,6 +195,8 @@ List<_Item> _inlineItems(List<DiffHunk> hunks) => [
   ],
 ];
 
+const double _diffLineHeight = 22; // Matches the 12.5px monospace diff rows.
+
 double _measuredSideWidth(BuildContext context, FileDiff diff) =>
     _measuredTextWidth(context, [
       for (final hunk in diff.hunks)
@@ -301,6 +288,10 @@ class _DiffBodyState extends State<_DiffBody> {
   /// muda, não a cada `build()`.
   late List<_Item> _items;
   late List<_Item> _inline;
+  double? _sideWidth;
+  double? _modifiedWidth;
+  String? _cachedModifiedContent;
+  List<String> _modifiedLines = const [];
   final ScrollController _horizontal = ScrollController();
   late final ScrollController _leftHorizontal;
   late final ScrollController _rightHorizontal;
@@ -356,9 +347,17 @@ class _DiffBodyState extends State<_DiffBody> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _sideWidth = null;
+    _modifiedWidth = null;
+  }
+
+  @override
   void didUpdateWidget(_DiffBody old) {
     super.didUpdateWidget(old);
     if (!identical(old.diff, widget.diff)) {
+      _sideWidth = null;
       _items = _buildDiffItems(widget.diff.hunks);
       _inline = _inlineItems(widget.diff.hunks);
     }
@@ -421,7 +420,7 @@ class _DiffBodyState extends State<_DiffBody> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final avail = constraints.maxWidth;
-          final measured = _measuredSideWidth(context, diff);
+          final measured = (_sideWidth ??= _measuredSideWidth(context, diff));
           // Inline tem dois gutters numéricos e o marcador +/- em vez de um.
           final width = avail.clamp(measured + 60, double.infinity);
 
@@ -481,7 +480,7 @@ class _DiffBodyState extends State<_DiffBody> {
         builder: (context, constraints) {
           final viewportWidth = (constraints.maxWidth - 1) / 2;
           final contentWidth = viewportWidth.clamp(
-            _measuredSideWidth(context, diff),
+            (_sideWidth ??= _measuredSideWidth(context, diff)),
             double.infinity,
           );
           return Row(
@@ -566,7 +565,7 @@ class _DiffBodyState extends State<_DiffBody> {
                     width: contentWidth,
                   ),
                   _RowItem(:final row) => SizedBox(
-                    height: 22,
+                    height: _diffLineHeight,
                     child: _Side(
                       line: side == _SideKind.old ? row.left : row.right,
                       side: side,
@@ -605,14 +604,21 @@ class _DiffBodyState extends State<_DiffBody> {
   }
 
   Widget _modifiedBody(BuildContext context, String content) {
-    final lines = content.split('\n');
-    if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
+    if (_cachedModifiedContent != content) {
+      _cachedModifiedContent = content;
+      _modifiedLines = content.split('\n');
+      if (_modifiedLines.isNotEmpty && _modifiedLines.last.isEmpty) {
+        _modifiedLines.removeLast();
+      }
+      _modifiedWidth = null;
+    }
+    final lines = _modifiedLines;
     return ColoredBox(
       color: context.colors.bg,
       child: LayoutBuilder(
         builder: (context, constraints) {
           final width = constraints.maxWidth.clamp(
-            _measuredTextWidth(context, lines),
+            (_modifiedWidth ??= _measuredTextWidth(context, lines)),
             double.infinity,
           );
           return _scrollable(

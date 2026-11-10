@@ -41,6 +41,24 @@ void main() {
 
   Widget host(FileDiff diff) => hostSession(sessionWith(diff));
 
+  test('completion after session disposal is ignored', () async {
+    final diff = FileDiff(
+      path: '/repo/a.txt',
+      kind: FileDiffKind.modified,
+      hunks: const [],
+    );
+    final session = sessionWith(diff);
+    session.dispose();
+    expect(
+      () => session.completeModifiedContentLoad(diff, 'late'),
+      returnsNormally,
+    );
+    expect(
+      () => session.failModifiedContentLoad(diff, StateError('late')),
+      returnsNormally,
+    );
+  });
+
   testWidgets('modified diff renderiza sem exceção de layout', (tester) async {
     final diff = FileDiff(
       path: '/repo/a.txt',

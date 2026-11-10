@@ -23,3 +23,9 @@ abstract class GitDiffReader {
     String relativePath,
   );
 }
+
+/// Details from a failed Git content read, formatted by the UI.
+class GitContentException implements Exception {
+  const GitContentException([this.detail = '']);
+  final String detail;
+}

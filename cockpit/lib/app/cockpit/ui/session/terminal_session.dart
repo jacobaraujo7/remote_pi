@@ -44,6 +44,7 @@ class TerminalSession extends PaneItem {
     this.attachmentService,
     this.attachmentProjectRoot = '',
     this.attachmentsRemote = false,
+    this.attachmentFeedbackTtl = const Duration(seconds: 6),
     String? title,
     Map<String, String> spawnEnv = const <String, String>{},
     Iterable<String> redactSecrets = const <String>[],
@@ -527,7 +528,15 @@ class TerminalSession extends PaneItem {
   TerminalAttachmentFeedback? attachmentFeedback;
   Future<void> _attachmentQueue = Future<void>.value();
 
+  /// Quanto tempo o aviso de anexo ("Local references inserted.") fica na
+  /// tela antes de sumir sozinho. Falhas ficam 3x mais; "importing" fica até
+  /// ser substituído. Antes o aviso só saía pelo X e ficava lá para sempre.
+  final Duration attachmentFeedbackTtl;
+  Timer? _attachmentFeedbackTimer;
+
   void clearAttachmentFeedback() {
+    _attachmentFeedbackTimer?.cancel();
+    _attachmentFeedbackTimer = null;
     if (_disposed) return;
     attachmentFeedback = null;
     notifyListeners();
@@ -535,11 +544,23 @@ class TerminalSession extends PaneItem {
 
   void _reportAttachment(TerminalAttachmentFeedback feedback) {
     if (_disposed) return;
+    _attachmentFeedbackTimer?.cancel();
+    _attachmentFeedbackTimer = null;
     // A native image paste shows up in the agent's own prompt, so a banner
     // saying so is noise. Clear any "importing" status instead.
     attachmentFeedback = feedback.notice == TerminalAttachmentNotice.nativeImage
         ? null
         : feedback;
+    final ttl = switch (feedback.notice) {
+      TerminalAttachmentNotice.referenced => attachmentFeedbackTtl,
+      TerminalAttachmentNotice.failed ||
+      TerminalAttachmentNotice.remoteUnavailable => attachmentFeedbackTtl * 3,
+      TerminalAttachmentNotice.importing ||
+      TerminalAttachmentNotice.nativeImage => null,
+    };
+    if (ttl != null) {
+      _attachmentFeedbackTimer = Timer(ttl, clearAttachmentFeedback);
+    }
     if (kDebugMode && feedback.notice != TerminalAttachmentNotice.importing) {
       DiagnosticsLog.instance.log(
         'terminal-attachments',
@@ -738,6 +759,7 @@ class TerminalSession extends PaneItem {
     _notifyDebounce?.cancel();
     _saveDebounce.dispose();
     _startupTimer?.cancel();
+    _attachmentFeedbackTimer?.cancel();
     for (final t in _harnessKickTimers) {
       t.cancel();
     }

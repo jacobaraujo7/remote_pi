@@ -27,7 +27,7 @@ class GitDiffReaderImpl implements GitDiffReader {
       '$commitHash:$relativePath',
     ], stdoutEncoding: utf8);
     if (result.exitCode != 0) {
-      throw StateError(result.stderr.toString());
+      throw GitContentException(result.stderr.toString().trim());
     }
     return result.stdout as String;
   }

@@ -258,14 +258,14 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 
 	// Translations
 	@override String get terminals => 'Terminales';
-	@override String get boxes => 'Boxes';
+	@override String get boxes => 'Lista';
 	@override String get graph => 'Grafo';
 	@override String get newTerminal => 'Nuevo terminal';
-	@override String get configure => 'Configurar box';
+	@override String get configure => 'Configurar terminal';
 	@override String get closeInspector => 'Cerrar inspector';
 	@override String get search => 'Buscar nombre o función';
 	@override String get allStates => 'Todos los estados';
-	@override String get name => 'Box';
+	@override String get name => 'Terminal';
 	@override String get state => 'Estado';
 	@override String get tool => 'Herramienta';
 	@override String get role => 'Función';
@@ -281,10 +281,10 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 	@override String get disconnected => 'Desconectado';
 	@override String get unavailable => 'No disponible';
 	@override String get noRole => 'Añadir función';
-	@override String get noBoxes => 'Todavía no hay boxes';
-	@override String get noMatches => 'Ninguna box coincide';
+	@override String get noBoxes => 'Aún no hay terminales';
+	@override String get noMatches => 'Ningún terminal coincide con la búsqueda';
 	@override String get selectBox => 'Selecciona una box para ver el terminal';
-	@override String get noSession => 'Esta box no tiene sesión de terminal';
+	@override String get noSession => 'Este terminal no tiene sesión';
 	@override String get startShell => 'Iniciar terminal';
 	@override String get openTerminal => 'Abrir en Terminales';
 	@override String get save => 'Guardar';
@@ -302,16 +302,21 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 	@override String get planned => 'Conexión planificada';
 	@override String get observed => 'Actividad observada';
 	@override String get temporary => 'Subagente temporal';
-	@override String get linkBoxes => 'Conectar boxes';
+	@override String get linkBoxes => 'Conectar terminales';
 	@override String get selectEndpoints => 'Selecciona origen y destino';
 	@override String get zoomFit => 'Restablecer zoom';
 	@override String get session => 'Sesión';
 	@override String get configuration => 'Configuración';
-	@override String get nameRequired => 'Introduce un nombre';
+	@override String get nameRequired => 'Escribe un nombre para el terminal';
 	@override String get removeLink => 'Eliminar conexión';
 	@override String get handoffSummary => 'Resumen';
 	@override String get copyRole => 'Copiar función';
 	@override String get showInspector => 'Mostrar inspector';
+	@override String get addConnection => 'Conectar con otro terminal';
+	@override String get actions => 'Acciones';
+	@override String get closeTerminal => 'Ocultar terminal';
+	@override String get legend => 'Leyenda';
+	@override String get portableHint => 'Se guarda en el archivo .orc. Las acciones de sesión están en el menú del terminal.';
 }
 
 // Path: terminalAttachment
@@ -362,6 +367,7 @@ class _Translations$orchestration$es extends Translations$orchestration$en {
 	@override String get roleChanged => 'El terminal o documento cambió. Consulta de nuevo.';
 	@override String get roleTimeout => 'El agente no respondió a tiempo. Reintenta o completa la función manualmente.';
 	@override String get roleInvalid => 'El agente devolvió una función no válida.';
+	@override String get noBoxSelected => 'Selecciona un terminal en la lista o el grafo para trabajar en él.';
 }
 
 // Path: core.bootstrapError
@@ -944,18 +950,39 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	@override String get saveRequestAs => 'Guardar request como';
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
+	@override String get runAll => 'Ejecutar todos';
+	@override String get expandToEdit => 'Expandir para editar';
+	@override String get noMatchingVariables => 'No hay variables coincidentes';
+	@override String get noScriptSuggestions => 'No hay sugerencias para esta expresión';
 	@override String get running => 'Ejecutando…';
+	@override String get noEnvironment => 'No Environment';
+	@override String get overrideTemporary => 'Temporal';
+	@override String get overrideFile => 'Archivo HTTP';
+	@override String get overrideEnvironment => 'Entorno';
+	@override String get overrideGlobal => 'Global';
+	@override String get overrideRestore => 'Restaurar';
+	@override String get overrideApply => 'Aplicar';
+	@override String get overrideInvalidNumber => 'Número no válido';
+	@override String get overrideNonFiniteNumber => 'Introduce un número finito';
+	@override String get overrideInvalidBoolean => 'Usa true o false';
+	@override String get overrideInvalidJson => 'JSON no válido';
+	@override String unresolvedVariableNoEnvironment({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.';
+	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.';
 	@override String get noRequests => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com';
 	@override String get selectRequest => 'Seleccionar request';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n,
 		one: '1 request',
 		other: '${n} requests',
 	);
-	@override String get runHint => 'Ejecuta el request (⌘↵) para ver la respuesta aquí.';
+	@override String get runHint => 'Ejecuta este request para ver su respuesta aquí.';
 	@override String get emptyBody => 'Cuerpo de la respuesta vacío.';
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
 	@override String get raw => 'Text';
+	@override String get tests => 'Pruebas';
+	@override String get script => 'Script';
+	@override String get noTests => 'No hay pruebas registradas.';
+	@override String get noScriptOutput => 'El script no produjo ninguna salida.';
 	@override String get truncatedSuffix => ' · truncado (respuesta demasiado grande)';
 	@override late final _Translations$cockpit$httpView$error$es error = _Translations$cockpit$httpView$error$es._(_root);
 }
@@ -2551,15 +2578,36 @@ extension on TranslationsEs {
 			'cockpit.httpView.saveRequestAs' => 'Guardar request como',
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
+			'cockpit.httpView.runAll' => 'Ejecutar todos',
+			'cockpit.httpView.expandToEdit' => 'Expandir para editar',
+			'cockpit.httpView.noMatchingVariables' => 'No hay variables coincidentes',
+			'cockpit.httpView.noScriptSuggestions' => 'No hay sugerencias para esta expresión',
 			'cockpit.httpView.running' => 'Ejecutando…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporal',
+			'cockpit.httpView.overrideFile' => 'Archivo HTTP',
+			'cockpit.httpView.overrideEnvironment' => 'Entorno',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restaurar',
+			'cockpit.httpView.overrideApply' => 'Aplicar',
+			'cockpit.httpView.overrideInvalidNumber' => 'Número no válido',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Introduce un número finito',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Usa true o false',
+			'cockpit.httpView.overrideInvalidJson' => 'JSON no válido',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'No hay ningún entorno seleccionado. No se puede resolver la variable \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'La variable \'${name}\' no está definida en el entorno \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Ningún request en este archivo — escribe uno, p. ej.: GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Seleccionar request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Ejecuta el request (⌘↵) para ver la respuesta aquí.',
+			'cockpit.httpView.runHint' => 'Ejecuta este request para ver su respuesta aquí.',
 			'cockpit.httpView.emptyBody' => 'Cuerpo de la respuesta vacío.',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Pruebas',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'No hay pruebas registradas.',
+			'cockpit.httpView.noScriptOutput' => 'El script no produjo ninguna salida.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncado (respuesta demasiado grande)',
 			'cockpit.httpView.error.title' => 'Falló el request',
 			'cockpit.httpView.error.noRequest' => 'No se encontró ningún request en la posición del cursor.',
@@ -2647,6 +2695,8 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.loadMore' => 'Cargar más',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Insertar',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Elegir base de datos SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
@@ -2668,8 +2718,6 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Puerto SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuario SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.privateKey' => 'Clave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Elige una clave privada…',
 			'cockpit.dbConnectionDialog.choosePrivateKeyDialogTitle' => 'Elegir clave privada SSH',
@@ -3161,6 +3209,8 @@ extension on TranslationsEs {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'El modelo "${model}" ya no está disponible para ${harness}. Se usará el predeterminado de la CLI; elige otro modelo en Configuración si lo necesitas.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
@@ -3182,8 +3232,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.helpTitle' => 'Cómo funciona',
 			'settings.remoteHosts.helpBody' => 'Cockpit se conecta a tu máquina por SSH y habla con un pequeño servidor que ejecuta las terminales, archivos y git allí. El host debe tener Cockpit (escritorio) o el cockpit-server instalado y en ejecución, y la clave pública de este dispositivo añadida en su ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} no está instalado o no está en el PATH.',
-			_ => null,
-		} ?? switch (path) {
 			'automation.error.modelUnavailable' => ({required Object model, required Object harness}) => 'El modelo "${model}" no está disponible para ${harness}. Elige otro modelo en Configuración.',
 			'automation.error.authentication' => ({required Object harness, required Object detail}) => '${harness}: ${detail}',
 			'automation.error.timeout' => ({required Object harness, required Object seconds}) => '${harness} no respondió en ${seconds} segundos.',
@@ -3274,14 +3322,14 @@ extension on TranslationsEs {
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconocido en "extends".',
 			'theme.error.noVariants' => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".',
 			'workspaceView.terminals' => 'Terminales',
-			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.boxes' => 'Lista',
 			'workspaceView.graph' => 'Grafo',
 			'workspaceView.newTerminal' => 'Nuevo terminal',
-			'workspaceView.configure' => 'Configurar box',
+			'workspaceView.configure' => 'Configurar terminal',
 			'workspaceView.closeInspector' => 'Cerrar inspector',
 			'workspaceView.search' => 'Buscar nombre o función',
 			'workspaceView.allStates' => 'Todos los estados',
-			'workspaceView.name' => 'Box',
+			'workspaceView.name' => 'Terminal',
 			'workspaceView.state' => 'Estado',
 			'workspaceView.tool' => 'Herramienta',
 			'workspaceView.role' => 'Función',
@@ -3297,10 +3345,10 @@ extension on TranslationsEs {
 			'workspaceView.disconnected' => 'Desconectado',
 			'workspaceView.unavailable' => 'No disponible',
 			'workspaceView.noRole' => 'Añadir función',
-			'workspaceView.noBoxes' => 'Todavía no hay boxes',
-			'workspaceView.noMatches' => 'Ninguna box coincide',
+			'workspaceView.noBoxes' => 'Aún no hay terminales',
+			'workspaceView.noMatches' => 'Ningún terminal coincide con la búsqueda',
 			'workspaceView.selectBox' => 'Selecciona una box para ver el terminal',
-			'workspaceView.noSession' => 'Esta box no tiene sesión de terminal',
+			'workspaceView.noSession' => 'Este terminal no tiene sesión',
 			'workspaceView.startShell' => 'Iniciar terminal',
 			'workspaceView.openTerminal' => 'Abrir en Terminales',
 			'workspaceView.save' => 'Guardar',
@@ -3318,16 +3366,21 @@ extension on TranslationsEs {
 			'workspaceView.planned' => 'Conexión planificada',
 			'workspaceView.observed' => 'Actividad observada',
 			'workspaceView.temporary' => 'Subagente temporal',
-			'workspaceView.linkBoxes' => 'Conectar boxes',
+			'workspaceView.linkBoxes' => 'Conectar terminales',
 			'workspaceView.selectEndpoints' => 'Selecciona origen y destino',
 			'workspaceView.zoomFit' => 'Restablecer zoom',
 			'workspaceView.session' => 'Sesión',
 			'workspaceView.configuration' => 'Configuración',
-			'workspaceView.nameRequired' => 'Introduce un nombre',
+			'workspaceView.nameRequired' => 'Escribe un nombre para el terminal',
 			'workspaceView.removeLink' => 'Eliminar conexión',
 			'workspaceView.handoffSummary' => 'Resumen',
 			'workspaceView.copyRole' => 'Copiar función',
 			'workspaceView.showInspector' => 'Mostrar inspector',
+			'workspaceView.addConnection' => 'Conectar con otro terminal',
+			'workspaceView.actions' => 'Acciones',
+			'workspaceView.closeTerminal' => 'Ocultar terminal',
+			'workspaceView.legend' => 'Leyenda',
+			'workspaceView.portableHint' => 'Se guarda en el archivo .orc. Las acciones de sesión están en el menú del terminal.',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando adjuntos: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Pegado de imagen solicitado al agente.',
 			'terminalAttachment.referenced' => 'Referencias locales insertadas.',
@@ -3360,6 +3413,7 @@ extension on TranslationsEs {
 			'orchestration.roleChanged' => 'El terminal o documento cambió. Consulta de nuevo.',
 			'orchestration.roleTimeout' => 'El agente no respondió a tiempo. Reintenta o completa la función manualmente.',
 			'orchestration.roleInvalid' => 'El agente devolvió una función no válida.',
+			'orchestration.noBoxSelected' => 'Selecciona un terminal en la lista o el grafo para trabajar en él.',
 			_ => null,
 		};
 	}

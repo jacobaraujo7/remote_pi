@@ -7,11 +7,12 @@ list(APPEND FLUTTER_PLUGIN_LIST
   desktop_multi_window
   flutter_secure_storage_linux
   media_kit_libs_linux
+  media_kit_video
   pasteboard
+  quickjs_engine
   screen_retriever_linux
   url_launcher_linux
   volume_controller
-  media_kit_video
   window_manager
 )
 

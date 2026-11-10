@@ -498,6 +498,9 @@ class CockpitViewModel extends ChangeNotifier
   final Map<String, Map<String, dynamic>?> _savedLayouts =
       <String, Map<String, dynamic>?>{};
 
+  /// Ambiente HTTP escolhido por arquivo, inclusive para abas já fechadas.
+  final Map<String, Map<String, String>> _httpEnvironments = {};
+
   final Map<String, OrchestrationSession> _orchestrations = {};
   final Map<String, Future<void>> _orchestrationOpens = {};
   void Function()? _detachNativeOrchestration;
@@ -1916,6 +1919,27 @@ class CockpitViewModel extends ChangeNotifier
     _scheduleSave(s.projectId);
   }
 
+  /// Persiste o ambiente escolhido para a aba `.http` no layout do projeto.
+  void setHttpEnvironment(String sessionId, String? environment) {
+    final s = _sessions[sessionId];
+    if (s is! FileViewerSession) return;
+    final byPath = _httpEnvironments.putIfAbsent(s.projectId, () => {});
+    if (environment == null) {
+      byPath.remove(s.path);
+    } else {
+      byPath[s.path] = environment;
+    }
+    for (final other in _sessions.values.whereType<FileViewerSession>()) {
+      if (other.projectId == s.projectId && other.path == s.path) {
+        other.setHttpEnvironment(environment);
+      }
+    }
+    _scheduleSave(s.projectId);
+  }
+
+  String? httpEnvironmentFor(String projectId, String path) =>
+      _httpEnvironments[projectId]?[path];
+
   /// Adota o `title:` do frontmatter de um `.kanban` como rótulo da aba.
   ///
   /// Chamado em todo ponto onde a `view` de um viewer é preenchida (abrir,
@@ -2766,7 +2790,10 @@ class CockpitViewModel extends ChangeNotifier
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
     try {
-      return await url_launcher.launchUrl(uri);
+      return await url_launcher.launchUrl(
+        uri,
+        mode: url_launcher.LaunchMode.externalApplication,
+      );
     } on PlatformException {
       return false;
     }
@@ -3077,23 +3104,9 @@ class CockpitViewModel extends ChangeNotifier
         ..previousRelativePath = commitHash == null
             ? null
             : previousRelativePath;
-      if (previewCandidate.viewMode == DiffViewMode.modifiedContent &&
-          diff.kind != FileDiffKind.deleted &&
-          diff.kind != FileDiffKind.binary &&
-          diff.kind != FileDiffKind.error &&
-          diff.kind != FileDiffKind.unchanged) {
-        final target = previewCandidate;
-        target.startModifiedContentLoad();
-        unawaited(
-          loadModifiedDiffContent(target)
-              .then(
-                (content) => target.completeModifiedContentLoad(diff, content),
-              )
-              .catchError(
-                (Object error) => target.failModifiedContentLoad(diff, error),
-              ),
-        );
-      }
+      unawaited(
+        previewCandidate.ensureModifiedContent(loadModifiedDiffContent),
+      );
       _trees[projectId] = updateLeaf(
         tree,
         paneId,
@@ -3159,14 +3172,14 @@ class CockpitViewModel extends ChangeNotifier
     final hash = session.commitHash;
     final root = session.repoRoot ?? rootContaining(session.projectId, path);
     if (hash != null) {
-      if (root == null) throw StateError('Repository unavailable');
+      if (root == null) throw const GitContentException();
       final object = '$hash:${_relativePath(root, path)}';
       if (_activeRemoteHost() != null) {
         final result = await (await _activeRemoteGit()).run(root, [
           'show',
           object,
         ]);
-        if (result.code != 0) throw StateError(result.stderr);
+        if (result.code != 0) throw GitContentException(result.stderr.trim());
         return result.stdout;
       }
       return _gitDiff.readCommitContent(root, hash, _relativePath(root, path));
@@ -7285,6 +7298,14 @@ class CockpitViewModel extends ChangeNotifier
       _savedLayouts[id] = await _layoutStore.load(id);
     }
     final doc = _savedLayouts[id];
+    final savedHttpEnvironments = doc?['httpEnvironments'];
+    _httpEnvironments[id] = savedHttpEnvironments is Map
+        ? {
+            for (final entry in savedHttpEnvironments.entries)
+              if (entry.key is String && entry.value is String)
+                entry.key as String: entry.value as String,
+          }
+        : {};
     _loadGraph(id, doc);
     if (doc == null) {
       _initTree(id); // síncrono — pane vazia padrão
@@ -7447,6 +7468,12 @@ class CockpitViewModel extends ChangeNotifier
         view: view,
       );
       viewer.boardAsList = desc['boardAsList'] as bool? ?? false;
+      viewer.httpEnvironment =
+          desc['httpEnvironment'] as String? ?? httpEnvironmentFor(id, path);
+      if (viewer.httpEnvironment != null) {
+        _httpEnvironments.putIfAbsent(id, () => {})[path] =
+            viewer.httpEnvironment!;
+      }
       viewer.rawSource = desc['rawSource'] as bool? ?? false;
       viewer.restoreManualLabel(desc['label'] as String?);
       _applyKanbanBoardTitle(viewer);
@@ -7763,6 +7790,8 @@ class CockpitViewModel extends ChangeNotifier
       'focused': _focused[projectId],
       'tree': paneNodeToJson(tree),
       'sessions': sessions,
+      if (_httpEnvironments[projectId]?.isNotEmpty == true)
+        'httpEnvironments': _httpEnvironments[projectId],
       // Toggle de worktrees do rail (V37) — mora no mesmo doc do layout, então
       // sobrevive à sessão sem inventar outro store.
       kWorktreesExpandedKey: worktreesExpanded(projectId),
@@ -7921,6 +7950,7 @@ class CockpitViewModel extends ChangeNotifier
         // Preferências de visualização da aba: sem elas, um quadro deixado em
         // lista (ou em markdown cru) voltava no modo padrão a cada reinício.
         if (s.boardAsList) 'boardAsList': true,
+        if (s.httpEnvironment != null) 'httpEnvironment': s.httpEnvironment,
         if (s.rawSource) 'rawSource': true,
         if (s.manualLabel != null) 'label': s.manualLabel,
       };
