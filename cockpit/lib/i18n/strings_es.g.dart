@@ -699,9 +699,6 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openAsHtml => 'Abrir como HTML';
 	@override String get openAsJson => 'Abrir como JSON';
 	@override String get openAsOrchestration => 'Abrir como orquestación';
-	@override String get revealInFinder => 'Abrir ubicación en Finder';
-	@override String get revealInExplorer => 'Abrir ubicación en el Explorador';
-	@override String get revealInFileManager => 'Abrir en el gestor de archivos';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2398,9 +2395,6 @@ extension on TranslationsEs {
 			'cockpit.paneView.openAsHtml' => 'Abrir como HTML',
 			'cockpit.paneView.openAsJson' => 'Abrir como JSON',
 			'cockpit.paneView.openAsOrchestration' => 'Abrir como orquestación',
-			'cockpit.paneView.revealInFinder' => 'Abrir ubicación en Finder',
-			'cockpit.paneView.revealInExplorer' => 'Abrir ubicación en el Explorador',
-			'cockpit.paneView.revealInFileManager' => 'Abrir en el gestor de archivos',
 			'cockpit.fileTreePanel.viewDiff' => 'Ver Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage y Commit',
@@ -2694,11 +2688,11 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Insertar',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Elegir base de datos SQLite',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
 			'cockpit.dbConnectionDialog.name' => 'Nombre',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
@@ -3208,11 +3202,11 @@ extension on TranslationsEs {
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

@@ -116,7 +116,7 @@ class AppLauncherImpl implements AppLauncherGateway {
       if (isDir) {
         await Process.run('explorer', [winPath]);
       } else if (isFile) {
-        await Process.run('explorer', ['/select,$winPath']);
+        await Process.run('explorer', ['/select,', winPath]);
       } else {
         final parent = File(path).parent.path;
         if (await Directory(parent).exists()) {

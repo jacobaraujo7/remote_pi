@@ -699,9 +699,6 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openAsHtml => 'Abrir como HTML';
 	@override String get openAsJson => 'Abrir como JSON';
 	@override String get openAsOrchestration => 'Abrir como orquestração';
-	@override String get revealInFinder => 'Abrir local no Finder';
-	@override String get revealInExplorer => 'Abrir local no Explorer';
-	@override String get revealInFileManager => 'Abrir no gerenciador de arquivos';
 }
 
 // Path: cockpit.fileTreePanel
@@ -2402,9 +2399,6 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openAsHtml' => 'Abrir como HTML',
 			'cockpit.paneView.openAsJson' => 'Abrir como JSON',
 			'cockpit.paneView.openAsOrchestration' => 'Abrir como orquestração',
-			'cockpit.paneView.revealInFinder' => 'Abrir local no Finder',
-			'cockpit.paneView.revealInExplorer' => 'Abrir local no Explorer',
-			'cockpit.paneView.revealInFileManager' => 'Abrir no gerenciador de arquivos',
 			'cockpit.fileTreePanel.viewDiff' => 'Ver Diff',
 			'cockpit.fileTreePanel.commit' => 'Commit',
 			'cockpit.fileTreePanel.stageAndCommit' => 'Stage e Commit',
@@ -2698,11 +2692,11 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -3212,11 +3206,11 @@ extension on TranslationsPtBr {
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

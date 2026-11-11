@@ -251,10 +251,7 @@
       "openAsPanel": "Abrir como panel",
       "openAsHtml": "Abrir como HTML",
       "openAsJson": "Abrir como JSON",
-      "openAsOrchestration": "Abrir como orquestación",
-      "revealInFinder": "Abrir ubicación en Finder",
-      "revealInExplorer": "Abrir ubicación en el Explorador",
-      "revealInFileManager": "Abrir en el gestor de archivos"
+      "openAsOrchestration": "Abrir como orquestación"
     },
     "fileTreePanel": {
       "viewDiff": "Ver Diff",

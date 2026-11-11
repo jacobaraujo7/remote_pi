@@ -11,6 +11,7 @@ import 'package:cockpit/app/cockpit/domain/entities/notebook_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/commit_message_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/file_manager_label.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_history_panel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_resize_handle.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -2225,14 +2226,6 @@ _Row _folderMenuSpec(
   canPaste: edit.canPaste,
 );
 
-String _fileExplorerLabel(BuildContext context) {
-  if (Platform.isMacOS) return context.t.cockpit.fileTreePanel.openInFinder;
-  if (Platform.isWindows) {
-    return context.t.cockpit.fileTreePanel.openInExplorer;
-  }
-  return context.t.cockpit.fileTreePanel.openInFileManager;
-}
-
 /// Menu de contexto de um nó da árvore. [spec] é um [_Row] usado só como
 /// descrição (rótulos + callbacks): as linhas passam o próprio `widget`; a
 /// área vazia da árvore e o slot de pasta vazia passam um spec de pasta
@@ -2329,7 +2322,7 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       if (isFolder)
         AppMenuItem(
           value: 'reveal',
-          label: _fileExplorerLabel(context),
+          label: fileManagerLabel(context),
           icon: Icons.folder_open_outlined,
         ),
       // Sem callback (raiz do workspace via área vazia) o item não aparece:
