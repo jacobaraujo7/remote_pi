@@ -43,6 +43,7 @@ Future<Map<String, Object?>> runPanelCommandLine(
   final cliLine = localCwd == null ? injectExecCwd(trimmed, cwd) : trimmed;
   final result = await runShellCommand(
     'cockpit $cliLine',
+    operation: ShellCommandOperation.panelCommand,
     cwd: localCwd,
     environment: environment,
     profile: profile,

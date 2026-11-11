@@ -6,7 +6,7 @@ import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/cockpit/domain/entities/terminal_owner.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
-// Run: flutter test tool/design/render_workspace_layouts_test.dart
+// Run: flutter test tool/design/render_orchestration_layouts_test.dart
 // These are component renders with fictional data, not desktop screenshots.
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -20,6 +20,8 @@ import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.d
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/orchestration_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/workspace_box_inspector.dart';
+import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/stable_pane_host.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:cockpit/app/cockpit/ui/session/orchestration_session.dart';
@@ -222,8 +224,12 @@ void main() {
         boxes: [for (final b in vm.graphBoxes) OrchestrationBox(box: b)],
         links: vm.graphLinks,
       );
+      var documentReads = 0;
       final controller = OrchestrationController(
-        read: () async => document.encode(),
+        read: () async {
+          documentReads++;
+          return document.encode();
+        },
         write: (_) async {},
         createShell: (_) async => throw StateError('must reuse fixture shells'),
         closeTerminal: (_) async {},
@@ -275,68 +281,73 @@ void main() {
         ],
       );
       await tester.pumpWidget(
-        ModularApp(
-          module: createModule(register: (_) {}),
-          provide: (scope) => scope
-            ..addChangeNotifier<SettingsController>(() => _PreviewSettings()),
-          child: TranslationProvider(
-            child: ShadcnApp(
-              theme: buildTheme(
-                brightness: Brightness.dark,
-                settings: _settings,
-              ),
-              builder: (context, child) {
-                final tokens = buildTokens(
+        RepaintBoundary(
+          key: key,
+          child: ModularApp(
+            module: createModule(register: (_) {}),
+            provide: (scope) => scope
+              ..addChangeNotifier<SettingsController>(() => _PreviewSettings()),
+            child: TranslationProvider(
+              child: ShadcnApp(
+                theme: buildTheme(
                   brightness: Brightness.dark,
                   settings: _settings,
-                );
-                return CockpitTheme(
-                  colors: tokens.colors,
-                  typo: tokens.typo,
-                  syntax: tokens.syntax,
-                  terminal: tokens.terminal,
-                  child: child!,
-                );
-              },
-              home: Scaffold(
-                child: RepaintBoundary(
-                  key: key,
-                  child: entry.$4 < 800
-                      ? overview()
-                      : StablePaneHost(
-                          tree: const SplitPane(
-                            id: 'split',
-                            dir: SplitDir.vertical,
-                            frac: .64,
-                            a: LeafPane(
-                              id: 'orchestration',
-                              tabs: ['app'],
-                              active: 'app',
+                ),
+                builder: (context, child) {
+                  final tokens = buildTokens(
+                    brightness: Brightness.dark,
+                    settings: _settings,
+                  );
+                  return CockpitTheme(
+                    colors: tokens.colors,
+                    typo: tokens.typo,
+                    syntax: tokens.syntax,
+                    terminal: tokens.terminal,
+                    child: child!,
+                  );
+                },
+                home: Scaffold(
+                  child: SizedBox(
+                    child: entry.$4 < 800
+                        ? overview()
+                        : StablePaneHost(
+                            tree: const SplitPane(
+                              id: 'split',
+                              dir: SplitDir.vertical,
+                              frac: .64,
+                              a: LeafPane(
+                                id: 'orchestration',
+                                tabs: ['app'],
+                                active: 'app',
+                              ),
+                              b: LeafPane(
+                                id: 'terminals',
+                                tabs: ['api', 'ui', 'qa'],
+                                active: 'api',
+                              ),
                             ),
-                            b: LeafPane(
-                              id: 'terminals',
-                              tabs: ['api', 'ui', 'qa'],
-                              active: 'api',
-                            ),
-                          ),
-                          onResize: (_, _) {},
-                          paneBuilder: (pane, visible) =>
-                              pane.id == 'orchestration'
-                              ? dockHeader('Agent Orchestration  ×', overview())
-                              : dockHeader(
-                                  'Backend  ×     Design     Review     +',
-                                  AdaptiveTerminalPane(
-                                    terminal: external,
-                                    focusNode: focus,
-                                    active: true,
-                                    textStyle: const xterm.TerminalStyle(
-                                      fontFamily: 'Preview Mono',
+                            onResize: (_, _) {},
+                            paneBuilder: (pane, visible) =>
+                                pane.id == 'orchestration'
+                                ? dockHeader(
+                                    'Agent Orchestration  ×',
+                                    overview(),
+                                  )
+                                : dockHeader(
+                                    'Backend  ×     Design     Review     +',
+                                    AdaptiveTerminalPane(
+                                      terminal: external,
+                                      focusNode: focus,
+                                      active: true,
+                                      textStyle: const xterm.TerminalStyle(
+                                        fontFamily: 'Preview Mono',
+                                      ),
+                                      theme: xterm.TerminalThemes.defaultTheme,
+                                      onKeyEvent: (_) => KeyEventResult.ignored,
                                     ),
-                                    theme: xterm.TerminalThemes.defaultTheme,
-                                    onKeyEvent: (_) => KeyEventResult.ignored,
                                   ),
-                                ),
-                        ),
+                          ),
+                  ),
                 ),
               ),
             ),
@@ -346,7 +357,18 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       expect(tester.takeException(), isNull);
+      // The redesigned view has a footer and an icon-only create action.
+      // Opening the source belongs to the file/tab menus; the file-tree suite
+      // covers that contract instead of a removed OrchestrationView callback.
       expect(find.text('agents.orchestration'), findsOneWidget);
+      expect(find.text('Lista'), findsOneWidget);
+      expect(find.text('Grafo'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (widget) => widget is AppTooltip && widget.message == 'Novo terminal',
+        ),
+        findsOneWidget,
+      );
       expect(app.terminals.sessions.length, 3);
       // One selected owned terminal plus the independent external terminal.
       expect(
@@ -365,6 +387,43 @@ void main() {
         ).writeAsBytesSync(data!.buffer.asUint8List());
         image.dispose();
       });
+      // Inspector variants now render a dialog, so include the app overlay in
+      // the image above, then close it before exercising footer interactions.
+      if (entry.$3) {
+        final inspector = find.byType(WorkspaceBoxInspector);
+        expect(inspector, findsOneWidget);
+        await tester.tap(
+          find.descendant(of: inspector, matching: find.byIcon(Icons.close)),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 350));
+        expect(inspector, findsNothing);
+        expect(app.context.presentation.inspectorOpen, isFalse);
+      }
+      final ownedBeforeReload = {...app.terminals.sessions};
+      final readsBeforeReload = documentReads;
+      final reload = find.byWidgetPredicate(
+        (widget) => widget is AppTooltip && widget.message == 'Recarregar',
+      );
+      expect(reload, findsOneWidget);
+      await tester.tap(reload);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(documentReads, readsBeforeReload + 1);
+      expect(controller.error, isNull);
+      expect(
+        app.terminals.sessions.keys,
+        unorderedEquals(ownedBeforeReload.keys),
+      );
+      for (final owned in ownedBeforeReload.entries) {
+        expect(app.terminals.session(owned.key), same(owned.value));
+        expect(owned.value.owner, const TerminalOwner.orchestration('app'));
+      }
+      expect(
+        find.byType(AdaptiveTerminalPane),
+        entry.$4 < 800 ? findsOneWidget : findsNWidgets(2),
+      );
+      expect(tester.takeException(), isNull);
       if (entry.$1 == 'boxes-dock') {
         await tester.tap(find.text('Design').first);
         await tester.pump(const Duration(milliseconds: 350));
