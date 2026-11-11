@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "Não foi possível copiar para a área de transferência. Tente novamente."
+    },
     "bootstrapError": {
       "title": "Falha ao inicializar o Cockpit",
       "retry": "Tentar novamente"
@@ -1369,6 +1372,9 @@
     "handoffTitle": "Resumo de handoff",
     "handoffHelp": "Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.",
     "handoffReady": "Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.",
+    "handoffSessionReady": "Nova sessão preparada",
+    "handoffCopyUnavailable": "A sessão foi criada, mas o resumo não foi copiado. Selecione e copie o resumo abaixo para continuar.",
+    "handoffSessionLabel": "Sessão",
     "connections": "Conexões",
     "noConnections": "Sem conexões",
     "cancel": "Cancelar",

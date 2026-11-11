@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "Could not copy to the clipboard. Try again."
+    },
     "bootstrapError": {
       "title": "Failed to initialize Cockpit",
       "retry": "Retry"
@@ -1369,6 +1372,9 @@
     "handoffTitle": "Handoff summary",
     "handoffHelp": "Describe the current state and next steps. The summary will be copied for the new session.",
     "handoffReady": "New session ready. Paste the copied summary when the tool is ready.",
+    "handoffSessionReady": "New session ready",
+    "handoffCopyUnavailable": "The session was created, but the summary was not copied. Select and copy the summary below to continue.",
+    "handoffSessionLabel": "Session",
     "connections": "Connections",
     "noConnections": "No connections",
     "cancel": "Cancel",

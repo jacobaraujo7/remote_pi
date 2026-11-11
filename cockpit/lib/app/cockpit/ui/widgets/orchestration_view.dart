@@ -6,8 +6,7 @@ import '../../../core/ui/widgets/app_tooltip.dart';
 import '../../../core/ui/widgets/hover_tap.dart';
 import '../services/orchestration_live_sessions.dart';
 import 'package:flutter_modular/flutter_modular.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, LogicalKeyboardKey;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:path/path.dart' as path;
 import '../../domain/entities/workspace_graph.dart';
@@ -24,6 +23,9 @@ import '../../../../i18n/strings.g.dart';
 import 'workspace_box_list.dart';
 import 'workspace_box_inspector.dart';
 import 'workspace_graph_view.dart';
+import 'handoff_clipboard_feedback.dart';
+
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 
 /// A document owns its overview (list or graph) and a terminal that appears
 /// only while a definition is selected. No toolbar: the file path, the legend,
@@ -567,7 +569,10 @@ class _TerminalBox extends StatelessWidget {
       case 'configure':
         onConfigure();
       case 'copyRole':
-        await Clipboard.setData(ClipboardData(text: box.role));
+        await TextClipboardService.instance.write(
+          box.role,
+          operation: 'orchestration_view',
+        );
       case 'shell':
         await report(vm.openBoxShell(box.id));
       case 'cli':
@@ -622,8 +627,15 @@ class _TerminalBox extends StatelessWidget {
     if (summary == null || summary.isEmpty || session.disposed) return;
     final result = await vm.startGraphHandoff(box.id);
     switch (result) {
-      case Success():
-        await Clipboard.setData(ClipboardData(text: summary));
+      case Success(:final value):
+        if (!context.mounted || session.disposed) return;
+        await showHandoffClipboardFeedback(
+          context,
+          sessionId: value,
+          summary: summary,
+          operation: 'orchestration_view',
+          confirmCopied: false,
+        );
       case Failure(:final error):
         if (!session.disposed) session.controller.reportError(error);
     }

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/core/ui/file_operation_error_message.dart';
@@ -19,8 +20,7 @@ import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, LogicalKeyboardKey;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -876,7 +876,13 @@ class _CopyButtonState extends State<_CopyButton> {
     final colors = context.colors;
     return HoverTap(
       onTap: () async {
-        await Clipboard.setData(ClipboardData(text: widget.text));
+        if (await TextClipboardService.instance.write(
+              widget.text,
+              operation: 'db_query_view',
+            ) !=
+            TextClipboardResult.copied) {
+          return;
+        }
         if (!mounted) return;
         setState(() => _copied = true);
         Future.delayed(const Duration(milliseconds: 1200), () {

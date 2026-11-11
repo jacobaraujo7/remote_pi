@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "无法复制到剪贴板。请重试。"
+    },
     "bootstrapError": {
       "title": "Cockpit 初始化失败",
       "retry": "重试"
@@ -1315,6 +1318,9 @@
     "handoffTitle": "Handoff summary",
     "handoffHelp": "Describe the current state and next steps. The summary will be copied for the new session.",
     "handoffReady": "New session ready. Paste the copied summary when the tool is ready.",
+    "handoffSessionReady": "新会话已就绪",
+    "handoffCopyUnavailable": "会话已创建，但摘要未复制。请选择并复制下面的摘要以继续。",
+    "handoffSessionLabel": "会话",
     "connections": "Connections",
     "noConnections": "No connections",
     "cancel": "取消",

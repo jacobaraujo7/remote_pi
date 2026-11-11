@@ -60,6 +60,7 @@ class _Translations$core$es extends Translations$core$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$es clipboard = _Translations$core$clipboard$es._(_root);
 	@override late final _Translations$core$bootstrapError$es bootstrapError = _Translations$core$bootstrapError$es._(_root);
 	@override late final _Translations$core$macosNotifications$es macosNotifications = _Translations$core$macosNotifications$es._(_root);
 	@override late final _Translations$core$appErrorView$es appErrorView = _Translations$core$appErrorView$es._(_root);
@@ -295,6 +296,9 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Resumen de handoff';
 	@override String get handoffHelp => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.';
 	@override String get handoffReady => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.';
+	@override String get handoffSessionReady => 'Nueva sesión preparada';
+	@override String get handoffCopyUnavailable => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.';
+	@override String get handoffSessionLabel => 'Sesión';
 	@override String get connections => 'Conexiones';
 	@override String get noConnections => 'Sin conexiones';
 	@override String get cancel => 'Cancelar';
@@ -368,6 +372,16 @@ class _Translations$orchestration$es extends Translations$orchestration$en {
 	@override String get roleTimeout => 'El agente no respondió a tiempo. Reintenta o completa la función manualmente.';
 	@override String get roleInvalid => 'El agente devolvió una función no válida.';
 	@override String get noBoxSelected => 'Selecciona un terminal en la lista o el grafo para trabajar en él.';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$es extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.';
 }
 
 // Path: core.bootstrapError
@@ -2179,6 +2193,7 @@ class _Translations$settings$page$general$updateFrequency$es extends Translation
 extension on TranslationsEs {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.',
 			'core.bootstrapError.title' => 'No se pudo inicializar Cockpit',
 			'core.bootstrapError.retry' => 'Reintentar',
 			'core.macosNotifications.title' => 'Activar notificaciones en macOS',
@@ -2690,9 +2705,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Elegir base de datos SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
-			'cockpit.dbConnectionDialog.name' => 'Nombre',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.name' => 'Nombre',
 			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
@@ -3204,9 +3219,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
-			'settings.remoteHosts.edit' => 'Editar',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.edit' => 'Editar',
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',
@@ -3351,6 +3366,9 @@ extension on TranslationsEs {
 			'workspaceView.handoffTitle' => 'Resumen de handoff',
 			'workspaceView.handoffHelp' => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.',
 			'workspaceView.handoffReady' => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.',
+			'workspaceView.handoffSessionReady' => 'Nueva sesión preparada',
+			'workspaceView.handoffCopyUnavailable' => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.',
+			'workspaceView.handoffSessionLabel' => 'Sesión',
 			'workspaceView.connections' => 'Conexiones',
 			'workspaceView.noConnections' => 'Sin conexiones',
 			'workspaceView.cancel' => 'Cancelar',

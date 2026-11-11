@@ -60,6 +60,7 @@ class _Translations$core$pt_BR extends Translations$core$en {
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$pt_BR clipboard = _Translations$core$clipboard$pt_BR._(_root);
 	@override late final _Translations$core$bootstrapError$pt_BR bootstrapError = _Translations$core$bootstrapError$pt_BR._(_root);
 	@override late final _Translations$core$macosNotifications$pt_BR macosNotifications = _Translations$core$macosNotifications$pt_BR._(_root);
 	@override late final _Translations$core$appErrorView$pt_BR appErrorView = _Translations$core$appErrorView$pt_BR._(_root);
@@ -295,6 +296,9 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Resumo de handoff';
 	@override String get handoffHelp => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.';
 	@override String get handoffReady => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.';
+	@override String get handoffSessionReady => 'Nova sessão preparada';
+	@override String get handoffCopyUnavailable => 'A sessão foi criada, mas o resumo não foi copiado. Selecione e copie o resumo abaixo para continuar.';
+	@override String get handoffSessionLabel => 'Sessão';
 	@override String get connections => 'Conexões';
 	@override String get noConnections => 'Sem conexões';
 	@override String get cancel => 'Cancelar';
@@ -368,6 +372,16 @@ class _Translations$orchestration$pt_BR extends Translations$orchestration$en {
 	@override String get roleTimeout => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.';
 	@override String get roleInvalid => 'O agente retornou uma sugestão de função inválida.';
 	@override String get noBoxSelected => 'Selecione um terminal na lista ou no grafo para trabalhar nele.';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$pt_BR extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => 'Não foi possível copiar para a área de transferência. Tente novamente.';
 }
 
 // Path: core.bootstrapError
@@ -2183,6 +2197,7 @@ class _Translations$settings$page$general$updateFrequency$pt_BR extends Translat
 extension on TranslationsPtBr {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Não foi possível copiar para a área de transferência. Tente novamente.',
 			'core.bootstrapError.title' => 'Falha ao inicializar o Cockpit',
 			'core.bootstrapError.retry' => 'Tentar novamente',
 			'core.macosNotifications.title' => 'Ativar notificações no macOS',
@@ -2694,9 +2709,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
-			'cockpit.dbMongoView.insert' => 'Inserir',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.insert' => 'Inserir',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -3208,9 +3223,9 @@ extension on TranslationsPtBr {
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
-			'settings.remoteHosts.title' => 'Hosts remotos',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',
@@ -3359,6 +3374,9 @@ extension on TranslationsPtBr {
 			'workspaceView.handoffTitle' => 'Resumo de handoff',
 			'workspaceView.handoffHelp' => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.',
 			'workspaceView.handoffReady' => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.',
+			'workspaceView.handoffSessionReady' => 'Nova sessão preparada',
+			'workspaceView.handoffCopyUnavailable' => 'A sessão foi criada, mas o resumo não foi copiado. Selecione e copie o resumo abaixo para continuar.',
+			'workspaceView.handoffSessionLabel' => 'Sessão',
 			'workspaceView.connections' => 'Conexões',
 			'workspaceView.noConnections' => 'Sem conexões',
 			'workspaceView.cancel' => 'Cancelar',
