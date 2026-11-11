@@ -993,6 +993,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                           variablePopoverBuilder: _variablePopover,
                           autoCloseHttpVariables: _foldedStarts.isEmpty,
                           autoEditHttpScripts: _foldedStarts.isEmpty,
+                          autoEditHttpBody: _foldedStarts.isEmpty,
                           completionVisible:
                               _foldedStarts.isEmpty && _completionVisible,
                           completionItems: _completionOptions,

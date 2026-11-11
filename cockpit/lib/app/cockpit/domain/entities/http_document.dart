@@ -26,6 +26,9 @@ library;
 /// Um par header, preservando a ordem e permitindo repetição (`Set-Cookie`).
 typedef HttpHeader = ({String name, String value});
 
+/// Script inline ou referência a um arquivo, na ordem de declaração.
+typedef HttpScriptSource = ({String? code, String? path});
+
 /// Um request declarado no arquivo.
 class HttpRequestSpec {
   const HttpRequestSpec({
@@ -35,8 +38,8 @@ class HttpRequestSpec {
     required this.headers,
     this.body,
     this.bodyFile,
-    this.preScript,
-    this.postScript,
+    this.preScripts = const [],
+    this.postScripts = const [],
     required this.startLine,
     required this.requestLine,
     required this.endLine,
@@ -56,8 +59,10 @@ class HttpRequestSpec {
   /// Caminho de `< ./body.json` — resolvido contra a pasta do `.http` na hora
   /// de executar (o domínio não toca em disco).
   final String? bodyFile;
-  final String? preScript;
-  final String? postScript;
+
+  /// Scripts inline e externos, preservando a ordem dentro de cada fase.
+  final List<HttpScriptSource> preScripts;
+  final List<HttpScriptSource> postScripts;
 
   /// Faixa de linhas `[startLine, endLine)`, base 0 — usada para casar o cursor
   /// do editor com o request corrente.
@@ -81,8 +86,8 @@ class HttpRequestSpec {
     headers: headers ?? this.headers,
     body: body ?? this.body,
     bodyFile: bodyFile,
-    preScript: preScript,
-    postScript: postScript,
+    preScripts: preScripts,
+    postScripts: postScripts,
     startLine: startLine,
     requestLine: requestLine,
     endLine: endLine,
@@ -106,6 +111,20 @@ class HttpDocument {
   static final _namePragma = RegExp(r'^\s*(?://|#)\s*@name\s+(.+)$');
   static final _comment = RegExp(r'^\s*(?://|#)');
   static final _bodyFileLine = RegExp(r'^\s*<\s+(\S.*)$');
+  static final _scriptFileLine = RegExp(
+    r'''^[ \t]*([<>])[ \t]+(?:"([^"\r\n]+\.[cm]?js)"|'([^'\r\n]+\.[cm]?js)'|([^\r\n]+\.[cm]?js))[ \t]*$''',
+    caseSensitive: false,
+  );
+
+  static ({String marker, String path})? scriptFileAtLine(String line) {
+    final match = _scriptFileLine.firstMatch(line);
+    if (match == null) return null;
+    return (
+      marker: match.group(1)!,
+      path: match.group(2) ?? match.group(3) ?? match.group(4)!.trimRight(),
+    );
+  }
+
   static final _headerLine = RegExp(
     r'^\s*([A-Za-z][A-Za-z0-9_-]*)\s*:\s*(.*)$',
   );
@@ -129,8 +148,8 @@ class HttpDocument {
     var headers = <HttpHeader>[];
     var bodyLines = <String>[];
     String? bodyFile;
-    final preScripts = <String>[];
-    final postScripts = <String>[];
+    final preScripts = <HttpScriptSource>[];
+    final postScripts = <HttpScriptSource>[];
     var inBody = false;
     var start = 0;
     var requestLine = 0;
@@ -150,8 +169,8 @@ class HttpDocument {
             headers: List.unmodifiable(headers),
             body: bodyLines.isEmpty ? null : bodyLines.join('\n'),
             bodyFile: bodyFile,
-            preScript: preScripts.isEmpty ? null : preScripts.join('\n'),
-            postScript: postScripts.isEmpty ? null : postScripts.join('\n'),
+            preScripts: List.unmodifiable(preScripts),
+            postScripts: List.unmodifiable(postScripts),
             startLine: start,
             requestLine: requestLine,
             endLine: end,
@@ -198,10 +217,21 @@ class HttpDocument {
         }
         final script = parts.join('\n').trim();
         if (scriptStart.group(1) == '<') {
-          preScripts.add(script);
+          preScripts.add((code: script, path: null));
         } else if (method != null) {
-          postScripts.add(script);
+          postScripts.add((code: script, path: null));
         }
+        continue;
+      }
+
+      final scriptFile = scriptFileAtLine(line);
+      // `< arquivo.js` antes do verbo é um pre-request. Depois do verbo,
+      // `< arquivo` continua sendo importação de body, inclusive JavaScript.
+      if (scriptFile != null &&
+          (scriptFile.marker == '<' && method == null ||
+              scriptFile.marker == '>' && method != null)) {
+        final scripts = scriptFile.marker == '<' ? preScripts : postScripts;
+        scripts.add((code: null, path: scriptFile.path));
         continue;
       }
 

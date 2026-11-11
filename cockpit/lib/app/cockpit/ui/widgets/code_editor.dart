@@ -5,8 +5,9 @@ import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_line_cut.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_overview_ruler.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_body_editing.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_script_editing.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_variable_completion.dart';
 import 'package:cockpit/app/core/domain/entities/lsp_diagnostic.dart';
 import 'package:cockpit/app/core/ui/clamping_scroll_behavior.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -34,7 +35,8 @@ import 'package:flutter/services.dart'
         HardwareKeyboard,
         KeyDownEvent,
         LogicalKeyboardKey,
-        SelectionChangedCause;
+        SelectionChangedCause,
+        TextInputFormatter;
 import 'package:flutter/widgets.dart';
 
 import 'editor_wrap_layout.dart';
@@ -92,6 +94,7 @@ class CodeEditor extends StatefulWidget {
     this.compactGutter = false,
     this.autoCloseHttpVariables = false,
     this.autoEditHttpScripts = false,
+    this.autoEditHttpBody = false,
     this.completionVisible = false,
     this.completionItems = const [],
     this.completionDetails = const {},
@@ -160,6 +163,7 @@ class CodeEditor extends StatefulWidget {
   final bool compactGutter;
   final bool autoCloseHttpVariables;
   final bool autoEditHttpScripts;
+  final bool autoEditHttpBody;
   final bool completionVisible;
   final List<String> completionItems;
   final Map<String, String> completionDetails;
@@ -921,6 +925,15 @@ class _CodeEditorState extends State<CodeEditor> {
     _chordPending = false;
   }
 
+  final _scriptFormatter = HttpScriptEditingFormatter.live();
+  final _bodyFormatter = HttpBodyEditingFormatter.live();
+
+  List<TextInputFormatter> get _httpInputFormatters => [
+    if (widget.autoCloseHttpVariables) const HttpVariableBraceFormatter(),
+    if (widget.autoEditHttpScripts) _scriptFormatter,
+    if (widget.autoEditHttpBody) _bodyFormatter,
+  ];
+
   KeyEventResult _onEditorKey(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.escape &&
@@ -1654,6 +1667,7 @@ class _CodeEditorState extends State<CodeEditor> {
     final lineCount = _lineCount;
     final scm = widget.scmDecorations;
     final wrap = widget.wordWrap;
+    final httpFormatters = _httpInputFormatters;
 
     final field = NotificationListener<ScrollMetricsNotification>(
       onNotification: _updateOverviewMetrics,
@@ -1666,15 +1680,7 @@ class _CodeEditorState extends State<CodeEditor> {
           actions: _indentActions,
           child: TextField(
             controller: widget.controller,
-            inputFormatters:
-                widget.autoCloseHttpVariables || widget.autoEditHttpScripts
-                ? [
-                    if (widget.autoCloseHttpVariables)
-                      const HttpVariableBraceFormatter(),
-                    if (widget.autoEditHttpScripts)
-                      const HttpScriptEditingFormatter(),
-                  ]
-                : null,
+            inputFormatters: httpFormatters.isEmpty ? null : httpFormatters,
             readOnly: widget.readOnly,
             focusNode: widget.focusNode,
             scrollController: _vertical,

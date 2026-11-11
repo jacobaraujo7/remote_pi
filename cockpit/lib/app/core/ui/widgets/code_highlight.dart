@@ -188,7 +188,7 @@ hl.Mode _httpFileMode() {
       hl.Mode(
         begin: '\n[ \t]*\n[ \t]*[\\{\\[]',
         returnBegin: true,
-        end: r'^[ \t]*(?:###|[<>][ \t]*\{%)',
+        end: r'^[ \t]*(?:###|[<>][ \t]*\{%|[<>][ \t]+\S)',
         returnEnd: true,
         relevance: 0,
         contains: [
