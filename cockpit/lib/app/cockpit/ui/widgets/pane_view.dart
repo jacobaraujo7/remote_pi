@@ -4,6 +4,7 @@ import '../../domain/entities/orchestration_document.dart';
 import '../session/orchestration_session.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'terminal_session_view.dart';
+import 'file_manager_label.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:math';
@@ -21,6 +22,7 @@ import 'package:cockpit/app/cockpit/ui/session/neovim_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/redis_browser_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/reveal_target.dart';
 import 'package:cockpit/app/cockpit/ui/session/task_output_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/telemetry_case_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/telemetry_case_view.dart';
@@ -784,6 +786,8 @@ class _TabState extends State<_Tab> {
     final canOpenWindow =
         !isMobilePlatform &&
         context.read<CockpitViewModel>().canOpenInWindow(s.projectId);
+    final revealTarget = revealTargetOf(s);
+    final canReveal = revealTarget != null && canOpenWindow;
 
     final tr = context.t.cockpit.paneView;
     final value = await showAppMenu<String>(
@@ -795,6 +799,12 @@ class _TabState extends State<_Tab> {
             value: 'pin',
             label: tr.pinTab,
             icon: Icons.push_pin_outlined,
+          ),
+        if (canReveal)
+          AppMenuItem(
+            value: 'reveal',
+            label: fileManagerLabel(context),
+            icon: Icons.folder_open_outlined,
           ),
         // Aba de arquivo também renomeia: o rótulo manual é do [PaneItem], não
         // do terminal, e um quadro aberto o dia todo merece um nome melhor que
@@ -925,6 +935,12 @@ class _TabState extends State<_Tab> {
     );
     if (!mounted) return;
     switch (value) {
+      case 'reveal':
+        if (revealTarget != null) {
+          unawaited(
+            context.read<CockpitViewModel>().revealInFileManager(revealTarget),
+          );
+        }
       case 'configure-box':
         if (terminal != null) {
           context.read<CockpitViewModel>().configureBoxForTab(terminal.id);

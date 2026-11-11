@@ -1,10 +1,12 @@
 import 'dart:io';
 
+import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:flutter/services.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/widgets.dart';
+import 'package:flutter_modular/flutter_modular.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Right-click context menu for a detected terminal link, shared by both
@@ -23,6 +25,7 @@ Future<void> showTerminalLinkMenu(
   void Function(String path, {int? line})? onOpenFile,
 }) async {
   final tr = context.t.cockpit.terminalLink;
+  final vm = context.read<CockpitViewModel>();
   final items = <AppMenuItem<VoidCallback>>[];
   if (filePath != null) {
     final target = _expandHome(resolvedFilePath ?? filePath);
@@ -40,7 +43,7 @@ Future<void> showTerminalLinkMenu(
     if (!isMobilePlatform) {
       items.add(
         AppMenuItem(
-          value: () => _revealInFileManager(target),
+          value: () => vm.revealInFileManager(target),
           label: Platform.isMacOS
               ? tr.revealFinder
               : Platform.isWindows
@@ -137,15 +140,5 @@ void _osOpen(String path) {
     Process.run('explorer', [path]);
   } else {
     Process.run('xdg-open', [path]);
-  }
-}
-
-void _revealInFileManager(String path) {
-  if (Platform.isMacOS) {
-    Process.run('open', ['-R', path]);
-  } else if (Platform.isWindows) {
-    Process.run('explorer', ['/select,', path]);
-  } else {
-    Process.run('xdg-open', [File(path).parent.path]);
   }
 }
