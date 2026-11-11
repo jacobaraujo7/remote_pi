@@ -11,6 +11,8 @@ import 'package:cockpit/app/cockpit/ui/widgets/terminal_session_view.dart';
 import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/terminal/terminal_controller.dart';
+import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:flterm/flterm.dart' as ghost;
@@ -33,6 +35,103 @@ class _Gateway extends AttachmentTerminalGateway {
 }
 
 void main() {
+  testWidgets('ghostty view moves to the visible owner after a parent change', (
+    tester,
+  ) async {
+    final terminal = GhosttyTerminalController();
+    final focus = FocusNode();
+    final otherFocus = FocusNode();
+    final parent = ValueNotifier('first');
+    addTearDown(() {
+      terminal.dispose();
+      focus.dispose();
+      otherFocus.dispose();
+      parent.dispose();
+    });
+
+    Widget pane(FocusNode node, bool active) => AdaptiveTerminalPane(
+      terminal: terminal,
+      active: active,
+      focusNode: node,
+      textStyle: const xterm.TerminalStyle(),
+      theme: xterm.TerminalThemes.defaultTheme,
+    );
+
+    await tester.pumpWidget(
+      ModularApp(
+        module: createModule(register: (_) {}),
+        provide: (scope) => scope.addChangeNotifier<SettingsController>(
+          () => SettingsController(_Settings()),
+        ),
+        child: ShadcnApp(
+          builder: (context, child) {
+            final tokens = buildTokens(
+              brightness: Brightness.dark,
+              settings: const AppSettings(),
+            );
+            return CockpitTheme(
+              colors: tokens.colors,
+              typo: tokens.typo,
+              syntax: tokens.syntax,
+              terminal: tokens.terminal,
+              child: ghost.TerminalScope(child: child!),
+            );
+          },
+          home: SizedBox(
+            width: 800,
+            height: 400,
+            child: ValueListenableBuilder<String>(
+              valueListenable: parent,
+              builder: (_, id, _) => id.startsWith('shared')
+                  ? Column(
+                      children: [
+                        Expanded(
+                          child: KeyedSubtree(
+                            key: const ValueKey('left-owner'),
+                            child: pane(focus, id == 'shared-left'),
+                          ),
+                        ),
+                        Expanded(
+                          child: KeyedSubtree(
+                            key: const ValueKey('right-owner'),
+                            child: pane(otherFocus, id == 'shared-right'),
+                          ),
+                        ),
+                      ],
+                    )
+                  : KeyedSubtree(key: ValueKey(id), child: pane(focus, true)),
+            ),
+          ),
+        ),
+      ),
+    );
+    final view = find.byType(ghost.TerminalView);
+    final original = tester.state(view);
+    parent.value = 'second';
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    expect(tester.state(view), isNot(same(original)));
+
+    Future<void> expectOwner(String id) async {
+      parent.value = 'shared-$id';
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      for (final name in ['left', 'right']) {
+        final ownedView = find.descendant(
+          of: find.byKey(ValueKey('$name-owner'), skipOffstage: false),
+          matching: find.byType(ghost.TerminalView, skipOffstage: false),
+        );
+        expect(ownedView, name == id ? findsOneWidget : findsNothing);
+      }
+    }
+
+    await expectOwner('right');
+    await expectOwner('left');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   for (final engine in TerminalEngine.values) {
     testWidgets(
       '${engine.name}: shared renderer keeps sessions and find shortcuts across inner tab/split changes',
