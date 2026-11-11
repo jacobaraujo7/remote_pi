@@ -57,6 +57,17 @@ jobs:
           fi
       - name: Resolve versioned dependencies
         run: flutter pub get
+      - name: Analyze shell lifecycle diagnostics
+        run: >-
+          flutter analyze --no-pub
+          lib/app/core/utils/shell_command.dart
+          lib/app/core/data/diagnostics/performance_diagnostics.dart
+          test/core/shell_command_metrics_test.dart
+      - name: Shell lifecycle diagnostics regressions
+        run: >-
+          flutter test --no-pub
+          test/core/shell_command_metrics_test.dart
+          test/core/performance_diagnostics_test.dart
       - name: CLI caller routing contract
         run: cargo test --manifest-path cli/Cargo.toml
       - name: Analyze workspace presentation

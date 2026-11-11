@@ -39,6 +39,12 @@ enum PerfMetric {
 
   /// `Process.start` → processo vivo (`durationUs`, `failed`).
   spawn,
+
+  /// Shell invocation start → first stdout/stderr bytes, if any.
+  shellFirstOutput,
+
+  /// Shell invocation start → completion (including output drain).
+  shellComplete,
   terminalOpen,
   terminalFirstOutput,
   terminalOpenFrame,
@@ -72,6 +78,13 @@ enum PerfField {
   cold,
   action,
   phase,
+
+  /// Fixed ShellCommandOperation ID, never command-derived.
+  operation,
+
+  /// In-process shell invocation sequence; correlates the three phases.
+  invocation,
+  timedOut,
 }
 
 /// Amostra pronta pro sink: nome da métrica + campos numéricos.
