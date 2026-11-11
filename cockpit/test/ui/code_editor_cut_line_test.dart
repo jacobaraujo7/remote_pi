@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cockpit/app/cockpit/ui/widgets/code_editor.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/code_editing_controller.dart';
@@ -250,5 +251,102 @@ void main() {
     await shortcut(tester, LogicalKeyboardKey.keyX);
     expect(ctrl.text, '');
     expect(clipboard, 'a');
+  }, variant: desktop);
+  testWidgets(
+    'pending cut never changes a replacement or disposed controller',
+    (tester) async {
+      final pending = Completer<void>();
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') await pending.future;
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      final first = CodeEditingController(
+        text: 'first line\n',
+        language: 'dart',
+      );
+      final next = CodeEditingController(
+        text: 'replacement\n',
+        language: 'dart',
+      );
+      final focus = FocusNode();
+      await tester.pumpWidget(harness(first, focus));
+      focus.requestFocus();
+      first.selection = const TextSelection.collapsed(offset: 2);
+      await tester.pump();
+      final modifier = mod();
+      await tester.sendKeyDownEvent(modifier);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
+      await tester.sendKeyUpEvent(modifier);
+      await tester.pump();
+      expect(first.text, isEmpty);
+      await tester.pumpWidget(harness(next, focus));
+      first.dispose();
+      pending.complete();
+      await tester.pumpAndSettle();
+      expect(next.text, 'replacement\n');
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      next.dispose();
+      focus.dispose();
+    },
+    variant: desktop,
+  );
+  testWidgets('failed clipboard write leaves the synchronous cut intact', (
+    tester,
+  ) async {
+    final ctrl = await mount(
+      tester,
+      'keep this line\nnext',
+      const TextSelection.collapsed(offset: 3),
+    );
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          throw PlatformException(code: 'denied');
+        }
+        return null;
+      },
+    );
+    await shortcut(tester, LogicalKeyboardKey.keyX);
+    expect(ctrl.text, 'next');
+    expect(tester.takeException(), isNull);
+  }, variant: desktop);
+
+  testWidgets('typing after cut is preserved while clipboard IO is pending', (
+    tester,
+  ) async {
+    final ctrl = await mount(
+      tester,
+      'one\ntwo',
+      const TextSelection.collapsed(offset: 1),
+    );
+    final pending = Completer<void>();
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') await pending.future;
+        return null;
+      },
+    );
+    final modifier = mod();
+    await tester.sendKeyDownEvent(modifier);
+    await tester.sendKeyEvent(LogicalKeyboardKey.keyX);
+    await tester.sendKeyUpEvent(modifier);
+    expect(ctrl.text, 'two');
+    await tester.enterText(find.byType(EditableText), 'typed two');
+    pending.complete();
+    await tester.pumpAndSettle();
+    expect(ctrl.text, 'typed two');
+    expect(tester.takeException(), isNull);
   }, variant: desktop);
 }

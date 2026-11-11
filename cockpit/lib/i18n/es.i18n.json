@@ -1,5 +1,8 @@
 {
   "core": {
+    "clipboard": {
+      "writeFailed": "No se pudo copiar al portapapeles. Inténtalo de nuevo."
+    },
     "bootstrapError": {
       "title": "No se pudo inicializar Cockpit",
       "retry": "Reintentar"
@@ -1365,6 +1368,9 @@
     "handoffTitle": "Resumen de handoff",
     "handoffHelp": "Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.",
     "handoffReady": "Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.",
+    "handoffSessionReady": "Nueva sesión preparada",
+    "handoffCopyUnavailable": "Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.",
+    "handoffSessionLabel": "Sesión",
     "connections": "Conexiones",
     "noConnections": "Sin conexiones",
     "cancel": "Cancelar",
