@@ -139,6 +139,7 @@ jobs:
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
+          test/data/process_tree_provider_test.dart
           test/domain/coalescing_single_flight_test.dart
           test/domain/worktree_reconciler_test.dart
           test/domain/orchestration_document_test.dart
