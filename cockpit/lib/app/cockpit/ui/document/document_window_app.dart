@@ -1,4 +1,3 @@
-import 'package:cockpit/app/core/ui/widgets/clipboard_failure_feedback.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -219,11 +218,9 @@ class DocumentWindowRoot extends StatelessWidget {
                     terminal: tokens.terminal,
                     child: ColoredBox(
                       color: tokens.colors.bg,
-                      child: ClipboardFailureFeedback(
-                        child: DocumentScreen(
-                          path: path,
-                          terminalProfiles: terminalProfiles,
-                        ),
+                      child: DocumentScreen(
+                        path: path,
+                        terminalProfiles: terminalProfiles,
                       ),
                     ),
                   ),

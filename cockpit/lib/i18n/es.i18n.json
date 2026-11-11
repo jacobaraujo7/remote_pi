@@ -1,8 +1,5 @@
 {
   "core": {
-    "clipboard": {
-      "writeFailed": "No se pudo copiar al portapapeles. Inténtalo de nuevo."
-    },
     "bootstrapError": {
       "title": "No se pudo inicializar Cockpit",
       "retry": "Reintentar"

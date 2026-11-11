@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/entities/realm.dart';
@@ -15,6 +14,7 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/core/ui/keep_awake_controller.dart';
 import 'package:cockpit_keepawake/cockpit_keepawake.dart' show PowerSource;
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -900,19 +900,11 @@ class _RemoteSlot extends StatelessWidget {
     // Copiar resolve aqui (dado já em mãos); o resto vai pra página.
     if (pick.startsWith('copy-branch|')) {
       final b = branchOfRoot(roots, pick.substring('copy-branch|'.length));
-      if (b != null) {
-        await TextClipboardService.instance.write(
-          b,
-          operation: 'projects_rail',
-        );
-      }
+      if (b != null) await Clipboard.setData(ClipboardData(text: b));
       return;
     }
     if (pick == 'copy-id') {
-      await TextClipboardService.instance.write(
-        workspaceId,
-        operation: 'projects_rail',
-      );
+      await Clipboard.setData(ClipboardData(text: workspaceId));
       return;
     }
     onAction(pick);
@@ -1413,10 +1405,7 @@ class _WorktreeMenu {
     if (pick == 'update') onUpdate();
     if (pick == 'fork') onFork();
     if (pick == 'copy') {
-      await TextClipboardService.instance.write(
-        branch,
-        operation: 'projects_rail',
-      );
+      await Clipboard.setData(ClipboardData(text: branch));
     }
     if (pick == 'remove') onRemove();
   }
@@ -1928,19 +1917,13 @@ class _WorkspaceMenu {
         // para divergir do rótulo que o usuário acabou de ler no submenu.
         final branch = branchOfRoot(roots, arg);
         if (branch != null) {
-          await TextClipboardService.instance.write(
-            branch,
-            operation: 'projects_rail',
-          );
+          await Clipboard.setData(ClipboardData(text: branch));
         }
       }
       return;
     }
     if (pick == 'copy-id') {
-      await TextClipboardService.instance.write(
-        workspaceId,
-        operation: 'projects_rail',
-      );
+      await Clipboard.setData(ClipboardData(text: workspaceId));
     }
     if (pick == 'config') onConfigure();
     if (pick == 'delete') onDelete();

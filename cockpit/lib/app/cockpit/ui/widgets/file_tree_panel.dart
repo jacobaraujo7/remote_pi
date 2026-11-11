@@ -1,6 +1,5 @@
 import 'dart:io' show Platform;
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
@@ -2409,15 +2408,9 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       case 'paste':
         widget.onPaste?.call();
       case 'rel':
-        TextClipboardService.instance.write(
-          _relativeOf(widget),
-          operation: 'file_tree_panel',
-        );
+        Clipboard.setData(ClipboardData(text: _relativeOf(widget)));
       case 'abs':
-        TextClipboardService.instance.write(
-          widget.path,
-          operation: 'file_tree_panel',
-        );
+        Clipboard.setData(ClipboardData(text: widget.path));
     }
   });
 }

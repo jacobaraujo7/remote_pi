@@ -1,8 +1,8 @@
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/diagnostics/issue_report.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -85,10 +85,7 @@ Future<void> showErrorReportDialog(
           ),
           OutlineButton(
             onPressed: () async {
-              await TextClipboardService.instance.write(
-                report.toMarkdown(),
-                operation: 'error_report_dialog',
-              );
+              await Clipboard.setData(ClipboardData(text: report.toMarkdown()));
             },
             child: Text(context.t.core.errorReportDialog.copyDetails),
           ),

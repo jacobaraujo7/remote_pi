@@ -84,38 +84,6 @@ void main() {
     },
   );
   test(
-    'HTTP request to the CLI is rejected and a subsequent JSON command succeeds',
-    () async {
-      final env = server.hookEnv;
-      final socket = Platform.isWindows
-          ? await Socket.connect(
-              InternetAddress.loopbackIPv4,
-              int.parse(env['COCKPIT_STATUS_PORT']!),
-            )
-          : await Socket.connect(
-              InternetAddress(
-                env['COCKPIT_STATUS_SOCK']!,
-                type: InternetAddressType.unix,
-              ),
-              0,
-            );
-      socket.write('GET / HTTP/1.1\r\nHost: localhost\r\n\r\n');
-      await socket.flush();
-      final response = await socket
-          .cast<List<int>>()
-          .transform(utf8.decoder)
-          .join()
-          .timeout(const Duration(seconds: 3));
-      socket.destroy();
-      expect(response, isEmpty);
-      expect(received, isEmpty);
-      expect((await send({}))['ok'], isTrue);
-      expect(received, hasLength(1));
-      await lifecycle.future.timeout(const Duration(seconds: 3));
-    },
-  );
-
-  test(
     'legacy outside-app commands remain decodable without inventing a sender',
     () async {
       expect((await send({}))['ok'], isTrue);

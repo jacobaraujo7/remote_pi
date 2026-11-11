@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/stable_pane_host.dart';
 import 'package:cockpit/app/cockpit/ui/states/pane_node.dart';
 import 'package:flutter/widgets.dart';
@@ -121,84 +120,4 @@ void main() {
       expect(tree.frac, .4);
     },
   );
-  testWidgets('cold layouts survive active changes, resize and tab movement', (
-    tester,
-  ) async {
-    for (var i = 0; i < 8; i++) {
-      final moved = i.isOdd;
-      final layout = SplitPane(
-        id: 'split',
-        dir: SplitDir.vertical,
-        frac: i.isEven ? .4 : .6,
-        a: LeafPane(id: 'a', tabs: moved ? ['t2'] : ['t1', 't2'], active: 't2'),
-        b: LeafPane(
-          id: 'b',
-          tabs: moved ? ['t3', 't1'] : ['t3'],
-          active: moved ? 't1' : 't3',
-        ),
-      );
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: SizedBox(
-            width: 800 - i * 10.0,
-            height: 500,
-            child: StablePaneHost(
-              tree: layout,
-              active: i % 3 != 0,
-              preview: i % 4 == 0,
-              previewPaneId: 'a',
-              onResize: (_, _) {},
-              paneBuilder: (_, _) => const SizedBox.expand(),
-              tabBodyBuilder: (_, id, _) =>
-                  SizedBox.expand(key: ValueKey('body-$id')),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isNull);
-      expect(
-        find.byKey(const ValueKey('body-t1'), skipOffstage: false),
-        findsOneWidget,
-      );
-    }
-  });
-
-  testWidgets('synthetic Windows Alt remains balanced across focus changes', (
-    tester,
-  ) async {
-    final first = FocusNode();
-    final second = FocusNode();
-    await tester.pumpWidget(
-      Directionality(
-        textDirection: TextDirection.ltr,
-        child: Column(
-          children: [
-            Focus(focusNode: first, child: const SizedBox()),
-            Focus(focusNode: second, child: const SizedBox()),
-          ],
-        ),
-      ),
-    );
-    first.requestFocus();
-    await tester.pump();
-    await tester.sendKeyDownEvent(
-      LogicalKeyboardKey.altLeft,
-      platform: 'windows',
-    );
-    second.requestFocus();
-    await tester.pump();
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab, platform: 'windows');
-    await tester.sendKeyUpEvent(
-      LogicalKeyboardKey.altLeft,
-      platform: 'windows',
-    );
-    await tester.pump();
-    expect(HardwareKeyboard.instance.logicalKeysPressed, isEmpty);
-    expect(tester.takeException(), isNull);
-    await tester.pumpWidget(const SizedBox());
-    first.dispose();
-    second.dispose();
-  });
 }

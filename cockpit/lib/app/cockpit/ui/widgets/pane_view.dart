@@ -1,4 +1,3 @@
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'stable_tab_stack.dart';
 import 'orchestration_view.dart';
 import '../../domain/entities/orchestration_document.dart';
@@ -940,10 +939,7 @@ class _TabState extends State<_Tab> {
         }
       case 'copy-id':
         if (terminal != null) {
-          await TextClipboardService.instance.write(
-            terminal.id,
-            operation: 'pane_view',
-          );
+          await Clipboard.setData(ClipboardData(text: terminal.id));
         }
       case 'orc-source':
         if (orchestration != null) {

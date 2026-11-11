@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/ghostty_sgr_weight_normalizer.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
@@ -8,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flterm/flterm.dart' as ghost;
 import 'package:libghostty/libghostty.dart' show FormatterFormat;
+import 'package:pasteboard/pasteboard.dart';
 
 typedef TerminalResizeCallback = void Function(int columns, int rows);
 
@@ -118,11 +118,11 @@ final class GhosttyTerminalController implements CockpitTerminalController {
   }
 
   /// Política do OSC 52 (write). Pública e pura pra testar: devolve o resultado
-  /// e entrega o texto a [writeClipboard]. A gravação padrão passa pelo serviço
-  /// compartilhado; falhas assíncronas aparecem no feedback da janela.
+  /// e entrega o texto a [writeClipboard] (default: `Pasteboard`, o mesmo do
+  /// ⌘C e do paste, pra aba ter um clipboard só).
   static ghost.ClipboardWriteResult handleClipboardWrite(
     ghost.ClipboardWrite write, {
-    void Function(String text) writeClipboard = _writeTextClipboard,
+    void Function(String text) writeClipboard = _writePasteboard,
   }) {
     if (write.location != ghost.ClipboardLocation.standard) {
       return ghost.ClipboardWriteResult.unsupported;
@@ -141,8 +141,8 @@ final class GhosttyTerminalController implements CockpitTerminalController {
     return ghost.ClipboardWriteResult.success;
   }
 
-  static void _writeTextClipboard(String text) {
-    TextClipboardService.instance.write(text, operation: 'terminal_controller');
+  static void _writePasteboard(String text) {
+    Pasteboard.writeText(text);
   }
 
   void _handleControllerResize(int columns, int rows) {

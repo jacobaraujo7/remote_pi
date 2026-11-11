@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'graph_box_editor.dart';
 import 'workspace_box_list.dart';
 import '../../../core/domain/entities/harness.dart';
@@ -19,6 +18,7 @@ import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/window_controls.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Canvas for the boxes supplied by its context. Terminal presentation is
@@ -326,12 +326,7 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     if (session is TerminalSession) {
       final created = await widget.vm.startGraphHandoff(box.id);
       if (created case Success(:final value)) {
-        if (!await TextClipboardService.instance.write(
-          brief,
-          operation: 'workspace_graph_view',
-        )) {
-          return;
-        }
+        await Clipboard.setData(ClipboardData(text: brief));
         if (!mounted) return;
         await showInfoDialog(
           context,
@@ -737,9 +732,8 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                       }
                     },
                     onCopyRole: () async {
-                      await TextClipboardService.instance.write(
-                        selectedBox!.role,
-                        operation: 'workspace_graph_view',
+                      await Clipboard.setData(
+                        ClipboardData(text: selectedBox!.role),
                       );
                     },
                     onOpen: () {

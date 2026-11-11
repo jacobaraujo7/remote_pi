@@ -1,4 +1,3 @@
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:cockpit/app/core/terminal/xterm/src/terminal.dart';
@@ -44,10 +43,7 @@ class TerminalActions extends StatelessWidget {
 
             final text = terminal.buffer.getText(selection);
 
-            await TextClipboardService.instance.write(
-              text,
-              operation: 'actions',
-            );
+            await Clipboard.setData(ClipboardData(text: text));
 
             return null;
           },

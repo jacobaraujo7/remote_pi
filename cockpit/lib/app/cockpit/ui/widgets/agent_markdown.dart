@@ -1,6 +1,5 @@
 import 'dart:io' show File;
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'dart:async';
 
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -12,6 +11,7 @@ import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 // claro (títulos escuros). Por isso embrulhamos só o markdown num Theme Material
 // (prefixo `m.`) com as nossas cores. O resto do app segue shadcn.
 import 'package:flutter/material.dart' as m;
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:gpt_markdown/gpt_markdown.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/markdown_frontmatter.dart';
@@ -221,12 +221,7 @@ class _CopyButtonState extends State<_CopyButton> {
   }
 
   Future<void> _copy() async {
-    if (!await TextClipboardService.instance.write(
-      widget.code,
-      operation: 'agent_markdown',
-    )) {
-      return;
-    }
+    await Clipboard.setData(ClipboardData(text: widget.code));
     if (!mounted) return;
     setState(() => _copied = true);
     _reset?.cancel();

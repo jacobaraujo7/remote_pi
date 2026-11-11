@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 // Hosts remotos (plano 58): RemoteHostsController é infra compartilhada (como
 // AutomationController), provida app-scoped no bootstrapper. A aba os gerencia.
 import 'package:cockpit/app/cockpit/data/remote/remote_host_connector.dart'
@@ -23,6 +22,7 @@ import 'package:cockpit/app/core/ui/widgets/error_report_dialog.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_command.dart';
 import 'package:cockpit/app/core/data/lsp/lsp_launchers.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
+import 'package:flutter/services.dart';
 import 'package:cockpit/app/core/utils/native_folder_picker.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -2315,13 +2315,9 @@ class _DeviceKeySection extends StatelessWidget {
                             onPressed: key.isEmpty
                                 ? null
                                 : () async {
-                                    if (!await TextClipboardService.instance
-                                        .write(
-                                          key,
-                                          operation: 'settings_page',
-                                        )) {
-                                      return;
-                                    }
+                                    await Clipboard.setData(
+                                      ClipboardData(text: key),
+                                    );
                                     if (!context.mounted) return;
                                     showToast(
                                       context: context,

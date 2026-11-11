@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
@@ -32,7 +31,13 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart'
-    show HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
+    show
+        Clipboard,
+        ClipboardData,
+        HardwareKeyboard,
+        KeyDownEvent,
+        KeyEvent,
+        LogicalKeyboardKey;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -1582,9 +1587,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
             tr.copyResponse,
             result == null
                 ? null
-                : () => TextClipboardService.instance.write(
-                    _paneText(result, outcome!),
-                    operation: 'http_request_view',
+                : () => Clipboard.setData(
+                    ClipboardData(text: _paneText(result, outcome!)),
                   ),
           ),
           _responseAction(

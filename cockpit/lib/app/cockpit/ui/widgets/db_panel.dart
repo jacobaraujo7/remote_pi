@@ -1,4 +1,3 @@
-import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_connection.dart';
 import 'package:cockpit/app/cockpit/domain/entities/db_result.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -12,6 +11,7 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/app/cockpit/ui/db_error_message.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
@@ -133,10 +133,7 @@ class _DbPanelState extends State<DbPanel> {
       case 'edit':
         await _edit(conn);
       case 'copy-name':
-        await TextClipboardService.instance.write(
-          conn.name,
-          operation: 'db_panel',
-        );
+        await Clipboard.setData(ClipboardData(text: conn.name));
       case 'dbq':
         _newDbq(conn);
       case 'redis':

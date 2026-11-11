@@ -1,8 +1,5 @@
 {
   "core": {
-    "clipboard": {
-      "writeFailed": "无法复制到剪贴板。请重试。"
-    },
     "bootstrapError": {
       "title": "Cockpit 初始化失败",
       "retry": "重试"
