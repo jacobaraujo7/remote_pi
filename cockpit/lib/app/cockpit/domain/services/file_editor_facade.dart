@@ -82,7 +82,7 @@ class FileEditorFacade {
     'kanban',
     'ckp',
   };
-  static const Set<String> _inlinePreviewExtensions = {'html', 'htm', 'panel'};
+  static const Set<String> _inlinePreviewExtensions = {'html', 'htm'};
 
   FileEditorEngine engineFor(FileOpenRequest request) {
     if (request.isRemote || request.isNotebook) {

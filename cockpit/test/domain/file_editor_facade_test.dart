@@ -87,18 +87,43 @@ void main() {
     },
   );
 
-  test('HTML and panel need an inline preview', () async {
-    facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
-      ..engine = FileEditorEngine.neovim;
-    for (final path in ['/repo/page.html', '/repo/tool.panel']) {
+  test(
+    'panel and other specialized views open in Cockpit without a webview',
+    () async {
+      facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
+        ..engine = FileEditorEngine.neovim;
+      for (final path in [
+        '/repo/tool.panel',
+        '/repo/board.kanban',
+        '/repo/layout.ckp',
+        '/repo/README.md',
+        '/repo/logo.svg',
+        '/repo/request.http',
+        '/repo/request.rest',
+        '/repo/query.dbq',
+      ]) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.cockpit], reason: path);
+      }
       calls.clear();
-      await facade.open(request(path));
+      await facade.open(request('/repo/tool.panel', source: true));
       expect(calls, [FileEditorEngine.neovim]);
-    }
-    calls.clear();
-    await facade.open(request('/repo/README.md'));
-    expect(calls, [FileEditorEngine.cockpit]);
-  });
+    },
+  );
+
+  test(
+    'HTML source opens in Neovim when inline preview is unavailable',
+    () async {
+      facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
+        ..engine = FileEditorEngine.neovim;
+      for (final path in ['/repo/page.html', '/repo/page.htm']) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.neovim], reason: path);
+      }
+    },
+  );
 
   test('falls back exactly once when external engine cannot open', () async {
     facade = FileEditorFacade(

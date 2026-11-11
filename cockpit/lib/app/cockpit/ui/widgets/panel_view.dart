@@ -314,12 +314,18 @@ class _PanelViewState extends State<PanelView> {
   Widget build(BuildContext context) {
     final tr = context.t.cockpit.panelView;
     if (!_inline) {
-      return _Unavailable(
-        message: tr.unavailable,
-        openInBrowser: tr.openInBrowser,
-        openAsHtml: widget.editSourceLabel ?? tr.openAsHtml,
-        path: widget.session.path,
-        onOpenAsHtml: widget.onEditSource ?? widget.session.toggleRawSource,
+      return _withEditFooter(
+        context,
+        _Unavailable(
+          message: tr.unavailable,
+          openInBrowser: tr.openInBrowser,
+          openAsHtml: tr.openAsHtml,
+          path: widget.session.path,
+          onOpenAsHtml: widget.onEditSource == null
+              ? widget.session.toggleRawSource
+              : null,
+        ),
+        tr.openAsHtml,
       );
     }
     final bridge = _bridge;
@@ -408,6 +414,14 @@ class _PanelViewState extends State<PanelView> {
         ),
       ),
     );
+    return _withEditFooter(context, preview, tr.openAsHtml);
+  }
+
+  Widget _withEditFooter(
+    BuildContext context,
+    Widget preview,
+    String fallbackLabel,
+  ) {
     final onEditSource = widget.onEditSource;
     if (onEditSource == null) return preview;
     return Column(
@@ -420,7 +434,7 @@ class _PanelViewState extends State<PanelView> {
           alignment: Alignment.centerRight,
           child: PreviewEditButton(
             onPressed: onEditSource,
-            label: widget.editSourceLabel ?? tr.openAsHtml,
+            label: widget.editSourceLabel ?? fallbackLabel,
           ),
         ),
       ],
@@ -442,10 +456,11 @@ class _Unavailable extends StatelessWidget {
   final String openInBrowser;
   final String openAsHtml;
   final String path;
-  final VoidCallback onOpenAsHtml;
+  final VoidCallback? onOpenAsHtml;
 
   @override
   Widget build(BuildContext context) {
+    final openAsHtml = onOpenAsHtml;
     return ColoredBox(
       color: context.colors.panel,
       child: Center(
@@ -468,11 +483,13 @@ class _Unavailable extends StatelessWidget {
                         unawaited(launcher.launchUrl(Uri.file(path))),
                     child: Text(openInBrowser),
                   ),
-                  const SizedBox(width: 8),
-                  OutlineButton(
-                    onPressed: onOpenAsHtml,
-                    child: Text(openAsHtml),
-                  ),
+                  if (openAsHtml != null) ...[
+                    const SizedBox(width: 8),
+                    OutlineButton(
+                      onPressed: openAsHtml,
+                      child: Text(this.openAsHtml),
+                    ),
+                  ],
                 ],
               ),
             ],
