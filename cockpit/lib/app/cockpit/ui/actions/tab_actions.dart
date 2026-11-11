@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
@@ -12,21 +14,14 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 
-SettingsController? _settingsController(BuildContext context) {
-  try {
-    return context.read<SettingsController>();
-  } catch (_) {
-    return null;
-  }
-}
-
-/// Fecha [item] pedindo confirmacao quando ha edicao nao salva ou fechamento
-/// de terminal com confirmacao habilitada.
+/// Fecha [item] pedindo confirmação quando há edição não salva ou um agente
+/// rodando no terminal.
 ///
-/// Regra unica do fechamento de aba: o X do titulo, o menu de contexto e o
-/// atalho ⌘W/Ctrl+W passam todos por aqui, para nao divergirem.
+/// Regra única do fechamento de aba: o X do título, o menu de contexto e o
+/// atalho ⌘W/Ctrl+W passam todos por aqui, para não divergirem — um caminho
+/// que esquecesse o diálogo descartaria trabalho em silêncio.
 ///
-/// Devolve `true` se a aba pode ser fechada (e [onClose] ja foi chamado).
+/// Devolve `true` se a aba pode ser fechada (e [onClose] já foi chamado).
 Future<bool> requestCloseTab(
   BuildContext context,
   PaneItem? item,
@@ -76,14 +71,12 @@ Future<bool> requestCloseTab(
     return true;
   }
   if (item is TerminalSession && !skipTerminalConfirmation) {
-    final settings = settingsController ?? _settingsController(context);
-    if (settings == null || settings.settings.confirmCloseTerminal) {
-      final res = await showConfirmCloseTerminalDialog(context);
-      if (!context.mounted || res == null || !res.confirmed) return false;
-      if (res.doNotAskAgain) {
-        settings?.setConfirmCloseTerminal(false);
-      }
-    }
+    final ok = await confirmCloseTerminal(
+      context,
+      item,
+      settingsController: settingsController,
+    );
+    if (!ok || !context.mounted) return false;
     onClose();
     return true;
   }
@@ -100,7 +93,7 @@ Future<bool> requestCloseTab(
       onClose();
       return true;
     case CloseDirtyChoice.save:
-      // Salva o buffer atual; so fecha se gravou (erro de IO mantem aberto).
+      // Salva o buffer atual; só fecha se gravou (erro de IO mantém aberto).
       final ok = await item.saveDraft?.call() ?? false;
       if (!context.mounted || !ok) return false;
       onClose();
@@ -108,11 +101,11 @@ Future<bool> requestCloseTab(
   }
 }
 
-/// ⌘W / Ctrl+W: fecha a aba ativa da pane focada, com a mesma confirmacao do
-/// X do titulo.
+/// ⌘W / Ctrl+W: fecha a aba ativa da pane focada, com a mesma confirmação do
+/// X do título.
 ///
-/// No-op quando nao ha aba (o placeholder de pane vazia nao e fechavel): sem
-/// isso o atalho apagaria a unica pane e deixaria o workspace sem nada.
+/// No-op quando não há aba (o placeholder de pane vazia não é fechável): sem
+/// isso o atalho apagaria a única pane e deixaria o workspace sem nada.
 Future<void> closeActiveTab(BuildContext context) async {
   final vm = context.read<CockpitViewModel>();
   final owner = vm.activeOrchestration;
@@ -127,14 +120,11 @@ Future<void> closeActiveTab(BuildContext context) async {
   }
   final ownedTab = owner?.terminals.keyboardTabId;
   if (owner != null && ownedTab != null) {
-    final settings = _settingsController(context);
-    if (settings == null || settings.settings.confirmCloseTerminal) {
-      final res = await showConfirmCloseTerminalDialog(context);
-      if (!context.mounted || res == null || !res.confirmed) return;
-      if (res.doNotAskAgain) {
-        settings?.setConfirmCloseTerminal(false);
-      }
-    }
+    final ok = await confirmCloseTerminal(
+      context,
+      owner.terminals.session(ownedTab),
+    );
+    if (!ok || !context.mounted) return;
     await owner.closeTerminal(ownedTab);
     return;
   }
@@ -144,22 +134,40 @@ Future<void> closeActiveTab(BuildContext context) async {
   await requestCloseTab(context, item, () => vm.closeTab(paneId, tabId));
 }
 
+/// Confirma o fechamento de [terminal]. Só pergunta quando há um agente
+/// (claude, codex, pi) rodando na aba e a preferência está ligada: shell ocioso
+/// fecha direto, sem diálogo. Devolve `false` se o usuário cancelou.
+Future<bool> confirmCloseTerminal(
+  BuildContext context,
+  TerminalSession? terminal, {
+  SettingsController? settingsController,
+}) async {
+  if (terminal?.activeHarness == null) return true;
+  final settings = settingsController ?? context.read<SettingsController>();
+  if (!settings.settings.confirmCloseTerminal) return true;
+  final res = await showConfirmCloseTerminalDialog(context);
+  if (!context.mounted || res == null || !res.confirmed) return false;
+  if (res.doNotAskAgain) settings.setConfirmCloseTerminal(false);
+  return true;
+}
+
 /// Atalhos locais do terminal para nova aba e fechamento de aba.
 ///
 /// Definidos como `ownerShortcuts` no escopo do widget de terminal (flterm/xterm)
-/// para que o motor de terminal intercepte as teclas e nao envie bytes de controle
-/// ao PTY (ex: Ctrl+T / 0x14 que gerava '^T' no prompt, ou Ctrl+W / 0x17).
+/// para que o motor intercepte as teclas e não envie bytes de controle ao PTY.
+/// Ctrl+T / Ctrl+W só fora do macOS (lá o atalho do app é ⌘): no shell são o
+/// transpose e o apagar-palavra do readline, e o Ctrl+W do vim/nano/less. Mesmo
+/// precedente do Ctrl+F em `adaptive_terminal_pane.dart`.
 Map<ShortcutActivator, VoidCallback> terminalOwnerShortcuts({
   required VoidCallback onNewTerminal,
   required VoidCallback onCloseTab,
+  bool? isMacOS,
 }) => <ShortcutActivator, VoidCallback>{
   const SingleActivator(LogicalKeyboardKey.keyT, meta: true): onNewTerminal,
-  const SingleActivator(LogicalKeyboardKey.keyT, control: true): onNewTerminal,
   const SingleActivator(LogicalKeyboardKey.keyW, meta: true): onCloseTab,
-  const SingleActivator(LogicalKeyboardKey.keyW, control: true): onCloseTab,
-  const SingleActivator(LogicalKeyboardKey.keyW, meta: true, shift: true):
-      onCloseTab,
-  const SingleActivator(LogicalKeyboardKey.keyW, control: true, shift: true):
-      onCloseTab,
+  if (!(isMacOS ?? Platform.isMacOS)) ...{
+    const SingleActivator(LogicalKeyboardKey.keyT, control: true):
+        onNewTerminal,
+    const SingleActivator(LogicalKeyboardKey.keyW, control: true): onCloseTab,
+  },
 };
-

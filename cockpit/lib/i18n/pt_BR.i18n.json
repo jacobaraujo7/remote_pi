@@ -107,7 +107,7 @@
       "dontSave": "Não salvar",
       "saveAndClose": "Salvar e fechar",
       "closeTerminalTitle": "Fechar terminal?",
-      "closeTerminalMessage": "Deseja realmente fechar esta aba de terminal?",
+      "closeTerminalMessage": "Há um agente rodando neste terminal. Fechar mesmo assim?",
       "doNotAskAgain": "Não perguntar novamente",
       "close": "Fechar"
     },
@@ -1084,7 +1084,7 @@
         "closeOnExitTitle": "Fechar a aba quando o shell encerrar",
         "closeOnExitDesc": "Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.",
         "confirmCloseTerminalTitle": "Confirmar antes de fechar terminal",
-        "confirmCloseTerminalDesc": "Exibir diálogo de confirmação antes de fechar uma aba de terminal."
+        "confirmCloseTerminalDesc": "Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando."
       },
       "appearance": {
         "sectionTheme": "Tema",

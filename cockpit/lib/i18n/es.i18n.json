@@ -107,7 +107,7 @@
       "dontSave": "No guardar",
       "saveAndClose": "Guardar y cerrar",
       "closeTerminalTitle": "¿Cerrar terminal?",
-      "closeTerminalMessage": "¿Seguro que deseas cerrar esta pestaña de terminal?",
+      "closeTerminalMessage": "Hay un agente ejecutándose en este terminal. ¿Cerrarlo de todos modos?",
       "doNotAskAgain": "No volver a preguntar",
       "close": "Cerrar"
     },
@@ -1080,7 +1080,7 @@
         "closeOnExitTitle": "Cerrar la pestaña cuando el shell termine",
         "closeOnExitDesc": "Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.",
         "confirmCloseTerminalTitle": "Confirmar antes de cerrar terminal",
-        "confirmCloseTerminalDesc": "Mostrar un diálogo de confirmación antes de cerrar una pestaña de terminal."
+        "confirmCloseTerminalDesc": "Preguntar antes de cerrar una pestaña de terminal con un agente (Claude, Codex, Pi) en ejecución."
       },
       "appearance": {
         "sectionTheme": "Tema",

@@ -956,8 +956,8 @@ class Translations$cockpit$confirmDialog$en {
 	/// en: 'Close terminal?'
 	String get closeTerminalTitle => 'Close terminal?';
 
-	/// en: 'Are you sure you want to close this terminal tab?'
-	String get closeTerminalMessage => 'Are you sure you want to close this terminal tab?';
+	/// en: 'An agent is running in this terminal. Close it anyway?'
+	String get closeTerminalMessage => 'An agent is running in this terminal. Close it anyway?';
 
 	/// en: 'Don't ask again'
 	String get doNotAskAgain => 'Don\'t ask again';
@@ -4240,8 +4240,8 @@ class Translations$settings$page$terminal$en {
 	/// en: 'Confirm before closing terminal'
 	String get confirmCloseTerminalTitle => 'Confirm before closing terminal';
 
-	/// en: 'Show a confirmation dialog before closing a terminal tab.'
-	String get confirmCloseTerminalDesc => 'Show a confirmation dialog before closing a terminal tab.';
+	/// en: 'Ask before closing a terminal tab while an agent (Claude, Codex, Pi) is running in it.'
+	String get confirmCloseTerminalDesc => 'Ask before closing a terminal tab while an agent (Claude, Codex, Pi) is running in it.';
 }
 
 // Path: settings.page.appearance
@@ -4754,7 +4754,7 @@ extension on Translations {
 			'cockpit.confirmDialog.dontSave' => 'Don\'t save',
 			'cockpit.confirmDialog.saveAndClose' => 'Save & close',
 			'cockpit.confirmDialog.closeTerminalTitle' => 'Close terminal?',
-			'cockpit.confirmDialog.closeTerminalMessage' => 'Are you sure you want to close this terminal tab?',
+			'cockpit.confirmDialog.closeTerminalMessage' => 'An agent is running in this terminal. Close it anyway?',
 			'cockpit.confirmDialog.doNotAskAgain' => 'Don\'t ask again',
 			'cockpit.confirmDialog.close' => 'Close',
 			'cockpit.neovim.unavailable' => 'Neovim is not available. Opening in Cockpit instead.',
@@ -5178,13 +5178,13 @@ extension on Translations {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Refresh',
 			'cockpit.dbMongoView.insertDocument' => 'Insert document',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocuments' => 'No documents in this collection.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5205,8 +5205,6 @@ extension on Translations {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'SSH Tunnel',
 			'cockpit.dbConnectionDialog.sshHost' => 'SSH Host',
 			'cockpit.dbConnectionDialog.sshPort' => 'SSH Port',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'SSH User',
 			'cockpit.dbConnectionDialog.privateKey' => 'Private key',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Choose a private key…',
@@ -5589,7 +5587,7 @@ extension on Translations {
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
 			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirm before closing terminal',
-			'settings.page.terminal.confirmCloseTerminalDesc' => 'Show a confirmation dialog before closing a terminal tab.',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Ask before closing a terminal tab while an agent (Claude, Codex, Pi) is running in it.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
@@ -5694,6 +5692,8 @@ extension on Translations {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => 'Only models your account can use are listed.',
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
@@ -5701,8 +5701,6 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
@@ -5721,8 +5719,6 @@ extension on Translations {
 			'settings.remoteHosts.statusReconnecting' => 'Reconnecting…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Not connected',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'How it works',
 			'settings.remoteHosts.helpBody' => 'Cockpit connects to your machine over SSH and talks to a small server that runs the terminals, files and git there. The host must have Cockpit (desktop) or the cockpit-server installed and running, and this device’s public key added to its ~/.ssh/authorized_keys.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} is not installed or is not on PATH.',

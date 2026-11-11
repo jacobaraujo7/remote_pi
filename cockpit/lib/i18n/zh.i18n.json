@@ -107,7 +107,7 @@
       "dontSave": "不保存",
       "saveAndClose": "保存并关闭",
       "closeTerminalTitle": "关闭终端？",
-      "closeTerminalMessage": "确定要关闭此终端标签页吗？",
+      "closeTerminalMessage": "此终端中有代理正在运行。仍要关闭吗？",
       "doNotAskAgain": "不再询问",
       "close": "关闭"
     },
@@ -1077,7 +1077,7 @@
         "closeOnExitTitle": "shell 退出时关闭标签页",
         "closeOnExitDesc": "当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。",
         "confirmCloseTerminalTitle": "关闭终端前确认",
-        "confirmCloseTerminalDesc": "关闭终端标签页前显示确认对话框。"
+        "confirmCloseTerminalDesc": "当终端标签页中有代理（Claude、Codex、Pi）正在运行时，关闭前先确认。"
       },
       "appearance": {
         "sectionTheme": "主题",

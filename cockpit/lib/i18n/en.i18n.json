@@ -107,7 +107,7 @@
       "dontSave": "Don't save",
       "saveAndClose": "Save & close",
       "closeTerminalTitle": "Close terminal?",
-      "closeTerminalMessage": "Are you sure you want to close this terminal tab?",
+      "closeTerminalMessage": "An agent is running in this terminal. Close it anyway?",
       "doNotAskAgain": "Don't ask again",
       "close": "Close"
     },
@@ -1084,7 +1084,7 @@
         "closeOnExitTitle": "Close tab when the shell exits",
         "closeOnExitDesc": "When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.",
         "confirmCloseTerminalTitle": "Confirm before closing terminal",
-        "confirmCloseTerminalDesc": "Show a confirmation dialog before closing a terminal tab."
+        "confirmCloseTerminalDesc": "Ask before closing a terminal tab while an agent (Claude, Codex, Pi) is running in it."
       },
       "appearance": {
         "sectionTheme": "Theme",

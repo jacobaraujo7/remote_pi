@@ -505,7 +505,7 @@ class _Translations$cockpit$confirmDialog$pt_BR extends Translations$cockpit$con
 	@override String get dontSave => 'Não salvar';
 	@override String get saveAndClose => 'Salvar e fechar';
 	@override String get closeTerminalTitle => 'Fechar terminal?';
-	@override String get closeTerminalMessage => 'Deseja realmente fechar esta aba de terminal?';
+	@override String get closeTerminalMessage => 'Há um agente rodando neste terminal. Fechar mesmo assim?';
 	@override String get doNotAskAgain => 'Não perguntar novamente';
 	@override String get close => 'Fechar';
 }
@@ -1999,7 +1999,7 @@ class _Translations$settings$page$terminal$pt_BR extends Translations$settings$p
 	@override String get closeOnExitTitle => 'Fechar a aba quando o shell encerrar';
 	@override String get closeOnExitDesc => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.';
 	@override String get confirmCloseTerminalTitle => 'Confirmar antes de fechar terminal';
-	@override String get confirmCloseTerminalDesc => 'Exibir diálogo de confirmação antes de fechar uma aba de terminal.';
+	@override String get confirmCloseTerminalDesc => 'Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando.';
 }
 
 // Path: settings.page.appearance
@@ -2278,7 +2278,7 @@ extension on TranslationsPtBr {
 			'cockpit.confirmDialog.dontSave' => 'Não salvar',
 			'cockpit.confirmDialog.saveAndClose' => 'Salvar e fechar',
 			'cockpit.confirmDialog.closeTerminalTitle' => 'Fechar terminal?',
-			'cockpit.confirmDialog.closeTerminalMessage' => 'Deseja realmente fechar esta aba de terminal?',
+			'cockpit.confirmDialog.closeTerminalMessage' => 'Há um agente rodando neste terminal. Fechar mesmo assim?',
 			'cockpit.confirmDialog.doNotAskAgain' => 'Não perguntar novamente',
 			'cockpit.confirmDialog.close' => 'Fechar',
 			'cockpit.neovim.unavailable' => 'O Neovim não está disponível. Abrindo no Cockpit.',
@@ -2702,13 +2702,13 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -2729,8 +2729,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
 			'cockpit.dbConnectionDialog.privateKey' => 'Chave privada',
 			'cockpit.dbConnectionDialog.choosePrivateKeyPlaceholder' => 'Escolha uma chave privada…',
@@ -3113,7 +3111,7 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
 			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirmar antes de fechar terminal',
-			'settings.page.terminal.confirmCloseTerminalDesc' => 'Exibir diálogo de confirmação antes de fechar uma aba de terminal.',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
@@ -3218,6 +3216,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
@@ -3225,8 +3225,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',
@@ -3245,8 +3243,6 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Não conectado',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',
