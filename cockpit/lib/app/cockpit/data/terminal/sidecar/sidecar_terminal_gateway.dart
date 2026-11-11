@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/data/terminal/pty_terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/data/terminal/sidecar/sidecar_terminal_connector.dart';
+import 'package:cockpit/app/cockpit/data/terminal/terminal_locale_env.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/spawn_directory.dart';
@@ -213,10 +214,10 @@ class SidecarTerminalGateway implements TerminalGateway {
     _closeOutput();
   }
 
-  /// Mesmo ambiente que o [PtyTerminalGateway] anuncia (TERM/COLORTERM, ver
-  /// racional lá) — o servidor funde por cima do ambiente dele próprio.
+  /// Mesmo ambiente que o [PtyTerminalGateway] anuncia (TERM/COLORTERM/LANG,
+  /// ver racional lá) — o servidor funde por cima do ambiente dele próprio.
   Map<String, String> _terminalEnv(Map<String, String> extraEnv) => {
-    ...Platform.environment,
+    ...withUtf8Locale(Platform.environment),
     if (!Platform.isWindows) 'TERM': 'xterm-256color',
     'COLORTERM': 'truecolor',
     ...extraEnv,
