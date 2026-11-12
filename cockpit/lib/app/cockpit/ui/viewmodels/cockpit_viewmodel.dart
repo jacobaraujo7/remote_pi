@@ -222,6 +222,12 @@ class CockpitViewModel extends ChangeNotifier
       ..isSystemTerminal = isPathless
       ..selectedProjectId = (() => _selectedProjectId)
       ..pollTargets = _gitPollTargets
+      // Line totals only while the terminal status line is up (same gate as
+      // `_TerminalStatusBar`): a coding agent runs in the focused terminal.
+      ..wantsLineStats = (() {
+        final s = focusedTab()?.$3;
+        return s is TerminalSession && s.activeHarness != null;
+      })
       ..onStructuralFsChange = _bumpFileTree
       ..onPoll = _reconcileOpenWorktrees;
     // Mesmo contrato do GitController: o motor remoto recebe o contexto do

@@ -1635,10 +1635,7 @@ class _TerminalStatusBar extends StatelessWidget {
             const SizedBox(width: 10),
             _StatusSeparator(color: colors.text4),
             const SizedBox(width: 10),
-            _ChangeCluster(
-              git: git,
-              onTapChanges: vm.revealSourceControl,
-            ),
+            _ChangeCluster(git: git, onTapChanges: vm.revealSourceControl),
           ],
           // RIGHT — where the agent is working: cwd then branch, pinned to the
           // right edge with icons (folder, VCS fork). Expanded (not Spacer +
@@ -1694,6 +1691,8 @@ class _ChangeCluster extends StatelessWidget {
 
     final hasAheadBehind = git.ahead > 0 || git.behind > 0;
     final hasChanges = git.dirtyCount > 0;
+    final insertions = git.insertions;
+    final deletions = git.deletions;
     if (!hasAheadBehind && !hasChanges) return const SizedBox.shrink();
 
     return Row(
@@ -1730,19 +1729,32 @@ class _ChangeCluster extends StatelessWidget {
                       '${git.dirtyCount}',
                       style: label.copyWith(color: colors.text2),
                     ),
-                    if (git.insertions > 0) ...[
+                    if (insertions == null || deletions == null) ...[
+                      // Unknown, not zero: a remote host (the protocol has no
+                      // line counts) or the first poll since the bar appeared.
                       const SizedBox(width: 8),
-                      Text(
-                        '+${git.insertions}',
-                        style: label.copyWith(color: colors.gitStaged),
+                      AppTooltip(
+                        message: t.lineStatsUnknown,
+                        child: Text(
+                          '±?',
+                          style: label.copyWith(color: colors.text4),
+                        ),
                       ),
-                    ],
-                    if (git.deletions > 0) ...[
-                      const SizedBox(width: 6),
-                      Text(
-                        '-${git.deletions}',
-                        style: label.copyWith(color: colors.gitDeleted),
-                      ),
+                    ] else ...[
+                      if (insertions > 0) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '+$insertions',
+                          style: label.copyWith(color: colors.gitStaged),
+                        ),
+                      ],
+                      if (deletions > 0) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '-$deletions',
+                          style: label.copyWith(color: colors.gitDeleted),
+                        ),
+                      ],
                     ],
                   ],
                 ),

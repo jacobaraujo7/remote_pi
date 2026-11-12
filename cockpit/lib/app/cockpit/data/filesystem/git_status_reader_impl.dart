@@ -13,7 +13,7 @@ class GitStatusReaderImpl implements GitStatusReader {
   final GitBinary _gitBinary;
 
   @override
-  Future<GitInfo?> read(String path) async {
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async {
     try {
       final git = await _gitBinary.resolve();
 
@@ -97,25 +97,30 @@ class GitStatusReaderImpl implements GitStatusReader {
       }
 
       // Inserted/deleted line totals vs HEAD (staged + unstaged; untracked
-      // files are not diffed). `--numstat` emits "<added>\t<deleted>\t<path>"
-      // per file; binary files show "-\t-" (parse fails → counted as 0). Fails
-      // on an unborn HEAD (no commits yet) → totals stay 0.
-      var insertions = 0;
-      var deletions = 0;
-      final numstatRes = await Process.run(git, [
-        '-C',
-        path,
-        'diff',
-        '--numstat',
-        'HEAD',
-      ]);
-      if (numstatRes.exitCode == 0) {
-        for (final line in (numstatRes.stdout as String).split('\n')) {
-          if (line.isEmpty) continue;
-          final cols = line.split('\t');
-          if (cols.length < 2) continue;
-          insertions += int.tryParse(cols[0]) ?? 0;
-          deletions += int.tryParse(cols[1]) ?? 0;
+      // files are not diffed), only when asked — an extra git process per poll
+      // cycle that only the visible status line needs. `--numstat` emits
+      // "<added>\t<deleted>\t<path>" per file; binary files show "-\t-"
+      // (counted as 0). Fails on an unborn HEAD (no commits yet) → stays null.
+      int? insertions;
+      int? deletions;
+      if (withLineStats) {
+        final numstatRes = await Process.run(git, [
+          '-C',
+          path,
+          'diff',
+          '--numstat',
+          'HEAD',
+        ]);
+        if (numstatRes.exitCode == 0) {
+          insertions = 0;
+          deletions = 0;
+          for (final line in (numstatRes.stdout as String).split('\n')) {
+            if (line.isEmpty) continue;
+            final cols = line.split('\t');
+            if (cols.length < 2) continue;
+            insertions = insertions! + (int.tryParse(cols[0]) ?? 0);
+            deletions = deletions! + (int.tryParse(cols[1]) ?? 0);
+          }
         }
       }
 

@@ -3418,6 +3418,9 @@ class Translations$cockpit$statusBar$en {
 
 	/// en: '${ahead} ahead, ${behind} behind'
 	String aheadBehind({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind';
+
+	/// en: 'Line counts unavailable here'
+	String get lineStatsUnknown => 'Line counts unavailable here';
 }
 
 // Path: settings.language
@@ -5498,6 +5501,7 @@ extension on Translations {
 			'cockpit.cloneRepoDialog.hintAuth' => 'Access denied or repository not found. For SSH, check your key with ssh -T git@github.com; for HTTPS, sign in with your Git credential manager (or gh auth login).',
 			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} changed files',
 			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} ahead, ${behind} behind',
+			'cockpit.statusBar.lineStatsUnknown' => 'Line counts unavailable here',
 			'settings.language.title' => 'Language',
 			'settings.language.system' => 'System',
 			'settings.language.english' => 'English',
@@ -5686,9 +5690,9 @@ extension on Translations {
 			'settings.page.automations.generateFromSourceControl' => 'Generate from Source Control',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit sends only the selected diff and recent commit subjects. Common credential patterns and sensitive files are redacted before the harness runs.',
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
-			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',

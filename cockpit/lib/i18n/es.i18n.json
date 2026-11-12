@@ -976,7 +976,8 @@
     },
     "statusBar": {
       "changedFiles": "${count} archivos modificados",
-      "aheadBehind": "${ahead} adelante, ${behind} detrás"
+      "aheadBehind": "${ahead} adelante, ${behind} detrás",
+      "lineStatsUnknown": "Recuento de líneas no disponible aquí"
     }
   },
   "settings": {

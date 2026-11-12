@@ -980,7 +980,8 @@
     },
     "statusBar": {
       "changedFiles": "${count} arquivos alterados",
-      "aheadBehind": "${ahead} à frente, ${behind} atrás"
+      "aheadBehind": "${ahead} à frente, ${behind} atrás",
+      "lineStatsUnknown": "Contagem de linhas indisponível aqui"
     }
   },
   "settings": {

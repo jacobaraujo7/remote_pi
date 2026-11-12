@@ -973,7 +973,8 @@
     },
     "statusBar": {
       "changedFiles": "${count} 个文件已更改",
-      "aheadBehind": "领先 ${ahead}，落后 ${behind}"
+      "aheadBehind": "领先 ${ahead}，落后 ${behind}",
+      "lineStatsUnknown": "此处无法获取行数统计"
     }
   },
   "settings": {

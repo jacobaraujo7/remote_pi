@@ -11,14 +11,15 @@ import 'package:flutter_test/flutter_test.dart';
 /// Reader nulo — nenhuma pasta é repo git; o poll roda mas `refresh` é no-op.
 class _NullReader implements GitStatusReader {
   @override
-  Future<GitInfo?> read(String path) async => null;
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async =>
+      null;
 }
 
 class _CountingReader implements GitStatusReader {
   var reads = 0;
 
   @override
-  Future<GitInfo?> read(String path) async {
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async {
     reads++;
     return null;
   }

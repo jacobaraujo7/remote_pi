@@ -12,8 +12,8 @@ class GitInfo {
     this.changedFiles = const <String, GitFileStatus>{},
     this.ignored = const <String>{},
     this.untrackedDirs = const <String>{},
-    this.insertions = 0,
-    this.deletions = 0,
+    this.insertions,
+    this.deletions,
   });
 
   /// Branch atual (ou short SHA se detached HEAD).
@@ -48,13 +48,14 @@ class GitInfo {
   final Set<String> untrackedDirs;
 
   /// Total of inserted lines across tracked changes vs HEAD (staged +
-  /// unstaged, untracked excluded). 0 when unknown (e.g. remote host, or a
-  /// repo with no commits yet).
-  final int insertions;
+  /// unstaged, untracked excluded). `null` = unknown: not requested (the
+  /// status line is hidden, see [GitStatusReader.read]), a remote host (the
+  /// protocol carries no line counts), or a repo with no commits yet.
+  final int? insertions;
 
   /// Total of deleted lines across tracked changes vs HEAD. Counterpart of
-  /// [insertions]; 0 when unknown.
-  final int deletions;
+  /// [insertions]; `null` when unknown.
+  final int? deletions;
 
   /// `true` se [rel] (caminho relativo, separador `/`) está sob algo ignorado.
   bool isIgnored(String rel) => _under(ignored, rel);

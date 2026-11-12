@@ -1570,6 +1570,7 @@ class _Translations$cockpit$statusBar$es extends Translations$cockpit$statusBar$
 	// Translations
 	@override String changedFiles({required Object count}) => '${count} archivos modificados';
 	@override String aheadBehind({required Object ahead, required Object behind}) => '${ahead} adelante, ${behind} detrás';
+	@override String get lineStatsUnknown => 'Recuento de líneas no disponible aquí';
 }
 
 // Path: settings.language
@@ -3024,6 +3025,7 @@ extension on TranslationsEs {
 			'cockpit.cloneRepoDialog.hintAuth' => 'Acceso denegado o repositorio no encontrado. Con SSH, prueba tu clave con ssh -T git@github.com; con HTTPS, inicia sesión con el gestor de credenciales de Git (o gh auth login).',
 			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} archivos modificados',
 			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} adelante, ${behind} detrás',
+			'cockpit.statusBar.lineStatsUnknown' => 'Recuento de líneas no disponible aquí',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglés',
@@ -3216,9 +3218,9 @@ extension on TranslationsEs {
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
-			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
 			'settings.remoteHosts.reconnect' => 'Reconectar',
