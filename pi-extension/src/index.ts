@@ -1149,6 +1149,12 @@ function _getSyncLimit(): number {
 const RECONNECT_BACKOFFS_MS = [1_000, 2_000, 5_000, 10_000, 30_000];
 let _reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let _reconnectAttempt = 0;
+// Initial-connect retry: a FAILED first `relay.connect()` (boot-time DNS not
+// ready, relay briefly down, …) must not strand the agent offline forever.
+// Distinct from `_reconnectTimer` (which only handles post-close reconnects)
+// because the failed lifecycle never reached `_state === "started"`.
+let _initialConnectRetryTimer: ReturnType<typeof setTimeout> | null = null;
+let _initialConnectRetryAttempt = 0;
 // Every initial connect/reconnect candidate captures this generation. Stop,
 // relay-off, and an unexpected close invalidate older async continuations.
 let _relayLifecycleGeneration = 0;
@@ -1406,6 +1412,12 @@ function _goIdle(byeReason?: import("./protocol/types.js").ByeReason): void {
     _reconnectTimer = null;
   }
   _reconnectAttempt = 0;
+  // Same for a pending initial-connect retry (stop wins over retry).
+  if (_initialConnectRetryTimer !== null) {
+    clearTimeout(_initialConnectRetryTimer);
+    _initialConnectRetryTimer = null;
+  }
+  _initialConnectRetryAttempt = 0;
 
   _stopAutoListener?.();
   _stopAutoListener = null;
@@ -1530,6 +1542,38 @@ function _scheduleReconnect(
     _reconnectTimer = null;
     if (!_isCurrentReconnect(lifecycleGeneration, url)) return;
     void _attemptReconnect(lifecycleGeneration, url);
+  }, delay);
+}
+
+/**
+ * Retry loop for a FAILED INITIAL `relay.connect()`. The close-driven
+ * reconnect path (`_scheduleReconnect`) only exists once a connection was
+ * established; before this, a boot-time DNS/TUN race or a briefly down relay
+ * stranded daemons offline until manual restart. Re-entering `_cmdStart` as a
+ * whole (rather than publishing a relay-less "started" state) keeps every
+ * post-connect invariant — SelfRevoke producer, bridge attach, footer —
+ * identical to a manual `/remote-pi` retry.
+ *
+ * Invalidation mirrors `_scheduleReconnect`: `_goIdle` and any newer
+ * `_cmdStart`/stop cycle bump `_relayLifecycleGeneration`, which stale timers
+ * observe before acting. `ctx` is captured the same way a user re-running the
+ * command would re-supply it; daemon ctxs are stable for the process lifetime.
+ */
+function _scheduleInitialConnectRetry(
+  lifecycleGeneration: number,
+  ctx: Pick<ExtensionContext, "ui" | "cwd">,
+): void {
+  if (_initialConnectRetryTimer !== null) return; // already scheduled
+
+  const idx = Math.min(_initialConnectRetryAttempt, RECONNECT_BACKOFFS_MS.length - 1);
+  const delay = RECONNECT_BACKOFFS_MS[idx]!;
+  _initialConnectRetryAttempt += 1;
+
+  _initialConnectRetryTimer = setTimeout(() => {
+    _initialConnectRetryTimer = null;
+    if (lifecycleGeneration !== _relayLifecycleGeneration) return; // stopped/replaced
+    if (_disposed || _state !== "idle" || _relay !== null) return;
+    void _cmdStart(ctx);
   }, delay);
 }
 
@@ -2986,7 +3030,14 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
       );
       return;
     }
-    ctx.ui.notify(`[remote-pi] relay connect failed: ${String(err)}`, "error");
+    // Not RoomAlreadyOpenError (deterministic conflict, stays fatal above):
+    // keep retrying in the background so a transient DNS/network/relay outage
+    // at process start cannot strand a daemon offline until manual restart.
+    ctx.ui.notify(
+      `[remote-pi] relay connect failed: ${String(err)} — retrying in the background`,
+      "error",
+    );
+    _scheduleInitialConnectRetry(lifecycleGeneration, ctx);
     return;
   }
 
@@ -3003,6 +3054,12 @@ async function _cmdStart(ctx: Pick<ExtensionContext, "ui" | "cwd">): Promise<voi
   _peerShort = myShort;
   _myRoomId = roomId;
   _state = "started";
+  // A successful start settles the initial-connect retry loop.
+  if (_initialConnectRetryTimer !== null) {
+    clearTimeout(_initialConnectRetryTimer);
+    _initialConnectRetryTimer = null;
+  }
+  _initialConnectRetryAttempt = 0;
   // Set _sessionStartedAt ONLY on first /remote-pi start since process boot.
   // Subsequent start cycles (after stop) preserve the original epoch so the
   // app keeps treating it as the same session (and merges new events from
