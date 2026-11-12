@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late List<FileEditorEngine> calls;
+  late FileEditorRegistry registry;
   late FileEditorFacade facade;
 
   FileOpenRequest request(
@@ -22,18 +23,17 @@ void main() {
 
   setUp(() {
     calls = [];
-    facade = FileEditorFacade(
-      FileEditorRegistry({
-        FileEditorEngine.cockpit: (request) async {
-          calls.add(FileEditorEngine.cockpit);
-          return FileOpenOutcome.opened;
-        },
-        FileEditorEngine.neovim: (request) async {
-          calls.add(FileEditorEngine.neovim);
-          return FileOpenOutcome.opened;
-        },
-      }),
-    )..engine = FileEditorEngine.neovim;
+    registry = FileEditorRegistry({
+      FileEditorEngine.cockpit: (request) async {
+        calls.add(FileEditorEngine.cockpit);
+        return FileOpenOutcome.opened;
+      },
+      FileEditorEngine.neovim: (request) async {
+        calls.add(FileEditorEngine.neovim);
+        return FileOpenOutcome.opened;
+      },
+    });
+    facade = FileEditorFacade(registry)..engine = FileEditorEngine.neovim;
   });
 
   test('routes ordinary local text through the selected engine', () async {
@@ -45,6 +45,7 @@ void main() {
     for (final value in [
       request('/repo/main.dart', remote: true),
       request('/repo/request.http'),
+      request('/repo/request.rest'),
       request('/repo/query.dbq'),
       request('/repo/board.kanban'),
       request('/repo/logo.svg'),
@@ -61,6 +62,68 @@ void main() {
     await facade.open(request('/repo/board.kanban', source: true));
     expect(calls, [FileEditorEngine.neovim]);
   });
+
+  test(
+    'previews supported visual types and edits their source in Neovim',
+    () async {
+      for (final path in [
+        '/repo/README.md',
+        '/repo/page.mdx',
+        '/repo/readme.markdown',
+        '/repo/page.html',
+        '/repo/page.htm',
+        '/repo/logo.svg',
+        '/repo/tool.panel',
+        '/repo/board.kanban',
+        '/repo/layout.ckp',
+      ]) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.cockpit], reason: path);
+        calls.clear();
+        await facade.open(request(path, source: true));
+        expect(calls, [FileEditorEngine.neovim], reason: path);
+      }
+    },
+  );
+
+  test(
+    'panel and other specialized views open in Cockpit without a webview',
+    () async {
+      facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
+        ..engine = FileEditorEngine.neovim;
+      for (final path in [
+        '/repo/tool.panel',
+        '/repo/board.kanban',
+        '/repo/layout.ckp',
+        '/repo/README.md',
+        '/repo/logo.svg',
+        '/repo/request.http',
+        '/repo/request.rest',
+        '/repo/query.dbq',
+      ]) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.cockpit], reason: path);
+      }
+      calls.clear();
+      await facade.open(request('/repo/tool.panel', source: true));
+      expect(calls, [FileEditorEngine.neovim]);
+    },
+  );
+
+  test(
+    'HTML source opens in Neovim when inline preview is unavailable',
+    () async {
+      facade = FileEditorFacade(registry, inlinePreviewAvailable: false)
+        ..engine = FileEditorEngine.neovim;
+      for (final path in ['/repo/page.html', '/repo/page.htm']) {
+        calls.clear();
+        await facade.open(request(path));
+        expect(calls, [FileEditorEngine.neovim], reason: path);
+      }
+    },
+  );
 
   test('falls back exactly once when external engine cannot open', () async {
     facade = FileEditorFacade(

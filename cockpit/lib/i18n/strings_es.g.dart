@@ -680,6 +680,7 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
 	@override String get rename => 'Renombrar';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar con Neovim';
 	@override String get openAsBoard => 'Abrir como tablero';
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
@@ -2376,6 +2377,7 @@ extension on TranslationsEs {
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
 			'cockpit.paneView.rename' => 'Renombrar',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar con Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como tablero',
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2690,9 +2692,9 @@ extension on TranslationsEs {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Elegir base de datos SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Archivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Elige un archivo SQLite…',
-			'cockpit.dbConnectionDialog.name' => 'Nombre',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.name' => 'Nombre',
 			'cockpit.dbConnectionDialog.password' => 'Contraseña',
 			'cockpit.dbConnectionDialog.savePassword' => 'Guardar contraseña',
 			'cockpit.dbConnectionDialog.allowWrites' => 'Permitir escritura (agentes)',
@@ -3204,9 +3206,9 @@ extension on TranslationsEs {
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
-			'settings.remoteHosts.edit' => 'Editar',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.edit' => 'Editar',
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

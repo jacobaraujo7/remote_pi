@@ -1349,6 +1349,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -4842,6 +4845,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -5156,9 +5160,9 @@ extension on Translations {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'No documents match this filter.',
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
-			'cockpit.dbMongoView.insert' => 'Insert',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.insert' => 'Insert',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5670,9 +5674,9 @@ extension on Translations {
 			'settings.page.automations.discoveryFailed' => 'Could not discover installed automation harnesses.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
-			'settings.remoteHosts.title' => 'Remote hosts',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.title' => 'Remote hosts',
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',

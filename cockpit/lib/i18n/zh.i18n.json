@@ -233,6 +233,7 @@
       "openInNewWindow": "在新窗口中打开",
       "rename": "重命名",
       "openAsMarkdown": "以 Markdown 打开",
+      "editInNeovim": "使用 Neovim 编辑",
       "openAsBoard": "以看板打开",
       "resetTitle": "重置标题",
       "copyId": "复制 ID",

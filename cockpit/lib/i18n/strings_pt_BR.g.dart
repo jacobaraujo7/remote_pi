@@ -680,6 +680,7 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openInNewWindow => 'Abrir em nova janela';
 	@override String get rename => 'Renomear';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar com Neovim';
 	@override String get openAsBoard => 'Abrir como quadro';
 	@override String get resetTitle => 'Redefinir título';
 	@override String get copyId => 'Copiar Id';
@@ -2380,6 +2381,7 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openInNewWindow' => 'Abrir em nova janela',
 			'cockpit.paneView.rename' => 'Renomear',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar com Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como quadro',
 			'cockpit.paneView.resetTitle' => 'Redefinir título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2694,9 +2696,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
-			'cockpit.dbMongoView.insert' => 'Inserir',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.insert' => 'Inserir',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -3208,9 +3210,9 @@ extension on TranslationsPtBr {
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
-			'settings.remoteHosts.title' => 'Hosts remotos',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

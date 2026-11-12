@@ -602,6 +602,7 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => '在新窗口中打开';
 	@override String get rename => '重命名';
 	@override String get openAsMarkdown => '以 Markdown 打开';
+	@override String get editInNeovim => '使用 Neovim 编辑';
 	@override String get openAsBoard => '以看板打开';
 	@override String get resetTitle => '重置标题';
 	@override String get copyId => '复制 ID';
@@ -2295,6 +2296,7 @@ extension on TranslationsZh {
 			'cockpit.paneView.openInNewWindow' => '在新窗口中打开',
 			'cockpit.paneView.rename' => '重命名',
 			'cockpit.paneView.openAsMarkdown' => '以 Markdown 打开',
+			'cockpit.paneView.editInNeovim' => '使用 Neovim 编辑',
 			'cockpit.paneView.openAsBoard' => '以看板打开',
 			'cockpit.paneView.resetTitle' => '重置标题',
 			'cockpit.paneView.copyId' => '复制 ID',
@@ -2609,9 +2611,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.name' => '名称',
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
-			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3123,9 +3125,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.edit' => '编辑',
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
-			'settings.remoteHosts.removeTitle' => '移除主机',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.removeTitle' => '移除主机',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
