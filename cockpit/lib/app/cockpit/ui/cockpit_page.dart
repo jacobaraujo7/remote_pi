@@ -232,6 +232,7 @@ class _CockpitPageState extends State<CockpitPage> {
     // foco, então pega mesmo com um terminal focado. Ver [_handlePaneNavKey].
     HardwareKeyboard.instance.addHandler(_handlePaneNavKey);
     HardwareKeyboard.instance.addHandler(_realmKeyHandler);
+    HardwareKeyboard.instance.addHandler(_newTabKeyHandler);
     // Mantém os overrides de comando do LSP (tela "Language") em sync com o pool:
     // empurra o estado atual e re-empurra a cada mudança das Configurações.
     _settings = context.read<SettingsController>()
@@ -618,6 +619,7 @@ class _CockpitPageState extends State<CockpitPage> {
     _remoteTaskCtx.clear();
     HardwareKeyboard.instance.removeHandler(_handlePaneNavKey);
     HardwareKeyboard.instance.removeHandler(_realmKeyHandler);
+    HardwareKeyboard.instance.removeHandler(_newTabKeyHandler);
     _settings?.removeListener(_syncLspCommands);
     _settings?.removeListener(_syncNotifications);
     _settings?.removeListener(_syncCockpit);
@@ -704,6 +706,29 @@ class _CockpitPageState extends State<CockpitPage> {
       return false;
     }
     unawaited(_vm.cycleRealm(keys.isShiftPressed ? -1 : 1));
+    return true;
+  }
+
+  /// Ctrl+T no Windows/Linux: abre nova aba de terminal na pane focada.
+  /// No macOS o menu nativo (PlatformMenuBar) intercepta ⌘T no nível do SO
+  /// antes do foco do terminal; no Windows/Linux o terminal engole Ctrl+T
+  /// como caractere de controle ASCII 0x14 (transpose-chars do readline)
+  /// antes que o CallbackShortcuts ancestral receba a tecla.
+  /// Este handler global do HardwareKeyboard intercepta antes da distribuição por foco.
+  bool _newTabKeyHandler(KeyEvent event) {
+    if (Platform.isMacOS) return false;
+    if (event is! KeyDownEvent) return false;
+    if (event.logicalKey != LogicalKeyboardKey.keyT) return false;
+    final keys = HardwareKeyboard.instance;
+    if (!keys.isControlPressed ||
+        keys.isAltPressed ||
+        keys.isShiftPressed ||
+        keys.isMetaPressed) {
+      return false;
+    }
+    if (!mounted || ModalRoute.of(context)?.isCurrent != true) return false;
+    if (_vm.selectedProject == null) return false;
+    _vm.newTerminalForFocusedTab();
     return true;
   }
 
