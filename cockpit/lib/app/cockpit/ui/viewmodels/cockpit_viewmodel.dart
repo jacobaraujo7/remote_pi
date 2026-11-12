@@ -5666,6 +5666,18 @@ class CockpitViewModel extends ChangeNotifier
     selectTab(paneId, leaf.tabs.last);
   }
 
+  /// Cycles the focused pane's tabs — the Ctrl+Tab (next, [delta] 1) and
+  /// Ctrl+Shift+Tab (previous, [delta] -1) shortcuts, wrapping at the ends.
+  /// No-op if there is no focused pane or it has fewer than 2 tabs (see
+  /// [cycleTab]).
+  void cycleTabInFocusedPane(int delta) {
+    final focused = _focusedLeaf();
+    if (focused == null) return;
+    final (paneId, leaf) = focused;
+    final next = cycleTab(leaf, delta);
+    if (next != null) selectTab(paneId, next);
+  }
+
   /// Troca o workspace selecionado pelo vizinho no rail — ⇧⌘M avança, ⇧⌘N
   /// volta. A ordem é a visual: cada raiz seguida dos seus worktrees, e dá a
   /// volta nas pontas. O terminal de sistema "Cockpit" fica fora do ciclo.
