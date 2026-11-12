@@ -239,6 +239,22 @@ class GitController extends ChangeNotifier {
   /// `git push` no repo em [repoPath].
   GitRun push(String repoPath) => _runner.run(repoPath, const ['push']);
 
+  /// `git checkout` da branch [branch] no repo em [repoPath]. Quando
+  /// [trackRemote] é informado (ex.: `origin/foo`), cria a branch local já
+  /// acompanhando a remota (`checkout -b <branch> --track <remote>`) em vez de
+  /// cair em detached HEAD.
+  GitRun checkout(String repoPath, String branch, {String? trackRemote}) =>
+      _runner.run(repoPath, [
+        'checkout',
+        if (trackRemote != null) ...[
+          '-b',
+          branch,
+          '--track',
+          trackRemote,
+        ] else
+          branch,
+      ]);
+
   /// Roda um comando e coleta a saída para consumidores que precisam ler o
   /// resultado (por exemplo, o seletor de commits de amend).
   Future<(int code, String output)> output(

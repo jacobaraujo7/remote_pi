@@ -111,6 +111,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$confirmDialog$pt_BR confirmDialog = _Translations$cockpit$confirmDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$neovim$pt_BR neovim = _Translations$cockpit$neovim$pt_BR._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$pt_BR worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$pt_BR._(_root);
+	@override late final _Translations$cockpit$branchSwitchDialog$pt_BR branchSwitchDialog = _Translations$cockpit$branchSwitchDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$commitMessageDialog$pt_BR commitMessageDialog = _Translations$cockpit$commitMessageDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$tasksPanel$pt_BR tasksPanel = _Translations$cockpit$tasksPanel$pt_BR._(_root);
 	@override late final _Translations$cockpit$cockpitPage$pt_BR cockpitPage = _Translations$cockpit$cockpitPage$pt_BR._(_root);
@@ -555,6 +556,23 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get back => 'Voltar';
 }
 
+// Path: cockpit.branchSwitchDialog
+class _Translations$cockpit$branchSwitchDialog$pt_BR extends Translations$cockpit$branchSwitchDialog$en {
+	_Translations$cockpit$branchSwitchDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String title({required Object label}) => 'Trocar branch — ${label}';
+	@override String subtitle({required Object current}) => 'Branch atual: ${current}';
+	@override String get search => 'Buscar branches...';
+	@override String get local => 'Branches locais';
+	@override String get remote => 'Branches remotas';
+	@override String get switchAction => 'Trocar';
+	@override String get empty => 'Nenhuma branch encontrada.';
+	@override String get current => 'atual';
+}
+
 // Path: cockpit.commitMessageDialog
 class _Translations$cockpit$commitMessageDialog$pt_BR extends Translations$cockpit$commitMessageDialog$en {
 	_Translations$cockpit$commitMessageDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
@@ -619,6 +637,7 @@ class _Translations$cockpit$cockpitPage$pt_BR extends Translations$cockpit$cockp
 	@override String syncTitle({required Object label}) => 'Sync — ${label}';
 	@override String pullTitle({required Object label}) => 'Pull — ${label}';
 	@override String pushTitle({required Object label}) => 'Push — ${label}';
+	@override String switchBranchTitle({required Object label}) => 'Trocar branch — ${label}';
 	@override String updateFromParentTitle({required Object name}) => 'Atualizar a partir do Pai — ${name}';
 	@override String mergeToParentTitle({required Object name}) => 'Merge para o Pai — ${name}';
 	@override String get worktreeMergedAndRemoved => 'Worktree mesclada e removida.';
@@ -1177,6 +1196,7 @@ class _Translations$cockpit$projectsRail$pt_BR extends Translations$cockpit$proj
 	@override String get sync => 'Sincronizar';
 	@override String get pull => 'Pull';
 	@override String get push => 'Push';
+	@override String get switchBranch => 'Trocar branch…';
 	@override String get createWorktree => 'Criar worktree';
 	@override String worktreeCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
 		one: '1 worktree',
@@ -2301,6 +2321,14 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Roda git fetch para garantir que a branch base esteja confirmada antes de criar a worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Voltar',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => 'Trocar branch — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => 'Branch atual: ${current}',
+			'cockpit.branchSwitchDialog.search' => 'Buscar branches...',
+			'cockpit.branchSwitchDialog.local' => 'Branches locais',
+			'cockpit.branchSwitchDialog.remote' => 'Branches remotas',
+			'cockpit.branchSwitchDialog.switchAction' => 'Trocar',
+			'cockpit.branchSwitchDialog.empty' => 'Nenhuma branch encontrada.',
+			'cockpit.branchSwitchDialog.current' => 'atual',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage e Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit apenas de "${fileName}".',
@@ -2340,6 +2368,7 @@ extension on TranslationsPtBr {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => 'Sync — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => 'Pull — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => 'Push — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => 'Trocar branch — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => 'Atualizar a partir do Pai — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => 'Merge para o Pai — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'Worktree mesclada e removida.',
@@ -2686,6 +2715,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbPanel.passwordRequired' => 'Senha não encontrada no host. Abra esta conexão e digite-a de novo — ela fica salva na máquina que executa o banco, não nesta.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Excluir documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Excluir o documento com _id ${id} de "${collection}"?',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ex.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
@@ -2695,8 +2726,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -2754,6 +2783,7 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.sync' => 'Sincronizar',
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
+			'cockpit.projectsRail.switchBranch' => 'Trocar branch…',
 			'cockpit.projectsRail.createWorktree' => 'Criar worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 worktree', other: '${n} worktrees', ), 
 			'cockpit.projectsRail.expandWorktrees' => 'Expandir worktrees',
@@ -3199,6 +3229,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelUnavailable' => 'A lista de modelos fica indisponível até o harness ser encontrado.',
 			'settings.page.automations.modelCliOnly' => 'Este harness usa o modelo padrão da própria CLI.',
 			'settings.page.automations.modelCliDefault' => 'Padrão da CLI',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
@@ -3209,8 +3241,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

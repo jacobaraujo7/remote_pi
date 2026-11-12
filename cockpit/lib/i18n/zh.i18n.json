@@ -142,6 +142,16 @@
       "searchBranch": "搜索分支…",
       "back": "返回"
     },
+    "branchSwitchDialog": {
+      "title": "切换分支 — ${label}",
+      "subtitle": "当前分支：${current}",
+      "search": "搜索分支…",
+      "local": "本地分支",
+      "remote": "远程分支",
+      "switchAction": "切换",
+      "empty": "未找到分支。",
+      "current": "当前"
+    },
     "commitMessageDialog": {
       "commitTitle": "提交",
       "stageAndCommitTitle": "暂存并提交",
@@ -186,6 +196,7 @@
       "syncTitle": "同步 — ${label}",
       "pullTitle": "拉取 — ${label}",
       "pushTitle": "推送 — ${label}",
+      "switchBranchTitle": "切换分支 — ${label}",
       "updateFromParentTitle": "从父级更新 — ${name}",
       "mergeToParentTitle": "合并到父级 — ${name}",
       "worktreeMergedAndRemoved": "worktree 已合并并移除。",
@@ -649,6 +660,7 @@
       "sync": "同步",
       "pull": "拉取",
       "push": "推送",
+      "switchBranch": "切换分支…",
       "createWorktree": "创建 worktree",
       "worktreeCount": {
         "one": "1 个 worktree",

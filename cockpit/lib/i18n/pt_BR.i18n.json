@@ -142,6 +142,16 @@
       "searchBranch": "Buscar branch...",
       "back": "Voltar"
     },
+    "branchSwitchDialog": {
+      "title": "Trocar branch — ${label}",
+      "subtitle": "Branch atual: ${current}",
+      "search": "Buscar branches...",
+      "local": "Branches locais",
+      "remote": "Branches remotas",
+      "switchAction": "Trocar",
+      "empty": "Nenhuma branch encontrada.",
+      "current": "atual"
+    },
     "commitMessageDialog": {
       "commitTitle": "Commit",
       "stageAndCommitTitle": "Stage e Commit",
@@ -186,6 +196,7 @@
       "syncTitle": "Sync — ${label}",
       "pullTitle": "Pull — ${label}",
       "pushTitle": "Push — ${label}",
+      "switchBranchTitle": "Trocar branch — ${label}",
       "updateFromParentTitle": "Atualizar a partir do Pai — ${name}",
       "mergeToParentTitle": "Merge para o Pai — ${name}",
       "worktreeMergedAndRemoved": "Worktree mesclada e removida.",
@@ -656,6 +667,7 @@
       "sync": "Sincronizar",
       "pull": "Pull",
       "push": "Push",
+      "switchBranch": "Trocar branch…",
       "createWorktree": "Criar worktree",
       "worktreeCount": {
         "one": "1 worktree",
