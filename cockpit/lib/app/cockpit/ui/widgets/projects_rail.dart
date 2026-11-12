@@ -80,6 +80,7 @@ class ProjectsRail extends StatefulWidget {
     required this.onSync,
     required this.onPull,
     required this.onPush,
+    required this.onSwitchBranch,
     required this.onOpenSettings,
     required this.onReorder,
     required this.realms,
@@ -193,6 +194,10 @@ class ProjectsRail extends StatefulWidget {
   final void Function(Project project, String rootPath) onSync;
   final void Function(Project project, String rootPath) onPull;
   final void Function(Project project, String rootPath) onPush;
+
+  /// Troca a branch do workspace raiz na root escolhida. Só workspace local
+  /// raiz (worktrees/remoto têm fluxos próprios).
+  final void Function(Project project, String rootPath) onSwitchBranch;
 
   /// Abre a tela de Configurações (engrenagem no rodapé).
   final VoidCallback onOpenSettings;
@@ -346,6 +351,7 @@ class _ProjectsRailState extends State<ProjectsRail> {
             onSync: (r) => widget.onSync(project, r),
             onPull: (r) => widget.onPull(project, r),
             onPush: (r) => widget.onPush(project, r),
+            onSwitchBranch: (r) => widget.onSwitchBranch(project, r),
             moveTargetsOf: () => widget.moveTargetsOf(id),
             onMoveToRealm: (realmId) => widget.onMoveToRealm(id, realmId),
           ),
@@ -1044,6 +1050,7 @@ class _ProjectItem extends StatelessWidget {
     required this.onSync,
     required this.onPull,
     required this.onPush,
+    required this.onSwitchBranch,
     required this.moveTargetsOf,
     required this.onMoveToRealm,
   });
@@ -1082,6 +1089,7 @@ class _ProjectItem extends StatelessWidget {
   final void Function(String rootPath) onSync;
   final void Function(String rootPath) onPull;
   final void Function(String rootPath) onPush;
+  final void Function(String rootPath) onSwitchBranch;
 
   /// Realms de destino do "Move to realm" (vazio esconde o item). Thunk pela
   /// mesma razão de [rootsOf] — e este ainda varre a lista de workspaces por
@@ -1103,6 +1111,7 @@ class _ProjectItem extends StatelessWidget {
       onSync: onSync,
       onPull: onPull,
       onPush: onPush,
+      onSwitchBranch: onSwitchBranch,
       moveTargetsOf: moveTargetsOf,
       onMoveToRealm: onMoveToRealm,
     );
@@ -1794,6 +1803,7 @@ class _WorkspaceMenu {
     required this.onSync,
     required this.onPull,
     required this.onPush,
+    required this.onSwitchBranch,
     required this.moveTargetsOf,
     required this.onMoveToRealm,
   });
@@ -1813,6 +1823,7 @@ class _WorkspaceMenu {
   final void Function(String rootPath) onSync;
   final void Function(String rootPath) onPull;
   final void Function(String rootPath) onPush;
+  final void Function(String rootPath) onSwitchBranch;
 
   /// Realms de destino do "Move to realm" (vazio = 0/1 realm → item oculto).
   /// Destino com o mesmo path já presente vem desabilitado (um path por realm).
@@ -1847,6 +1858,12 @@ class _WorkspaceMenu {
             'push',
             context.t.cockpit.projectsRail.push,
             Icons.arrow_upward,
+          ),
+          gitMenuItem(
+            roots,
+            'switch-branch',
+            context.t.cockpit.projectsRail.switchBranch,
+            Icons.alt_route,
           ),
           gitMenuItem(
             roots,
@@ -1909,6 +1926,7 @@ class _WorkspaceMenu {
       if (action == 'sync') onSync(arg);
       if (action == 'pull') onPull(arg);
       if (action == 'push') onPush(arg);
+      if (action == 'switch-branch') onSwitchBranch(arg);
       if (action == 'worktree') onCreateWorktree(arg);
       if (action == 'realm') onMoveToRealm(arg);
       if (action == 'copy-branch') {

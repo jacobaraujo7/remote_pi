@@ -145,6 +145,7 @@ Widget _rail({
           onSync: (_, _) {},
           onPull: (_, _) {},
           onPush: (_, _) {},
+          onSwitchBranch: (_, _) {},
           onOpenSettings: () {},
           onReorder: (_, _, _) {},
           realms: [_realm],

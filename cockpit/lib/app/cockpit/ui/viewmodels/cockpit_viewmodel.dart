@@ -5408,6 +5408,11 @@ class CockpitViewModel extends ChangeNotifier
   /// `git push` no repo em [repoPath].
   GitRun gitPush(String repoPath) => git.push(repoPath);
 
+  /// `git checkout` da branch [branch] na root [repoPath] de um workspace
+  /// local. [trackRemote] cria a branch local acompanhando a remota.
+  GitRun gitCheckout(String repoPath, String branch, {String? trackRemote}) =>
+      git.checkout(repoPath, branch, trackRemote: trackRemote);
+
   /// `git clone` de [url] em [targetPath] (fluxo "Clonar repositório" do "+").
   /// Não registra o workspace: a action faz isso só depois do clone dar certo.
   GitRun gitClone(String url, String targetPath) =>
