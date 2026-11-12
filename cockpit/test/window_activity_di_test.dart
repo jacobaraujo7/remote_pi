@@ -66,7 +66,8 @@ void main() {
 
 class _FakeGitStatusReader implements GitStatusReader {
   @override
-  Future<GitInfo?> read(String path) async => null;
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async =>
+      null;
 }
 
 class _FakeGitCommandRunner implements GitCommandRunner {

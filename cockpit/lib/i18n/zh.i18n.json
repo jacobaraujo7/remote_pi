@@ -970,6 +970,11 @@
       "hintSshMissing": "此 URL 无法使用 SSH。请改用 HTTPS URL，或安装 OpenSSH（Git for Windows 自带）。",
       "hintHostKey": "无法验证服务器的 SSH 主机密钥，或密钥已更改。重试前请检查 ~/.ssh/known_hosts。",
       "hintAuth": "访问被拒绝或仓库不存在。SSH：用 ssh -T git@github.com 测试密钥；HTTPS：通过 Git 凭据管理器登录（或 gh auth login）。"
+    },
+    "statusBar": {
+      "changedFiles": "${count} 个文件已更改",
+      "aheadBehind": "领先 ${ahead}，落后 ${behind}",
+      "lineStatsUnknown": "此处无法获取行数统计"
     }
   },
   "settings": {

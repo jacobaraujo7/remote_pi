@@ -86,4 +86,10 @@ void main() {
     expect(info.stagedFiles, isEmpty);
     expect(info.changedFiles, isEmpty);
   });
+
+  test('line stats are unknown (null) on a remote host, not 0', () {
+    final info = remoteGitInfo(status('main', [(' ', 'M', 'edited.txt')]));
+    expect(info.insertions, isNull);
+    expect(info.deletions, isNull);
+  });
 }
