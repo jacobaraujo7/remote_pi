@@ -44,6 +44,7 @@
       "file": "Arquivo",
       "newTerminal": "Novo Terminal",
       "newFile": "Novo Arquivo",
+      "closeTab": "Fechar Aba",
       "openWorkspace": "Abrir Workspace",
       "goToFile": "Ir para Arquivo…",
       "save": "Salvar",
@@ -104,7 +105,11 @@
       "unsavedChangesTitle": "Alterações não salvas",
       "unsavedChangesMessage": "“${fileName}” tem alterações não salvas. Salvar antes de fechar?",
       "dontSave": "Não salvar",
-      "saveAndClose": "Salvar e fechar"
+      "saveAndClose": "Salvar e fechar",
+      "closeTerminalTitle": "Fechar terminal?",
+      "closeTerminalMessage": "Há um agente rodando neste terminal. Fechar mesmo assim?",
+      "doNotAskAgain": "Não perguntar novamente",
+      "close": "Fechar"
     },
     "neovim": {
       "unavailable": "O Neovim não está disponível. Abrindo no Cockpit.",
@@ -1077,7 +1082,9 @@
         "noWslMessage": "Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.",
         "sectionBehavior": "Comportamento",
         "closeOnExitTitle": "Fechar a aba quando o shell encerrar",
-        "closeOnExitDesc": "Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto."
+        "closeOnExitDesc": "Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.",
+        "confirmCloseTerminalTitle": "Confirmar antes de fechar terminal",
+        "confirmCloseTerminalDesc": "Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando."
       },
       "appearance": {
         "sectionTheme": "Tema",

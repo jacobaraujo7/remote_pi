@@ -92,6 +92,13 @@ List<MenuBarMenu> buildAppMenus(
           accelerator: const MenuAccelerator(LogicalKeyboardKey.keyN),
           onSelected: workspace.hasWorkspace ? workspace.newFile : null,
         ),
+      if (!isMobilePlatform)
+        MenuAction(
+          tr.closeTab,
+          accelerator: const MenuAccelerator(LogicalKeyboardKey.keyW),
+          shortcutHandledExternally: true,
+          onSelected: workspace.hasWorkspace ? workspace.closeTab : null,
+        ),
       if (!isMobilePlatform) const MenuSeparator(),
       if (!isMobilePlatform)
         MenuAction(

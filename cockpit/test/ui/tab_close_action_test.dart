@@ -1,10 +1,89 @@
+import 'dart:async';
+
+import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/services/terminal_harness_monitor.dart';
 import 'package:cockpit/app/cockpit/ui/actions/tab_actions.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
+import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
+import 'package:cockpit/app/core/domain/contracts/settings_store.dart';
+import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/domain/entities/harness.dart';
+import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/utils/spawn_directory.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
+
+class _NoopGateway implements TerminalGateway {
+  @override
+  SpawnDirectory? get spawnDirectory => null;
+
+  @override
+  int? get rootProcessId => null;
+
+  @override
+  int? get wslProcessId => null;
+
+  final _out = StreamController<List<int>>();
+
+  @override
+  Stream<List<int>> get output => _out.stream;
+
+  @override
+  void start({
+    required String workingDirectory,
+    required TerminalProfile profile,
+    int rows = 25,
+    int columns = 80,
+    Map<String, String> extraEnv = const <String, String>{},
+  }) {}
+
+  @override
+  void write(List<int> data) {}
+
+  @override
+  void resize(int rows, int columns) {}
+
+  @override
+  void acknowledgeOutput() {}
+
+  @override
+  Future<void> kill() async {
+    await _out.close();
+  }
+}
+
+/// Monitor que reporta [harness] assim que a sessão se registra — simula um
+/// agente rodando na aba sem subir processo nem poll.
+class _FakeHarnessMonitor extends Fake implements TerminalHarnessMonitor {
+  _FakeHarnessMonitor(this.harness);
+  final HarnessKind? harness;
+
+  @override
+  void registerSession({
+    required String sessionId,
+    required int? Function() rootPid,
+    String? wslDistro,
+    required void Function(HarnessKind? newHarness) onHarnessChanged,
+  }) => onHarnessChanged(harness);
+
+  @override
+  void requestPoll({String? sessionId, bool urgent = false}) {}
+}
+
+class _FakeSettingsStore implements SettingsStore {
+  const _FakeSettingsStore();
+
+  @override
+  Future<AppSettings> load() async => const AppSettings();
+
+  @override
+  Future<void> save(AppSettings settings) async {}
+}
 
 /// O X do título e o ⌘W passam pela MESMA regra ([requestCloseTab]): um
 /// caminho que esquecesse o diálogo descartaria trabalho em silêncio.
@@ -18,6 +97,23 @@ void main() {
     );
     if (dirty) s.setDirty(true);
     return s;
+  }
+
+  TerminalSession terminalSession({
+    HarnessKind? harness = HarnessKind.claudeCode,
+  }) {
+    return TerminalSession(
+      id: 't1',
+      projectId: 'p1',
+      workingDirectory: '/tmp',
+      gateway: _NoopGateway(),
+      profile: const TerminalProfile(
+        id: 'login-shell',
+        label: 'sh',
+        executable: '/bin/sh',
+      ),
+      monitor: _FakeHarnessMonitor(harness),
+    );
   }
 
   /// Monta a árvore e devolve um contexto vivo abaixo do TranslationProvider.
@@ -85,4 +181,173 @@ void main() {
     expect(await pending, isFalse);
     expect(closed, 0);
   });
+
+  testWidgets('terminal com agente pergunta antes de fechar', (tester) async {
+    final ctx = await pump(tester);
+    final controller = SettingsController(const _FakeSettingsStore());
+    var closed = 0;
+
+    final pending = requestCloseTab(
+      ctx,
+      terminalSession(),
+      () => closed++,
+      settingsController: controller,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(closed, 0, reason: 'não pode fechar antes da confirmação');
+
+    await tester.tap(find.text(ctx.t.cockpit.confirmDialog.close));
+    await tester.pumpAndSettle();
+
+    expect(await pending, isTrue);
+    expect(closed, 1);
+  });
+
+  testWidgets('cancelar o diálogo do terminal mantém a aba aberta', (
+    tester,
+  ) async {
+    final ctx = await pump(tester);
+    final controller = SettingsController(const _FakeSettingsStore());
+    var closed = 0;
+
+    final pending = requestCloseTab(
+      ctx,
+      terminalSession(),
+      () => closed++,
+      settingsController: controller,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text(ctx.t.common.cancel));
+    await tester.pumpAndSettle();
+
+    expect(await pending, isFalse);
+    expect(closed, 0);
+  });
+
+  testWidgets('marcar não perguntar novamente desativa confirmCloseTerminal', (
+    tester,
+  ) async {
+    final ctx = await pump(tester);
+    final controller = SettingsController(const _FakeSettingsStore());
+    var closed = 0;
+
+    final pending = requestCloseTab(
+      ctx,
+      terminalSession(),
+      () => closed++,
+      settingsController: controller,
+    );
+    await tester.pumpAndSettle();
+
+    // Clica no checkbox "Não perguntar novamente"
+    await tester.tap(find.byType(Checkbox));
+    await tester.pumpAndSettle();
+
+    // Confirma o fechamento
+    await tester.tap(find.text(ctx.t.cockpit.confirmDialog.close));
+    await tester.pumpAndSettle();
+
+    expect(await pending, isTrue);
+    expect(closed, 1);
+    expect(controller.settings.confirmCloseTerminal, isFalse);
+
+    // Segundo fechamento agora fecha direto sem abrir modal
+    var closedAgain = 0;
+    final ok = await requestCloseTab(
+      ctx,
+      terminalSession(),
+      () => closedAgain++,
+      settingsController: controller,
+    );
+    await tester.pumpAndSettle();
+
+    expect(ok, isTrue);
+    expect(closedAgain, 1);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  testWidgets('shell ocioso fecha direto, sem diálogo', (tester) async {
+    final ctx = await pump(tester);
+    final controller = SettingsController(const _FakeSettingsStore());
+    var closed = 0;
+
+    final ok = await requestCloseTab(
+      ctx,
+      terminalSession(harness: null),
+      () => closed++,
+      settingsController: controller,
+    );
+    await tester.pumpAndSettle();
+
+    expect(ok, isTrue);
+    expect(closed, 1);
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
+  test('terminalOwnerShortcuts no macOS não intercepta Ctrl+T / Ctrl+W', () {
+    final shortcuts = terminalOwnerShortcuts(
+      onNewTerminal: () {},
+      onCloseTab: () {},
+      isMacOS: true,
+    );
+
+    expect(shortcuts.keys, hasLength(2));
+    expect(
+      shortcuts.containsKey(
+        const SingleActivator(LogicalKeyboardKey.keyT, control: true),
+      ),
+      isFalse,
+    );
+    expect(
+      shortcuts.containsKey(
+        const SingleActivator(LogicalKeyboardKey.keyW, control: true),
+      ),
+      isFalse,
+    );
+  });
+
+  test(
+    'terminalOwnerShortcuts fora do macOS mapeia novo terminal e fechar aba',
+    () {
+      var newTerminalCalls = 0;
+      var closeTabCalls = 0;
+
+      final shortcuts = terminalOwnerShortcuts(
+        onNewTerminal: () => newTerminalCalls++,
+        onCloseTab: () => closeTabCalls++,
+        isMacOS: false,
+      );
+
+      // Ctrl+T e Cmd+T disparam onNewTerminal
+      shortcuts[const SingleActivator(LogicalKeyboardKey.keyT, control: true)]
+          ?.call();
+      expect(newTerminalCalls, 1);
+
+      shortcuts[const SingleActivator(LogicalKeyboardKey.keyT, meta: true)]
+          ?.call();
+      expect(newTerminalCalls, 2);
+
+      // Ctrl+W e Cmd+W disparam onCloseTab
+      shortcuts[const SingleActivator(LogicalKeyboardKey.keyW, control: true)]
+          ?.call();
+      expect(closeTabCalls, 1);
+
+      shortcuts[const SingleActivator(LogicalKeyboardKey.keyW, meta: true)]
+          ?.call();
+      expect(closeTabCalls, 2);
+
+      expect(
+        shortcuts.containsKey(
+          const SingleActivator(
+            LogicalKeyboardKey.keyW,
+            control: true,
+            shift: true,
+          ),
+        ),
+        isFalse,
+      );
+    },
+  );
 }

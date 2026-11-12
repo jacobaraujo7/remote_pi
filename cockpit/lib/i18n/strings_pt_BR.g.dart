@@ -462,6 +462,7 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get file => 'Arquivo';
 	@override String get newTerminal => 'Novo Terminal';
 	@override String get newFile => 'Novo Arquivo';
+	@override String get closeTab => 'Fechar Aba';
 	@override String get openWorkspace => 'Abrir Workspace';
 	@override String get goToFile => 'Ir para Arquivo…';
 	@override String get save => 'Salvar';
@@ -503,6 +504,10 @@ class _Translations$cockpit$confirmDialog$pt_BR extends Translations$cockpit$con
 	@override String unsavedChangesMessage({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?';
 	@override String get dontSave => 'Não salvar';
 	@override String get saveAndClose => 'Salvar e fechar';
+	@override String get closeTerminalTitle => 'Fechar terminal?';
+	@override String get closeTerminalMessage => 'Há um agente rodando neste terminal. Fechar mesmo assim?';
+	@override String get doNotAskAgain => 'Não perguntar novamente';
+	@override String get close => 'Fechar';
 }
 
 // Path: cockpit.neovim
@@ -1993,6 +1998,8 @@ class _Translations$settings$page$terminal$pt_BR extends Translations$settings$p
 	@override String get sectionBehavior => 'Comportamento';
 	@override String get closeOnExitTitle => 'Fechar a aba quando o shell encerrar';
 	@override String get closeOnExitDesc => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.';
+	@override String get confirmCloseTerminalTitle => 'Confirmar antes de fechar terminal';
+	@override String get confirmCloseTerminalDesc => 'Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando.';
 }
 
 // Path: settings.page.appearance
@@ -2214,6 +2221,7 @@ extension on TranslationsPtBr {
 			'core.menu.file' => 'Arquivo',
 			'core.menu.newTerminal' => 'Novo Terminal',
 			'core.menu.newFile' => 'Novo Arquivo',
+			'core.menu.closeTab' => 'Fechar Aba',
 			'core.menu.openWorkspace' => 'Abrir Workspace',
 			'core.menu.goToFile' => 'Ir para Arquivo…',
 			'core.menu.save' => 'Salvar',
@@ -2269,6 +2277,10 @@ extension on TranslationsPtBr {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?',
 			'cockpit.confirmDialog.dontSave' => 'Não salvar',
 			'cockpit.confirmDialog.saveAndClose' => 'Salvar e fechar',
+			'cockpit.confirmDialog.closeTerminalTitle' => 'Fechar terminal?',
+			'cockpit.confirmDialog.closeTerminalMessage' => 'Há um agente rodando neste terminal. Fechar mesmo assim?',
+			'cockpit.confirmDialog.doNotAskAgain' => 'Não perguntar novamente',
+			'cockpit.confirmDialog.close' => 'Fechar',
 			'cockpit.neovim.unavailable' => 'O Neovim não está disponível. Abrindo no Cockpit.',
 			'cockpit.neovim.openFailed' => 'Não foi possível acessar o Neovim. Abrindo no Cockpit.',
 			'cockpit.neovim.unsavedTitle' => 'Buffers não salvos no Neovim',
@@ -2690,13 +2702,13 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Atualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Inserir documento',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocuments' => 'Nenhum documento nesta coleção.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
 			'cockpit.dbMongoView.insert' => 'Inserir',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Escolha um arquivo SQLite…',
@@ -3098,6 +3110,8 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
+			'settings.page.terminal.confirmCloseTerminalTitle' => 'Confirmar antes de fechar terminal',
+			'settings.page.terminal.confirmCloseTerminalDesc' => 'Perguntar antes de fechar uma aba de terminal com um agente (Claude, Codex, Pi) rodando.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
@@ -3202,6 +3216,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => 'Só aparecem os modelos liberados na sua conta.',
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
@@ -3209,8 +3225,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

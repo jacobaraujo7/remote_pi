@@ -467,6 +467,7 @@ class _CockpitPageState extends State<CockpitPage> {
       hasWorkspace: vm.selectedProject != null,
       onNewTerminal: vm.newTerminalForFocusedTab,
       onNewFile: vm.openScratchText,
+      onCloseTab: _closeActiveTab,
       onGoToFile: _openFileFinder,
       onSplitRight: () => _splitFocused(SplitDir.vertical),
       onSplitDown: () => _splitFocused(SplitDir.horizontal),
@@ -673,6 +674,9 @@ class _CockpitPageState extends State<CockpitPage> {
         _focusContentSearch,
     const SingleActivator(LogicalKeyboardKey.keyF, control: true, shift: true):
         _focusContentSearch,
+    // Cmd+T / Ctrl+T: nova aba de terminal na pane focada.
+    const SingleActivator(LogicalKeyboardKey.keyT, meta: true): _newTerminal,
+    const SingleActivator(LogicalKeyboardKey.keyT, control: true): _newTerminal,
     // ⌘W / Ctrl+W fecha a ABA (não a janela): é o que a aba de um editor
     // significa em qualquer IDE. Passa pela mesma confirmação do X do título,
     // então arquivo não salvo continua perguntando antes de sumir.
@@ -680,6 +684,11 @@ class _CockpitPageState extends State<CockpitPage> {
     const SingleActivator(LogicalKeyboardKey.keyW, control: true):
         _closeActiveTab,
   };
+
+  void _newTerminal() {
+    if (_vm.selectedProject == null) return;
+    _vm.newTerminalForFocusedTab();
+  }
 
   void _closeActiveTab() => unawaited(closeActiveTab(context));
 

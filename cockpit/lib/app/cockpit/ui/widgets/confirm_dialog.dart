@@ -146,3 +146,114 @@ Future<bool> showConfirmDialog(
   );
   return result ?? false;
 }
+
+/// Resultado da confirmacao ao fechar aba de terminal.
+class ConfirmCloseTerminalResult {
+  const ConfirmCloseTerminalResult({
+    required this.confirmed,
+    required this.doNotAskAgain,
+  });
+
+  final bool confirmed;
+  final bool doNotAskAgain;
+}
+
+/// Dialog ao fechar uma aba de terminal: pergunta se deseja fechar e oferece
+/// opcao de "Nao perguntar novamente". Devolve `null` se dispensado fora.
+Future<ConfirmCloseTerminalResult?> showConfirmCloseTerminalDialog(
+  BuildContext context, {
+  String? title,
+  String? message,
+}) async {
+  bool doNotAskAgain = false;
+  final tr = context.t.cockpit.confirmDialog;
+  final result = await showDialog<ConfirmCloseTerminalResult>(
+    context: context,
+    barrierColor: context.colors.scrim,
+    builder: (dialogContext) {
+      return StatefulBuilder(
+        builder: (context, setState) {
+          final colors = context.colors;
+          return AlertDialog(
+            title: Text(
+              title ?? tr.closeTerminalTitle,
+              style: context.typo.title.copyWith(
+                fontSize: 15,
+                color: colors.text,
+              ),
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 380),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    message ?? tr.closeTerminalMessage,
+                    style: context.typo.body.copyWith(
+                      fontSize: 13.5,
+                      color: colors.text2,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      setState(() {
+                        doNotAskAgain = !doNotAskAgain;
+                      });
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Checkbox(
+                          state: doNotAskAgain
+                              ? CheckboxState.checked
+                              : CheckboxState.unchecked,
+                          onChanged: (v) {
+                            setState(() {
+                              doNotAskAgain = v == CheckboxState.checked;
+                            });
+                          },
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          tr.doNotAskAgain,
+                          style: context.typo.body.copyWith(
+                            fontSize: 13,
+                            color: colors.text,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              OutlineButton(
+                onPressed: () => Navigator.of(context).pop(
+                  const ConfirmCloseTerminalResult(
+                    confirmed: false,
+                    doNotAskAgain: false,
+                  ),
+                ),
+                child: Text(context.t.common.cancel),
+              ),
+              DestructiveButton(
+                onPressed: () => Navigator.of(context).pop(
+                  ConfirmCloseTerminalResult(
+                    confirmed: true,
+                    doNotAskAgain: doNotAskAgain,
+                  ),
+                ),
+                child: Text(tr.close),
+              ),
+            ],
+          );
+        },
+      );
+    },
+  );
+  return result;
+}

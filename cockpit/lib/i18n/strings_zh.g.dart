@@ -384,6 +384,7 @@ class _Translations$core$menu$zh extends Translations$core$menu$en {
 	@override String get file => '文件';
 	@override String get newTerminal => '新建终端';
 	@override String get newFile => '新建文件';
+	@override String get closeTab => '关闭标签页';
 	@override String get openWorkspace => '打开工作区';
 	@override String get goToFile => '转到文件…';
 	@override String get save => '保存';
@@ -425,6 +426,10 @@ class _Translations$cockpit$confirmDialog$zh extends Translations$cockpit$confir
 	@override String unsavedChangesMessage({required Object fileName}) => '「${fileName}」有未保存的更改。关闭前要保存吗？';
 	@override String get dontSave => '不保存';
 	@override String get saveAndClose => '保存并关闭';
+	@override String get closeTerminalTitle => '关闭终端？';
+	@override String get closeTerminalMessage => '此终端中有代理正在运行。仍要关闭吗？';
+	@override String get doNotAskAgain => '不再询问';
+	@override String get close => '关闭';
 }
 
 // Path: cockpit.neovim
@@ -1908,6 +1913,8 @@ class _Translations$settings$page$terminal$zh extends Translations$settings$page
 	@override String get sectionBehavior => '行为';
 	@override String get closeOnExitTitle => 'shell 退出时关闭标签页';
 	@override String get closeOnExitDesc => '当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。';
+	@override String get confirmCloseTerminalTitle => '关闭终端前确认';
+	@override String get confirmCloseTerminalDesc => '当终端标签页中有代理（Claude、Codex、Pi）正在运行时，关闭前先确认。';
 }
 
 // Path: settings.page.appearance
@@ -2129,6 +2136,7 @@ extension on TranslationsZh {
 			'core.menu.file' => '文件',
 			'core.menu.newTerminal' => '新建终端',
 			'core.menu.newFile' => '新建文件',
+			'core.menu.closeTab' => '关闭标签页',
 			'core.menu.openWorkspace' => '打开工作区',
 			'core.menu.goToFile' => '转到文件…',
 			'core.menu.save' => '保存',
@@ -2184,6 +2192,10 @@ extension on TranslationsZh {
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '「${fileName}」有未保存的更改。关闭前要保存吗？',
 			'cockpit.confirmDialog.dontSave' => '不保存',
 			'cockpit.confirmDialog.saveAndClose' => '保存并关闭',
+			'cockpit.confirmDialog.closeTerminalTitle' => '关闭终端？',
+			'cockpit.confirmDialog.closeTerminalMessage' => '此终端中有代理正在运行。仍要关闭吗？',
+			'cockpit.confirmDialog.doNotAskAgain' => '不再询问',
+			'cockpit.confirmDialog.close' => '关闭',
 			'cockpit.neovim.unavailable' => 'Neovim 不可用。改为在 Cockpit 中打开。',
 			'cockpit.neovim.openFailed' => '无法连接 Neovim。改为在 Cockpit 中打开。',
 			'cockpit.neovim.unsavedTitle' => 'Neovim 有未保存的缓冲区',
@@ -2605,13 +2617,13 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.insert' => '插入',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
 			'cockpit.dbConnectionDialog.file' => '文件',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => '选择一个 SQLite 文件…',
 			'cockpit.dbConnectionDialog.name' => '名称',
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3006,6 +3018,8 @@ extension on TranslationsZh {
 			'settings.page.terminal.sectionBehavior' => '行为',
 			'settings.page.terminal.closeOnExitTitle' => 'shell 退出时关闭标签页',
 			'settings.page.terminal.closeOnExitDesc' => '当 shell 自行结束（exit、Ctrl-D）时，关闭其标签页，而不是留下一个失效的终端。',
+			'settings.page.terminal.confirmCloseTerminalTitle' => '关闭终端前确认',
+			'settings.page.terminal.confirmCloseTerminalDesc' => '当终端标签页中有代理（Claude、Codex、Pi）正在运行时，关闭前先确认。',
 			'settings.page.appearance.sectionTheme' => '主题',
 			'settings.page.appearance.themeTitle' => '主题',
 			'settings.page.appearance.themeDesc' => '应用颜色、代码高亮和终端配色。',
@@ -3117,6 +3131,8 @@ extension on TranslationsZh {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.description' => '通过 SSH 访问的机器。在这里添加主机与从工作区「+」菜单添加效果相同。',
 			'settings.remoteHosts.empty' => '还没有远程主机。',
 			'settings.remoteHosts.add' => '添加主机',
@@ -3124,8 +3140,6 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

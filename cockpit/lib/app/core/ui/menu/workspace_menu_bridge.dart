@@ -12,6 +12,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   bool _hasWorkspace = false;
   VoidCallback? _onNewTerminal;
   VoidCallback? _onNewFile;
+  VoidCallback? _onCloseTab;
   VoidCallback? _onGoToFile;
   VoidCallback? _onSplitRight;
   VoidCallback? _onSplitDown;
@@ -30,6 +31,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
 
   void newTerminal() => _onNewTerminal?.call();
   void newFile() => _onNewFile?.call();
+  void closeTab() => _onCloseTab?.call();
   void goToFile() => _onGoToFile?.call();
   void splitRight() => _onSplitRight?.call();
   void splitDown() => _onSplitDown?.call();
@@ -50,6 +52,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
     required bool hasWorkspace,
     VoidCallback? onNewTerminal,
     VoidCallback? onNewFile,
+    VoidCallback? onCloseTab,
     VoidCallback? onGoToFile,
     VoidCallback? onSplitRight,
     VoidCallback? onSplitDown,
@@ -66,6 +69,7 @@ class WorkspaceMenuBridge extends ChangeNotifier {
   }) {
     _onNewTerminal = onNewTerminal;
     _onNewFile = onNewFile;
+    _onCloseTab = onCloseTab;
     _onGoToFile = onGoToFile;
     _onSplitRight = onSplitRight;
     _onSplitDown = onSplitDown;

@@ -44,6 +44,7 @@
       "file": "File",
       "newTerminal": "New Terminal",
       "newFile": "New File",
+      "closeTab": "Close Tab",
       "openWorkspace": "Open Workspace",
       "goToFile": "Go to File…",
       "save": "Save",
@@ -104,7 +105,11 @@
       "unsavedChangesTitle": "Unsaved changes",
       "unsavedChangesMessage": "“${fileName}” has unsaved changes. Save them before closing?",
       "dontSave": "Don't save",
-      "saveAndClose": "Save & close"
+      "saveAndClose": "Save & close",
+      "closeTerminalTitle": "Close terminal?",
+      "closeTerminalMessage": "An agent is running in this terminal. Close it anyway?",
+      "doNotAskAgain": "Don't ask again",
+      "close": "Close"
     },
     "neovim": {
       "unavailable": "Neovim is not available. Opening in Cockpit instead.",
@@ -1077,7 +1082,9 @@
         "noWslMessage": "No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.",
         "sectionBehavior": "Behavior",
         "closeOnExitTitle": "Close tab when the shell exits",
-        "closeOnExitDesc": "When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal."
+        "closeOnExitDesc": "When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.",
+        "confirmCloseTerminalTitle": "Confirm before closing terminal",
+        "confirmCloseTerminalDesc": "Ask before closing a terminal tab while an agent (Claude, Codex, Pi) is running in it."
       },
       "appearance": {
         "sectionTheme": "Theme",
