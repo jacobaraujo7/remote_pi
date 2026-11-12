@@ -3,6 +3,7 @@ import 'orchestration_view.dart';
 import '../../domain/entities/orchestration_document.dart';
 import '../session/orchestration_session.dart';
 import 'package:desktop_drop/desktop_drop.dart';
+import 'pane_tab_cycle.dart';
 import 'terminal_session_view.dart';
 import 'dart:async';
 import 'dart:io';
@@ -1649,6 +1650,20 @@ class _PaneBodyState extends State<_PaneBody> {
 
   @override
   Widget build(BuildContext context) {
+    // Ctrl-Tab / Ctrl-Shift-Tab cycle this pane's tabs. Terminals get it as
+    // ownerShortcuts (resolved before the PTY); any other tab lets it bubble
+    // to the scope. An `.orc` keeps its own Ctrl-Tab in its inner terminals.
+    final onCycle = context.read<CockpitViewModel>().cycleTabInFocusedPane;
+    return PaneTabCycleScope(
+      onCycle: onCycle,
+      child: _buildBody(context, paneTabCycleShortcuts(onCycle)),
+    );
+  }
+
+  Widget _buildBody(
+    BuildContext context,
+    Map<ShortcutActivator, VoidCallback> cycle,
+  ) {
     final item = widget.item;
 
     if (item is OrchestrationSession) {
@@ -1861,6 +1876,7 @@ class _PaneBodyState extends State<_PaneBody> {
               focusNode: _terminalFocus,
               onKeyEvent: (_) => KeyEventResult.ignored,
               readOnly: true,
+              ownerShortcuts: cycle,
               // Read-only não quer dizer sem link: a saída de uma task é
               // justamente onde `dart analyze` e `flutter test` imprimem
               // `lib/x.dart:12:3`. Sem isto, clicar num erro aqui não fazia
@@ -1887,6 +1903,7 @@ class _PaneBodyState extends State<_PaneBody> {
         active: widget.active,
         focused: widget.focused,
         focusRevision: widget.focusGen,
+        ownerShortcuts: cycle,
         onFocus: () => context.read<CockpitViewModel>().focus(widget.paneId),
         onOpenFile: (path, {line}) =>
             context.read<CockpitViewModel>().openTerminalPath(
