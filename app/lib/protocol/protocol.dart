@@ -1389,8 +1389,9 @@ class Bye extends ServerMessage {
 // SDK's `pi --mode rpc` extension_ui_request / extension_ui_response contract
 // (RpcExtensionUIRequest/Response), so the app and the Cockpit share one
 // interactive-UI vocabulary. pi-ask's richer schema (multi/preview/notes) rides
-// in an optional `ask` envelope; strict handling ignores it. Inert when pi-ask
-// is absent (the tool doesn't exist → no frames ever arrive).
+// in an optional `ask` envelope; strict handling ignores it. OMP's built-in
+// `ask` uses the same bridge when its rich UI is exposed by the host.
+// Inert when neither producer is available (no frames ever arrive).
 // ---------------------------------------------------------------------------
 
 /// `select` | `confirm` | `input` | `editor` | `notify` (SDK methods). `notify`
@@ -1498,9 +1499,9 @@ class AskQuestionWire {
       );
 }
 
-/// Optional pi-ask enrichment on an `extension_ui_request`. When present, the
-/// app renders the full flow (multi/preview/notes) from [questions] instead of
-/// the degraded SDK method. One request carries the whole flow.
+/// Optional pi-ask/OMP enrichment on an `extension_ui_request`. When present,
+/// the app renders the full flow (multi/preview/notes) from [questions] instead
+/// of the degraded SDK method. One request carries the whole flow.
 class AskEnrichmentWire {
   final String flowId;
   final String? toolCallId;
