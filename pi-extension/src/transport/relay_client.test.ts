@@ -8,6 +8,10 @@ import { generateEd25519Keypair } from "../pairing/crypto.js";
 // Shared reference: set by the MockWS constructor so tests can access it.
 const wsRef: { current: MockWS | null } = { current: null };
 
+// `autoOpen: false` models a peer that takes the TCP connection and then never
+// completes the WS upgrade — the case `ws` reports with NO `open` and NO `error`.
+const wsConfig = { autoOpen: true };
+
 class MockWS extends EventEmitter {
   static OPEN = 1;
   readyState = MockWS.OPEN;
@@ -17,7 +21,7 @@ class MockWS extends EventEmitter {
     super();
     wsRef.current = this;
     // Defer 'open' so RelayClient has time to attach its handlers first.
-    setTimeout(() => this.emit("open"), 0);
+    if (wsConfig.autoOpen) setTimeout(() => this.emit("open"), 0);
   }
 
   send(data: string): void { this.sent.push(data); }
@@ -66,6 +70,7 @@ describe("RelayClient", () => {
   beforeEach(() => {
     keypair = generateEd25519Keypair();
     wsRef.current = null;
+    wsConfig.autoOpen = true;
   });
 
   test("isOpen reflects the real WebSocket lifecycle", async () => {
@@ -173,6 +178,76 @@ describe("RelayClient", () => {
       // No inbound frame for > 70s → watchdog terminates → close.
       await vi.advanceTimersByTimeAsync(90_000);
       expect(closed).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // ── Handshake deadline (everything before `open`) ───────────────────────────
+  // Regression: `connect()` modelled only two outcomes — `open` (success) and
+  // `error` (refusal). A relay that ACCEPTS the TCP connection and then says
+  // nothing (hung process, black-holing firewall, LB with a dead upstream)
+  // fires neither, so `connect()` never settled. Because `connect()` is awaited
+  // inside the `/remote-pi` handler, and hosts run extension commands one at a
+  // time, that one unsettled promise silenced every later command — including
+  // `/remote-pi stop` — for the life of the process.
+
+  test("handshake: rejects when the peer never completes the WS upgrade", async () => {
+    vi.useFakeTimers();
+    try {
+      wsConfig.autoOpen = false;
+      const client = new RelayClient("ws://localhost:9999", keypair);
+
+      const outcome = client.connect().then(
+        () => "resolved" as const,
+        (err: Error) => err,
+      );
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      const err = await outcome;
+      expect(err).not.toBe("resolved");
+      expect((err as Error).message).toMatch(/handshake timeout after 10000ms/);
+      // The dead socket is terminated, not left open as a leaked handle.
+      expect(currentWs().readyState).toBe(3);
+    } finally {
+      vi.useRealTimers();
+      wsConfig.autoOpen = true;
+    }
+  });
+
+  test("handshake: rejects when the peer hangs up before the upgrade completes", async () => {
+    wsConfig.autoOpen = false;
+    const client = new RelayClient("ws://localhost:9999", keypair);
+
+    // connect() attaches its listeners synchronously, so a close right here is
+    // a clean FIN with no accompanying `error` event.
+    const outcome = client.connect().then(
+      () => "resolved" as const,
+      (err: Error) => err,
+    );
+    currentWs().close();
+
+    const err = await outcome;
+    expect(err).not.toBe("resolved");
+    expect((err as Error).message).toMatch(/closed before the WebSocket handshake completed/);
+  });
+
+  test("handshake: deadline is cleared once the upgrade is open", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = new RelayClient("ws://localhost:9999", keypair);
+      await connectFake(client);
+
+      let closed = false;
+      client.on("close", () => { closed = true; });
+
+      // Past the handshake deadline but inside the 70s liveness window: a timer
+      // left armed here would terminate() a perfectly healthy connection.
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(closed).toBe(false);
+      expect(client.isOpen()).toBe(true);
+
+      client.close();
     } finally {
       vi.useRealTimers();
     }

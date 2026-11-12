@@ -6,6 +6,30 @@ import type { Ed25519Keypair } from "../pairing/crypto.js";
 const AUTH_TIMEOUT_MS = 5_000;
 
 /**
+ * Budget for the TCP connect + WebSocket upgrade (everything BEFORE `open`).
+ *
+ * `ws` fires `error` for every way a peer can REFUSE the upgrade — RST, a FIN
+ * mid-upgrade (`socket hang up`), or a non-101 HTTP response. It fires nothing
+ * for a peer that ACCEPTS the TCP connection and then never answers: a relay
+ * that is hung/OOM-killed-but-still-accepting, a firewall/NAT that black-holes
+ * the session, or a load balancer whose upstream vanished. `open` never fires,
+ * `error` never fires, and — measured against `ws@8.22` — the promise simply
+ * never settles.
+ *
+ * That is not just a slow start. `connect()` is awaited inside the `/remote-pi`
+ * command handler, and hosts run extension commands one at a time, so an
+ * unsettled promise silences EVERYTHING typed after it — including
+ * `/remote-pi stop` and `/remote-pi` itself. The agent also stays half-up:
+ * its mesh lock is gone, no relay socket exists, and only a process restart
+ * (or a reload of the extension) recovers it. Bounding the handshake turns
+ * the hang into an ordinary, retryable `connect()` failure.
+ *
+ * Auth has its own 5 s budget (`AUTH_TIMEOUT_MS`), which starts once `open`
+ * fires, so the worst case total is this + 5 s.
+ */
+const HANDSHAKE_TIMEOUT_MS = 10_000;
+
+/**
  * Liveness watchdog. The relay sends a WS Ping every ~25s (relay `peer.rs`),
  * so a healthy connection sees inbound frames at least that often. If NOTHING
  * arrives for this long the socket is silently dead — NAT/router idle drop,
@@ -114,9 +138,42 @@ export class RelayClient extends EventEmitter {
       const ws = new WebSocket(this.url);
       this.ws = ws;
 
-      ws.on("error", (err) => reject(err));
+      // Only ONE of these may settle the promise: `terminate()` and `close`
+      // below re-enter through the listeners, and `open` + auth can race the
+      // handshake timer on a slow relay.
+      let settled = false;
+      let handshakeTimer: ReturnType<typeof setTimeout> | undefined;
+      const settle = (fn: () => void): void => {
+        if (settled) return;
+        settled = true;
+        if (handshakeTimer !== undefined) clearTimeout(handshakeTimer);
+        fn();
+      };
+
+      // Belt-and-braces: `unref` so a pending handshake can never hold a
+      // headless daemon's event loop open on its own.
+      handshakeTimer = setTimeout(() => {
+        settle(() => {
+          try { ws.terminate(); } catch { /* best-effort */ }
+          reject(new Error(
+            `relay handshake timeout after ${HANDSHAKE_TIMEOUT_MS}ms (no WS upgrade from ${this.url})`,
+          ));
+        });
+      }, HANDSHAKE_TIMEOUT_MS);
+      handshakeTimer.unref?.();
+
+      ws.on("error", (err) => settle(() => reject(err)));
+
+      // A peer that hangs up BEFORE the upgrade completes: `ws` normally pairs
+      // this with an `error` first (so `settle` is already taken), but a clean
+      // close with no error would otherwise leave the promise unsettled too.
+      ws.on("close", () =>
+        settle(() => reject(new Error("relay closed before the WebSocket handshake completed"))),
+      );
 
       ws.on("open", async () => {
+        // Upgrade done — auth enforces its own deadline from here.
+        if (handshakeTimer !== undefined) clearTimeout(handshakeTimer);
         try {
           await this._authenticate(ws, options);
 
@@ -144,10 +201,10 @@ export class RelayClient extends EventEmitter {
             this.emit("close");
           });
           this._startLiveness(ws);
-          resolve();
+          settle(resolve);
         } catch (err) {
           ws.terminate();
-          reject(err);
+          settle(() => reject(err));
         }
       });
     });
