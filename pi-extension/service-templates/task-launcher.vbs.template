@@ -6,5 +6,5 @@
 ' Task Scheduler's RestartOnFailure still monitors the supervisor.
 ' WScript.Quit propagates node's exit code.
 Dim rc
-rc = CreateObject("Wscript.Shell").Run("cmd /c """"{NODE}"" ""{SUPERVISOR}"" >> ""{LOG}"" 2>&1""", 0, True)
+rc = CreateObject("Wscript.Shell").Run("cmd /c ""set ""REMOTE_PI_AGENT_BIN={AGENT_BIN}"" && set ""REMOTE_PI_STATE_PREFIX={STATE_PREFIX}"" && """"{NODE}"" ""{SUPERVISOR}"" >> ""{LOG}"" 2>&1""", 0, True)
 WScript.Quit rc

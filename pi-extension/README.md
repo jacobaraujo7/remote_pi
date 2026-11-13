@@ -519,6 +519,30 @@ The `install` command:
 - Activates it via `systemctl --user enable --now` or `launchctl bootstrap`
 - The supervisor starts immediately and re-starts on every login
 
+#### Running oh-my-pi instead of Pi
+
+[oh-my-pi](https://github.com/can1357/oh-my-pi) (`omp`) works too — the
+extension loads fine in plugin mode, but its state lives under `~/.omp`
+and its CLI spells some flags differently (`--auto-approve`, no `--name`),
+so the daemon fleet needs the backend pinned. `remote-pi install` handles
+that for you: when only `omp` is on `PATH` (or you export the variable
+below), the generated service carries the backend through
+`REMOTE_PI_AGENT_BIN` and `REMOTE_PI_STATE_PREFIX`, so the supervisor
+spawns `omp` children and reads/writes `~/.omp/remote/...` after reboots:
+
+```bash
+export REMOTE_PI_AGENT_BIN=omp
+remote-pi install
+```
+
+For custom launchers or manually written units, set both variables
+yourself:
+
+```bash
+export REMOTE_PI_AGENT_BIN=omp
+export REMOTE_PI_STATE_PREFIX=.omp
+```
+
 ### Per-folder workflow
 
 For each agent you want to keep alive 24/7:

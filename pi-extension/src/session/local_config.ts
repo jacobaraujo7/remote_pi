@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { localConfigDir } from "../state_paths.js";
 
-const LOCAL_DIR = ".pi/remote-pi";
 const LOCAL_FILE = "config.json";
 
 /**
@@ -31,7 +31,7 @@ export interface LocalConfig {
 }
 
 function pathFor(cwd: string): string {
-  return join(cwd, LOCAL_DIR, LOCAL_FILE);
+  return join(localConfigDir(cwd), LOCAL_FILE);
 }
 
 /**

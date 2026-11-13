@@ -14,6 +14,10 @@ StandardError=journal
 # binary it would in an interactive shell (npm-global / Homebrew / etc.).
 Environment="PATH={PATH}"
 Environment="HOME={HOME}"
+# Pin the agent backend (pi or omp) so the state namespace the installer
+# detected survives the reboot (issue #170).
+Environment="REMOTE_PI_AGENT_BIN={AGENT_BIN}"
+Environment="REMOTE_PI_STATE_PREFIX={STATE_PREFIX}"
 
 [Install]
 WantedBy=default.target

@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
-import os from "node:os";
+import { userStateRoot } from "./state_paths.js";
 
-const CONFIG_DIR = path.join(os.homedir(), ".pi", "remote");
+const CONFIG_DIR = userStateRoot();
 const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
 
 /**
