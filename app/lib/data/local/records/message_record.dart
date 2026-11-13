@@ -126,6 +126,7 @@ class MessageRecord {
           status: t?.status ?? ToolEventStatus.pending,
           result: t?.result,
           error: t?.error,
+          details: t?.details,
         );
       case MsgRole.compaction:
         return CompactionMsg(id: id, summary: text, tokensBefore: tokensBefore);
@@ -141,6 +142,7 @@ class ToolEventData {
   final ToolEventStatus status;
   final dynamic result;
   final String? error;
+  final Map<String, dynamic>? details;
 
   const ToolEventData({
     required this.toolCallId,
@@ -149,12 +151,14 @@ class ToolEventData {
     this.status = ToolEventStatus.pending,
     this.result,
     this.error,
+    this.details,
   });
 
   ToolEventData copyWith({
     ToolEventStatus? status,
     dynamic result,
     String? error,
+    Map<String, dynamic>? details,
   }) => ToolEventData(
     toolCallId: toolCallId,
     tool: tool,
@@ -162,6 +166,7 @@ class ToolEventData {
     status: status ?? this.status,
     result: result ?? this.result,
     error: error ?? this.error,
+    details: details ?? this.details,
   );
 
   Map<String, dynamic> toJson() => {
@@ -171,6 +176,7 @@ class ToolEventData {
     'status': status.name,
     'result': result,
     'error': error,
+    if (details != null) 'details': details,
   };
 
   factory ToolEventData.fromJson(Map<String, dynamic> j) => ToolEventData(
@@ -183,5 +189,6 @@ class ToolEventData {
     ),
     result: j['result'],
     error: j['error'] as String?,
+    details: (j['details'] as Map?)?.cast<String, dynamic>(),
   );
 }

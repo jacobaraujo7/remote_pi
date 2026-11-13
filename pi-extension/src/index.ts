@@ -31,6 +31,7 @@
  */
 
 import { createHash, randomUUID } from "node:crypto";
+import { createSubagentBridge } from "./subagent_bridge.js";
 import type {
   ExtensionAPI,
   ExtensionCommandContext,
@@ -840,6 +841,8 @@ type BufferMsg = {
   toolCallId?: string;
   toolName?: string;
   isError?: boolean;
+  details?: unknown;
+  customType?: string;
   usage?: { input?: number; output?: number };
   /** Plan/32: pre-compaction token count, set on the synthetic
    *  `role:"compaction"` marker pushed in `session_compact`. */
@@ -1105,6 +1108,9 @@ let _pi: ExtensionAPI | null = null;
 // Plan/57 — Bridge to pi-ask's clarification-flow events. null until the
 // extension factory wires it (and null if the SDK exposes no events bus).
 let _extensionUiBridge: ExtensionUiBridge | null = null;
+let _subagentBridge: ReturnType<typeof createSubagentBridge> | null = null;
+let _subagentSessionManager: ExtensionContext["sessionManager"] | null = null;
+const _liveToolUpdates = new Map<string, Extract<ServerMessage, { type: "tool_update" }>>();
 
 let _stopAutoListener: (() => void) | null = null;
 
@@ -2082,6 +2088,8 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // factory re-run (new pi session) can't leak subscriptions or double-send.
   _extensionUiBridge?.dispose();
   _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
+  _subagentBridge?.dispose();
+  _subagentBridge = pi.events ? createSubagentBridge(pi, _broadcastToActive, _syncSubagentNotices) : null;
 
   // Plano 19: ensure ~/.pi/remote/{sessions,skills}/ exist and deploy the
   // agent-network skill on first load. resources_discover lets Pi find it.
@@ -2193,6 +2201,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // executes; tool_execution_end closes the loop with the result. Together
   // they render a "Tool running… done" timeline in each paired app.
   pi.on("tool_execution_start", (event) => {
+    _liveToolUpdates.set(event.toolCallId, {
+      type: "tool_update", tool_call_id: event.toolCallId,
+      tool: event.toolName, args: _enrichToolArgs(event.toolName, event.args),
+    });
     if (!_anyPeerActive()) return;
     _broadcastToActive({
       type: "tool_request",
@@ -2203,16 +2215,32 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   });
 
   pi.on("tool_execution_end", (event) => {
+    _liveToolUpdates.delete(event.toolCallId);
     if (!_anyPeerActive()) return;
     // Stringify like the history mapper (same helper) so the live text == what
     // a session_sync replays for this tool. Raw `String(event.result)` turned
     // a content-array/object into "[object Object]" and the success branch sent
     // the object unstringified — both diverging from re-sync.
     const text = _stringifyToolResult(event.result);
+    const details = _toolResultDetails(event.result);
     const msg: ServerMessage = event.isError
-      ? { type: "tool_result", tool_call_id: event.toolCallId, error: text }
-      : { type: "tool_result", tool_call_id: event.toolCallId, result: text };
+      ? { type: "tool_result", tool_call_id: event.toolCallId, error: text, ...(details ? { details } : {}) }
+      : { type: "tool_result", tool_call_id: event.toolCallId, result: text, ...(details ? { details } : {}) };
     _broadcastToActive(msg);
+  });
+
+  pi.on("tool_execution_update", (event) => {
+    const details = _toolResultDetails(event.partialResult);
+    const message: Extract<ServerMessage, { type: "tool_update" }> = {
+      type: "tool_update",
+      tool_call_id: event.toolCallId,
+      tool: event.toolName,
+      args: event.args,
+      result: _stringifyToolResult(event.partialResult),
+      ...(details ? { details } : {}),
+    };
+    _liveToolUpdates.set(event.toolCallId, message);
+    _broadcastToActive(message);
   });
 
   // Cumulative session buffer fed via `message_end`, which fires once per
@@ -2223,13 +2251,16 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // or RPC. Previous impl overwrote on `agent_end` and lost everything but the
   // last turn (see diagnostics 14, 15).
   pi.on("message_end", (event) => {
-    const m = event?.message as { role?: string; content?: unknown; stopReason?: string; errorMessage?: string } | undefined;
+    const m = event?.message as { role?: string; content?: unknown; customType?: string; stopReason?: string; errorMessage?: string } | undefined;
     if (!m) return;
     if (m.role === "user" && _anyPeerActive()) {
       _broadcastConsumedSteerForUserContent(m.content);
     }
     if (m.role === "user" || m.role === "assistant" || m.role === "toolResult") {
       _messageBuffer.push(m as unknown as BufferMsg);
+    }
+    if (m.customType === "subagent-notify") {
+      _recordSubagentNotice(m as BufferMsg);
     }
     // Forward a failed turn to connected owners. Without this the app just
     // hangs with no response when the provider errors (e.g. the TUI's
@@ -2346,6 +2377,11 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     if (!_extensionUiBridge) {
       _extensionUiBridge = createExtensionUiBridge(pi, _broadcastToActive);
     }
+    _liveToolUpdates.clear();
+    _subagentSessionManager = ctx.sessionManager ?? null;
+    _subagentBridge?.dispose();
+    _subagentBridge = pi.events ? createSubagentBridge(pi, _broadcastToActive, _syncSubagentNotices) : null;
+    _subagentBridge?.refresh();
     // Rearm a reused-but-disposed instance. The session_shutdown teardown (below)
     // sets _disposed=true assuming the host re-evaluates THIS module fresh for the
     // replacement session, yielding a new instance with _disposed=false. Some hosts
@@ -2448,6 +2484,10 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     // module instances create their bridge in the factory.
     _extensionUiBridge?.dispose();
     _extensionUiBridge = null;
+    _subagentBridge?.dispose();
+    _subagentBridge = null;
+    _subagentSessionManager = null;
+    _liveToolUpdates.clear();
     // Drop captured ctxs immediately. On module-reuse hosts the same instance
     // survives session replacement; leaving `_lastCtx` pointing at the now-
     // stale command ctx is what crashed pi in _refreshFooter on peer reconnect
@@ -4655,6 +4695,7 @@ function _handleSessionSync(
   const requested = msg.limit ?? serverLimit;
   const effectiveLimit = Math.min(requested, serverLimit);  // server clamps
 
+  _syncSubagentNotices();
   const allEvents = _mapAgentMessagesToEvents(_messageBuffer);
   const slice = effectiveLimit > 0 ? allEvents.slice(-effectiveLimit) : [];
   const truncated = allEvents.length > effectiveLimit;
@@ -4679,6 +4720,9 @@ function _handleSessionSync(
   for (const req of _extensionUiBridge?.pendingRequests() ?? []) {
     sender.send(req);
   }
+  for (const update of _liveToolUpdates.values()) sender.send(update);
+  for (const update of _subagentBridge?.snapshot() ?? []) sender.send(update);
+  _subagentBridge?.refresh();
 }
 
 /**
@@ -4895,6 +4939,42 @@ function _stringifyToolResult(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function _toolResultDetails(value: unknown): Record<string, unknown> | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const details = (value as { details?: unknown }).details;
+  return details && typeof details === "object" && !Array.isArray(details)
+    ? details as Record<string, unknown>
+    : undefined;
+}
+
+function _subagentNoticeKey(message: BufferMsg): string {
+  return createHash("sha256")
+    .update(JSON.stringify([message.content, message.details]))
+    .digest("hex").slice(0, 16);
+}
+
+function _recordSubagentNotice(message: BufferMsg): void {
+  const key = _subagentNoticeKey(message);
+  if (_messageBuffer.some((m) =>
+    m.customType === "subagent-notify" && _subagentNoticeKey(m) === key)) return;
+  _messageBuffer.push(message);
+  for (const { ts: _ts, ...event } of _mapAgentMessagesToEvents([message])) {
+    _broadcastToActive(event);
+  }
+}
+
+function _syncSubagentNotices(): void {
+  // Idle custom messages bypass extension message_end in the Pi SDK. Read the
+  // current branch on status refresh/sync, not an arbitrary session file.
+  for (const entry of _subagentSessionManager?.getBranch() ?? []) {
+    if (entry.type !== "custom_message" || entry.customType !== "subagent-notify") continue;
+    _recordSubagentNotice({
+      role: "custom", customType: entry.customType, content: entry.content,
+      details: entry.details, timestamp: Date.parse(entry.timestamp),
+    });
+  }
+}
+
 /**
  * Plan/30: extract `ImageContent` blocks ({type:"image", data, mimeType}) from
  * an SDK message's content and map them to the wire shape (`mimeType` → `mime`).
@@ -4932,7 +5012,14 @@ export function _mapAgentMessagesToEvents(
   for (const m of messages) {
     const ts = typeof m.timestamp === "number" ? m.timestamp : 0;
 
-    if (m.role === "compaction") {
+    if (m.customType === "subagent-notify") {
+      const id = `subagent-notify_${_subagentNoticeKey(m)}`;
+      const details = _toolResultDetails(m);
+      events.push(
+        { ts, type: "tool_request", tool_call_id: id, tool: "subagent", args: { action: "completion" } },
+        { ts, type: "tool_result", tool_call_id: id, result: _stringifyToolResult(m.content), ...(details ? { details } : {}) },
+      );
+    } else if (m.role === "compaction") {
       // Plan/32: re-render the compaction notice on history re-sync.
       events.push({
         ts,
@@ -4988,10 +5075,11 @@ export function _mapAgentMessagesToEvents(
       // Same helper as the live `tool_execution_end` broadcast → live == re-sync.
       const text = _stringifyToolResult(m.content);
       const tcid = String(m.toolCallId ?? "");
+      const details = _toolResultDetails(m);
       events.push(
         m.isError
-          ? { ts, type: "tool_result", tool_call_id: tcid, error: text }
-          : { ts, type: "tool_result", tool_call_id: tcid, result: text },
+          ? { ts, type: "tool_result", tool_call_id: tcid, error: text, ...(details ? { details } : {}) }
+          : { ts, type: "tool_result", tool_call_id: tcid, result: text, ...(details ? { details } : {}) },
       );
     }
   }

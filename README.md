@@ -113,6 +113,18 @@ mobile app — answer from your phone and the flow resolves on the desktop.
 Without it, the agent simply asks in plain chat text (also answerable from the
 phone, just unstructured). Remote Pi works either way; pi-ask is optional.
 
+### Optional companion: `pi-subagents`
+
+With [pi-subagents](https://github.com/nicobailon/pi-subagents) installed,
+the mobile chat shows single, chain, parallel and scripted workflow progress,
+child states, current tools and expandable output. Foreground details and
+background completion notices survive history replay. Live background runs
+use pi-subagents' optional, versioned in-process status API; older versions
+without that API still show tool progress and completion notices.
+
+Update both the mobile app and the Remote Pi extension for workflow visibility.
+This integration is read-only: it does not start, steer or stop child agents.
+
 ## Status
 
 The MVP is functional. Planning notes and roadmap live in [`plan/`](./plan).
