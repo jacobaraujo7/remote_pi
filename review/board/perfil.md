@@ -297,3 +297,14 @@ Cada processo abriu um workspace novo. Os nove arquivos tiveram IDs distintos e 
 Um documento com 50 traços de 500 pontos foi lido pelo parser compilado em Dart AOT no Windows. Cada processo descartou cinco leituras de aquecimento e mediu as 40 seguintes. Na ordem original, ajustado, ajustado, original, original, ajustado, as medianas de leitura foram 13,158, 5,059, 6,042, 10,301, 9,787 e 5,994 ms. A leitura direta das duas coordenadas eliminou o split e a conversão por iterador em cada ponto. O intervalo medido começa com o Markdown em memória e termina após a validação do documento. A medição não inclui I/O, pintura ou latência do ponteiro. Ensaio local em cockpit/build/board-review/ink_parse.dart.
 
 Abertura de um arquivo com 50 traços e 25 mil pontos pelo widget BoardView. O ensaio em flutter_tester leu o Markdown do disco, criou uma sessão e montou o editor com o tema Cockpit. Os tempos até o segundo pump foram 783,4 ms na primeira montagem e 202,8, 162,6, 95,3, 92,7 e 86,4 ms nas cinco remontagens no mesmo processo. A captura posterior identificou 24.960 pixels da cor dos traços em cada montagem. A captura ficou fora do intervalo cronometrado. O ensaio usa JIT com instrumentação de teste e não mede a apresentação no monitor nem compara versões do aplicativo. Runner local em cockpit/build/board-review/ink_open_test.dart.
+
+## Janela Release com 25 mil pontos
+
+Dois desktops Win32 privados executaram seis aberturas cada, com perfis novos, na ordem ABBAAB e BAABBA. A era a prévia mermaid-import e B era ink-contact. Todas abriram o mesmo Markdown com 50 traços de 500 amostras. O cronômetro iniciou antes de criar o processo do Cockpit e parou após o processo de UI Automation identificar o último traço pelo nome. Isso inclui inicialização do aplicativo, ativação da acessibilidade e consulta da árvore. O experimento não sincronizou com a apresentação do monitor.
+
+| Prévia | Aberturas | Mínimo | Mediana | Máximo |
+| --- | ---: | ---: | ---: | ---: |
+| A | 6 | 1,427 s | 1,505 s | 2,163 s |
+| B | 6 | 1,260 s | 1,625 s | 1,858 s |
+
+Cada abertura expôs o objeto Ink sample 49. A dispersão supera o ganho de cerca de 4 ms medido separadamente no parser. Esta amostra não demonstra redução do tempo total da janela nem isola o custo do parser. As doze observações estão em cockpit/build/board-review/ink-release-open/results.jsonl.
