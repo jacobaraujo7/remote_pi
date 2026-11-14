@@ -4,6 +4,7 @@ import 'package:app/data/images/image_picker_service.dart';
 import 'package:app/domain/session_state.dart';
 import 'package:app/ui/chat/attachment/states/attachment_state.dart';
 import 'package:app/ui/chat/attachment/viewmodels/attachment_viewmodel.dart';
+import 'package:app/data/voice/speech_service.dart';
 import 'package:app/ui/chat/voice/states/voice_input_state.dart';
 import 'package:app/ui/chat/voice/viewmodels/voice_input_viewmodel.dart';
 import 'package:app/ui/chat/voice/widgets/recording_strip.dart';
@@ -32,6 +33,15 @@ enum VoiceHint {
 
   /// Mic / speech permission was denied — guide to system Settings (#10).
   permissionDenied,
+
+  /// The recognizer has no on-device model for the locale yet.
+  languageUnavailable,
+
+  /// The recognizer heard nothing it could transcribe.
+  noSpeech,
+
+  /// The recognizer failed for another reason.
+  recognitionFailed,
 }
 
 class InputBar extends StatefulWidget {
@@ -101,6 +111,7 @@ class _InputBarState extends State<InputBar> {
   // (the permission prompt ended the hold), the recording is discarded.
   bool _holding = false;
   StreamSubscription<String>? _transcriptSub;
+  StreamSubscription<SpeechFailure>? _failureSub;
 
   @override
   void initState() {
@@ -114,12 +125,23 @@ class _InputBarState extends State<InputBar> {
     super.didUpdateWidget(old);
     if (!identical(old.voice, widget.voice)) {
       _transcriptSub?.cancel();
+      _failureSub?.cancel();
       _subscribeTranscripts();
     }
   }
 
   void _subscribeTranscripts() {
     _transcriptSub = widget.voice?.transcripts.listen(_onTranscript);
+    _failureSub = widget.voice?.failures.listen(_onFailure);
+  }
+
+  void _onFailure(SpeechFailure failure) {
+    if (!mounted) return;
+    widget.onVoiceHint?.call(switch (failure.kind) {
+      SpeechFailureKind.languageUnavailable => VoiceHint.languageUnavailable,
+      SpeechFailureKind.noSpeech => VoiceHint.noSpeech,
+      SpeechFailureKind.other => VoiceHint.recognitionFailed,
+    });
   }
 
   void _onTranscript(String text) {
@@ -141,6 +163,7 @@ class _InputBarState extends State<InputBar> {
   @override
   void dispose() {
     _transcriptSub?.cancel();
+    _failureSub?.cancel();
     _controller.removeListener(_onTextChange);
     _controller.dispose();
     _focusNode.dispose();

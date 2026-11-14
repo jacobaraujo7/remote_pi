@@ -14,6 +14,8 @@ class _FakeSpeechService implements SpeechService {
   String transcript = 'hello world';
 
   final StreamController<double> _level = StreamController<double>.broadcast();
+  final StreamController<SpeechFailure> _errors =
+      StreamController<SpeechFailure>.broadcast();
   int startCalls = 0;
   int stopCalls = 0;
   int cancelCalls = 0;
@@ -26,6 +28,9 @@ class _FakeSpeechService implements SpeechService {
 
   @override
   Stream<double> get soundLevel => _level.stream;
+
+  @override
+  Stream<SpeechFailure> get errors => _errors.stream;
 
   @override
   Future<void> start({
@@ -47,9 +52,13 @@ class _FakeSpeechService implements SpeechService {
   Future<void> cancel() async => cancelCalls++;
 
   @override
-  void dispose() => _level.close();
+  void dispose() {
+    _level.close();
+    _errors.close();
+  }
 
   void emitLevel(double level) => _level.add(level);
+  void emitError(SpeechFailure failure) => _errors.add(failure);
 }
 
 void main() {
@@ -155,6 +164,55 @@ void main() {
       final vm = VoiceInputViewModel(svc);
       expect(await vm.stopAndTranscribe(), isEmpty);
       expect(svc.stopCalls, 0);
+      vm.dispose();
+    });
+  });
+
+  group('recognizer errors', () {
+    test('an error while recording ends the capture and is reported', () async {
+      final svc = _FakeSpeechService();
+      final vm = VoiceInputViewModel(svc);
+      final failures = <SpeechFailure>[];
+      final failureSub = vm.failures.listen(failures.add);
+      final got = <String>[];
+      final transcriptSub = vm.transcripts.listen(got.add);
+
+      await vm.startRecording();
+      const failure = SpeechFailure(
+        SpeechFailureKind.languageUnavailable,
+        'error_language_unavailable',
+      );
+      svc.emitError(failure);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(vm.state, isA<VoiceIdle>());
+      expect(failures, [failure]);
+      expect(svc.cancelCalls, 1);
+      // The release that follows must not transcribe a dead session.
+      expect(await vm.stopAndTranscribe(), isEmpty);
+      expect(svc.stopCalls, 0);
+      expect(got, isEmpty);
+      await failureSub.cancel();
+      await transcriptSub.cancel();
+      vm.dispose();
+    });
+
+    test('errors outside a recording are ignored', () async {
+      final svc = _FakeSpeechService();
+      final vm = VoiceInputViewModel(svc);
+      final failures = <SpeechFailure>[];
+      final sub = vm.failures.listen(failures.add);
+
+      await vm.startRecording();
+      await vm.stopAndTranscribe();
+      svc.emitError(
+        const SpeechFailure(SpeechFailureKind.other, 'error_client'),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(failures, isEmpty);
+      expect(vm.state, isA<VoiceIdle>());
+      await sub.cancel();
       vm.dispose();
     });
   });

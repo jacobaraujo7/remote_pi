@@ -31,6 +31,7 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   SpeechAvailability? _availability;
   String? _localeId;
   StreamSubscription<double>? _levelSub;
+  StreamSubscription<SpeechFailure>? _errorSub;
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
   double _level = 0;
@@ -43,6 +44,12 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   final StreamController<String> _transcripts =
       StreamController<String>.broadcast();
   Stream<String> get transcripts => _transcripts.stream;
+
+  /// Recognizer failures that ended a recording early. The composer turns
+  /// them into a hint so the user knows why no text appeared.
+  final StreamController<SpeechFailure> _failures =
+      StreamController<SpeechFailure>.broadcast();
+  Stream<SpeechFailure> get failures => _failures.stream;
 
   /// Resolve permission + on-device locale, caching the outcome. Idempotent:
   /// once [SpeechReady] is reached it short-circuits. On failure the state is
@@ -75,6 +82,7 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
 
       _elapsed = Duration.zero;
       _level = 0;
+      _errorSub ??= _service.errors.listen(_onError);
       _levelSub?.cancel();
       _levelSub = _service.soundLevel.listen((level) {
         _level = level;
@@ -115,6 +123,16 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     return text;
   }
 
+  /// The recognizer gave up while the mic is still held: end the session now
+  /// instead of recording into a dead recognizer until release.
+  Future<void> _onError(SpeechFailure failure) async {
+    if (state is! VoiceRecording) return;
+    _stopTimers();
+    emit(const VoiceIdle());
+    if (!_failures.isClosed) _failures.add(failure);
+    await _service.cancel();
+  }
+
   /// Discard the recording (slide-to-cancel). Field stays untouched (#4).
   Future<void> cancel() async {
     if (state is! VoiceRecording && state is! VoiceTranscribing) return;
@@ -139,7 +157,9 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
       // ignore: discarded_futures
       _service.cancel();
     }
+    _errorSub?.cancel();
     _transcripts.close();
+    _failures.close();
     super.dispose();
   }
 }
