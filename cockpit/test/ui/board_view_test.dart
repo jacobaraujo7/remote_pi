@@ -572,13 +572,14 @@ void main() {
       await tester.pump();
       final field = find.byType(m.TextField);
       expect(tester.getRect(field).contains(object), isTrue);
-      await tester.enterText(field, 'Pedido editado');
+      const editedLabel = 'Pedido editado\n\n  ## decisão\n- id: literal\n';
+      await tester.enterText(field, editedLabel);
       await tester.tapAt(
         origin + const Offset(610, 270),
         kind: PointerDeviceKind.mouse,
       );
       await tester.pumpAndSettle();
-      expect(read().items[process.id]!.label, 'Pedido editado');
+      expect(read().items[process.id]!.label, editedLabel);
       await tester.tapAt(object);
       await tester.pump();
       await tester.tap(find.byTooltip('Diagram color'));
@@ -593,11 +594,12 @@ void main() {
       await tester.pump();
       await tester.sendKeyEvent(LogicalKeyboardKey.f2);
       await tester.pump();
+      expect(tester.widget<m.TextField>(field).controller!.text, editedLabel);
       await tester.enterText(field, 'Cancelar');
       await tester.sendKeyEvent(LogicalKeyboardKey.escape);
       await tester.pumpAndSettle();
       expect(field, findsNothing);
-      expect(read().items[process.id]!.label, 'Pedido editado');
+      expect(read().items[process.id]!.label, editedLabel);
       await tester.tap(find.byTooltip('Text'));
       await tester.pump();
       await tester.tapAt(origin + const Offset(460, 190));
