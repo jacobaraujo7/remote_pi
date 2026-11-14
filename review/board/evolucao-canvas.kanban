@@ -9,7 +9,7 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 ## Depois
 
 - [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. Os ensaios com os mesmos controles e com formas sem rótulo mantiveram o atraso nas cenas grandes. Medir a montagem da geometria visível e a primeira composição da miniatura separadamente. Preservar rótulos, seleção e acesso ao desenho completo. Medições em perfil.md.
+      Frente Flutter. Mesmo sem os bytes da miniatura, as duas aberturas em processo novo ficaram acima de 16,67 ms. Medir a montagem da geometria visível mantendo constante a quantidade total de objetos. Medições em perfil.md.
 
 ## Validar no desktop
 

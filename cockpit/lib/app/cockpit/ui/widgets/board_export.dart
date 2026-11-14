@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -41,9 +40,7 @@ Future<Uint8List> boardPng(BoardDocument board, {Set<String>? selected}) async {
   final thumbnails = <BoardItem, ui.Image>{};
   try {
     for (final item in items.where((i) => i.thumbnail != null)) {
-      final codec = await ui.instantiateImageCodec(
-        base64Decode(item.thumbnail!),
-      );
+      final codec = await ui.instantiateImageCodec(item.thumbnailBytes!);
       try {
         thumbnails[item] = (await codec.getNextFrame()).image;
       } finally {

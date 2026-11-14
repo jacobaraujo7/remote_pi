@@ -326,7 +326,7 @@ w.Element? findElement(
 
 BoardDocument interactionScene(
   int count,
-  String thumbnail, {
+  String? thumbnail, {
   bool labels = true,
 }) => BoardDocument([
   for (var i = 0; i < count; i++)
@@ -373,7 +373,7 @@ Future<void> _measureInteractions(
   final scene = separateHost
       ? Platform.environment['BOARD_PROFILE_SCENE'] ?? 'full'
       : 'full';
-  if (!const {'full', 'empty', 'unlabelled'}.contains(scene)) {
+  if (!const {'full', 'empty', 'unlabelled', 'noThumbnail'}.contains(scene)) {
     throw ArgumentError.value(scene, 'BOARD_PROFILE_SCENE');
   }
   final rows = <String>[
@@ -402,7 +402,7 @@ Future<void> _measureInteractions(
           final count = scene == 'empty' ? 0 : 960;
           final original = interactionScene(
             count,
-            thumbnail,
+            scene == 'noThumbnail' ? null : thumbnail,
             labels: scene != 'unlabelled',
           );
           final path = File(
@@ -479,6 +479,7 @@ Future<void> _measureInteractions(
             final start = box.localToGlobal(const Offset(50, 32));
             final deadline = DateTime.now().add(const Duration(seconds: 10));
             while (count > 0 &&
+                scene != 'noThumbnail' &&
                 findElement(root, (w) => w is m.RawImage && w.image != null) ==
                     null) {
               if (DateTime.now().isAfter(deadline)) {
