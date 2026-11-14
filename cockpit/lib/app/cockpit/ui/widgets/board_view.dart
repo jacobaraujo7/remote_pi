@@ -1773,6 +1773,7 @@ class _GesturePreview extends ChangeNotifier {
     points = [p];
     bounds = Rect.fromPoints(p, p);
     path = Path()..moveTo(p.dx, p.dy);
+    notifyListeners();
   }
 
   void add(Offset p) {
@@ -1850,6 +1851,9 @@ class _PreviewPainter extends CustomPainter {
           ..strokeWidth = 2,
       );
       canvas.drawCircle(preview.snap!, 5, Paint()..color = color);
+    }
+    if (preview.points.length == 1 && r == null) {
+      canvas.drawCircle(preview.points.first, 1, Paint()..color = color);
     }
     canvas.drawPath(
       preview.path,
