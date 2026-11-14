@@ -32,8 +32,15 @@ Future<void> runBoardProfile({ProfileView? baseline}) async {
   );
   await output.parent.create(recursive: true);
   try {
-    if (Platform.environment['BOARD_PROFILE_SUITE'] == 'interactions') {
-      await measureInteractions(output, baseline);
+    final suite = Platform.environment['BOARD_PROFILE_SUITE'];
+    if (suite == 'interactions' || suite == 'opening') {
+      await measureInteractions(
+        output,
+        baseline,
+        scenarios: suite == 'opening'
+            ? const [_Scenario.firstPaint]
+            : _Scenario.values,
+      );
     } else {
       await measure(output, baseline);
     }
@@ -351,7 +358,11 @@ Offset inkOffset(int sample) => sample == 0
 
 /// Measure the targeted board interactions separately from the historical drag
 /// suite. A real file in the scratch directory validates persist/reopen.
-Future<void> measureInteractions(File output, ProfileView? baseline) async {
+Future<void> measureInteractions(
+  File output,
+  ProfileView? baseline, {
+  required List<_Scenario> scenarios,
+}) async {
   final rows = <String>[
     'version\tscenario\tcount\trun\tframes\tbuildP95ms\trasterP95ms\tover16.67ms\toverDisplayBudget\tdisplayHz\treadyMs\tsaves\tgestureMs\tframeIntervalP95ms',
   ];
@@ -368,8 +379,7 @@ Future<void> measureInteractions(File output, ProfileView? baseline) async {
   await Future<void>.delayed(const Duration(milliseconds: 500));
   try {
     for (var run = 1; run <= 3; run++) {
-      for (final scenario
-          in (run.isEven ? _Scenario.values.reversed : _Scenario.values)) {
+      for (final scenario in (run.isEven ? scenarios.reversed : scenarios)) {
         final views = {
           'before': ?baseline,
           'current': BoardView.new,

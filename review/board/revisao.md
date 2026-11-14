@@ -55,3 +55,5 @@ Responsável local **Canvas Board**, branch feature/canvas-board, destino main. 
 | [#316](https://github.com/jacobaraujo7/remote_pi/pull/316) | main | moregola | Scrollback do terminal. Continuar com o autor. |
 | [#318](https://github.com/jacobaraujo7/remote_pi/pull/318) | main | moregola | Clipboard. Continuar com o autor. |
 | [#319](https://github.com/jacobaraujo7/remote_pi/pull/319) | main | moregola | Testes de processos, CLI e painéis. Continuar com o autor. |
+
+Na etapa de abertura, a nova consulta manteve os três PRs acima com os mesmos destinos e encaminhamentos. Canvas Board validou o leitor com 62 testes, incluindo identificadores e conexões com escapes. O perfil separa o tempo de leitura do arquivo, interpretação do Markdown e construção do primeiro frame. A frente Flutter acompanha o custo restante do primeiro frame.
