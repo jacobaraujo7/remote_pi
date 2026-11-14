@@ -28,13 +28,12 @@ class SettingsController extends ChangeNotifier {
 
   /// Carrega o que está salvo (chamado no boot, antes do primeiro frame).
   Future<void> load() async {
+    final previousLocale = _settings.locale;
     _settings = await _store.load();
-    // `main.dart` já chamou `useDeviceLocale()` como fallback; só agimos aqui
-    // se há preferência explícita salva. Evita depender do
-    // `WidgetsBinding` (via `useDeviceLocale`) em testes que chamam `load()`
-    // sem `runApp`/`testWidgets` — `setLocaleRaw` não precisa dele.
+    // Boot already follows the device. A detached window also reloads this
+    // store when the main window switches back to the system language.
     final locale = _settings.locale;
-    if (locale != null) await LocaleSettings.setLocaleRaw(locale);
+    if (locale != null || previousLocale != null) await _applyLocale(locale);
     _customThemes = await _themeStore.loadAll();
     notifyListeners();
   }
