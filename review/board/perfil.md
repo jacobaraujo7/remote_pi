@@ -102,3 +102,17 @@ Em 14/11, um executável Dart AOT comparou o leitor de a467d39d com o leitor que
 A mediana da conversão passou de 4,20 para 3,04 ms. O p95 passou de 6,36 para 5,39 ms. Ler o arquivo com cache local levou 0,22 ms na mediana. Em uma segunda rodada, calcular os extremos das formas já decodificadas levou 0,028 ms na mediana. Esse cálculo isolado não inclui roteamento das setas nem layout Flutter.
 
 O modo `BOARD_PROFILE_SUITE=opening` executa somente as três aberturas da cena com miniatura representativa no benchmark Flutter. A primeira rodada produziu tempos de construção de 31,35, 16,33 e 10,54 ms. Uma repetição após encerrar a suíte de testes produziu 38,06, 27,57 e 18,64 ms, com a miniatura pronta em 65,48, 69,59 e 45,16 ms. A variação entre processos impede atribuir um ganho de primeira pintura à mudança no leitor. O evento 1000 do Windows registrou o erro de encerramento do runner em coremessaging.dll após a gravação das amostras. Pedir saída pelo ciclo de vida do Flutter também reproduziu esse erro.
+## Abertura em um painel já montado
+
+O modo `BOARD_PROFILE_SUITE=pane` mede em quadros distintos a criação do host visual e a inserção do BoardView. O host usa o tema e as traduções do Cockpit com um painel adjacente. Após o quadro do host, o benchmark espera 500 ms e insere o editor com o Markdown já disponível na sessão. O arquivo e a miniatura são os mesmos do modo `opening`. O modo representa a montagem de um painel dentro do Flutter; o cronômetro começa depois da inicialização do processo e da leitura do arquivo.
+
+Quatro processos Profile executaram, na ordem, painel, montagem conjunta, montagem conjunta e painel. Cada processo abriu a cena de 1.920 objetos três vezes. A tabela lista a construção em milissegundos na ordem das aberturas. A coluna do host usa o número do quadro em que ele apareceu vazio.
+
+| Processo | Host vazio | Primeiro quadro com o editor |
+| --- | --- | --- |
+| Painel 1 | 1,68 / 1,57 / 1,10 | 25,39 / 15,03 / 9,90 |
+| Conjunto 1 | — | 26,94 / 14,69 / 16,71 |
+| Conjunto 2 | — | 22,02 / 22,28 / 11,89 |
+| Painel 2 | 3,33 / 1,39 / 2,37 | 25,11 / 14,42 / 12,02 |
+
+Em painel, a primeira rasterização de cada processo levou 24,60 e 26,82 ms; nas quatro reaberturas ficou entre 2,28 e 3,88 ms. A primeira construção e a primeira rasterização do editor excederam o orçamento mesmo com o host pronto. As quatro reaberturas nessa configuração respeitaram 16,67 ms por fase. Todos os arquivos permaneceram idênticos, e as 12 aberturas produziram amostras antes da falha nativa já documentada no encerramento dos quatro processos. O carregamento de uma janela nativa inteira e a latência física continuam fora deste ensaio.

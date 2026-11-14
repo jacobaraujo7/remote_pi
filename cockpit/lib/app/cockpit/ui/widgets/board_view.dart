@@ -66,7 +66,6 @@ class _BoardState extends State<BoardView> {
   BoardDocument? doc;
   BoardDocument? savedDocument;
   final selection = <String>{};
-  BoardDocument get display => doc!;
 
   BoardItem? dragItem;
   final dragOffset = ValueNotifier(Offset.zero);
@@ -224,8 +223,9 @@ class _BoardState extends State<BoardView> {
 
   String? targetAt(Offset p, String? from) {
     String? container;
-    for (final i in display.items.values.toList().reversed) {
-      if (i.id == from || !connectable(i) || !doc!.items.containsKey(i.id)) {
+    final tolerance = 4 / transform.value.getMaxScaleOnAxis();
+    for (final i in doc!.paintOrder.reversed) {
+      if (i.id == from || !connectable(i)) {
         continue;
       }
       if (!Rect.fromLTWH(
@@ -233,7 +233,7 @@ class _BoardState extends State<BoardView> {
         i.y,
         i.width,
         i.height,
-      ).inflate(4 / transform.value.getMaxScaleOnAxis()).contains(p)) {
+      ).inflate(tolerance).contains(p)) {
         continue;
       }
       if (i.kind != BoardKind.container && i.kind != BoardKind.lane) {
@@ -656,14 +656,9 @@ class _BoardState extends State<BoardView> {
     }
   }
 
-  Iterable<BoardItem> get visible sync* {
-    yield* display.items.values;
-  }
-
   Offset center(BoardItem i) => Offset(i.x + i.width / 2, i.y + i.height / 2);
   List<Offset> route(BoardItem edge) {
-    final a = display.items[edge.from] ?? doc!.items[edge.from]!,
-        b = display.items[edge.to] ?? doc!.items[edge.to]!;
+    final a = doc!.items[edge.from]!, b = doc!.items[edge.to]!;
     final delta = dragItem == null ? Offset.zero : dragOffset.value;
     final p = center(a) + (selection.contains(a.id) ? delta : Offset.zero);
     final q = center(b) + (selection.contains(b.id) ? delta : Offset.zero);
@@ -675,13 +670,13 @@ class _BoardState extends State<BoardView> {
   }
 
   String? hit(Offset p) {
-    for (final i in visible.toList().reversed) {
+    for (final i in doc!.paintOrder.reversed) {
       if (i.kind != BoardKind.arrow &&
           Rect.fromLTWH(i.x, i.y, i.width, i.height).contains(p)) {
         return i.id;
       }
     }
-    for (final e in visible.where((i) => i.kind == BoardKind.arrow)) {
+    for (final e in doc!.items.values.where((i) => i.kind == BoardKind.arrow)) {
       final pts = route(e);
       for (var i = 1; i < pts.length; i++) {
         if (Rect.fromPoints(pts[i - 1], pts[i]).inflate(6).contains(p)) {
@@ -936,7 +931,7 @@ class _BoardState extends State<BoardView> {
       },
     };
     final current = doc?.items[selected];
-    final objects = doc == null ? <BoardItem>[] : visible.toList();
+    final objects = doc?.paintOrder ?? const <BoardItem>[];
     final moving = dragItem == null
         ? <BoardItem>[]
         : objects

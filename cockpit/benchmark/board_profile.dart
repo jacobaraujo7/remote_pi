@@ -33,13 +33,14 @@ Future<void> runBoardProfile({ProfileView? baseline}) async {
   await output.parent.create(recursive: true);
   try {
     final suite = Platform.environment['BOARD_PROFILE_SUITE'];
-    if (suite == 'interactions' || suite == 'opening') {
+    if (suite == 'interactions' || suite == 'opening' || suite == 'pane') {
       await measureInteractions(
         output,
         baseline,
-        scenarios: suite == 'opening'
-            ? const [_Scenario.firstPaint]
-            : _Scenario.values,
+        scenarios: suite == 'interactions'
+            ? _Scenario.values
+            : const [_Scenario.firstPaint],
+        separateHost: suite == 'pane',
       );
     } else {
       await measure(output, baseline);
@@ -362,9 +363,11 @@ Future<void> measureInteractions(
   File output,
   ProfileView? baseline, {
   required List<_Scenario> scenarios,
+  required bool separateHost,
 }) async {
   final rows = <String>[
-    'version\tscenario\tcount\trun\tframes\tbuildP95ms\trasterP95ms\tover16.67ms\toverDisplayBudget\tdisplayHz\treadyMs\tsaves\tgestureMs\tframeIntervalP95ms',
+    'version\tscenario\tcount\trun\tframes\tbuildP95ms\trasterP95ms\tover16.67ms\toverDisplayBudget\tdisplayHz\treadyMs\tsaves\tgestureMs\tframeIntervalP95ms'
+        '${separateHost ? '\thostBuildMs\thostRasterMs' : ''}',
   ];
   final scratch = await output.parent.createTemp('board-profile-');
   final thumbnail = await architectureThumbnail();
@@ -406,10 +409,24 @@ Future<void> measureInteractions(
           var readyMs = 0.0;
           var gestureMs = 0.0;
           final intervals = <double>[];
+          final pane = w.ValueNotifier<w.Widget>(const w.SizedBox.shrink());
+          int? hostFrame;
           void record(List<ui.FrameTiming> batch) => times.addAll(batch);
           scheduler.addTimingsCallback(record);
           try {
             final clock = Stopwatch()..start();
+            final editor = version.value(
+              key: key,
+              session: session,
+              onReload: () async {},
+              onSave: (source) async {
+                saves++;
+                await Future<void>.delayed(const Duration(milliseconds: 120));
+                await path.writeAsString(source, flush: true);
+                session.adoptDisk(FileViewText(await path.readAsString()));
+                return true;
+              },
+            );
             host.value = TranslationProvider(
               child: ShadcnApp(
                 theme: buildTheme(brightness: Brightness.dark),
@@ -417,22 +434,12 @@ Future<void> measureInteractions(
                   child: Row(
                     children: [
                       Expanded(
-                        child: version.value(
-                          key: key,
-                          session: session,
-                          onReload: () async {},
-                          onSave: (source) async {
-                            saves++;
-                            await Future<void>.delayed(
-                              const Duration(milliseconds: 120),
-                            );
-                            await path.writeAsString(source, flush: true);
-                            session.adoptDisk(
-                              FileViewText(await path.readAsString()),
-                            );
-                            return true;
-                          },
-                        ),
+                        child: separateHost
+                            ? w.ValueListenableBuilder<w.Widget>(
+                                valueListenable: pane,
+                                builder: (_, child, _) => child,
+                              )
+                            : editor,
                       ),
                       const SizedBox(width: 160, child: Text('Adjacent pane')),
                     ],
@@ -441,6 +448,13 @@ Future<void> measureInteractions(
               ),
             );
             await scheduler.endOfFrame;
+            if (separateHost) {
+              hostFrame = dispatcher.frameData.frameNumber;
+              await Future<void>.delayed(const Duration(milliseconds: 500));
+              clock.reset();
+              pane.value = editor;
+              await scheduler.endOfFrame;
+            }
             final root = key.currentContext! as w.Element;
             final first = dispatcher.frameData.frameNumber;
             final viewer = findElement(root, (w) => w is m.InteractiveViewer)!;
@@ -632,6 +646,9 @@ Future<void> measureInteractions(
                 )
                 .length;
             intervals.sort();
+            final shell = hostFrame == null
+                ? null
+                : times.singleWhere((frame) => frame.frameNumber == hostFrame);
             rows.add(
               [
                 version.key,
@@ -650,6 +667,10 @@ Future<void> measureInteractions(
                 intervals.isEmpty
                     ? 0
                     : intervals[((intervals.length - 1) * .95).round()],
+                if (shell != null) ...[
+                  shell.buildDuration.inMicroseconds / 1000,
+                  shell.rasterDuration.inMicroseconds / 1000,
+                ],
               ].join('\t'),
             );
             await output.writeAsString(rows.join('\n'), flush: true);
@@ -658,6 +679,7 @@ Future<void> measureInteractions(
             host.value = const w.SizedBox.shrink();
             await scheduler.endOfFrame;
             session.dispose();
+            pane.dispose();
             m.PaintingBinding.instance.imageCache.clear();
             m.PaintingBinding.instance.imageCache.clearLiveImages();
           }
