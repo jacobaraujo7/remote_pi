@@ -169,23 +169,9 @@ class SpeechToTextService implements SpeechService {
   final StreamController<SpeechFailure> _errorController =
       StreamController<SpeechFailure>.broadcast();
 
-  /// Segments the recognizer already closed. Android restarts its partial
-  /// results from scratch after each pause, so earlier text must be kept here.
-  final List<String> _segments = [];
-
-  /// Words of the segment in progress (partial or final).
-  String _current = '';
-
-  /// The recognizer marked [_current] as complete; the next partial starts a
-  /// new segment.
-  bool _segmentEnded = false;
-
-  /// Bumped on each [start] / [cancel]; callbacks from an older session are
-  /// ignored so late results never leak into the next capture.
-  int _session = 0;
-  bool _stopping = false;
-  bool _sessionEnded = false;
-  Completer<void>? _ended;
+  /// The capture in progress or awaiting its final result. Callbacks and
+  /// [stop] hold on to their own capture, so a newer one never mixes in.
+  _Capture? _capture;
   bool _initialized = false;
 
   @override
@@ -193,8 +179,6 @@ class SpeechToTextService implements SpeechService {
 
   @override
   Stream<SpeechFailure> get errors => _errorController.stream;
-
-  String get _transcript => [..._segments, _current].join(' ').trim();
 
   @override
   Future<SpeechAvailability> init({String? preferredLocaleId}) async {
@@ -220,38 +204,24 @@ class SpeechToTextService implements SpeechService {
     required String localeId,
     required Duration maxDuration,
   }) async {
-    final session = ++_session;
-    _segments.clear();
-    _current = '';
-    _segmentEnded = false;
-    _stopping = false;
-    _sessionEnded = false;
-    _ended = Completer<void>();
-    bool isCurrent() => session == _session;
+    // A new listen replaces the plugin's session, so an older capture still
+    // waiting for its final result will get nothing more.
+    _capture?.end();
+    final capture = _capture = _Capture();
+    bool isCurrent() => identical(capture, _capture);
 
     await _plugin.listen(
       localeId: localeId,
       listenFor: maxDuration,
       onResult: (words, kind) {
-        if (!isCurrent()) return;
         // Decision #6 — partial results are accumulated but never shown live;
         // they only materialize on stop().
-        //
-        // Android restarts its results from scratch for each segment of
-        // speech. It marks the boundary either with an empty partial or with
-        // a segment-end result (sometimes repeated); the next segment's first
-        // partial then replaces the text. Keep each closed segment.
-        final text = words.trim();
-        final isFinal = kind == SttResultKind.finalResult;
-        if (text.isNotEmpty) {
-          if (_segmentEnded && kind == SttResultKind.partial) _closeSegment();
-          _current = text;
-        }
-        if (kind == SttResultKind.segmentEnd) _segmentEnded = true;
-        if (text.isEmpty || isFinal) _closeSegment();
+        capture.transcript.add(words, kind);
         // A final result mid-capture only closes a segment; after release it
         // is the last word.
-        if (isFinal && _stopping) _endSession();
+        if (kind == SttResultKind.finalResult && capture.stopping) {
+          capture.end();
+        }
       },
       onLevel: (level) {
         if (isCurrent() && !_levelController.isClosed) {
@@ -259,50 +229,35 @@ class SpeechToTextService implements SpeechService {
         }
       },
       onError: (message) {
-        if (!isCurrent()) return;
         // After release the recognizer may report e.g. `error_client` or
         // `error_no_match`; that only ends the wait for the final result.
-        if (!_stopping && !_errorController.isClosed) {
+        if (isCurrent() && !capture.stopping && !_errorController.isClosed) {
           _errorController.add(SpeechFailure.fromPluginError(message));
         }
-        _endSession();
+        capture.end();
       },
-      onDone: () {
-        if (isCurrent()) _endSession();
-      },
+      onDone: capture.end,
     );
-  }
-
-  void _closeSegment() {
-    if (_current.isNotEmpty) _segments.add(_current);
-    _current = '';
-    _segmentEnded = false;
-  }
-
-  void _endSession() {
-    _sessionEnded = true;
-    final ended = _ended;
-    if (ended != null && !ended.isCompleted) ended.complete();
   }
 
   @override
   Future<String> stop() async {
-    _stopping = true;
-    final ended = _ended;
+    final capture = _capture;
+    if (capture == null) return '';
+    capture.stopping = true;
     await _plugin.stop();
-    if (ended != null && !_sessionEnded) {
-      await ended.future.timeout(finalResultTimeout, onTimeout: () {});
+    if (!capture.ended.isCompleted) {
+      await capture.ended.future.timeout(finalResultTimeout, onTimeout: () {});
     }
-    return _transcript;
+    return capture.result;
   }
 
   @override
   Future<void> cancel() async {
-    _session++;
-    _segments.clear();
-    _current = '';
-    _segmentEnded = false;
-    _endSession();
+    final capture = _capture;
+    _capture = null;
+    capture?.cancelled = true;
+    capture?.end();
     await _plugin.cancel();
   }
 
@@ -390,6 +345,63 @@ class SoundLevelScale {
     if (level.isNaN) return 0;
     final clamped = level.clamp(min, max);
     return (clamped - min) / (max - min);
+  }
+}
+
+/// One hold-to-talk capture, from [SpeechToTextService.start] until its final
+/// result, error, done status or cancel.
+class _Capture {
+  final TranscriptAccumulator transcript = TranscriptAccumulator();
+  final Completer<void> ended = Completer<void>();
+  bool stopping = false;
+  bool cancelled = false;
+
+  String get result => cancelled ? '' : transcript.text;
+
+  void end() {
+    if (!ended.isCompleted) ended.complete();
+  }
+}
+
+/// Joins the recognizer's results into one transcript.
+///
+/// Android restarts its results from scratch for each segment of speech, so
+/// each segment must be kept once it closes. A segment closes on:
+/// - an empty result (a pause);
+/// - a final result;
+/// - a segment end, once a result arrives that does not continue it: any
+///   partial, or a segment end / final result whose text does not start with
+///   the closed segment's text. Android repeats segment ends, and the final
+///   result after release often restates the last segment.
+class TranscriptAccumulator {
+  final List<String> _segments = [];
+
+  /// Words of the segment in progress.
+  String _current = '';
+
+  /// The recognizer reported a segment end for [_current].
+  bool _segmentEnded = false;
+
+  String get text => [..._segments, _current].join(' ').trim();
+
+  void add(String words, SttResultKind kind) {
+    final text = words.trim();
+    if (text.isEmpty) {
+      _closeSegment();
+      return;
+    }
+    final continues =
+        kind != SttResultKind.partial && text.startsWith(_current);
+    if (_segmentEnded && !continues) _closeSegment();
+    _current = text;
+    _segmentEnded = kind == SttResultKind.segmentEnd;
+    if (kind == SttResultKind.finalResult) _closeSegment();
+  }
+
+  void _closeSegment() {
+    if (_current.isNotEmpty) _segments.add(_current);
+    _current = '';
+    _segmentEnded = false;
   }
 }
 

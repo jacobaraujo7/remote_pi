@@ -37,6 +37,14 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   double _level = 0;
   bool _starting = false;
 
+  /// [SpeechService.start] is in flight: a recognizer error now belongs to
+  /// this capture even though recording hasn't been shown yet.
+  bool _awaitingStart = false;
+
+  /// An error ended the capture while [_awaitingStart]; the pending start
+  /// must not enter [VoiceRecording].
+  bool _startFailed = false;
+
   /// Finalized transcripts, delivered the same way whether the session ended
   /// by user release or by the 60s cap (decision #5). The composer listens
   /// here and populates the empty `TextField` — a single source of truth, so
@@ -72,9 +80,12 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     return result;
   }
 
-  /// Begin a hold-to-talk session. No-op if already starting/recording.
+  /// Begin a hold-to-talk session. No-op while starting, recording or
+  /// transcribing: the previous capture's transcript is still on its way.
   Future<void> startRecording() async {
-    if (_starting || state is VoiceRecording) return;
+    if (_starting || state is VoiceRecording || state is VoiceTranscribing) {
+      return;
+    }
     _starting = true;
     try {
       final availability = await ensureInit();
@@ -91,7 +102,14 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
         }
       });
 
-      await _service.start(localeId: _localeId!, maxDuration: maxDuration);
+      _startFailed = false;
+      _awaitingStart = true;
+      try {
+        await _service.start(localeId: _localeId!, maxDuration: maxDuration);
+      } finally {
+        _awaitingStart = false;
+      }
+      if (_startFailed) return; // _onError already ended and reported it
       emit(VoiceRecording(elapsed: _elapsed, level: _level));
 
       _ticker = Timer.periodic(_tickInterval, (_) {
@@ -123,10 +141,15 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     return text;
   }
 
-  /// The recognizer gave up while the mic is still held: end the session now
-  /// instead of recording into a dead recognizer until release.
+  /// The recognizer gave up while the mic is still held (or while it was
+  /// still starting): end the session now instead of recording into a dead
+  /// recognizer until release.
   Future<void> _onError(SpeechFailure failure) async {
-    if (state is! VoiceRecording) return;
+    if (_awaitingStart) {
+      _startFailed = true;
+    } else if (state is! VoiceRecording) {
+      return;
+    }
     _stopTimers();
     emit(const VoiceIdle());
     if (!_failures.isClosed) _failures.add(failure);

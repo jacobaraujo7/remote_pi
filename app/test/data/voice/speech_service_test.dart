@@ -328,6 +328,33 @@ void main() {
       },
     );
 
+    test('a new segment may arrive directly as a final result', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+
+      plugin.emitSegmentEnd('first sentence');
+      plugin.emitResult('second sentence', isFinal: true);
+
+      expect(await service.stop(), 'first sentence second sentence');
+    });
+
+    test('a result that extends a closed segment updates it', () async {
+      // Seen on device: the segment end is repeated, and the final result
+      // after release restates (or completes) the same segment.
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+
+      plugin.emitSegmentEnd('Remote Pi should turn');
+      plugin.emitSegmentEnd(' Remote Pi should turn every word');
+      final stopped = service.stop();
+      plugin.emitResult(
+        ' Remote Pi should turn every word I say into text',
+        isFinal: true,
+      );
+
+      expect(await stopped, 'Remote Pi should turn every word I say into text');
+    });
+
     test('waits for words that arrive after release', () async {
       final plugin = _FakeSttPlugin();
       final service = await _listening(
@@ -386,6 +413,49 @@ void main() {
         expect(await service.stop(), 'second');
       },
     );
+  });
+
+  group('overlapping captures', () {
+    test(
+      'starting a new capture ends a pending stop with its own words',
+      () async {
+        final plugin = _FakeSttPlugin();
+        final service = await _listening(
+          plugin,
+          finalResultTimeout: const Duration(seconds: 10),
+        );
+        plugin.emitResult('first capture');
+        final firstStop = service.stop();
+
+        await service.start(
+          localeId: 'en_US',
+          maxDuration: const Duration(seconds: 60),
+        );
+        plugin.emitResult('second capture');
+
+        // Resolves without waiting out the timeout, with A's words only.
+        expect(
+          await firstStop.timeout(const Duration(seconds: 1)),
+          'first capture',
+        );
+        final secondStop = service.stop();
+        plugin.emitResult('second capture', isFinal: true);
+        expect(await secondStop, 'second capture');
+      },
+    );
+
+    test('cancelling a pending stop returns no text', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 10),
+      );
+      plugin.emitResult('secret words');
+      final stopped = service.stop();
+      await service.cancel();
+
+      expect(await stopped.timeout(const Duration(seconds: 1)), isEmpty);
+    });
   });
 
   group('recognizer errors', () {

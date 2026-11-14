@@ -17,6 +17,10 @@ class _FakeSpeechService implements SpeechService {
   final StreamController<SpeechFailure> _errors =
       StreamController<SpeechFailure>.broadcast();
   int startCalls = 0;
+
+  /// When set, [start] and [stop] wait for it — models native latency.
+  Completer<void>? startGate;
+  Completer<void>? stopGate;
   int stopCalls = 0;
   int cancelCalls = 0;
   String? startedLocale;
@@ -40,11 +44,13 @@ class _FakeSpeechService implements SpeechService {
     startCalls++;
     startedLocale = localeId;
     startedMax = maxDuration;
+    await startGate?.future;
   }
 
   @override
   Future<String> stop() async {
     stopCalls++;
+    await stopGate?.future;
     return transcript;
   }
 
@@ -159,6 +165,22 @@ void main() {
       vm.dispose();
     });
 
+    test('a new recording cannot start while transcribing', () async {
+      final svc = _FakeSpeechService()..stopGate = Completer<void>();
+      final vm = VoiceInputViewModel(svc);
+
+      await vm.startRecording();
+      final stopping = vm.stopAndTranscribe();
+      await vm.startRecording();
+
+      expect(svc.startCalls, 1);
+      expect(vm.state, isA<VoiceTranscribing>());
+      svc.stopGate!.complete();
+      await stopping;
+      expect(vm.state, isA<VoiceIdle>());
+      vm.dispose();
+    });
+
     test('stopAndTranscribe is a no-op when not recording', () async {
       final svc = _FakeSpeechService();
       final vm = VoiceInputViewModel(svc);
@@ -194,6 +216,30 @@ void main() {
       expect(got, isEmpty);
       await failureSub.cancel();
       await transcriptSub.cancel();
+      vm.dispose();
+    });
+
+    test('an error while start is pending ends the capture', () async {
+      final svc = _FakeSpeechService()..startGate = Completer<void>();
+      final vm = VoiceInputViewModel(svc);
+      final failures = <SpeechFailure>[];
+      final sub = vm.failures.listen(failures.add);
+
+      final starting = vm.startRecording();
+      await Future<void>.delayed(Duration.zero);
+      const failure = SpeechFailure(
+        SpeechFailureKind.languageUnavailable,
+        'error_language_unavailable',
+      );
+      svc.emitError(failure);
+      await Future<void>.delayed(Duration.zero);
+      svc.startGate!.complete();
+      await starting;
+
+      expect(vm.state, isA<VoiceIdle>());
+      expect(failures, [failure]);
+      expect(svc.cancelCalls, 1);
+      await sub.cancel();
       vm.dispose();
     });
 
