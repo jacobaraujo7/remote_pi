@@ -24,8 +24,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class _Settings extends SettingsStore {
+  AppSettings value = const AppSettings();
   @override
-  Future<AppSettings> load() async => const AppSettings();
+  Future<AppSettings> load() async => value;
   @override
   Future<void> save(AppSettings settings) async {}
 }
@@ -106,6 +107,26 @@ Future<void> _settleRead(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('a detached document follows a return to the system language', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final device = await LocaleSettings.useDeviceLocale();
+      final other = device == AppLocale.ptBr ? AppLocale.en : AppLocale.ptBr;
+      final store = _Settings()..value = AppSettings(locale: other.languageTag);
+      final controller = SettingsController(store);
+      try {
+        await controller.load();
+        expect(LocaleSettings.currentLocale, other);
+        store.value = const AppSettings();
+        await controller.load();
+        expect(LocaleSettings.currentLocale, device);
+      } finally {
+        controller.dispose();
+        await LocaleSettings.useDeviceLocale();
+      }
+    });
+  });
   testWidgets('detached local Board writes the validated encoding to disk', (
     tester,
   ) async {
