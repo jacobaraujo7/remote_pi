@@ -132,6 +132,63 @@ void main() {
     });
   });
 
+  // #330: o WinSparkle lança o instalador e só *pede* pro host sair. Sem sair,
+  // o instalador silencioso encontra o app vivo e aborta — o update baixava e
+  // nunca instalava.
+  group('before-quit-for-update encerra o app só onde o motor não encerra', () {
+    test('Windows: chama quitForUpdate', () async {
+      var quits = 0;
+      final updater = AutoUpdaterSelfUpdater(
+        feedUrl: 'https://example.test/appcast-windows.xml',
+        autoDownloads: false,
+        quitForUpdate: () async => quits++,
+      );
+      addTearDown(updater.dispose);
+
+      updater.onUpdaterBeforeQuitForUpdate(null);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(quits, 1);
+    });
+
+    test('macOS: não chama (o Sparkle encerra e relança sozinho)', () async {
+      var quits = 0;
+      final updater = AutoUpdaterSelfUpdater(
+        feedUrl: 'https://example.test/appcast-macos.xml',
+        autoDownloads: true,
+        quitForUpdate: () async => quits++,
+      );
+      addTearDown(updater.dispose);
+
+      updater.onUpdaterBeforeQuitForUpdate(null);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(quits, 0);
+    });
+
+    test('falha ao encerrar não escapa do callback do motor', () async {
+      final updater = AutoUpdaterSelfUpdater(
+        feedUrl: 'https://example.test/appcast-windows.xml',
+        autoDownloads: false,
+        quitForUpdate: () async => throw StateError('window gone'),
+      );
+      addTearDown(updater.dispose);
+
+      updater.onUpdaterBeforeQuitForUpdate(null);
+      await Future<void>.delayed(Duration.zero);
+    });
+
+    test('sem quitForUpdate é inerte', () {
+      final updater = AutoUpdaterSelfUpdater(
+        feedUrl: 'https://example.test/appcast-windows.xml',
+        autoDownloads: false,
+      );
+      addTearDown(updater.dispose);
+
+      expect(() => updater.onUpdaterBeforeQuitForUpdate(null), returnsNormally);
+    });
+  });
+
   group('NoopSelfUpdater (Linux)', () {
     test('não suportado e inerte', () async {
       const updater = NoopSelfUpdater();

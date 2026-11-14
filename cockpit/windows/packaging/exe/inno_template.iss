@@ -21,12 +21,17 @@ WizardStyle=modern
 PrivilegesRequired={{PRIVILEGES_REQUIRED}}
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-; Plano 47 — self-update via WinSparkle. Num update silencioso o cockpit pode
-; estar rodando: o Restart Manager fecha a instância (CloseApplications) e a
-; relança após instalar (RestartApplications). O WinSparkle encerra o app antes
-; de rodar o instalador, então o RM vê uma instância só — sem duplo-launch.
-; VALIDAR no Windows real (não testável neste Mac).
-CloseApplications=yes
+; Plano 47 — self-update via WinSparkle. O WinSparkle NÃO encerra o app: ele
+; lança este instalador e só *pede* pro host sair (shutdown request callback).
+; O app atende fechando a janela pelo caminho limpo (#330), mas isso leva alguns
+; segundos (flush dos stores) e o instalador pode chegar ao Restart Manager antes.
+; `force` garante que o RM encerra o que ainda estiver segurando arquivos da
+; pasta (cockpit.exe, cockpit-server, OpenConsole) em vez de abortar o update
+; silencioso — com /SUPPRESSMSGBOXES não há diálogo pra perguntar.
+CloseApplications=force
+; O runner Flutter não se registra no RM (RegisterApplicationRestart), então o
+; RM não tem o que relançar; quem reabre o app após o update silencioso é a
+; entrada `Check: WizardSilent` do [Run].
 RestartApplications=yes
 ; Associação de arquivos (k17): o Explorer reconstrói o cache de tipos.
 ChangesAssociations=yes
@@ -90,3 +95,7 @@ Root: HKCU; Subkey: "Software\Classes\.orchestration\OpenWithProgids"; ValueType
 
 [Run]
 Filename: "{app}\{{EXECUTABLE_NAME}}"; Description: "{cm:LaunchProgram,{{DISPLAY_NAME}}}"; Flags: nowait postinstall skipifsilent
+; Self-update (WinSparkle roda o instalador com /VERYSILENT): reabre o app, que
+; saiu pra deixar o instalador trocar os arquivos (#330). A entrada de cima não
+; cobre esse caso por causa do `skipifsilent`.
+Filename: "{app}\{{EXECUTABLE_NAME}}"; Flags: nowait; Check: WizardSilent
