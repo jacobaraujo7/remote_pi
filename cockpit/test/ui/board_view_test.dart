@@ -14,6 +14,67 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
   testWidgets(
+    'queued edits use new workspace Markdown when a harness changes it',
+    (tester) async {
+      final initial = BoardDocument([
+        const BoardItem('note', BoardKind.note, 420, 220, label: 'initial'),
+      ]);
+      final session = FileViewerSession(
+        id: 'merge',
+        projectId: 'test',
+        path: 'merge.board',
+        view: FileViewText(initial.encode()),
+      );
+      addTearDown(session.dispose);
+      final gate = Completer<void>();
+      var writes = 0;
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: BoardView(
+                session: session,
+                onReload: () async {},
+                onSave: (source) async {
+                  writes++;
+                  if (writes == 1) {
+                    await gate.future;
+                    // A watcher event arrives after the first write and before the next.
+                    source = source.replaceFirst(
+                      '> initial',
+                      '> changed by harness',
+                    );
+                  }
+                  session.adoptDisk(FileViewText(source));
+                  return true;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final origin = tester.getTopLeft(find.byType(m.InteractiveViewer));
+      for (final (tool, point) in [
+        ('Process', const Offset(40, 45)),
+        ('Decision', const Offset(230, 45)),
+      ]) {
+        await tester.tap(find.byTooltip(tool));
+        await tester.pump();
+        await tester.tapAt(origin + point);
+        await tester.pump();
+      }
+      expect(writes, 1);
+      gate.complete();
+      await tester.pumpAndSettle();
+      final reopened = BoardDocument.parse((session.view as FileViewText).text);
+      expect(writes, 2);
+      expect(reopened.items.length, 3);
+      expect(reopened.items['note']!.label, 'changed by harness');
+    },
+  );
+  testWidgets(
     'desktop workflow survives delayed writes and paints ink without rebuilding the toolbar',
     (tester) async {
       final session = FileViewerSession(
@@ -218,6 +279,7 @@ void main() {
         origin + const Offset(80, 240),
         kind: PointerDeviceKind.mouse,
       );
+      await mouse.moveTo(origin + const Offset(81, 240));
       for (var i = 1; i <= 100; i++) {
         await mouse.moveTo(
           origin + Offset(80 + i.toDouble(), 240 + (i % 12).toDouble()),
@@ -227,7 +289,11 @@ void main() {
       expect(identical(tester.widget(pencil), toolbarButton), isTrue);
       await mouse.up();
       await tester.pumpAndSettle();
-      expect(read().items.values.last.points.length, greaterThan(95));
+      final stroke = read().items.values.last;
+      expect(stroke.points.length, 102);
+      expect(stroke.points[1], (x: 1.0, y: 0.0));
+      expect(stroke.width, 100);
+      expect(stroke.height, 11);
       await tester.tap(find.byTooltip('Advanced'));
       await tester.pump();
       for (final name in ['Lane', 'Container', 'Service', 'Note']) {

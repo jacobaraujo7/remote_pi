@@ -23,6 +23,9 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Entregue
 
+- [x] Registrar o lápis desde o primeiro movimento <!-- id: board-primeira-amostra labels: interacao, desempenho -->
+      O teste de widget verifica o deslocamento inicial de um pixel, 102 pontos reabertos do Markdown e o tamanho do traço. Um toque isolado também aparece na saída SVG usada pelo HTML.
+
 - [x] Enquadrar seleção ou documento <!-- id: board-camera labels: interacao -->
       Comandos preservam a seleção, as coordenadas negativas e o acesso a formas distantes. Testado com eventos de mouse e trackpad no widget.
 - [x] Operar objetos pelo teclado e por clique <!-- id: board-teclado labels: acesso -->
