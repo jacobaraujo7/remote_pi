@@ -19,3 +19,7 @@ Em 14/11/2026, a janela de documento do executável Windows Release abriu o flux
 ## Verificação da build 5558fc00
 
 A nova compilação Release abriu a cópia local Aprovacao.board em janela visível. Em um desktop privado, outra instância abriu o exemplo da skill. A UI Automation expôs novamente as três formas e as duas conexões com os mesmos nomes da tabela. A primeira ação padrão MSAA em Receber pedido mudou o estado de 3145728 para 3145730. O módulo Dart verificado tem SHA-256 B7F551B0D3DA95D9C8C339C6AC30E3D54E73ACC3823741A291E98571ABFF1DAF. A DLL do motor no bundle foi reposta a partir do SDK Release após a compilação e conferida por hash. A leitura falada pelo Narrador continua pendente.
+
+## Retorno ao desenho após Escape
+
+Na prévia Release da importação Mermaid, a ação UI Automation selecionou “Receber pedido” em uma cópia do documento. A sonda enviou F2, Escape, F2 e Escape ao controle FLUTTERVIEW daquele processo. Em ambas as aberturas, o Windows expôs um campo de texto com foco de teclado e valor “Receber pedido”. Após cada Escape, o campo saiu da árvore e o hash SHA-256 do documento permaneceu igual. O segundo F2 reabriu o mesmo rótulo sem clique intermediário. Evidência local em cockpit/build/board-review/mermaid-file-qa/focus.json. A fala do Narrador e os gestos de trackpad físico seguem para a validação com dispositivos.
