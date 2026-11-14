@@ -10,25 +10,41 @@ import '../../domain/entities/board_document.dart';
 import '../../domain/services/board_svg.dart';
 import 'board_painter.dart';
 
+String boardSvgExport(BoardDocument board, {Set<String>? selected}) {
+  final painter = TextPainter(textDirection: TextDirection.ltr);
+  try {
+    return boardSvg(
+      board,
+      selected: selected,
+      measureLabel: (line) {
+        painter.text = TextSpan(
+          text: line,
+          style: const TextStyle(fontFamily: 'sans-serif', fontSize: 14),
+        );
+        painter.layout();
+        return painter.width;
+      },
+    );
+  } finally {
+    painter.dispose();
+  }
+}
+
 String boardHtml(BoardDocument board, {Set<String>? selected}) =>
     '<!doctype html><html><head><meta charset="utf-8">'
     '<meta name="viewport" content="width=device-width,initial-scale=1">'
     '<title>Canvas Board</title><style>body{margin:1rem;background:white}'
     'svg{max-width:100%;height:auto}</style></head><body>'
-    '${boardSvg(board, selected: selected)}</body></html>';
+    '${boardSvgExport(board, selected: selected)}</body></html>';
 
 Future<Uint8List> boardPng(BoardDocument board, {Set<String>? selected}) async {
-  final items = board.items.values
+  final items = board.paintOrder
       .where((i) => selected == null || selected.contains(i.id))
       .toList();
   if (items.isEmpty) throw const FormatException('Empty selection');
-  Rect boundsOf(BoardItem i) => Rect.fromLTWH(i.x, i.y, i.width, i.height);
   List<Offset> route(BoardItem edge) {
     final endpoints = boardEdgeEndpoints(board, edge);
-    final start = Offset(endpoints.start.x, endpoints.start.y);
-    final end = Offset(endpoints.end.x, endpoints.end.y);
-    final mid = (start.dx + end.dx) / 2;
-    return [start, Offset(mid, start.dy), Offset(mid, end.dy), end];
+    return boardRouteOffsets(endpoints);
   }
 
   final area = boardExportBounds(board, items);
@@ -58,15 +74,8 @@ Future<Uint8List> boardPng(BoardDocument board, {Set<String>? selected}) async {
       Colors.white,
       Colors.amber,
       const TextStyle(fontFamily: 'sans-serif', fontSize: 14),
+      thumbnails: thumbnails,
     ).paint(canvas, bounds.size);
-    for (final entry in thumbnails.entries) {
-      paintImage(
-        canvas: canvas,
-        rect: boundsOf(entry.key),
-        image: entry.value,
-        fit: BoxFit.contain,
-      );
-    }
     final picture = recorder.endRecording();
     try {
       final bitmap = await picture.toImage(width, height);

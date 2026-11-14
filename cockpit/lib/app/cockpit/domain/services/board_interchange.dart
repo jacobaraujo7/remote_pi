@@ -6,6 +6,15 @@ import '../entities/board_document.dart';
 import 'board_svg.dart' show boardEdgeEndpoints;
 
 abstract final class BoardInterchange {
+  // These Board objects are editable rectangles in interchange formats.
+  static const _rectangleKinds = {
+    'container': BoardKind.container,
+    'service': BoardKind.service,
+    'lane': BoardKind.lane,
+    'note': BoardKind.note,
+    'mermaid': BoardKind.mermaid,
+  };
+
   static String mermaid(BoardDocument doc) {
     final ids = {
       for (final (n, i)
@@ -71,6 +80,7 @@ abstract final class BoardInterchange {
     final items = <BoardItem>[];
     final cells = <String, XmlElement>{};
     final labels = <String, String>{};
+    final groupIds = <String, String>{};
     for (final cell in xml.findAllElements('mxCell')) {
       final parent = cell.parentElement;
       final wrapper =
@@ -82,6 +92,9 @@ abstract final class BoardInterchange {
         throw const FormatException('Missing or duplicate draw.io cell ID');
       }
       cells[id] = cell;
+      if ((cell.getAttribute('style') ?? '').split(';').contains('group')) {
+        groupIds[id] = wrapper?.getAttribute('cockpitGroup') ?? id;
+      }
       labels[id] =
           wrapper?.getAttribute('label') ?? cell.getAttribute('value') ?? '';
     }
@@ -105,6 +118,7 @@ abstract final class BoardInterchange {
             color: styleColor('strokeColor'),
             from: cell.getAttribute('source'),
             to: cell.getAttribute('target'),
+            group: groupIds[cell.getAttribute('parent')],
             label: label,
           ),
         );
@@ -129,7 +143,10 @@ abstract final class BoardInterchange {
             ? BoardKind.text
             : style.contains('shape=note')
             ? BoardKind.note
-            : BoardKind.process;
+            : _rectangleKinds[RegExp(
+                    r'(?:^|;)cockpitKind=([^;]+)',
+                  ).firstMatch(style)?.group(1)] ??
+                  BoardKind.process;
         items.add(
           BoardItem(
             id,
@@ -139,7 +156,7 @@ abstract final class BoardInterchange {
             color: styleColor(
               kind == BoardKind.text ? 'fontColor' : 'fillColor',
             ),
-            group: group == null ? null : cell.getAttribute('parent'),
+            group: groupIds[cell.getAttribute('parent')],
             width: max(1, n('width', 136)),
             height: max(1, n('height', 64)),
             label: label,
@@ -175,28 +192,41 @@ abstract final class BoardInterchange {
                 for (final e in doc.items.values)
                   if (e.group != null) e.group!: BoardDocument.newId(),
               };
-              for (final g in groups.values) {
+              for (final g in groups.entries) {
                 b.element(
-                  'mxCell',
-                  attributes: {
-                    'id': g,
-                    'parent': layer,
-                    'vertex': '1',
-                    'style': 'group;',
-                  },
-                  nest: () =>
-                      b.element('mxGeometry', attributes: {'as': 'geometry'}),
+                  'object',
+                  attributes: {'id': g.value, 'cockpitGroup': g.key},
+                  nest: () => b.element(
+                    'mxCell',
+                    attributes: {
+                      'parent': layer,
+                      'vertex': '1',
+                      'style': 'group;',
+                    },
+                    nest: () =>
+                        b.element('mxGeometry', attributes: {'as': 'geometry'}),
+                  ),
                 );
               }
               for (final e in doc.items.values) {
                 final arrow = e.kind == BoardKind.arrow;
+                String edgeStyle() {
+                  final route = boardEdgeEndpoints(doc, e);
+                  final a = doc.items[e.from]!, b = doc.items[e.to]!;
+                  return 'edgeStyle=orthogonalEdgeStyle;endArrow=classic;'
+                      'exitX=${(route.start.x - a.x) / a.width};exitY=${(route.start.y - a.y) / a.height};'
+                      'entryX=${(route.end.x - b.x) / b.width};entryY=${(route.end.y - b.y) / b.height};';
+                }
+
                 final style = switch (e.kind) {
-                  BoardKind.arrow =>
-                    'edgeStyle=orthogonalEdgeStyle;endArrow=classic;',
+                  BoardKind.arrow => edgeStyle(),
                   BoardKind.decision => 'rhombus;',
                   BoardKind.lane => 'swimlane;',
                   BoardKind.note => 'shape=note;',
                   BoardKind.text => 'text;',
+                  BoardKind.container ||
+                  BoardKind.service ||
+                  BoardKind.mermaid => 'rounded=1;cockpitKind=${e.kind.name};',
                   _ => 'rounded=1;',
                 };
                 b.element(
@@ -265,6 +295,8 @@ abstract final class BoardInterchange {
         'diamond' => BoardKind.decision,
         'text' => BoardKind.text,
         'freedraw' || 'line' => BoardKind.stroke,
+        'rectangle' when e['customData'] is Map =>
+          _rectangleKinds[e['customData']['cockpitKind']] ?? BoardKind.process,
         'rectangle' || 'ellipse' => BoardKind.process,
         _ => throw FormatException('Unsupported Excalidraw element: $type'),
       };
@@ -361,11 +393,18 @@ abstract final class BoardInterchange {
         'lineHeight': 1.25,
       };
       final element = <String, dynamic>{...base};
+      if (type == 'rectangle' && _rectangleKinds.containsKey(i.kind.name)) {
+        element['customData'] = {'cockpitKind': i.kind.name};
+      }
       if (type == 'arrow') {
         final endpoints = boardEdgeEndpoints(doc, i);
         final x = endpoints.start.x, y = endpoints.start.y;
         final dx = endpoints.end.x - x, dy = endpoints.end.y - y;
-        final exitsLeft = x == doc.items[i.from]!.x;
+        final vertical = endpoints.vertical;
+        final source = doc.items[i.from]!;
+        final forward = vertical
+            ? endpoints.start.y == source.y + source.height
+            : endpoints.start.x == source.x + source.width;
         element.addAll({
           'elbowed': true,
           'fixedSegments': null,
@@ -378,8 +417,13 @@ abstract final class BoardInterchange {
           'points': [
             [0, 0],
             if (dx != 0 && dy != 0) ...[
-              [dx / 2, 0],
-              [dx / 2, dy],
+              if (vertical) ...[
+                [0, dy / 2],
+                [dx, dy / 2],
+              ] else ...[
+                [dx / 2, 0],
+                [dx / 2, dy],
+              ],
             ],
             [dx, dy],
           ],
@@ -387,13 +431,17 @@ abstract final class BoardInterchange {
             'elementId': i.from,
             'focus': 0,
             'gap': 0,
-            'fixedPoint': [exitsLeft ? 0 : 1, .5],
+            'fixedPoint': vertical
+                ? [.5, forward ? 1 : 0]
+                : [forward ? 1 : 0, .5],
           },
           'endBinding': {
             'elementId': i.to,
             'focus': 0,
             'gap': 0,
-            'fixedPoint': [exitsLeft ? 1 : 0, .5],
+            'fixedPoint': vertical
+                ? [.5, forward ? 0 : 1]
+                : [forward ? 0 : 1, .5],
           },
           'startArrowhead': null,
           'endArrowhead': 'arrow',
@@ -411,12 +459,29 @@ abstract final class BoardInterchange {
       if (type == 'text') element.addAll(text);
       elements.add(element);
       if (labelIds.containsKey(i.id)) {
+        final lines = i.label.split('\n');
+        final height = 20.0 * lines.length;
+        final isArrow = i.kind == BoardKind.arrow;
+        final width = isArrow
+            ? lines.map((line) => line.runes.length).reduce(max) * 16.0 + 4
+            : i.width;
+        final route = isArrow ? boardEdgeEndpoints(doc, i) : null;
+        final centerX = route == null
+            ? i.x + i.width / 2
+            : (route.start.x + route.end.x) / 2;
+        final centerY = route == null
+            ? i.y + i.height / 2
+            : (route.start.y + route.end.y) / 2;
         elements.add({
           ...base,
           ...text,
           'id': labelIds[i.id],
           'type': 'text',
           'containerId': i.id,
+          'x': centerX - width / 2,
+          'y': centerY - height / 2,
+          'width': width,
+          'height': height,
           'strokeColor': i.usesInkColor ? i.color ?? '#202020' : i.contrastInk,
           'backgroundColor': 'transparent',
           'boundElements': [],

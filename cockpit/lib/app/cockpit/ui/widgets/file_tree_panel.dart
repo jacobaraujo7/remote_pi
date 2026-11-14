@@ -1981,7 +1981,8 @@ class _DirViewState extends State<_DirView> {
                       : () => edit.onOpenLayout!(node.path),
                   onOpenAsSource:
                       edit.onOpenAsSource == null ||
-                          !(node.name.toLowerCase().endsWith('.kanban') ||
+                          !(node.name.toLowerCase().endsWith('.board') ||
+                              node.name.toLowerCase().endsWith('.kanban') ||
                               node.name.toLowerCase().endsWith('.panel') ||
                               OrchestrationDocument.isFilePath(node.path))
                       ? null

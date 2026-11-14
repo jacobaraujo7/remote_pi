@@ -1818,6 +1818,8 @@ class _Translations$cockpit$gallery$board$pt_BR extends Translations$cockpit$gal
 	@override String get undo => 'Desfazer';
 	@override String get delete => 'Excluir';
 	@override String get label => 'Rótulo';
+	@override String get labelChanged => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.';
+	@override String get objectDeleted => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.';
 	@override String get saveError => 'Falha ao salvar o board';
 	@override String get reload => 'Recarregar';
 }
@@ -3003,6 +3005,8 @@ extension on TranslationsPtBr {
 			'cockpit.gallery.board.undo' => 'Desfazer',
 			'cockpit.gallery.board.delete' => 'Excluir',
 			'cockpit.gallery.board.label' => 'Rótulo',
+			'cockpit.gallery.board.labelChanged' => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.',
+			'cockpit.gallery.board.objectDeleted' => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.',
 			'cockpit.gallery.board.saveError' => 'Falha ao salvar o board',
 			'cockpit.gallery.board.reload' => 'Recarregar',
 			'cockpit.gallery.intro' => 'Documentos especiais do Cockpit para que você tenha o visual do que o agente de IA esteja fazendo.',
@@ -3303,10 +3307,10 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.fontPickerUse' => 'Usar',
 			'settings.page.appearance.fontPickerDefault' => 'Padrão',
 			'settings.page.appearance.fontMissing' => 'Não encontrada nesta máquina — usando o fallback.',
-			'settings.page.appearance.sectionLayout' => 'Layout',
-			'settings.page.appearance.swapPanelsTitle' => 'Inverter panes',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.sectionLayout' => 'Layout',
+			'settings.page.appearance.swapPanelsTitle' => 'Inverter panes',
 			'settings.page.appearance.swapPanelsDesc' => 'Coloca os workspaces à direita e arquivos, busca, git e banco à esquerda.',
 			'settings.page.notifications.sectionTitle' => 'Notificações',
 			'settings.page.notifications.enableTitle' => 'Ativar notificações',

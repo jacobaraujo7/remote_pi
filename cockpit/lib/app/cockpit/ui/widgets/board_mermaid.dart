@@ -44,7 +44,16 @@ class _MermaidState extends State<_MermaidDialog> {
   Map<String, String> examples = {};
   static const shell = """<!doctype html><html><head>
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:">
-<style>body{font:14px sans-serif;margin:12px}svg{max-width:100%;height:auto}</style>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body { font: 14px sans-serif; color-scheme: light; background: white; }
+  main {
+    height: 100%; padding: 12px; box-sizing: border-box;
+    display: grid; place-items: center;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  }
+  main > svg { display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; }
+</style>
 </head><body><main></main></body></html>""";
   @override
   void dispose() {
@@ -100,6 +109,7 @@ class _MermaidState extends State<_MermaidDialog> {
         root.replaceChildren();
         const result=await mermaid.render('boardDiagram',diagram);
         root.innerHTML=result.svg;
+        await new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)));
         return true;
       """,
       );
@@ -109,6 +119,30 @@ class _MermaidState extends State<_MermaidDialog> {
       if (mounted) setState(() => rendered = source);
     } catch (e) {
       if (mounted) setState(() => error = e.toString());
+    } finally {
+      if (mounted) setState(() => rendering = false);
+    }
+  }
+
+  Future<void> apply() async {
+    final source = rendered;
+    if (rendering || source == null || source != input.text) return;
+    final route = ModalRoute.of(context);
+    final imageError = context.t.cockpit.notebook.imageFailed;
+    setState(() {
+      rendering = true;
+      error = null;
+    });
+    try {
+      final bytes = await web!.takeScreenshot();
+      if (!mounted || route?.isCurrent != true || source != input.text) return;
+      if (bytes == null || bytes.isEmpty) {
+        setState(() => error = imageError);
+        return;
+      }
+      Navigator.pop(context, (source: source, thumbnail: base64Encode(bytes)));
+    } catch (e) {
+      if (mounted) setState(() => error = imageError);
     } finally {
       if (mounted) setState(() => rendering = false);
     }
@@ -216,19 +250,8 @@ class _MermaidState extends State<_MermaidDialog> {
                   ),
                   IconButton(
                     tooltip: tr.apply,
-                    onPressed: rendered == input.text
-                        ? () async {
-                            final source = input.text;
-                            final bytes = await web!.takeScreenshot();
-                            if (context.mounted) {
-                              Navigator.pop(context, (
-                                source: source,
-                                thumbnail: bytes == null
-                                    ? null
-                                    : base64Encode(bytes),
-                              ));
-                            }
-                          }
+                    onPressed: !rendering && rendered == input.text
+                        ? apply
                         : null,
                     icon: const Icon(Icons.check),
                   ),

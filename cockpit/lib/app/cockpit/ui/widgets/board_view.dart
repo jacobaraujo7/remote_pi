@@ -10,6 +10,7 @@ import 'package:flutter/semantics.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import '../../domain/entities/board_document.dart';
+import '../../domain/services/board_svg.dart' show boardRoute;
 import '../../domain/entities/file_view.dart';
 import '../../domain/services/board_editor.dart';
 import '../session/file_viewer_session.dart';
@@ -69,6 +70,7 @@ class _BoardState extends State<BoardView> {
   BoardItem? dragItem;
   final dragOffset = ValueNotifier(Offset.zero);
   BoardItem? editing;
+  Rect? lastEditorBounds;
   Duration? lastTap;
   Offset? lastTapPosition;
   String? lastTapId;
@@ -163,6 +165,7 @@ class _BoardState extends State<BoardView> {
     setState(() {
       select(item.id);
       editing = item;
+      lastEditorBounds = editorBounds(item);
       label.selection = TextSelection(
         baseOffset: 0,
         extentOffset: label.text.length,
@@ -176,9 +179,9 @@ class _BoardState extends State<BoardView> {
     if (original == null) return true;
     final value = label.text;
     final current = doc?.items[original.id];
-    final changed = !discard && value != original.label;
+    final changed =
+        !discard && value != original.label && value != current?.label;
     if (changed && current?.label != original.label) {
-      setState(() => error = context.t.cockpit.gallery.board.saveError);
       return false;
     }
     setState(() => editing = null);
@@ -203,6 +206,7 @@ class _BoardState extends State<BoardView> {
   final pending = <({BoardEdit edit, Completer<bool> done, bool undo})>[];
   int? pointer;
   String? hovered, connectionStart;
+  Offset? connectionPointer;
   bool spacePan = false;
   bool get navigating => spacePan || tool == 'pan';
   bool connectable(BoardItem? i) =>
@@ -245,6 +249,8 @@ class _BoardState extends State<BoardView> {
   }
 
   void previewConnection(String from, Offset p) {
+    connectionPointer = p;
+    keyboardTarget = null;
     final a = doc?.items[from];
     if (a == null) {
       ink.clear();
@@ -255,12 +261,15 @@ class _BoardState extends State<BoardView> {
   }
 
   void previewTarget(BoardItem a, BoardItem? b, Offset p) {
-    final q = b == null ? p : center(b);
-    final sign = center(a).dx <= q.dx ? 1 : -1;
-    final left = center(a) + Offset(sign * a.width / 2, 0);
     ink.connector(
-      left,
-      b == null ? p : q - Offset(sign * b.width / 2, 0),
+      boardRouteOffsets(
+        boardRoute(
+          math.Rectangle(a.x, a.y, a.width, a.height),
+          b == null
+              ? math.Rectangle(p.dx, p.dy, 0, 0)
+              : math.Rectangle(b.x, b.y, b.width, b.height),
+        ),
+      ),
       b == null ? null : Rect.fromLTWH(b.x, b.y, b.width, b.height),
       b?.kind == BoardKind.decision,
     );
@@ -292,7 +301,11 @@ class _BoardState extends State<BoardView> {
       keyboardTarget = null;
     });
     ink.clear();
-    if (to == null || !doc!.items.containsKey(from)) return;
+    if (from == to ||
+        !connectable(doc?.items[from]) ||
+        !connectable(doc?.items[to])) {
+      return;
+    }
     final edge = BoardItem(
       BoardDocument.newId(),
       BoardKind.arrow,
@@ -328,6 +341,7 @@ class _BoardState extends State<BoardView> {
     } else {
       final origin = doc!.items[from];
       if (origin == null) return false;
+      connectionPointer = null;
       setState(() => keyboardTarget = item.id);
       previewTarget(origin, item, center(item));
     }
@@ -541,7 +555,7 @@ class _BoardState extends State<BoardView> {
       if (pointer == null) {
         dragItem = null;
         start = null;
-        ink.clear();
+        if (anchor == null) ink.clear();
       }
       try {
         if (content == null) {
@@ -557,13 +571,39 @@ class _BoardState extends State<BoardView> {
         doc = null;
         error = e.message;
       }
-      if (doc?.items.containsKey(editing?.id) != true) editing = null;
-      if (doc?.items.containsKey(selected) != true) select(null);
-      if (doc?.items.containsKey(anchor) != true) {
-        anchor = null;
-        keyboardTarget = null;
-      } else if (doc?.items.containsKey(keyboardTarget) != true) {
-        keyboardTarget = null;
+      final currentEditor = doc?.items[editing?.id];
+      if (currentEditor != null) {
+        lastEditorBounds = editorBounds(currentEditor);
+      } else if (editing != null && editing!.label == label.text) {
+        editing = null;
+      }
+      if (doc?.items.containsKey(selected) != true) {
+        selected = null;
+        selection.clear();
+        if (editing == null) label.clear();
+      }
+      final from = connectionStart ?? anchor;
+      if (from != null) {
+        final origin = doc?.items[from];
+        if (origin == null || !connectable(origin)) {
+          pointer = null;
+          start = null;
+          anchor = null;
+          connectionStart = null;
+          keyboardTarget = null;
+          connectionPointer = null;
+          ink.clear();
+        } else if (keyboardTarget != null) {
+          final target = doc?.items[keyboardTarget];
+          if (target != null && connectable(target)) {
+            previewTarget(origin, target, center(target));
+          } else {
+            keyboardTarget = null;
+            ink.clear();
+          }
+        } else if (connectionPointer case final position?) {
+          previewConnection(from, position);
+        }
       }
     });
   }
@@ -660,28 +700,38 @@ class _BoardState extends State<BoardView> {
   List<Offset> route(BoardItem edge) {
     final a = doc!.items[edge.from]!, b = doc!.items[edge.to]!;
     final delta = dragItem == null ? Offset.zero : dragOffset.value;
-    final p = center(a) + (selection.contains(a.id) ? delta : Offset.zero);
-    final q = center(b) + (selection.contains(b.id) ? delta : Offset.zero);
-    final sign = p.dx <= q.dx ? 1 : -1;
-    final left = p + Offset(sign * a.width / 2, 0),
-        right = q - Offset(sign * b.width / 2, 0);
-    final mid = (left.dx + right.dx) / 2;
-    return [left, Offset(mid, left.dy), Offset(mid, right.dy), right];
+    math.Rectangle<double> bounds(BoardItem item) {
+      final offset = selection.contains(item.id) ? delta : Offset.zero;
+      return math.Rectangle(
+        item.x + offset.dx,
+        item.y + offset.dy,
+        item.width,
+        item.height,
+      );
+    }
+
+    return boardRouteOffsets(boardRoute(bounds(a), bounds(b)));
   }
 
   String? hit(Offset p) {
-    for (final i in doc!.paintOrder.reversed) {
-      if (i.kind != BoardKind.arrow &&
-          Rect.fromLTWH(i.x, i.y, i.width, i.height).contains(p)) {
-        return i.id;
-      }
-    }
-    for (final e in doc!.items.values.where((i) => i.kind == BoardKind.arrow)) {
-      final pts = route(e);
-      for (var i = 1; i < pts.length; i++) {
-        if (Rect.fromPoints(pts[i - 1], pts[i]).inflate(6).contains(p)) {
-          return e.id;
+    for (final item in doc!.paintOrder.reversed) {
+      if (item.kind == BoardKind.arrow) {
+        final points = route(item);
+        for (var i = 1; i < points.length; i++) {
+          if (Rect.fromPoints(
+            points[i - 1],
+            points[i],
+          ).inflate(6).contains(p)) {
+            return item.id;
+          }
         }
+      } else if (Rect.fromLTWH(
+        item.x,
+        item.y,
+        item.width,
+        item.height,
+      ).contains(p)) {
+        return item.id;
       }
     }
     return null;
@@ -764,12 +814,13 @@ class _BoardState extends State<BoardView> {
       ).contains((e.localPosition - sceneOrigin))) {
         return;
       }
-      finishLabel();
+      if (!finishLabel()) return;
     }
     canvasFocus.requestFocus();
     pointer = e.pointer;
     start = (e.localPosition - sceneOrigin);
     moved = false;
+    connectionPointer = null;
     connectionStart =
         anchor ??
         handleAt(start!) ??
@@ -815,6 +866,7 @@ class _BoardState extends State<BoardView> {
   void cancel() {
     pointer = null;
     connectionStart = null;
+    connectionPointer = null;
     start = null;
     ink.clear();
     if (dragItem != null) {
@@ -831,10 +883,6 @@ class _BoardState extends State<BoardView> {
     if (tool == 'pencil' && points.last != p) ink.add(p);
     final strokeBounds = ink.bounds;
     final dragged = dragItem;
-    BoardItem? item = dragged?.edited(
-      x: dragged.x + p.dx - origin.dx,
-      y: dragged.y + p.dy - origin.dy,
-    );
     cancel();
     if (from != null) {
       if (!moved && anchor == null) {
@@ -848,6 +896,7 @@ class _BoardState extends State<BoardView> {
       }
       return;
     }
+    BoardItem? item;
     if (tool == 'pencil') {
       item = BoardItem(
         BoardDocument.newId(),
@@ -885,12 +934,17 @@ class _BoardState extends State<BoardView> {
       await tap(origin, bounds: Rect.fromPoints(origin, p));
       return;
     }
-    if (item == null) return;
-    final old = doc!.items[item.id];
-    if (old != null && selection.length > 1) {
-      final dx = item.x - old.x, dy = item.y - old.y;
-      await changeSelection((e, index) => e.edited(x: e.x + dx, y: e.y + dy));
-    } else {
+    final current = doc?.items[dragged?.id];
+    if (current != null && current.kind != BoardKind.arrow) {
+      final delta = p - origin;
+      BoardItem translate(BoardItem shape) =>
+          shape.edited(x: shape.x + delta.dx, y: shape.y + delta.dy);
+      if (selection.length > 1) {
+        await changeSelection((shape, _) => translate(shape));
+      } else {
+        await commit(BoardEdit.replace(doc!, translate(current)));
+      }
+    } else if (item != null && doc != null) {
       await commit(BoardEdit.replace(doc!, item));
     }
   }
@@ -959,15 +1013,20 @@ class _BoardState extends State<BoardView> {
                 else
                   i.edited(x: i.x + delta.dx, y: i.y + delta.dy),
             ];
-      return Stack(
-        children: [
+      final layers = <Widget>[];
+      var batch = <BoardItem>[];
+      void flush() {
+        final items = batch;
+        batch = [];
+        if (items.isEmpty) return;
+        layers.add(
           CustomPaint(
             foregroundPainter: _BoardSemantics(
-              () => [for (final item in positioned) itemSemantics(item)],
+              () => [for (final item in items) itemSemantics(item)],
             ),
             size: sceneExtent.size,
             painter: BoardPainter(
-              positioned,
+              items,
               route,
               {...selection},
               colors.text,
@@ -977,46 +1036,88 @@ class _BoardState extends State<BoardView> {
               origin: sceneOrigin,
             ),
           ),
-          for (final i in positioned)
-            if (i.kind == BoardKind.mermaid && i.thumbnail != null)
-              Positioned(
-                left: sceneOrigin.dx + i.x + 2,
-                top: sceneOrigin.dy + i.y + 2,
-                width: i.width - 4,
-                height: i.height - 4,
-                child: IgnorePointer(
-                  child: Image.memory(i.thumbnailBytes!, gaplessPlayback: true),
-                ),
-              ),
-        ],
+        );
+      }
+
+      // Connectors sit behind shapes. Insert each decoded image immediately
+      // after its frame so later objects can cover the diagram.
+      for (final item in positioned) {
+        batch.add(item);
+        if (item.kind != BoardKind.mermaid || item.thumbnail == null) continue;
+        flush();
+        layers.add(
+          Positioned(
+            left: sceneOrigin.dx + item.x + 2,
+            top: sceneOrigin.dy + item.y + 2,
+            width: math.max(0, item.width - 4),
+            height: math.max(0, item.height - 4),
+            child: IgnorePointer(
+              child: Image.memory(item.thumbnailBytes!, gaplessPlayback: true),
+            ),
+          ),
+        );
+      }
+      flush();
+      return SizedBox.fromSize(
+        size: sceneExtent.size,
+        child: Stack(children: layers),
       );
     }
 
     Rect? paintedArea;
-    Widget? stationaryLayer;
-    Widget stationary(Rect viewportBounds) {
+    List<Widget> sceneLayers = [];
+    List<Widget> visibleLayers(Rect viewportBounds) {
       final previous = paintedArea;
       if (previous != null &&
           previous.contains(viewportBounds.topLeft) &&
           previous.contains(viewportBounds.bottomRight)) {
-        return stationaryLayer!;
+        return sceneLayers;
       }
       // Keep a margin so small camera movements reuse the existing display list.
       final area = viewportBounds.inflate(
         math.max(viewportBounds.width, viewportBounds.height) * .25 + 8,
       );
       paintedArea = area;
-      return stationaryLayer = RepaintBoundary(
-        child: layer([
-          for (final item in objects)
-            if (!movingIds.contains(item.id) &&
-                itemBounds(item).inflate(8).overlaps(area))
-              item,
-        ], Offset.zero),
-      );
+      sceneLayers = [];
+      var batch = <BoardItem>[];
+      var batchMoves = false;
+      void flush() {
+        if (batch.isEmpty) return;
+        final items = batch;
+        batch = [];
+        sceneLayers.add(
+          RepaintBoundary(
+            child: batchMoves
+                ? ValueListenableBuilder<Offset>(
+                    valueListenable: dragOffset,
+                    builder: (_, delta, _) => layer(items, delta),
+                  )
+                : layer(items, Offset.zero),
+          ),
+        );
+      }
+
+      // Preserve document order while repainting only moving runs per frame.
+      for (final item in objects) {
+        final moves = movingIds.contains(item.id);
+        if (!moves && !itemBounds(item).inflate(8).overlaps(area)) continue;
+        if (moves != batchMoves) flush();
+        batchMoves = moves;
+        batch.add(item);
+      }
+      flush();
+      if (sceneLayers.isEmpty) {
+        sceneLayers.add(SizedBox.fromSize(size: sceneExtent.size));
+      }
+      return sceneLayers;
     }
 
-    final edited = doc?.items[editing?.id];
+    final currentEditor = doc?.items[editing?.id];
+    final editBounds = currentEditor != null
+        ? editorBounds(currentEditor)
+        : editing == null
+        ? null
+        : lastEditorBounds;
     final handleItem = doc?.items[hovered] ?? current;
     final swatches = {
       '': tr.themeColor,
@@ -1168,31 +1269,47 @@ class _BoardState extends State<BoardView> {
                           onPressed: saving || doc == null
                               ? null
                               : () async {
+                                  final session = widget.session;
+                                  final documentId = doc!.id;
+                                  final original =
+                                      current?.kind == BoardKind.mermaid
+                                      ? current
+                                      : null;
                                   final text = await editMermaid(
                                     context,
-                                    current?.kind == BoardKind.mermaid
-                                        ? current!.label
-                                        : null,
+                                    original?.label,
                                   );
-                                  if (text == null || !mounted || doc == null) {
+                                  if (text == null ||
+                                      !mounted ||
+                                      session != widget.session ||
+                                      doc == null ||
+                                      doc!.id != documentId) {
+                                    return;
+                                  }
+                                  final latest = doc!.items[original?.id];
+                                  if (original != null &&
+                                      (latest == null ||
+                                          latest.kind != BoardKind.mermaid ||
+                                          (latest.label != original.label &&
+                                              latest.label != text.source))) {
+                                    setState(() => error = tr.saveError);
                                     return;
                                   }
                                   final item =
-                                      current?.kind == BoardKind.mermaid
-                                      ? current!.edited(
-                                          label: text.source,
-                                          thumbnail: text.thumbnail,
-                                        )
-                                      : BoardItem(
-                                          BoardDocument.newId(),
-                                          BoardKind.mermaid,
-                                          80,
-                                          80,
-                                          label: text.source,
-                                          thumbnail: text.thumbnail,
-                                          width: 240,
-                                          height: 110,
-                                        );
+                                      latest?.edited(
+                                        label: text.source,
+                                        thumbnail: text.thumbnail,
+                                      ) ??
+                                      BoardItem(
+                                        BoardDocument.newId(),
+                                        BoardKind.mermaid,
+                                        80,
+                                        80,
+                                        label: text.source,
+                                        thumbnail: text.thumbnail,
+                                        width: 240,
+                                        height: 110,
+                                      );
                                   await commit(BoardEdit.replace(doc!, item));
                                 },
                           child: const Text('Mermaid'),
@@ -1205,6 +1322,25 @@ class _BoardState extends State<BoardView> {
             ),
           ),
           if (error != null) SelectableText(error!),
+          if (doc != null &&
+              editing != null &&
+              editing!.label != currentEditor?.label)
+            ValueListenableBuilder<TextEditingValue>(
+              valueListenable: label,
+              builder: (_, draft, _) {
+                if (editing == null ||
+                    draft.text == editing!.label ||
+                    draft.text == currentEditor?.label) {
+                  return const SizedBox.shrink();
+                }
+                return Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    currentEditor == null ? tr.objectDeleted : tr.labelChanged,
+                  ),
+                );
+              },
+            ),
           if (widget.session.loading) const LinearProgressIndicator(),
           if (doc != null)
             Expanded(
@@ -1299,7 +1435,7 @@ class _BoardState extends State<BoardView> {
                                     : SystemMouseCursors.precise,
                                 child: Stack(
                                   children: [
-                                    stationary(viewportBounds),
+                                    ...visibleLayers(viewportBounds),
                                     if (handleItem != null &&
                                         connectable(handleItem) &&
                                         editing == null &&
@@ -1334,19 +1470,6 @@ class _BoardState extends State<BoardView> {
                                           ),
                                         ),
                                       ),
-                                    if (moving.isNotEmpty)
-                                      Positioned.fill(
-                                        child: IgnorePointer(
-                                          child: RepaintBoundary(
-                                            child:
-                                                ValueListenableBuilder<Offset>(
-                                                  valueListenable: dragOffset,
-                                                  builder: (_, delta, _) =>
-                                                      layer(moving, delta),
-                                                ),
-                                          ),
-                                        ),
-                                      ),
                                     Positioned.fill(
                                       child: IgnorePointer(
                                         child: RepaintBoundary(
@@ -1363,11 +1486,9 @@ class _BoardState extends State<BoardView> {
                                         ),
                                       ),
                                     ),
-                                    if (edited != null)
+                                    if (editBounds != null)
                                       Positioned.fromRect(
-                                        rect: editorBounds(
-                                          edited,
-                                        ).shift(sceneOrigin),
+                                        rect: editBounds.shift(sceneOrigin),
                                         child: Material(
                                           color: colors.bg,
                                           child: CallbackShortcuts(
@@ -1674,14 +1795,9 @@ class _GesturePreview extends ChangeNotifier {
   Offset? snap;
   Rect? target;
   bool diamond = false;
-  void connector(Offset a, Offset b, Rect? bounds, bool decision) {
-    final mid = (a.dx + b.dx) / 2;
-    path = Path()
-      ..moveTo(a.dx, a.dy)
-      ..lineTo(mid, a.dy)
-      ..lineTo(mid, b.dy)
-      ..lineTo(b.dx, b.dy);
-    snap = bounds == null ? null : b;
+  void connector(List<Offset> points, Rect? bounds, bool decision) {
+    path = Path()..addPolygon(points, false);
+    snap = bounds == null ? null : points.last;
     target = bounds;
     diamond = decision;
     notifyListeners();
