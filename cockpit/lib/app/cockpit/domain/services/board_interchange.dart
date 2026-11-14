@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math';
 import 'package:xml/xml.dart';
 import '../entities/board_document.dart';
+import 'board_svg.dart' show boardEdgeEndpoints;
 
 abstract final class BoardInterchange {
   static String mermaid(BoardDocument doc) {
@@ -285,6 +286,14 @@ abstract final class BoardInterchange {
 
   static String excalidraw(BoardDocument doc) {
     final elements = <Map<String, dynamic>>[];
+    final connections = <String, List<String>>{};
+    for (final edge in doc.items.values.where(
+      (i) => i.kind == BoardKind.arrow,
+    )) {
+      for (final endpoint in {edge.from!, edge.to!}) {
+        (connections[endpoint] ??= []).add(edge.id);
+      }
+    }
     final labelIds = {
       for (final i in doc.items.values)
         if (i.label.isNotEmpty && i.kind != BoardKind.text)
@@ -321,8 +330,8 @@ abstract final class BoardInterchange {
         'isDeleted': false,
         'groupIds': [if (i.group != null) i.group!],
         'boundElements': [
-          for (final e in doc.items.values)
-            if (e.from == i.id || e.to == i.id) {'type': 'arrow', 'id': e.id},
+          for (final id in connections[i.id] ?? const <String>[])
+            {'type': 'arrow', 'id': id},
           if (labelIds.containsKey(i.id))
             {'type': 'text', 'id': labelIds[i.id]},
         ],
@@ -338,11 +347,9 @@ abstract final class BoardInterchange {
       };
       final element = <String, dynamic>{...base};
       if (type == 'arrow') {
-        final a = doc.items[i.from]!, b = doc.items[i.to]!;
-        final x = a.x + a.width,
-            y = a.y + a.height / 2,
-            dx = b.x - x,
-            dy = b.y + b.height / 2 - y;
+        final endpoints = boardEdgeEndpoints(doc, i);
+        final x = endpoints.start.x, y = endpoints.start.y;
+        final dx = endpoints.end.x - x, dy = endpoints.end.y - y;
         element.addAll({
           'x': x,
           'y': y,
@@ -350,10 +357,14 @@ abstract final class BoardInterchange {
           'height': dy.abs(),
           'points': [
             [0, 0],
+            if (dx != 0 && dy != 0) ...[
+              [dx / 2, 0],
+              [dx / 2, dy],
+            ],
             [dx, dy],
           ],
-          'startBinding': {'elementId': a.id, 'focus': 0, 'gap': 0},
-          'endBinding': {'elementId': b.id, 'focus': 0, 'gap': 0},
+          'startBinding': {'elementId': i.from, 'focus': 0, 'gap': 0},
+          'endBinding': {'elementId': i.to, 'focus': 0, 'gap': 0},
           'startArrowhead': null,
           'endArrowhead': 'arrow',
         });

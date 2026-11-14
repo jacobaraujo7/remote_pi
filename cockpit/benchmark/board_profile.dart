@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:developer' as dev;
+import 'package:vm_service/vm_service.dart' as vm;
+import 'package:vm_service/vm_service_io.dart';
 import 'dart:math' as math;
 import 'package:flutter/material.dart' as m;
 import 'dart:io';
@@ -389,6 +392,14 @@ Future<void> _measureInteractions(
   ];
   final scratch = await output.parent.createTemp('board-profile-');
   final thumbnail = await architectureThumbnail();
+  vm.VmService? trace;
+  if (separateHost && Platform.environment['BOARD_PROFILE_TRACE'] == '1') {
+    final service = await dev.Service.getInfo();
+    final uri = service.serverWebSocketUri;
+    if (uri == null) throw StateError('Profile VM service unavailable');
+    trace = await vmServiceConnectUri(uri.toString());
+    await trace.setVMTimelineFlags(['Dart', 'Embedder', 'GC']);
+  }
   final host = w.ValueNotifier<w.Widget>(const w.SizedBox.shrink());
   w.runApp(
     w.ValueListenableBuilder<w.Widget>(
@@ -659,6 +670,22 @@ Future<void> _measureInteractions(
                 ids.length != (scenario == _Scenario.firstPaint ? 1 : 160)) {
               throw StateError('Missing frames: ${data.length}/${ids.length}');
             }
+            if (trace != null) {
+              final frame = data.single;
+              final start = frame.timestampInMicroseconds(
+                ui.FramePhase.buildStart,
+              );
+              final end = frame.timestampInMicroseconds(
+                ui.FramePhase.rasterFinish,
+              );
+              final timeline = await trace.getVMTimeline(
+                timeOriginMicros: start,
+                timeExtentMicros: end - start,
+              );
+              await File(
+                '${output.path}.${version.key}.$run.trace.json',
+              ).writeAsString(jsonEncode(timeline.toJson()));
+            }
             double p95(Duration Function(ui.FrameTiming) f) {
               final sorted =
                   data.map((t) => f(t).inMicroseconds / 1000).toList()..sort();
@@ -721,6 +748,7 @@ Future<void> _measureInteractions(
       }
     }
   } finally {
+    await trace?.dispose();
     await scratch.delete(recursive: true);
   }
 }

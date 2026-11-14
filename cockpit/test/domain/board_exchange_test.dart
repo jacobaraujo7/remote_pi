@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cockpit/app/cockpit/domain/entities/board_document.dart';
 import 'package:cockpit/app/cockpit/domain/services/board_interchange.dart';
 import 'package:cockpit/app/cockpit/domain/services/board_svg.dart';
@@ -57,6 +58,37 @@ void main() {
     expect(output, contains('style N2 color:#102030'));
     expect(output, contains('linkStyle 1 stroke:#FA8983,color:#FA8983'));
     expect(output, isNot(contains('linkStyle 0')));
+  });
+  test('Excalidraw exports a right-to-left elbow with reciprocal bindings', () {
+    final doc = BoardDocument([
+      const BoardItem('right', BoardKind.process, 320, 0, width: 100),
+      const BoardItem('left', BoardKind.process, 0, 100, width: 100),
+      const BoardItem(
+        'return',
+        BoardKind.arrow,
+        0,
+        0,
+        from: 'right',
+        to: 'left',
+      ),
+    ]);
+    final scene = jsonDecode(BoardInterchange.excalidraw(doc));
+    final elements = {for (final item in scene['elements']) item['id']: item};
+    final edge = elements['return'];
+    expect([edge['x'], edge['y']], [320, 32]);
+    expect(edge['points'], [
+      [0, 0],
+      [-110, 0],
+      [-110, 100],
+      [-220, 100],
+    ]);
+    for (final id in ['left', 'right']) {
+      expect(elements[id]['boundElements'], [
+        {'type': 'arrow', 'id': 'return'},
+      ]);
+    }
+    expect(edge['startBinding']['elementId'], 'right');
+    expect(edge['endBinding']['elementId'], 'left');
   });
   for (final codec in [
     (BoardInterchange.drawio, BoardInterchange.readDrawio),
