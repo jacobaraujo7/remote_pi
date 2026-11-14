@@ -273,3 +273,21 @@ As 16 séries mantiveram as posições e dimensões de 960 formas, 959 setas e u
 | Vetores, rótulos e miniatura | 2,996 | 13,263 |
 
 Acrescentar rótulos aos vetores elevou a rasterização nas quatro comparações por rodada. A presença da miniatura alternou entre aumentar e diminuir esse custo. Não houve fase de construção ou rasterização acima de 6,25 ms nos 2.560 quadros. O intervalo entre passos inclui o agendamento e os resultados não suportam retirar a miniatura para tornar o zoom fluido. O benchmark verificou a câmera e os arquivos em cada série e encerrou com a falha nativa já registrada depois da coleta. TSV e amostras por passo em `cockpit/build/board-profile-review/zoom-content/zoom-183825.tsv` e no .phases adjacente.
+
+## Do card da Gallery até o editor em Release
+
+Uma cópia instrumentada do Cockpit Windows Release em e5af2e13 abriu um workspace local de teste. O cronômetro começou antes do evento de clique no card Canvas Board e parou no primeiro callback pós-quadro em que o BoardView do arquivo esperado tinha tamanho positivo. O ensaio conferiu o projeto, a existência do arquivo e sua identidade Markdown. Em um processo, as três criações sucessivas levaram 44,318 ms, 35,290 ms e 39,919 ms. Os nomes foram diagram.board, diagram-2.board e diagram-3.board e os IDs foram distintos. A medida exclui o boot do Cockpit e não certifica o instante de apresentação física.
+
+Cinco outras inicializações em janela oculta não localizaram o card depois do clique sintético na aba Gallery e encerraram o ensaio antes do cronômetro. A única série completa não permite estimar a variabilidade entre processos nem inferir um problema ao clicar no card. O processo da série completa terminou com a falha nativa de encerramento já registrada. Amostra em `cockpit/build/board-review/gallery-release-open/sample-20261114-185005475/result.txt`.
+
+### Repetição em três processos Release
+
+Com o shell já pronto, o ensaio invocou o callback do HoverTap da aba Gallery e depois o do card Canvas Board. A medição inclui a criação do arquivo e termina no primeiro callback pós-quadro com o BoardView dimensionado. Ela exclui o reconhecimento do clique e a apresentação no monitor.
+
+| Processo | Primeiro documento (ms) | Segundo (ms) | Terceiro (ms) |
+| --- | ---: | ---: | ---: |
+| 1 | 28,558 | 30,018 | 35,641 |
+| 2 | 33,953 | 36,634 | 40,083 |
+| 3 | 27,372 | 35,718 | 30,006 |
+
+Cada processo abriu um workspace novo. Os nove arquivos tiveram IDs distintos e nomes sequenciais dentro de cada workspace. Os três processos gravaram o resultado antes da falha nativa ao encerrar. Evidências em `cockpit/build/board-review/gallery-release-open/control-20261114-185432509`, `control-20261114-185438598` e `control-20261114-185444603`.
