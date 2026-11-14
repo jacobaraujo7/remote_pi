@@ -154,3 +154,14 @@ O mesmo documento de 1.920 objetos, incluindo a miniatura e os rótulos, foi abe
 | 1.058 | 210 | 38,01 | 36,36 |
 
 O recorte diminuiu a lista de pintura em 101 objetos ao estreitar o painel. A primeira abertura permaneceu acima de 16,67 ms nos quatro processos. A redução não foi proporcional ao número de objetos enviados, e os intervalos das duas larguras se sobrepõem. A largura também altera o layout dos controles; o teste não atribui um custo individual a cada forma. As 12 aberturas mantiveram o Markdown intacto. O runner voltou a registrar o erro nativo ao encerrar após a coleta.
+
+## Timeline do primeiro quadro
+
+No runner Windows Profile, combinar `BOARD_PROFILE_SUITE=pane` com `BOARD_PROFILE_TRACE=1` para coletar os eventos Dart, Embedder e GC pelo serviço local da VM. O benchmark grava um arquivo Chrome Trace por abertura ao lado do TSV. A janela temporal começa em `FramePhase.buildStart` e termina em `rasterFinish` do quadro identificado pelo motor. Como as threads operam em paralelo, ela também pode conter o começo de outro quadro. Para analisar, emparelhar eventos B/E com o mesmo nome e thread e localizar o primeiro `Animator::BeginFrame` no início do intervalo.
+
+| Processo novo | Construção do quadro | Layout da raiz | Build dentro do layout | Pintura da raiz | Rasterização do quadro |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 48,85 ms | 36,84 ms | 19,16 ms | 11,72 ms | 36,05 ms |
+| 2 | 27,87 ms | 19,28 ms | 10,53 ms | 8,42 ms | 25,43 ms |
+
+O layout ocupou 69–75% da fase de construção nas primeiras aberturas. O evento de build indicado na tabela está **dentro** do layout. Somá-los duplicaria trabalho. A thread de rasterização também registrou compilação de shaders durante o intervalo. A instrumentação tem custo e estes dados não identificam um widget específico como causa. As quatro reaberturas no mesmo processo ficaram entre 11,01 e 12,25 ms de construção e 2,52 e 2,71 ms de rasterização. As seis séries foram gravadas antes da falha nativa de encerramento do runner.
