@@ -27,8 +27,10 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 /// So detection is best-effort: [init] resolves the locale from `locales()`
 /// membership (preferred → same-language → `en_US` → any English, decision
 /// #9), and the `onDevice: true` flag plus the runtime `onError` backstop
-/// guard the rare "listed but no local model" case (a permanent error there
-/// surfaces as an empty transcript → no-op, decision #12).
+/// guard the "listed but no local model" case. That case is not rare: Android
+/// lists every locale its online recognizer knows, but has no local model
+/// until a language pack is installed. The error is reported on [errors] so
+/// the user learns why nothing was transcribed.
 abstract class SpeechService extends Service {
   /// Resolve permission + on-device availability + the locale to use.
   /// [preferredLocaleId] defaults to the platform locale when null.
@@ -38,11 +40,18 @@ abstract class SpeechService extends Service {
   /// envelope, **not** an FFT spectrum (Risk 4).
   Stream<double> get soundLevel;
 
+  /// Recognizer failures that end a capture while the user is still holding
+  /// the mic (e.g. no local model for the locale). Errors after [stop] only
+  /// end the wait for the final transcript and are not reported here.
+  Stream<SpeechFailure> get errors;
+
   /// Begin on-device capture for [localeId], hard-capped at [maxDuration].
   Future<void> start({required String localeId, required Duration maxDuration});
 
   /// Stop capture and resolve with the accumulated transcript (trimmed;
-  /// empty string when nothing was recognized).
+  /// empty string when nothing was recognized). Waits briefly for the
+  /// recognizer's final result, since words spoken just before release
+  /// arrive after it.
   Future<String> stop();
 
   /// Abort capture and discard any accumulated transcript.
@@ -95,6 +104,44 @@ final class SpeechUnsupported extends SpeechAvailability {
   int get hashCode => (SpeechUnsupported).hashCode;
 }
 
+/// What kind of recognizer failure ended a capture.
+enum SpeechFailureKind {
+  /// No usable on-device model for the locale (not supported, or the
+  /// language pack is not installed yet).
+  languageUnavailable,
+
+  /// The recognizer heard no speech it could match.
+  noSpeech,
+
+  /// Anything else (audio, busy, service disconnected, ...).
+  other,
+}
+
+/// A recognizer failure; [message] is the plugin's raw error code.
+final class SpeechFailure {
+  const SpeechFailure(this.kind, this.message);
+
+  final SpeechFailureKind kind;
+  final String message;
+
+  factory SpeechFailure.fromPluginError(String message) => SpeechFailure(
+    switch (message) {
+      'error_language_not_supported' ||
+      'error_language_unavailable' => SpeechFailureKind.languageUnavailable,
+      'error_no_match' || 'error_speech_timeout' => SpeechFailureKind.noSpeech,
+      _ => SpeechFailureKind.other,
+    },
+    message,
+  );
+
+  @override
+  bool operator ==(Object other) =>
+      other is SpeechFailure && other.kind == kind && other.message == message;
+
+  @override
+  int get hashCode => Object.hash(kind, message);
+}
+
 // ---------------------------------------------------------------------------
 // Production implementation
 // ---------------------------------------------------------------------------
@@ -104,21 +151,34 @@ final class SpeechUnsupported extends SpeechAvailability {
 /// The plugin is reached through the [SttPlugin] seam so the locale-resolution
 /// / cap / transcript-accumulation logic is unit-testable without a device.
 class SpeechToTextService implements SpeechService {
-  SpeechToTextService([SttPlugin? plugin, SoundLevelScale? levelScale])
-    : _plugin = plugin ?? SttPluginImpl(),
-      _levelScale = levelScale ?? SoundLevelScale.forPlatform();
+  SpeechToTextService([
+    SttPlugin? plugin,
+    SoundLevelScale? levelScale,
+    this.finalResultTimeout = const Duration(seconds: 3),
+  ]) : _plugin = plugin ?? SttPluginImpl(),
+       _levelScale = levelScale ?? SoundLevelScale.forPlatform();
 
   final SttPlugin _plugin;
   final SoundLevelScale _levelScale;
+
+  /// How long [stop] waits for the recognizer's final result.
+  final Duration finalResultTimeout;
+
   final StreamController<double> _levelController =
       StreamController<double>.broadcast();
+  final StreamController<SpeechFailure> _errorController =
+      StreamController<SpeechFailure>.broadcast();
 
-  /// Latest recognized words (partial or final). Reset on each [start].
-  String _transcript = '';
+  /// The capture in progress or awaiting its final result. Callbacks and
+  /// [stop] hold on to their own capture, so a newer one never mixes in.
+  _Capture? _capture;
   bool _initialized = false;
 
   @override
   Stream<double> get soundLevel => _levelController.stream;
+
+  @override
+  Stream<SpeechFailure> get errors => _errorController.stream;
 
   @override
   Future<SpeechAvailability> init({String? preferredLocaleId}) async {
@@ -144,38 +204,67 @@ class SpeechToTextService implements SpeechService {
     required String localeId,
     required Duration maxDuration,
   }) async {
-    _transcript = '';
+    // A new listen replaces the plugin's session, so an older capture still
+    // waiting for its final result will get nothing more.
+    _capture?.end();
+    final capture = _capture = _Capture();
+    bool isCurrent() => identical(capture, _capture);
+
     await _plugin.listen(
       localeId: localeId,
       listenFor: maxDuration,
-      onResult: (words, _) {
+      onResult: (words, kind) {
         // Decision #6 — partial results are accumulated but never shown live;
-        // the latest text wins and only materializes on stop().
-        if (words.isNotEmpty) _transcript = words;
+        // they only materialize on stop().
+        capture.transcript.add(words, kind);
+        // A final result mid-capture only closes a segment; after release it
+        // is the last word.
+        if (kind == SttResultKind.finalResult && capture.stopping) {
+          capture.end();
+        }
       },
       onLevel: (level) {
-        if (!_levelController.isClosed) {
+        if (isCurrent() && !_levelController.isClosed) {
           _levelController.add(_levelScale.normalize(level));
         }
       },
+      onError: (message) {
+        // After release the recognizer may report e.g. `error_client` or
+        // `error_no_match`; that only ends the wait for the final result.
+        if (isCurrent() && !capture.stopping && !_errorController.isClosed) {
+          _errorController.add(SpeechFailure.fromPluginError(message));
+        }
+        capture.end();
+      },
+      onDone: capture.end,
     );
   }
 
   @override
   Future<String> stop() async {
+    final capture = _capture;
+    if (capture == null) return '';
+    capture.stopping = true;
     await _plugin.stop();
-    return _transcript.trim();
+    if (!capture.ended.isCompleted) {
+      await capture.ended.future.timeout(finalResultTimeout, onTimeout: () {});
+    }
+    return capture.result;
   }
 
   @override
   Future<void> cancel() async {
-    _transcript = '';
+    final capture = _capture;
+    _capture = null;
+    capture?.cancelled = true;
+    capture?.end();
     await _plugin.cancel();
   }
 
   @override
   void dispose() {
     if (!_levelController.isClosed) _levelController.close();
+    if (!_errorController.isClosed) _errorController.close();
   }
 
   // -------------------------------------------------------------------------
@@ -217,7 +306,6 @@ class SpeechToTextService implements SpeechService {
         firstWhere((s) => s == 'en_US') ??
         firstWhere((s) => s.split('_').first == 'en');
   }
-
 }
 
 /// Maps the plugin's raw `onSoundLevelChange` value to the `0..1` envelope the
@@ -260,12 +348,83 @@ class SoundLevelScale {
   }
 }
 
+/// One hold-to-talk capture, from [SpeechToTextService.start] until its final
+/// result, error, done status or cancel.
+class _Capture {
+  final TranscriptAccumulator transcript = TranscriptAccumulator();
+  final Completer<void> ended = Completer<void>();
+  bool stopping = false;
+  bool cancelled = false;
+
+  String get result => cancelled ? '' : transcript.text;
+
+  void end() {
+    if (!ended.isCompleted) ended.complete();
+  }
+}
+
+/// Joins the recognizer's results into one transcript.
+///
+/// Android restarts its results from scratch for each segment of speech, so
+/// each segment must be kept once it closes. A segment closes on:
+/// - an empty result (a pause);
+/// - a final result;
+/// - a segment end, once a result arrives that does not continue it: any
+///   partial, or a segment end / final result whose text does not start with
+///   the closed segment's text. Android repeats segment ends, and the final
+///   result after release often restates the last segment.
+class TranscriptAccumulator {
+  final List<String> _segments = [];
+
+  /// Words of the segment in progress.
+  String _current = '';
+
+  /// The recognizer reported a segment end for [_current].
+  bool _segmentEnded = false;
+
+  String get text => [..._segments, _current].join(' ').trim();
+
+  void add(String words, SttResultKind kind) {
+    final text = words.trim();
+    if (text.isEmpty) {
+      _closeSegment();
+      return;
+    }
+    final continues =
+        kind != SttResultKind.partial && text.startsWith(_current);
+    if (_segmentEnded && !continues) _closeSegment();
+    _current = text;
+    _segmentEnded = kind == SttResultKind.segmentEnd;
+    if (kind == SttResultKind.finalResult) _closeSegment();
+  }
+
+  void _closeSegment() {
+    if (_current.isNotEmpty) _segments.add(_current);
+    _current = '';
+    _segmentEnded = false;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Plugin seam
 // ---------------------------------------------------------------------------
 
-typedef SttResultCallback = void Function(String words, bool isFinal);
+/// Where a recognition result sits in the capture.
+enum SttResultKind {
+  /// Words of the segment in progress; may still change.
+  partial,
+
+  /// The recognizer closed the current segment (Android's intermediate
+  /// result); the next partial starts a new one.
+  segmentEnd,
+
+  /// The last result of the capture.
+  finalResult,
+}
+
+typedef SttResultCallback = void Function(String words, SttResultKind kind);
 typedef SttLevelCallback = void Function(double level);
+typedef SttErrorCallback = void Function(String errorMsg);
 
 /// Thin seam over the `speech_to_text` plugin so [SpeechToTextService]'s logic
 /// can be exercised with a fake in unit tests (no platform channel / device).
@@ -280,12 +439,15 @@ abstract class SttPlugin {
   Future<List<String>> locales();
 
   /// Start an on-device listen session. [onResult] fires for partial + final
-  /// results; [onLevel] feeds the sound-level envelope.
+  /// results; [onLevel] feeds the sound-level envelope; [onError] reports the
+  /// recognizer's error code; [onDone] fires when the recognizer has finished.
   Future<void> listen({
     required String localeId,
     required Duration listenFor,
     required SttResultCallback onResult,
     required SttLevelCallback onLevel,
+    required SttErrorCallback onError,
+    required void Function() onDone,
   });
 
   Future<void> stop();
@@ -300,12 +462,17 @@ class SttPluginImpl implements SttPlugin {
 
   final stt.SpeechToText _stt;
 
+  // The plugin only takes error/status handlers at initialize(); route them
+  // to the handlers of the current listen() call.
+  SttErrorCallback? _onError;
+  void Function()? _onDone;
+
   @override
   Future<bool> initialize() => _stt.initialize(
-    // The error stream is consulted by the service only as a backstop for
-    // the "listed locale, no on-device model" case; swallow here so a
-    // transient error during init doesn't throw into the ViewModel.
-    onError: (SpeechRecognitionError _) {},
+    onError: (SpeechRecognitionError e) => _onError?.call(e.errorMsg),
+    onStatus: (String status) {
+      if (status == stt.SpeechToText.doneStatus) _onDone?.call();
+    },
   );
 
   @override
@@ -323,10 +490,18 @@ class SttPluginImpl implements SttPlugin {
     required Duration listenFor,
     required SttResultCallback onResult,
     required SttLevelCallback onLevel,
+    required SttErrorCallback onError,
+    required void Function() onDone,
   }) async {
+    _onError = onError;
+    _onDone = onDone;
     await _stt.listen(
       onResult: (SpeechRecognitionResult r) =>
-          onResult(r.recognizedWords, r.finalResult),
+          onResult(r.recognizedWords, switch (r.resultTypeValue) {
+            ResultType.partial => SttResultKind.partial,
+            ResultType.intermediate => SttResultKind.segmentEnd,
+            ResultType.finalResult => SttResultKind.finalResult,
+          }),
       onSoundLevelChange: onLevel,
       listenOptions: stt.SpeechListenOptions(
         // Decision #7 — local recognition only; audio never leaves the device.
