@@ -8,6 +8,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'dart:async';
 import 'package:flutter/gestures.dart';
+import 'package:flutter/rendering.dart' as rendering;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' as w;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
@@ -393,12 +394,17 @@ Future<void> _measureInteractions(
   final scratch = await output.parent.createTemp('board-profile-');
   final thumbnail = await architectureThumbnail();
   vm.VmService? trace;
-  if (separateHost && Platform.environment['BOARD_PROFILE_TRACE'] == '1') {
+  final traceMode = Platform.environment['BOARD_PROFILE_TRACE'];
+  if (separateHost && (traceMode == '1' || traceMode == 'widgets')) {
     final service = await dev.Service.getInfo();
     final uri = service.serverWebSocketUri;
     if (uri == null) throw StateError('Profile VM service unavailable');
     trace = await vmServiceConnectUri(uri.toString());
     await trace.setVMTimelineFlags(['Dart', 'Embedder', 'GC']);
+    if (traceMode == 'widgets') {
+      rendering.debugProfileLayoutsEnabled = true;
+      w.debugProfileBuildsEnabled = true;
+    }
   }
   final host = w.ValueNotifier<w.Widget>(const w.SizedBox.shrink());
   w.runApp(

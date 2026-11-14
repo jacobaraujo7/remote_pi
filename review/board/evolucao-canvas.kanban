@@ -9,7 +9,7 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 ## Depois
 
 - [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. A timeline atribuiu 69–75% da construção inicial ao layout da raiz, incluindo montagem de widgets durante o layout. Isolar quais subárvores dominam esse custo e comparar a mudança com a mesma cena em processo novo. Medições em perfil.md.
+      Frente Flutter. Perfil por widget e comparação da paleta concluídos. As primeiras aberturas continuam variáveis, com faixas de tempo sobrepostas entre versões. A simplificação mantém os controles e as cores. Priorizar a validação dos gestos após aquecimento segundo o critério do estudo e manter o custo de abertura registrado em perfil.md.
 
 ## Validar no desktop
 

@@ -932,6 +932,13 @@ class _BoardState extends State<BoardView> {
     };
     final current = doc?.items[selected];
     final objects = doc?.paintOrder ?? const <BoardItem>[];
+    final selectedShapes = advanced
+        ? selection
+              .map((id) => doc?.items[id])
+              .whereType<BoardItem>()
+              .where((item) => item.kind != BoardKind.arrow)
+              .toList()
+        : const <BoardItem>[];
     final moving = dragItem == null
         ? <BoardItem>[]
         : objects
@@ -1029,18 +1036,15 @@ class _BoardState extends State<BoardView> {
           tooltip: t.value.$2,
           iconSize: 19,
           isSelected: tool == t.key,
-          style: IconButton.styleFrom(
-            backgroundColor: tool == t.key
-                ? colors.accent.withValues(alpha: .16)
-                : null,
-          ),
-          icon: Transform.rotate(
-            angle: t.key == 'decision' ? math.pi / 4 : 0,
-            child: Icon(
-              t.value.$1,
-              color: tool == t.key ? colors.accent : colors.text2,
-            ),
-          ),
+          style: tool == t.key
+              ? IconButton.styleFrom(
+                  backgroundColor: colors.accent.withValues(alpha: .16),
+                )
+              : null,
+          color: tool == t.key ? colors.accent : colors.text2,
+          icon: t.key == 'decision'
+              ? Transform.rotate(angle: math.pi / 4, child: Icon(t.value.$1))
+              : Icon(t.value.$1),
           onPressed: () => setState(() {
             cancel();
             canvasFocus.requestFocus();
@@ -1084,7 +1088,7 @@ class _BoardState extends State<BoardView> {
                     reverse: true,
                     child: Row(
                       children: [
-                        if (advanced && selection.length > 1) ...[
+                        if (selectedShapes.length > 1) ...[
                           IconButton(
                             tooltip: tr.group,
                             icon: const Icon(Icons.group_work_outlined),
@@ -1104,39 +1108,29 @@ class _BoardState extends State<BoardView> {
                             tooltip: tr.align,
                             icon: const Icon(Icons.align_vertical_top),
                             onPressed: () {
-                              final y = doc!.items.values
-                                  .where((i) => selection.contains(i.id))
+                              final y = selectedShapes
                                   .map((i) => i.y)
                                   .reduce(math.min);
                               changeSelection((i, _) => i.edited(y: y));
                             },
                           ),
-                          if (selection.length > 2)
+                          if (selectedShapes.length > 2)
                             IconButton(
                               tooltip: tr.distribute,
                               icon: const Icon(Icons.horizontal_distribute),
                               onPressed: () {
                                 final xs =
-                                    doc!.items.values
-                                        .where(
-                                          (i) =>
-                                              selection.contains(i.id) &&
-                                              i.kind != BoardKind.arrow,
-                                        )
-                                        .map((i) => i.x)
-                                        .toList()
+                                    selectedShapes.map((i) => i.x).toList()
                                       ..sort();
-                                if (xs.length > 2) {
-                                  changeSelection(
-                                    (i, n) => i.edited(
-                                      x:
-                                          xs.first +
-                                          n *
-                                              (xs.last - xs.first) /
-                                              (xs.length - 1),
-                                    ),
-                                  );
-                                }
+                                changeSelection(
+                                  (i, n) => i.edited(
+                                    x:
+                                        xs.first +
+                                        n *
+                                            (xs.last - xs.first) /
+                                            (xs.length - 1),
+                                  ),
+                                );
                               },
                             ),
                         ],

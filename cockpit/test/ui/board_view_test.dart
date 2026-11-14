@@ -150,6 +150,28 @@ void main() {
       await tester.pump();
       await drag(const Offset(80, 65), const Offset(95, 195));
       expect(read().items[process.id]!.y, 170);
+      // Include the connector, whose stored origin is (0,0), in a mixed selection.
+      await tester.tap(find.byTooltip('Advanced'));
+      await tester.pumpAndSettle();
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tapAt(origin + const Offset(217, 125));
+      await tester.pump();
+      expect(find.byTooltip('Align top'), findsNothing);
+      await tester.tapAt(origin + const Offset(320, 65));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.byTooltip('Align top'));
+      await tester.tap(find.byTooltip('Align top'));
+      await tester.pumpAndSettle();
+      expect(read().items[process.id]!.y, 40);
+      expect(read().items[arrow.id]!.from, process.id);
+      await tester.tap(find.byTooltip('Undo'));
+      await tester.pumpAndSettle();
+      expect(read().items[process.id]!.y, 170);
+      await tester.ensureVisible(find.byTooltip('Advanced'));
+      await tester.tap(find.byTooltip('Advanced'));
+      await tester.tapAt(origin + const Offset(95, 195));
+      await tester.pumpAndSettle();
       // The selected process has moved to (45,170), with size 120 x 60.
       final handle = origin + const Offset(171, 200);
       final destination = origin + const Offset(320, 65);
