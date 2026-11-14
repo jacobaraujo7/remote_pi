@@ -69,12 +69,27 @@ abstract final class BoardInterchange {
       throw const FormatException('Missing mxGraphModel');
     }
     final items = <BoardItem>[];
-    final cells = {
-      for (final c in xml.findAllElements('mxCell')) c.getAttribute('id'): c,
-    };
-    for (final cell in cells.values) {
-      final id = cell.getAttribute('id')!, g = cell.getElement('mxGeometry');
-      final label = cell.getAttribute('value') ?? '';
+    final cells = <String, XmlElement>{};
+    final labels = <String, String>{};
+    for (final cell in xml.findAllElements('mxCell')) {
+      final parent = cell.parentElement;
+      final wrapper =
+          const {'object', 'UserObject'}.contains(parent?.name.local)
+          ? parent
+          : null;
+      final id = wrapper?.getAttribute('id') ?? cell.getAttribute('id');
+      if (id == null || id.isEmpty || cells.containsKey(id)) {
+        throw const FormatException('Missing or duplicate draw.io cell ID');
+      }
+      cells[id] = cell;
+      labels[id] =
+          wrapper?.getAttribute('label') ?? cell.getAttribute('value') ?? '';
+    }
+    for (final entry in cells.entries) {
+      final id = entry.key,
+          cell = entry.value,
+          g = cell.getElement('mxGeometry');
+      final label = labels[id]!;
       String? styleColor(String key) => BoardItem.rgb(
         RegExp(
           '(?:^|;)$key=(#[a-fA-F0-9]{6})(?:;|\$)',
@@ -124,7 +139,7 @@ abstract final class BoardInterchange {
             color: styleColor(
               kind == BoardKind.text ? 'fontColor' : 'fillColor',
             ),
-            group: group?.getAttribute('id'),
+            group: group == null ? null : cell.getAttribute('parent'),
             width: max(1, n('width', 136)),
             height: max(1, n('height', 64)),
             label: label,

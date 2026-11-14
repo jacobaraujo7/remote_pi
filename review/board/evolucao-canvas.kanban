@@ -17,7 +17,7 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
       QA desktop. O Windows identificou três formas e duas conexões, e confirmou a seleção pela ação MSAA, conforme acessibilidade.md. Conferir agora a fala do Narrador, o foco após Escape e o enquadramento com um trackpad físico.
 
 - [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
-      Frente de QA desktop. Comparar o editor otimizado com a versão anterior em três execuções por máquina. Registrar p95, frames atrasados e latência física a 60 e 120 Hz onde possível. Incluir painéis adjacentes e gravação lenta.
+      Frente de QA desktop. A versão bc18c5a2 passou em 1.440 quadros de gestos aquecidos na cena densa, com painel adjacente e gravação lenta; as medições comparativas estão em perfil.md. Pendente: latência física entre ponteiro e monitor, incluindo 60 e 120 Hz onde possível.
 - [ ] Observar uso sem orientar os gestos <!-- id: board-usabilidade labels: interacao -->
       Frente de produto. Pedir que cinco pessoas desenhem um fluxo, renomeiem uma etapa, liguem uma decisão e exportem o desenho. Registrar conclusão sem ajuda, cliques errados e perda de seleção. Meta proposta: quatro de cinco completam as quatro tarefas sem ajuda.
 

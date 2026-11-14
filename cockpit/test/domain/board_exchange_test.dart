@@ -6,6 +6,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
 void main() {
+  test('draw.io metadata wrappers retain labels, groups and endpoints', () {
+    const source = '''<mxGraphModel><root>
+      <mxCell id="0"/><mxCell id="1" parent="0"/>
+      <object id="group" label="Finance"><mxCell vertex="1" style="group;" parent="1"><mxGeometry x="100" y="80"/></mxCell></object>
+      <object id="a" label="Receber" owner="Finance"><mxCell vertex="1" parent="group"><mxGeometry x="10" y="5"/></mxCell></object>
+      <UserObject id="b" label="Aprovar?"><mxCell vertex="1" style="rhombus;" parent="1"><mxGeometry x="350" y="120"/></mxCell></UserObject>
+      <object id="edge" label="Sim"><mxCell edge="1" source="a" target="b" parent="1"/></object>
+      </root></mxGraphModel>''';
+    final imported = BoardInterchange.readDrawio(source);
+    expect(imported.items['a']!.group, 'group');
+    expect([imported.items['a']!.x, imported.items['a']!.y], [110, 85]);
+    final reopened = BoardInterchange.readDrawio(
+      BoardInterchange.drawio(imported),
+    );
+    expect(reopened.items['a']!.label, 'Receber');
+    expect(reopened.items['b']!.label, 'Aprovar?');
+    final edge = reopened.items['edge']!;
+    expect([edge.label, edge.from, edge.to], ['Sim', 'a', 'b']);
+    expect(
+      () =>
+          BoardInterchange.readDrawio(source.replaceFirst('id="b"', 'id="a"')),
+      throwsFormatException,
+    );
+  });
   test('a single pencil mark is visible in SVG and HTML exports', () {
     final doc = BoardDocument([
       const BoardItem(
