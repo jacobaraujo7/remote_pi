@@ -22,6 +22,19 @@ void main() {
     label: 'Yes',
   );
   final doc = BoardDocument([start, end, edge]);
+  test('escaped identities remain connected after a Markdown round trip', () {
+    const id = 'first:\\n\r\nstep';
+    final board = BoardDocument([
+      const BoardItem(id, BoardKind.process, 0, 0),
+      end,
+      const BoardItem('link', BoardKind.arrow, 0, 0, from: id, to: 'b'),
+    ], id: 'board\\name');
+    final restored = BoardDocument.parse(board.encode());
+    expect(restored.id, board.id);
+    expect(restored.items[id]?.id, id);
+    expect(restored.items['link']?.from, id);
+    expect(restored.encode(), board.encode());
+  });
   test(
     'editing a workspace file as text reloads its diagram after atomic rename',
     () async {

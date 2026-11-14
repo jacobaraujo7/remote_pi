@@ -9,7 +9,7 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 ## Depois
 
 - [ ] Investigar a primeira pintura de cenas extensas <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. Com 1.920 objetos, a primeira construção ainda excedeu 16,67 ms em duas das três aberturas. Separar o tempo de leitura do Markdown, cálculo de geometria e montagem do editor antes de escolher outra otimização. Medições em perfil.md.
+      Frente Flutter. O leitor Markdown foi otimizado e comparado em AOT. Na rodada sem testes concorrentes, as três primeiras construções excederam 16,67 ms. Próximo passo: decompor o primeiro frame do host e do editor usando o mesmo tema e a mesma miniatura. Medições em perfil.md.
 
 ## Validar no desktop
 

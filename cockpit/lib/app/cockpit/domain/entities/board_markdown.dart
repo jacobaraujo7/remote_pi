@@ -4,6 +4,7 @@ part of 'board_document.dart';
 class _CanvasMarkdown {
   static final _breaks = RegExp(r'\r\n|\r|\n');
   static final _ticks = RegExp(r'`{3,}');
+  static final _inlineEscape = RegExp(r'\\([\\nr])');
   static final _fence = RegExp(r'^(`{3,})mermaid$');
   static const _strings = {'id', 'color', 'group', 'from', 'to', 'thumbnail'};
   static const _numbers = {'x', 'y', 'width', 'height'};
@@ -13,14 +14,17 @@ class _CanvasMarkdown {
       .replaceAll('\n', r'\n')
       .replaceAll('\r', r'\r');
 
-  static String _restoreInline(String value) => value.replaceAllMapped(
-    RegExp(r'\\([\\nr])'),
-    (m) => switch (m[1]) {
-      'n' => '\n',
-      'r' => '\r',
-      _ => '\\',
-    },
-  );
+  static String _restoreInline(String value) {
+    if (!value.contains('\\')) return value;
+    return value.replaceAllMapped(
+      _inlineEscape,
+      (m) => switch (m[1]) {
+        'n' => '\n',
+        'r' => '\r',
+        _ => '\\',
+      },
+    );
+  }
 
   static String write(BoardDocument doc) {
     final lines = [
@@ -118,7 +122,7 @@ class _CanvasMarkdown {
         final line = lines[index++];
         if (line.trim().isEmpty) continue;
         if (line.startsWith('- ')) {
-          final entry = _property(line.substring(2));
+          final entry = _property(line, start: 2);
           final key = entry.key;
           if (fields.containsKey(key)) {
             throw FormatException('Duplicate field $key');
@@ -203,13 +207,13 @@ class _CanvasMarkdown {
     );
   }
 
-  static MapEntry<String, String> _property(String line) {
-    final colon = line.indexOf(':');
-    if (colon < 1) throw const FormatException('Expected board property');
-    final rest = line.substring(colon + 1);
+  static MapEntry<String, String> _property(String line, {int start = 0}) {
+    final colon = line.indexOf(':', start);
+    if (colon <= start) throw const FormatException('Expected board property');
+    final value = colon + 1;
     return MapEntry(
-      line.substring(0, colon),
-      rest.startsWith(' ') ? rest.substring(1) : rest,
+      line.substring(start, colon),
+      line.substring(line.startsWith(' ', value) ? value + 1 : value),
     );
   }
 }
