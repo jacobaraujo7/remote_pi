@@ -1,0 +1,43 @@
+---
+title: Evolução do canvas do Board
+columns: [Próxima entrega, Depois, Validar no desktop, Entregue]
+labels: {interacao: blue, acesso: purple, desempenho: orange}
+---
+
+## Próxima entrega
+
+- [ ] Enquadrar seleção ou todo o documento <!-- id: board-camera labels: interacao -->
+      Acrescentar os dois comandos e validar o enquadramento com mouse e trackpad.
+- [ ] Percorrer e mover objetos sem arraste <!-- id: board-teclado labels: acesso -->
+      Frente Flutter. Permitir percorrer objetos, ouvir tipo e rótulo, mover por setas e escolher o destino por clique. Aceite: editar e conectar duas etapas usando teclado e repetir com ponteiro de um botão. Conferir foco com Narrador no Windows.
+
+- [ ] Escolher alcance antes de exportar <!-- id: board-alcance labels: interacao -->
+      Design e frontend. Oferecer documento inteiro ou seleção e então escolher o formato. Validar com teclado em um painel dividido.
+
+## Depois
+
+- [ ] Reduzir custo de cenas extensas <!-- id: board-escala labels: desempenho -->
+      Frente Flutter. Medir traços longos, miniaturas Mermaid, grupos e áreas fora do enquadramento antes de escolher recorte espacial ou cache. Aceite: atingir o orçamento acordado sem perder hit testing ou ligações.
+
+## Validar no desktop
+
+- [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
+      Frente de QA desktop. Comparar o editor otimizado com a versão anterior em três execuções por máquina. Registrar p95, frames atrasados e latência física a 60 e 120 Hz onde possível. Incluir painéis adjacentes e gravação lenta.
+- [ ] Observar uso sem orientar os gestos <!-- id: board-usabilidade labels: interacao -->
+      Frente de produto. Pedir que cinco pessoas desenhem um fluxo, renomeiem uma etapa, liguem uma decisão e exportem o desenho. Registrar conclusão sem ajuda, cliques errados e perda de seleção. Meta proposta: quatro de cinco completam as quatro tarefas sem ajuda.
+
+## Entregue
+
+- [x] Conectar diretamente pelas formas <!-- id: board-conectar labels: interacao -->
+      A alça + aparece ao selecionar ou passar sobre uma forma. Arraste ou clique na alça e depois no destino. A prévia destaca o contorno e o ponto de encaixe. Escape cancela.
+- [x] Navegar temporariamente com Espaço <!-- id: board-espaco labels: interacao -->
+      Segurar Espaço e arrastar navega sem mudar a seleção. Soltar restaura a ferramenta. A edição de texto conserva a tecla para digitação.
+
+- [x] Editar texto no próprio desenho <!-- id: board-inline labels: interacao -->
+      Duplo clique ou F2 abre o campo no objeto. Clique fora confirma e Escape cancela. Cobertura por teste do widget com documento persistido.
+- [x] Isolar o desenho parado durante o movimento <!-- id: board-drag labels: desempenho -->
+      O arraste atualiza a seleção e as ligações incidentes. Ensaio local com 479 objetos registrado no estudo.
+- [x] Reorganizar controles e tornar o zoom visível <!-- id: board-layout labels: interacao -->
+      Cabeçalho de documento, paleta lateral de desenho e rodapé de navegação com percentual e retorno a 100%.
+- [x] Colorir etapas e caminhos <!-- id: board-cor labels: interacao -->
+      Paleta nomeada com seis cores, seleção múltipla e retorno à cor do tema. Verificar contraste do rótulo, desfazer e preservar a cor no Board, SVG e nos conversores draw.io e Excalidraw.

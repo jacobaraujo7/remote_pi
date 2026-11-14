@@ -1374,6 +1374,7 @@ class _Translations$cockpit$gallery$es extends Translations$cockpit$gallery$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$es board = _Translations$cockpit$gallery$board$es._(_root);
 	@override String get intro => 'Documentos especiales de Cockpit para que veas lo que el agente de IA está haciendo.';
 	@override String get createErrorTitle => 'No se pudo crear el archivo';
 	@override late final _Translations$cockpit$gallery$dbQuery$es dbQuery = _Translations$cockpit$gallery$dbQuery$es._(_root);
@@ -1730,6 +1731,63 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$es extends Translation
 	@override String get moveCards => 'Mover a la columna anterior';
 	@override String get deleteAll => 'Eliminar junto con la columna';
 	@override String get emptyMessage => 'Esta columna está vacía.';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$es extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => 'Importar o exportar';
+	@override String get exportSelection => 'Exportar selección';
+	@override String get appendBoard => '¿Añadir este documento al lienzo?';
+	@override String get diagramColor => 'Color del dibujo';
+	@override String get themeColor => 'Predeterminado del tema';
+	@override String get blue => 'Azul';
+	@override String get green => 'Verde';
+	@override String get amber => 'Ámbar';
+	@override String get red => 'Rojo';
+	@override String get violet => 'Violeta';
+	@override String get cyan => 'Cian';
+	@override String get emptyBoard => 'Elige una forma y haz clic o arrastra para dibujarla.';
+	@override String get arrowStart => 'Elige la primera forma o arrastra hasta el destino.';
+	@override String get arrowEnd => 'Elige la forma de destino.';
+	@override String get diagramTypes => 'Tipos de diagrama';
+	@override String get replaceSource => '¿Reemplazar el código actual con este ejemplo?';
+	@override String get group => 'Agrupar';
+	@override String get ungroup => 'Desagrupar';
+	@override String get align => 'Alinear arriba';
+	@override String get distribute => 'Distribuir horizontalmente';
+	@override String get openFile => 'Abrir';
+	@override String get exportFile => 'Exportar';
+	@override String get importWarning => '¿Importar formas y conectores? Los estilos y grupos pueden cambiar.';
+	@override String get exportWarning => '¿Exportar formas y conectores? Se simplifican los estilos, grupos y dibujos Mermaid.';
+	@override String get discard => 'Descartar';
+	@override String get importMmd => 'Abrir archivo Mermaid';
+	@override String get exportMmd => 'Exportar código Mermaid';
+	@override String get preview => 'Vista previa';
+	@override String get apply => 'Aplicar';
+	@override String get title => 'Canvas Board';
+	@override String get description => 'Dibuja diagramas de flujo y bocetos';
+	@override String get select => 'Seleccionar';
+	@override String get pan => 'Navegar';
+	@override String get pencil => 'Lápiz';
+	@override String get text => 'Texto';
+	@override String get note => 'Nota';
+	@override String get process => 'Proceso';
+	@override String get decision => 'Decisión';
+	@override String get arrow => 'Conector';
+	@override String get advanced => 'Avanzado';
+	@override String get lane => 'Carril';
+	@override String get container => 'Contenedor';
+	@override String get service => 'Servicio';
+	@override String get undo => 'Deshacer';
+	@override String get delete => 'Eliminar';
+	@override String get label => 'Etiqueta';
+	@override String get saveError => 'Error al guardar el tablero';
+	@override String get reload => 'Recargar';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -2845,6 +2903,54 @@ extension on TranslationsEs {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
+			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
+			'cockpit.gallery.board.appendBoard' => '¿Añadir este documento al lienzo?',
+			'cockpit.gallery.board.diagramColor' => 'Color del dibujo',
+			'cockpit.gallery.board.themeColor' => 'Predeterminado del tema',
+			'cockpit.gallery.board.blue' => 'Azul',
+			'cockpit.gallery.board.green' => 'Verde',
+			'cockpit.gallery.board.amber' => 'Ámbar',
+			'cockpit.gallery.board.red' => 'Rojo',
+			'cockpit.gallery.board.violet' => 'Violeta',
+			'cockpit.gallery.board.cyan' => 'Cian',
+			'cockpit.gallery.board.emptyBoard' => 'Elige una forma y haz clic o arrastra para dibujarla.',
+			'cockpit.gallery.board.arrowStart' => 'Elige la primera forma o arrastra hasta el destino.',
+			'cockpit.gallery.board.arrowEnd' => 'Elige la forma de destino.',
+			'cockpit.gallery.board.diagramTypes' => 'Tipos de diagrama',
+			'cockpit.gallery.board.replaceSource' => '¿Reemplazar el código actual con este ejemplo?',
+			'cockpit.gallery.board.group' => 'Agrupar',
+			'cockpit.gallery.board.ungroup' => 'Desagrupar',
+			'cockpit.gallery.board.align' => 'Alinear arriba',
+			'cockpit.gallery.board.distribute' => 'Distribuir horizontalmente',
+			'cockpit.gallery.board.openFile' => 'Abrir',
+			'cockpit.gallery.board.exportFile' => 'Exportar',
+			'cockpit.gallery.board.importWarning' => '¿Importar formas y conectores? Los estilos y grupos pueden cambiar.',
+			'cockpit.gallery.board.exportWarning' => '¿Exportar formas y conectores? Se simplifican los estilos, grupos y dibujos Mermaid.',
+			'cockpit.gallery.board.discard' => 'Descartar',
+			'cockpit.gallery.board.importMmd' => 'Abrir archivo Mermaid',
+			'cockpit.gallery.board.exportMmd' => 'Exportar código Mermaid',
+			'cockpit.gallery.board.preview' => 'Vista previa',
+			'cockpit.gallery.board.apply' => 'Aplicar',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Dibuja diagramas de flujo y bocetos',
+			'cockpit.gallery.board.select' => 'Seleccionar',
+			'cockpit.gallery.board.pan' => 'Navegar',
+			'cockpit.gallery.board.pencil' => 'Lápiz',
+			'cockpit.gallery.board.text' => 'Texto',
+			'cockpit.gallery.board.note' => 'Nota',
+			'cockpit.gallery.board.process' => 'Proceso',
+			'cockpit.gallery.board.decision' => 'Decisión',
+			'cockpit.gallery.board.arrow' => 'Conector',
+			'cockpit.gallery.board.advanced' => 'Avanzado',
+			'cockpit.gallery.board.lane' => 'Carril',
+			'cockpit.gallery.board.container' => 'Contenedor',
+			'cockpit.gallery.board.service' => 'Servicio',
+			'cockpit.gallery.board.undo' => 'Deshacer',
+			'cockpit.gallery.board.delete' => 'Eliminar',
+			'cockpit.gallery.board.label' => 'Etiqueta',
+			'cockpit.gallery.board.saveError' => 'Error al guardar el tablero',
+			'cockpit.gallery.board.reload' => 'Recargar',
 			'cockpit.gallery.intro' => 'Documentos especiales de Cockpit para que veas lo que el agente de IA está haciendo.',
 			'cockpit.gallery.createErrorTitle' => 'No se pudo crear el archivo',
 			'cockpit.gallery.dbQuery.title' => 'Consulta de base de datos',
@@ -3157,6 +3263,8 @@ extension on TranslationsEs {
 			'settings.page.notifications.soundsTitle' => 'Sonidos',
 			'settings.page.notifications.soundVolumeTitle' => 'Volumen',
 			'settings.page.notifications.soundTurnDone' => 'Turno completado',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.notifications.soundTurnDoneDesc' => 'Un agente terminó su turno.',
 			'settings.page.notifications.soundActionRequired' => 'Acción requerida',
 			'settings.page.notifications.soundActionRequiredDesc' => 'Un agente está esperando tu aprobación o respuesta.',
@@ -3205,8 +3313,6 @@ extension on TranslationsEs {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

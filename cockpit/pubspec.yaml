@@ -90,6 +90,7 @@ dependencies:
   flutter_modular: ^7.1.0
 
   # Plano 37 — seleção de pasta (NSOpenPanel no macOS) para abrir um projeto.
+  xml: ^7.0.1
   file_picker: ^8.1.2
 
   # Plano 51 — senha de conexão no cofre nativo do SO (Keychain / Credential
@@ -248,6 +249,7 @@ dependencies:
   sqlite3: ^3.6.0
   sqlite3_flutter_libs: ^0.6.0+eol
   vm_service: ^15.3.0
+  pdf: ^3.13.1
 
 dev_dependencies:
   flutter_test:
@@ -306,6 +308,7 @@ flutter:
     # Plano 58 — pipeline local do preview de markdown (markdown-it +
     # sanitizador + diff de DOM + CSS por variáveis de tema). Sem rede: a
     # webview carrega só estes assets, sob CSP restritiva.
+    - assets/board/
     - assets/md_preview/
     # Plano 67 — ponte JS injetada nas abas `.panel` (window.cockpit).
     - assets/panel/

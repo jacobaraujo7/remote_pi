@@ -15,6 +15,7 @@ import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
@@ -484,6 +485,13 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
             tr.mediaNotSupported,
             style: context.typo.body.copyWith(color: context.colors.text3),
           ),
+        );
+      } else if (config.path.toLowerCase().endsWith('.board')) {
+        body = BoardView(
+          key: ValueKey(config.path),
+          session: session,
+          onSave: _save,
+          onReload: _load,
         );
       } else if (config.path.toLowerCase().endsWith('.kanban')) {
         body = KanbanBoardView(

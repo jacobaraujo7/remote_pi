@@ -16,6 +16,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 /// `.kanban` = quadro de cards da tab de kanban.
 const Map<String, String> _extensionOverrides = {
   'dbq': 'database',
+  'board': 'excalidraw',
   'kanban': 'todo',
   'http': 'http',
   'rest': 'http',
