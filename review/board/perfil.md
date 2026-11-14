@@ -180,3 +180,15 @@ O editor passou a aplicar rotação apenas ao ícone de decisão e a construir o
 | Anterior | 21,98 | 27,79 |
 
 As faixas de construção se sobrepõem. A comparação não demonstra ganho consistente no primeiro quadro. Nas quatro reaberturas da versão simplificada, a construção ficou entre 10,79 e 12,01 ms e a rasterização entre 2,16 e 3,26 ms. O critério de fluidez proposto no estudo refere-se a gestos após aquecimento; o tempo de abertura é acompanhado separadamente. O runner instrumentado registrou a falha nativa de encerramento após a coleta.
+
+## Gestos após aquecimento na versão bc18c5a2
+
+O runner Windows Profile executou novamente a suíte `interactions` com a paleta e o alinhamento de bc18c5a2. A cena de 1.920 objetos contém 960 formas, 959 setas e uma miniatura Mermaid. Cada gesto teve 180 passos por repetição, com três repetições. Os primeiros 20 passos de cada repetição ficaram fora das estatísticas. O teste reabriu os arquivos e verificou os 2.881 pontos do lápis, o deslocamento do grupo, os extremos das setas e o conteúdo inalterado após o zoom.
+
+| Gesto | Quadros medidos | Mediana do p95 de construção | Mediana do p95 de rasterização | Mediana do p95 do intervalo entre passos | Quadros com fase acima de 16,67 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Lápis | 480 | 0,48 ms | 2,82 ms | 7,46 ms | 0 |
+| Zoom | 480 | 0,91 ms | 2,81 ms | 13,13 ms | 0 |
+| Arraste de grupo | 480 | 0,79 ms | 1,32 ms | 7,65 ms | 0 |
+
+Os 1.440 quadros aquecidos atenderam ao orçamento de 60 Hz por fase no ensaio automatizado. O motor informou 160 Hz. A primeira abertura do processo levou 36,20 ms de construção e 38,39 ms de rasterização. A medição não inclui a latência física entre o dispositivo e a apresentação no monitor. O runner encerrou com 0xC0000005 após gravar as 12 séries.
