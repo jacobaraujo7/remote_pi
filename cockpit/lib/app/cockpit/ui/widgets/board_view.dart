@@ -1300,16 +1300,7 @@ class _BoardState extends State<BoardView> {
                                         label: text.source,
                                         thumbnail: text.thumbnail,
                                       ) ??
-                                      BoardItem(
-                                        BoardDocument.newId(),
-                                        BoardKind.mermaid,
-                                        80,
-                                        80,
-                                        label: text.source,
-                                        thumbnail: text.thumbnail,
-                                        width: 240,
-                                        height: 110,
-                                      );
+                                      text.toBoardItem();
                                   await commit(BoardEdit.replace(doc!, item));
                                 },
                           child: const Text('Mermaid'),
