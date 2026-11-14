@@ -110,6 +110,7 @@ import 'package:cockpit/app/core/data/setup/json_state_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
 import 'package:cockpit/app/core/ui/window_activity_controller.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kReleaseMode;
+import 'package:window_manager/window_manager.dart' show windowManager;
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -385,5 +386,11 @@ SelfUpdater _buildSelfUpdater(UpdateTarget target) {
   if (!kReleaseMode) return const NoopSelfUpdater();
   final feed = target.selfUpdateFeedUrl;
   if (feed == null) return const NoopSelfUpdater();
-  return AutoUpdaterSelfUpdater(feedUrl: feed, autoDownloads: Platform.isMacOS);
+  return AutoUpdaterSelfUpdater(
+    feedUrl: feed,
+    autoDownloads: Platform.isMacOS,
+    // WinSparkle lança o instalador e pede pro host sair (#330). Fecha pelo
+    // caminho limpo da janela (`onWindowClose` → flush → destroy), o mesmo do X.
+    quitForUpdate: windowManager.close,
+  );
 }
