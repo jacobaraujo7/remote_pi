@@ -194,6 +194,7 @@ class BoardDocument {
     }
   }
   final Map<String, BoardItem> items;
+  late final List<BoardItem> paintOrder = List.unmodifiable(items.values);
   final String? id;
   final String eol;
   static final _rng = Random.secure();
