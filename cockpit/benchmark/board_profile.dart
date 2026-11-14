@@ -324,30 +324,35 @@ w.Element? findElement(
   return result;
 }
 
-BoardDocument interactionScene(int count, String thumbnail) => BoardDocument([
+BoardDocument interactionScene(
+  int count,
+  String thumbnail, {
+  bool labels = true,
+}) => BoardDocument([
   for (var i = 0; i < count; i++)
     BoardItem(
       'n$i',
       BoardKind.process,
       (i % 20) * 150.0,
       (i ~/ 20) * 85.0,
-      label: 'Etapa de aprovação $i',
+      label: labels ? 'Etapa de aprovação $i' : '',
       group: i < 8 ? 'architecture' : null,
     ),
   for (var i = 1; i < count; i++)
     BoardItem('e$i', BoardKind.arrow, 0, 0, from: 'n${i - 1}', to: 'n$i'),
-  BoardItem(
-    'architecture',
-    BoardKind.mermaid,
-    150,
-    180,
-    width: 320,
-    height: 160,
-    group: 'architecture',
-    thumbnail: thumbnail,
-    label:
-        'flowchart LR\n Gateway-->Orders\n Orders-->PostgreSQL\n Gateway-->Queue\n Queue-->Worker\n Orders-->Worker',
-  ),
+  if (count > 0)
+    BoardItem(
+      'architecture',
+      BoardKind.mermaid,
+      150,
+      180,
+      width: 320,
+      height: 160,
+      group: 'architecture',
+      thumbnail: thumbnail,
+      label:
+          'flowchart LR\n Gateway-->Orders\n Orders-->PostgreSQL\n Gateway-->Queue\n Queue-->Worker\n Orders-->Worker',
+    ),
 ]);
 
 Offset inkOffset(int sample) => sample == 0
@@ -365,9 +370,15 @@ Future<void> _measureInteractions(
   required List<_Scenario> scenarios,
   required bool separateHost,
 }) async {
+  final scene = separateHost
+      ? Platform.environment['BOARD_PROFILE_SCENE'] ?? 'full'
+      : 'full';
+  if (!const {'full', 'empty', 'unlabelled'}.contains(scene)) {
+    throw ArgumentError.value(scene, 'BOARD_PROFILE_SCENE');
+  }
   final rows = <String>[
     'version\tscenario\tcount\trun\tframes\tbuildP95ms\trasterP95ms\tover16.67ms\toverDisplayBudget\tdisplayHz\treadyMs\tsaves\tgestureMs\tframeIntervalP95ms'
-        '${separateHost ? '\thostBuildMs\thostRasterMs' : ''}',
+        '${separateHost ? '\thostBuildMs\thostRasterMs\tscene' : ''}',
   ];
   final scratch = await output.parent.createTemp('board-profile-');
   final thumbnail = await architectureThumbnail();
@@ -388,8 +399,12 @@ Future<void> _measureInteractions(
           'current': BoardView.new,
         }.entries.toList();
         for (final version in run.isEven ? views.reversed : views) {
-          const count = 960;
-          final original = interactionScene(count, thumbnail);
+          final count = scene == 'empty' ? 0 : 960;
+          final original = interactionScene(
+            count,
+            thumbnail,
+            labels: scene != 'unlabelled',
+          );
           final path = File(
             '${scratch.path}/${version.key}-${scenario.name}-$run.board',
           );
@@ -463,11 +478,9 @@ Future<void> _measureInteractions(
             final box = viewer.renderObject as w.RenderBox;
             final start = box.localToGlobal(const Offset(50, 32));
             final deadline = DateTime.now().add(const Duration(seconds: 10));
-            while (findElement(
-                  root,
-                  (w) => w is m.RawImage && w.image != null,
-                ) ==
-                null) {
+            while (count > 0 &&
+                findElement(root, (w) => w is m.RawImage && w.image != null) ==
+                    null) {
               if (DateTime.now().isAfter(deadline)) {
                 throw StateError('Thumbnail did not decode');
               }
@@ -670,6 +683,7 @@ Future<void> _measureInteractions(
                 if (shell != null) ...[
                   shell.buildDuration.inMicroseconds / 1000,
                   shell.rasterDuration.inMicroseconds / 1000,
+                  scene,
                 ],
               ].join('\t'),
             );

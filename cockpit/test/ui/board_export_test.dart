@@ -55,4 +55,24 @@ void main() {
     expect(html, contains('&lt;script'));
     expect(html, isNot(contains('<script>')));
   });
+
+  test(
+    'exporting just a connector crops both ends at the shape boundaries',
+    () async {
+      const selection = {'edge'};
+      final html = boardHtml(document, selected: selection);
+      expect(html, contains('viewBox="104.0 30.0 128.0 24.0"'));
+      expect(html, isNot(contains('&lt;script')));
+      final codec = await ui.instantiateImageCodec(
+        await boardPng(document, selected: selection),
+      );
+      final image = (await codec.getNextFrame()).image;
+      try {
+        expect([image.width, image.height], [128, 24]);
+      } finally {
+        image.dispose();
+        codec.dispose();
+      }
+    },
+  );
 }

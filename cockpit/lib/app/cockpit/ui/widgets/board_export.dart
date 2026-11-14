@@ -25,29 +25,15 @@ Future<Uint8List> boardPng(BoardDocument board, {Set<String>? selected}) async {
   if (items.isEmpty) throw const FormatException('Empty selection');
   Rect boundsOf(BoardItem i) => Rect.fromLTWH(i.x, i.y, i.width, i.height);
   List<Offset> route(BoardItem edge) {
-    final a = boundsOf(board.items[edge.from]!);
-    final b = boundsOf(board.items[edge.to]!);
-    final right = a.center.dx <= b.center.dx;
-    final start = right ? a.centerRight : a.centerLeft;
-    final end = right ? b.centerLeft : b.centerRight;
+    final endpoints = boardEdgeEndpoints(board, edge);
+    final start = Offset(endpoints.start.x, endpoints.start.y);
+    final end = Offset(endpoints.end.x, endpoints.end.y);
     final mid = (start.dx + end.dx) / 2;
     return [start, Offset(mid, start.dy), Offset(mid, end.dy), end];
   }
 
-  final bounds = items
-      .map((i) {
-        if (i.kind != BoardKind.arrow) return boundsOf(i);
-        final path = route(i);
-        return Rect.fromPoints(path.first, path.last).expandToInclude(
-          Rect.fromCenter(
-            center: Offset.lerp(path[1], path[2], .5)!,
-            width: 120,
-            height: 34,
-          ),
-        );
-      })
-      .reduce((a, b) => a.expandToInclude(b))
-      .inflate(12);
+  final area = boardExportBounds(board, items);
+  final bounds = Rect.fromLTWH(area.left, area.top, area.width, area.height);
   final width = bounds.width.ceil(), height = bounds.height.ceil();
   if (width * height > 32000000 || math.max(width, height) > 16384) {
     throw const FormatException('Canvas exceeds image size limit');
