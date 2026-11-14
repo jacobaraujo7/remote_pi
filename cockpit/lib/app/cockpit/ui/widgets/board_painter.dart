@@ -1,6 +1,17 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../domain/entities/board_document.dart';
+import '../../domain/services/board_svg.dart' show BoardRoute;
+
+List<Offset> boardRouteOffsets(BoardRoute route) {
+  final a = Offset(route.start.x, route.start.y);
+  final b = Offset(route.end.x, route.end.y);
+  final mid = (a + b) / 2;
+  return route.vertical
+      ? [a, Offset(a.dx, mid.dy), Offset(b.dx, mid.dy), b]
+      : [a, Offset(mid.dx, a.dy), Offset(mid.dx, b.dy), b];
+}
 
 Color boardColor(String rgb) =>
     Color(0xff000000 | int.parse(rgb.substring(1), radix: 16));
@@ -15,8 +26,10 @@ class BoardPainter extends CustomPainter {
     this.accent,
     this.labelStyle, {
     this.origin = Offset.zero,
+    this.thumbnails = const {},
   });
   final Offset origin;
+  final Map<BoardItem, ui.Image> thumbnails;
   final List<BoardItem> items;
   final List<Offset> Function(BoardItem) route;
   final Set<String> selected;
@@ -35,10 +48,7 @@ class BoardPainter extends CustomPainter {
       c.drawPath(path, paint);
     }
 
-    for (final i in [
-      ...items.where((e) => e.kind == BoardKind.arrow),
-      ...items.where((e) => e.kind != BoardKind.arrow),
-    ]) {
+    for (final i in items) {
       final tint = i.color == null ? null : boardColor(i.color!);
       final fill =
           tint ??
@@ -98,6 +108,13 @@ class BoardPainter extends CustomPainter {
       if (i.kind == BoardKind.text && selected.contains(i.id)) {
         c.drawRect(rect, paint);
       }
+      if (i.kind == BoardKind.mermaid && i.thumbnail != null) {
+        final image = thumbnails[i];
+        if (image != null) {
+          paintImage(canvas: c, rect: rect, image: image, fit: BoxFit.contain);
+        }
+        continue;
+      }
       if (i.label.isEmpty) continue;
       final text = TextPainter(
         text: TextSpan(
@@ -114,9 +131,18 @@ class BoardPainter extends CustomPainter {
       final origin = rect.center - Offset(text.width / 2, text.height / 2);
       if (i.kind == BoardKind.arrow) {
         final caption = (origin & text.size).inflate(3);
+        var captionBg = bg;
+        if (tint != null) {
+          final foreground = tint.computeLuminance();
+          final background = bg.computeLuminance();
+          final contrast =
+              (math.max(foreground, background) + .05) /
+              (math.min(foreground, background) + .05);
+          if (contrast < 4.5) captionBg = boardColor(i.contrastInk);
+        }
         c.drawRRect(
           RRect.fromRectAndRadius(caption, const Radius.circular(3)),
-          Paint()..color = bg,
+          Paint()..color = captionBg,
         );
       }
       text.paint(c, origin);

@@ -3925,6 +3925,12 @@ class Translations$cockpit$gallery$board$en {
 	/// en: 'Label'
 	String get label => 'Label';
 
+	/// en: 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.'
+	String get labelChanged => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.';
+
+	/// en: 'This object was deleted from the file. Copy your draft before pressing Esc to close it.'
+	String get objectDeleted => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.';
+
 	/// en: 'Could not save the board'
 	String get saveError => 'Could not save the board';
 
@@ -5547,6 +5553,8 @@ extension on Translations {
 			'cockpit.gallery.board.undo' => 'Undo',
 			'cockpit.gallery.board.delete' => 'Delete',
 			'cockpit.gallery.board.label' => 'Label',
+			'cockpit.gallery.board.labelChanged' => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.',
+			'cockpit.gallery.board.objectDeleted' => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.',
 			'cockpit.gallery.board.saveError' => 'Could not save the board',
 			'cockpit.gallery.board.reload' => 'Reload',
 			'cockpit.gallery.intro' => 'Special Cockpit documents that give you a visual of what the AI agent is doing.',
@@ -5847,10 +5855,10 @@ extension on Translations {
 			'settings.page.appearance.fontPickerUse' => 'Use',
 			'settings.page.appearance.fontPickerDefault' => 'Default',
 			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
-			'settings.page.appearance.sectionLayout' => 'Layout',
-			'settings.page.appearance.swapPanelsTitle' => 'Swap side panels',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.sectionLayout' => 'Layout',
+			'settings.page.appearance.swapPanelsTitle' => 'Swap side panels',
 			'settings.page.appearance.swapPanelsDesc' => 'Puts workspaces on the right and files, search, git and database on the left.',
 			'settings.page.notifications.sectionTitle' => 'Notifications',
 			'settings.page.notifications.enableTitle' => 'Enable notifications',

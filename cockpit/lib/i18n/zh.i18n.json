@@ -828,6 +828,8 @@
         "undo": "撤销",
         "delete": "删除",
         "label": "标签",
+        "labelChanged": "文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。",
+        "objectDeleted": "文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。",
         "saveError": "无法保存画板",
         "reload": "重新加载"
       },

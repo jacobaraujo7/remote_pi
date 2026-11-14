@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
@@ -105,6 +106,33 @@ Future<void> _settleRead(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('detached local Board writes the validated encoding to disk', (
+    tester,
+  ) async {
+    final dir = Directory.systemTemp.createTempSync('detached-board-encoding');
+    final file = File('${dir.path}/process.board');
+    final initial = BoardDocument([
+      const BoardItem('step', BoardKind.process, 40, 40, label: 'Aprovação'),
+    ]).encode();
+    file.writeAsBytesSync(latin1.encode(initial));
+    await tester.pumpWidget(_app(DocumentScreen(path: file.path)));
+    for (var i = 0; i < 100 && find.byType(BoardView).evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+    }
+    final board = tester.widget<BoardView>(find.byType(BoardView));
+    expect((board.session.view as FileViewText).encoding, latin1);
+    final edited = initial.replaceFirst('Aprovação', 'Revisão');
+    expect(await tester.runAsync(() => board.onSave(edited)), isTrue);
+    expect(file.readAsBytesSync(), latin1.encode(edited));
+    final upgraded = edited.replaceFirst('Revisão', 'Revisão ✅');
+    expect(await tester.runAsync(() => board.onSave(upgraded)), isTrue);
+    expect(file.readAsBytesSync(), utf8.encode(upgraded));
+    await tester.pumpWidget(const SizedBox());
+    dir.deleteSync(recursive: true);
+  });
   testWidgets(
     'remote Canvas uses its source editor and saves before returning',
     (tester) async {

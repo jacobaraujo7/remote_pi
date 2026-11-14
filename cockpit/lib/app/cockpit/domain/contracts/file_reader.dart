@@ -5,6 +5,12 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 /// Lê e classifica um arquivo para o viewer (markdown / texto / imagem /
 /// não-suportado). Contrato no domínio; impl (dart:io) em `data/filesystem/`.
 abstract class FileReader {
+  // Board Markdown embeds PNG previews. Match the remote FileService read budget.
+  static const boardByteLimit = 8 * 1024 * 1024;
+  static bool isBoard(String path) => path.toLowerCase().endsWith('.board');
+  static int readLimit(String path) =>
+      isBoard(path) ? boardByteLimit : 2 * 1024 * 1024;
+
   Future<FileView> read(String path);
 
   /// Grava [content] em [path] com o [encoding] informado, sobrescrevendo.

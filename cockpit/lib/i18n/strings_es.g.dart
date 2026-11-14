@@ -1794,6 +1794,8 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 	@override String get undo => 'Deshacer';
 	@override String get delete => 'Eliminar';
 	@override String get label => 'Etiqueta';
+	@override String get labelChanged => 'El texto cambió en el archivo. Copia tu borrador antes de pulsar Esc para cargar el texto guardado.';
+	@override String get objectDeleted => 'El objeto se eliminó del archivo. Copia tu borrador antes de pulsar Esc para cerrarlo.';
 	@override String get saveError => 'Error al guardar el tablero';
 	@override String get reload => 'Recargar';
 }
@@ -2965,6 +2967,8 @@ extension on TranslationsEs {
 			'cockpit.gallery.board.undo' => 'Deshacer',
 			'cockpit.gallery.board.delete' => 'Eliminar',
 			'cockpit.gallery.board.label' => 'Etiqueta',
+			'cockpit.gallery.board.labelChanged' => 'El texto cambió en el archivo. Copia tu borrador antes de pulsar Esc para cargar el texto guardado.',
+			'cockpit.gallery.board.objectDeleted' => 'El objeto se eliminó del archivo. Copia tu borrador antes de pulsar Esc para cerrarlo.',
 			'cockpit.gallery.board.saveError' => 'Error al guardar el tablero',
 			'cockpit.gallery.board.reload' => 'Recargar',
 			'cockpit.gallery.intro' => 'Documentos especiales de Cockpit para que veas lo que el agente de IA está haciendo.',
@@ -3269,10 +3273,10 @@ extension on TranslationsEs {
 			'settings.page.appearance.swapPanelsTitle' => 'Invertir paneles',
 			'settings.page.appearance.swapPanelsDesc' => 'Coloca los workspaces a la derecha y archivos, búsqueda, git y base de datos a la izquierda.',
 			'settings.page.notifications.sectionTitle' => 'Notificaciones',
-			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
-			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
+			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',
 			'settings.page.notifications.systemPermissionTitle' => 'Permiso del sistema',
 			'settings.page.notifications.grantedDesc' => 'Cockpit tiene permiso para enviar notificaciones.',
 			'settings.page.notifications.notGrantedDesc' => 'macOS aún no ha concedido acceso a las notificaciones.',

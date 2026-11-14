@@ -831,6 +831,8 @@
         "undo": "Deshacer",
         "delete": "Eliminar",
         "label": "Etiqueta",
+        "labelChanged": "El texto cambió en el archivo. Copia tu borrador antes de pulsar Esc para cargar el texto guardado.",
+        "objectDeleted": "El objeto se eliminó del archivo. Copia tu borrador antes de pulsar Esc para cerrarlo.",
         "saveError": "Error al guardar el tablero",
         "reload": "Recargar"
       },

@@ -8,7 +8,6 @@ import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import '../../domain/entities/board_document.dart';
 import '../../domain/services/board_interchange.dart';
 import '../../domain/services/board_editor.dart';
-import '../../domain/services/board_svg.dart';
 
 class BoardFiles extends StatelessWidget {
   const BoardFiles({
@@ -98,7 +97,7 @@ class BoardFiles extends StatelessWidget {
         await file.writeAsBytes(bytes);
       } else {
         final text = switch (format) {
-          'svg' => boardSvg(document, selected: selected),
+          'svg' => boardSvgExport(document, selected: selected),
           'html' => boardHtml(document, selected: selected),
           'md' => document.encode(),
           'mmd' => BoardInterchange.mermaid(document),

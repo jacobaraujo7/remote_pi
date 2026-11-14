@@ -1,3 +1,4 @@
+import '../../domain/contracts/file_reader.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -432,9 +433,14 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
       // Match native FileReaderImpl: new characters may require UTF-8.
       bytes = utf8.encode(content);
     }
-    final ok = config.host == null
-        ? await _host.writeTextAt(config.path, content)
-        : await _host.writeBytesAt(config.path, Uint8List.fromList(bytes));
+    if (FileReader.isBoard(config.path) &&
+        bytes.length > FileReader.boardByteLimit) {
+      return false;
+    }
+    final ok = await _host.writeBytesAt(
+      config.path,
+      bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+    );
     if (ok) await _load();
     return ok;
   }

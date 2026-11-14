@@ -59,6 +59,7 @@ class BoardItem {
       ? value.toUpperCase()
       : null;
 
+  bool get isBackdrop => kind == BoardKind.lane || kind == BoardKind.container;
   final BoardKind kind;
   final double x, y, width, height;
   final String? from, to, thumbnail, group;
@@ -217,7 +218,11 @@ class BoardDocument {
     }
   }
   final Map<String, BoardItem> items;
-  late final List<BoardItem> paintOrder = List.unmodifiable(items.values);
+  late final List<BoardItem> paintOrder = List.unmodifiable([
+    ...items.values.where((i) => i.isBackdrop),
+    ...items.values.where((i) => i.kind == BoardKind.arrow),
+    ...items.values.where((i) => !i.isBackdrop && i.kind != BoardKind.arrow),
+  ]);
   final String? id;
   final String eol;
   static final _rng = Random.secure();

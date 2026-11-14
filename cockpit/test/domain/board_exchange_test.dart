@@ -6,6 +6,36 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
 void main() {
+  test('editable rectangles recover their Board roles after interchange', () {
+    final board = BoardDocument([
+      for (final kind in [
+        BoardKind.container,
+        BoardKind.lane,
+        BoardKind.note,
+        BoardKind.service,
+        BoardKind.mermaid,
+        BoardKind.process,
+      ])
+        BoardItem(
+          kind.name,
+          kind,
+          50,
+          30,
+          label: kind == BoardKind.mermaid
+              ? 'flowchart LR\nA --> B'
+              : kind.name,
+        ),
+    ]);
+    for (final restored in [
+      BoardInterchange.readDrawio(BoardInterchange.drawio(board)),
+      BoardInterchange.readExcalidraw(BoardInterchange.excalidraw(board)),
+    ]) {
+      for (final item in board.items.values) {
+        expect(restored.items[item.id]!.kind, item.kind);
+        expect(restored.items[item.id]!.label, item.label);
+      }
+    }
+  });
   test('draw.io metadata wrappers retain labels, groups and endpoints', () {
     const source = '''<mxGraphModel><root>
       <mxCell id="0"/><mxCell id="1" parent="0"/>
@@ -21,6 +51,7 @@ void main() {
       BoardInterchange.drawio(imported),
     );
     expect(reopened.items['a']!.label, 'Receber');
+    expect(reopened.items['a']!.group, 'group');
     expect(reopened.items['b']!.label, 'Aprovar?');
     final edge = reopened.items['edge']!;
     expect([edge.label, edge.from, edge.to], ['Sim', 'a', 'b']);
@@ -135,6 +166,37 @@ void main() {
       },
     );
   }
+  test(
+    'selected connector retains multiline label, blank line and color in SVG',
+    () {
+      final edge = board.items['3']!.edited(
+        label: 'Análise\r\n\r\nAprovação\nFim',
+      );
+      final doc = BoardDocument([
+        ...board.items.values.where((i) => i.id != edge.id),
+        edge,
+      ]);
+      final svg = XmlDocument.parse(boardSvg(doc, selected: {edge.id}));
+      final caption = svg.findAllElements('text').single;
+      final lines = caption.findElements('tspan').toList();
+      expect(lines.map((e) => e.innerText), [
+        'Análise',
+        '',
+        'Aprovação',
+        'Fim',
+      ]);
+      final heights = lines
+          .map((e) => double.parse(e.getAttribute('y')!))
+          .toList();
+      expect(heights.last - heights.first, 48);
+      expect(caption.getAttribute('fill'), edge.color);
+      expect(
+        svg.findAllElements('path').single.getAttribute('stroke'),
+        edge.color,
+      );
+      expect(svg.findAllElements('rect'), isEmpty);
+    },
+  );
   test('selection SVG crops to the selected shape and escapes its label', () {
     final svg = XmlDocument.parse(boardSvg(board, selected: {'1'}));
     expect(svg.findAllElements('rect').single.getAttribute('fill'), '#64CBA7');

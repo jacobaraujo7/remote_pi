@@ -835,6 +835,8 @@
         "undo": "Undo",
         "delete": "Delete",
         "label": "Label",
+        "labelChanged": "This label changed in the file. Copy your draft before pressing Esc to load the saved text.",
+        "objectDeleted": "This object was deleted from the file. Copy your draft before pressing Esc to close it.",
         "saveError": "Could not save the board",
         "reload": "Reload"
       },

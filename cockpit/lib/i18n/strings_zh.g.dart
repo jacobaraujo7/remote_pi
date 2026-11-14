@@ -1713,6 +1713,8 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 	@override String get undo => '撤销';
 	@override String get delete => '删除';
 	@override String get label => '标签';
+	@override String get labelChanged => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。';
+	@override String get objectDeleted => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。';
 	@override String get saveError => '无法保存画板';
 	@override String get reload => '重新加载';
 }
@@ -2881,6 +2883,8 @@ extension on TranslationsZh {
 			'cockpit.gallery.board.undo' => '撤销',
 			'cockpit.gallery.board.delete' => '删除',
 			'cockpit.gallery.board.label' => '标签',
+			'cockpit.gallery.board.labelChanged' => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。',
+			'cockpit.gallery.board.objectDeleted' => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。',
 			'cockpit.gallery.board.saveError' => '无法保存画板',
 			'cockpit.gallery.board.reload' => '重新加载',
 			'cockpit.gallery.intro' => 'Cockpit 的特殊文档，让你直观地看到 AI 智能体在做什么。',
@@ -3188,10 +3192,10 @@ extension on TranslationsZh {
 			'settings.page.notifications.enableTitle' => '启用通知',
 			'settings.page.notifications.enableDesc' => '当智能体完成一轮对话且窗口未聚焦时提醒我。',
 			'settings.page.notifications.systemPermissionTitle' => '系统权限',
-			'settings.page.notifications.grantedDesc' => 'Cockpit 已获准发送通知。',
-			'settings.page.notifications.notGrantedDesc' => 'macOS 尚未授予通知权限。',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.notifications.grantedDesc' => 'Cockpit 已获准发送通知。',
+			'settings.page.notifications.notGrantedDesc' => 'macOS 尚未授予通知权限。',
 			'settings.page.notifications.granted' => '已授予',
 			'settings.page.notifications.requestPermission' => '请求权限',
 			'settings.page.notifications.soundsTitle' => '声音',

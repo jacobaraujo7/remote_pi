@@ -835,6 +835,8 @@
         "undo": "Desfazer",
         "delete": "Excluir",
         "label": "Rótulo",
+        "labelChanged": "Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.",
+        "objectDeleted": "Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.",
         "saveError": "Falha ao salvar o board",
         "reload": "Recarregar"
       },
