@@ -5,6 +5,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 
 void main() {
+  test('a single pencil mark is visible in SVG and HTML exports', () {
+    final doc = BoardDocument([
+      const BoardItem(
+        'dot',
+        BoardKind.stroke,
+        30,
+        45,
+        width: 1,
+        height: 1,
+        color: '#123456',
+        points: [(x: 0.0, y: 0.0)],
+      ),
+    ]);
+    final dot = XmlDocument.parse(
+      boardSvg(doc),
+    ).findAllElements('circle').single;
+    expect(dot.getAttribute('cx'), '30.0');
+    expect(dot.getAttribute('fill'), '#123456');
+  });
   final board = BoardDocument([
     const BoardItem(
       '1',

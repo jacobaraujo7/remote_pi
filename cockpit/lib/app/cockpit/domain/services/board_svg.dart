@@ -89,6 +89,18 @@ String boardSvg(BoardDocument doc, {Set<String>? selected}) {
           'fill': i.color ?? (i.kind == BoardKind.note ? '#fff3ac' : 'white'),
         };
         if (i.kind == BoardKind.stroke) {
+          if (i.width <= 1 && i.height <= 1) {
+            b.element(
+              'circle',
+              attributes: {
+                'cx': '${i.x}',
+                'cy': '${i.y}',
+                'r': '1',
+                'fill': i.color ?? '#303030',
+              },
+            );
+            continue;
+          }
           b.element(
             'polyline',
             attributes: {

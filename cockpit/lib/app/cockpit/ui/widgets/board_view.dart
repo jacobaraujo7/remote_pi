@@ -64,6 +64,7 @@ class _BoardState extends State<BoardView> {
   final label = TextEditingController();
   final history = <BoardEdit>[];
   BoardDocument? doc;
+  BoardDocument? savedDocument;
   final selection = <String>{};
   BoardDocument get display => doc!;
 
@@ -533,7 +534,8 @@ class _BoardState extends State<BoardView> {
       FileViewMarkdown(:final text) => text,
       _ => null,
     };
-    if (saving || content == source) return;
+    if (saving || (content == source && identical(doc, savedDocument))) return;
+    final previousSource = source;
     setState(() {
       source = content;
       if (pointer == null) {
@@ -542,10 +544,16 @@ class _BoardState extends State<BoardView> {
         ink.clear();
       }
       try {
-        doc = content == null ? null : BoardDocument.parse(content);
+        if (content == null) {
+          savedDocument = null;
+        } else if (savedDocument == null || content != previousSource) {
+          savedDocument = BoardDocument.parse(content);
+        }
+        doc = savedDocument;
         if (doc != null) includeGeometry(doc!.items.values);
         error = null;
       } on FormatException catch (e) {
+        savedDocument = null;
         doc = null;
         error = e.message;
       }
@@ -606,10 +614,16 @@ class _BoardState extends State<BoardView> {
           FileViewText(:final text) || FileViewMarkdown(:final text) => text,
           _ => throw StateError(tr.saveError),
         };
-        final next = request.edit.apply(BoardDocument.parse(base)).encode();
+        final baseDocument = base == source && savedDocument != null
+            ? savedDocument!
+            : BoardDocument.parse(base);
+        final updated = request.edit.apply(baseDocument);
+        final next = updated.encode();
         final ok = await widget.onSave(next);
         if (request.done.isCompleted) return;
         if (!ok) throw StateError(tr.saveError);
+        source = next;
+        savedDocument = updated;
         pending.removeAt(0);
         request.done.complete(true);
         if (request.undo) {
@@ -774,7 +788,9 @@ class _BoardState extends State<BoardView> {
     if (pointer != e.pointer || start == null) return;
     final p = (e.localPosition - sceneOrigin);
     final delta = p - start!;
-    if (!moved && delta.distance * transform.value.getMaxScaleOnAxis() < 3) {
+    if (tool != 'pencil' &&
+        !moved &&
+        delta.distance * transform.value.getMaxScaleOnAxis() < 3) {
       return;
     }
     moved = true;
@@ -817,6 +833,8 @@ class _BoardState extends State<BoardView> {
     final origin = start!, p = (e.localPosition - sceneOrigin);
     final from = connectionStart;
     final points = ink.points;
+    if (tool == 'pencil' && points.last != p) ink.add(p);
+    final strokeBounds = ink.bounds;
     final dragged = dragItem;
     BoardItem? item = dragged?.edited(
       x: dragged.x + p.dx - origin.dx,
@@ -836,21 +854,17 @@ class _BoardState extends State<BoardView> {
       return;
     }
     if (tool == 'pencil') {
-      final stroke = [...points, p];
-      final bounds = stroke.fold(
-        Rect.fromPoints(origin, origin),
-        (r, p) => r.expandToInclude(Rect.fromPoints(p, p)),
-      );
       item = BoardItem(
         BoardDocument.newId(),
         BoardKind.stroke,
-        bounds.left,
-        bounds.top,
+        strokeBounds.left,
+        strokeBounds.top,
         color: drawingColor,
-        width: math.max(1, bounds.width),
-        height: math.max(1, bounds.height),
+        width: math.max(1, strokeBounds.width),
+        height: math.max(1, strokeBounds.height),
         points: [
-          for (final p in stroke) (x: p.dx - bounds.left, y: p.dy - bounds.top),
+          for (final p in points)
+            (x: p.dx - strokeBounds.left, y: p.dy - strokeBounds.top),
         ],
       );
     } else if (!moved) {
@@ -1007,7 +1021,7 @@ class _BoardState extends State<BoardView> {
             ),
           ),
           onPressed: () => setState(() {
-            ink.clear();
+            cancel();
             canvasFocus.requestFocus();
             tool = t.key;
             anchor = null;
@@ -1631,14 +1645,18 @@ class _BoardSemantics extends CustomPainter {
 
 class _GesturePreview extends ChangeNotifier {
   List<Offset> points = [];
+  Rect bounds = Rect.zero;
   Path path = Path();
   void begin(Offset p) {
     points = [p];
+    bounds = Rect.fromPoints(p, p);
     path = Path()..moveTo(p.dx, p.dy);
   }
 
   void add(Offset p) {
+    if (points.last == p) return;
     points.add(p);
+    bounds = bounds.expandToInclude(Rect.fromPoints(p, p));
     path.lineTo(p.dx, p.dy);
     notifyListeners();
   }
