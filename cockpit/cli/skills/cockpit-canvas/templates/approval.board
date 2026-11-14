@@ -1,0 +1,60 @@
+---
+version: 3
+id: 45fb1dd29ec34876a25a37c11212c950
+---
+
+# Canvas Board
+
+## process
+
+- id: request
+- x: 80
+- y: 80
+- width: 160
+- height: 64
+- color: #6EA8FE
+
+> Receber pedido
+
+## decision
+
+- id: approve
+- x: 360
+- y: 80
+- width: 160
+- height: 80
+
+> Pedido aprovado?
+
+## arrow
+
+- id: link
+- from: request
+- to: approve
+- x: 0
+- y: 0
+- width: 1
+- height: 1
+
+## process
+
+- id: release
+- x: 640
+- y: 80
+- width: 160
+- height: 64
+- color: #64CBA7
+
+> Liberar pagamento
+
+## arrow
+
+- id: approved
+- from: approve
+- to: release
+- x: 0
+- y: 0
+- width: 1
+- height: 1
+
+> Sim

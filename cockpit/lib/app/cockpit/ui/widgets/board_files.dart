@@ -1,9 +1,10 @@
 import 'dart:io';
-import 'board_miro_dialog.dart';
 import 'board_export.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:cockpit/i18n/strings.g.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import '../../domain/entities/board_document.dart';
 import '../../domain/services/board_interchange.dart';
 import '../../domain/services/board_editor.dart';
@@ -13,11 +14,13 @@ class BoardFiles extends StatelessWidget {
   const BoardFiles({
     super.key,
     required this.document,
+    required this.documentPath,
     required this.selection,
     required this.apply,
     required this.onError,
   });
   final BoardDocument document;
+  final String documentPath;
   final Set<String> selection;
   final Future<void> Function(BoardEdit) apply;
   final ValueChanged<String> onError;
@@ -48,40 +51,6 @@ class BoardFiles extends StatelessWidget {
   Future<void> run(BuildContext context, String action) async {
     try {
       final tr = context.t.cockpit.gallery.board;
-      if (action.startsWith('miro/')) {
-        final miro = await miroConnection(context);
-        if (miro == null || !context.mounted) return;
-        try {
-          if (action == 'miro/export') {
-            final omitted = document.items.values
-                .where(
-                  (i) =>
-                      i.kind == BoardKind.stroke || i.kind == BoardKind.mermaid,
-                )
-                .map((i) => i.kind.name)
-                .toSet();
-            if (await confirm(
-              context,
-              'Miro · ${tr.exportWarning}\n${omitted.join(', ')}',
-            )) {
-              await miro.publish(document);
-            }
-          } else {
-            final incoming = await miro.read();
-            if (!context.mounted ||
-                !await confirm(
-                  context,
-                  'Miro · ${tr.importWarning}\n${incoming.skipped.join(', ')}',
-                )) {
-              return;
-            }
-            await append(incoming.board);
-          }
-        } finally {
-          miro.close();
-        }
-        return;
-      }
       if (action == 'import') {
         final result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
@@ -115,7 +84,7 @@ class BoardFiles extends StatelessWidget {
         return;
       }
       final path = await FilePicker.platform.saveFile(
-        fileName: 'diagram.$format',
+        fileName: '${p.basenameWithoutExtension(documentPath)}.$format',
         type: FileType.custom,
         allowedExtensions: [format],
       );
@@ -165,50 +134,70 @@ class BoardFiles extends StatelessWidget {
         false;
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Future<void> openMenu(BuildContext context) async {
     final tr = context.t.cockpit.gallery.board;
-    return PopupMenuButton<String>(
-      tooltip: tr.fileActions,
-      icon: const Icon(Icons.import_export),
-      onSelected: (v) => run(context, v),
-      itemBuilder: (_) => [
-        PopupMenuItem(
+    final scope = await showAppMenu<String?>(
+      context,
+      items: [
+        AppMenuItem(
+          value: 'document',
+          label: tr.exportDocument,
+          icon: Icons.description_outlined,
+        ),
+        AppMenuItem(
+          value: 'selection',
+          label: tr.exportSelection,
+          icon: Icons.select_all,
+          enabled: selection.isNotEmpty,
+        ),
+        const AppMenuItem<String>.divider(),
+        AppMenuItem(
           value: 'import',
-          child: Text(
-            '${tr.openFile} · Board / Markdown / XML / draw.io / Excalidraw',
-          ),
+          label: tr.openFile,
+          icon: Icons.file_open_outlined,
         ),
-        for (final format in [
-          'png',
-          'pdf',
-          'html',
-          'xml',
-          'md',
-          'svg',
-          'drawio',
-          'excalidraw',
-          'mmd',
-        ])
-          PopupMenuItem(
-            value: format,
-            child: Text('${tr.exportFile} · $format'),
-          ),
-        PopupMenuItem(
-          value: 'miro/import',
-          child: Text('${tr.openFile} · Miro'),
-        ),
-        PopupMenuItem(
-          value: 'miro/export',
-          child: Text('${tr.exportFile} · Miro'),
-        ),
-        if (selection.isNotEmpty)
-          for (final format in ['png', 'pdf', 'html', 'svg'])
-            PopupMenuItem(
-              value: '$format/selected',
-              child: Text('${tr.select} · $format'),
-            ),
       ],
     );
+    if (scope == null || !context.mounted) return;
+    if (scope == 'document' || scope == 'selection') {
+      final selected = scope == 'selection';
+      final format = await showAppMenu<String?>(
+        context,
+        items: [
+          for (final format in [
+            'png',
+            'pdf',
+            'html',
+            'svg',
+            if (!selected) ...['xml', 'md', 'drawio', 'excalidraw', 'mmd'],
+          ])
+            AppMenuItem(
+              value: format,
+              label: switch (format) {
+                'md' => 'Markdown (.md)',
+                'drawio' => 'draw.io',
+                'excalidraw' => 'Excalidraw',
+                'mmd' => 'Mermaid (.mmd)',
+                _ => format.toUpperCase(),
+              },
+            ),
+        ],
+      );
+      if (format != null && context.mounted) {
+        await run(context, selected ? '$format/selected' : format);
+      }
+    } else {
+      await run(context, scope);
+    }
   }
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: context.t.cockpit.gallery.board.fileActions,
+    child: TextButton.icon(
+      icon: const Icon(Icons.import_export, size: 18),
+      label: Text(context.t.cockpit.gallery.board.exportFile),
+      onPressed: () => openMenu(context),
+    ),
+  );
 }

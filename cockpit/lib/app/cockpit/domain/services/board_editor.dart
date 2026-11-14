@@ -1,4 +1,3 @@
-import 'dart:convert';
 import '../entities/board_document.dart';
 
 /// All replacements are checked against the objects captured when editing
@@ -10,8 +9,11 @@ class BoardEdit {
   BoardDocument apply(BoardDocument current) {
     final next = {...current.items};
     for (final id in before.keys) {
-      if (jsonEncode(current.items[id]?.toJson()) !=
-          jsonEncode(before[id]?.toJson())) {
+      final actual = current.items[id], expected = before[id];
+      if (!identical(actual, expected) &&
+          (actual == null ||
+              expected == null ||
+              !actual.sameContent(expected))) {
         throw StateError('Board selection has changed');
       }
       final replacement = after[id];
@@ -21,7 +23,7 @@ class BoardEdit {
         next[id] = replacement;
       }
     }
-    return BoardDocument(next.values, id: current.id);
+    return BoardDocument(next.values, id: current.id, eol: current.eol);
   }
 
   factory BoardEdit.replace(BoardDocument doc, BoardItem item) =>

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:math';
 
+part 'board_markdown.dart';
+
 enum BoardKind {
   process,
   decision,
@@ -60,6 +62,30 @@ class BoardItem {
   final double x, y, width, height;
   final String? from, to, thumbnail, group;
   final List<BoardPoint> points;
+
+  bool sameContent(BoardItem other) {
+    if (id != other.id ||
+        kind != other.kind ||
+        x != other.x ||
+        y != other.y ||
+        width != other.width ||
+        height != other.height ||
+        color != other.color ||
+        label != other.label ||
+        group != other.group ||
+        from != other.from ||
+        to != other.to ||
+        thumbnail != other.thumbnail ||
+        points.length != other.points.length) {
+      return false;
+    }
+    if (!identical(points, other.points)) {
+      for (var index = 0; index < points.length; index++) {
+        if (points[index] != other.points[index]) return false;
+      }
+    }
+    return true;
+  }
 
   BoardItem edited({
     double? x,
@@ -153,7 +179,7 @@ class BoardItem {
 }
 
 class BoardDocument {
-  BoardDocument(Iterable<BoardItem> elements, {this.id})
+  BoardDocument(Iterable<BoardItem> elements, {this.id, this.eol = '\n'})
     : items = Map.unmodifiable({for (final e in elements) e.id: e}) {
     if (items.length != elements.length) {
       throw const FormatException('Duplicate board item');
@@ -169,6 +195,7 @@ class BoardDocument {
   }
   final Map<String, BoardItem> items;
   final String? id;
+  final String eol;
   static final _rng = Random.secure();
   static String newId() => List.generate(
     16,
@@ -177,7 +204,6 @@ class BoardDocument {
   static const _heading = '# Canvas Board';
   static final _field = RegExp(r'^- ([a-z]+): (.+)$', dotAll: true);
   static final _mermaidFence = RegExp(r'^(`{3,})mermaid$');
-  static final _backtickRuns = RegExp(r'`{3,}');
   static const _itemFields = {
     'id',
     'color',
@@ -193,44 +219,9 @@ class BoardDocument {
     'points',
   };
 
-  String encode() {
-    final output = StringBuffer()
-      ..writeln(_heading)
-      ..writeln()
-      ..writeln('- version: 2');
-    if (id != null) output.writeln('- id: ${jsonEncode(id)}');
-    for (final item in items.values) {
-      output
-        ..writeln()
-        ..writeln('## ${item.kind.name}')
-        ..writeln();
-      // Use a real Mermaid fence for LF source, including trailing blank lines.
-      // Quoted strings preserve other line endings verbatim.
-      final fenceSource =
-          item.kind == BoardKind.mermaid && !item.label.contains('\r');
-      for (final field in item.toJson().entries) {
-        if (field.key == 'kind' || (fenceSource && field.key == 'label')) {
-          continue;
-        }
-        output.writeln('- ${field.key}: ${jsonEncode(field.value)}');
-      }
-      if (fenceSource) {
-        var fenceLength = 3;
-        for (final run in _backtickRuns.allMatches(item.label)) {
-          fenceLength = max(fenceLength, run.end - run.start + 1);
-        }
-        final fence = '`' * fenceLength;
-        output
-          ..writeln()
-          ..writeln('${fence}mermaid')
-          ..writeln(item.label)
-          ..writeln(fence);
-      }
-    }
-    return output.toString();
-  }
+  String encode() => _CanvasMarkdown.write(this);
 
-  static BoardDocument _readMarkdown(String source) {
+  static BoardDocument _readLegacyMarkdown(String source) {
     final lines = const LineSplitter().convert(source);
     if (lines.isEmpty || lines.first != _heading) {
       throw const FormatException('Expected Canvas Board heading');
@@ -282,7 +273,8 @@ class BoardDocument {
   factory BoardDocument.parse(String source) {
     try {
       source = source.replaceFirst(RegExp('^\uFEFF'), '').trimLeft();
-      if (!source.startsWith('{')) return _readMarkdown(source);
+      if (source.startsWith('---')) return _CanvasMarkdown.read(source);
+      if (!source.startsWith('{')) return _readLegacyMarkdown(source);
       final map = jsonDecode(source);
       if (map['version'] != 1) {
         throw const FormatException('Unsupported board version');

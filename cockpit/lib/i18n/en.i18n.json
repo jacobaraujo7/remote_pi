@@ -794,8 +794,11 @@
     "gallery": {
       "board": {
         "fileActions": "Import or export",
+        "exportDocument": "Export entire document",
         "exportSelection": "Export selection",
         "appendBoard": "Add this board to the canvas?",
+        "fitDocument": "Fit document",
+        "fitSelection": "Fit selection",
         "diagramColor": "Diagram color",
         "themeColor": "Theme default",
         "blue": "Blue",
@@ -806,6 +809,11 @@
         "cyan": "Cyan",
         "emptyBoard": "Choose a shape and click or drag to draw it.",
         "arrowStart": "Choose the first shape, or drag to the destination.",
+        "keyboardHelp": "Tab selects objects · Arrows move · Shift ×10 · C connects",
+        "moveHere": "Move here",
+        "moveDestination": "Click where to place the selection · Esc cancels",
+        "keyboardTarget": "Destination: ${target}. Tab changes it, Enter connects, Esc cancels.",
+        "connectorEndpoints": "From ${from} to ${to}",
         "arrowEnd": "Choose the destination shape.",
         "diagramTypes": "Diagram types",
         "replaceSource": "Replace the current source with this example?",

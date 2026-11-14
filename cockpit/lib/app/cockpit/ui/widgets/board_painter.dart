@@ -13,8 +13,10 @@ class BoardPainter extends CustomPainter {
     this.ink,
     this.bg,
     this.accent,
-    this.labelStyle,
-  );
+    this.labelStyle, {
+    this.origin = Offset.zero,
+  });
+  final Offset origin;
   final List<BoardItem> items;
   final List<Offset> Function(BoardItem) route;
   final Set<String> selected;
@@ -22,6 +24,8 @@ class BoardPainter extends CustomPainter {
   final TextStyle labelStyle;
   @override
   void paint(Canvas c, Size size) {
+    c.save();
+    c.translate(origin.dx, origin.dy);
     void line(List<Offset> pts, Paint paint) {
       if (pts.isEmpty) return;
       final path = Path()..moveTo(pts.first.dx, pts.first.dy);
@@ -118,6 +122,7 @@ class BoardPainter extends CustomPainter {
       text.paint(c, origin);
       text.dispose();
     }
+    c.restore();
   }
 
   @override

@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:flutter/gestures.dart' show kDoubleTapTimeout, kDoubleTapSlop;
 import 'package:flutter/services.dart';
+import 'package:flutter/semantics.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import '../../domain/entities/board_document.dart';
@@ -32,6 +34,33 @@ class BoardView extends StatefulWidget {
 class _BoardState extends State<BoardView> {
   final viewport = GlobalKey();
   final transform = TransformationController();
+  Rect sceneExtent = const Rect.fromLTWH(0, 0, 6000, 6000);
+  Offset get sceneOrigin => -sceneExtent.topLeft;
+
+  void includeGeometry(Iterable<BoardItem> items) {
+    var extent = sceneExtent;
+    for (final item in items) {
+      if (item.kind != BoardKind.arrow) {
+        extent = extent.expandToInclude(
+          Rect.fromLTWH(item.x, item.y, item.width, item.height),
+        );
+      }
+    }
+    if (extent == sceneExtent) return;
+    final delta = sceneExtent.topLeft - extent.topLeft;
+    sceneExtent = extent;
+    if (delta == Offset.zero) return;
+    final matrix = transform.value.clone();
+    final previous = matrix.getTranslation();
+    final scale = matrix.getMaxScaleOnAxis();
+    transform.value = matrix
+      ..setTranslationRaw(
+        previous.x - delta.dx * scale,
+        previous.y - delta.dy * scale,
+        previous.z,
+      );
+  }
+
   final label = TextEditingController();
   final history = <BoardEdit>[];
   BoardDocument? doc;
@@ -66,15 +95,67 @@ class _BoardState extends State<BoardView> {
     final middle = box.size.center(Offset.zero);
     final scene = transform.toScene(middle);
     final scale = (transform.value.getMaxScaleOnAxis() * factor).clamp(
-      .15,
+      .001,
       5.0,
     );
+    positionCamera(middle, scene, scale);
+  }
+
+  void positionCamera(Offset middle, Offset scene, double scale) {
     final offset = middle - scene * scale;
     transform.value = Matrix4.identity()
       ..setEntry(0, 0, scale)
       ..setEntry(1, 1, scale)
       ..setEntry(2, 2, scale)
       ..setTranslationRaw(offset.dx, offset.dy, 0);
+  }
+
+  Rect itemBounds(BoardItem item) {
+    if (item.kind != BoardKind.arrow) {
+      return Rect.fromLTWH(item.x, item.y, item.width, item.height);
+    }
+    final path = route(item);
+    final bounds = Rect.fromPoints(path.first, path.last).inflate(9);
+    return item.label.isEmpty
+        ? bounds
+        : bounds.expandToInclude(editorBounds(item));
+  }
+
+  void revealItem(BoardItem item) {
+    final box = viewport.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final visible = Rect.fromPoints(
+      transform.toScene(Offset.zero),
+      transform.toScene(box.size.bottomRight(Offset.zero)),
+    );
+    final bounds = itemBounds(item).shift(sceneOrigin);
+    if (visible.contains(bounds.topLeft) &&
+        visible.contains(bounds.bottomRight)) {
+      return;
+    }
+    positionCamera(
+      box.size.center(Offset.zero),
+      bounds.center,
+      transform.value.getMaxScaleOnAxis(),
+    );
+  }
+
+  void fitItems(Iterable<BoardItem> items) {
+    final box = viewport.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || items.isEmpty) return;
+    final bounds = items.map(itemBounds).reduce((a, b) => a.expandToInclude(b));
+    final scale = math
+        .min(
+          (box.size.width - 32) / math.max(1, bounds.width),
+          (box.size.height - 32) / math.max(1, bounds.height),
+        )
+        .clamp(.001, 5.0);
+    positionCamera(
+      box.size.center(Offset.zero),
+      bounds.center + sceneOrigin,
+      scale,
+    );
+    canvasFocus.requestFocus();
   }
 
   void editLabel(BoardItem? item) {
@@ -169,6 +250,10 @@ class _BoardState extends State<BoardView> {
       return;
     }
     final b = doc?.items[targetAt(p, from)];
+    previewTarget(a, b, p);
+  }
+
+  void previewTarget(BoardItem a, BoardItem? b, Offset p) {
     final q = b == null ? p : center(b);
     final sign = center(a).dx <= q.dx ? 1 : -1;
     final left = center(a) + Offset(sign * a.width / 2, 0);
@@ -183,20 +268,27 @@ class _BoardState extends State<BoardView> {
   void hover(PointerHoverEvent e) {
     if (editing != null || navigating || pointer != null || doc == null) return;
     if (anchor != null) {
-      previewConnection(anchor!, e.localPosition);
+      previewConnection(anchor!, (e.localPosition - sceneOrigin));
       return;
     }
     if (tool != 'select') return;
-    final id = handleAt(e.localPosition) ?? targetAt(e.localPosition, null);
+    final id =
+        handleAt((e.localPosition - sceneOrigin)) ??
+        targetAt((e.localPosition - sceneOrigin), null);
     final next = connectable(doc!.items[id]) ? id : null;
     if (next != hovered) setState(() => hovered = next);
   }
 
   Future<void> finishConnection(String from, Offset p) async {
     final to = targetAt(p, from);
+    await connectItems(from, to);
+  }
+
+  Future<void> connectItems(String from, String? to) async {
     setState(() {
       anchor = null;
       connectionStart = null;
+      keyboardTarget = null;
     });
     ink.clear();
     if (to == null || !doc!.items.containsKey(from)) return;
@@ -212,6 +304,102 @@ class _BoardState extends State<BoardView> {
     await commit(BoardEdit.replace(doc!, edge));
   }
 
+  String? keyboardTarget;
+
+  bool traverseItems({required bool backwards}) {
+    final all = doc?.items.values;
+    if (all == null || all.isEmpty) return false;
+    final from = anchor;
+    final candidates = all
+        .where((item) => from == null || (item.id != from && connectable(item)))
+        .toList();
+    if (candidates.isEmpty) return false;
+    final id = from == null ? selected : keyboardTarget;
+    final currentIndex = candidates.indexWhere((item) => item.id == id);
+    final index = currentIndex < 0
+        ? (backwards ? candidates.length - 1 : 0)
+        : currentIndex + (backwards ? -1 : 1);
+    // Let Flutter traverse out of the canvas at either boundary.
+    if (from == null && (index < 0 || index >= candidates.length)) return false;
+    final item = candidates[index % candidates.length];
+    if (from == null) {
+      setState(() => select(item.id));
+    } else {
+      final origin = doc!.items[from];
+      if (origin == null) return false;
+      setState(() => keyboardTarget = item.id);
+      previewTarget(origin, item, center(item));
+    }
+    revealItem(item);
+    return true;
+  }
+
+  String itemDescription(BoardItem item) {
+    final tr = context.t.cockpit.gallery.board;
+    final kind = switch (item.kind) {
+      BoardKind.process => tr.process,
+      BoardKind.decision => tr.decision,
+      BoardKind.text => tr.text,
+      BoardKind.note => tr.note,
+      BoardKind.stroke => tr.pencil,
+      BoardKind.service => tr.service,
+      BoardKind.lane => tr.lane,
+      BoardKind.container => tr.container,
+      BoardKind.arrow => tr.arrow,
+      BoardKind.mermaid => 'Mermaid',
+    };
+    final title = item.label.trim().split('\n').first;
+    final name = title.isEmpty ? kind : '$kind · $title';
+    if (item.kind != BoardKind.arrow) return name;
+    final from = doc?.items[item.from], to = doc?.items[item.to];
+    if (from == null || to == null) return name;
+    return '$name · ${tr.connectorEndpoints(from: itemDescription(from), to: itemDescription(to))}';
+  }
+
+  CustomPainterSemantics itemSemantics(BoardItem item) {
+    return CustomPainterSemantics(
+      key: ValueKey(item.id),
+      rect:
+          (item.kind == BoardKind.arrow
+                  ? editorBounds(item)
+                  : Rect.fromLTWH(item.x, item.y, item.width, item.height))
+              .shift(sceneOrigin),
+      properties: SemanticsProperties(
+        textDirection: Directionality.of(context),
+        label: itemDescription(item),
+        button: true,
+        selected: selection.contains(item.id),
+        focused:
+            canvasFocus.hasPrimaryFocus &&
+            item.id == (keyboardTarget ?? selected),
+        onTap: () {
+          if (anchor != null && anchor != item.id && connectable(item)) {
+            unawaited(connectItems(anchor!, item.id));
+          } else {
+            setState(() => select(item.id));
+            canvasFocus.requestFocus();
+            revealItem(item);
+          }
+        },
+        onLongPress: editable(item) ? () => editLabel(item) : null,
+      ),
+    );
+  }
+
+  void beginKeyboardConnection(BoardItem? item) {
+    if (!connectable(item) ||
+        !doc!.items.values.any(
+          (other) => other.id != item!.id && connectable(other),
+        )) {
+      return;
+    }
+    setState(() {
+      anchor = item!.id;
+      keyboardTarget = null;
+    });
+    traverseItems(backwards: false);
+  }
+
   KeyEventResult canvasKey(FocusNode node, KeyEvent event) {
     if (editing != null || !node.hasPrimaryFocus) return KeyEventResult.ignored;
     if (event.logicalKey == LogicalKeyboardKey.space) {
@@ -225,7 +413,55 @@ class _BoardState extends State<BoardView> {
     if (event.logicalKey == LogicalKeyboardKey.escape &&
         event is KeyDownEvent) {
       cancel();
-      setState(() => anchor = null);
+      setState(() {
+        anchor = null;
+        keyboardTarget = null;
+        if (tool == 'moveHere') tool = 'select';
+      });
+      return KeyEventResult.handled;
+    }
+    if (event is KeyUpEvent || doc == null || navigating) {
+      return KeyEventResult.ignored;
+    }
+    final keyboard = HardwareKeyboard.instance;
+    if (keyboard.isControlPressed ||
+        keyboard.isMetaPressed ||
+        keyboard.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.tab &&
+        traverseItems(backwards: keyboard.isShiftPressed)) {
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter &&
+        anchor != null &&
+        keyboardTarget != null) {
+      unawaited(connectItems(anchor!, keyboardTarget));
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.keyC &&
+        event is KeyDownEvent &&
+        anchor == null) {
+      beginKeyboardConnection(doc!.items[selected]);
+      return KeyEventResult.handled;
+    }
+    final delta = switch (key) {
+      LogicalKeyboardKey.arrowLeft => const Offset(-1, 0),
+      LogicalKeyboardKey.arrowRight => const Offset(1, 0),
+      LogicalKeyboardKey.arrowUp => const Offset(0, -1),
+      LogicalKeyboardKey.arrowDown => const Offset(0, 1),
+      _ => null,
+    };
+    if (delta != null && selected != null && anchor == null) {
+      final step = delta * (keyboard.isShiftPressed ? 10 : 1);
+      unawaited(
+        changeSelection(
+          (item, _) => item.edited(x: item.x + step.dx, y: item.y + step.dy),
+        ),
+      );
+      final moved = doc!.items[selected];
+      if (moved != null) revealItem(moved);
       return KeyEventResult.handled;
     }
     return KeyEventResult.ignored;
@@ -307,6 +543,7 @@ class _BoardState extends State<BoardView> {
       }
       try {
         doc = content == null ? null : BoardDocument.parse(content);
+        if (doc != null) includeGeometry(doc!.items.values);
         error = null;
       } on FormatException catch (e) {
         doc = null;
@@ -314,6 +551,12 @@ class _BoardState extends State<BoardView> {
       }
       if (doc?.items.containsKey(editing?.id) != true) editing = null;
       if (doc?.items.containsKey(selected) != true) select(null);
+      if (doc?.items.containsKey(anchor) != true) {
+        anchor = null;
+        keyboardTarget = null;
+      } else if (doc?.items.containsKey(keyboardTarget) != true) {
+        keyboardTarget = null;
+      }
     });
   }
 
@@ -339,6 +582,7 @@ class _BoardState extends State<BoardView> {
       final next = edit.apply(doc!);
       setState(() {
         doc = next;
+        includeGeometry(edit.after.values.whereType<BoardItem>());
         error = null;
         pending.add((edit: edit, done: done, undo: undo));
       });
@@ -436,6 +680,22 @@ class _BoardState extends State<BoardView> {
 
   Future<void> tap(Offset p, {Rect? bounds}) async {
     if (doc == null) return;
+    if (tool == 'moveHere') {
+      setState(() => tool = 'select');
+      final chosen = doc!.items.values.where(
+        (item) => selection.contains(item.id) && item.kind != BoardKind.arrow,
+      );
+      if (chosen.isEmpty) return;
+      final center = chosen
+          .map(itemBounds)
+          .reduce((a, b) => a.expandToInclude(b))
+          .center;
+      final offset = p - center;
+      await changeSelection(
+        (item, _) => item.edited(x: item.x + offset.dx, y: item.y + offset.dy),
+      );
+      return;
+    }
     final id = hit(p);
     if (id != null && !doc!.items.containsKey(id)) return;
     if (tool == 'select') {
@@ -452,7 +712,10 @@ class _BoardState extends State<BoardView> {
     }
     if (tool == 'arrow') {
       if (!connectable(doc!.items[id])) return;
-      setState(() => anchor = id);
+      setState(() {
+        keyboardTarget = null;
+        anchor = id;
+      });
       return;
     }
     if (tool == 'pan' || tool == 'pencil') return;
@@ -487,14 +750,16 @@ class _BoardState extends State<BoardView> {
     }
     if (e.buttons != 1 || navigating) return;
     if (editing != null) {
-      if (editorBounds(doc!.items[editing!.id]!).contains(e.localPosition)) {
+      if (editorBounds(
+        doc!.items[editing!.id]!,
+      ).contains((e.localPosition - sceneOrigin))) {
         return;
       }
       finishLabel();
     }
     canvasFocus.requestFocus();
     pointer = e.pointer;
-    start = e.localPosition;
+    start = (e.localPosition - sceneOrigin);
     moved = false;
     connectionStart =
         anchor ??
@@ -507,7 +772,7 @@ class _BoardState extends State<BoardView> {
 
   void move(PointerMoveEvent e) {
     if (pointer != e.pointer || start == null) return;
-    final p = e.localPosition;
+    final p = (e.localPosition - sceneOrigin);
     final delta = p - start!;
     if (!moved && delta.distance * transform.value.getMaxScaleOnAxis() < 3) {
       return;
@@ -549,7 +814,7 @@ class _BoardState extends State<BoardView> {
 
   Future<void> end(PointerUpEvent e) async {
     if (pointer != e.pointer || start == null) return;
-    final origin = start!, p = e.localPosition;
+    final origin = start!, p = (e.localPosition - sceneOrigin);
     final from = connectionStart;
     final points = ink.points;
     final dragged = dragItem;
@@ -560,7 +825,10 @@ class _BoardState extends State<BoardView> {
     cancel();
     if (from != null) {
       if (!moved && anchor == null) {
-        setState(() => anchor = from);
+        setState(() {
+          keyboardTarget = null;
+          anchor = from;
+        });
         previewConnection(from, p);
       } else {
         await finishConnection(from, p);
@@ -678,7 +946,10 @@ class _BoardState extends State<BoardView> {
       return Stack(
         children: [
           CustomPaint(
-            size: const Size(6000, 6000),
+            foregroundPainter: _BoardSemantics(
+              () => [for (final item in positioned) itemSemantics(item)],
+            ),
+            size: sceneExtent.size,
             painter: BoardPainter(
               positioned,
               route,
@@ -687,13 +958,14 @@ class _BoardState extends State<BoardView> {
               colors.bg,
               colors.accent,
               context.typo.body,
+              origin: sceneOrigin,
             ),
           ),
           for (final i in positioned)
             if (i.kind == BoardKind.mermaid && i.thumbnail != null)
               Positioned(
-                left: i.x + 2,
-                top: i.y + 2,
+                left: sceneOrigin.dx + i.x + 2,
+                top: sceneOrigin.dy + i.y + 2,
                 width: i.width - 4,
                 height: i.height - 4,
                 child: IgnorePointer(child: _Thumbnail(source: i.thumbnail!)),
@@ -739,6 +1011,7 @@ class _BoardState extends State<BoardView> {
             canvasFocus.requestFocus();
             tool = t.key;
             anchor = null;
+            keyboardTarget = null;
           }),
         ),
       IconButton(
@@ -855,6 +1128,7 @@ class _BoardState extends State<BoardView> {
                         if (doc != null)
                           BoardFiles(
                             document: doc!,
+                            documentPath: widget.session.path,
                             selection: Set.of(selection),
                             apply: commit,
                             onError: (e) {
@@ -964,7 +1238,8 @@ class _BoardState extends State<BoardView> {
                           transformationController: transform,
                           constrained: false,
                           alignment: Alignment.topLeft,
-                          minScale: .15,
+                          boundaryMargin: const EdgeInsets.all(double.infinity),
+                          minScale: .001,
                           maxScale: 5,
                           panEnabled: navigating,
                           child: Listener(
@@ -1012,8 +1287,14 @@ class _BoardState extends State<BoardView> {
                                       dragItem == null &&
                                       anchor == null)
                                     Positioned(
-                                      left: handleCenter(handleItem).dx - 7,
-                                      top: handleCenter(handleItem).dy - 7,
+                                      left:
+                                          sceneOrigin.dx +
+                                          handleCenter(handleItem).dx -
+                                          7,
+                                      top:
+                                          sceneOrigin.dy +
+                                          handleCenter(handleItem).dy -
+                                          7,
                                       child: IgnorePointer(
                                         child: DecoratedBox(
                                           decoration: BoxDecoration(
@@ -1050,6 +1331,7 @@ class _BoardState extends State<BoardView> {
                                         child: CustomPaint(
                                           painter: _PreviewPainter(
                                             ink,
+                                            sceneOrigin,
                                             tool == 'pencil' &&
                                                     drawingColor != null
                                                 ? swatch(drawingColor!)
@@ -1061,7 +1343,9 @@ class _BoardState extends State<BoardView> {
                                   ),
                                   if (edited != null)
                                     Positioned.fromRect(
-                                      rect: editorBounds(edited),
+                                      rect: editorBounds(
+                                        edited,
+                                      ).shift(sceneOrigin),
                                       child: Material(
                                         color: colors.bg,
                                         child: CallbackShortcuts(
@@ -1114,107 +1398,126 @@ class _BoardState extends State<BoardView> {
               ),
             ),
           const Divider(height: 1),
-          SizedBox(
-            height: 38,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 640;
+              final status = Semantics(
+                liveRegion: true,
+                child: Text(
+                  anchor != null &&
+                          keyboardTarget != null &&
+                          doc?.items[keyboardTarget] != null
+                      ? tr.keyboardTarget(
+                          target: itemDescription(doc!.items[keyboardTarget]!),
+                        )
+                      : tool == 'moveHere'
+                      ? tr.moveDestination
+                      : tool == 'arrow' || anchor != null
+                      ? (anchor == null ? tr.arrowStart : tr.arrowEnd)
+                      : doc?.items.isEmpty == true
+                      ? tr.emptyBoard
+                      : tool == 'select'
+                      ? tr.keyboardHelp
+                      : tools[tool]?.$2 ?? '',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: context.typo.label.copyWith(color: colors.text2),
+                ),
+              );
+              final controls = Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text(
-                      tool == 'arrow' || anchor != null
-                          ? (anchor == null ? tr.arrowStart : tr.arrowEnd)
-                          : doc?.items.isEmpty == true
-                          ? tr.emptyBoard
-                          : tools[tool]?.$2 ?? '',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: context.typo.label.copyWith(color: colors.text2),
-                    ),
-                  ),
-                  PopupMenuButton<String>(
-                    constraints: const BoxConstraints(
-                      minWidth: 200,
-                      maxWidth: 320,
-                    ),
-                    enabled:
-                        tool != 'select' || current?.kind != BoardKind.mermaid,
-                    tooltip: tr.diagramColor,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.palette_outlined,
-                            size: 18,
-                            color: colors.text2,
-                          ),
-                          const SizedBox(width: 5),
-                          Text(
-                            tr.diagramColor,
-                            style: context.typo.label.copyWith(
-                              color: colors.text,
-                            ),
-                          ),
-                          const SizedBox(width: 5),
-                          for (final rgb
-                              in targetColor == null
-                                  ? swatches.keys.skip(1).take(3)
-                                  : [targetColor])
-                            Container(width: 8, height: 12, color: swatch(rgb)),
-                        ],
-                      ),
-                    ),
-                    itemBuilder: (_) => [
-                      for (final entry in swatches.entries)
-                        CheckedPopupMenuItem(
-                          value: entry.key,
-                          checked: (targetColor ?? '') == entry.key,
+                  Builder(
+                    builder: (buttonContext) => Tooltip(
+                      message: tr.diagramColor,
+                      child: TextButton(
+                        onPressed:
+                            tool == 'select' &&
+                                current?.kind == BoardKind.mermaid
+                            ? null
+                            : () async {
+                                final value = await showAppMenu<String?>(
+                                  buttonContext,
+                                  items: [
+                                    for (final entry in swatches.entries)
+                                      AppMenuItem(
+                                        value: entry.key,
+                                        label: entry.value,
+                                        selected:
+                                            (targetColor ?? '') == entry.key,
+                                        leading: Icon(
+                                          entry.key.isEmpty
+                                              ? Icons.tonality
+                                              : Icons.circle,
+                                          size: 16,
+                                          color: entry.key.isEmpty
+                                              ? colors.text2
+                                              : swatch(entry.key),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                                if (!mounted) return;
+                                canvasFocus.requestFocus();
+                                if (value == null) return;
+                                final color = value.isEmpty ? null : value;
+                                if (tool == 'select' && current != null) {
+                                  final items = doc!.items.values.where(
+                                    (i) =>
+                                        selection.contains(i.id) &&
+                                        i.kind != BoardKind.mermaid &&
+                                        i.color != color,
+                                  );
+                                  if (items.isNotEmpty) {
+                                    commit(
+                                      BoardEdit(
+                                        {for (final i in items) i.id: i},
+                                        {
+                                          for (final i in items)
+                                            i.id: i.edited(
+                                              color: color,
+                                              clearColor: color == null,
+                                            ),
+                                        },
+                                      ),
+                                    );
+                                  }
+                                } else {
+                                  setState(() => drawingColor = color);
+                                }
+                              },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
                           child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                entry.key.isEmpty
-                                    ? Icons.tonality
-                                    : Icons.circle,
-                                size: 16,
-                                color: entry.key.isEmpty
-                                    ? colors.text2
-                                    : swatch(entry.key),
+                                Icons.palette_outlined,
+                                size: 18,
+                                color: colors.text2,
                               ),
-                              const SizedBox(width: 8),
-                              Flexible(child: Text(entry.value)),
+                              const SizedBox(width: 5),
+                              Text(
+                                tr.diagramColor,
+                                style: context.typo.label.copyWith(
+                                  color: colors.text,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              for (final rgb
+                                  in targetColor == null
+                                      ? swatches.keys.skip(1).take(3)
+                                      : [targetColor])
+                                Container(
+                                  width: 8,
+                                  height: 12,
+                                  color: swatch(rgb),
+                                ),
                             ],
                           ),
                         ),
-                    ],
-                    onSelected: (value) {
-                      final color = value.isEmpty ? null : value;
-                      if (tool == 'select' && current != null) {
-                        final items = doc!.items.values.where(
-                          (i) =>
-                              selection.contains(i.id) &&
-                              i.kind != BoardKind.mermaid &&
-                              i.color != color,
-                        );
-                        if (items.isNotEmpty) {
-                          commit(
-                            BoardEdit(
-                              {for (final i in items) i.id: i},
-                              {
-                                for (final i in items)
-                                  i.id: i.edited(
-                                    color: color,
-                                    clearColor: color == null,
-                                  ),
-                              },
-                            ),
-                          );
-                        }
-                      } else {
-                        setState(() => drawingColor = color);
-                      }
-                    },
+                      ),
+                    ),
                   ),
                   if (editable(current))
                     TextButton.icon(
@@ -1222,6 +1525,39 @@ class _BoardState extends State<BoardView> {
                       label: Text(tr.label),
                       onPressed: () => editLabel(current),
                     ),
+                  if (selection.any(
+                    (id) => doc?.items[id]?.kind != BoardKind.arrow,
+                  ))
+                    IconButton(
+                      tooltip: tr.moveHere,
+                      isSelected: tool == 'moveHere',
+                      icon: const Icon(Icons.open_with, size: 17),
+                      onPressed: () {
+                        canvasFocus.requestFocus();
+                        ink.clear();
+                        setState(() {
+                          tool = tool == 'moveHere' ? 'select' : 'moveHere';
+                          anchor = null;
+                          keyboardTarget = null;
+                        });
+                      },
+                    ),
+                  IconButton(
+                    tooltip: tr.fitDocument,
+                    iconSize: 17,
+                    icon: const Icon(Icons.fit_screen),
+                    onPressed: objects.isEmpty ? null : () => fitItems(objects),
+                  ),
+                  IconButton(
+                    tooltip: tr.fitSelection,
+                    iconSize: 17,
+                    icon: const Icon(Icons.center_focus_strong),
+                    onPressed: selection.isEmpty
+                        ? null
+                        : () => fitItems(
+                            objects.where((i) => selection.contains(i.id)),
+                          ),
+                  ),
                   IconButton(
                     tooltip: context.t.core.menu.zoomOut,
                     iconSize: 17,
@@ -1244,13 +1580,53 @@ class _BoardState extends State<BoardView> {
                     onPressed: () => zoomBy(1.2),
                   ),
                 ],
-              ),
-            ),
+              );
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 6 : 12),
+                child: compact
+                    ? Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          status,
+                          SizedBox(
+                            height: 38,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: controls,
+                            ),
+                          ),
+                        ],
+                      )
+                    : SizedBox(
+                        height: 38,
+                        child: Row(
+                          children: [
+                            Expanded(child: status),
+                            controls,
+                          ],
+                        ),
+                      ),
+              );
+            },
           ),
         ],
       ),
     );
   }
+}
+
+class _BoardSemantics extends CustomPainter {
+  _BoardSemantics(this.nodes);
+  final List<CustomPainterSemantics> Function() nodes;
+  @override
+  SemanticsBuilderCallback get semanticsBuilder =>
+      (_) => nodes();
+  @override
+  bool shouldRebuildSemantics(_BoardSemantics old) => true;
+  @override
+  void paint(Canvas canvas, Size size) {}
+  @override
+  bool shouldRepaint(_BoardSemantics old) => false;
 }
 
 class _GesturePreview extends ChangeNotifier {
@@ -1308,11 +1684,15 @@ class _GesturePreview extends ChangeNotifier {
 }
 
 class _PreviewPainter extends CustomPainter {
-  _PreviewPainter(this.preview, this.color) : super(repaint: preview);
+  _PreviewPainter(this.preview, this.origin, this.color)
+    : super(repaint: preview);
   final _GesturePreview preview;
+  final Offset origin;
   final Color color;
   @override
   void paint(Canvas canvas, Size size) {
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
     final r = preview.target;
     if (r != null) {
       final outline = Path();
@@ -1344,11 +1724,12 @@ class _PreviewPainter extends CustomPainter {
         ..strokeCap = StrokeCap.round
         ..strokeWidth = 2,
     );
+    canvas.restore();
   }
 
   @override
   bool shouldRepaint(_PreviewPainter old) =>
-      color != old.color || preview != old.preview;
+      origin != old.origin || color != old.color || preview != old.preview;
 }
 
 class _Thumbnail extends StatefulWidget {

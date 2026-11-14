@@ -7,6 +7,10 @@ description: Draw or revise flowcharts, swimlanes, architecture diagrams and Mer
 
 Choose the representation by what the person will edit next.
 
+Start from the [editable approval flow](templates/approval.board) when you need a working example. Copy it into the workspace, give the copy its own document ID, then edit it with your normal text tools.
+
+Work on the local workspace file. Read the current revision before changing it, keep the IDs of existing items, and preserve unrelated sections. Re-read the file immediately before replacing it. If it changed while you were preparing an edit, apply that edit to the latest version and check both connector endpoints. The person can reopen the same file in the Gallery or use Reload to see the result.
+
 - **Move individual steps, connect shapes or arrange a canvas.** Use a Gallery **Board**. For a workspace file, follow [the native document format](references/board.md). Open the finished document from the workspace tree or with `cockpit open "path/to/diagram.board"` inside a Cockpit terminal.
 - **Maintain a diagram as text.** Write Mermaid in the requested Markdown fence or as plain source in a UTF-8 `.mmd` file. For a Board containing Mermaid, use [the Mermaid workflow](references/mermaid.md).
 

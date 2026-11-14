@@ -31,3 +31,9 @@ Para avaliar a experiência real, repetir três vezes em cada máquina, alternan
 ### Cor como informação
 
 A paleta no rodapé aplica cor a uma seleção ou aos próximos objetos quando uma ferramenta de desenho está ativa. O fluxo de exemplo usa azul para entrada, âmbar para decisão e verde para o caminho aprovado. Esses significados pertencem ao desenho. Manter “Aprovado?” no losango e “Sim” na seta permite compreender o caminho mesmo quando duas cores parecem iguais. A opção de tema recupera a aparência original; mudar a cor pode ser desfeito como uma única edição.
+
+## Roteiro de observação local
+
+Em cada uma das cinco sessões, abrir um workspace local vazio e entregar a mesma tarefa por escrito. “Desenhe um fluxo que começa com um pedido e termina numa decisão. Renomeie a primeira etapa para ‘Receber pedido’, ligue-a à decisão e salve uma cópia do desenho em PNG.” Deixar a pessoa escolher os gestos. Registrar por tarefa a conclusão sem ajuda, ações equivocadas, perda de seleção e qualquer intervenção. Abrir o PNG ao final. A meta do plano é que pelo menos quatro pessoas concluam as quatro tarefas sem ajuda. Ainda não há resultados de participantes.
+
+Para o percurso assistivo, ativar o Narrador e entrar no desenho pelo teclado. Registrar o que ele anuncia ao selecionar e mover a primeira etapa, renomeá-la, escolher o destino da conexão e voltar do menu de exportação. Para o trackpad, enquadrar o documento, selecionar a decisão, aplicar zoom e enquadrar a seleção. Conferir que o mesmo objeto continua selecionado. A latência física exige registrar o gesto e a primeira resposta visível no mesmo relógio, informando frequência da captura e do monitor.

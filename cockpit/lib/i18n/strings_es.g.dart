@@ -1761,8 +1761,11 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 
 	// Translations
 	@override String get fileActions => 'Importar o exportar';
+	@override String get exportDocument => 'Exportar documento completo';
 	@override String get exportSelection => 'Exportar selección';
 	@override String get appendBoard => '¿Añadir este documento al lienzo?';
+	@override String get fitDocument => 'Ajustar documento';
+	@override String get fitSelection => 'Ajustar selección';
 	@override String get diagramColor => 'Color del dibujo';
 	@override String get themeColor => 'Predeterminado del tema';
 	@override String get blue => 'Azul';
@@ -1773,6 +1776,11 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 	@override String get cyan => 'Cian';
 	@override String get emptyBoard => 'Elige una forma y haz clic o arrastra para dibujarla.';
 	@override String get arrowStart => 'Elige la primera forma o arrastra hasta el destino.';
+	@override String get keyboardHelp => 'Tab selecciona · Flechas mueven · Mayús ×10 · C conecta';
+	@override String get moveHere => 'Mover aquí';
+	@override String get moveDestination => 'Haz clic donde quieras colocar la selección · Esc cancela';
+	@override String keyboardTarget({required Object target}) => 'Destino: ${target}. Tab cambia, Intro conecta, Esc cancela.';
+	@override String connectorEndpoints({required Object from, required Object to}) => 'De ${from} a ${to}';
 	@override String get arrowEnd => 'Elige la forma de destino.';
 	@override String get diagramTypes => 'Tipos de diagrama';
 	@override String get replaceSource => '¿Reemplazar el código actual con este ejemplo?';
@@ -2934,8 +2942,11 @@ extension on TranslationsEs {
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
 			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
+			'cockpit.gallery.board.exportDocument' => 'Exportar documento completo',
 			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
 			'cockpit.gallery.board.appendBoard' => '¿Añadir este documento al lienzo?',
+			'cockpit.gallery.board.fitDocument' => 'Ajustar documento',
+			'cockpit.gallery.board.fitSelection' => 'Ajustar selección',
 			'cockpit.gallery.board.diagramColor' => 'Color del dibujo',
 			'cockpit.gallery.board.themeColor' => 'Predeterminado del tema',
 			'cockpit.gallery.board.blue' => 'Azul',
@@ -2946,6 +2957,11 @@ extension on TranslationsEs {
 			'cockpit.gallery.board.cyan' => 'Cian',
 			'cockpit.gallery.board.emptyBoard' => 'Elige una forma y haz clic o arrastra para dibujarla.',
 			'cockpit.gallery.board.arrowStart' => 'Elige la primera forma o arrastra hasta el destino.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selecciona · Flechas mueven · Mayús ×10 · C conecta',
+			'cockpit.gallery.board.moveHere' => 'Mover aquí',
+			'cockpit.gallery.board.moveDestination' => 'Haz clic donde quieras colocar la selección · Esc cancela',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destino: ${target}. Tab cambia, Intro conecta, Esc cancela.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'De ${from} a ${to}',
 			'cockpit.gallery.board.arrowEnd' => 'Elige la forma de destino.',
 			'cockpit.gallery.board.diagramTypes' => 'Tipos de diagrama',
 			'cockpit.gallery.board.replaceSource' => '¿Reemplazar el código actual con este ejemplo?',
@@ -3285,6 +3301,8 @@ extension on TranslationsEs {
 			'settings.page.notifications.sectionTitle' => 'Notificaciones',
 			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
 			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.notifications.systemPermissionTitle' => 'Permiso del sistema',
 			'settings.page.notifications.grantedDesc' => 'Cockpit tiene permiso para enviar notificaciones.',
 			'settings.page.notifications.notGrantedDesc' => 'macOS aún no ha concedido acceso a las notificaciones.',
@@ -3293,8 +3311,6 @@ extension on TranslationsEs {
 			'settings.page.notifications.soundsTitle' => 'Sonidos',
 			'settings.page.notifications.soundVolumeTitle' => 'Volumen',
 			'settings.page.notifications.soundTurnDone' => 'Turno completado',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.notifications.soundTurnDoneDesc' => 'Un agente terminó su turno.',
 			'settings.page.notifications.soundActionRequired' => 'Acción requerida',
 			'settings.page.notifications.soundActionRequiredDesc' => 'Un agente está esperando tu aprobación o respuesta.',

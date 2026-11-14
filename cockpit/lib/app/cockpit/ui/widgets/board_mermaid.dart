@@ -6,8 +6,20 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'webview_chrome.dart';
+import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 
 typedef MermaidDrawing = ({String source, String? thumbnail});
+
+Map<String, String> readMermaidExamples(String markdown) {
+  final sections = RegExp(
+    r'^## ([^\n]+)\n\n```mermaid\n([\s\S]*?)\n```$',
+    multiLine: true,
+  );
+  return {
+    for (final match in sections.allMatches(markdown.replaceAll('\r\n', '\n')))
+      match[1]!: match[2]!,
+  };
+}
 
 Future<MermaidDrawing?> editMermaid(BuildContext context, String? source) =>
     showDialog<MermaidDrawing>(
@@ -62,11 +74,9 @@ class _MermaidState extends State<_MermaidDialog> {
             "mermaid.initialize({startOnLoad:false,securityLevel:'strict',suppressErrorRendering:true});",
       );
       if (!mounted) return;
-      final catalog =
-          jsonDecode(await rootBundle.loadString('assets/board/examples.json'))
-              as Map;
+      final catalog = await rootBundle.loadString('assets/board/examples.md');
       if (!mounted) return;
-      examples = catalog.cast<String, String>();
+      examples = readMermaidExamples(catalog);
       web = controller;
       await preview();
     } catch (e) {
@@ -145,40 +155,49 @@ class _MermaidState extends State<_MermaidDialog> {
               Row(
                 children: [
                   const Expanded(child: Text('Mermaid')),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.category_outlined),
-                    tooltip: tr.diagramTypes,
-                    enabled: examples.isNotEmpty && !rendering,
-                    onSelected: (key) async {
-                      final replace =
-                          input.text.isEmpty ||
-                          (await showDialog<bool>(
-                                context: context,
-                                builder: (ctx) => AlertDialog(
-                                  content: Text(tr.replaceSource),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () =>
-                                          Navigator.pop(ctx, false),
-                                      child: Text(tr.discard),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(ctx, true),
-                                      child: Text(tr.apply),
-                                    ),
-                                  ],
-                                ),
-                              ) ??
-                              false);
-                      if (!replace) return;
-                      if (!mounted) return;
-                      input.text = examples[key]!;
-                      await preview();
-                    },
-                    itemBuilder: (_) => [
-                      for (final key in examples.keys)
-                        PopupMenuItem(value: key, child: Text(key)),
-                    ],
+                  Builder(
+                    builder: (anchor) => IconButton(
+                      icon: const Icon(Icons.category_outlined),
+                      tooltip: tr.diagramTypes,
+                      onPressed: examples.isEmpty || rendering
+                          ? null
+                          : () async {
+                              final key = await showAppMenu<String?>(
+                                anchor,
+                                items: [
+                                  for (final key in examples.keys)
+                                    AppMenuItem(value: key, label: key),
+                                ],
+                                searchHint: tr.diagramTypes,
+                              );
+                              if (key == null || !context.mounted) return;
+                              final replace =
+                                  input.text.isEmpty ||
+                                  (await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          content: Text(tr.replaceSource),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, false),
+                                              child: Text(tr.discard),
+                                            ),
+                                            TextButton(
+                                              onPressed: () =>
+                                                  Navigator.pop(ctx, true),
+                                              child: Text(tr.apply),
+                                            ),
+                                          ],
+                                        ),
+                                      ) ??
+                                      false);
+                              if (!replace) return;
+                              if (!mounted) return;
+                              input.text = examples[key]!;
+                              await preview();
+                            },
+                    ),
                   ),
                   IconButton(
                     tooltip: tr.importMmd,

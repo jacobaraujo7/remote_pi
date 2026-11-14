@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/board_document.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_window_app.dart';
 import 'package:cockpit/app/cockpit/ui/document/worktree_document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -103,6 +105,54 @@ Future<void> _settleRead(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets(
+    'remote Canvas uses its source editor and saves before returning',
+    (tester) async {
+      final files = _Files()
+        ..bytes = Uint8List.fromList(utf8.encode(BoardDocument([]).encode()));
+      final changes = _Changes();
+      FileViewerSession? session;
+      await tester.pumpWidget(
+        _app(
+          DocumentScreen(
+            path: '/source/process.board',
+            host: _host(files, changes),
+            onSession: (value) => session = value,
+          ),
+        ),
+      );
+      await _settleRead(tester);
+      expect(find.byType(BoardView), findsOneWidget);
+      await tester.tap(find.text(t.cockpit.paneView.openAsMarkdown));
+      await _settleRead(tester);
+      final viewer = tester.widget<FileViewer>(find.byType(FileViewer));
+      expect(viewer.allowLocalFileSystem, isFalse);
+      expect((session!.view as FileViewText).language, 'markdown');
+      final save = session!.saveDraft!;
+      final edited = BoardDocument([
+        const BoardItem('new', BoardKind.note, 0, 0, label: 'Olá'),
+      ]).encode();
+      await tester.enterText(find.byType(EditableText).first, edited);
+      await tester.pump();
+      expect(session!.dirty, isTrue);
+      final pending = Completer<bool>();
+      session!.saveDraft = () => pending.future;
+      await tester.tap(find.text(t.cockpit.paneView.openAsBoard));
+      await tester.pump();
+      expect(find.byType(FileViewer), findsOneWidget);
+      pending.complete(false);
+      await _settleRead(tester);
+      expect(find.byType(FileViewer), findsOneWidget);
+      session!.saveDraft = save;
+      await tester.tap(find.text(t.cockpit.paneView.openAsBoard));
+      await _settleRead(tester);
+      expect(find.byType(BoardView), findsOneWidget);
+      expect(utf8.decode(files.writes.single), edited);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await changes.controller.close();
+    },
+  );
   testWidgets(
     'menu notification queued during teardown is cancelled by dispose',
     (tester) async {

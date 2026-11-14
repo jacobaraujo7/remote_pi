@@ -106,6 +106,7 @@ class FileReaderImpl implements FileReader {
     return FileViewText(
       text,
       language: switch (ext) {
+        'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
         'orc' || 'orchestration' => 'json',
         '' => null,
         _ => ext,

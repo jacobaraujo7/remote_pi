@@ -15,7 +15,7 @@ import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_document_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
@@ -487,9 +487,13 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
           ),
         );
       } else if (config.path.toLowerCase().endsWith('.board')) {
-        body = BoardView(
+        body = BoardDocumentView(
           key: ValueKey(config.path),
           session: session,
+          active: config.active,
+          focused: config.active && config.focused,
+          allowLocalFileSystem: config.host?.remote != true,
+          showModeSwitch: true,
           onSave: _save,
           onReload: _load,
         );
