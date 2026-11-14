@@ -45,6 +45,19 @@ void main() {
       label: 'Review',
     ),
   ]);
+  test('Mermaid retains node and link colors in exported edge order', () {
+    final drawing = BoardDocument([
+      ...board.items.values.where((item) => item.kind != BoardKind.arrow),
+      const BoardItem('first', BoardKind.arrow, 0, 0, from: '2', to: '1'),
+      board.items['3']!,
+      const BoardItem('caption', BoardKind.text, 50, 60, color: '#102030'),
+    ]);
+    final output = BoardInterchange.mermaid(drawing);
+    expect(output, contains('style N0 fill:#64CBA7,color:#000000'));
+    expect(output, contains('style N2 color:#102030'));
+    expect(output, contains('linkStyle 1 stroke:#FA8983,color:#FA8983'));
+    expect(output, isNot(contains('linkStyle 0')));
+  });
   for (final codec in [
     (BoardInterchange.drawio, BoardInterchange.readDrawio),
     (BoardInterchange.excalidraw, BoardInterchange.readExcalidraw),

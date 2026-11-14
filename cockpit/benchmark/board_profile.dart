@@ -14,6 +14,7 @@ import 'package:cockpit/app/cockpit/domain/entities/board_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_painter.dart';
 
 typedef ProfileView =
     w.Widget Function({
@@ -373,12 +374,18 @@ Future<void> _measureInteractions(
   final scene = separateHost
       ? Platform.environment['BOARD_PROFILE_SCENE'] ?? 'full'
       : 'full';
-  if (!const {'full', 'empty', 'unlabelled', 'noThumbnail'}.contains(scene)) {
+  if (!const {
+    'full',
+    'empty',
+    'unlabelled',
+    'noThumbnail',
+    'narrow',
+  }.contains(scene)) {
     throw ArgumentError.value(scene, 'BOARD_PROFILE_SCENE');
   }
   final rows = <String>[
     'version\tscenario\tcount\trun\tframes\tbuildP95ms\trasterP95ms\tover16.67ms\toverDisplayBudget\tdisplayHz\treadyMs\tsaves\tgestureMs\tframeIntervalP95ms'
-        '${separateHost ? '\thostBuildMs\thostRasterMs\tscene' : ''}',
+        '${separateHost ? '\thostBuildMs\thostRasterMs\tscene\tviewportWidth\tpaintedObjects' : ''}',
   ];
   final scratch = await output.parent.createTemp('board-profile-');
   final thumbnail = await architectureThumbnail();
@@ -456,7 +463,10 @@ Future<void> _measureInteractions(
                               )
                             : editor,
                       ),
-                      const SizedBox(width: 160, child: Text('Adjacent pane')),
+                      SizedBox(
+                        width: scene == 'narrow' ? 620 : 160,
+                        child: const Text('Adjacent pane'),
+                      ),
                     ],
                   ),
                 ),
@@ -476,6 +486,13 @@ Future<void> _measureInteractions(
             final camera = (viewer.widget as m.InteractiveViewer)
                 .transformationController!;
             final box = viewer.renderObject as w.RenderBox;
+            final layer = separateHost
+                ? findElement(
+                        viewer,
+                        (w) => w is m.CustomPaint && w.painter is BoardPainter,
+                      )!.widget
+                      as m.CustomPaint
+                : null;
             final start = box.localToGlobal(const Offset(50, 32));
             final deadline = DateTime.now().add(const Duration(seconds: 10));
             while (count > 0 &&
@@ -685,6 +702,8 @@ Future<void> _measureInteractions(
                   shell.buildDuration.inMicroseconds / 1000,
                   shell.rasterDuration.inMicroseconds / 1000,
                   scene,
+                  box.size.width,
+                  (layer!.painter! as BoardPainter).items.length,
                 ],
               ].join('\t'),
             );

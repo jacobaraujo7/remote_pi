@@ -9,7 +9,7 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 ## Depois
 
 - [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. Mesmo sem os bytes da miniatura, as duas aberturas em processo novo ficaram acima de 16,67 ms. Medir a montagem da geometria visível mantendo constante a quantidade total de objetos. Medições em perfil.md.
+      Frente Flutter. Estreitar o painel reduziu de 210 para 109 os objetos enviados para pintura no mesmo documento. A primeira abertura continuou acima de 16,67 ms nas duas larguras. Usar o perfil temporal do primeiro quadro para localizar a operação dominante antes de substituir a implementação do canvas. Medições em perfil.md.
 
 ## Validar no desktop
 

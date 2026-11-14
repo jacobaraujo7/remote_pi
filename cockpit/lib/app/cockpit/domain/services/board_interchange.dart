@@ -30,10 +30,20 @@ abstract final class BoardInterchange {
             ? '  ${ids[i.id]}{"$text"}'
             : '  ${ids[i.id]}["$text"]',
       );
+      if (i.color != null) {
+        final style = i.usesInkColor
+            ? 'color:${i.color}'
+            : 'fill:${i.color},color:${i.contrastInk}';
+        out.writeln('  style ${ids[i.id]} $style');
+      }
     }
-    for (final i in doc.items.values.where((e) => e.kind == BoardKind.arrow)) {
+    final edges = doc.items.values.where((e) => e.kind == BoardKind.arrow);
+    for (final (index, i) in edges.indexed) {
       final title = i.label.isEmpty ? '' : '|"${label(i.label)}"|';
       out.writeln('  ${ids[i.from]} -->$title ${ids[i.to]}');
+      if (i.color != null) {
+        out.writeln('  linkStyle $index stroke:${i.color},color:${i.color}');
+      }
     }
     return out.toString();
   }

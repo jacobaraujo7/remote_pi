@@ -141,3 +141,16 @@ Em `BOARD_PROFILE_SUITE=pane`, a cena `BOARD_PROFILE_SCENE=noThumbnail` conserva
 | Completa, processo 4 | 32,53 | 29,91 |
 
 O editor ultrapassou o orçamento de 16,67 ms nos quatro processos. Os intervalos se sobrepõem. A espera até a imagem decodificada só existe na cena completa, por isso o tempo até a miniatura pronta não é diretamente comparável. As 12 aberturas conservaram o arquivo, e o runner apresentou a falha nativa de saída após gravar as séries. O resultado orienta manter a miniatura e concentrar a próxima medição na quantidade de geometria visível.
+
+## Quantidade de objetos enviados para pintura
+
+O mesmo documento de 1.920 objetos, incluindo a miniatura e os rótulos, foi aberto em quatro processos Profile. O painel adjacente ocupou 160 ou 620 unidades lógicas. O benchmark registra a largura do InteractiveViewer e conta os objetos no BoardPainter do primeiro quadro, incluindo a margem de pintura ao redor da câmera. O modo `BOARD_PROFILE_SUITE=pane` aceita `BOARD_PROFILE_SCENE=narrow` para repetir o painel estreito.
+
+| Largura do canvas | Objetos enviados | Primeira construção (ms) | Primeira rasterização (ms) |
+| --- | --- | --- | --- |
+| 1.058 | 210 | 32,64 | 30,97 |
+| 598 | 109 | 33,11 | 33,15 |
+| 598 | 109 | 30,93 | 27,82 |
+| 1.058 | 210 | 38,01 | 36,36 |
+
+O recorte diminuiu a lista de pintura em 101 objetos ao estreitar o painel. A primeira abertura permaneceu acima de 16,67 ms nos quatro processos. A redução não foi proporcional ao número de objetos enviados, e os intervalos das duas larguras se sobrepõem. A largura também altera o layout dos controles; o teste não atribui um custo individual a cada forma. As 12 aberturas mantiveram o Markdown intacto. O runner voltou a registrar o erro nativo ao encerrar após a coleta.
