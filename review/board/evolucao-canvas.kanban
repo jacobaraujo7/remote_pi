@@ -6,15 +6,18 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Próxima entrega
 
+- [ ] Integrar a correção do encerramento da janela no Windows <!-- id: board-encerramento labels: interacao -->
+      Canvas Board. A janela Release encerrou com 0xC0000005 nas duas execuções com a DLL distribuída. As duas execuções com a correção local encerraram com código zero. A integração depende de disponibilizar a correção no fork do plugin e atualizar a revisão consumida pelo Cockpit. Evidência em revisao.md.
+
 ## Depois
 
 - [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. Perfil por widget e comparação da paleta concluídos. As primeiras aberturas continuam variáveis, com faixas de tempo sobrepostas entre versões. A simplificação mantém os controles e as cores. Priorizar a validação dos gestos após aquecimento segundo o critério do estudo e manter o custo de abertura registrado em perfil.md.
+      Frente Flutter. Com 25 mil pontos, a mediana de leitura do Markdown em AOT caiu de 10,301 para 5,994 ms. O teste de montagem confirmou os traços visíveis nas seis aberturas. Em 12 aberturas Release do mesmo arquivo, a mediana até o Windows expor o último traço foi de 1,505 s antes e 1,625 s depois. A variação entre processos impede atribuir o resultado ao parser. Método e amostras em perfil.md.
 
 ## Validar no desktop
 
 - [ ] Confirmar navegação com Narrador e trackpad físico <!-- id: board-dispositivos labels: acesso -->
-      QA desktop. O Windows identificou três formas e duas conexões, e confirmou a seleção pela ação MSAA, conforme acessibilidade.md. Conferir agora a fala do Narrador, o foco após Escape e o enquadramento com um trackpad físico.
+      QA desktop. O Windows identificou três formas e duas conexões e confirmou a seleção pela ação MSAA. Após Escape, F2 reabriu o rótulo da mesma forma com foco no campo. Conferir a fala do Narrador e o enquadramento com trackpad físico. Evidência em acessibilidade.md.
 
 - [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
       Frente de QA desktop. A versão bc18c5a2 passou em 1.440 quadros de gestos aquecidos na cena densa, com painel adjacente e gravação lenta; as medições comparativas estão em perfil.md. Pendente: latência física entre ponteiro e monitor, incluindo 60 e 120 Hz onde possível.
@@ -29,8 +32,8 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 - [x] Recortar a camada estática ao navegar em cenas extensas <!-- id: board-escala labels: desempenho -->
       Frente Flutter. Com 1.920 objetos, 180 passos de zoom passaram de 40,53 s para 1,23 s na mediana de três execuções. O teste de câmera enquadrou e selecionou uma forma inicialmente fora da área pintada. O benchmark reabriu os arquivos para conferir o traço de 2.881 pontos e as ligações após mover o grupo.
 
-- [x] Registrar o lápis desde o primeiro movimento <!-- id: board-primeira-amostra labels: interacao, desempenho -->
-      O teste de widget verifica o deslocamento inicial de um pixel, 102 pontos reabertos do Markdown e o tamanho do traço. Um toque isolado também aparece na saída SVG usada pelo HTML.
+- [x] Mostrar tinta desde o primeiro contato do lápis <!-- id: board-primeira-amostra labels: interacao, desempenho -->
+      O teste de widget verifica a pintura antes do primeiro movimento, o deslocamento inicial de um pixel e 102 pontos reabertos do Markdown. Um toque isolado também aparece na saída SVG usada pelo HTML.
 
 - [x] Enquadrar seleção ou documento <!-- id: board-camera labels: interacao -->
       Comandos preservam a seleção, as coordenadas negativas e o acesso a formas distantes. Testado com eventos de mouse e trackpad no widget.
