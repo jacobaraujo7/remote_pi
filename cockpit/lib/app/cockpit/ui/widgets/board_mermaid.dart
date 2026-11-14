@@ -6,9 +6,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'webview_chrome.dart';
+import '../../domain/entities/board_document.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 
 typedef MermaidDrawing = ({String source, String? thumbnail});
+
+extension MermaidBoardItem on MermaidDrawing {
+  BoardItem toBoardItem() => BoardItem(
+    BoardDocument.newId(),
+    BoardKind.mermaid,
+    80,
+    80,
+    label: source,
+    thumbnail: thumbnail,
+    width: 240,
+    height: 110,
+  );
+}
 
 Map<String, String> readMermaidExamples(String markdown) {
   final sections = RegExp(
@@ -153,6 +167,8 @@ class _MermaidState extends State<_MermaidDialog> {
       if (save) {
         final path = await FilePicker.platform.saveFile(
           fileName: 'diagram.mmd',
+          type: FileType.custom,
+          allowedExtensions: ['mmd'],
         );
         if (path != null) {
           await File(path).writeAsBytes(utf8.encode(input.text));

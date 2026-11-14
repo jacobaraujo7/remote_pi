@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'board_export.dart';
+import 'board_mermaid.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
@@ -53,14 +54,31 @@ class BoardFiles extends StatelessWidget {
       if (action == 'import') {
         final result = await FilePicker.platform.pickFiles(
           type: FileType.custom,
-          allowedExtensions: ['drawio', 'xml', 'excalidraw', 'board', 'md'],
+          allowedExtensions: [
+            'drawio',
+            'xml',
+            'excalidraw',
+            'board',
+            'md',
+            'mmd',
+            'mermaid',
+          ],
         );
         final path = result?.files.single.path;
         if (path == null) return;
         final raw = await File(path).readAsString();
-        final source = switch (path.toLowerCase().split('.').last) {
-          'drawio' || 'xml' => BoardInterchange.readDrawio(raw),
-          'excalidraw' => BoardInterchange.readExcalidraw(raw),
+        final extension = p.extension(path).toLowerCase();
+        if (extension == '.mmd' || extension == '.mermaid') {
+          if (!context.mounted) return;
+          final drawing = await editMermaid(context, raw);
+          if (drawing == null || !context.mounted) return;
+          final item = drawing.toBoardItem();
+          await apply(BoardEdit({item.id: null}, {item.id: item}));
+          return;
+        }
+        final source = switch (extension) {
+          '.drawio' || '.xml' => BoardInterchange.readDrawio(raw),
+          '.excalidraw' => BoardInterchange.readExcalidraw(raw),
           _ => BoardDocument.parse(raw),
         };
 
