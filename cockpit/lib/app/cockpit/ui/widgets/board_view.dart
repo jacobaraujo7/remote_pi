@@ -1,6 +1,5 @@
 import 'board_painter.dart';
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -977,7 +976,9 @@ class _BoardState extends State<BoardView> {
                 top: sceneOrigin.dy + i.y + 2,
                 width: i.width - 4,
                 height: i.height - 4,
-                child: IgnorePointer(child: _Thumbnail(source: i.thumbnail!)),
+                child: IgnorePointer(
+                  child: Image.memory(i.thumbnailBytes!, gaplessPlayback: true),
+                ),
               ),
         ],
       );
@@ -1762,26 +1763,4 @@ class _PreviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(_PreviewPainter old) =>
       origin != old.origin || color != old.color || preview != old.preview;
-}
-
-class _Thumbnail extends StatefulWidget {
-  const _Thumbnail({required this.source});
-  final String source;
-  @override
-  State<_Thumbnail> createState() => _ThumbnailState();
-}
-
-class _ThumbnailState extends State<_Thumbnail> {
-  late MemoryImage image = MemoryImage(base64Decode(widget.source));
-  @override
-  void didUpdateWidget(_Thumbnail old) {
-    super.didUpdateWidget(old);
-    if (widget.source != old.source) {
-      image = MemoryImage(base64Decode(widget.source));
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) =>
-      Image(image: image, gaplessPlayback: true);
 }

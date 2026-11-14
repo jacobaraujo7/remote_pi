@@ -128,3 +128,16 @@ No modo `pane`, `BOARD_PROFILE_SCENE` permite escolher `empty` (só os controles
 | Completo | 23,96 / 35,51 | 35,43 / 36,41 |
 
 Mesmo o editor vazio ultrapassou 16,67 ms de construção em uma abertura. Tirar os rótulos das etapas também deixou as duas primeiras aberturas acima do orçamento nas duas fases. A amostra permite priorizar a geometria e a miniatura para análise e preservar os rótulos. Ela não separa a contribuição individual desses dois elementos. As 18 aberturas conservaram o arquivo, e os processos auxiliares registraram o erro nativo de encerramento após a coleta.
+
+## Abertura com a mesma geometria e com ou sem miniatura
+
+Em `BOARD_PROFILE_SUITE=pane`, a cena `BOARD_PROFILE_SCENE=noThumbnail` conserva as 960 etapas rotuladas, as 959 setas, o item Mermaid, sua fonte, grupo e posição. Apenas os bytes PNG são omitidos. Em quatro processos Profile, alternamos completo, sem miniatura, sem miniatura e completo. Cada processo montou três vezes o editor. A tabela registra a primeira montagem de cada processo, antes da mudança de reúso dos bytes.
+
+| Cena | Construção (ms) | Rasterização (ms) |
+| --- | --- | --- |
+| Completa, processo 1 | 46,25 | 45,77 |
+| Sem miniatura, processo 2 | 30,83 | 31,54 |
+| Sem miniatura, processo 3 | 35,86 | 35,17 |
+| Completa, processo 4 | 32,53 | 29,91 |
+
+O editor ultrapassou o orçamento de 16,67 ms nos quatro processos. Os intervalos se sobrepõem. A espera até a imagem decodificada só existe na cena completa, por isso o tempo até a miniatura pronta não é diretamente comparável. As 12 aberturas conservaram o arquivo, e o runner apresentou a falha nativa de saída após gravar as séries. O resultado orienta manter a miniatura e concentrar a próxima medição na quantidade de geometria visível.

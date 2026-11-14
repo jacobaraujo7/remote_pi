@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:math';
 import 'package:xml/xml.dart';
 import '../entities/board_document.dart';
@@ -157,7 +156,7 @@ String boardSvg(BoardDocument doc, {Set<String>? selected}) {
             },
           );
         } else if (i.kind == BoardKind.mermaid && i.thumbnail != null) {
-          base64Decode(i.thumbnail!);
+          i.thumbnailBytes;
           b.element(
             'image',
             attributes: {

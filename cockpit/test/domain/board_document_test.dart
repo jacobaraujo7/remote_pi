@@ -22,6 +22,32 @@ void main() {
     label: 'Yes',
   );
   final doc = BoardDocument([start, end, edge]);
+  test('moving a diagram reuses its validated immutable thumbnail', () {
+    const diagram = BoardItem('m', BoardKind.mermaid, 0, 0, thumbnail: 'AQI=');
+    final loaded = BoardDocument.parse(
+      BoardDocument([diagram]).encode(),
+    ).items['m']!;
+    final bytes = loaded.thumbnailBytes!;
+    expect(bytes, [1, 2]);
+    expect(() => bytes[0] = 0, throwsUnsupportedError);
+    final moved = loaded.edited(x: 80);
+    expect(moved.thumbnailBytes, same(bytes));
+    final revised = moved.edited(label: 'flowchart LR\nA --> B');
+    expect(revised.thumbnail, isNull);
+    expect(
+      BoardDocument.parse(
+        BoardDocument([revised]).encode(),
+      ).items['m']!.thumbnail,
+      isNull,
+    );
+    expect(moved.edited(thumbnail: 'Aw==').thumbnailBytes, [3]);
+    expect(
+      () => BoardDocument.parse(
+        BoardDocument([diagram]).encode().replaceFirst('AQI=', '!'),
+      ),
+      throwsFormatException,
+    );
+  });
   test('escaped identities remain connected after a Markdown round trip', () {
     const id = 'first:\\n\r\nstep';
     final board = BoardDocument([

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 part 'board_markdown.dart';
 
@@ -61,6 +62,18 @@ class BoardItem {
   final BoardKind kind;
   final double x, y, width, height;
   final String? from, to, thumbnail, group;
+  // Offscreen diagrams need not keep a second copy of the encoded image.
+  static final _decodedThumbnails = Expando<WeakReference<Uint8List>>();
+  Uint8List? get thumbnailBytes {
+    final source = thumbnail;
+    if (source == null) return null;
+    final cached = _decodedThumbnails[this]?.target;
+    if (cached != null) return cached;
+    final bytes = base64Decode(source).asUnmodifiableView();
+    _decodedThumbnails[this] = WeakReference(bytes);
+    return bytes;
+  }
+
   final List<BoardPoint> points;
 
   bool sameContent(BoardItem other) {
@@ -96,21 +109,31 @@ class BoardItem {
     String? color,
     bool clearColor = false,
     bool ungroup = false,
-  }) => BoardItem(
-    id,
-    kind,
-    x ?? this.x,
-    y ?? this.y,
-    label: label ?? this.label,
-    thumbnail: thumbnail ?? this.thumbnail,
-    color: clearColor ? null : color ?? this.color,
-    group: ungroup ? null : group ?? this.group,
-    width: width,
-    height: height,
-    from: from,
-    to: to,
-    points: points,
-  );
+  }) {
+    final copy = BoardItem(
+      id,
+      kind,
+      x ?? this.x,
+      y ?? this.y,
+      label: label ?? this.label,
+      thumbnail:
+          thumbnail ??
+          (kind == BoardKind.mermaid && label != null && label != this.label
+              ? null
+              : this.thumbnail),
+      color: clearColor ? null : color ?? this.color,
+      group: ungroup ? null : group ?? this.group,
+      width: width,
+      height: height,
+      from: from,
+      to: to,
+      points: points,
+    );
+    if (this.thumbnail != null && copy.thumbnail == this.thumbnail) {
+      _decodedThumbnails[copy] = _decodedThumbnails[this];
+    }
+    return copy;
+  }
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -166,7 +189,7 @@ class BoardItem {
       if (kind != BoardKind.mermaid) {
         throw const FormatException('Unexpected board thumbnail');
       }
-      base64Decode(item.thumbnail!);
+      item.thumbnailBytes;
     }
     if (item.id.isEmpty ||
         item.width <= 0 ||
