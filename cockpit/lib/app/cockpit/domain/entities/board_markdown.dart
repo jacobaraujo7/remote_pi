@@ -134,11 +134,15 @@ class _CanvasMarkdown {
           } else if (key == 'points' && entry.value.isEmpty) {
             final points = <List<double>>[];
             while (index < lines.length && lines[index].startsWith('  - ')) {
-              final values = lines[index++].substring(4).split(',');
-              if (values.length != 2) {
+              final point = lines[index++];
+              final comma = point.indexOf(',', 4);
+              if (comma < 0) {
                 throw const FormatException('Expected x, y');
               }
-              points.add(values.map((v) => double.parse(v.trim())).toList());
+              points.add([
+                double.parse(point.substring(4, comma)),
+                double.parse(point.substring(comma + 1)),
+              ]);
             }
             fields[key] = points;
           } else if (key == 'line-endings' && endings == null) {
