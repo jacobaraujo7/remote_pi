@@ -34,7 +34,7 @@ Future<void> runBoardProfile({ProfileView? baseline}) async {
   try {
     final suite = Platform.environment['BOARD_PROFILE_SUITE'];
     if (suite == 'interactions' || suite == 'opening' || suite == 'pane') {
-      await measureInteractions(
+      await _measureInteractions(
         output,
         baseline,
         scenarios: suite == 'interactions'
@@ -359,7 +359,7 @@ Offset inkOffset(int sample) => sample == 0
 
 /// Measure the targeted board interactions separately from the historical drag
 /// suite. A real file in the scratch directory validates persist/reopen.
-Future<void> measureInteractions(
+Future<void> _measureInteractions(
   File output,
   ProfileView? baseline, {
   required List<_Scenario> scenarios,
