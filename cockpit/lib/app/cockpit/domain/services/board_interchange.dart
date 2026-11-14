@@ -365,7 +365,12 @@ abstract final class BoardInterchange {
         final endpoints = boardEdgeEndpoints(doc, i);
         final x = endpoints.start.x, y = endpoints.start.y;
         final dx = endpoints.end.x - x, dy = endpoints.end.y - y;
+        final exitsLeft = x == doc.items[i.from]!.x;
         element.addAll({
+          'elbowed': true,
+          'fixedSegments': null,
+          'startIsSpecial': null,
+          'endIsSpecial': null,
           'x': x,
           'y': y,
           'width': dx.abs(),
@@ -378,8 +383,18 @@ abstract final class BoardInterchange {
             ],
             [dx, dy],
           ],
-          'startBinding': {'elementId': i.from, 'focus': 0, 'gap': 0},
-          'endBinding': {'elementId': i.to, 'focus': 0, 'gap': 0},
+          'startBinding': {
+            'elementId': i.from,
+            'focus': 0,
+            'gap': 0,
+            'fixedPoint': [exitsLeft ? 0 : 1, .5],
+          },
+          'endBinding': {
+            'elementId': i.to,
+            'focus': 0,
+            'gap': 0,
+            'fixedPoint': [exitsLeft ? 1 : 0, .5],
+          },
           'startArrowhead': null,
           'endArrowhead': 'arrow',
         });

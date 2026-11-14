@@ -112,6 +112,9 @@ void main() {
       ]);
     }
     expect(edge['startBinding']['elementId'], 'right');
+    expect(edge['elbowed'], isTrue);
+    expect(edge['startBinding']['fixedPoint'], [0, .5]);
+    expect(edge['endBinding']['fixedPoint'], [1, .5]);
     expect(edge['endBinding']['elementId'], 'left');
   });
   for (final codec in [
