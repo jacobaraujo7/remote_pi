@@ -77,10 +77,11 @@ class _BoardState extends State<BoardView> {
       item.kind != BoardKind.stroke &&
       item.kind != BoardKind.mermaid;
 
-  Rect editorBounds(BoardItem item) {
-    final mid = item.kind == BoardKind.arrow
-        ? Offset.lerp(route(item)[1], route(item)[2], .5)!
-        : center(item);
+  Rect editorBounds(BoardItem item, {List<Offset>? path}) {
+    final points = path ?? (item.kind == BoardKind.arrow ? route(item) : null);
+    final mid = points == null
+        ? center(item)
+        : Offset.lerp(points[1], points[2], .5)!;
     return Rect.fromCenter(
       center: mid,
       width: item.kind == BoardKind.arrow ? 140 : math.max(64, item.width),
@@ -117,7 +118,7 @@ class _BoardState extends State<BoardView> {
     final bounds = Rect.fromPoints(path.first, path.last).inflate(9);
     return item.label.isEmpty
         ? bounds
-        : bounds.expandToInclude(editorBounds(item));
+        : bounds.expandToInclude(editorBounds(item, path: path));
   }
 
   void revealItem(BoardItem item) {

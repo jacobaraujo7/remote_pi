@@ -15,4 +15,4 @@ flowchart LR
 
 Keep Mermaid identifiers stable when changing visible labels. In the Board, choose Mermaid, paste the source or import a .mmd, preview it, then apply. The editor retains the source and generates the thumbnail. A Mermaid block moves as one item; use native Board nodes when the person needs to move its internal steps independently.
 
-For exact Mermaid source export, keep the diagram in a single Mermaid item. Exporting a mixed or native Board to .mmd generates a flowchart from its nodes and edges. Layout coordinates, groups and style fidelity belong in the .board file.
+For exact Mermaid source export, keep the diagram in a single Mermaid item. Exporting a mixed or native Board to .mmd generates a flowchart with its node fills, text colors and connector colors. Keep the .board file for layout coordinates, groups and the original shapes.
