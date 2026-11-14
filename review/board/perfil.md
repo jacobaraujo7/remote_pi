@@ -291,3 +291,9 @@ Com o shell já pronto, o ensaio invocou o callback do HoverTap da aba Gallery e
 | 3 | 27,372 | 35,718 | 30,006 |
 
 Cada processo abriu um workspace novo. Os nove arquivos tiveram IDs distintos e nomes sequenciais dentro de cada workspace. Os três processos gravaram o resultado antes da falha nativa ao encerrar. Evidências em `cockpit/build/board-review/gallery-release-open/control-20261114-185432509`, `control-20261114-185438598` e `control-20261114-185444603`.
+
+## Leitura de traços livres no Markdown
+
+Um documento com 50 traços de 500 pontos foi lido pelo parser compilado em Dart AOT no Windows. Cada processo descartou cinco leituras de aquecimento e mediu as 40 seguintes. Na ordem original, ajustado, ajustado, original, original, ajustado, as medianas de leitura foram 13,158, 5,059, 6,042, 10,301, 9,787 e 5,994 ms. A leitura direta das duas coordenadas eliminou o split e a conversão por iterador em cada ponto. O intervalo medido começa com o Markdown em memória e termina após a validação do documento. A medição não inclui I/O, pintura ou latência do ponteiro. Ensaio local em cockpit/build/board-review/ink_parse.dart.
+
+Abertura de um arquivo com 50 traços e 25 mil pontos pelo widget BoardView. O ensaio em flutter_tester leu o Markdown do disco, criou uma sessão e montou o editor com o tema Cockpit. Os tempos até o segundo pump foram 783,4 ms na primeira montagem e 202,8, 162,6, 95,3, 92,7 e 86,4 ms nas cinco remontagens no mesmo processo. A captura posterior identificou 24.960 pixels da cor dos traços em cada montagem. A captura ficou fora do intervalo cronometrado. O ensaio usa JIT com instrumentação de teste e não mede a apresentação no monitor nem compara versões do aplicativo. Runner local em cockpit/build/board-review/ink_open_test.dart.
