@@ -623,6 +623,12 @@ void main() {
         origin + const Offset(80, 240),
         kind: PointerDeviceKind.mouse,
       );
+      await tester.pump();
+      final canvasLayers = find.descendant(
+        of: find.byType(m.InteractiveViewer),
+        matching: find.byType(CustomPaint),
+      );
+      expect(canvasLayers.last, paints..circle(radius: 1));
       await mouse.moveTo(origin + const Offset(81, 240));
       for (var i = 1; i <= 100; i++) {
         await mouse.moveTo(
