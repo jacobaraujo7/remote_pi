@@ -165,3 +165,18 @@ No runner Windows Profile, combinar `BOARD_PROFILE_SUITE=pane` com `BOARD_PROFIL
 | 2 | 27,87 ms | 19,28 ms | 10,53 ms | 8,42 ms | 25,43 ms |
 
 O layout ocupou 69–75% da fase de construção nas primeiras aberturas. O evento de build indicado na tabela está **dentro** do layout. Somá-los duplicaria trabalho. A thread de rasterização também registrou compilação de shaders durante o intervalo. A instrumentação tem custo e estes dados não identificam um widget específico como causa. As quatro reaberturas no mesmo processo ficaram entre 11,01 e 12,25 ms de construção e 2,52 e 2,71 ms de rasterização. As seis séries foram gravadas antes da falha nativa de encerramento do runner.
+
+## Subárvores na primeira abertura
+
+Com `BOARD_PROFILE_TRACE=widgets`, o runner também ativa os eventos de criação de widgets e layout de objetos de renderização do Flutter. No primeiro quadro instrumentado, BoardView e seus descendentes ocuparam 13,97 ms de montagem. Dentro desse intervalo, a faixa lateral rolável com as ferramentas ocupou 4,85 ms, e um IconButton com seus descendentes ocupou 2,54 ms. No layout, o RenderFlex principal ocupou 14,61 ms, um RenderLayoutBuilder ocupou 5,79 ms e um RenderParagraph, 2,93 ms. Esses tempos inclusivos se sobrepõem. A instrumentação por widget altera os tempos absolutos.
+
+O editor passou a aplicar rotação apenas ao ícone de decisão e a construir o estilo de seleção somente para a ferramenta ativa. Os botões continuam usando IconButton e os mesmos tooltips, atalhos e cores. Duas builds AOT foram medidas sem instrumentação individual, na ordem anterior, simplificada, simplificada e anterior. Cada processo abriu a mesma cena três vezes.
+
+| Versão | Construção no primeiro quadro (ms) | Rasterização no primeiro quadro (ms) |
+| --- | ---: | ---: |
+| Anterior | 36,43 | 39,59 |
+| Simplificada | 28,90 | 73,15 |
+| Simplificada | 24,22 | 25,73 |
+| Anterior | 21,98 | 27,79 |
+
+As faixas de construção se sobrepõem. A comparação não demonstra ganho consistente no primeiro quadro. Nas quatro reaberturas da versão simplificada, a construção ficou entre 10,79 e 12,01 ms e a rasterização entre 2,16 e 3,26 ms. O critério de fluidez proposto no estudo refere-se a gestos após aquecimento; o tempo de abertura é acompanhado separadamente. O runner instrumentado registrou a falha nativa de encerramento após a coleta.
