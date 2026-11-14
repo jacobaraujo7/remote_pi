@@ -8,8 +8,8 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Depois
 
-- [ ] Investigar a primeira pintura de cenas extensas <!-- id: board-abertura labels: desempenho -->
-      Frente Flutter. O primeiro quadro do editor em dois processos novos levou cerca de 25 ms para construir e rasterizar, com o host já montado. As quatro reaberturas respeitaram 16,67 ms por fase. Investigar os custos específicos do primeiro uso de texto, ferramentas e conteúdo do desenho antes de aplicar outra otimização. Medições em perfil.md.
+- [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
+      Frente Flutter. Os ensaios com os mesmos controles e com formas sem rótulo mantiveram o atraso nas cenas grandes. Medir a montagem da geometria visível e a primeira composição da miniatura separadamente. Preservar rótulos, seleção e acesso ao desenho completo. Medições em perfil.md.
 
 ## Validar no desktop
 

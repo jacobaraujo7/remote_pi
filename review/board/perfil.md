@@ -116,3 +116,15 @@ Quatro processos Profile executaram, na ordem, painel, montagem conjunta, montag
 | Painel 2 | 3,33 / 1,39 / 2,37 | 25,11 / 14,42 / 12,02 |
 
 Em painel, a primeira rasterização de cada processo levou 24,60 e 26,82 ms; nas quatro reaberturas ficou entre 2,28 e 3,88 ms. A primeira construção e a primeira rasterização do editor excederam o orçamento mesmo com o host pronto. As quatro reaberturas nessa configuração respeitaram 16,67 ms por fase. Todos os arquivos permaneceram idênticos, e as 12 aberturas produziram amostras antes da falha nativa já documentada no encerramento dos quatro processos. O carregamento de uma janela nativa inteira e a latência física continuam fora deste ensaio.
+
+## Custo dos controles e dos rótulos
+
+No modo `pane`, `BOARD_PROFILE_SCENE` permite escolher `empty` (só os controles e o canvas vazio), `unlabelled` (960 etapas sem texto, 959 setas e uma miniatura Mermaid) ou `full` (o mesmo desenho com os 960 rótulos). Foram abertas três cenas por processo, em seis processos independentes. A sequência foi vazio, sem rótulos, completo, completo, sem rótulos, vazio. Os controles, o tema, a sessão e a validação do arquivo foram os mesmos em todos os casos. A criação da imagem de teste antecedeu o cronômetro em todos os processos.
+
+| Cena | Primeira construção em cada processo (ms) | Primeira rasterização em cada processo (ms) |
+| --- | --- | --- |
+| Vazio | 14,95 / 19,15 | 15,35 / 14,41 |
+| Etapas sem rótulo | 27,83 / 29,37 | 44,20 / 39,40 |
+| Completo | 23,96 / 35,51 | 35,43 / 36,41 |
+
+Mesmo o editor vazio ultrapassou 16,67 ms de construção em uma abertura. Tirar os rótulos das etapas também deixou as duas primeiras aberturas acima do orçamento nas duas fases. A amostra permite priorizar a geometria e a miniatura para análise e preservar os rótulos. Ela não separa a contribuição individual desses dois elementos. As 18 aberturas conservaram o arquivo, e os processos auxiliares registraram o erro nativo de encerramento após a coleta.

@@ -3,6 +3,50 @@ import 'dart:math';
 import 'package:xml/xml.dart';
 import '../entities/board_document.dart';
 
+({Point<double> start, Point<double> end}) boardEdgeEndpoints(
+  BoardDocument doc,
+  BoardItem edge,
+) {
+  final a = doc.items[edge.from]!, b = doc.items[edge.to]!;
+  final right = a.x + a.width / 2 <= b.x + b.width / 2;
+  return (
+    start: Point(right ? a.x + a.width : a.x, a.y + a.height / 2),
+    end: Point(right ? b.x : b.x + b.width, b.y + b.height / 2),
+  );
+}
+
+Rectangle<double> boardExportBounds(
+  BoardDocument doc,
+  Iterable<BoardItem> items,
+) {
+  Rectangle<double>? bounds;
+  for (final item in items) {
+    var rect = Rectangle(item.x, item.y, item.width, item.height);
+    if (item.kind == BoardKind.arrow) {
+      final edge = boardEdgeEndpoints(doc, item);
+      rect = Rectangle.fromPoints(edge.start, edge.end);
+      if (item.label.isNotEmpty) {
+        rect = rect.boundingBox(
+          Rectangle(
+            (edge.start.x + edge.end.x) / 2 - 60,
+            (edge.start.y + edge.end.y) / 2 - 17,
+            120,
+            34,
+          ),
+        );
+      }
+    }
+    bounds = bounds?.boundingBox(rect) ?? rect;
+  }
+  if (bounds == null) throw const FormatException('Empty selection');
+  return Rectangle(
+    bounds.left - 12,
+    bounds.top - 12,
+    bounds.width + 24,
+    bounds.height + 24,
+  );
+}
+
 String boardSvg(BoardDocument doc, {Set<String>? selected}) {
   final shapes = doc.items.values
       .where(
@@ -16,15 +60,8 @@ String boardSvg(BoardDocument doc, {Set<String>? selected}) {
         e.kind == BoardKind.arrow &&
         (selected == null || selected.contains(e.id)),
   );
-  final bounds = [
-    ...shapes,
-    for (final e in edges) ...[doc.items[e.from]!, doc.items[e.to]!],
-  ];
-  if (bounds.isEmpty) throw const FormatException('Empty selection');
-  final x = bounds.map((e) => e.x).reduce(min) - 12,
-      y = bounds.map((e) => e.y).reduce(min) - 12;
-  final w = bounds.map((e) => e.x + e.width).reduce(max) - x + 12,
-      h = bounds.map((e) => e.y + e.height).reduce(max) - y + 12;
+  final bounds = boardExportBounds(doc, [...shapes, ...edges]);
+  final x = bounds.left, y = bounds.top, w = bounds.width, h = bounds.height;
   final b = XmlBuilder();
   void text(
     double x,
@@ -64,14 +101,13 @@ String boardSvg(BoardDocument doc, {Set<String>? selected}) {
     },
     nest: () {
       for (final e in edges) {
-        final a = doc.items[e.from]!, d = doc.items[e.to]!;
-        final right = a.x + a.width / 2 <= d.x + d.width / 2;
-        final ax = right ? a.x + a.width : a.x,
-            ay = a.y + a.height / 2,
-            bx = right ? d.x : d.x + d.width,
-            by = d.y + d.height / 2,
+        final endpoints = boardEdgeEndpoints(doc, e);
+        final ax = endpoints.start.x,
+            ay = endpoints.start.y,
+            bx = endpoints.end.x,
+            by = endpoints.end.y,
             mid = (ax + bx) / 2;
-        final wing = right ? -8 : 8;
+        final wing = ax <= bx ? -8 : 8;
         b.element(
           'path',
           attributes: {
