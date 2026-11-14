@@ -3,6 +3,7 @@ import 'package:cockpit/app/cockpit/domain/entities/board_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_painter.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/material.dart' as m;
@@ -72,12 +73,21 @@ void main() {
           .transformationController!;
       final size = tester.getSize(canvas), origin = tester.getTopLeft(canvas);
       final box = Offset.zero & size;
+      Set<String> painted() => tester
+          .widgetList<m.CustomPaint>(find.byType(m.CustomPaint))
+          .map((paint) => paint.painter)
+          .whereType<BoardPainter>()
+          .expand((paint) => paint.items.map((item) => item.id))
+          .toSet();
+      expect(painted(), contains(left.id));
+      expect(painted(), isNot(contains(right.id)));
       Offset mapped(Offset scene) => m.MatrixUtils.transformPoint(
         camera.value,
         scene + const Offset(150, 40),
       );
       await tester.tap(find.byTooltip('Fit document'));
       await tester.pumpAndSettle();
+      expect(painted(), containsAll([left.id, right.id, 'edge']));
       for (final node in [left, right]) {
         expect(box.contains(mapped(Offset(node.x, node.y))), isTrue);
         expect(
