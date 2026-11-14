@@ -8,13 +8,13 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Depois
 
-- [ ] Reduzir custo de cenas extensas <!-- id: board-escala labels: desempenho -->
-      Frente Flutter. O arraste de uma etapa em três cenas ficou dentro do orçamento de 60 Hz no perfil de 14/11. Continuar com movimento de grupo, primeira pintura, escrita livre e zoom, usando miniaturas representativas, antes de escolher recorte espacial ou cache. Conferir hit testing e ligações.
+- [ ] Investigar a primeira pintura de cenas extensas <!-- id: board-abertura labels: desempenho -->
+      Frente Flutter. Com 1.920 objetos, a primeira construção ainda excedeu 16,67 ms em duas das três aberturas. Separar o tempo de leitura do Markdown, cálculo de geometria e montagem do editor antes de escolher outra otimização. Medições em perfil.md.
 
 ## Validar no desktop
 
 - [ ] Confirmar navegação com Narrador e trackpad físico <!-- id: board-dispositivos labels: acesso -->
-      QA desktop. Comparar seleção, foco após Escape, conexão e enquadramento com os estados semânticos verificados pelos testes.
+      QA desktop. O Windows identificou três formas e duas conexões, e confirmou a seleção pela ação MSAA, conforme acessibilidade.md. Conferir agora a fala do Narrador, o foco após Escape e o enquadramento com um trackpad físico.
 
 - [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
       Frente de QA desktop. Comparar o editor otimizado com a versão anterior em três execuções por máquina. Registrar p95, frames atrasados e latência física a 60 e 120 Hz onde possível. Incluir painéis adjacentes e gravação lenta.
@@ -22,6 +22,9 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
       Frente de produto. Pedir que cinco pessoas desenhem um fluxo, renomeiem uma etapa, liguem uma decisão e exportem o desenho. Registrar conclusão sem ajuda, cliques errados e perda de seleção. Meta proposta: quatro de cinco completam as quatro tarefas sem ajuda.
 
 ## Entregue
+
+- [x] Recortar a camada estática ao navegar em cenas extensas <!-- id: board-escala labels: desempenho -->
+      Frente Flutter. Com 1.920 objetos, 180 passos de zoom passaram de 40,53 s para 1,23 s na mediana de três execuções. O teste de câmera enquadrou e selecionou uma forma inicialmente fora da área pintada. O benchmark reabriu os arquivos para conferir o traço de 2.881 pontos e as ligações após mover o grupo.
 
 - [x] Registrar o lápis desde o primeiro movimento <!-- id: board-primeira-amostra labels: interacao, desempenho -->
       O teste de widget verifica o deslocamento inicial de um pixel, 102 pontos reabertos do Markdown e o tamanho do traço. Um toque isolado também aparece na saída SVG usada pelo HTML.

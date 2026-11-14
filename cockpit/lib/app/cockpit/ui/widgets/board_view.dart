@@ -988,6 +988,30 @@ class _BoardState extends State<BoardView> {
       );
     }
 
+    Rect? paintedArea;
+    Widget? stationaryLayer;
+    Widget stationary(Rect viewportBounds) {
+      final previous = paintedArea;
+      if (previous != null &&
+          previous.contains(viewportBounds.topLeft) &&
+          previous.contains(viewportBounds.bottomRight)) {
+        return stationaryLayer!;
+      }
+      // Keep a margin so small camera movements reuse the existing display list.
+      final area = viewportBounds.inflate(
+        math.max(viewportBounds.width, viewportBounds.height) * .25 + 8,
+      );
+      paintedArea = area;
+      return stationaryLayer = RepaintBoundary(
+        child: layer([
+          for (final item in objects)
+            if (!movingIds.contains(item.id) &&
+                itemBounds(item).inflate(8).overlaps(area))
+              item,
+        ], Offset.zero),
+      );
+    }
+
     final edited = doc?.items[editing?.id];
     final handleItem = doc?.items[hovered] ?? current;
     final swatches = {
@@ -1247,163 +1271,158 @@ class _BoardState extends State<BoardView> {
                             setState(() => spacePan = false);
                           }
                         },
-                        child: InteractiveViewer(
+                        child: InteractiveViewer.builder(
                           key: viewport,
                           transformationController: transform,
-                          constrained: false,
                           alignment: Alignment.topLeft,
                           boundaryMargin: const EdgeInsets.all(double.infinity),
                           minScale: .001,
                           maxScale: 5,
                           panEnabled: navigating,
-                          child: Listener(
-                            behavior: HitTestBehavior.opaque,
-                            onPointerDown: begin,
-                            onPointerMove: move,
-                            onPointerUp: end,
-                            onPointerCancel: (e) {
-                              if (pointer == e.pointer) cancel();
-                            },
-                            child: MouseRegion(
-                              onHover: hover,
-                              onExit: (_) {
-                                if (mounted &&
-                                    hovered != null &&
-                                    pointer == null) {
-                                  setState(() => hovered = null);
-                                }
+                          builder: (context, quad) {
+                            final viewportBounds = Rect.fromPoints(
+                              Offset(quad.point0.x, quad.point0.y),
+                              Offset(quad.point2.x, quad.point2.y),
+                            ).shift(-sceneOrigin);
+                            return Listener(
+                              behavior: HitTestBehavior.opaque,
+                              onPointerDown: begin,
+                              onPointerMove: move,
+                              onPointerUp: end,
+                              onPointerCancel: (e) {
+                                if (pointer == e.pointer) cancel();
                               },
-                              cursor: navigating
-                                  ? SystemMouseCursors.grab
-                                  : tool == 'select'
-                                  ? SystemMouseCursors.basic
-                                  : SystemMouseCursors.precise,
-                              child: Stack(
-                                children: [
-                                  RepaintBoundary(
-                                    child: layer(
-                                      moving.isEmpty
-                                          ? objects
-                                          : objects
-                                                .where(
-                                                  (i) =>
-                                                      !movingIds.contains(i.id),
-                                                )
-                                                .toList(),
-                                      Offset.zero,
-                                    ),
-                                  ),
-                                  if (handleItem != null &&
-                                      connectable(handleItem) &&
-                                      editing == null &&
-                                      tool == 'select' &&
-                                      !navigating &&
-                                      dragItem == null &&
-                                      anchor == null)
-                                    Positioned(
-                                      left:
-                                          sceneOrigin.dx +
-                                          handleCenter(handleItem).dx -
-                                          7,
-                                      top:
-                                          sceneOrigin.dy +
-                                          handleCenter(handleItem).dy -
-                                          7,
-                                      child: IgnorePointer(
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            color: colors.panel,
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: colors.accent,
-                                              width: 1.5,
+                              child: MouseRegion(
+                                onHover: hover,
+                                onExit: (_) {
+                                  if (mounted &&
+                                      hovered != null &&
+                                      pointer == null) {
+                                    setState(() => hovered = null);
+                                  }
+                                },
+                                cursor: navigating
+                                    ? SystemMouseCursors.grab
+                                    : tool == 'select'
+                                    ? SystemMouseCursors.basic
+                                    : SystemMouseCursors.precise,
+                                child: Stack(
+                                  children: [
+                                    stationary(viewportBounds),
+                                    if (handleItem != null &&
+                                        connectable(handleItem) &&
+                                        editing == null &&
+                                        tool == 'select' &&
+                                        !navigating &&
+                                        dragItem == null &&
+                                        anchor == null)
+                                      Positioned(
+                                        left:
+                                            sceneOrigin.dx +
+                                            handleCenter(handleItem).dx -
+                                            7,
+                                        top:
+                                            sceneOrigin.dy +
+                                            handleCenter(handleItem).dy -
+                                            7,
+                                        child: IgnorePointer(
+                                          child: DecoratedBox(
+                                            decoration: BoxDecoration(
+                                              color: colors.panel,
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: colors.accent,
+                                                width: 1.5,
+                                              ),
                                             ),
-                                          ),
-                                          child: Icon(
-                                            Icons.add,
-                                            size: 13,
-                                            color: colors.accent,
+                                            child: Icon(
+                                              Icons.add,
+                                              size: 13,
+                                              color: colors.accent,
+                                            ),
                                           ),
                                         ),
                                       ),
-                                    ),
-                                  if (moving.isNotEmpty)
+                                    if (moving.isNotEmpty)
+                                      Positioned.fill(
+                                        child: IgnorePointer(
+                                          child: RepaintBoundary(
+                                            child:
+                                                ValueListenableBuilder<Offset>(
+                                                  valueListenable: dragOffset,
+                                                  builder: (_, delta, _) =>
+                                                      layer(moving, delta),
+                                                ),
+                                          ),
+                                        ),
+                                      ),
                                     Positioned.fill(
                                       child: IgnorePointer(
                                         child: RepaintBoundary(
-                                          child: ValueListenableBuilder<Offset>(
-                                            valueListenable: dragOffset,
-                                            builder: (_, delta, _) =>
-                                                layer(moving, delta),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  Positioned.fill(
-                                    child: IgnorePointer(
-                                      child: RepaintBoundary(
-                                        child: CustomPaint(
-                                          painter: _PreviewPainter(
-                                            ink,
-                                            sceneOrigin,
-                                            tool == 'pencil' &&
-                                                    drawingColor != null
-                                                ? swatch(drawingColor!)
-                                                : colors.accent,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  if (edited != null)
-                                    Positioned.fromRect(
-                                      rect: editorBounds(
-                                        edited,
-                                      ).shift(sceneOrigin),
-                                      child: Material(
-                                        color: colors.bg,
-                                        child: CallbackShortcuts(
-                                          bindings: {
-                                            const SingleActivator(
-                                              LogicalKeyboardKey.escape,
-                                            ): () =>
-                                                finishLabel(discard: true),
-                                          },
-                                          child: TextField(
-                                            controller: label,
-                                            onChanged: (_) => syncDirty(),
-                                            focusNode: labelFocus,
-                                            style: context.typo.body.copyWith(
-                                              color: colors.text,
+                                          child: CustomPaint(
+                                            painter: _PreviewPainter(
+                                              ink,
+                                              sceneOrigin,
+                                              tool == 'pencil' &&
+                                                      drawingColor != null
+                                                  ? swatch(drawingColor!)
+                                                  : colors.accent,
                                             ),
-                                            textAlign: TextAlign.center,
-                                            textAlignVertical:
-                                                TextAlignVertical.center,
-                                            expands: true,
-                                            minLines: null,
-                                            maxLines: null,
-                                            textInputAction:
-                                                TextInputAction.done,
-                                            decoration: InputDecoration(
-                                              hintText: tr.label,
-                                              isDense: true,
-                                              border:
-                                                  const OutlineInputBorder(),
-                                              contentPadding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 3,
-                                                  ),
-                                            ),
-                                            onTapOutside: (_) => finishLabel(),
-                                            onSubmitted: (_) => finishLabel(),
                                           ),
                                         ),
                                       ),
                                     ),
-                                ],
+                                    if (edited != null)
+                                      Positioned.fromRect(
+                                        rect: editorBounds(
+                                          edited,
+                                        ).shift(sceneOrigin),
+                                        child: Material(
+                                          color: colors.bg,
+                                          child: CallbackShortcuts(
+                                            bindings: {
+                                              const SingleActivator(
+                                                LogicalKeyboardKey.escape,
+                                              ): () =>
+                                                  finishLabel(discard: true),
+                                            },
+                                            child: TextField(
+                                              controller: label,
+                                              onChanged: (_) => syncDirty(),
+                                              focusNode: labelFocus,
+                                              style: context.typo.body.copyWith(
+                                                color: colors.text,
+                                              ),
+                                              textAlign: TextAlign.center,
+                                              textAlignVertical:
+                                                  TextAlignVertical.center,
+                                              expands: true,
+                                              minLines: null,
+                                              maxLines: null,
+                                              textInputAction:
+                                                  TextInputAction.done,
+                                              decoration: InputDecoration(
+                                                hintText: tr.label,
+                                                isDense: true,
+                                                border:
+                                                    const OutlineInputBorder(),
+                                                contentPadding:
+                                                    const EdgeInsets.symmetric(
+                                                      horizontal: 3,
+                                                    ),
+                                              ),
+                                              onTapOutside: (_) =>
+                                                  finishLabel(),
+                                              onSubmitted: (_) => finishLabel(),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          },
                         ),
                       ),
                     ),

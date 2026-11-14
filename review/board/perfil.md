@@ -68,4 +68,29 @@ import 'board_view.dart' as old;
 Future<void> main() => runBoardProfile(baseline: old.BoardView.new);
 ```
 
-O experimento mede o arraste sintético de uma etapa depois do aquecimento. Para concluir sobre escrita livre, custo da primeira pintura ou latência física do mouse à tela, cada cenário precisa de sua própria medição. Uma área de trabalho com aplicações ativas e um único computador limitam a generalização. A medição no monitor de 160 Hz compara também com o orçamento de 60 Hz; o monitor permaneceu em sua configuração original.
+O experimento mede o arraste sintético de uma etapa depois do aquecimento. Uma área de trabalho com aplicações ativas e um único computador limitam a generalização. A medição no monitor de 160 Hz compara também com o orçamento de 60 Hz; o monitor permaneceu em sua configuração original.
+
+## Escrita livre, zoom e abertura de um documento denso
+
+Em uma segunda rodada, o mesmo processo Profile comparou o editor de `d50628ed` com a camada que limita a pintura estática à área visível mais uma margem de 25% e oito unidades. A cena contém 960 etapas, 959 conectores e uma miniatura de arquitetura PNG de 640 × 320 com rótulos e caminhos. O editor exibe a miniatura em um objeto de 320 × 160. A mesma fonte Mermaid e o mesmo PNG foram usados nas duas versões. A ordem das versões foi invertida na segunda das três repetições.
+
+**Primeira pintura.** Um host Flutter já montado recebe um BoardView novo. O primeiro frame é identificado pelo número do motor. Separadamente, um cronômetro vai da montagem até o primeiro RawImage com a miniatura decodificada. A leitura do arquivo e a preparação dos bytes do PNG antecedem o cronômetro. O cache de imagens foi limpo entre as execuções.
+
+**Gestos.** Escrita livre injeta 16 movimentos por frame, por 180 frames. O primeiro deslocamento mede uma unidade. O teste reabre o `.board` e confere as coordenadas de todos os 2.881 pontos, inclusive o primeiro e o último. O zoom usa 180 pulsos reais do caminho de eventos Flutter da roda, alternando o sentido a cada dez, confere ampliação acima de 1,4×, retorno à escala inicial e arquivo idêntico. O arraste move oito etapas e a miniatura juntas em 84 × 4 unidades. O teste confere todos os objetos, grupos, destinos e origens após reabrir o arquivo. O salvamento introduz 120 ms de espera e faz flush em disco, depois do gesto.
+
+Cada linha da tabela corresponde à mediana das três execuções. Construção e rasterização são os p95 por execução. O primeiro frame tem uma única amostra por abertura. A cadência mede o intervalo de relógio entre duas conclusões de frame com movimento e inclui o processamento síncrono do evento. A duração total dos 180 passos inclui os 20 de aquecimento. O cronômetro de miniatura é apresentado apenas no cenário de abertura.
+
+| Cenário | Versão | Construção (ms) | Rasterização (ms) | Intervalo p95 (ms) | 180 passos (s) | Miniatura disponível (ms) | Fases acima de 16,67 ms |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Primeira pintura | d50628ed | 82,50 | 4,27 | — | — | 513,84 | 3/3 |
+| Primeira pintura | Com recorte | 23,67 | 3,46 | — | — | 47,09 | 2/3 |
+| Escrita livre | d50628ed | 0,23 | 3,44 | 7,56 | 1,17 | — | 0/480 |
+| Escrita livre | Com recorte | 0,27 | 3,57 | 7,49 | 1,13 | — | 0/480 |
+| Zoom | d50628ed | 0,81 | 3,67 | 287,91 | 40,53 | — | 0/480 |
+| Zoom | Com recorte | 0,71 | 2,44 | 10,35 | 1,23 | — | 0/480 |
+| Grupo com miniatura | d50628ed | 0,86 | 1,66 | 7,75 | 1,37 | — | 0/480 |
+| Grupo com miniatura | Com recorte | 0,82 | 1,38 | 8,06 | 1,13 | — | 0/480 |
+
+No zoom, o p95 de rasterização da referência ficou baixo apesar de a cadência ultrapassar 250 ms entre passos. O recorte reduziu a duração mediana do mesmo gesto de 40,53 s para 1,23 s. Na abertura, a primeira construção ainda excedeu o orçamento de 16,67 ms em duas das três execuções com recorte. O teste de câmera também exercitou seleção de uma forma inicialmente fora do quadro, enquadramento e retorno após gesto de trackpad, preservando o conteúdo salvo.
+
+Para repetir essa suíte, definir `BOARD_PROFILE_SUITE=interactions` e escolher a saída com `BOARD_PROFILE_RESULT`. A função `runBoardProfile` aceita um construtor histórico para executar as duas variantes no mesmo processo. O TSV inclui as 24 amostras por cenário e repetição, contagens, duração real dos gestos e frequência do display. O benchmark validou todas as 24 séries e as 12 gravações de arquivo antes do erro nativo de encerramento 0xC0000005 no runner auxiliar. SHA-256 do AOT pareado medido: E9777A24498860838F861E6564D0BA171F271087A619E92E605CFBDB960D4051. A latência física de um mouse ou caneta até a apresentação no monitor permanece fora do ensaio.

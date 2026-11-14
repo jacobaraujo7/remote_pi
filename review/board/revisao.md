@@ -48,7 +48,7 @@ O [perfil de arraste](perfil.md) registra três rodadas por versão e tamanho de
 
 Na continuação de 14/11, o lápis passou a registrar movimentos abaixo do limiar de arraste usado pelas formas. A caixa do traço é atualizada durante o gesto e o ponto de soltura só é adicionado quando muda. A fila de gravação reutiliza o modelo confirmado enquanto a fonte no workspace coincide com a última gravação. Um teste introduziu uma alteração independente de Markdown entre duas gravações e confirmou as três formas e o rótulo alterado após reabrir. Os PRs #316, #318 e #319 continuavam abertos para main na consulta desta etapa.
 
-Responsável local **Canvas Board**, branch feature/canvas-board, destino main. Inventário atualizado diretamente no repositório em 14/11/2026. Próximo passo de QA: consolidar o perfil no desktop e os resultados da validação com pessoas.
+Responsável local **Canvas Board**, branch feature/canvas-board, destino main. Inventário atualizado diretamente no repositório em 14/11/2026. O recorte da pintura passou em 61 testes do Board, Gallery e abertura de documentos. Uma janela independente abriu a cópia do fluxo de aprovação no executável Windows Release. O perfil de três execuções por versão está em perfil.md e a inspeção pelo Windows está em acessibilidade.md. A frente Flutter acompanha a primeira pintura. QA desktop e produto acompanham as medições físicas e a observação com participantes no Kanban.
 
 | PR do inventário | Destino | Responsável | Relação e encaminhamento |
 | --- | --- | --- | --- |
