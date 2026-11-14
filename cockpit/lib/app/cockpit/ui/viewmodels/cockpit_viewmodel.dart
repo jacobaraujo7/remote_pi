@@ -1653,7 +1653,11 @@ class CockpitViewModel extends ChangeNotifier
         return FileViewMarkdown(text);
       }
       if (ext == 'svg') return FileViewSvg(path, text);
-      return FileViewText(text, language: ext.isEmpty ? null : ext);
+      return FileViewText(text, language: switch (ext) {
+        'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
+        '' => null,
+        _ => ext,
+      });
     } on Object catch (e) {
       // fs.read falhou (too_large, permissão, conexão) → não abre.
       DiagnosticsLog.instance.warn(
@@ -1994,7 +1998,11 @@ class CockpitViewModel extends ChangeNotifier
     }
     for (final s in _sessions.values) {
       if (s is FileViewerSession && s.path == path && !s.rawSource) {
-        s.toggleRawSource();
+        if (s.path.toLowerCase().endsWith('.board')) {
+          await s.switchBoardMode();
+        } else {
+          s.toggleRawSource();
+        }
       }
     }
   }

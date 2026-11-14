@@ -1660,8 +1660,11 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 
 	// Translations
 	@override String get fileActions => '导入或导出';
+	@override String get exportDocument => '导出整个文档';
 	@override String get exportSelection => '导出所选内容';
 	@override String get appendBoard => '将此文档添加到画布？';
+	@override String get fitDocument => '适应整个文档';
+	@override String get fitSelection => '适应所选对象';
 	@override String get diagramColor => '图形颜色';
 	@override String get themeColor => '主题默认';
 	@override String get blue => '蓝色';
@@ -1672,6 +1675,11 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 	@override String get cyan => '青色';
 	@override String get emptyBoard => '选择形状，然后单击或拖动以绘制。';
 	@override String get arrowStart => '选择起始形状，或拖动到目标形状。';
+	@override String get keyboardHelp => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接';
+	@override String get moveHere => '移动到此处';
+	@override String get moveDestination => '点击以放置选中对象 · Esc 取消';
+	@override String keyboardTarget({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。';
+	@override String connectorEndpoints({required Object from, required Object to}) => '从 ${from} 到 ${to}';
 	@override String get arrowEnd => '选择目标形状。';
 	@override String get diagramTypes => '图表类型';
 	@override String get replaceSource => '用此示例替换当前源码？';
@@ -2820,8 +2828,11 @@ extension on TranslationsZh {
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
 			'cockpit.gallery.board.fileActions' => '导入或导出',
+			'cockpit.gallery.board.exportDocument' => '导出整个文档',
 			'cockpit.gallery.board.exportSelection' => '导出所选内容',
 			'cockpit.gallery.board.appendBoard' => '将此文档添加到画布？',
+			'cockpit.gallery.board.fitDocument' => '适应整个文档',
+			'cockpit.gallery.board.fitSelection' => '适应所选对象',
 			'cockpit.gallery.board.diagramColor' => '图形颜色',
 			'cockpit.gallery.board.themeColor' => '主题默认',
 			'cockpit.gallery.board.blue' => '蓝色',
@@ -2832,6 +2843,11 @@ extension on TranslationsZh {
 			'cockpit.gallery.board.cyan' => '青色',
 			'cockpit.gallery.board.emptyBoard' => '选择形状，然后单击或拖动以绘制。',
 			'cockpit.gallery.board.arrowStart' => '选择起始形状，或拖动到目标形状。',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接',
+			'cockpit.gallery.board.moveHere' => '移动到此处',
+			'cockpit.gallery.board.moveDestination' => '点击以放置选中对象 · Esc 取消',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => '从 ${from} 到 ${to}',
 			'cockpit.gallery.board.arrowEnd' => '选择目标形状。',
 			'cockpit.gallery.board.diagramTypes' => '图表类型',
 			'cockpit.gallery.board.replaceSource' => '用此示例替换当前源码？',
@@ -3174,6 +3190,8 @@ extension on TranslationsZh {
 			'settings.page.notifications.systemPermissionTitle' => '系统权限',
 			'settings.page.notifications.grantedDesc' => 'Cockpit 已获准发送通知。',
 			'settings.page.notifications.notGrantedDesc' => 'macOS 尚未授予通知权限。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.notifications.granted' => '已授予',
 			'settings.page.notifications.requestPermission' => '请求权限',
 			'settings.page.notifications.soundsTitle' => '声音',
@@ -3182,8 +3200,6 @@ extension on TranslationsZh {
 			'settings.page.notifications.soundTurnDoneDesc' => '智能体完成了它的一轮对话。',
 			'settings.page.notifications.soundActionRequired' => '需要操作',
 			'settings.page.notifications.soundActionRequiredDesc' => '智能体正在等待你的批准或回答。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.notifications.soundDefault' => '默认',
 			'settings.page.notifications.soundCustom' => ({required Object name}) => '自定义：${name}',
 			'settings.page.notifications.soundChooseFile' => '选择文件',

@@ -38,7 +38,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_document_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
@@ -822,7 +822,8 @@ class _TabState extends State<_Tab> {
             ),
           // Saída de emergência do editor próprio: ver e escrever o markdown
           // cru. O arquivo é o mesmo; só muda quem o desenha.
-          if (viewer.path.toLowerCase().endsWith('.kanban'))
+          if (viewer.path.toLowerCase().endsWith('.kanban') ||
+              viewer.path.toLowerCase().endsWith('.board'))
             AppMenuItem(
               value: 'raw-source',
               label: viewer.rawSource ? tr.openAsBoard : tr.openAsMarkdown,
@@ -956,7 +957,11 @@ class _TabState extends State<_Tab> {
           );
         }
       case 'raw-source':
-        viewer?.toggleRawSource();
+        if (viewer != null && viewer.path.toLowerCase().endsWith('.board')) {
+          await viewer.switchBoardMode();
+        } else {
+          viewer?.toggleRawSource();
+        }
       case 'rename':
         _startEditing();
       case 'reset-label':
@@ -1727,9 +1732,12 @@ class _PaneBodyState extends State<_PaneBody> {
     if (item is FileViewerSession &&
         item.path.toLowerCase().endsWith('.board')) {
       final vm = context.read<CockpitViewModel>();
-      return BoardView(
+      return BoardDocumentView(
         key: ValueKey(item.id),
         session: item,
+        active: widget.active,
+        focused: widget.focused,
+        allowLocalFileSystem: vm.canOpenInWindow(item.projectId),
         onSave: (content) => vm.saveFile(item.id, content),
         onReload: () => vm.reloadFile(item.id),
       );

@@ -270,8 +270,9 @@ enum GalleryTemplate {
   /// Conteúdo inicial do arquivo.
   final String _content;
   String get content {
-    if (this == GalleryTemplate.board)
+    if (this == GalleryTemplate.board) {
       return BoardDocument([], id: BoardDocument.newId()).encode();
+    }
     if (this != GalleryTemplate.orchestration) return _content;
     var id = 0;
     return OrchestrationDocument.defaultTerminals(

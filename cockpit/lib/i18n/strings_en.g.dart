@@ -3766,11 +3766,20 @@ class Translations$cockpit$gallery$board$en {
 	/// en: 'Import or export'
 	String get fileActions => 'Import or export';
 
+	/// en: 'Export entire document'
+	String get exportDocument => 'Export entire document';
+
 	/// en: 'Export selection'
 	String get exportSelection => 'Export selection';
 
 	/// en: 'Add this board to the canvas?'
 	String get appendBoard => 'Add this board to the canvas?';
+
+	/// en: 'Fit document'
+	String get fitDocument => 'Fit document';
+
+	/// en: 'Fit selection'
+	String get fitSelection => 'Fit selection';
 
 	/// en: 'Diagram color'
 	String get diagramColor => 'Diagram color';
@@ -3801,6 +3810,21 @@ class Translations$cockpit$gallery$board$en {
 
 	/// en: 'Choose the first shape, or drag to the destination.'
 	String get arrowStart => 'Choose the first shape, or drag to the destination.';
+
+	/// en: 'Tab selects objects · Arrows move · Shift ×10 · C connects'
+	String get keyboardHelp => 'Tab selects objects · Arrows move · Shift ×10 · C connects';
+
+	/// en: 'Move here'
+	String get moveHere => 'Move here';
+
+	/// en: 'Click where to place the selection · Esc cancels'
+	String get moveDestination => 'Click where to place the selection · Esc cancels';
+
+	/// en: 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.'
+	String keyboardTarget({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.';
+
+	/// en: 'From ${from} to ${to}'
+	String connectorEndpoints({required Object from, required Object to}) => 'From ${from} to ${to}';
 
 	/// en: 'Choose the destination shape.'
 	String get arrowEnd => 'Choose the destination shape.';
@@ -5470,8 +5494,11 @@ extension on Translations {
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
 			'cockpit.gallery.board.fileActions' => 'Import or export',
+			'cockpit.gallery.board.exportDocument' => 'Export entire document',
 			'cockpit.gallery.board.exportSelection' => 'Export selection',
 			'cockpit.gallery.board.appendBoard' => 'Add this board to the canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Fit document',
+			'cockpit.gallery.board.fitSelection' => 'Fit selection',
 			'cockpit.gallery.board.diagramColor' => 'Diagram color',
 			'cockpit.gallery.board.themeColor' => 'Theme default',
 			'cockpit.gallery.board.blue' => 'Blue',
@@ -5482,6 +5509,11 @@ extension on Translations {
 			'cockpit.gallery.board.cyan' => 'Cyan',
 			'cockpit.gallery.board.emptyBoard' => 'Choose a shape and click or drag to draw it.',
 			'cockpit.gallery.board.arrowStart' => 'Choose the first shape, or drag to the destination.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selects objects · Arrows move · Shift ×10 · C connects',
+			'cockpit.gallery.board.moveHere' => 'Move here',
+			'cockpit.gallery.board.moveDestination' => 'Click where to place the selection · Esc cancels',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'From ${from} to ${to}',
 			'cockpit.gallery.board.arrowEnd' => 'Choose the destination shape.',
 			'cockpit.gallery.board.diagramTypes' => 'Diagram types',
 			'cockpit.gallery.board.replaceSource' => 'Replace the current source with this example?',
@@ -5817,6 +5849,8 @@ extension on Translations {
 			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
 			'settings.page.appearance.sectionLayout' => 'Layout',
 			'settings.page.appearance.swapPanelsTitle' => 'Swap side panels',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.swapPanelsDesc' => 'Puts workspaces on the right and files, search, git and database on the left.',
 			'settings.page.notifications.sectionTitle' => 'Notifications',
 			'settings.page.notifications.enableTitle' => 'Enable notifications',
@@ -5825,8 +5859,6 @@ extension on Translations {
 			'settings.page.notifications.grantedDesc' => 'Cockpit is allowed to send notifications.',
 			'settings.page.notifications.notGrantedDesc' => 'macOS has not granted notification access yet.',
 			'settings.page.notifications.granted' => 'Granted',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.notifications.requestPermission' => 'Request permission',
 			'settings.page.notifications.soundsTitle' => 'Sounds',
 			'settings.page.notifications.soundVolumeTitle' => 'Volume',

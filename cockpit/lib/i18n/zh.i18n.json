@@ -775,8 +775,11 @@
     "gallery": {
       "board": {
         "fileActions": "导入或导出",
+        "exportDocument": "导出整个文档",
         "exportSelection": "导出所选内容",
         "appendBoard": "将此文档添加到画布？",
+        "fitDocument": "适应整个文档",
+        "fitSelection": "适应所选对象",
         "diagramColor": "图形颜色",
         "themeColor": "主题默认",
         "blue": "蓝色",
@@ -787,6 +790,11 @@
         "cyan": "青色",
         "emptyBoard": "选择形状，然后单击或拖动以绘制。",
         "arrowStart": "选择起始形状，或拖动到目标形状。",
+        "keyboardHelp": "Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接",
+        "moveHere": "移动到此处",
+        "moveDestination": "点击以放置选中对象 · Esc 取消",
+        "keyboardTarget": "目标：${target}。Tab 切换，Enter 连接，Esc 取消。",
+        "connectorEndpoints": "从 ${from} 到 ${to}",
         "arrowEnd": "选择目标形状。",
         "diagramTypes": "图表类型",
         "replaceSource": "用此示例替换当前源码？",

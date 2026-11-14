@@ -5,6 +5,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
+import 'package:cockpit/app/core/ui/overlay/app_popover_handler.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart' show LogicalKeyboardKey;
@@ -27,6 +28,7 @@ void main() {
       await tester.pumpWidget(
         TranslationProvider(
           child: ShadcnApp(
+            popoverHandler: const AppPopoverOverlayHandler(),
             theme: buildTheme(brightness: Brightness.dark),
             home: Scaffold(
               child: BoardView(
@@ -178,9 +180,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byTooltip('Diagram color'));
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.widgetWithText(m.CheckedPopupMenuItem<String>, 'Green'),
-      );
+      await tester.tap(find.text('Green'));
       await tester.pumpAndSettle();
       expect(read().items[process.id]!.color, '#64CBA7');
       await tester.tap(find.byTooltip('Undo'));
@@ -283,6 +283,7 @@ void main() {
       await tester.pumpWidget(
         TranslationProvider(
           child: ShadcnApp(
+            popoverHandler: const AppPopoverOverlayHandler(),
             theme: buildTheme(brightness: Brightness.dark),
             home: Scaffold(
               child: BoardView(

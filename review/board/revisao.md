@@ -2,7 +2,7 @@
 
 Em 14/11/2026, a frente de design percorreu o editor Flutter desta worktree em português, com o tema escuro do Cockpit e uma superfície de 960 × 520 pixels lógicos. As capturas vieram do próprio BoardView em um teste de widget que abriu um fluxo com três etapas e dois conectores.
 
-## Percurso verificado
+## Percurso da primeira revisão
 
 1. **Selecionar uma etapa — aprovado.** O contorno azul e a alça de conexão identificam “Receber pedido”. O losango e o rótulo “Sim” explicam o caminho também sem cor. Na primeira captura a linha atravessava “Sim”. A frente Flutter abriu espaço em torno do texto e a nova captura confirmou a leitura.
 
@@ -12,11 +12,15 @@ Em 14/11/2026, a frente de design percorreu o editor Flutter desta worktree em p
 
 ![Paleta em português com seis cores, opção de tema e marca de seleção](02-paleta.png)
 
-3. **Encontrar uma exportação — aprovado com ressalva.** Ao abrir o menu de intercâmbio, PNG, PDF, HTML e XML ficam juntos na parte superior. As opções específicas de seleção ficam abaixo da dobra nessa altura. Quem quer exportar uma etapa precisa rolar para descobrir a opção. O percurso inspecionou o menu. A validação dos arquivos produzidos pertence aos testes de exportação.
+3. **Exportar o fluxo ou uma seleção.** A ação Exportar permanece visível no cabeçalho. Primeiro se escolhe o alcance e depois o formato. A captura em português mostra os dois caminhos.
 
-![Menu de intercâmbio aberto com os quatro formatos solicitados visíveis](03-exportar.png)
+![Menu Exportar com documento inteiro e seleção](03-exportar.png)
 
-## Equalização com o padrão do Cockpit
+![Nove formatos de exportação do documento](04-formatos-documento.png)
+
+![Quatro formatos para uma seleção](05-formatos-selecao.png)
+
+## Propostas da primeira revisão
 
 | Prioridade | Evidência e proposta | Responsável e aceite |
 | --- | --- | --- |
@@ -28,13 +32,21 @@ Em 14/11/2026, a frente de design percorreu o editor Flutter desta worktree em p
 
 O perfil de janela destacada, temas adicionais, leitores de tela, gravação remota e latência física seguem pendentes de validação presencial. O roteiro está no [Kanban de evolução](evolucao-canvas.kanban).
 
+## Entrega local após a revisão
+
+O editor e o harness trabalham sobre o mesmo arquivo Markdown v3. A Gallery, a aba e a janela destacada usam o fluxo de documentos do Cockpit. O menu da aba e o controle de modo da janela alternam Quadro e Markdown com proteção do rascunho. Um teste em disco usa o arquivo de exemplo da skill, substitui seu conteúdo pelo fluxo de um harness e verifica a recarga pelo watcher e uma edição gráfica posterior.
+
+A paleta e a exportação usam o componente de menu do Cockpit. O botão **Exportar** abre primeiro o alcance e depois o formato. O documento inteiro oferece PNG, PDF, XML, HTML, SVG, Markdown, draw.io, Excalidraw e Mermaid. A seleção oferece PNG, PDF, HTML e SVG. O diálogo sugere o nome do documento com a extensão escolhida.
+
+O teclado percorre as formas e conexões, move a seleção e escolhe origem e destino da seta. Os testes verificam a árvore semântica e a identidade de objetos sobrepostos. O enquadramento acomoda formas com coordenadas negativas e além dos limites iniciais. A paleta e o rodapé foram testados em painéis de 280 e 420 pixels. Validação manual com Narrador, latência física e cinco sessões com pessoas continuam no Kanban.
+
+Passaram 43 testes do domínio, editor, janela de documento, arquivos e Gallery. O teste de exportação escolheu cada um dos nove formatos pelo menu e conferiu sua gravação em disco com o nome do documento. O diálogo de destino foi substituído por um seletor de teste. A análise dos 20 arquivos de Canvas e benchmark terminou sem apontamentos e a compilação Windows Release foi concluída.
+
+O [perfil de arraste](perfil.md) registra três rodadas por versão e tamanho de cena. Na versão atual, nenhum dos 1.440 quadros amostrados excedeu 16,67 ms por fase.
+
 ## Registro da demanda
 
-Backend confirmou abertura do JSON v1 e gravação em Markdown v2 com IDs e conexões preservados. A CLI distribuída lista a skill `cockpit-canvas`. Frontend confirmou a integração com `FileViewerSession` e a espera pela fila de gravação antes de fechar uma aba. Para alinhar a leitura de código ao Kanban, a proposta é expor o Markdown na ação de alternar a visualização da aba.
-
-Passaram 26 testes permanentes de Canvas, Gallery e roteamento. Uma verificação adicional produziu o PDF com fonte desktop e conferiu sua leitura após rasterização externa. O analisador Dart concluiu sem apontamentos nos 15 arquivos do Canvas. O teste independente de sincronização do template Dashboard compara LF com CRLF e falha neste checkout Windows.
-
-Responsável local **Canvas Board**, na branch feature/canvas-board do repositório jacobaraujo7/remote_pi. A frente de design concluiu o percurso acima. O próximo passo é validar os itens de teclado, menu de exportação e perfil físico do desktop.
+Responsável local **Canvas Board**, branch feature/canvas-board, destino main. Inventário atualizado diretamente no repositório em 14/11/2026. Próximo passo de QA: consolidar o perfil no desktop e os resultados da validação com pessoas.
 
 | PR do inventário | Destino | Responsável | Relação e encaminhamento |
 | --- | --- | --- | --- |

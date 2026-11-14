@@ -6,20 +6,15 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Próxima entrega
 
-- [ ] Enquadrar seleção ou todo o documento <!-- id: board-camera labels: interacao -->
-      Acrescentar os dois comandos e validar o enquadramento com mouse e trackpad.
-- [ ] Percorrer e mover objetos sem arraste <!-- id: board-teclado labels: acesso -->
-      Frente Flutter. Permitir percorrer objetos, ouvir tipo e rótulo, mover por setas e escolher o destino por clique. Aceite: editar e conectar duas etapas usando teclado e repetir com ponteiro de um botão. Conferir foco com Narrador no Windows.
-
-- [ ] Escolher alcance antes de exportar <!-- id: board-alcance labels: interacao -->
-      Design e frontend. Oferecer documento inteiro ou seleção e então escolher o formato. Validar com teclado em um painel dividido.
-
 ## Depois
 
 - [ ] Reduzir custo de cenas extensas <!-- id: board-escala labels: desempenho -->
-      Frente Flutter. Medir traços longos, miniaturas Mermaid, grupos e áreas fora do enquadramento antes de escolher recorte espacial ou cache. Aceite: atingir o orçamento acordado sem perder hit testing ou ligações.
+      Frente Flutter. O arraste de uma etapa em três cenas ficou dentro do orçamento de 60 Hz no perfil de 14/11. Continuar com movimento de grupo, primeira pintura, escrita livre e zoom, usando miniaturas representativas, antes de escolher recorte espacial ou cache. Conferir hit testing e ligações.
 
 ## Validar no desktop
+
+- [ ] Confirmar navegação com Narrador e trackpad físico <!-- id: board-dispositivos labels: acesso -->
+      QA desktop. Comparar seleção, foco após Escape, conexão e enquadramento com os estados semânticos verificados pelos testes.
 
 - [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
       Frente de QA desktop. Comparar o editor otimizado com a versão anterior em três execuções por máquina. Registrar p95, frames atrasados e latência física a 60 e 120 Hz onde possível. Incluir painéis adjacentes e gravação lenta.
@@ -27,6 +22,16 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
       Frente de produto. Pedir que cinco pessoas desenhem um fluxo, renomeiem uma etapa, liguem uma decisão e exportem o desenho. Registrar conclusão sem ajuda, cliques errados e perda de seleção. Meta proposta: quatro de cinco completam as quatro tarefas sem ajuda.
 
 ## Entregue
+
+- [x] Enquadrar seleção ou documento <!-- id: board-camera labels: interacao -->
+      Comandos preservam a seleção, as coordenadas negativas e o acesso a formas distantes. Testado com eventos de mouse e trackpad no widget.
+- [x] Operar objetos pelo teclado e por clique <!-- id: board-teclado labels: acesso -->
+      Tab percorre objetos, as setas movem e C inicia conexão. F2 edita. “Mover para cá” posiciona a seleção por clique. Semântica coberta pelo teste Flutter.
+- [x] Escolher alcance antes do formato <!-- id: board-alcance labels: interacao -->
+      Exportar abre o menu comum do Cockpit. O documento oferece nove formatos locais. A seleção oferece quatro.
+- [x] Editar o desenho por harness ou pelo quadro <!-- id: board-markdown labels: interacao -->
+      Documento Markdown v3 e modo fonte em aba e janela. A skill distribui exemplo editável e a troca de modo protege o rascunho.
+
 
 - [x] Conectar diretamente pelas formas <!-- id: board-conectar labels: interacao -->
       A alça + aparece ao selecionar ou passar sobre uma forma. Arraste ou clique na alça e depois no destino. A prévia destaca o contorno e o ponto de encaixe. Escape cancela.

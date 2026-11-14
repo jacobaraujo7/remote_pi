@@ -778,8 +778,11 @@
     "gallery": {
       "board": {
         "fileActions": "Importar o exportar",
+        "exportDocument": "Exportar documento completo",
         "exportSelection": "Exportar selección",
         "appendBoard": "¿Añadir este documento al lienzo?",
+        "fitDocument": "Ajustar documento",
+        "fitSelection": "Ajustar selección",
         "diagramColor": "Color del dibujo",
         "themeColor": "Predeterminado del tema",
         "blue": "Azul",
@@ -790,6 +793,11 @@
         "cyan": "Cian",
         "emptyBoard": "Elige una forma y haz clic o arrastra para dibujarla.",
         "arrowStart": "Elige la primera forma o arrastra hasta el destino.",
+        "keyboardHelp": "Tab selecciona · Flechas mueven · Mayús ×10 · C conecta",
+        "moveHere": "Mover aquí",
+        "moveDestination": "Haz clic donde quieras colocar la selección · Esc cancela",
+        "keyboardTarget": "Destino: ${target}. Tab cambia, Intro conecta, Esc cancela.",
+        "connectorEndpoints": "De ${from} a ${to}",
         "arrowEnd": "Elige la forma de destino.",
         "diagramTypes": "Tipos de diagrama",
         "replaceSource": "¿Reemplazar el código actual con este ejemplo?",
