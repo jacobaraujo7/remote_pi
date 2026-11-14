@@ -23,6 +23,9 @@ labels: {interacao: blue, acesso: purple, desempenho: orange}
 
 ## Entregue
 
+- [x] Mover uma decisão nos editores de destino e reabrir no Canvas <!-- id: board-editores labels: interacao -->
+      O motor do draw.io moveu a decisão e atualizou os dois extremos. No Excalidraw 0.18.1, um arraste de mouse preservou os lados da decisão e os segmentos ortogonais após corrigir a exportação. O Canvas importou o arquivo salvo de cada editor. Evidências em revisao.md.
+
 - [x] Recortar a camada estática ao navegar em cenas extensas <!-- id: board-escala labels: desempenho -->
       Frente Flutter. Com 1.920 objetos, 180 passos de zoom passaram de 40,53 s para 1,23 s na mediana de três execuções. O teste de câmera enquadrou e selecionou uma forma inicialmente fora da área pintada. O benchmark reabriu os arquivos para conferir o traço de 2.881 pontos e as ligações após mover o grupo.
 
