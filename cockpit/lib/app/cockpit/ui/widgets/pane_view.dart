@@ -38,6 +38,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
@@ -1723,6 +1724,16 @@ class _PaneBodyState extends State<_PaneBody> {
       );
     }
 
+    if (item is FileViewerSession &&
+        item.path.toLowerCase().endsWith('.board')) {
+      final vm = context.read<CockpitViewModel>();
+      return BoardView(
+        key: ValueKey(item.id),
+        session: item,
+        onSave: (content) => vm.saveFile(item.id, content),
+        onReload: () => vm.reloadFile(item.id),
+      );
+    }
     // Tab de quadro `.kanban`: colunas/cards sobre o markdown do arquivo.
     // Mesma razão de reusar a FileViewerSession que a `.dbq` e a `.http`.
     //

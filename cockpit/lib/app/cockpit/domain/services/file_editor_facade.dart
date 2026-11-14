@@ -63,7 +63,7 @@ class FileEditorFacade {
 
   static const Set<String> _cockpitExtensions = {
     // Experiências especializadas.
-    'http', 'dbq', 'kanban',
+    'http', 'dbq', 'kanban', 'board',
     // Mídia e SVG.
     'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'ico', 'svg',
     'mp4', 'mov', 'avi', 'mkv', 'webm', 'm4v', 'wmv', 'flv',
