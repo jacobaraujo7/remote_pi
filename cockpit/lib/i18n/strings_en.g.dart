@@ -159,6 +159,7 @@ class Translations$cockpit$en {
 	late final Translations$cockpit$confirmDialog$en confirmDialog = Translations$cockpit$confirmDialog$en.internal(_root);
 	late final Translations$cockpit$neovim$en neovim = Translations$cockpit$neovim$en.internal(_root);
 	late final Translations$cockpit$worktreeCreateDialog$en worktreeCreateDialog = Translations$cockpit$worktreeCreateDialog$en.internal(_root);
+	late final Translations$cockpit$branchSwitchDialog$en branchSwitchDialog = Translations$cockpit$branchSwitchDialog$en.internal(_root);
 	late final Translations$cockpit$commitMessageDialog$en commitMessageDialog = Translations$cockpit$commitMessageDialog$en.internal(_root);
 	late final Translations$cockpit$tasksPanel$en tasksPanel = Translations$cockpit$tasksPanel$en.internal(_root);
 	late final Translations$cockpit$cockpitPage$en cockpitPage = Translations$cockpit$cockpitPage$en.internal(_root);
@@ -1065,6 +1066,39 @@ class Translations$cockpit$worktreeCreateDialog$en {
 	String get back => 'Back';
 }
 
+// Path: cockpit.branchSwitchDialog
+class Translations$cockpit$branchSwitchDialog$en {
+	Translations$cockpit$branchSwitchDialog$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Switch branch — ${label}'
+	String title({required Object label}) => 'Switch branch — ${label}';
+
+	/// en: 'Current branch: ${current}'
+	String subtitle({required Object current}) => 'Current branch: ${current}';
+
+	/// en: 'Search branches...'
+	String get search => 'Search branches...';
+
+	/// en: 'Local branches'
+	String get local => 'Local branches';
+
+	/// en: 'Remote branches'
+	String get remote => 'Remote branches';
+
+	/// en: 'Switch'
+	String get switchAction => 'Switch';
+
+	/// en: 'No branches found.'
+	String get empty => 'No branches found.';
+
+	/// en: 'current'
+	String get current => 'current';
+}
+
 // Path: cockpit.commitMessageDialog
 class Translations$cockpit$commitMessageDialog$en {
 	Translations$cockpit$commitMessageDialog$en.internal(this._root);
@@ -1207,6 +1241,9 @@ class Translations$cockpit$cockpitPage$en {
 
 	/// en: 'Push — ${label}'
 	String pushTitle({required Object label}) => 'Push — ${label}';
+
+	/// en: 'Switch branch — ${label}'
+	String switchBranchTitle({required Object label}) => 'Switch branch — ${label}';
 
 	/// en: 'Update from Parent — ${name}'
 	String updateFromParentTitle({required Object name}) => 'Update from Parent — ${name}';
@@ -2561,6 +2598,9 @@ class Translations$cockpit$projectsRail$en {
 
 	/// en: 'Push'
 	String get push => 'Push';
+
+	/// en: 'Switch branch…'
+	String get switchBranch => 'Switch branch…';
 
 	/// en: 'Create worktree'
 	String get createWorktree => 'Create worktree';
@@ -4763,6 +4803,14 @@ extension on Translations {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Run git fetch to guarantee the base branch is confirmed before creating the worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Search branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Back',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => 'Switch branch — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => 'Current branch: ${current}',
+			'cockpit.branchSwitchDialog.search' => 'Search branches...',
+			'cockpit.branchSwitchDialog.local' => 'Local branches',
+			'cockpit.branchSwitchDialog.remote' => 'Remote branches',
+			'cockpit.branchSwitchDialog.switchAction' => 'Switch',
+			'cockpit.branchSwitchDialog.empty' => 'No branches found.',
+			'cockpit.branchSwitchDialog.current' => 'current',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage and Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit "${fileName}" only.',
@@ -4802,6 +4850,7 @@ extension on Translations {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => 'Sync — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => 'Pull — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => 'Push — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => 'Switch branch — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => 'Update from Parent — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => 'Merge to Parent — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'Worktree merged and removed.',
@@ -5148,6 +5197,8 @@ extension on Translations {
 			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Refresh',
@@ -5157,8 +5208,6 @@ extension on Translations {
 			'cockpit.dbMongoView.loadMore' => 'Load more',
 			'cockpit.dbMongoView.edit' => 'Edit',
 			'cockpit.dbMongoView.insert' => 'Insert',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Choose SQLite database',
 			'cockpit.dbConnectionDialog.file' => 'File',
 			'cockpit.dbConnectionDialog.chooseFilePlaceholder' => 'Choose a SQLite file…',
@@ -5216,6 +5265,7 @@ extension on Translations {
 			'cockpit.projectsRail.sync' => 'Sync',
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
+			'cockpit.projectsRail.switchBranch' => 'Switch branch…',
 			'cockpit.projectsRail.createWorktree' => 'Create worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 worktree', other: '${n} worktrees', ), 
 			'cockpit.projectsRail.expandWorktrees' => 'Expand worktrees',
@@ -5661,6 +5711,8 @@ extension on Translations {
 			'settings.page.automations.modelUnavailable' => 'The model list is unavailable until the harness is found.',
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',
@@ -5671,8 +5723,6 @@ extension on Translations {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'Model "${model}" is no longer available for ${harness}. Using the CLI default — pick another model in Settings if needed.',
 			'settings.page.automations.recommendedSuffix' => 'Recommended',
 			'settings.remoteHosts.title' => 'Remote hosts',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Machines you reach over SSH. Adding a host here is the same as adding one from the workspace "+" menu.',
 			'settings.remoteHosts.empty' => 'No remote hosts yet.',
 			'settings.remoteHosts.add' => 'Add host',
