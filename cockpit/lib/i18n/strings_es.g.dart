@@ -145,6 +145,7 @@ class _Translations$cockpit$es extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$telemetry$es telemetry = _Translations$cockpit$telemetry$es._(_root);
 	@override late final _Translations$cockpit$panelView$es panelView = _Translations$cockpit$panelView$es._(_root);
 	@override late final _Translations$cockpit$cloneRepoDialog$es cloneRepoDialog = _Translations$cockpit$cloneRepoDialog$es._(_root);
+	@override late final _Translations$cockpit$statusBar$es statusBar = _Translations$cockpit$statusBar$es._(_root);
 }
 
 // Path: settings
@@ -1558,6 +1559,18 @@ class _Translations$cockpit$cloneRepoDialog$es extends Translations$cockpit$clon
 	@override String get hintSshMissing => 'SSH no está disponible para esta URL. Usa la URL HTTPS o instala OpenSSH (Git for Windows ya incluye uno).';
 	@override String get hintHostKey => 'No se pudo verificar la clave SSH del servidor o cambió. Revisa ~/.ssh/known_hosts antes de reintentar.';
 	@override String get hintAuth => 'Acceso denegado o repositorio no encontrado. Con SSH, prueba tu clave con ssh -T git@github.com; con HTTPS, inicia sesión con el gestor de credenciales de Git (o gh auth login).';
+}
+
+// Path: cockpit.statusBar
+class _Translations$cockpit$statusBar$es extends Translations$cockpit$statusBar$en {
+	_Translations$cockpit$statusBar$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String changedFiles({required Object count}) => '${count} archivos modificados';
+	@override String aheadBehind({required Object ahead, required Object behind}) => '${ahead} adelante, ${behind} detrás';
+	@override String get lineStatsUnknown => 'Recuento de líneas no disponible aquí';
 }
 
 // Path: settings.language
@@ -3010,6 +3023,9 @@ extension on TranslationsEs {
 			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH no está disponible para esta URL. Usa la URL HTTPS o instala OpenSSH (Git for Windows ya incluye uno).',
 			'cockpit.cloneRepoDialog.hintHostKey' => 'No se pudo verificar la clave SSH del servidor o cambió. Revisa ~/.ssh/known_hosts antes de reintentar.',
 			'cockpit.cloneRepoDialog.hintAuth' => 'Acceso denegado o repositorio no encontrado. Con SSH, prueba tu clave con ssh -T git@github.com; con HTTPS, inicia sesión con el gestor de credenciales de Git (o gh auth login).',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} archivos modificados',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} adelante, ${behind} detrás',
+			'cockpit.statusBar.lineStatsUnknown' => 'Recuento de líneas no disponible aquí',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglés',
@@ -3202,11 +3218,11 @@ extension on TranslationsEs {
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas a las que accedes por SSH. Añadir un host aquí es lo mismo que hacerlo desde el menú "+" del workspace.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.remoteHosts.empty' => 'Aún no hay hosts remotos.',
 			'settings.remoteHosts.add' => 'Añadir host',
 			'settings.remoteHosts.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.reconnect' => 'Reconectar',
 			'settings.remoteHosts.remove' => 'Eliminar',
 			'settings.remoteHosts.removeTitle' => 'Eliminar host',

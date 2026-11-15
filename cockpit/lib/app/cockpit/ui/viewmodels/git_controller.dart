@@ -73,6 +73,10 @@ class GitController extends ChangeNotifier {
   /// tree observado — o VM bumpa a revisão da árvore de arquivos.
   VoidCallback? onStructuralFsChange;
 
+  /// `true` while something on screen shows line totals (the terminal status
+  /// line) — only then does a read pay for `git diff --numstat`. Unset = never.
+  bool Function()? wantsLineStats;
+
   /// Disparado uma vez por tick do poll — o VM dono reconcilia as worktrees
   /// (que o GitController não conhece) contra o git. Só notifica se a lista mudou.
   VoidCallback? onPoll;
@@ -297,7 +301,10 @@ class GitController extends ChangeNotifier {
 
     var changed = rootsChanged;
     for (final root in roots) {
-      final info = await _reader.read(root);
+      final info = await _reader.read(
+        root,
+        withLineStats: wantsLineStats?.call() ?? false,
+      );
       // Evita rebuild se nada mudou (branch + ahead/behind + mapa de arquivos).
       final old = _gitInfo[root];
       if (old == info) {

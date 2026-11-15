@@ -5,5 +5,9 @@ import 'package:cockpit/app/cockpit/domain/entities/git_info.dart';
 abstract class GitStatusReader {
   /// [GitInfo] do repo em [path], ou `null` se a pasta **não** é repositório git
   /// (ou o git não está disponível).
-  Future<GitInfo?> read(String path);
+  ///
+  /// [withLineStats] also runs `git diff --numstat HEAD` to fill
+  /// [GitInfo.insertions]/[GitInfo.deletions]; off by default because only the
+  /// terminal status line shows them, and the poll runs every few seconds.
+  Future<GitInfo?> read(String path, {bool withLineStats = false});
 }

@@ -973,6 +973,11 @@
       "hintSshMissing": "SSH no está disponible para esta URL. Usa la URL HTTPS o instala OpenSSH (Git for Windows ya incluye uno).",
       "hintHostKey": "No se pudo verificar la clave SSH del servidor o cambió. Revisa ~/.ssh/known_hosts antes de reintentar.",
       "hintAuth": "Acceso denegado o repositorio no encontrado. Con SSH, prueba tu clave con ssh -T git@github.com; con HTTPS, inicia sesión con el gestor de credenciales de Git (o gh auth login)."
+    },
+    "statusBar": {
+      "changedFiles": "${count} archivos modificados",
+      "aheadBehind": "${ahead} adelante, ${behind} detrás",
+      "lineStatsUnknown": "Recuento de líneas no disponible aquí"
     }
   },
   "settings": {

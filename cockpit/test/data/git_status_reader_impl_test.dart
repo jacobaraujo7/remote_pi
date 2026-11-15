@@ -187,4 +187,26 @@ void main() {
     expect(info!.ahead, 1);
     expect(info.behind, 0);
   });
+
+  test(
+    'line stats: skipped by default (null = unknown), summed on request',
+    () async {
+      if (!await gitAvailable()) {
+        markTestSkipped('git não disponível');
+        return;
+      }
+      await write('README.md', 'hello\nworld\nagain');
+      await write('lib/app.dart', '');
+      await git(['add', 'lib/app.dart']);
+
+      final plain = await reader.read(repo.path);
+      expect(plain!.insertions, isNull);
+      expect(plain.deletions, isNull);
+
+      final withStats = await reader.read(repo.path, withLineStats: true);
+      // README: 'hello' → 3 lines (+3 -1); app.dart (staged): 1 line → empty (-1).
+      expect(withStats!.insertions, 3);
+      expect(withStats.deletions, 2);
+    },
+  );
 }

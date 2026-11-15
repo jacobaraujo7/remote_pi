@@ -145,6 +145,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$telemetry$pt_BR telemetry = _Translations$cockpit$telemetry$pt_BR._(_root);
 	@override late final _Translations$cockpit$panelView$pt_BR panelView = _Translations$cockpit$panelView$pt_BR._(_root);
 	@override late final _Translations$cockpit$cloneRepoDialog$pt_BR cloneRepoDialog = _Translations$cockpit$cloneRepoDialog$pt_BR._(_root);
+	@override late final _Translations$cockpit$statusBar$pt_BR statusBar = _Translations$cockpit$statusBar$pt_BR._(_root);
 }
 
 // Path: settings
@@ -1562,6 +1563,18 @@ class _Translations$cockpit$cloneRepoDialog$pt_BR extends Translations$cockpit$c
 	@override String get hintSshMissing => 'SSH indisponível para esta URL. Use a URL HTTPS ou instale o OpenSSH (o Git for Windows já traz um).';
 	@override String get hintHostKey => 'A chave SSH do servidor não pôde ser verificada ou mudou. Confira o ~/.ssh/known_hosts antes de tentar de novo.';
 	@override String get hintAuth => 'Acesso negado ou repositório não encontrado. No SSH, teste sua chave com ssh -T git@github.com; no HTTPS, entre pelo gerenciador de credenciais do Git (ou gh auth login).';
+}
+
+// Path: cockpit.statusBar
+class _Translations$cockpit$statusBar$pt_BR extends Translations$cockpit$statusBar$en {
+	_Translations$cockpit$statusBar$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String changedFiles({required Object count}) => '${count} arquivos alterados';
+	@override String aheadBehind({required Object ahead, required Object behind}) => '${ahead} à frente, ${behind} atrás';
+	@override String get lineStatsUnknown => 'Contagem de linhas indisponível aqui';
 }
 
 // Path: settings.language
@@ -3018,6 +3031,9 @@ extension on TranslationsPtBr {
 			'cockpit.cloneRepoDialog.hintSshMissing' => 'SSH indisponível para esta URL. Use a URL HTTPS ou instale o OpenSSH (o Git for Windows já traz um).',
 			'cockpit.cloneRepoDialog.hintHostKey' => 'A chave SSH do servidor não pôde ser verificada ou mudou. Confira o ~/.ssh/known_hosts antes de tentar de novo.',
 			'cockpit.cloneRepoDialog.hintAuth' => 'Acesso negado ou repositório não encontrado. No SSH, teste sua chave com ssh -T git@github.com; no HTTPS, entre pelo gerenciador de credenciais do Git (ou gh auth login).',
+			'cockpit.statusBar.changedFiles' => ({required Object count}) => '${count} arquivos alterados',
+			'cockpit.statusBar.aheadBehind' => ({required Object ahead, required Object behind}) => '${ahead} à frente, ${behind} atrás',
+			'cockpit.statusBar.lineStatsUnknown' => 'Contagem de linhas indisponível aqui',
 			'settings.language.title' => 'Idioma',
 			'settings.language.system' => 'Sistema',
 			'settings.language.english' => 'Inglês',
@@ -3206,11 +3222,11 @@ extension on TranslationsPtBr {
 			'settings.page.automations.generateFromSourceControl' => 'Gerar pelo Controle de Versão',
 			'settings.page.automations.generateFromSourceControlDescription' => 'O Cockpit envia apenas o diff selecionado e os assuntos dos commits recentes. Padrões comuns de credenciais e arquivos sensíveis são redigidos antes de o harness rodar.',
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
 			'settings.remoteHosts.title' => 'Hosts remotos',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
 			'settings.remoteHosts.add' => 'Adicionar host',

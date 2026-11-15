@@ -10,7 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _NoopStatusReader implements GitStatusReader {
   @override
-  Future<GitInfo?> read(String path) async => null;
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async =>
+      null;
 }
 
 class _NoopCommandRunner implements GitCommandRunner {
@@ -161,6 +162,28 @@ void main() {
       expect(reader.runs, 2);
     },
   );
+
+  test(
+    'asks the reader for line stats only while wantsLineStats says so',
+    () async {
+      final directory = await Directory.systemTemp.createTemp('git-linestats-');
+      addTearDown(() => directory.delete(recursive: true));
+      await Directory('${directory.path}/.git').create();
+      final reader = _RecordingStatusReader();
+      final activity = WindowActivityController();
+      addTearDown(activity.dispose);
+      var wants = false;
+      final git = GitController(reader, _NoopCommandRunner(), activity)
+        ..resolvePath = ((_) => directory.path)
+        ..wantsLineStats = (() => wants);
+      addTearDown(git.dispose);
+
+      await git.refresh('repo');
+      wants = true;
+      await git.refresh('repo');
+      expect(reader.withLineStats, [false, true]);
+    },
+  );
 }
 
 class _BlockingStatusReader implements GitStatusReader {
@@ -170,7 +193,7 @@ class _BlockingStatusReader implements GitStatusReader {
   var maxConcurrent = 0;
 
   @override
-  Future<GitInfo?> read(String path) async {
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async {
     runs++;
     concurrent++;
     if (concurrent > maxConcurrent) maxConcurrent = concurrent;
@@ -182,4 +205,14 @@ class _BlockingStatusReader implements GitStatusReader {
   }
 
   void releaseNext() => _releases.firstWhere((c) => !c.isCompleted).complete();
+}
+
+class _RecordingStatusReader implements GitStatusReader {
+  final withLineStats = <bool>[];
+
+  @override
+  Future<GitInfo?> read(String path, {bool withLineStats = false}) async {
+    this.withLineStats.add(withLineStats);
+    return null;
+  }
 }
