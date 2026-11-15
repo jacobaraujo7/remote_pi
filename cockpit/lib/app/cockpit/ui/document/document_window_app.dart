@@ -36,6 +36,7 @@ import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Entrypoint da **janela de documento** (ver [DocumentWindows]): o `main`
@@ -90,7 +91,7 @@ Future<void> _boot(String path, {required bool standaloneBoard}) async {
 
   unawaited(
     DocumentWindowChannel.present(
-      path.split(Platform.pathSeparator).last,
+      p.basename(path),
       standaloneBoard: standaloneBoard,
     ),
   );
@@ -178,7 +179,7 @@ class DocumentWindowRoot extends StatelessWidget {
     final s = controller.settings;
     final theme = controller.activeTheme;
     return ShadcnApp(
-      title: path.split(Platform.pathSeparator).last,
+      title: p.basename(path),
       debugShowCheckedModeBanner: false,
       popoverHandler: const AppPopoverOverlayHandler(),
       menuHandler: const AppPopoverOverlayHandler(),
