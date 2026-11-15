@@ -84,8 +84,9 @@ class FileReaderImpl implements FileReader {
       if (_video.contains(ext)) return FileViewVideo(path);
       return FileViewAudio(path);
     }
-    if (bytes.length > FileReader.readLimit(path))
+    if (bytes.length > FileReader.readLimit(path)) {
       return const FileViewUnsupported();
+    }
     // Banco sqlite (magic header) nunca é texto útil — não abre como viewer;
     // ele aparece como conexão "detected" no painel Database (plano 51).
     if (_isSqlite(bytes)) return const FileViewUnsupported();
