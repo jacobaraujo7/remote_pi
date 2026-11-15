@@ -936,8 +936,8 @@ class _TabState extends State<_Tab> {
       case 'open-window':
         final path = viewer?.path ?? notebook?.path;
         if (path != null) {
-          unawaited(DocumentWindows.open(path));
-          await _requestClose();
+          await DocumentWindows.open(path);
+          if (mounted) await _requestClose();
         }
       case 'copy-id':
         if (terminal != null) {

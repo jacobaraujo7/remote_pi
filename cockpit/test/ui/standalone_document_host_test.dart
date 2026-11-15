@@ -75,6 +75,23 @@ void main() {
       '/tmp/board.kanban',
     );
     expect(DocumentWindows.pathFromArguments(const []), isNull);
+    const boardPath = r'C:\Área de trabalho\Aprovação 1.BOARD';
+    expect(
+      DocumentWindows.pathFromArguments([
+        'multi_window',
+        'standalone-board',
+        boardPath,
+      ]),
+      boardPath,
+    );
+    expect(
+      DocumentWindows.pathFromArguments([
+        'multi_window',
+        'standalone-board',
+        '',
+      ]),
+      isNull,
+    );
     expect(
       DocumentWindows.pathFromArguments(['multi_window', '3', 'not json']),
       isNull,

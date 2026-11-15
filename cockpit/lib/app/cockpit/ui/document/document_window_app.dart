@@ -54,14 +54,14 @@ Future<void> runDocumentWindow(List<String> args) async {
     stderr.writeln('[document-window] ${details.exception}');
   };
   try {
-    await _boot(path);
+    await _boot(path, standaloneBoard: DocumentWindows.isStandaloneBoard(args));
   } catch (e, st) {
     stderr.writeln('[document-window] boot failed: $e\n$st');
     runApp(_BootError(path: path, error: '$e'));
   }
 }
 
-Future<void> _boot(String path) async {
+Future<void> _boot(String path, {required bool standaloneBoard}) async {
   // SEM MediaKit.ensureInitialized(): o holder nativo do media_kit é POR
   // PROCESSO; inicializar de novo no engine desta janela achava a referência
   // do engine principal e a DESCARTAVA (log "Found 1 reference(s). Disposing"),
@@ -89,7 +89,10 @@ Future<void> _boot(String path) async {
   stderr.writeln('[document-window] booted for $path');
 
   unawaited(
-    DocumentWindowChannel.present(path.split(Platform.pathSeparator).last),
+    DocumentWindowChannel.present(
+      path.split(Platform.pathSeparator).last,
+      standaloneBoard: standaloneBoard,
+    ),
   );
 
   runApp(
