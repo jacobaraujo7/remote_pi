@@ -22,8 +22,8 @@ class _SavePicker extends FilePicker {
     Uint8List? bytes,
     bool lockParentWindow = false,
   }) async {
-    expect(type, FileType.custom);
-    expect(fileName, 'order.${allowedExtensions!.single}');
+    expectSync(type, FileType.custom);
+    expectSync(fileName, 'order.${allowedExtensions!.single}');
     return '${directory.path}/$fileName';
   }
 }
@@ -142,7 +142,12 @@ void main() {
         'Excalidraw',
         'Mermaid (.mmd)',
       ]) {
-        await tester.tap(find.text('Export'));
+        final menu = find.byType(BoardFiles);
+        var completed = false;
+        final export = tester
+            .widget<BoardFiles>(menu)
+            .openMenu(tester.element(menu))
+            .whenComplete(() => completed = true);
         await tick(tester);
         await tester.tap(find.text('Export entire document'));
         await tick(tester);
@@ -165,13 +170,14 @@ void main() {
           _ => format.toLowerCase(),
         };
         final file = File('${directory.path}/order.$extension');
-        for (var frame = 0; frame < 150; frame++) {
+        for (var frame = 0; !completed && frame < 150; frame++) {
           await tester.pump();
           await tester.runAsync(
             () => Future<void>.delayed(const Duration(milliseconds: 20)),
           );
-          if (file.existsSync() && file.lengthSync() > 0) break;
         }
+        expect(completed, isTrue, reason: 'Export did not finish: $format');
+        await export;
         await tick(tester);
         expect(file.existsSync(), isTrue, reason: format);
         expect(file.lengthSync(), greaterThan(0), reason: format);
