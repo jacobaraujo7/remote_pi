@@ -17,8 +17,15 @@ void main() {
   Widget hostSession(
     DiffViewerSession session, {
     Future<String> Function(DiffViewerSession)? loadContent,
+    double textScale = 1,
   }) => TranslationProvider(
     child: ShadcnApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       theme: buildTheme(
         brightness: Brightness.dark,
       ).copyWith(platform: () => TargetPlatform.windows),
@@ -57,6 +64,49 @@ void main() {
       () => session.failModifiedContentLoad(diff, StateError('late')),
       returnsNormally,
     );
+  });
+
+  testWidgets('side-by-side rows grow with text scaling without clipping', (
+    tester,
+  ) async {
+    final session = sessionWith(
+      const FileDiff(
+        path: '/repo/a.txt',
+        kind: FileDiffKind.modified,
+        hunks: [
+          DiffHunk(
+            header: '@@ -1 +1 @@',
+            lines: [
+              DiffLine(kind: DiffLineKind.removed, text: 'before', oldLine: 1),
+              DiffLine(kind: DiffLineKind.added, text: 'after', newLine: 1),
+            ],
+          ),
+        ],
+      ),
+    );
+    addTearDown(session.dispose);
+    double rowHeight() => tester
+        .widgetList<SizedBox>(
+          find.ancestor(
+            of: find.text('before'),
+            matching: find.byType(SizedBox),
+          ),
+        )
+        .map((box) => box.height)
+        .whereType<double>()
+        .reduce((a, b) => a < b ? a : b);
+    await tester.pumpWidget(hostSession(session));
+    await tester.pumpAndSettle();
+    final normal = rowHeight();
+    await tester.pumpWidget(hostSession(session, textScale: 2));
+    await tester.pumpAndSettle();
+    final scaled = rowHeight();
+    expect(scaled, greaterThan(normal));
+    expect(
+      scaled,
+      greaterThanOrEqualTo(tester.getSize(find.text('before')).height + 2),
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('modified diff renderiza sem exceção de layout', (tester) async {

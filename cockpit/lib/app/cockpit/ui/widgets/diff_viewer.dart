@@ -195,7 +195,26 @@ List<_Item> _inlineItems(List<DiffHunk> hunks) => [
   ],
 ];
 
-const double _diffLineHeight = 22; // Matches the 12.5px monospace diff rows.
+const double _diffFontSize = 12.5;
+const double _diffRowPadding = 1;
+
+TextStyle _diffCodeStyle(BuildContext context) => context.typo.mono.copyWith(
+  fontSize: _diffFontSize,
+  color: context.colors.text,
+);
+
+// Use the same font, scaler and padding as the rendered row, including its
+// gutter. Both panes receive this height so insertions remain aligned.
+double _diffLineHeight(BuildContext context) {
+  final painter = TextPainter(
+    text: TextSpan(text: 'Mg', style: _diffCodeStyle(context)),
+    textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
+  )..layout();
+  final height = painter.height + 2 * _diffRowPadding;
+  painter.dispose();
+  return height;
+}
 
 double _measuredSideWidth(BuildContext context, FileDiff diff) =>
     _measuredTextWidth(context, [
@@ -210,11 +229,9 @@ double _measuredTextWidth(BuildContext context, Iterable<String> lines) {
   }
   if (longest.isEmpty) return _minSideWidth;
   final painter = TextPainter(
-    text: TextSpan(
-      text: longest,
-      style: context.typo.mono.copyWith(fontSize: 12.5),
-    ),
+    text: TextSpan(text: longest, style: _diffCodeStyle(context)),
     textDirection: TextDirection.ltr,
+    textScaler: MediaQuery.textScalerOf(context),
   )..layout();
   final width = painter.width + 60;
   painter.dispose();
@@ -289,6 +306,7 @@ class _DiffBodyState extends State<_DiffBody> {
   late List<_Item> _items;
   late List<_Item> _inline;
   double? _sideWidth;
+  late double _lineHeight;
   double? _modifiedWidth;
   String? _cachedModifiedContent;
   List<String> _modifiedLines = const [];
@@ -349,6 +367,7 @@ class _DiffBodyState extends State<_DiffBody> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    _lineHeight = _diffLineHeight(context);
     _sideWidth = null;
     _modifiedWidth = null;
   }
@@ -565,7 +584,7 @@ class _DiffBodyState extends State<_DiffBody> {
                     width: contentWidth,
                   ),
                   _RowItem(:final row) => SizedBox(
-                    height: _diffLineHeight,
+                    height: _lineHeight,
                     child: _Side(
                       line: side == _SideKind.old ? row.left : row.right,
                       side: side,
@@ -847,7 +866,7 @@ class _Side extends StatelessWidget {
           : colors.gitStaged.withValues(alpha: 0.14);
     }
 
-    final baseStyle = typo.mono.copyWith(fontSize: 12.5, color: colors.text);
+    final baseStyle = _diffCodeStyle(context);
     final text = l?.text ?? '';
     // Syntax highlight por linha (o highlight.js reseta estado a cada linha —
     // aceitável para diff). `null` → renderiza texto puro.
@@ -863,7 +882,11 @@ class _Side extends StatelessWidget {
     Widget gutter(int? number, {String? column}) => SelectionContainer.disabled(
       child: Container(
         width: 44,
-        padding: const EdgeInsets.only(right: 8, top: 1, bottom: 1),
+        padding: const EdgeInsets.only(
+          right: 8,
+          top: _diffRowPadding,
+          bottom: _diffRowPadding,
+        ),
         alignment: Alignment.centerRight,
         child: Text(
           number?.toString() ?? '',
@@ -911,7 +934,7 @@ class _Side extends StatelessWidget {
               gutter(lineNo),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 1),
+                padding: const EdgeInsets.symmetric(vertical: _diffRowPadding),
                 child: span == null
                     ? Text(
                         text,
