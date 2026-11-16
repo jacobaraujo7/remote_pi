@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'graph_box_editor.dart';
+import 'handoff_clipboard_feedback.dart';
 import 'workspace_box_list.dart';
 import '../../../core/domain/entities/harness.dart';
 
@@ -12,13 +14,11 @@ import 'package:cockpit/app/cockpit/ui/session/terminal_session.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/workspace_graph_context.dart';
 import 'package:cockpit/app/cockpit/ui/services/graph_telemetry_service.dart';
 import 'package:cockpit/app/cockpit/ui/services/graph_process_metrics_service.dart';
-import 'package:cockpit/app/cockpit/ui/widgets/confirm_dialog.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/window_controls.dart';
 import 'package:cockpit/i18n/strings.g.dart';
-import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Canvas for the boxes supplied by its context. Terminal presentation is
@@ -326,13 +326,12 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
     if (session is TerminalSession) {
       final created = await widget.vm.startGraphHandoff(box.id);
       if (created case Success(:final value)) {
-        await Clipboard.setData(ClipboardData(text: brief));
         if (!mounted) return;
-        await showInfoDialog(
+        await showHandoffClipboardFeedback(
           context,
-          title: 'Nova sessão preparada',
-          message:
-              'O resumo de handoff foi copiado. Cole no novo terminal quando a ferramenta estiver pronta.',
+          sessionId: value,
+          summary: brief,
+          operation: 'workspace_graph_view',
         );
         if (mounted) widget.onOpenTab(value);
       }
@@ -732,8 +731,9 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                       }
                     },
                     onCopyRole: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: selectedBox!.role),
+                      await TextClipboardService.instance.write(
+                        selectedBox!.role,
+                        operation: 'workspace_graph_view',
                       );
                     },
                     onOpen: () {

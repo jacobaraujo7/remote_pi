@@ -1,3 +1,5 @@
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'stable_tab_stack.dart';
 import 'orchestration_view.dart';
 import '../../domain/entities/orchestration_document.dart';
@@ -38,6 +40,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/db_redis_table.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/diff_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/http_request_view.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_document_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
@@ -821,7 +824,8 @@ class _TabState extends State<_Tab> {
             ),
           // Saída de emergência do editor próprio: ver e escrever o markdown
           // cru. O arquivo é o mesmo; só muda quem o desenha.
-          if (viewer.path.toLowerCase().endsWith('.kanban'))
+          if (viewer.path.toLowerCase().endsWith('.kanban') ||
+              FileReader.isBoard(viewer.path))
             AppMenuItem(
               value: 'raw-source',
               label: viewer.rawSource
@@ -952,12 +956,15 @@ class _TabState extends State<_Tab> {
       case 'open-window':
         final path = viewer?.path ?? notebook?.path;
         if (path != null) {
-          unawaited(DocumentWindows.open(path));
-          await _requestClose();
+          await DocumentWindows.open(path);
+          if (mounted) await _requestClose();
         }
       case 'copy-id':
         if (terminal != null) {
-          await Clipboard.setData(ClipboardData(text: terminal.id));
+          await TextClipboardService.instance.write(
+            terminal.id,
+            operation: 'pane_view',
+          );
         }
       case 'orc-source':
         if (orchestration != null) {
@@ -973,7 +980,9 @@ class _TabState extends State<_Tab> {
           );
         }
       case 'raw-source':
-        if (viewer != null) {
+        if (viewer != null && FileReader.isBoard(viewer.path)) {
+          await viewer.switchBoardMode();
+        } else if (viewer != null) {
           final vm = context.read<CockpitViewModel>();
           if (vm.canEditPreviewInNeovim(viewer.projectId) &&
               !viewer.rawSource) {
@@ -1754,6 +1763,17 @@ class _PaneBodyState extends State<_PaneBody> {
       );
     }
 
+    if (item is FileViewerSession && FileReader.isBoard(item.path)) {
+      final vm = context.read<CockpitViewModel>();
+      return BoardDocumentView(
+        key: ValueKey(item.id),
+        session: item,
+        active: widget.active,
+        focused: widget.focused,
+        allowLocalFileSystem: vm.canOpenInWindow(item.projectId),
+        onSave: (content) => vm.saveFile(item.id, content),
+      );
+    }
     // Tab de quadro `.kanban`: colunas/cards sobre o markdown do arquivo.
     // Mesma razão de reusar a FileViewerSession que a `.dbq` e a `.http`.
     //

@@ -1,5 +1,7 @@
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'dart:io' show Platform;
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_document.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/git_history_error.dart';
@@ -1981,7 +1983,8 @@ class _DirViewState extends State<_DirView> {
                       : () => edit.onOpenLayout!(node.path),
                   onOpenAsSource:
                       edit.onOpenAsSource == null ||
-                          !(node.name.toLowerCase().endsWith('.kanban') ||
+                          !(FileReader.isBoard(node.name) ||
+                              node.name.toLowerCase().endsWith('.kanban') ||
                               node.name.toLowerCase().endsWith('.panel') ||
                               OrchestrationDocument.isFilePath(node.path))
                       ? null
@@ -2408,9 +2411,15 @@ void _showNodeMenu(BuildContext context, Offset globalPosition, _Row widget) {
       case 'paste':
         widget.onPaste?.call();
       case 'rel':
-        Clipboard.setData(ClipboardData(text: _relativeOf(widget)));
+        TextClipboardService.instance.write(
+          _relativeOf(widget),
+          operation: 'file_tree_panel',
+        );
       case 'abs':
-        Clipboard.setData(ClipboardData(text: widget.path));
+        TextClipboardService.instance.write(
+          widget.path,
+          operation: 'file_tree_panel',
+        );
     }
   });
 }

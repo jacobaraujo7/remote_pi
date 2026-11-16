@@ -1,0 +1,60 @@
+---
+title: Evolução do canvas do Board
+columns: [Próxima entrega, Depois, Validar no desktop, Entregue]
+labels: {interacao: blue, acesso: purple, desempenho: orange}
+---
+
+## Próxima entrega
+
+- [ ] Integrar a correção do encerramento da janela no Windows <!-- id: board-encerramento labels: interacao -->
+      Canvas Board. A janela Release encerrou com 0xC0000005 nas duas execuções com a DLL distribuída. As duas execuções com a correção local encerraram com código zero. A integração depende de disponibilizar a correção no fork do plugin e atualizar a revisão consumida pelo Cockpit. Evidência em revisao.md.
+
+## Depois
+
+- [ ] Reduzir o custo da primeira abertura com conteúdo <!-- id: board-abertura labels: desempenho -->
+      Frente Flutter. Com 25 mil pontos, a mediana de leitura do Markdown em AOT caiu de 10,301 para 5,994 ms. O teste de montagem confirmou os traços visíveis nas seis aberturas. Em 12 aberturas Release do mesmo arquivo, a mediana até o Windows expor o último traço foi de 1,505 s antes e 1,625 s depois. A variação entre processos impede atribuir o resultado ao parser. Método e amostras em perfil.md.
+
+## Validar no desktop
+
+- [ ] Confirmar navegação com Narrador e trackpad físico <!-- id: board-dispositivos labels: acesso -->
+      QA desktop. O Windows identificou três formas e duas conexões e confirmou a seleção pela ação MSAA. Após Escape, F2 reabriu o rótulo da mesma forma com foco no campo. Conferir a fala do Narrador e o enquadramento com trackpad físico. Evidência em acessibilidade.md.
+
+- [ ] Medir fluidez de ponta a ponta <!-- id: board-latencia labels: desempenho -->
+      Frente de QA desktop. A versão bc18c5a2 passou em 1.440 quadros de gestos aquecidos na cena densa, com painel adjacente e gravação lenta; as medições comparativas estão em perfil.md. Pendente: latência física entre ponteiro e monitor, incluindo 60 e 120 Hz onde possível.
+- [ ] Observar uso sem orientar os gestos <!-- id: board-usabilidade labels: interacao -->
+      Frente de produto. Pedir que cinco pessoas desenhem um fluxo, renomeiem uma etapa, liguem uma decisão e exportem o desenho. Registrar conclusão sem ajuda, cliques errados e perda de seleção. Meta proposta: quatro de cinco completam as quatro tarefas sem ajuda.
+
+## Entregue
+
+- [x] Mover uma decisão nos editores de destino e reabrir no Canvas <!-- id: board-editores labels: interacao -->
+      O motor do draw.io moveu a decisão e atualizou os dois extremos. No Excalidraw 0.18.1, um arraste de mouse preservou os lados da decisão e os segmentos ortogonais após corrigir a exportação. O Canvas importou o arquivo salvo de cada editor. Evidências em revisao.md.
+
+- [x] Recortar a camada estática ao navegar em cenas extensas <!-- id: board-escala labels: desempenho -->
+      Frente Flutter. Com 1.920 objetos, 180 passos de zoom passaram de 40,53 s para 1,23 s na mediana de três execuções. O teste de câmera enquadrou e selecionou uma forma inicialmente fora da área pintada. O benchmark reabriu os arquivos para conferir o traço de 2.881 pontos e as ligações após mover o grupo.
+
+- [x] Mostrar tinta desde o primeiro contato do lápis <!-- id: board-primeira-amostra labels: interacao, desempenho -->
+      O teste de widget verifica a pintura antes do primeiro movimento, o deslocamento inicial de um pixel e 102 pontos reabertos do Markdown. Um toque isolado também aparece na saída SVG usada pelo HTML.
+
+- [x] Enquadrar seleção ou documento <!-- id: board-camera labels: interacao -->
+      Comandos preservam a seleção, as coordenadas negativas e o acesso a formas distantes. Testado com eventos de mouse e trackpad no widget.
+- [x] Operar objetos pelo teclado e por clique <!-- id: board-teclado labels: acesso -->
+      Tab percorre objetos, as setas movem e C inicia conexão. F2 edita. “Mover para cá” posiciona a seleção por clique. Semântica coberta pelo teste Flutter.
+- [x] Escolher alcance antes do formato <!-- id: board-alcance labels: interacao -->
+      Exportar abre o menu comum do Cockpit. O documento oferece nove formatos locais. A seleção oferece quatro.
+- [x] Editar o desenho por harness ou pelo quadro <!-- id: board-markdown labels: interacao -->
+      Documento Markdown v3 e modo fonte em aba e janela. A skill distribui exemplo editável e a troca de modo protege o rascunho.
+
+
+- [x] Conectar diretamente pelas formas <!-- id: board-conectar labels: interacao -->
+      A alça + aparece ao selecionar ou passar sobre uma forma. Arraste ou clique na alça e depois no destino. A prévia destaca o contorno e o ponto de encaixe. Escape cancela.
+- [x] Navegar temporariamente com Espaço <!-- id: board-espaco labels: interacao -->
+      Segurar Espaço e arrastar navega sem mudar a seleção. Soltar restaura a ferramenta. A edição de texto conserva a tecla para digitação.
+
+- [x] Editar texto no próprio desenho <!-- id: board-inline labels: interacao -->
+      Duplo clique ou F2 abre o campo no objeto. Clique fora confirma e Escape cancela. Cobertura por teste do widget com documento persistido.
+- [x] Isolar o desenho parado durante o movimento <!-- id: board-drag labels: desempenho -->
+      O arraste atualiza a seleção e as ligações incidentes. Ensaio local com 479 objetos registrado no estudo.
+- [x] Reorganizar controles e tornar o zoom visível <!-- id: board-layout labels: interacao -->
+      Cabeçalho de documento, paleta lateral de desenho e rodapé de navegação com percentual e retorno a 100%.
+- [x] Colorir etapas e caminhos <!-- id: board-cor labels: interacao -->
+      Paleta nomeada com seis cores, seleção múltipla e retorno à cor do tema. Verificar contraste do rótulo, desfazer e preservar a cor no Board, SVG e nos conversores draw.io e Excalidraw.

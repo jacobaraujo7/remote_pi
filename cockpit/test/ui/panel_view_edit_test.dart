@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/panel_view.dart';
@@ -37,5 +39,7 @@ void main() {
     expect(find.text('Editar com Neovim'), findsOneWidget);
     await tester.tap(find.text('Editar com Neovim'));
     expect(edits, 1);
-  });
+    // No macOS/Windows a PanelView inline só monta o rodapé depois que o
+    // bridge da webview existe, o que não acontece no ambiente de teste.
+  }, skip: !Platform.isLinux);
 }
