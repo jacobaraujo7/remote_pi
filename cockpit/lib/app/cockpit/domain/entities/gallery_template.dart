@@ -1,4 +1,5 @@
 import 'orchestration_document.dart';
+import 'board_document.dart';
 
 /// Um "documento especial" do Cockpit que a aba Gallery sabe criar na raiz do
 /// workspace: extensão própria + conteúdo inicial que já abre na tab certa
@@ -18,6 +19,12 @@ enum GalleryTemplate {
     extension: 'dbq',
     iconAsset: 'assets/file_icons/database.svg',
     content: '-- limit: 100\nSELECT 1;\n',
+  ),
+  board(
+    baseName: 'diagram',
+    extension: 'canvas',
+    iconAsset: 'assets/file_icons/excalidraw.svg',
+    content: '',
   ),
   kanban(
     baseName: 'board',
@@ -263,6 +270,9 @@ enum GalleryTemplate {
   /// Conteúdo inicial do arquivo.
   final String _content;
   String get content {
+    if (this == GalleryTemplate.board) {
+      return BoardDocument([], id: BoardDocument.newId()).encode();
+    }
     if (this != GalleryTemplate.orchestration) return _content;
     var id = 0;
     return OrchestrationDocument.defaultTerminals(

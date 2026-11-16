@@ -1,0 +1,28 @@
+--- a/flutter_inappwebview_windows/windows/in_app_webview/in_app_webview_manager.cpp
++++ b/flutter_inappwebview_windows/windows/in_app_webview/in_app_webview_manager.cpp
+@@ -16,10 +16,12 @@
+ 
+ namespace flutter_inappwebview_plugin
+ {
++  static unsigned manager_count = 0;
+   InAppWebViewManager::InAppWebViewManager(const FlutterInappwebviewWindowsPlugin* plugin)
+     : plugin(plugin),
+     ChannelDelegate(plugin->registrar->messenger(), InAppWebViewManager::METHOD_CHANNEL_NAME)
+   {
++    ++manager_count;
+     if (!rohelper_) {
+       rohelper_ = std::make_unique<rx::RoHelper>(RO_INIT_SINGLETHREADED);
+ 
+@@ -243,5 +245,12 @@ namespace flutter_inappwebview_plugin
+     windowWebViews.clear();
+     UnregisterClass(windowClass_.lpszClassName, nullptr);
+     plugin = nullptr;
++    if (--manager_count == 0) {
++      valid_ = false;
++      compositor_ = nullptr;
++      graphics_context_.reset();
++      dispatcher_queue_controller_ = nullptr;
++      rohelper_.reset();
++    }
+   }
+ }

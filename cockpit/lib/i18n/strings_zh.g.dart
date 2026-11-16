@@ -58,6 +58,7 @@ class _Translations$core$zh extends Translations$core$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$zh clipboard = _Translations$core$clipboard$zh._(_root);
 	@override late final _Translations$core$bootstrapError$zh bootstrapError = _Translations$core$bootstrapError$zh._(_root);
 	@override late final _Translations$core$macosNotifications$zh macosNotifications = _Translations$core$macosNotifications$zh._(_root);
 	@override late final _Translations$core$appErrorView$zh appErrorView = _Translations$core$appErrorView$zh._(_root);
@@ -233,6 +234,9 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Handoff summary';
 	@override String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
 	@override String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+	@override String get handoffSessionReady => '新会话已就绪';
+	@override String get handoffCopyUnavailable => '会话已创建，但摘要未复制。请选择并复制下面的摘要以继续。';
+	@override String get handoffSessionLabel => '会话';
 	@override String get connections => 'Connections';
 	@override String get noConnections => 'No connections';
 	@override String get cancel => '取消';
@@ -291,6 +295,16 @@ class _Translations$orchestration$zh extends Translations$orchestration$en {
 	@override String get createWithoutImport => 'Create without importing';
 	@override String get importLegacy => 'Import configuration';
 	@override String get noBoxSelected => '在列表或图中选择一个终端以在其中工作。';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$zh extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => '无法复制到剪贴板。请重试。';
 }
 
 // Path: core.bootstrapError
@@ -621,6 +635,7 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => '在新窗口中打开';
 	@override String get rename => '重命名';
 	@override String get openAsMarkdown => '以 Markdown 打开';
+	@override String get editInNeovim => '使用 Neovim 编辑';
 	@override String get openAsBoard => '以看板打开';
 	@override String get resetTitle => '重置标题';
 	@override String get copyId => '复制 ID';
@@ -1317,6 +1332,7 @@ class _Translations$cockpit$gallery$zh extends Translations$cockpit$gallery$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$zh board = _Translations$cockpit$gallery$board$zh._(_root);
 	@override String get intro => 'Cockpit 的特殊文档，让你直观地看到 AI 智能体在做什么。';
 	@override String get createErrorTitle => '无法创建文件';
 	@override late final _Translations$cockpit$gallery$dbQuery$zh dbQuery = _Translations$cockpit$gallery$dbQuery$zh._(_root);
@@ -1527,6 +1543,7 @@ class _Translations$settings$page$zh extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$zh header = _Translations$settings$page$header$zh._(_root);
 	@override late final _Translations$settings$page$nav$zh nav = _Translations$settings$page$nav$zh._(_root);
+	@override late final _Translations$settings$page$explorer$zh explorer = _Translations$settings$page$explorer$zh._(_root);
 	@override late final _Translations$settings$page$general$zh general = _Translations$settings$page$general$zh._(_root);
 	@override late final _Translations$settings$page$diagnostics$zh diagnostics = _Translations$settings$page$diagnostics$zh._(_root);
 	@override late final _Translations$settings$page$storage$zh storage = _Translations$settings$page$storage$zh._(_root);
@@ -1673,6 +1690,73 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$zh extends Translation
 	@override String get moveCards => '移到上一列';
 	@override String get deleteAll => '随列一起删除';
 	@override String get emptyMessage => '此列为空。';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => '导入或导出';
+	@override String get exportDocument => '导出整个文档';
+	@override String get exportSelection => '导出所选内容';
+	@override String get appendBoard => '将此文档添加到画布？';
+	@override String get fitDocument => '适应整个文档';
+	@override String get fitSelection => '适应所选对象';
+	@override String get diagramColor => '图形颜色';
+	@override String get themeColor => '主题默认';
+	@override String get blue => '蓝色';
+	@override String get green => '绿色';
+	@override String get amber => '琥珀色';
+	@override String get red => '红色';
+	@override String get violet => '紫色';
+	@override String get cyan => '青色';
+	@override String get emptyBoard => '选择形状，然后单击或拖动以绘制。';
+	@override String get arrowStart => '选择起始形状，或拖动到目标形状。';
+	@override String get keyboardHelp => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接';
+	@override String get moveHere => '移动到此处';
+	@override String get moveDestination => '点击以放置选中对象 · Esc 取消';
+	@override String keyboardTarget({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。';
+	@override String connectorEndpoints({required Object from, required Object to}) => '从 ${from} 到 ${to}';
+	@override String get arrowEnd => '选择目标形状。';
+	@override String get diagramTypes => '图表类型';
+	@override String get replaceSource => '用此示例替换当前源码？';
+	@override String get group => '组合';
+	@override String get ungroup => '取消组合';
+	@override String get align => '顶部对齐';
+	@override String get distribute => '水平分布';
+	@override String get openFile => '打开';
+	@override String get exportFile => '导出';
+	@override String get importWarning => '导入可编辑形状和连接线？样式和分组可能发生变化。';
+	@override String get exportWarning => '导出形状和连接线？将简化样式、分组和 Mermaid 绘图。';
+	@override String get discard => '放弃';
+	@override String get importMmd => '打开 Mermaid 文件';
+	@override String get exportMmd => '导出 Mermaid 源码';
+	@override String get preview => '预览';
+	@override String get apply => '应用';
+	@override String get title => 'Canvas Board';
+	@override String get description => '绘制流程图和草图';
+	@override String get select => '选择';
+	@override String get pan => '平移';
+	@override String get pencil => '铅笔';
+	@override String get text => '文本';
+	@override String get note => '便签';
+	@override String get process => '流程';
+	@override String get decision => '决策';
+	@override String get arrow => '连接线';
+	@override String get advanced => '高级';
+	@override String get lane => '泳道';
+	@override String get container => '容器';
+	@override String get service => '服务';
+	@override String get undo => '撤销';
+	@override String get delete => '删除';
+	@override String get label => '标签';
+	@override String get labelChanged => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。';
+	@override String get objectDeleted => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。';
+	@override String get saveError => '无法保存画板';
+	@override String get reload => '重新加载';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -1829,6 +1913,7 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => '资源管理器';
 	@override String get general => '通用';
 	@override String get appearance => '外观';
 	@override String get terminal => '终端';
@@ -1837,6 +1922,26 @@ class _Translations$settings$page$nav$zh extends Translations$settings$page$nav$
 	@override String get notifications => '通知';
 	@override String get automations => '自动化';
 	@override String get remoteHosts => '远程主机';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$zh extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => '文件嵌套';
+	@override String get enabledTitle => '启用文件嵌套';
+	@override String get enabledDesc => '将相关文件归组到主文件下。';
+	@override String get autoExpandTitle => '自动展开';
+	@override String get autoExpandDesc => '加载资源管理器时展开嵌套组。';
+	@override String get newPattern => '新建模式';
+	@override String get patternsTitle => '匹配模式';
+	@override String get patternsDesc => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：';
+	@override String get parentPlaceholder => '主文件模式';
+	@override String get childrenPlaceholder => '嵌套文件';
+	@override String get remove => '删除模式';
 }
 
 // Path: settings.page.general
@@ -2122,6 +2227,7 @@ class _Translations$settings$page$general$wordWrap$zh extends Translations$setti
 extension on TranslationsZh {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => '无法复制到剪贴板。请重试。',
 			'core.bootstrapError.title' => 'Cockpit 初始化失败',
 			'core.bootstrapError.retry' => '重试',
 			'core.macosNotifications.title' => '在 macOS 上启用通知',
@@ -2328,6 +2434,7 @@ extension on TranslationsZh {
 			'cockpit.paneView.openInNewWindow' => '在新窗口中打开',
 			'cockpit.paneView.rename' => '重命名',
 			'cockpit.paneView.openAsMarkdown' => '以 Markdown 打开',
+			'cockpit.paneView.editInNeovim' => '使用 Neovim 编辑',
 			'cockpit.paneView.openAsBoard' => '以看板打开',
 			'cockpit.paneView.resetTitle' => '重置标题',
 			'cockpit.paneView.copyId' => '复制 ID',
@@ -2632,10 +2739,10 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.deleteDocumentTitle' => '删除文档',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object collection, required Object id}) => '从「${collection}」中删除 _id 为 ${id} 的文档？',
 			'cockpit.dbMongoView.filterHint' => '筛选——JSON，如 {"status": "active"}',
-			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
-			'cockpit.dbMongoView.refresh' => '刷新',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
+			'cockpit.dbMongoView.refresh' => '刷新',
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
 			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
@@ -2799,6 +2906,64 @@ extension on TranslationsZh {
 			'cockpit.browserPane.go' => '前往',
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
+			'cockpit.gallery.board.fileActions' => '导入或导出',
+			'cockpit.gallery.board.exportDocument' => '导出整个文档',
+			'cockpit.gallery.board.exportSelection' => '导出所选内容',
+			'cockpit.gallery.board.appendBoard' => '将此文档添加到画布？',
+			'cockpit.gallery.board.fitDocument' => '适应整个文档',
+			'cockpit.gallery.board.fitSelection' => '适应所选对象',
+			'cockpit.gallery.board.diagramColor' => '图形颜色',
+			'cockpit.gallery.board.themeColor' => '主题默认',
+			'cockpit.gallery.board.blue' => '蓝色',
+			'cockpit.gallery.board.green' => '绿色',
+			'cockpit.gallery.board.amber' => '琥珀色',
+			'cockpit.gallery.board.red' => '红色',
+			'cockpit.gallery.board.violet' => '紫色',
+			'cockpit.gallery.board.cyan' => '青色',
+			'cockpit.gallery.board.emptyBoard' => '选择形状，然后单击或拖动以绘制。',
+			'cockpit.gallery.board.arrowStart' => '选择起始形状，或拖动到目标形状。',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接',
+			'cockpit.gallery.board.moveHere' => '移动到此处',
+			'cockpit.gallery.board.moveDestination' => '点击以放置选中对象 · Esc 取消',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => '从 ${from} 到 ${to}',
+			'cockpit.gallery.board.arrowEnd' => '选择目标形状。',
+			'cockpit.gallery.board.diagramTypes' => '图表类型',
+			'cockpit.gallery.board.replaceSource' => '用此示例替换当前源码？',
+			'cockpit.gallery.board.group' => '组合',
+			'cockpit.gallery.board.ungroup' => '取消组合',
+			'cockpit.gallery.board.align' => '顶部对齐',
+			'cockpit.gallery.board.distribute' => '水平分布',
+			'cockpit.gallery.board.openFile' => '打开',
+			'cockpit.gallery.board.exportFile' => '导出',
+			'cockpit.gallery.board.importWarning' => '导入可编辑形状和连接线？样式和分组可能发生变化。',
+			'cockpit.gallery.board.exportWarning' => '导出形状和连接线？将简化样式、分组和 Mermaid 绘图。',
+			'cockpit.gallery.board.discard' => '放弃',
+			'cockpit.gallery.board.importMmd' => '打开 Mermaid 文件',
+			'cockpit.gallery.board.exportMmd' => '导出 Mermaid 源码',
+			'cockpit.gallery.board.preview' => '预览',
+			'cockpit.gallery.board.apply' => '应用',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => '绘制流程图和草图',
+			'cockpit.gallery.board.select' => '选择',
+			'cockpit.gallery.board.pan' => '平移',
+			'cockpit.gallery.board.pencil' => '铅笔',
+			'cockpit.gallery.board.text' => '文本',
+			'cockpit.gallery.board.note' => '便签',
+			'cockpit.gallery.board.process' => '流程',
+			'cockpit.gallery.board.decision' => '决策',
+			'cockpit.gallery.board.arrow' => '连接线',
+			'cockpit.gallery.board.advanced' => '高级',
+			'cockpit.gallery.board.lane' => '泳道',
+			'cockpit.gallery.board.container' => '容器',
+			'cockpit.gallery.board.service' => '服务',
+			'cockpit.gallery.board.undo' => '撤销',
+			'cockpit.gallery.board.delete' => '删除',
+			'cockpit.gallery.board.label' => '标签',
+			'cockpit.gallery.board.labelChanged' => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。',
+			'cockpit.gallery.board.objectDeleted' => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。',
+			'cockpit.gallery.board.saveError' => '无法保存画板',
+			'cockpit.gallery.board.reload' => '重新加载',
 			'cockpit.gallery.intro' => 'Cockpit 的特殊文档，让你直观地看到 AI 智能体在做什么。',
 			'cockpit.gallery.createErrorTitle' => '无法创建文件',
 			'cockpit.gallery.dbQuery.title' => '数据库查询',
@@ -2972,6 +3137,7 @@ extension on TranslationsZh {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => '返回',
 			'settings.page.header.title' => '设置',
+			'settings.page.nav.explorer' => '资源管理器',
 			'settings.page.nav.general' => '通用',
 			'settings.page.nav.appearance' => '外观',
 			'settings.page.nav.terminal' => '终端',
@@ -2980,6 +3146,17 @@ extension on TranslationsZh {
 			'settings.page.nav.notifications' => '通知',
 			'settings.page.nav.automations' => '自动化',
 			'settings.page.nav.remoteHosts' => '远程主机',
+			'settings.page.explorer.sectionNesting' => '文件嵌套',
+			'settings.page.explorer.enabledTitle' => '启用文件嵌套',
+			'settings.page.explorer.enabledDesc' => '将相关文件归组到主文件下。',
+			'settings.page.explorer.autoExpandTitle' => '自动展开',
+			'settings.page.explorer.autoExpandDesc' => '加载资源管理器时展开嵌套组。',
+			'settings.page.explorer.newPattern' => '新建模式',
+			'settings.page.explorer.patternsTitle' => '匹配模式',
+			'settings.page.explorer.patternsDesc' => '左侧填写主文件模式，右侧填写以逗号分隔的子文件模式。主文件使用 *；子文件可使用：',
+			'settings.page.explorer.parentPlaceholder' => '主文件模式',
+			'settings.page.explorer.childrenPlaceholder' => '嵌套文件',
+			'settings.page.explorer.remove' => '删除模式',
 			'settings.page.general.sectionEditor' => '编辑器',
 			'settings.page.general.editorEngineTitle' => '引擎',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit（默认）',
@@ -3076,6 +3253,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.terminalWeightLight' => '细',
 			'settings.page.appearance.terminalWeightNormal' => '常规',
 			'settings.page.appearance.terminalWeightMedium' => '中等',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightSemiBold' => '半粗',
 			'settings.page.appearance.sectionConversation' => '对话',
 			'settings.page.appearance.pinUserMessageTitle' => '固定用户消息',
@@ -3148,8 +3327,6 @@ extension on TranslationsZh {
 			'settings.page.automations.modelAuto' => '自动',
 			'settings.page.automations.modelSearch' => ({required Object count}) => '在 ${count} 个模型中搜索…',
 			'settings.page.automations.modelAutoRouted' => '此工具自动路由模型。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelAccountOnly' => '仅列出你的账户可用的模型。',
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
@@ -3262,6 +3439,9 @@ extension on TranslationsZh {
 			'workspaceView.handoffTitle' => 'Handoff summary',
 			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
 			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.handoffSessionReady' => '新会话已就绪',
+			'workspaceView.handoffCopyUnavailable' => '会话已创建，但摘要未复制。请选择并复制下面的摘要以继续。',
+			'workspaceView.handoffSessionLabel' => '会话',
 			'workspaceView.connections' => 'Connections',
 			'workspaceView.noConnections' => 'No connections',
 			'workspaceView.cancel' => '取消',
