@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
+import 'package:cockpit/app/cockpit/domain/entities/task_device_snapshot.dart';
 import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -112,16 +116,17 @@ class _TasksPanelState extends State<TasksPanel> {
                               def.label,
                             );
                           },
-                          // Play também já abre a aba dos logs.
-                          onStart: () {
-                            vm.start(def);
-                            context.read<CockpitViewModel>().openTaskOutput(
-                              def.id,
-                              def.label,
-                            );
-                          },
+                          // Play também já abre a aba dos logs — só se o start aconteceu.
+                          onStart: () => unawaited(_runTask(context, def)),
+                          device: vm.deviceState(def),
+                          onRefreshDevices: () => vm.refreshDevices(def),
+                          onSelectDevice: (id) => vm.selectDevice(def, id),
                           onStop: () => vm.stop(def.id),
                           onRestart: () => vm.restart(def.id),
+                          actions: vm.actionsFor(def),
+                          onAction: (action) => context
+                              .read<CockpitViewModel>()
+                              .openTaskSession(def.id, action.url),
                           onCycleProfile: () => vm.cycleProfile(def),
                           onKey: (k) => vm.sendKey(def.id, k),
                         ),
@@ -131,6 +136,14 @@ class _TasksPanelState extends State<TasksPanel> {
         ],
       ),
     );
+  }
+
+  /// Inicia a task e abre o output. Sem device compatível o start não acontece
+  /// e a aba não abre — o ícone de device já explica o motivo.
+  Future<void> _runTask(BuildContext context, TaskDefinition def) async {
+    final started = await context.read<TasksViewModel>().start(def);
+    if (!context.mounted || !started) return;
+    context.read<CockpitViewModel>().openTaskOutput(def.id, def.label);
   }
 
   /// Estado vazio: mensagem + (se não há `.cockpit/tasks.json`) um botão que
@@ -366,6 +379,11 @@ class _TaskRow extends StatelessWidget {
     required this.onRestart,
     required this.onCycleProfile,
     required this.onKey,
+    required this.actions,
+    required this.onAction,
+    required this.device,
+    required this.onRefreshDevices,
+    required this.onSelectDevice,
   });
 
   final TaskDefinition def;
@@ -379,6 +397,11 @@ class _TaskRow extends StatelessWidget {
   final VoidCallback onRestart;
   final VoidCallback onCycleProfile;
   final void Function(String key) onKey;
+  final List<TaskRunAction> actions;
+  final void Function(TaskRunAction action) onAction;
+  final TaskDeviceSnapshot device;
+  final Future<TaskDeviceSnapshot> Function() onRefreshDevices;
+  final Future<void> Function(String deviceId) onSelectDevice;
 
   @override
   Widget build(BuildContext context) {
@@ -427,6 +450,17 @@ class _TaskRow extends StatelessWidget {
               ),
             // Esconde o restart da task quando já há uma tecla primária com o
             // ícone de restart (ex.: Flutter "Hot restart") — evita 2 ícones iguais.
+            for (final action in actions)
+              _IconAction(
+                tooltip: switch (action.kind) {
+                  TaskRunActionKind.openDevTools =>
+                    context.t.cockpit.tasksPanel.openDevTools,
+                },
+                icon: switch (action.icon) {
+                  TaskRunActionIcon.devtools => Icons.developer_mode,
+                },
+                onTap: () => onAction(action),
+              ),
             if (!def.interactiveKeys.any(
               (k) => k.primary && k.icon == 'restart',
             ))
@@ -454,6 +488,12 @@ class _TaskRow extends StatelessWidget {
               ),
             ),
           ] else ...[
+            if (device.offered)
+              _DeviceSelector(
+                state: device,
+                onRefresh: onRefreshDevices,
+                onSelect: onSelectDevice,
+              ),
             if (profileName != null)
               _ProfileChip(
                 name: profileName!,
@@ -461,10 +501,14 @@ class _TaskRow extends StatelessWidget {
                 onTap: onCycleProfile,
               ),
             _IconAction(
-              tooltip: context.t.cockpit.tasksPanel.runTooltip,
+              tooltip: device.offered && !device.canStart
+                  ? _deviceTooltip(context, device)
+                  : context.t.cockpit.tasksPanel.runTooltip,
               icon: Icons.play_arrow,
-              color: colors.online,
-              onTap: onStart,
+              color: device.offered && !device.canStart
+                  ? colors.text4
+                  : colors.online,
+              onTap: device.offered && !device.canStart ? () {} : onStart,
             ),
           ],
         ],
@@ -477,6 +521,7 @@ class _TaskRow extends StatelessWidget {
     'restart' => Icons.restart_alt,
     'stop' => Icons.stop,
     'bolt' => Icons.bolt,
+    'devtools' => Icons.developer_mode,
     _ => null,
   };
 }
@@ -547,6 +592,80 @@ class _IconAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Ícone de device. O snapshot já diz se a task executa em device — este
+/// widget não inspeciona o comando.
+class _DeviceSelector extends StatelessWidget {
+  const _DeviceSelector({
+    required this.state,
+    required this.onRefresh,
+    required this.onSelect,
+  });
+
+  final TaskDeviceSnapshot state;
+  final Future<TaskDeviceSnapshot> Function() onRefresh;
+  final Future<void> Function(String deviceId) onSelect;
+
+  Future<void> _open(BuildContext context) async {
+    final fresh = await onRefresh();
+    if (!context.mounted) return;
+    final tr = context.t.cockpit.tasksPanel;
+    final chosen = await showAppMenu<String>(
+      context,
+      minWidth: 220,
+      items: [
+        if (fresh.unavailable && fresh.selectedId != null)
+          AppMenuItem(
+            value: fresh.selectedId!,
+            label: fresh.selectedName ?? fresh.selectedId!,
+            selected: true,
+            enabled: false,
+          ),
+        if (fresh.devices.isEmpty)
+          AppMenuItem(
+            value: '',
+            label: fresh.discoveryFailed
+                ? tr.deviceDiscoveryFailed
+                : tr.noDevicesMenu,
+            enabled: false,
+          )
+        else
+          for (final device in fresh.devices)
+            AppMenuItem(
+              value: device.id,
+              label: device.name,
+              selected: device.id == fresh.selectedId,
+            ),
+      ],
+    );
+    if (chosen != null && chosen.isNotEmpty) await onSelect(chosen);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return _IconAction(
+      tooltip: _deviceTooltip(context, state),
+      icon: Icons.smartphone,
+      color: state.unavailable || state.discoveryFailed ? colors.warn : null,
+      onTap: () => unawaited(_open(context)),
+    );
+  }
+}
+
+String _deviceTooltip(BuildContext context, TaskDeviceSnapshot state) {
+  final tr = context.t.cockpit.tasksPanel;
+  if (state.discoveryFailed) return tr.deviceDiscoveryFailed;
+  if (state.loading) return tr.lookingForDevices;
+  if (state.unavailable) {
+    return tr.deviceUnavailableTooltip(
+      name: state.selectedName ?? state.selectedId ?? '',
+    );
+  }
+  final name = state.selectedName;
+  if (name != null) return tr.deviceTooltip(name: name);
+  return tr.noDevicesTooltip;
 }
 
 /// Chip que mostra o profile selecionado e cicla pro próximo ao clicar (quando

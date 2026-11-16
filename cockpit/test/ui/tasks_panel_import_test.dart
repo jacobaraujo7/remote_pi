@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/tasks_panel.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -13,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 import '../tasks/tasks_workspace_import_test.dart'
-    show IdleTaskRunner, taskConfig;
+    show IdleTaskRunner, NoDevices, taskConfig;
 
 class _Root extends StatelessWidget {
   @override
@@ -46,7 +49,15 @@ void main() {
         await source.parent.create(recursive: true);
         await source.writeAsString(taskConfig);
         await Directory('${temp.path}/worktree').create();
-        vm = TasksViewModel(TaskDiscoveryImpl(const []), IdleTaskRunner());
+        vm = TasksViewModel(
+          TaskDiscoveryImpl(const []),
+          IdleTaskRunner(),
+          TaskDeviceCoordinatorImpl(
+            DevToolRegistry(const []),
+            NoDevices(),
+            HostOs.linux,
+          ),
+        );
         await vm.loadFor(
           '${temp.path}/worktree',
           sourceWorkspaceCwd: '${temp.path}/source',

@@ -3,6 +3,7 @@
 # SignPath OSS acontece no workflow, em duas etapas (exes internos antes de
 # empacotar, instalador depois): ver cockpit-release.yml.
 app_id: work.jacobmoura.cockpit
+script_template: inno_template.iss
 display_name: Remote Pi Cockpit
 publisher_name: Jacob Moura
 publisher_url: https://jacobmoura.work

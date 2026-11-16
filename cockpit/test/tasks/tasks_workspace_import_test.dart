@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/data/tasks/task_discovery_impl.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/task_device_coordinator.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/device_selection_store.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/task_runner_gateway.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
@@ -10,6 +14,12 @@ import 'package:flutter_test/flutter_test.dart';
 class IdleTaskRunner implements TaskRunnerGateway {
   @override
   Stream<TaskRun> runs() => const Stream.empty();
+
+  @override
+  Stream<TaskSessionUrl> sessionUrls() => const Stream<TaskSessionUrl>.empty();
+
+  @override
+  String? sessionUrlOf(String taskId) => null;
 
   @override
   TaskRun runOf(String taskId) => TaskRun.idleFor(taskId);
@@ -35,7 +45,15 @@ void main() {
     temp = await Directory.systemTemp.createTemp('tasks-import-');
     source = await Directory('${temp.path}/source').create();
     worktree = await Directory('${temp.path}/worktree').create();
-    vm = TasksViewModel(TaskDiscoveryImpl(const []), IdleTaskRunner());
+    vm = TasksViewModel(
+      TaskDiscoveryImpl(const []),
+      IdleTaskRunner(),
+      TaskDeviceCoordinatorImpl(
+        DevToolRegistry(const []),
+        NoDevices(),
+        HostOs.linux,
+      ),
+    );
   });
 
   tearDown(() async {
@@ -228,4 +246,12 @@ void main() {
     await vm.importWorkspaceConfig();
     expect(await config(worktree).exists(), isFalse);
   });
+}
+
+class NoDevices implements DeviceSelectionStore {
+  @override
+  DevicePreference? read(String cwd, String taskId) => null;
+
+  @override
+  Future<void> write(String cwd, String taskId, String deviceId) async {}
 }

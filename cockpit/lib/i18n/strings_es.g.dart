@@ -60,6 +60,7 @@ class _Translations$core$es extends Translations$core$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$es clipboard = _Translations$core$clipboard$es._(_root);
 	@override late final _Translations$core$bootstrapError$es bootstrapError = _Translations$core$bootstrapError$es._(_root);
 	@override late final _Translations$core$macosNotifications$es macosNotifications = _Translations$core$macosNotifications$es._(_root);
 	@override late final _Translations$core$appErrorView$es appErrorView = _Translations$core$appErrorView$es._(_root);
@@ -296,6 +297,9 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Resumen de handoff';
 	@override String get handoffHelp => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.';
 	@override String get handoffReady => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.';
+	@override String get handoffSessionReady => 'Nueva sesión preparada';
+	@override String get handoffCopyUnavailable => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.';
+	@override String get handoffSessionLabel => 'Sesión';
 	@override String get connections => 'Conexiones';
 	@override String get noConnections => 'Sin conexiones';
 	@override String get cancel => 'Cancelar';
@@ -369,6 +373,16 @@ class _Translations$orchestration$es extends Translations$orchestration$en {
 	@override String get roleTimeout => 'El agente no respondió a tiempo. Reintenta o completa la función manualmente.';
 	@override String get roleInvalid => 'El agente devolvió una función no válida.';
 	@override String get noBoxSelected => 'Selecciona un terminal en la lista o el grafo para trabajar en él.';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$es extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.';
 }
 
 // Path: core.bootstrapError
@@ -628,6 +642,13 @@ class _Translations$cockpit$tasksPanel$es extends Translations$cockpit$tasksPane
 	@override String get invalidComposeFile => 'El archivo activo no es un Compose válido con servicios.';
 	@override String get invalidTasksJson => 'tasks.json no es válido. No se guardaron cambios.';
 	@override String composeConflicts({required Object labels}) => 'Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}';
+	@override String deviceTooltip({required Object name}) => 'Ejecutar en ${name}';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} no está disponible';
+	@override String get noDevicesTooltip => 'Ningún dispositivo compatible';
+	@override String get noDevicesMenu => 'Ningún dispositivo compatible';
+	@override String get lookingForDevices => 'Buscando dispositivos…';
+	@override String get deviceDiscoveryFailed => 'No se pudieron listar los dispositivos. La ejecución sigue disponible; abre este menú para reintentar.';
+	@override String get openDevTools => 'Abrir DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -706,6 +727,7 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
 	@override String get rename => 'Renombrar';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar con Neovim';
 	@override String get openAsBoard => 'Abrir como tablero';
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
@@ -831,6 +853,10 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => 'Directorio de trabajo';
 	@override String get diffBinaryFile => 'Archivo binario - sin diff de texto.';
 	@override String get diffNoChanges => 'Sin cambios.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'En línea';
+	@override String get diffModifiedContent => 'Contenido modificado';
+	@override String get diffDeletedContent => 'El archivo modificado está vacío porque se eliminó.';
 	@override String diffError({required Object detail}) => 'No se pudo leer el diff: ${detail}';
 	@override String get galleryTooltip => 'Galería';
 	@override String get sectionGallery => 'GALERÍA';
@@ -1401,6 +1427,7 @@ class _Translations$cockpit$gallery$es extends Translations$cockpit$gallery$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$es board = _Translations$cockpit$gallery$board$es._(_root);
 	@override String get intro => 'Documentos especiales de Cockpit para que veas lo que el agente de IA está haciendo.';
 	@override String get createErrorTitle => 'No se pudo crear el archivo';
 	@override late final _Translations$cockpit$gallery$dbQuery$es dbQuery = _Translations$cockpit$gallery$dbQuery$es._(_root);
@@ -1611,6 +1638,7 @@ class _Translations$settings$page$es extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$es header = _Translations$settings$page$header$es._(_root);
 	@override late final _Translations$settings$page$nav$es nav = _Translations$settings$page$nav$es._(_root);
+	@override late final _Translations$settings$page$explorer$es explorer = _Translations$settings$page$explorer$es._(_root);
 	@override late final _Translations$settings$page$general$es general = _Translations$settings$page$general$es._(_root);
 	@override late final _Translations$settings$page$diagnostics$es diagnostics = _Translations$settings$page$diagnostics$es._(_root);
 	@override late final _Translations$settings$page$storage$es storage = _Translations$settings$page$storage$es._(_root);
@@ -1757,6 +1785,73 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$es extends Translation
 	@override String get moveCards => 'Mover a la columna anterior';
 	@override String get deleteAll => 'Eliminar junto con la columna';
 	@override String get emptyMessage => 'Esta columna está vacía.';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$es extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => 'Importar o exportar';
+	@override String get exportDocument => 'Exportar documento completo';
+	@override String get exportSelection => 'Exportar selección';
+	@override String get appendBoard => '¿Añadir este documento al lienzo?';
+	@override String get fitDocument => 'Ajustar documento';
+	@override String get fitSelection => 'Ajustar selección';
+	@override String get diagramColor => 'Color del dibujo';
+	@override String get themeColor => 'Predeterminado del tema';
+	@override String get blue => 'Azul';
+	@override String get green => 'Verde';
+	@override String get amber => 'Ámbar';
+	@override String get red => 'Rojo';
+	@override String get violet => 'Violeta';
+	@override String get cyan => 'Cian';
+	@override String get emptyBoard => 'Elige una forma y haz clic o arrastra para dibujarla.';
+	@override String get arrowStart => 'Elige la primera forma o arrastra hasta el destino.';
+	@override String get keyboardHelp => 'Tab selecciona · Flechas mueven · Mayús ×10 · C conecta';
+	@override String get moveHere => 'Mover aquí';
+	@override String get moveDestination => 'Haz clic donde quieras colocar la selección · Esc cancela';
+	@override String keyboardTarget({required Object target}) => 'Destino: ${target}. Tab cambia, Intro conecta, Esc cancela.';
+	@override String connectorEndpoints({required Object from, required Object to}) => 'De ${from} a ${to}';
+	@override String get arrowEnd => 'Elige la forma de destino.';
+	@override String get diagramTypes => 'Tipos de diagrama';
+	@override String get replaceSource => '¿Reemplazar el código actual con este ejemplo?';
+	@override String get group => 'Agrupar';
+	@override String get ungroup => 'Desagrupar';
+	@override String get align => 'Alinear arriba';
+	@override String get distribute => 'Distribuir horizontalmente';
+	@override String get openFile => 'Abrir';
+	@override String get exportFile => 'Exportar';
+	@override String get importWarning => '¿Importar formas y conectores? Los estilos y grupos pueden cambiar.';
+	@override String get exportWarning => '¿Exportar formas y conectores? Se simplifican los estilos, grupos y dibujos Mermaid.';
+	@override String get discard => 'Descartar';
+	@override String get importMmd => 'Abrir archivo Mermaid';
+	@override String get exportMmd => 'Exportar código Mermaid';
+	@override String get preview => 'Vista previa';
+	@override String get apply => 'Aplicar';
+	@override String get title => 'Canvas Board';
+	@override String get description => 'Dibuja diagramas de flujo y bocetos';
+	@override String get select => 'Seleccionar';
+	@override String get pan => 'Navegar';
+	@override String get pencil => 'Lápiz';
+	@override String get text => 'Texto';
+	@override String get note => 'Nota';
+	@override String get process => 'Proceso';
+	@override String get decision => 'Decisión';
+	@override String get arrow => 'Conector';
+	@override String get advanced => 'Avanzado';
+	@override String get lane => 'Carril';
+	@override String get container => 'Contenedor';
+	@override String get service => 'Servicio';
+	@override String get undo => 'Deshacer';
+	@override String get delete => 'Eliminar';
+	@override String get label => 'Etiqueta';
+	@override String get labelChanged => 'El texto cambió en el archivo. Copia tu borrador antes de pulsar Esc para cargar el texto guardado.';
+	@override String get objectDeleted => 'El objeto se eliminó del archivo. Copia tu borrador antes de pulsar Esc para cerrarlo.';
+	@override String get saveError => 'Error al guardar el tablero';
+	@override String get reload => 'Recargar';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -1913,6 +2008,7 @@ class _Translations$settings$page$nav$es extends Translations$settings$page$nav$
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => 'Explorador';
 	@override String get general => 'General';
 	@override String get appearance => 'Apariencia';
 	@override String get terminal => 'Terminal';
@@ -1921,6 +2017,26 @@ class _Translations$settings$page$nav$es extends Translations$settings$page$nav$
 	@override String get notifications => 'Notificaciones';
 	@override String get automations => 'Automatizaciones';
 	@override String get remoteHosts => 'Hosts remotos';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$es extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => 'Anidamiento de archivos';
+	@override String get enabledTitle => 'Activar anidamiento';
+	@override String get enabledDesc => 'Agrupa archivos relacionados bajo el archivo principal.';
+	@override String get autoExpandTitle => 'Expandir automáticamente';
+	@override String get autoExpandDesc => 'Abre los grupos anidados al cargar el explorador.';
+	@override String get newPattern => 'Nuevo patrón';
+	@override String get patternsTitle => 'Patrones';
+	@override String get patternsDesc => 'Patrón principal a la izquierda; patrones secundarios separados por comas a la derecha. Usa * en el principal; los hijos pueden usar:';
+	@override String get parentPlaceholder => 'Patrón principal';
+	@override String get childrenPlaceholder => 'Archivos anidados';
+	@override String get remove => 'Eliminar patrón';
 }
 
 // Path: settings.page.general
@@ -2206,6 +2322,7 @@ class _Translations$settings$page$general$updateFrequency$es extends Translation
 extension on TranslationsEs {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.',
 			'core.bootstrapError.title' => 'No se pudo inicializar Cockpit',
 			'core.bootstrapError.retry' => 'Reintentar',
 			'core.macosNotifications.title' => 'Activar notificaciones en macOS',
@@ -2371,6 +2488,13 @@ extension on TranslationsEs {
 			'cockpit.tasksPanel.invalidComposeFile' => 'El archivo activo no es un Compose válido con servicios.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json no es válido. No se guardaron cambios.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Se conservaron tareas que no son Compose con etiquetas en conflicto: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Ejecutar en ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} no está disponible',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'Ningún dispositivo compatible',
+			'cockpit.tasksPanel.noDevicesMenu' => 'Ningún dispositivo compatible',
+			'cockpit.tasksPanel.lookingForDevices' => 'Buscando dispositivos…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'No se pudieron listar los dispositivos. La ejecución sigue disponible; abre este menú para reintentar.',
+			'cockpit.tasksPanel.openDevTools' => 'Abrir DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Elige la carpeta del proyecto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Elige la carpeta del workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renombrado',
@@ -2419,6 +2543,7 @@ extension on TranslationsEs {
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
 			'cockpit.paneView.rename' => 'Renombrar',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar con Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como tablero',
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2535,6 +2660,10 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Directorio de trabajo',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Archivo binario - sin diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sin cambios.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'En línea',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Contenido modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'El archivo modificado está vacío porque se eliminó.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'No se pudo leer el diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galería',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERÍA',
@@ -2705,6 +2834,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -2718,8 +2849,6 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} conexiones',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexión',
 			'cockpit.dbPanel.noConnections' => 'Aún no hay conexiones.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.passwordRequired' => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Eliminar documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
@@ -2889,6 +3018,64 @@ extension on TranslationsEs {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
+			'cockpit.gallery.board.exportDocument' => 'Exportar documento completo',
+			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
+			'cockpit.gallery.board.appendBoard' => '¿Añadir este documento al lienzo?',
+			'cockpit.gallery.board.fitDocument' => 'Ajustar documento',
+			'cockpit.gallery.board.fitSelection' => 'Ajustar selección',
+			'cockpit.gallery.board.diagramColor' => 'Color del dibujo',
+			'cockpit.gallery.board.themeColor' => 'Predeterminado del tema',
+			'cockpit.gallery.board.blue' => 'Azul',
+			'cockpit.gallery.board.green' => 'Verde',
+			'cockpit.gallery.board.amber' => 'Ámbar',
+			'cockpit.gallery.board.red' => 'Rojo',
+			'cockpit.gallery.board.violet' => 'Violeta',
+			'cockpit.gallery.board.cyan' => 'Cian',
+			'cockpit.gallery.board.emptyBoard' => 'Elige una forma y haz clic o arrastra para dibujarla.',
+			'cockpit.gallery.board.arrowStart' => 'Elige la primera forma o arrastra hasta el destino.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selecciona · Flechas mueven · Mayús ×10 · C conecta',
+			'cockpit.gallery.board.moveHere' => 'Mover aquí',
+			'cockpit.gallery.board.moveDestination' => 'Haz clic donde quieras colocar la selección · Esc cancela',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destino: ${target}. Tab cambia, Intro conecta, Esc cancela.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'De ${from} a ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Elige la forma de destino.',
+			'cockpit.gallery.board.diagramTypes' => 'Tipos de diagrama',
+			'cockpit.gallery.board.replaceSource' => '¿Reemplazar el código actual con este ejemplo?',
+			'cockpit.gallery.board.group' => 'Agrupar',
+			'cockpit.gallery.board.ungroup' => 'Desagrupar',
+			'cockpit.gallery.board.align' => 'Alinear arriba',
+			'cockpit.gallery.board.distribute' => 'Distribuir horizontalmente',
+			'cockpit.gallery.board.openFile' => 'Abrir',
+			'cockpit.gallery.board.exportFile' => 'Exportar',
+			'cockpit.gallery.board.importWarning' => '¿Importar formas y conectores? Los estilos y grupos pueden cambiar.',
+			'cockpit.gallery.board.exportWarning' => '¿Exportar formas y conectores? Se simplifican los estilos, grupos y dibujos Mermaid.',
+			'cockpit.gallery.board.discard' => 'Descartar',
+			'cockpit.gallery.board.importMmd' => 'Abrir archivo Mermaid',
+			'cockpit.gallery.board.exportMmd' => 'Exportar código Mermaid',
+			'cockpit.gallery.board.preview' => 'Vista previa',
+			'cockpit.gallery.board.apply' => 'Aplicar',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Dibuja diagramas de flujo y bocetos',
+			'cockpit.gallery.board.select' => 'Seleccionar',
+			'cockpit.gallery.board.pan' => 'Navegar',
+			'cockpit.gallery.board.pencil' => 'Lápiz',
+			'cockpit.gallery.board.text' => 'Texto',
+			'cockpit.gallery.board.note' => 'Nota',
+			'cockpit.gallery.board.process' => 'Proceso',
+			'cockpit.gallery.board.decision' => 'Decisión',
+			'cockpit.gallery.board.arrow' => 'Conector',
+			'cockpit.gallery.board.advanced' => 'Avanzado',
+			'cockpit.gallery.board.lane' => 'Carril',
+			'cockpit.gallery.board.container' => 'Contenedor',
+			'cockpit.gallery.board.service' => 'Servicio',
+			'cockpit.gallery.board.undo' => 'Deshacer',
+			'cockpit.gallery.board.delete' => 'Eliminar',
+			'cockpit.gallery.board.label' => 'Etiqueta',
+			'cockpit.gallery.board.labelChanged' => 'El texto cambió en el archivo. Copia tu borrador antes de pulsar Esc para cargar el texto guardado.',
+			'cockpit.gallery.board.objectDeleted' => 'El objeto se eliminó del archivo. Copia tu borrador antes de pulsar Esc para cerrarlo.',
+			'cockpit.gallery.board.saveError' => 'Error al guardar el tablero',
+			'cockpit.gallery.board.reload' => 'Recargar',
 			'cockpit.gallery.intro' => 'Documentos especiales de Cockpit para que veas lo que el agente de IA está haciendo.',
 			'cockpit.gallery.createErrorTitle' => 'No se pudo crear el archivo',
 			'cockpit.gallery.dbQuery.title' => 'Consulta de base de datos',
@@ -3062,6 +3249,7 @@ extension on TranslationsEs {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Atrás',
 			'settings.page.header.title' => 'Configuración',
+			'settings.page.nav.explorer' => 'Explorador',
 			'settings.page.nav.general' => 'General',
 			'settings.page.nav.appearance' => 'Apariencia',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -3070,6 +3258,17 @@ extension on TranslationsEs {
 			'settings.page.nav.notifications' => 'Notificaciones',
 			'settings.page.nav.automations' => 'Automatizaciones',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
+			'settings.page.explorer.sectionNesting' => 'Anidamiento de archivos',
+			'settings.page.explorer.enabledTitle' => 'Activar anidamiento',
+			'settings.page.explorer.enabledDesc' => 'Agrupa archivos relacionados bajo el archivo principal.',
+			'settings.page.explorer.autoExpandTitle' => 'Expandir automáticamente',
+			'settings.page.explorer.autoExpandDesc' => 'Abre los grupos anidados al cargar el explorador.',
+			'settings.page.explorer.newPattern' => 'Nuevo patrón',
+			'settings.page.explorer.patternsTitle' => 'Patrones',
+			'settings.page.explorer.patternsDesc' => 'Patrón principal a la izquierda; patrones secundarios separados por comas a la derecha. Usa * en el principal; los hijos pueden usar:',
+			'settings.page.explorer.parentPlaceholder' => 'Patrón principal',
+			'settings.page.explorer.childrenPlaceholder' => 'Archivos anidados',
+			'settings.page.explorer.remove' => 'Eliminar patrón',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Motor',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (predeterminado)',
@@ -3149,6 +3348,8 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',
@@ -3232,8 +3433,6 @@ extension on TranslationsEs {
 			'settings.page.automations.harnessRefresh' => 'Actualizar harnesses instalados',
 			'settings.page.automations.notConfigured' => 'Sin configurar',
 			'settings.page.automations.model' => 'Modelo',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelUnavailable' => 'La lista de modelos no está disponible hasta encontrar el harness.',
 			'settings.page.automations.modelCliOnly' => 'Este harness usa el modelo predeterminado de su CLI.',
 			'settings.page.automations.modelCliDefault' => 'Predeterminado de la CLI',
@@ -3395,6 +3594,9 @@ extension on TranslationsEs {
 			'workspaceView.handoffTitle' => 'Resumen de handoff',
 			'workspaceView.handoffHelp' => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.',
 			'workspaceView.handoffReady' => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.',
+			'workspaceView.handoffSessionReady' => 'Nueva sesión preparada',
+			'workspaceView.handoffCopyUnavailable' => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.',
+			'workspaceView.handoffSessionLabel' => 'Sesión',
 			'workspaceView.connections' => 'Conexiones',
 			'workspaceView.noConnections' => 'Sin conexiones',
 			'workspaceView.cancel' => 'Cancelar',

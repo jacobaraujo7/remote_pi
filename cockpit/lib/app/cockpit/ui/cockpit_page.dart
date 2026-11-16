@@ -1219,10 +1219,25 @@ class _TreePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
-    final configuredHarnessId = context
-        .watch<SettingsController>()
-        .settings
-        .automationHarnessId;
+    final panelSettings = context
+        .select<
+          SettingsController,
+          ({
+            HarnessKind? harness,
+            bool nesting,
+            bool autoExpand,
+            Map<String, String> patterns,
+          })
+        >((controller) {
+          final settings = controller.settings;
+          return (
+            harness: settings.automationHarnessId,
+            nesting: settings.fileNestingEnabled,
+            autoExpand: settings.fileNestingAutoExpand,
+            patterns: settings.fileNestingPatterns,
+          );
+        });
+    final configuredHarnessId = panelSettings.harness;
     return Stack(
       children: [
         FileTreePanel(
@@ -1231,6 +1246,9 @@ class _TreePanel extends StatelessWidget {
           width: treeWidth,
           rootPath: vm.treeRootPath,
           sourceControlViewMode: sourceControlViewMode,
+          fileNestingEnabled: panelSettings.nesting,
+          fileNestingAutoExpand: panelSettings.autoExpand,
+          fileNestingPatterns: panelSettings.patterns,
           onSourceControlViewModeChanged: context
               .read<SettingsController>()
               .setSourceControlViewMode,
