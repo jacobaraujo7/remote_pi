@@ -109,6 +109,7 @@ class _Translations$cockpit$zh extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$confirmDialog$zh confirmDialog = _Translations$cockpit$confirmDialog$zh._(_root);
 	@override late final _Translations$cockpit$neovim$zh neovim = _Translations$cockpit$neovim$zh._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$zh worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$zh._(_root);
+	@override late final _Translations$cockpit$branchSwitchDialog$zh branchSwitchDialog = _Translations$cockpit$branchSwitchDialog$zh._(_root);
 	@override late final _Translations$cockpit$commitMessageDialog$zh commitMessageDialog = _Translations$cockpit$commitMessageDialog$zh._(_root);
 	@override late final _Translations$cockpit$tasksPanel$zh tasksPanel = _Translations$cockpit$tasksPanel$zh._(_root);
 	@override late final _Translations$cockpit$cockpitPage$zh cockpitPage = _Translations$cockpit$cockpitPage$zh._(_root);
@@ -477,6 +478,23 @@ class _Translations$cockpit$worktreeCreateDialog$zh extends Translations$cockpit
 	@override String get back => '返回';
 }
 
+// Path: cockpit.branchSwitchDialog
+class _Translations$cockpit$branchSwitchDialog$zh extends Translations$cockpit$branchSwitchDialog$en {
+	_Translations$cockpit$branchSwitchDialog$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String title({required Object label}) => '切换分支 — ${label}';
+	@override String subtitle({required Object current}) => '当前分支：${current}';
+	@override String get search => '搜索分支…';
+	@override String get local => '本地分支';
+	@override String get remote => '远程分支';
+	@override String get switchAction => '切换';
+	@override String get empty => '未找到分支。';
+	@override String get current => '当前';
+}
+
 // Path: cockpit.commitMessageDialog
 class _Translations$cockpit$commitMessageDialog$zh extends Translations$cockpit$commitMessageDialog$en {
 	_Translations$cockpit$commitMessageDialog$zh._(TranslationsZh root) : this._root = root, super.internal(root);
@@ -541,6 +559,7 @@ class _Translations$cockpit$cockpitPage$zh extends Translations$cockpit$cockpitP
 	@override String syncTitle({required Object label}) => '同步 — ${label}';
 	@override String pullTitle({required Object label}) => '拉取 — ${label}';
 	@override String pushTitle({required Object label}) => '推送 — ${label}';
+	@override String switchBranchTitle({required Object label}) => '切换分支 — ${label}';
 	@override String updateFromParentTitle({required Object name}) => '从父级更新 — ${name}';
 	@override String mergeToParentTitle({required Object name}) => '合并到父级 — ${name}';
 	@override String get worktreeMergedAndRemoved => 'worktree 已合并并移除。';
@@ -1092,6 +1111,7 @@ class _Translations$cockpit$projectsRail$zh extends Translations$cockpit$project
 	@override String get sync => '同步';
 	@override String get pull => '拉取';
 	@override String get push => '推送';
+	@override String get switchBranch => '切换分支…';
 	@override String get createWorktree => '创建 worktree';
 	@override String worktreeCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n,
 		one: '1 个 worktree',
@@ -2216,6 +2236,14 @@ extension on TranslationsZh {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => '在创建 worktree 前先运行 git fetch，确保基准分支已确认存在。',
 			'cockpit.worktreeCreateDialog.searchBranch' => '搜索分支…',
 			'cockpit.worktreeCreateDialog.back' => '返回',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => '切换分支 — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => '当前分支：${current}',
+			'cockpit.branchSwitchDialog.search' => '搜索分支…',
+			'cockpit.branchSwitchDialog.local' => '本地分支',
+			'cockpit.branchSwitchDialog.remote' => '远程分支',
+			'cockpit.branchSwitchDialog.switchAction' => '切换',
+			'cockpit.branchSwitchDialog.empty' => '未找到分支。',
+			'cockpit.branchSwitchDialog.current' => '当前',
 			'cockpit.commitMessageDialog.commitTitle' => '提交',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => '暂存并提交',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => '仅提交「${fileName}」。',
@@ -2255,6 +2283,7 @@ extension on TranslationsZh {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => '同步 — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => '拉取 — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => '推送 — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => '切换分支 — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => '从父级更新 — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => '合并到父级 — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'worktree 已合并并移除。',
@@ -2601,6 +2630,8 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
 			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
 			'cockpit.dbMongoView.loadMore' => '加载更多',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.edit' => '编辑',
 			'cockpit.dbMongoView.insert' => '插入',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
@@ -2610,8 +2641,6 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
 			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -2662,6 +2691,7 @@ extension on TranslationsZh {
 			'cockpit.projectsRail.sync' => '同步',
 			'cockpit.projectsRail.pull' => '拉取',
 			'cockpit.projectsRail.push' => '推送',
+			'cockpit.projectsRail.switchBranch' => '切换分支…',
 			'cockpit.projectsRail.createWorktree' => '创建 worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个 worktree', other: '${n} 个 worktree', ), 
 			'cockpit.projectsRail.expandWorktrees' => '展开 worktree',
@@ -3114,6 +3144,8 @@ extension on TranslationsZh {
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',
@@ -3124,8 +3156,6 @@ extension on TranslationsZh {
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
 			'settings.remoteHosts.removeTitle' => '移除主机',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',

@@ -33,7 +33,16 @@ class LocalNotifier implements Notifier {
     // O chime (media_kit) vale em TODAS as plataformas, inclusive iOS/Android —
     // é o player do som de turno. Criar SEMPRE, antes de qualquer coisa que
     // possa lançar, senão `play()` fica mudo no mobile (plano 60, Wave G).
-    _chime = Player();
+    final chime = _chime = Player();
+    // O media_kit sobe o mpv com `keep-open=yes`: no fim do chime o arquivo
+    // continua carregado e a saída de áudio (CoreAudio no macOS) segue aberta,
+    // renderizando silêncio até o app fechar — o `coreaudiod` trabalha com o
+    // Cockpit ocioso. Parar no fim descarrega o arquivo e libera o device; o
+    // próximo `play()` reabre (o `open` já recarrega a cada toque).
+    chime.stream.completed.listen((done) {
+      // best-effort, como o resto do som.
+      if (done) chime.stop().catchError((Object _) {});
+    });
     const darwin = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,

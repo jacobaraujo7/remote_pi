@@ -32,14 +32,23 @@ class GitDiffReaderImpl implements GitDiffReader {
         return await _untrackedDiff(absPath);
       }
 
-      final diff = await Process.run(git, [
-        '-C',
-        repoPath,
-        'diff',
-        'HEAD',
-        '--',
-        rel,
-      ], stdoutEncoding: utf8);
+      // `git diff` refreshes the index independently of optional status locks.
+      // Keep this read from competing with restore/add/rm as well.
+      final diff = await Process.run(
+        git,
+        [
+          '-C',
+          repoPath,
+          '-c',
+          'diff.autoRefreshIndex=false',
+          'diff',
+          'HEAD',
+          '--',
+          rel,
+        ],
+        stdoutEncoding: utf8,
+        environment: gitReadOnlyEnvironment(),
+      );
       if (diff.exitCode != 0) return FileDiff.unchanged(absPath);
       final out = diff.stdout as String;
       if (out.trim().isEmpty) return FileDiff.unchanged(absPath);

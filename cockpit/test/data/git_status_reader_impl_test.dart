@@ -78,7 +78,7 @@ void main() {
 
     expect(info, isNotNull);
     expect(info!.isDirty, isFalse);
-    expect(await index.lastModified(), original);
+    expect((await index.lastModified()).toUtc(), original);
     expect(await File('${repo.path}/.git/index.lock').exists(), isFalse);
   });
 

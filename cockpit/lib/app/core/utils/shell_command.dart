@@ -8,6 +8,19 @@ import '../data/diagnostics/performance_diagnostics.dart';
 import '../domain/entities/terminal_profile.dart';
 import 'login_shell.dart';
 
+/// Stable, numeric operation IDs. Never derive these from a command or path.
+enum ShellCommandOperation {
+  unspecified(0),
+  panelCommand(1),
+  cliExec(2),
+  benchmark(3);
+
+  const ShellCommandOperation(this.id);
+  final int id;
+}
+
+int _nextShellInvocation = 0;
+
 /// Saída de um comando rodado por [runShellCommand].
 class ShellCommandResult {
   const ShellCommandResult({
@@ -158,12 +171,30 @@ Future<ShellCommandResult> runShellCommand(
   Map<String, String>? environment,
   Duration timeout = const Duration(seconds: 60),
   TerminalProfile? profile,
+  ShellCommandOperation operation = ShellCommandOperation.unspecified,
 }) async {
   final invocation = shellInvocationFor(command, profile: profile);
   final exe = invocation.executable;
   final args = invocation.arguments;
   final Process proc;
+  final invocationId = ++_nextShellInvocation;
   final spawnClock = Stopwatch()..start();
+  final diagnostics = PerformanceDiagnostics.instance;
+  void record(
+    PerfMetric metric, {
+    required bool failed,
+    bool timedOut = false,
+  }) {
+    diagnostics.record(metric, {
+      PerfField.durationUs: spawnClock.elapsedMicroseconds,
+      PerfField.operation: operation.id,
+      PerfField.invocation: invocationId,
+      PerfField.failed: failed ? 1 : 0,
+      if (timedOut) PerfField.timedOut: 1,
+    }, force: true);
+  }
+
+  final executableName = exe.replaceAll('\\', '/').split('/').last;
   try {
     proc = await Process.start(
       exe,
@@ -175,31 +206,39 @@ Future<ShellCommandResult> runShellCommand(
   } on ProcessException catch (e) {
     DiagnosticsLog.instance.warn(
       'spawn',
-      'shell spawn failed: $exe (errno ${e.errorCode})',
-      error: e,
+      'shell spawn failed: $executableName (errno ${e.errorCode}, '
+          'operation ${operation.name}, invocation $invocationId)',
     );
-    PerformanceDiagnostics.instance.record(PerfMetric.spawn, {
-      PerfField.durationUs: spawnClock.elapsedMicroseconds,
-      PerfField.failed: 1,
-    }, force: true);
+    record(PerfMetric.spawn, failed: true);
+    record(PerfMetric.shellComplete, failed: true);
     return ShellCommandResult(code: 127, stdout: '', stderr: e.message);
   }
-  PerformanceDiagnostics.instance.record(PerfMetric.spawn, {
-    PerfField.durationUs: spawnClock.elapsedMicroseconds,
-    PerfField.failed: 0,
-  });
+  record(PerfMetric.spawn, failed: false);
   if (spawnClock.elapsed > const Duration(seconds: 2)) {
     DiagnosticsLog.instance.warn(
       'spawn',
-      'slow shell spawn: ${spawnClock.elapsedMilliseconds} ms ($exe)',
+      'slow shell spawn: ${spawnClock.elapsedMilliseconds} ms ($executableName; '
+          'operation ${operation.name}, invocation $invocationId)',
     );
   }
   final out = StringBuffer();
   final err = StringBuffer();
+  var firstOutput = false;
+  var observingOutput = true;
+  List<int> observeOutput(List<int> bytes) {
+    if (observingOutput && !firstOutput && bytes.isNotEmpty) {
+      firstOutput = true;
+      record(PerfMetric.shellFirstOutput, failed: false);
+    }
+    return bytes;
+  }
+
   final outDone = proc.stdout
+      .map(observeOutput)
       .transform(const Utf8Decoder(allowMalformed: true))
       .forEach(out.write);
   final errDone = proc.stderr
+      .map(observeOutput)
       .transform(const Utf8Decoder(allowMalformed: true))
       .forEach(err.write);
   var timedOut = false;
@@ -216,6 +255,8 @@ Future<ShellCommandResult> runShellCommand(
     outDone,
     errDone,
   ]).timeout(const Duration(seconds: 2), onTimeout: () => const <void>[]);
+  observingOutput = false;
+  record(PerfMetric.shellComplete, failed: code != 0, timedOut: timedOut);
   return ShellCommandResult(
     code: code,
     stdout: out.toString(),

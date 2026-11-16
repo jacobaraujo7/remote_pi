@@ -76,7 +76,7 @@ void main() {
     final diff = await reader.read(repo.path, '${repo.path}/a.txt');
 
     expect(diff.kind, FileDiffKind.unchanged);
-    expect(await index.lastModified(), original);
+    expect((await index.lastModified()).toUtc(), original);
   });
 
   test('diff historico → mudanca introduzida pelo commit', () async {
