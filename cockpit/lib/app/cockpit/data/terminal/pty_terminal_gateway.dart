@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cockpit/app/cockpit/data/terminal/terminal_locale_env.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_gateway.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
 import 'package:cockpit/app/core/utils/spawn_directory.dart';
@@ -96,8 +97,11 @@ class PtyTerminalGateway implements TerminalGateway {
   /// ("console is running without PSReadLine") — o ConPTY já entrega o VT sem
   /// terminfo. No macOS/Linux o TERM segue (TUIs ncurses dependem dele; abrir
   /// pelo Finder não herda TERM algum); no WSL o próprio Linux define o seu.
+  ///
+  /// `LANG` (só macOS, só se nenhum locale veio herdado): ver [withUtf8Locale]
+  /// — sem ele o `pbcopy` grava acentos como MacRoman.
   Map<String, String> _terminalEnv(Map<String, String> extraEnv) => {
-    ...Platform.environment,
+    ...withUtf8Locale(Platform.environment),
     if (!Platform.isWindows) 'TERM': 'xterm-256color',
     'COLORTERM': 'truecolor',
     ...extraEnv,

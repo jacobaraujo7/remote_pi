@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
+import 'package:cockpit/app/cockpit/data/terminal/terminal_locale_env.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/terminal/pty_output_scheduler.dart';
@@ -20,7 +21,7 @@ import 'package:cockpit_pty/cockpit_pty.dart';
 /// shell** (o shell de login do usuário + `-ilc "<cmd>"`, ver [resolveLoginShell])
 /// pra herdar o PATH do perfil do usuário — sem
 /// isso o app GUI não acharia `flutter`/`npm`/`go` (PATH mínimo do Finder).
-/// Mesma razão e mesmas vars (`TERM`/`COLORTERM`) do terminal embutido.
+/// Mesma razão e mesmas vars (`TERM`/`COLORTERM`/`LANG`) do terminal embutido.
 class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   PtyTaskRunner(this._telemetry);
 
@@ -364,7 +365,8 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
       telemetry = await _telemetry.openTaskRun(def, command: cmdLine);
 
       final env = {
-        ...await envWithNodeOnPath(),
+        // LANG UTF-8 se o app não herdou locale (ver [withUtf8Locale]).
+        ...withUtf8Locale(await envWithNodeOnPath()),
         if (profile != null) ...profile.env,
         ...?telemetry?.childEnvironment,
         // TERM fora do Windows: no PowerShell nativo o TERM quebra o auto-load
