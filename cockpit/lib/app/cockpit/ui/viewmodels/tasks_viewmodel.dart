@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:isolate';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/task_device_coordinator.dart';
@@ -11,6 +13,8 @@ import 'package:cockpit/app/cockpit/domain/entities/task_device_snapshot.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:flutter/foundation.dart';
+
+enum TaskImportNotice { sourceMissing, failed }
 
 /// ViewModel page-scoped do subpane de Tasks. Descobre as tasks do projeto
 /// selecionado e dirige o ciclo de vida via [TaskRunnerGateway], refletindo o
@@ -56,6 +60,10 @@ class TasksViewModel extends ChangeNotifier {
   Timer? _reloadDebounce;
 
   String _cwd = '';
+  String? _sourceWorkspaceCwd;
+  int _contextVersion = 0;
+  bool _importing = false;
+  TaskImportNotice? _importNotice;
   String _activeFile = '';
   List<TaskDefinition> _tasks = const [];
   bool _loading = false;
@@ -66,6 +74,16 @@ class TasksViewModel extends ChangeNotifier {
 
   List<TaskDefinition> get tasks => _tasks;
   bool get loading => _loading;
+  bool get importing => _importing;
+  TaskImportNotice? get importNotice => _importNotice;
+  bool get canImport =>
+      hasProject &&
+      !isRemote &&
+      !_hasConfig &&
+      _tasks.isEmpty &&
+      !_loading &&
+      (_sourceWorkspaceCwd?.isNotEmpty ?? false) &&
+      _sourceWorkspaceCwd != _cwd;
 
   /// `true` se já existe um `.cockpit/tasks.json` no projeto (esconde o botão
   /// de criar exemplo).
@@ -108,10 +126,18 @@ class TasksViewModel extends ChangeNotifier {
   TaskRun stateOf(String taskId) => _states[taskId] ?? _runner.runOf(taskId);
 
   /// (Re)carrega as tasks do projeto em [cwd]. No-op se já é o cwd corrente.
-  Future<void> loadFor(String cwd) async {
+  Future<void> loadFor(String cwd, {String? sourceWorkspaceCwd}) async {
     final remote = remoteContextFor?.call(cwd);
-    if (cwd == _cwd && identical(remote?.runner, _remote?.runner)) return;
+    if (cwd == _cwd &&
+        sourceWorkspaceCwd == _sourceWorkspaceCwd &&
+        identical(remote?.runner, _remote?.runner)) {
+      return;
+    }
+    _contextVersion++;
     _cwd = cwd;
+    _sourceWorkspaceCwd = sourceWorkspaceCwd;
+    _importNotice = null;
+    _importing = false;
     // Troca de runner (local ↔ remoto, ou entre hosts) → reassina o stream de
     // estados e reaponta a descoberta.
     if (!identical(remote?.runner, _remote?.runner)) {
@@ -128,12 +154,13 @@ class TasksViewModel extends ChangeNotifier {
 
   Future<void> _runDiscovery() async {
     final cwd = _cwd;
+    final version = _contextVersion;
     _loading = true;
     notifyListeners();
     final found = cwd.isEmpty
         ? const <TaskDefinition>[]
         : await _discovery.discover(cwd);
-    if (cwd != _cwd) return; // corrida com outra troca de projeto
+    if (_closed || version != _contextVersion) return;
     _tasks = found;
     final reconciled = _runner;
     if (reconciled is ReconciledTaskRunnerGateway) {
@@ -156,24 +183,70 @@ class TasksViewModel extends ChangeNotifier {
   /// fazem sentido no local — criar o tasks.json de exemplo).
   bool get isRemote => _remote != null;
 
+  /// Importação explícita de uma cópia independente, sem consultar o Git.
+  Future<void> importWorkspaceConfig() async {
+    if (!canImport || _importing) return;
+    final cwd = _cwd;
+    final version = _contextVersion;
+    final source = File(_configPath(_sourceWorkspaceCwd!));
+    final destination = File(_configPath(cwd));
+    _importing = true;
+    _importNotice = null;
+    notifyListeners();
+    TaskImportNotice? notice;
+    try {
+      if (!await source.exists()) {
+        notice = TaskImportNotice.sourceMissing;
+      } else {
+        final bytes = await source.readAsBytes();
+        final destinationPath = destination.path;
+        // Keep exclusive creation and cleanup together, off the UI isolate.
+        await Isolate.run(
+          () => _writeConfigExclusively(destinationPath, bytes),
+        );
+      }
+    } on FileSystemException {
+      notice = TaskImportNotice.failed;
+    } finally {
+      if (!_closed && version == _contextVersion) {
+        _importing = false;
+        _importNotice = notice;
+        _watchConfig(cwd);
+        await reload();
+      }
+    }
+  }
+
   /// Cria um `.cockpit/tasks.json` de exemplo (Flutter + Node + C#) no projeto
   /// atual, se ainda não existe; depois redescobre. Botão "Create tasks.json".
   Future<void> createExampleConfig() async {
-    if (_cwd.isEmpty || _remote != null) return; // remoto: edita no host
-    final sep = Platform.pathSeparator;
-    final dir = Directory('$_cwd$sep.cockpit');
-    await dir.create(recursive: true);
-    final file = File(_configPath(_cwd));
-    if (!await file.exists()) {
-      await file.writeAsString(GalleryTemplate.tasks.content);
+    if (_cwd.isEmpty || _remote != null || _importing) return;
+    final cwd = _cwd;
+    final version = _contextVersion;
+    final path = _configPath(cwd);
+    final bytes = utf8.encode(GalleryTemplate.tasks.content);
+    _importing = true;
+    _importNotice = null;
+    notifyListeners();
+    TaskImportNotice? notice;
+    try {
+      await Isolate.run(() => _writeConfigExclusively(path, bytes));
+    } on FileSystemException {
+      notice = TaskImportNotice.failed;
+    } finally {
+      if (!_closed && version == _contextVersion) {
+        _importing = false;
+        _importNotice = notice;
+        _watchConfig(cwd);
+        await reload();
+      }
     }
-    _watchConfig(_cwd); // `.cockpit` agora existe → arma o watcher
-    await reload();
   }
 
   /// Observa o `.cockpit/tasks.json` do projeto e redescobre (debounced) quando
   /// ele muda — edições no arquivo refletem na hora, sem trocar de projeto.
   void _watchConfig(String cwd) {
+    _reloadDebounce?.cancel();
     _configWatch?.cancel();
     _configWatch = null;
     // Remoto: sem watch de FS do host (o tasks.json muda no host). Refresh só
@@ -183,7 +256,8 @@ class TasksViewModel extends ChangeNotifier {
     try {
       if (!dir.existsSync()) return;
       _configWatch = dir.watch().listen((e) {
-        if (!e.path.endsWith('tasks.json')) return;
+        // Our own write is rediscovered once the complete file is available.
+        if (_importing || !e.path.endsWith('tasks.json')) return;
         _reloadDebounce?.cancel();
         _reloadDebounce = Timer(const Duration(milliseconds: 250), reload);
       });
@@ -353,5 +427,23 @@ class TasksViewModel extends ChangeNotifier {
     _configWatch?.cancel();
     _reloadDebounce?.cancel();
     super.dispose();
+  }
+}
+
+/// Runs in a worker isolate. Reserve the destination exclusively, preserve
+/// existing files/symlinks, and remove only our own incomplete write on failure.
+void _writeConfigExclusively(String path, List<int> bytes) {
+  final destination = File(path);
+  if (FileSystemEntity.typeSync(path, followLinks: false) !=
+      FileSystemEntityType.notFound) {
+    return;
+  }
+  destination.parent.createSync(recursive: true);
+  destination.createSync(exclusive: true);
+  try {
+    destination.writeAsBytesSync(bytes, flush: true);
+  } on FileSystemException {
+    destination.deleteSync();
+    rethrow;
   }
 }

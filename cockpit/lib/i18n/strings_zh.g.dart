@@ -551,6 +551,13 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get sectionTasks => '任务';
 	@override String get noTasks => '在此项目中未检测到任务。';
 	@override String get createTasksJson => '创建 tasks.json';
+	@override String get importWorkspaceTasks => '从工作区导入';
+	@override String get importingTasks => '正在导入任务…';
+	@override String get importSourceMissing => '源工作区没有任务文件。';
+	@override String get importFailed => '无法导入任务，请重试。';
+	@override String get copy => '复制';
+	@override String get copyAll => '全部复制';
+	@override String get clearConsole => '清空控制台';
 	@override String get generateComposeTasks => '生成 Compose 任务';
 	@override String get selectComposeEngine => '选择 Compose 引擎';
 	@override String get noComposeEngine => '未找到 Docker Compose 或 Podman Compose。';
@@ -2387,6 +2394,13 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.sectionTasks' => '任务',
 			'cockpit.tasksPanel.noTasks' => '在此项目中未检测到任务。',
 			'cockpit.tasksPanel.createTasksJson' => '创建 tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => '从工作区导入',
+			'cockpit.tasksPanel.importingTasks' => '正在导入任务…',
+			'cockpit.tasksPanel.importSourceMissing' => '源工作区没有任务文件。',
+			'cockpit.tasksPanel.importFailed' => '无法导入任务，请重试。',
+			'cockpit.tasksPanel.copy' => '复制',
+			'cockpit.tasksPanel.copyAll' => '全部复制',
+			'cockpit.tasksPanel.clearConsole' => '清空控制台',
 			'cockpit.tasksPanel.generateComposeTasks' => '生成 Compose 任务',
 			'cockpit.tasksPanel.selectComposeEngine' => '选择 Compose 引擎',
 			'cockpit.tasksPanel.noComposeEngine' => '未找到 Docker Compose 或 Podman Compose。',
@@ -2739,6 +2753,8 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -2746,8 +2762,6 @@ extension on TranslationsZh {
 			'cockpit.dbPanel.browseKeys' => '浏览键',
 			'cockpit.dbPanel.deleteConnectionTitle' => '删除连接',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => '从此工作区移除「${name}」？已保存的密码将被丢弃。引用它的 .dbq 文件不受影响。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} 个连接',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 个连接',
 			'cockpit.dbPanel.noConnections' => '还没有连接。',
@@ -3253,6 +3267,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',
@@ -3260,8 +3276,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.terminalFontDesc' => '仅用于终端。留空 = 系统默认。',
 			'settings.page.appearance.terminalSizeTitle' => '终端字号',
 			'settings.page.appearance.terminalSizeDesc' => '关闭 = 跟随代码字号。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => '跟随代码字号',
 			'settings.page.appearance.terminalWeightTitle' => '终端字重',
 			'settings.page.appearance.terminalWeightDesc' => '低密度屏幕渲染笔画偏粗。Auto 会在那种屏幕上减淡，Retina 屏则不受影响。',

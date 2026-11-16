@@ -1,7 +1,8 @@
 import 'dart:io' show Platform;
 
-import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
+import 'package:cockpit/app/core/terminal/ghostty_font_family.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/terminal_controller.dart';
 import 'package:cockpit/app/core/terminal/terminal_find.dart';
 import 'package:cockpit/app/core/terminal/terminal_font_weight.dart';
@@ -31,6 +32,8 @@ class AdaptiveTerminalPane extends StatelessWidget {
     this.onPaste,
     this.onOpenFile,
     this.readOnly = false,
+    this.enableLineHover = false,
+    this.onContextMenu,
     this.ownerShortcuts = const {},
   });
 
@@ -43,6 +46,8 @@ class AdaptiveTerminalPane extends StatelessWidget {
   final VoidCallback? onPaste;
   final void Function(String path, {int? line})? onOpenFile;
   final bool readOnly;
+  final bool enableLineHover;
+  final TerminalContextMenuCallback? onContextMenu;
   final Map<ShortcutActivator, VoidCallback> ownerShortcuts;
 
   @override
@@ -70,6 +75,8 @@ class AdaptiveTerminalPane extends StatelessWidget {
         return onKeyEvent?.call(event) ?? KeyEventResult.ignored;
       },
       onOpenFile: onOpenFile,
+      enableLineHover: enableLineHover,
+      onContextMenu: onContextMenu,
     ),
     final GhosttyTerminalController value => _GhosttyPane(
       terminal: value,
@@ -80,6 +87,8 @@ class AdaptiveTerminalPane extends StatelessWidget {
       onPaste: onPaste,
       onOpenFile: onOpenFile,
       readOnly: readOnly,
+      enableLineHover: enableLineHover,
+      onContextMenu: onContextMenu,
       ownerShortcuts: ownerShortcuts,
     ),
   };
@@ -108,6 +117,8 @@ class _GhosttyPane extends StatefulWidget {
     required this.onPaste,
     required this.onOpenFile,
     required this.readOnly,
+    required this.enableLineHover,
+    required this.onContextMenu,
     required this.ownerShortcuts,
   });
 
@@ -119,6 +130,8 @@ class _GhosttyPane extends StatefulWidget {
   final VoidCallback? onPaste;
   final void Function(String path, {int? line})? onOpenFile;
   final bool readOnly;
+  final bool enableLineHover;
+  final TerminalContextMenuCallback? onContextMenu;
   final Map<ShortcutActivator, VoidCallback> ownerShortcuts;
 
   @override
@@ -127,6 +140,78 @@ class _GhosttyPane extends StatefulWidget {
 
 class _GhosttyPaneState extends State<_GhosttyPane>
     with TerminalFindHost<_GhosttyPane> {
+  final _hoverLine = ValueNotifier<TerminalLineHit?>(null);
+  bool _hoverRefreshScheduled = false;
+  Offset? _lastHoverLocal;
+  Size? _lastSize;
+  double _visibleCellHeight = 0;
+
+  static const _lineHoverOpacity = 0.12;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
+  }
+
+  @override
+  void dispose() {
+    widget.terminal.viewportContentChanges.removeListener(
+      _scheduleHoverRefresh,
+    );
+    _hoverLine.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant _GhosttyPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.terminal != widget.terminal) {
+      oldWidget.terminal.viewportContentChanges.removeListener(
+        _scheduleHoverRefresh,
+      );
+      widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
+    }
+    _scheduleHoverRefresh();
+  }
+
+  void _scheduleHoverRefresh() {
+    if (_hoverRefreshScheduled || _lastHoverLocal == null) return;
+    _hoverRefreshScheduled = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _hoverRefreshScheduled = false;
+      if (!mounted) return;
+      final local = _lastHoverLocal;
+      final size = _lastSize;
+      if (local != null && size != null) _setHover(_lineAt(local, size));
+    });
+  }
+
+  TerminalLineHit? _lineAt(Offset local, Size size) {
+    if (!widget.enableLineHover ||
+        size.isEmpty ||
+        _visibleCellHeight <= 0 ||
+        local.dx < 0 ||
+        local.dx >= size.width ||
+        local.dy < 0 ||
+        local.dy >= size.height) {
+      return null;
+    }
+    return widget.terminal.lineAtViewportRow(
+      (local.dy / _visibleCellHeight).floor(),
+    );
+  }
+
+  void _setHover(TerminalLineHit? value) {
+    final previous = _hoverLine.value;
+    if (value?.firstViewportRow == previous?.firstViewportRow &&
+        value?.lastViewportRow == previous?.lastViewportRow &&
+        value?.text == previous?.text) {
+      return;
+    }
+    _hoverLine.value = value;
+  }
+
   @override
   FocusNode get terminalFocusNode => widget.focusNode;
 
@@ -188,7 +273,6 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       uiScale,
       fontWeight,
     );
-
     final Widget terminalView = ghost.TerminalView(
       // Identity is per session. StablePaneHost keeps this subtree under the
       // same parent even when its tab moves to another dock.
@@ -202,6 +286,17 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       scrollPhysics: const ClampingScrollPhysics(),
       shortcuts: shortcuts,
       theme: ghosttyTheme,
+      overlayBuilder: (context, geometry) {
+        final height = geometry
+            .cellRect(const ghost.Position(row: 0, col: 0))
+            ?.height;
+        final visibleHeight = (height ?? 0) / uiScale;
+        if (_visibleCellHeight != visibleHeight) {
+          _visibleCellHeight = visibleHeight;
+          _scheduleHoverRefresh();
+        }
+        return const SizedBox.shrink();
+      },
       linkSettings: ghost.LinkSettings(
         // Hover e abertura seguem exigindo ⌘/Ctrl (default do flterm): num
         // terminal cheio de caminhos, clique simples continua só posicionando o
@@ -232,11 +327,9 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     // `TickerMode` desliga o blink do cursor enquanto oculta. O parser e o
     // scrollback seguem no controller; presentationActive suspende apenas as
     // invalidacoes visuais e faz um layout completo ao reabrir.
-    // StackFit.expand hands the (non-positioned) terminal TIGHT full-size
-    // constraints — same as the old direct return. Without it the Stack's
-    // default loose fit gives flterm's TerminalView slack, and its
-    // performLayout->onResize->setState grid report oscillates into an infinite
-    // relayout (100% CPU). The find bar is a Positioned child, unaffected.
+    // StackFit.expand keeps the terminal tightly constrained. Loose constraints
+    // make flterm's layout, resize and setState cycle oscillate indefinitely,
+    // consuming 100% CPU. The positioned find bar is unaffected.
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -266,7 +359,59 @@ class _GhosttyPaneState extends State<_GhosttyPane>
                   },
                 ),
               },
-              child: view,
+              child: Builder(
+                builder: (hoverContext) => MouseRegion(
+                  onHover: (event) {
+                    final size = hoverContext.size;
+                    if (size == null) return;
+                    _lastHoverLocal = event.localPosition;
+                    _lastSize = size;
+                    _setHover(_lineAt(event.localPosition, size));
+                  },
+                  onExit: (_) {
+                    _lastHoverLocal = null;
+                    _lastSize = null;
+                    _setHover(null);
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onSecondaryTapUp: widget.onContextMenu == null
+                        ? null
+                        : (details) {
+                            final size = hoverContext.size;
+                            final line = size == null
+                                ? _hoverLine.value
+                                : _lineAt(details.localPosition, size);
+                            widget.onContextMenu!(
+                              TerminalContextMenuRequest(
+                                globalPosition: details.globalPosition,
+                                selectedText: widget.terminal.selectedText(),
+                                line: line,
+                              ),
+                            );
+                          },
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        view,
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _TerminalLineHoverPainter(
+                                line: _hoverLine,
+                                cellHeight: () => _visibleCellHeight,
+                                color: widget.theme.selection.withValues(
+                                  alpha: _lineHoverOpacity,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
@@ -481,4 +626,36 @@ bool isTerminalPasteEvent(KeyEvent event) {
   return !keyboard.isAltPressed &&
       !keyboard.isShiftPressed &&
       (keyboard.isControlPressed != keyboard.isMetaPressed);
+}
+
+/// Pointer changes repaint only this overlay; the terminal subtree stays put.
+class _TerminalLineHoverPainter extends CustomPainter {
+  _TerminalLineHoverPainter({
+    required this.line,
+    required this.cellHeight,
+    required this.color,
+  }) : super(repaint: line);
+  final ValueNotifier<TerminalLineHit?> line;
+  final double Function() cellHeight;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hit = line.value;
+    if (hit == null) return;
+    final height = cellHeight();
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        hit.firstViewportRow * height,
+        size.width,
+        (hit.lastViewportRow - hit.firstViewportRow + 1) * height,
+      ),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TerminalLineHoverPainter old) =>
+      old.line != line || old.color != color || old.cellHeight != cellHeight;
 }

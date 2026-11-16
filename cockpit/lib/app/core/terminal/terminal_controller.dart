@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/ghostty_sgr_weight_normalizer.dart';
+import 'package:cockpit/app/core/terminal/ghostty_line_reader.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -26,6 +28,13 @@ sealed class CockpitTerminalController {
   void restore(String data);
   void paste(String text);
   List<String> plainLines();
+
+  /// Conteúdo textual renderizado, sem ANSI e sem as linhas vazias que existem
+  /// apenas para completar a grade do terminal.
+  String plainText();
+
+  /// Limpa tela e scrollback localmente, sem enviar input para o processo.
+  void clearBuffer();
 
   /// Texto atualmente selecionado, ou vazio se não há seleção.
   ///
@@ -73,6 +82,19 @@ final class XtermTerminalController implements CockpitTerminalController {
     final lines = terminal.buffer.lines;
     return [for (var i = 0; i < lines.length; i++) lines[i].getText()];
   }
+
+  @override
+  String plainText() => terminal.buffer
+      .getText(
+        xterm.BufferRangeLine(
+          const xterm.CellOffset(0, 0),
+          xterm.CellOffset(terminal.viewWidth, terminal.buffer.height - 1),
+        ),
+      )
+      .trimRight();
+
+  @override
+  void clearBuffer() => terminal.write('\x1b[H\x1b[2J\x1b[3J');
 
   /// A seleção do xterm pertence ao controller da view (`CockpitTerminal`), que
   /// a sessão não enxerga — o motor em si não guarda seleção. Copiar por aqui
@@ -178,6 +200,14 @@ final class GhosttyTerminalController implements CockpitTerminalController {
       _handleControllerResize(columns, rows);
 
   final ghost.TerminalController controller;
+  GhosttyLineReader? _lineReader;
+  GhosttyLineReader get _lines => _lineReader ??= GhosttyLineReader(controller);
+
+  /// Visible output changes, including scroll and resize, for lightweight
+  /// overlays. Reading a line never exposes flterm's native session to the UI.
+  Listenable get viewportContentChanges => _lines;
+
+  TerminalLineHit? lineAtViewportRow(int row) => _lines.lineAt(row);
   // A view can be reparented while its previous render subtree is detaching.
   // Keep the viewport offset alive for the entire terminal session.
   final ghost.TerminalScrollController scrollController =
@@ -282,12 +312,30 @@ final class GhosttyTerminalController implements CockpitTerminalController {
   }
 
   @override
+  String plainText() {
+    final formatter = controller.createFormatter(
+      format: FormatterFormat.plain,
+      unwrap: true,
+      trim: true,
+    );
+    try {
+      return formatter.format().trimRight();
+    } finally {
+      formatter.dispose();
+    }
+  }
+
+  @override
+  void clearBuffer() => _replayNow('\x1bc');
+
+  @override
   String selectedText() =>
       controller.hasSelection ? controller.selectedText() : '';
 
   @override
   void dispose() {
     _disposed = true;
+    _lineReader?.dispose();
     controller.dispose();
     scrollController.dispose();
   }

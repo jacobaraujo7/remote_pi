@@ -66,6 +66,7 @@ class FakeTaskRunner implements TaskRunnerGateway {
 
 class FakeScrollbackStore implements TerminalScrollbackStore {
   String? saved;
+  int deletes = 0;
 
   @override
   Future<String?> load({
@@ -84,7 +85,10 @@ class FakeScrollbackStore implements TerminalScrollbackStore {
   Future<void> delete({
     required String projectId,
     required String sessionId,
-  }) async {}
+  }) async {
+    deletes++;
+    saved = null;
+  }
 
   @override
   Future<void> pruneExcept(Set<String> keep) async {}
@@ -147,5 +151,24 @@ void main() {
     await store.flushAll();
 
     expect(scrollback.saved, '{"level":"info"');
+  });
+
+  test('clear apaga buffer e persistência sem parar output futuro', () async {
+    runner.emitRun(running(1));
+    await pump();
+    runner.emitOutput('before clear\n');
+    await pump();
+
+    await store.clear('json:api');
+
+    expect(scrollback.deletes, 1);
+    expect(store.existingTerminal('json:api')!.plainText(), isEmpty);
+
+    runner.emitOutput('after clear\n');
+    await pump();
+    await store.flushAll();
+
+    expect(store.existingTerminal('json:api')!.plainText(), 'after clear');
+    expect(scrollback.saved, 'after clear\n');
   });
 }

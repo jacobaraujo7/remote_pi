@@ -629,6 +629,13 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get sectionTasks => 'TAREFAS';
 	@override String get noTasks => 'Nenhuma tarefa detectada neste projeto.';
 	@override String get createTasksJson => 'Criar tasks.json';
+	@override String get importWorkspaceTasks => 'Importar do workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'O workspace de origem não possui um arquivo de tasks.';
+	@override String get importFailed => 'Não foi possível importar as tasks. Tente novamente.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar tudo';
+	@override String get clearConsole => 'Limpar console';
 	@override String get generateComposeTasks => 'Gerar tasks do Compose';
 	@override String get selectComposeEngine => 'Escolha uma engine Compose';
 	@override String get noComposeEngine => 'Docker Compose ou Podman Compose não foi encontrado.';
@@ -2472,6 +2479,13 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREFAS',
 			'cockpit.tasksPanel.noTasks' => 'Nenhuma tarefa detectada neste projeto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Criar tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar do workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'O workspace de origem não possui um arquivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'Não foi possível importar as tasks. Tente novamente.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar tudo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpar console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Gerar tasks do Compose',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Escolha uma engine Compose',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose ou Podman Compose não foi encontrado.',
@@ -2824,6 +2838,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
 			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Apagar “${name}”?',
@@ -2831,8 +2847,6 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover pra coluna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Apagar junto com a coluna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta coluna está vazia.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => 'BANCO DE DADOS',
 			'cockpit.dbPanel.edit' => 'Editar…',
 			'cockpit.dbPanel.copyName' => 'Copiar nome',
@@ -3338,6 +3352,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Escuro',
@@ -3345,8 +3361,6 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.interfaceFontTitle' => 'Fonte da interface',
 			'settings.page.appearance.interfaceFontDesc' => 'Usada em todo o aplicativo. Vazio = padrão do sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamanho da interface',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => 'Fonte do código',
 			'settings.page.appearance.codeFontDesc' => 'Código e diffs. Vazio = padrão do sistema.',
 			'settings.page.appearance.codeSizeTitle' => 'Tamanho do código',

@@ -629,6 +629,13 @@ class _Translations$cockpit$tasksPanel$es extends Translations$cockpit$tasksPane
 	@override String get sectionTasks => 'TAREAS';
 	@override String get noTasks => 'No se detectaron tareas en este proyecto.';
 	@override String get createTasksJson => 'Crear tasks.json';
+	@override String get importWorkspaceTasks => 'Importar del workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'El workspace de origen no tiene un archivo de tasks.';
+	@override String get importFailed => 'No se pudieron importar las tasks. Inténtalo de nuevo.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar todo';
+	@override String get clearConsole => 'Limpiar consola';
 	@override String get generateComposeTasks => 'Generar tareas de Compose';
 	@override String get selectComposeEngine => 'Elige un motor de Compose';
 	@override String get noComposeEngine => 'No se encontró Docker Compose ni Podman Compose.';
@@ -2468,6 +2475,13 @@ extension on TranslationsEs {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREAS',
 			'cockpit.tasksPanel.noTasks' => 'No se detectaron tareas en este proyecto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Crear tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar del workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'El workspace de origen no tiene un archivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'No se pudieron importar las tasks. Inténtalo de nuevo.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar todo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpiar consola',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Generar tareas de Compose',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Elige un motor de Compose',
 			'cockpit.tasksPanel.noComposeEngine' => 'No se encontró Docker Compose ni Podman Compose.',
@@ -2820,6 +2834,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -2827,8 +2843,6 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.edit' => 'Editar…',
 			'cockpit.dbPanel.copyName' => 'Copiar nombre',
 			'cockpit.dbPanel.newQuery' => 'Nueva query',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.browseKeys' => 'Ver claves',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Eliminar conexión',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => '¿Quitar "${name}" de este workspace? Cualquier contraseña guardada se descartará. Los archivos .dbq que la referencian no se modifican.',
@@ -3334,6 +3348,8 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',
@@ -3341,8 +3357,6 @@ extension on TranslationsEs {
 			'settings.page.appearance.codeFontDesc' => 'Código y diffs. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.codeSizeTitle' => 'Tamaño del código',
 			'settings.page.appearance.terminalFontTitle' => 'Fuente del terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalFontDesc' => 'Solo la terminal. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.terminalSizeTitle' => 'Tamaño de la terminal',
 			'settings.page.appearance.terminalSizeDesc' => 'Apagado = sigue el tamaño del código.',

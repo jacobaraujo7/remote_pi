@@ -1216,6 +1216,27 @@ class Translations$cockpit$tasksPanel$en {
 	/// en: 'Create tasks.json'
 	String get createTasksJson => 'Create tasks.json';
 
+	/// en: 'Import from workspace'
+	String get importWorkspaceTasks => 'Import from workspace';
+
+	/// en: 'Importing tasks…'
+	String get importingTasks => 'Importing tasks…';
+
+	/// en: 'The source workspace has no tasks file.'
+	String get importSourceMissing => 'The source workspace has no tasks file.';
+
+	/// en: 'Could not import tasks. Try again.'
+	String get importFailed => 'Could not import tasks. Try again.';
+
+	/// en: 'Copy'
+	String get copy => 'Copy';
+
+	/// en: 'Copy All'
+	String get copyAll => 'Copy All';
+
+	/// en: 'Clear Console'
+	String get clearConsole => 'Clear Console';
+
 	/// en: 'Generate Compose tasks'
 	String get generateComposeTasks => 'Generate Compose tasks';
 
@@ -5126,6 +5147,13 @@ extension on Translations {
 			'cockpit.tasksPanel.sectionTasks' => 'TASKS',
 			'cockpit.tasksPanel.noTasks' => 'No tasks detected in this project.',
 			'cockpit.tasksPanel.createTasksJson' => 'Create tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Import from workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importing tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'The source workspace has no tasks file.',
+			'cockpit.tasksPanel.importFailed' => 'Could not import tasks. Try again.',
+			'cockpit.tasksPanel.copy' => 'Copy',
+			'cockpit.tasksPanel.copyAll' => 'Copy All',
+			'cockpit.tasksPanel.clearConsole' => 'Clear Console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Generate Compose tasks',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Choose a Compose engine',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose or Podman Compose was not found.',
@@ -5478,6 +5506,8 @@ extension on Translations {
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
 			'cockpit.kanbanView.startBoard' => 'Start a board',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Delete “${name}”?',
@@ -5485,8 +5515,6 @@ extension on Translations {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Move to the previous column',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Delete with the column',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'This column is empty.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => 'DATABASE',
 			'cockpit.dbPanel.edit' => 'Edit…',
 			'cockpit.dbPanel.copyName' => 'Copy name',
@@ -5992,6 +6020,8 @@ extension on Translations {
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',
@@ -5999,8 +6029,6 @@ extension on Translations {
 			'settings.page.appearance.interfaceFontTitle' => 'Interface font',
 			'settings.page.appearance.interfaceFontDesc' => 'Used across the whole app. Empty = system default.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Interface size',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => 'Code font',
 			'settings.page.appearance.codeFontDesc' => 'Code and diffs. Empty = system default.',
 			'settings.page.appearance.codeSizeTitle' => 'Code size',

@@ -47,6 +47,7 @@ import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_tab.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/pane_tab_leading.dart';
 import 'package:cockpit/app/core/domain/entities/terminal_profile.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/task_console_menu.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/settings_controller.dart';
@@ -1934,6 +1935,9 @@ class _PaneBodyState extends State<_PaneBody> {
               focusNode: _terminalFocus,
               onKeyEvent: (_) => KeyEventResult.ignored,
               readOnly: true,
+              enableLineHover: true,
+              onContextMenu: (request) =>
+                  showTaskConsoleMenu(context, item, request),
               // Read-only não quer dizer sem link: a saída de uma task é
               // justamente onde `dart analyze` e `flutter test` imprimem
               // `lib/x.dart:12:3`. Sem isto, clicar num erro aqui não fazia
