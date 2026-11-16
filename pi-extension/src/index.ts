@@ -846,6 +846,27 @@ type BufferMsg = {
   tokensBefore?: number;
 };
 let _messageBuffer: BufferMsg[] = [];
+
+function _restoreMessageBuffer(ctx: ExtensionContext): void {
+  const messages: BufferMsg[] = [];
+  for (const entry of ctx.sessionManager.getBranch()) {
+    if (entry.type === "message") {
+      const message = entry.message;
+      if (message.role === "user" || message.role === "assistant" || message.role === "toolResult") {
+        messages.push(message);
+      }
+    } else if (entry.type === "compaction") {
+      messages.push({
+        role: "compaction",
+        content: entry.summary,
+        timestamp: Date.parse(entry.timestamp),
+        tokensBefore: entry.tokensBefore,
+      });
+    }
+  }
+  _messageBuffer = messages;
+}
+
 type PendingSteer = { id: string; text: string };
 let _pendingSteers: PendingSteer[] = [];
 let _lastConsumedSteerText: string | null = null;
@@ -2333,12 +2354,17 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     _maybeDrainQueuedItem();
   });
 
+  pi.on("session_tree", (_event, ctx) => {
+    _restoreMessageBuffer(ctx);
+  });
+
   // Re-capture the freshest base ctx on every session replacement so compact
   // never operates on a stale captured ctx — this is the fix for the
   // "stale after session replacement" crash when the app taps Compact after a
   // New session. Fires on startup/new/fork/reload/resume; the ctx is always
   // bound to the current session.
   pi.on("session_start", (_event, ctx) => {
+    _restoreMessageBuffer(ctx);
     _lastEventCtx = ctx;
     // session_shutdown disposes per-session pi-ask subscriptions. A host that
     // reuses this module instance does NOT re-run the factory, so rebind the
