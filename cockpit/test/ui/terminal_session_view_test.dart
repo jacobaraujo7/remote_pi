@@ -1,4 +1,6 @@
 import 'dart:io' show Platform;
+import 'package:flutter/gestures.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/services.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/terminal_find_bar.dart';
@@ -35,6 +37,71 @@ class _Gateway extends AttachmentTerminalGateway {
 }
 
 void main() {
+  testWidgets('Ghostty hover repaints without rebuilding the terminal view', (
+    tester,
+  ) async {
+    final terminal = GhosttyTerminalController()..write('first\r\nsecond');
+    final focus = FocusNode();
+    addTearDown(() {
+      terminal.dispose();
+      focus.dispose();
+    });
+    TerminalContextMenuRequest? request;
+    await tester.pumpWidget(
+      ModularApp(
+        module: createModule(register: (_) {}),
+        provide: (scope) => scope.addChangeNotifier<SettingsController>(
+          () => SettingsController(_Settings()),
+        ),
+        child: ShadcnApp(
+          builder: (context, child) {
+            final tokens = buildTokens(
+              brightness: Brightness.dark,
+              settings: const AppSettings(),
+            );
+            return CockpitTheme(
+              colors: tokens.colors,
+              typo: tokens.typo,
+              syntax: tokens.syntax,
+              terminal: tokens.terminal,
+              child: ghost.TerminalScope(child: child!),
+            );
+          },
+          home: AdaptiveTerminalPane(
+            terminal: terminal,
+            active: true,
+            focusNode: focus,
+            textStyle: const xterm.TerminalStyle(),
+            theme: xterm.TerminalThemes.defaultTheme,
+            readOnly: true,
+            enableLineHover: true,
+            onContextMenu: (value) => request = value,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final view = find.byType(ghost.TerminalView);
+    final before = tester.widget(view);
+    final origin = tester.getTopLeft(view);
+    final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+    await mouse.addPointer(location: origin + const Offset(10, 10));
+    await mouse.moveTo(origin + const Offset(20, 10));
+    await tester.pump();
+    await mouse.moveTo(origin + const Offset(20, 35));
+    await tester.pump();
+    expect(identical(tester.widget(view), before), isTrue);
+    await tester.tapAt(
+      origin + const Offset(20, 10),
+      buttons: kSecondaryMouseButton,
+    );
+    await tester.pump();
+    expect(request?.line?.text, 'first');
+    expect(tester.takeException(), isNull);
+    await mouse.removePointer();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('ghostty view moves to the visible owner after a parent change', (
     tester,
   ) async {

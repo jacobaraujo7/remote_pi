@@ -537,6 +537,13 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get sectionTasks => '任务';
 	@override String get noTasks => '在此项目中未检测到任务。';
 	@override String get createTasksJson => '创建 tasks.json';
+	@override String get importWorkspaceTasks => '从工作区导入';
+	@override String get importingTasks => '正在导入任务…';
+	@override String get importSourceMissing => '源工作区没有任务文件。';
+	@override String get importFailed => '无法导入任务，请重试。';
+	@override String get copy => '复制';
+	@override String get copyAll => '全部复制';
+	@override String get clearConsole => '清空控制台';
 	@override String get generateComposeTasks => '生成 Compose 任务';
 	@override String get selectComposeEngine => '选择 Compose 引擎';
 	@override String get noComposeEngine => '未找到 Docker Compose 或 Podman Compose。';
@@ -2270,6 +2277,13 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.sectionTasks' => '任务',
 			'cockpit.tasksPanel.noTasks' => '在此项目中未检测到任务。',
 			'cockpit.tasksPanel.createTasksJson' => '创建 tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => '从工作区导入',
+			'cockpit.tasksPanel.importingTasks' => '正在导入任务…',
+			'cockpit.tasksPanel.importSourceMissing' => '源工作区没有任务文件。',
+			'cockpit.tasksPanel.importFailed' => '无法导入任务，请重试。',
+			'cockpit.tasksPanel.copy' => '复制',
+			'cockpit.tasksPanel.copyAll' => '全部复制',
+			'cockpit.tasksPanel.clearConsole' => '清空控制台',
 			'cockpit.tasksPanel.generateComposeTasks' => '生成 Compose 任务',
 			'cockpit.tasksPanel.selectComposeEngine' => '选择 Compose 引擎',
 			'cockpit.tasksPanel.noComposeEngine' => '未找到 Docker Compose 或 Podman Compose。',
@@ -2623,6 +2637,8 @@ extension on TranslationsZh {
 			'cockpit.dbPanel.passwordRequired' => '在主机上未找到密码。请打开此连接并重新输入——密码保存在运行数据库的那台机器上，而不是这台。',
 			'cockpit.dbMongoView.deleteDocumentTitle' => '删除文档',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object collection, required Object id}) => '从「${collection}」中删除 _id 为 ${id} 的文档？',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.filterHint' => '筛选——JSON，如 {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
 			'cockpit.dbMongoView.refresh' => '刷新',
@@ -2630,8 +2646,6 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
 			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
 			'cockpit.dbMongoView.loadMore' => '加载更多',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.edit' => '编辑',
 			'cockpit.dbMongoView.insert' => '插入',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
@@ -3137,6 +3151,8 @@ extension on TranslationsZh {
 			'settings.page.automations.modelUnavailable' => '在找到工具之前，模型列表不可用。',
 			'settings.page.automations.modelCliOnly' => '此工具使用其 CLI 的默认模型。',
 			'settings.page.automations.modelCliDefault' => 'CLI 默认',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => '自动',
 			'settings.page.automations.modelSearch' => ({required Object count}) => '在 ${count} 个模型中搜索…',
 			'settings.page.automations.modelAutoRouted' => '此工具自动路由模型。',
@@ -3144,8 +3160,6 @@ extension on TranslationsZh {
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',

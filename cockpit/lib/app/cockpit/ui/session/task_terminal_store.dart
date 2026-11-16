@@ -210,6 +210,7 @@ class TaskTerminalStore {
       sessionId: taskId,
       contents: buf.toString(),
     );
+    _cleared.remove(taskId);
   }
 
   /// Grava agora o output pendente de todas as tasks — chamado no quit do app

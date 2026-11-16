@@ -192,6 +192,30 @@ void main() {
     },
   );
 
+  test('example creation never replaces an existing config', () async {
+    await vm.loadFor(worktree.path);
+    await config(worktree).parent.create(recursive: true);
+    await config(worktree).writeAsString(taskConfig);
+    await vm.createExampleConfig();
+    expect(await config(worktree).readAsString(), taskConfig);
+    expect(vm.importing, isFalse);
+  });
+
+  test(
+    'example creation keeps its destination when the project changes',
+    () async {
+      await vm.loadFor(worktree.path);
+      final other = await Directory('${temp.path}/example-other').create();
+      final pending = vm.createExampleConfig();
+      await vm.loadFor(other.path);
+      await pending;
+      expect(await config(worktree).exists(), isTrue);
+      expect(await config(other).exists(), isFalse);
+      expect(vm.hasConfig, isFalse);
+      expect(vm.importing, isFalse);
+    },
+  );
+
   test('root workspace and remote context cannot import', () async {
     await writeSource();
     await vm.loadFor(worktree.path);

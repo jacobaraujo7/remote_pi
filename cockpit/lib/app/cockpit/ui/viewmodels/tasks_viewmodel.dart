@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:isolate';
 import 'dart:io';
 
 import 'package:cockpit/app/cockpit/domain/contracts/task_discovery.dart';
@@ -181,19 +183,11 @@ class TasksViewModel extends ChangeNotifier {
         notice = TaskImportNotice.sourceMissing;
       } else {
         final bytes = await source.readAsBytes();
-        // Sem awaits entre a reserva exclusiva e a escrita: o watcher e as
-        // ações da UI só observam o arquivo depois da cópia completa.
-        if (FileSystemEntity.typeSync(destination.path, followLinks: false) ==
-            FileSystemEntityType.notFound) {
-          destination.parent.createSync(recursive: true);
-          destination.createSync(exclusive: true);
-          try {
-            destination.writeAsBytesSync(bytes, flush: true);
-          } on FileSystemException {
-            destination.deleteSync();
-            rethrow;
-          }
-        }
+        final destinationPath = destination.path;
+        // Keep exclusive creation and cleanup together, off the UI isolate.
+        await Isolate.run(
+          () => _writeConfigExclusively(destinationPath, bytes),
+        );
       }
     } on FileSystemException {
       notice = TaskImportNotice.failed;
@@ -211,16 +205,26 @@ class TasksViewModel extends ChangeNotifier {
   /// atual, se ainda não existe; depois redescobre. Botão "Create tasks.json".
   Future<void> createExampleConfig() async {
     if (_cwd.isEmpty || _remote != null || _importing) return;
-    final sep = Platform.pathSeparator;
-    final dir = Directory('$_cwd$sep.cockpit');
-    dir.createSync(recursive: true);
-    final file = File(_configPath(_cwd));
-    if (!file.existsSync()) {
-      file.createSync(exclusive: true);
-      file.writeAsStringSync(GalleryTemplate.tasks.content);
+    final cwd = _cwd;
+    final version = _contextVersion;
+    final path = _configPath(cwd);
+    final bytes = utf8.encode(GalleryTemplate.tasks.content);
+    _importing = true;
+    _importNotice = null;
+    notifyListeners();
+    TaskImportNotice? notice;
+    try {
+      await Isolate.run(() => _writeConfigExclusively(path, bytes));
+    } on FileSystemException {
+      notice = TaskImportNotice.failed;
+    } finally {
+      if (!_disposed && version == _contextVersion) {
+        _importing = false;
+        _importNotice = notice;
+        _watchConfig(cwd);
+        await reload();
+      }
     }
-    _watchConfig(_cwd); // `.cockpit` agora existe → arma o watcher
-    await reload();
   }
 
   /// Observa o `.cockpit/tasks.json` do projeto e redescobre (debounced) quando
@@ -236,7 +240,8 @@ class TasksViewModel extends ChangeNotifier {
     try {
       if (!dir.existsSync()) return;
       _configWatch = dir.watch().listen((e) {
-        if (!e.path.endsWith('tasks.json')) return;
+        // Our own write is rediscovered once the complete file is available.
+        if (_importing || !e.path.endsWith('tasks.json')) return;
         _reloadDebounce?.cancel();
         _reloadDebounce = Timer(const Duration(milliseconds: 250), reload);
       });
@@ -319,5 +324,23 @@ class TasksViewModel extends ChangeNotifier {
     _configWatch?.cancel();
     _reloadDebounce?.cancel();
     super.dispose();
+  }
+}
+
+/// Runs in a worker isolate. Reserve the destination exclusively, preserve
+/// existing files/symlinks, and remove only our own incomplete write on failure.
+void _writeConfigExclusively(String path, List<int> bytes) {
+  final destination = File(path);
+  if (FileSystemEntity.typeSync(path, followLinks: false) !=
+      FileSystemEntityType.notFound) {
+    return;
+  }
+  destination.parent.createSync(recursive: true);
+  destination.createSync(exclusive: true);
+  try {
+    destination.writeAsBytesSync(bytes, flush: true);
+  } on FileSystemException {
+    destination.deleteSync();
+    rethrow;
   }
 }

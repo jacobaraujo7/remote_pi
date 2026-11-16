@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
 import 'package:cockpit/app/core/terminal/ghostty_sgr_weight_normalizer.dart';
+import 'package:cockpit/app/core/terminal/ghostty_line_reader.dart';
+import 'package:cockpit/app/core/terminal/terminal_context_menu.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/scheduler.dart';
@@ -198,6 +200,14 @@ final class GhosttyTerminalController implements CockpitTerminalController {
       _handleControllerResize(columns, rows);
 
   final ghost.TerminalController controller;
+  GhosttyLineReader? _lineReader;
+  GhosttyLineReader get _lines => _lineReader ??= GhosttyLineReader(controller);
+
+  /// Visible output changes, including scroll and resize, for lightweight
+  /// overlays. Reading a line never exposes flterm's native session to the UI.
+  Listenable get viewportContentChanges => _lines;
+
+  TerminalLineHit? lineAtViewportRow(int row) => _lines.lineAt(row);
   // A view can be reparented while its previous render subtree is detaching.
   // Keep the viewport offset alive for the entire terminal session.
   final ghost.TerminalScrollController scrollController =
@@ -325,6 +335,7 @@ final class GhosttyTerminalController implements CockpitTerminalController {
   @override
   void dispose() {
     _disposed = true;
+    _lineReader?.dispose();
     controller.dispose();
     scrollController.dispose();
   }

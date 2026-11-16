@@ -1,5 +1,3 @@
-// ignore_for_file: implementation_imports, invalid_use_of_internal_member
-
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -12,16 +10,10 @@ import 'package:cockpit/app/core/terminal/terminal_zoom.dart';
 import 'package:cockpit/app/core/terminal/xterm/xterm.dart' as xterm;
 import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:flterm/flterm.dart' as ghost;
-import 'package:flterm/src/controller/terminal_controller.dart'
-    as ghost_internal;
-import 'package:flterm/src/links/logical_line.dart' as ghost_internal;
-import 'package:flterm/src/rendering/font/measure_cell_metrics.dart'
-    as ghost_internal;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_modular/flutter_modular.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:libghostty/libghostty.dart' as native;
 
 import 'link_context_menu.dart';
 import 'terminal_find_bar.dart';
@@ -148,8 +140,8 @@ class _GhosttyPane extends StatefulWidget {
 
 class _GhosttyPaneState extends State<_GhosttyPane>
     with TerminalFindHost<_GhosttyPane> {
-  late final native.RenderState _renderState;
-  TerminalLineHit? _hoverLine;
+  final _hoverLine = ValueNotifier<TerminalLineHit?>(null);
+  bool _hoverRefreshScheduled = false;
   Offset? _lastHoverLocal;
   Size? _lastSize;
   double _visibleCellHeight = 0;
@@ -159,77 +151,65 @@ class _GhosttyPaneState extends State<_GhosttyPane>
   @override
   void initState() {
     super.initState();
-    widget.terminal.scrollController.addListener(_refreshHover);
-    _renderState = native.RenderState();
+    widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
   }
 
   @override
   void dispose() {
-    widget.terminal.scrollController.removeListener(_refreshHover);
-    _renderState.dispose();
+    widget.terminal.viewportContentChanges.removeListener(
+      _scheduleHoverRefresh,
+    );
+    _hoverLine.dispose();
     super.dispose();
   }
 
-  void _refreshHover() {
-    final local = _lastHoverLocal;
-    final size = _lastSize;
-    if (local != null && size != null) _setHover(_lineAt(local, size));
+  @override
+  void didUpdateWidget(covariant _GhosttyPane oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.terminal != widget.terminal) {
+      oldWidget.terminal.viewportContentChanges.removeListener(
+        _scheduleHoverRefresh,
+      );
+      widget.terminal.viewportContentChanges.addListener(_scheduleHoverRefresh);
+    }
+    _scheduleHoverRefresh();
+  }
+
+  void _scheduleHoverRefresh() {
+    if (_hoverRefreshScheduled || _lastHoverLocal == null) return;
+    _hoverRefreshScheduled = true;
+    WidgetsBinding.instance.scheduleFrameCallback((_) {
+      _hoverRefreshScheduled = false;
+      if (!mounted) return;
+      final local = _lastHoverLocal;
+      final size = _lastSize;
+      if (local != null && size != null) _setHover(_lineAt(local, size));
+    });
   }
 
   TerminalLineHit? _lineAt(Offset local, Size size) {
-    if (!widget.enableLineHover || size.isEmpty) return null;
-    final controller = widget.terminal.controller;
-    final impl = controller as ghost_internal.TerminalSession;
-    _renderState.update(impl.terminal);
-    final rows = _renderState.rows;
-    final cols = _renderState.cols;
-    if (rows <= 0 || cols <= 0) return null;
-    if (_visibleCellHeight <= 0) return null;
-    final row = (local.dy / _visibleCellHeight).floor();
-    if (row < 0 || row >= rows) return null;
-    final lines = ghost_internal.LogicalLine.visible(
-      impl.terminal,
-      rows: rows,
-      cols: cols,
-    );
-    final cursor = _renderState.cursor;
-    var lastUsedRow = cursor.viewportHasValue ? cursor.viewportY : -1;
-    for (final candidate in lines) {
-      for (final cell in candidate.cells) {
-        if (cell.row > lastUsedRow) lastUsedRow = cell.row;
-      }
+    if (!widget.enableLineHover ||
+        size.isEmpty ||
+        _visibleCellHeight <= 0 ||
+        local.dx < 0 ||
+        local.dx >= size.width ||
+        local.dy < 0 ||
+        local.dy >= size.height) {
+      return null;
     }
-    if (row > lastUsedRow) return null;
-
-    ghost_internal.LogicalLine? line;
-    for (final candidate in lines) {
-      if (candidate.cells.any((cell) => cell.row == row)) {
-        line = candidate;
-        break;
-      }
-    }
-    if (line == null || line.cells.isEmpty) {
-      return TerminalLineHit(
-        text: '',
-        firstViewportRow: row,
-        lastViewportRow: row,
-      );
-    }
-    final occupiedRows = line.cells.map((cell) => cell.row);
-    return TerminalLineHit(
-      text: line.text,
-      firstViewportRow: occupiedRows.reduce((a, b) => a < b ? a : b),
-      lastViewportRow: occupiedRows.reduce((a, b) => a > b ? a : b),
+    return widget.terminal.lineAtViewportRow(
+      (local.dy / _visibleCellHeight).floor(),
     );
   }
 
   void _setHover(TerminalLineHit? value) {
-    if (value?.firstViewportRow == _hoverLine?.firstViewportRow &&
-        value?.lastViewportRow == _hoverLine?.lastViewportRow &&
-        value?.text == _hoverLine?.text) {
+    final previous = _hoverLine.value;
+    if (value?.firstViewportRow == previous?.firstViewportRow &&
+        value?.lastViewportRow == previous?.lastViewportRow &&
+        value?.text == previous?.text) {
       return;
     }
-    setState(() => _hoverLine = value);
+    _hoverLine.value = value;
   }
 
   @override
@@ -293,18 +273,6 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       uiScale,
       fontWeight,
     );
-    final metrics = ghost_internal.measureCellMetrics(
-      fontSize: ghosttyTheme.fontSize,
-      fontWeight: ghosttyTheme.fontWeight,
-      fontFamily: ghosttyTheme.fontFamily,
-      fontFamilyFallback: ghosttyTheme.fontFamilyFallback,
-      devicePixelRatio: View.of(context).devicePixelRatio,
-    );
-    // O TerminalView e layoutado em uiScale e pintado reduzido pelo
-    // TerminalUnzoomBox. Esta e a altura exata da celula nas coordenadas do
-    // overlay; usar altura-do-painel / linhas acumulava a sobra do grid.
-    _visibleCellHeight = metrics.cellHeight / uiScale;
-
     final Widget terminalView = ghost.TerminalView(
       // Identity is per session. StablePaneHost keeps this subtree under the
       // same parent even when its tab moves to another dock.
@@ -318,6 +286,17 @@ class _GhosttyPaneState extends State<_GhosttyPane>
       scrollPhysics: const ClampingScrollPhysics(),
       shortcuts: shortcuts,
       theme: ghosttyTheme,
+      overlayBuilder: (context, geometry) {
+        final height = geometry
+            .cellRect(const ghost.Position(row: 0, col: 0))
+            ?.height;
+        final visibleHeight = (height ?? 0) / uiScale;
+        if (_visibleCellHeight != visibleHeight) {
+          _visibleCellHeight = visibleHeight;
+          _scheduleHoverRefresh();
+        }
+        return const SizedBox.shrink();
+      },
       linkSettings: ghost.LinkSettings(
         // Hover e abertura seguem exigindo ⌘/Ctrl (default do flterm): num
         // terminal cheio de caminhos, clique simples continua só posicionando o
@@ -348,7 +327,9 @@ class _GhosttyPaneState extends State<_GhosttyPane>
     // `TickerMode` desliga o blink do cursor enquanto oculta. O parser e o
     // scrollback seguem no controller; presentationActive suspende apenas as
     // invalidacoes visuais e faz um layout completo ao reabrir.
-    // Keep the terminal tightly constrained while the find bar overlays it.
+    // StackFit.expand keeps the terminal tightly constrained. Loose constraints
+    // make flterm's layout, resize and setState cycle oscillate indefinitely,
+    // consuming 100% CPU. The positioned find bar is unaffected.
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -399,7 +380,7 @@ class _GhosttyPaneState extends State<_GhosttyPane>
                         : (details) {
                             final size = hoverContext.size;
                             final line = size == null
-                                ? _hoverLine
+                                ? _hoverLine.value
                                 : _lineAt(details.localPosition, size);
                             widget.onContextMenu!(
                               TerminalContextMenuRequest(
@@ -413,26 +394,19 @@ class _GhosttyPaneState extends State<_GhosttyPane>
                       fit: StackFit.expand,
                       children: [
                         view,
-                        if (_hoverLine != null && _lastSize != null)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            top:
-                                _hoverLine!.firstViewportRow *
-                                _visibleCellHeight,
-                            height:
-                                (_hoverLine!.lastViewportRow -
-                                    _hoverLine!.firstViewportRow +
-                                    1) *
-                                _visibleCellHeight,
-                            child: IgnorePointer(
-                              child: ColoredBox(
+                        Positioned.fill(
+                          child: IgnorePointer(
+                            child: CustomPaint(
+                              painter: _TerminalLineHoverPainter(
+                                line: _hoverLine,
+                                cellHeight: () => _visibleCellHeight,
                                 color: widget.theme.selection.withValues(
                                   alpha: _lineHoverOpacity,
                                 ),
                               ),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -652,4 +626,36 @@ bool isTerminalPasteEvent(KeyEvent event) {
   return !keyboard.isAltPressed &&
       !keyboard.isShiftPressed &&
       (keyboard.isControlPressed != keyboard.isMetaPressed);
+}
+
+/// Pointer changes repaint only this overlay; the terminal subtree stays put.
+class _TerminalLineHoverPainter extends CustomPainter {
+  _TerminalLineHoverPainter({
+    required this.line,
+    required this.cellHeight,
+    required this.color,
+  }) : super(repaint: line);
+  final ValueNotifier<TerminalLineHit?> line;
+  final double Function() cellHeight;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hit = line.value;
+    if (hit == null) return;
+    final height = cellHeight();
+    canvas.drawRect(
+      Rect.fromLTWH(
+        0,
+        hit.firstViewportRow * height,
+        size.width,
+        (hit.lastViewportRow - hit.firstViewportRow + 1) * height,
+      ),
+      Paint()..color = color,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TerminalLineHoverPainter old) =>
+      old.line != line || old.color != color || old.cellHeight != cellHeight;
 }
