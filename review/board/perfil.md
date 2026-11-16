@@ -1,0 +1,310 @@
+# Perfil de arraste do Canvas Board no Windows
+
+Em 14 de novembro de 2026 foram comparados o BoardView e o BoardPainter de ad562c19 com os da worktree feature/canvas-board. O teste arrasta a primeira etapa de um fluxo com um conector incidente. A pergunta medida é quanto tempo o Flutter gasta construindo e rasterizando cada quadro durante o gesto contínuo.
+
+## Ambiente
+
+Windows 11 Pro 10.0.26200, AMD Ryzen 7 5700X com 16 processadores lógicos, NVIDIA GeForce RTX 3060 e aproximadamente 32 GiB de RAM. O Windows informou resolução de 3440 × 1440 e 159 Hz. O Flutter informou 160 Hz para o display da janela. Flutter 3.47.2, Dart 3.13.2, app Dart AOT e engine Windows x64 em modo Profile, Impeller desativado pelo runner do Cockpit. O teto observado para esse display é 6,25 ms por fase. O estudo também verifica a meta acordada de 16,67 ms por fase para 60 Hz.
+
+## Método
+
+1. Cada cena contém N etapas rotuladas distribuídas em linhas de 20, N − 1 conectores, um traço de 3.000 pontos e um item Mermaid com miniatura PNG de 1 × 1. N assume os valores 32, 240 e 960. O total é respectivamente 65, 481 e 1.921 objetos. A miniatura exercita a camada de imagem do editor; o renderizador de fonte Mermaid não é executado durante esse gesto.
+2. Montar o editor com o tema escuro e um painel estático adjacente de 160 px. Aguardar dois segundos. Injetar um movimento de mouse por quadro durante 180 quadros. O nó termina 84 unidades à direita e quatro abaixo do ponto inicial. A gravação simula 120 ms de espera e ocorre ao soltar. O teste exige exatamente uma gravação e confere as coordenadas persistidas.
+3. Usar três execuções de cada versão por cena, alternando a ordem na segunda repetição. Ignorar os primeiros 20 movimentos e cruzar os identificadores dos 160 quadros seguintes com FrameTiming.frameNumber. Desse modo, montar a cena, finalizar o gesto, salvar o documento e aguardar callbacks do motor ficam fora das amostras de arraste.
+4. Calcular o p95 de construção e o p95 de rasterização sobre os 160 quadros de cada execução. Resumir as três execuções pela mediana dos seus p95. Na contagem acima do orçamento, computar um quadro uma vez se qualquer fase exceder o limiar. Construção e rasterização podem se sobrepor.
+
+O benchmark local usa somente a aplicação Flutter e a sessão de arquivo em memória. O baseline foi obtido com git show de ad562c19, com imports redirecionados e adaptação do caminho de arquivo do botão de exportação à assinatura atual. Os componentes externos ao editor, o modelo de documento, as fontes e o runner são os mesmos entre as versões. A cópia histórica ficou no diretório temporário de build.
+
+## Resultados
+
+Rodada final com as compilações nativas e AOT encerradas. Na abertura da rodada, a instalação da build Release copiava assets em segundo plano. Cada linha contém 480 quadros. Foram correlacionados todos os 2.880 quadros previstos nas 18 execuções.
+
+| Objetos | Editor | Mediana do p95 de construção (ms) | Mediana do p95 de rasterização (ms) | Quadros acima de 16,67 ms | Quadros acima de 6,25 ms |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 65 | ad562c19 | 0,889 | 2,549 | 0 | 0 |
+| 65 | Atual | 0,777 | 1,584 | 0 | 0 |
+| 481 | ad562c19 | 0,794 | 1,984 | 0 | 0 |
+| 481 | Atual | 0,695 | 1,693 | 0 | 1 |
+| 1921 | ad562c19 | 0,704 | 2,148 | 0 | 0 |
+| 1921 | Atual | 0,742 | 2,114 | 0 | 0 |
+
+No editor atual, nenhum dos 1.440 quadros ultrapassou 16,67 ms. Em um quadro, uma das fases ultrapassou o orçamento de 6,25 ms do display. O arraste contínuo atende à meta de 60 Hz nestas três cenas. O resultado orienta medir o início do gesto e a primeira pintura de traços e diagramas grandes antes de atribuir o atraso relatado ao Flutter.
+
+### Repetições
+
+| Formas | Editor | Execução | Construção p95 (ms) | Rasterização p95 (ms) | Quadros acima de 6,25 ms |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 32 | ad562c19 | 1 | 0,738 | 1,924 | 0 |
+| 32 | Atual | 1 | 0,746 | 1,571 | 0 |
+| 32 | Atual | 2 | 0,782 | 1,765 | 0 |
+| 32 | ad562c19 | 2 | 0,889 | 2,566 | 0 |
+| 32 | ad562c19 | 3 | 0,909 | 2,549 | 0 |
+| 32 | Atual | 3 | 0,777 | 1,584 | 0 |
+| 240 | ad562c19 | 1 | 0,607 | 1,492 | 0 |
+| 240 | Atual | 1 | 0,623 | 1,401 | 0 |
+| 240 | Atual | 2 | 0,695 | 1,693 | 0 |
+| 240 | ad562c19 | 2 | 0,794 | 1,984 | 0 |
+| 240 | ad562c19 | 3 | 0,877 | 2,151 | 0 |
+| 240 | Atual | 3 | 0,891 | 1,874 | 1 |
+| 960 | ad562c19 | 1 | 0,65 | 1,821 | 0 |
+| 960 | Atual | 1 | 0,849 | 2,266 | 0 |
+| 960 | Atual | 2 | 0,742 | 2,051 | 0 |
+| 960 | ad562c19 | 2 | 0,704 | 2,148 | 0 |
+| 960 | ad562c19 | 3 | 0,832 | 2,577 | 0 |
+| 960 | Atual | 3 | 0,705 | 2,114 | 0 |
+
+### Encerramento do runner
+
+O executável auxiliar do perfil retornou 0xC0000005 ao finalizar, depois de gravar as 18 séries e validar os 18 salvamentos. O erro ocorreu no piloto com destruição da janela e no ensaio final com exit(0), usado pelo benchmark do terminal. O relatório preserva a ressalva de encerramento. O teste não avalia o ciclo de fechamento do aplicativo distribuído. O runner nativo Profile, a engine x64 Profile do SDK e o AOT final foram usados isoladamente em build/board-profile-review após o alvo INSTALL do CMake falhar durante a cópia conjunta dos artefatos. SHA-256 do AOT medido: 6A76DAAC351C976647ACBB31EA9051407428715EBD72AFDACB44C2B807A1CB30.
+
+## Repetir
+
+Na pasta cockpit, finalizar as compilações da aplicação antes de iniciar a medição. Para medir apenas a revisão em uso, executar flutter run --profile -d windows -t benchmark/board_profile.dart. A variável BOARD_PROFILE_RESULT aceita um caminho absoluto para o TSV. Para o comparativo, um entrypoint temporário passa o construtor histórico a runBoardProfile(baseline: old.BoardView.new). O bloco abaixo ilustra as duas importações quando o entrypoint e a cópia histórica ficam em build/board-profile-review.
+
+```dart
+import '../../benchmark/board_profile.dart';
+import 'board_view.dart' as old;
+
+Future<void> main() => runBoardProfile(baseline: old.BoardView.new);
+```
+
+O experimento mede o arraste sintético de uma etapa depois do aquecimento. Uma área de trabalho com aplicações ativas e um único computador limitam a generalização. A medição no monitor de 160 Hz compara também com o orçamento de 60 Hz; o monitor permaneceu em sua configuração original.
+
+## Escrita livre, zoom e abertura de um documento denso
+
+Em uma segunda rodada, o mesmo processo Profile comparou o editor de `d50628ed` com a camada que limita a pintura estática à área visível mais uma margem de 25% e oito unidades. A cena contém 960 etapas, 959 conectores e uma miniatura de arquitetura PNG de 640 × 320 com rótulos e caminhos. O editor exibe a miniatura em um objeto de 320 × 160. A mesma fonte Mermaid e o mesmo PNG foram usados nas duas versões. A ordem das versões foi invertida na segunda das três repetições.
+
+**Primeira pintura.** Um host Flutter já montado recebe um BoardView novo. O primeiro frame é identificado pelo número do motor. Separadamente, um cronômetro vai da montagem até o primeiro RawImage com a miniatura decodificada. A leitura do arquivo e a preparação dos bytes do PNG antecedem o cronômetro. O cache de imagens foi limpo entre as execuções.
+
+**Gestos.** Escrita livre injeta 16 movimentos por frame, por 180 frames. O primeiro deslocamento mede uma unidade. O teste reabre o `.board` e confere as coordenadas de todos os 2.881 pontos, inclusive o primeiro e o último. O zoom usa 180 pulsos reais do caminho de eventos Flutter da roda, alternando o sentido a cada dez, confere ampliação acima de 1,4×, retorno à escala inicial e arquivo idêntico. O arraste move oito etapas e a miniatura juntas em 84 × 4 unidades. O teste confere todos os objetos, grupos, destinos e origens após reabrir o arquivo. O salvamento introduz 120 ms de espera e faz flush em disco, depois do gesto.
+
+Cada linha da tabela corresponde à mediana das três execuções. Construção e rasterização são os p95 por execução. O primeiro frame tem uma única amostra por abertura. A cadência mede o intervalo de relógio entre duas conclusões de frame com movimento e inclui o processamento síncrono do evento. A duração total dos 180 passos inclui os 20 de aquecimento. O cronômetro de miniatura é apresentado apenas no cenário de abertura.
+
+| Cenário | Versão | Construção (ms) | Rasterização (ms) | Intervalo p95 (ms) | 180 passos (s) | Miniatura disponível (ms) | Fases acima de 16,67 ms |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Primeira pintura | d50628ed | 82,50 | 4,27 | — | — | 513,84 | 3/3 |
+| Primeira pintura | Com recorte | 23,67 | 3,46 | — | — | 47,09 | 2/3 |
+| Escrita livre | d50628ed | 0,23 | 3,44 | 7,56 | 1,17 | — | 0/480 |
+| Escrita livre | Com recorte | 0,27 | 3,57 | 7,49 | 1,13 | — | 0/480 |
+| Zoom | d50628ed | 0,81 | 3,67 | 287,91 | 40,53 | — | 0/480 |
+| Zoom | Com recorte | 0,71 | 2,44 | 10,35 | 1,23 | — | 0/480 |
+| Grupo com miniatura | d50628ed | 0,86 | 1,66 | 7,75 | 1,37 | — | 0/480 |
+| Grupo com miniatura | Com recorte | 0,82 | 1,38 | 8,06 | 1,13 | — | 0/480 |
+
+No zoom, o p95 de rasterização da referência ficou baixo apesar de a cadência ultrapassar 250 ms entre passos. O recorte reduziu a duração mediana do mesmo gesto de 40,53 s para 1,23 s. Na abertura, a primeira construção ainda excedeu o orçamento de 16,67 ms em duas das três execuções com recorte. O teste de câmera também exercitou seleção de uma forma inicialmente fora do quadro, enquadramento e retorno após gesto de trackpad, preservando o conteúdo salvo.
+
+Para repetir essa suíte, definir `BOARD_PROFILE_SUITE=interactions` e escolher a saída com `BOARD_PROFILE_RESULT`. A função `runBoardProfile` aceita um construtor histórico para executar as duas variantes no mesmo processo. O TSV inclui as 24 amostras por cenário e repetição, contagens, duração real dos gestos e frequência do display. O benchmark validou todas as 24 séries e as 12 gravações de arquivo antes do erro nativo de encerramento 0xC0000005 no runner auxiliar. SHA-256 do AOT pareado medido: E9777A24498860838F861E6564D0BA171F271087A619E92E605CFBDB960D4051. A latência física de um mouse ou caneta até a apresentação no monitor permanece fora do ensaio.
+
+## Leitura do Markdown e abertura isolada
+
+Em 14/11, um executável Dart AOT comparou o leitor de a467d39d com o leitor que evita cópias intermediárias de propriedades e só procura sequências de escape quando o campo contém barra invertida. O documento tinha 960 formas rotuladas, 959 setas e um objeto Mermaid sem miniatura. As versões alternaram a ordem dentro do mesmo processo. Após dez aquecimentos, 60 amostras por versão mediram a conversão da mesma fonte já lida. A verificação comparou o Markdown regravado e a contagem de 1.920 objetos.
+
+A mediana da conversão passou de 4,20 para 3,04 ms. O p95 passou de 6,36 para 5,39 ms. Ler o arquivo com cache local levou 0,22 ms na mediana. Em uma segunda rodada, calcular os extremos das formas já decodificadas levou 0,028 ms na mediana. Esse cálculo isolado não inclui roteamento das setas nem layout Flutter.
+
+O modo `BOARD_PROFILE_SUITE=opening` executa somente as três aberturas da cena com miniatura representativa no benchmark Flutter. A primeira rodada produziu tempos de construção de 31,35, 16,33 e 10,54 ms. Uma repetição após encerrar a suíte de testes produziu 38,06, 27,57 e 18,64 ms, com a miniatura pronta em 65,48, 69,59 e 45,16 ms. A variação entre processos impede atribuir um ganho de primeira pintura à mudança no leitor. O evento 1000 do Windows registrou o erro de encerramento do runner em coremessaging.dll após a gravação das amostras. Pedir saída pelo ciclo de vida do Flutter também reproduziu esse erro.
+## Abertura em um painel já montado
+
+O modo `BOARD_PROFILE_SUITE=pane` mede em quadros distintos a criação do host visual e a inserção do BoardView. O host usa o tema e as traduções do Cockpit com um painel adjacente. Após o quadro do host, o benchmark espera 500 ms e insere o editor com o Markdown já disponível na sessão. O arquivo e a miniatura são os mesmos do modo `opening`. O modo representa a montagem de um painel dentro do Flutter; o cronômetro começa depois da inicialização do processo e da leitura do arquivo.
+
+Quatro processos Profile executaram, na ordem, painel, montagem conjunta, montagem conjunta e painel. Cada processo abriu a cena de 1.920 objetos três vezes. A tabela lista a construção em milissegundos na ordem das aberturas. A coluna do host usa o número do quadro em que ele apareceu vazio.
+
+| Processo | Host vazio | Primeiro quadro com o editor |
+| --- | --- | --- |
+| Painel 1 | 1,68 / 1,57 / 1,10 | 25,39 / 15,03 / 9,90 |
+| Conjunto 1 | — | 26,94 / 14,69 / 16,71 |
+| Conjunto 2 | — | 22,02 / 22,28 / 11,89 |
+| Painel 2 | 3,33 / 1,39 / 2,37 | 25,11 / 14,42 / 12,02 |
+
+Em painel, a primeira rasterização de cada processo levou 24,60 e 26,82 ms; nas quatro reaberturas ficou entre 2,28 e 3,88 ms. A primeira construção e a primeira rasterização do editor excederam o orçamento mesmo com o host pronto. As quatro reaberturas nessa configuração respeitaram 16,67 ms por fase. Todos os arquivos permaneceram idênticos, e as 12 aberturas produziram amostras antes da falha nativa já documentada no encerramento dos quatro processos. O carregamento de uma janela nativa inteira e a latência física continuam fora deste ensaio.
+
+## Custo dos controles e dos rótulos
+
+No modo `pane`, `BOARD_PROFILE_SCENE` permite escolher `empty` (só os controles e o canvas vazio), `unlabelled` (960 etapas sem texto, 959 setas e uma miniatura Mermaid) ou `full` (o mesmo desenho com os 960 rótulos). Foram abertas três cenas por processo, em seis processos independentes. A sequência foi vazio, sem rótulos, completo, completo, sem rótulos, vazio. Os controles, o tema, a sessão e a validação do arquivo foram os mesmos em todos os casos. A criação da imagem de teste antecedeu o cronômetro em todos os processos.
+
+| Cena | Primeira construção em cada processo (ms) | Primeira rasterização em cada processo (ms) |
+| --- | --- | --- |
+| Vazio | 14,95 / 19,15 | 15,35 / 14,41 |
+| Etapas sem rótulo | 27,83 / 29,37 | 44,20 / 39,40 |
+| Completo | 23,96 / 35,51 | 35,43 / 36,41 |
+
+Mesmo o editor vazio ultrapassou 16,67 ms de construção em uma abertura. Tirar os rótulos das etapas também deixou as duas primeiras aberturas acima do orçamento nas duas fases. A amostra permite priorizar a geometria e a miniatura para análise e preservar os rótulos. Ela não separa a contribuição individual desses dois elementos. As 18 aberturas conservaram o arquivo, e os processos auxiliares registraram o erro nativo de encerramento após a coleta.
+
+## Abertura com a mesma geometria e com ou sem miniatura
+
+Em `BOARD_PROFILE_SUITE=pane`, a cena `BOARD_PROFILE_SCENE=noThumbnail` conserva as 960 etapas rotuladas, as 959 setas, o item Mermaid, sua fonte, grupo e posição. Apenas os bytes PNG são omitidos. Em quatro processos Profile, alternamos completo, sem miniatura, sem miniatura e completo. Cada processo montou três vezes o editor. A tabela registra a primeira montagem de cada processo, antes da mudança de reúso dos bytes.
+
+| Cena | Construção (ms) | Rasterização (ms) |
+| --- | --- | --- |
+| Completa, processo 1 | 46,25 | 45,77 |
+| Sem miniatura, processo 2 | 30,83 | 31,54 |
+| Sem miniatura, processo 3 | 35,86 | 35,17 |
+| Completa, processo 4 | 32,53 | 29,91 |
+
+O editor ultrapassou o orçamento de 16,67 ms nos quatro processos. Os intervalos se sobrepõem. A espera até a imagem decodificada só existe na cena completa, por isso o tempo até a miniatura pronta não é diretamente comparável. As 12 aberturas conservaram o arquivo, e o runner apresentou a falha nativa de saída após gravar as séries. O resultado orienta manter a miniatura e concentrar a próxima medição na quantidade de geometria visível.
+
+## Quantidade de objetos enviados para pintura
+
+O mesmo documento de 1.920 objetos, incluindo a miniatura e os rótulos, foi aberto em quatro processos Profile. O painel adjacente ocupou 160 ou 620 unidades lógicas. O benchmark registra a largura do InteractiveViewer e conta os objetos no BoardPainter do primeiro quadro, incluindo a margem de pintura ao redor da câmera. O modo `BOARD_PROFILE_SUITE=pane` aceita `BOARD_PROFILE_SCENE=narrow` para repetir o painel estreito.
+
+| Largura do canvas | Objetos enviados | Primeira construção (ms) | Primeira rasterização (ms) |
+| --- | --- | --- | --- |
+| 1.058 | 210 | 32,64 | 30,97 |
+| 598 | 109 | 33,11 | 33,15 |
+| 598 | 109 | 30,93 | 27,82 |
+| 1.058 | 210 | 38,01 | 36,36 |
+
+O recorte diminuiu a lista de pintura em 101 objetos ao estreitar o painel. A primeira abertura permaneceu acima de 16,67 ms nos quatro processos. A redução não foi proporcional ao número de objetos enviados, e os intervalos das duas larguras se sobrepõem. A largura também altera o layout dos controles; o teste não atribui um custo individual a cada forma. As 12 aberturas mantiveram o Markdown intacto. O runner voltou a registrar o erro nativo ao encerrar após a coleta.
+
+## Timeline do primeiro quadro
+
+No runner Windows Profile, combinar `BOARD_PROFILE_SUITE=pane` com `BOARD_PROFILE_TRACE=1` para coletar os eventos Dart, Embedder e GC pelo serviço local da VM. O benchmark grava um arquivo Chrome Trace por abertura ao lado do TSV. A janela temporal começa em `FramePhase.buildStart` e termina em `rasterFinish` do quadro identificado pelo motor. Como as threads operam em paralelo, ela também pode conter o começo de outro quadro. Para analisar, emparelhar eventos B/E com o mesmo nome e thread e localizar o primeiro `Animator::BeginFrame` no início do intervalo.
+
+| Processo novo | Construção do quadro | Layout da raiz | Build dentro do layout | Pintura da raiz | Rasterização do quadro |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1 | 48,85 ms | 36,84 ms | 19,16 ms | 11,72 ms | 36,05 ms |
+| 2 | 27,87 ms | 19,28 ms | 10,53 ms | 8,42 ms | 25,43 ms |
+
+O layout ocupou 69–75% da fase de construção nas primeiras aberturas. O evento de build indicado na tabela está **dentro** do layout. Somá-los duplicaria trabalho. A thread de rasterização também registrou compilação de shaders durante o intervalo. A instrumentação tem custo e estes dados não identificam um widget específico como causa. As quatro reaberturas no mesmo processo ficaram entre 11,01 e 12,25 ms de construção e 2,52 e 2,71 ms de rasterização. As seis séries foram gravadas antes da falha nativa de encerramento do runner.
+
+## Subárvores na primeira abertura
+
+Com `BOARD_PROFILE_TRACE=widgets`, o runner também ativa os eventos de criação de widgets e layout de objetos de renderização do Flutter. No primeiro quadro instrumentado, BoardView e seus descendentes ocuparam 13,97 ms de montagem. Dentro desse intervalo, a faixa lateral rolável com as ferramentas ocupou 4,85 ms, e um IconButton com seus descendentes ocupou 2,54 ms. No layout, o RenderFlex principal ocupou 14,61 ms, um RenderLayoutBuilder ocupou 5,79 ms e um RenderParagraph, 2,93 ms. Esses tempos inclusivos se sobrepõem. A instrumentação por widget altera os tempos absolutos.
+
+O editor passou a aplicar rotação apenas ao ícone de decisão e a construir o estilo de seleção somente para a ferramenta ativa. Os botões continuam usando IconButton e os mesmos tooltips, atalhos e cores. Duas builds AOT foram medidas sem instrumentação individual, na ordem anterior, simplificada, simplificada e anterior. Cada processo abriu a mesma cena três vezes.
+
+| Versão | Construção no primeiro quadro (ms) | Rasterização no primeiro quadro (ms) |
+| --- | ---: | ---: |
+| Anterior | 36,43 | 39,59 |
+| Simplificada | 28,90 | 73,15 |
+| Simplificada | 24,22 | 25,73 |
+| Anterior | 21,98 | 27,79 |
+
+As faixas de construção se sobrepõem. A comparação não demonstra ganho consistente no primeiro quadro. Nas quatro reaberturas da versão simplificada, a construção ficou entre 10,79 e 12,01 ms e a rasterização entre 2,16 e 3,26 ms. O critério de fluidez proposto no estudo refere-se a gestos após aquecimento; o tempo de abertura é acompanhado separadamente. O runner instrumentado registrou a falha nativa de encerramento após a coleta.
+
+## Gestos após aquecimento na versão bc18c5a2
+
+O runner Windows Profile executou novamente a suíte `interactions` com a paleta e o alinhamento de bc18c5a2. A cena de 1.920 objetos contém 960 formas, 959 setas e uma miniatura Mermaid. Cada gesto teve 180 passos por repetição, com três repetições. Os primeiros 20 passos de cada repetição ficaram fora das estatísticas. O teste reabriu os arquivos e verificou os 2.881 pontos do lápis, o deslocamento do grupo, os extremos das setas e o conteúdo inalterado após o zoom.
+
+| Gesto | Quadros medidos | Mediana do p95 de construção | Mediana do p95 de rasterização | Mediana do p95 do intervalo entre passos | Quadros com fase acima de 16,67 ms |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Lápis | 480 | 0,48 ms | 2,82 ms | 7,46 ms | 0 |
+| Zoom | 480 | 0,91 ms | 2,81 ms | 13,13 ms | 0 |
+| Arraste de grupo | 480 | 0,79 ms | 1,32 ms | 7,65 ms | 0 |
+
+Os 1.440 quadros aquecidos atenderam ao orçamento de 60 Hz por fase no ensaio automatizado. O motor informou 160 Hz. A primeira abertura do processo levou 36,20 ms de construção e 38,39 ms de rasterização. A medição não inclui a latência física entre o dispositivo e a apresentação no monitor. O runner encerrou com 0xC0000005 após gravar as 12 séries.
+
+### Leitura de um documento com 33 miniaturas Mermaid
+
+O ensaio local em Dart JIT montou um arquivo Markdown de 671.120 caracteres com as 33 miniaturas PNG capturadas no editor desktop. Após cinco leituras de aquecimento, mediu 60 leituras por execução. O parser vigente apresentou medianas de 6,64 e 7,21 ms em duas execuções, com p95 de 8,62 e 9,35 ms. Duas variantes que adiavam a decodificação de Base64 e validavam previamente o texto por expressão regular elevaram a mediana para 11,74 e 26,66 ms. Ambas foram descartadas. A medida cobre a leitura do documento em memória; a primeira pintura da janela e a rasterização das miniaturas têm custos próprios.
+
+### Processo novo com 33 miniaturas visíveis
+
+Cinco processos Flutter Windows Debug abriram BoardView diretamente com o mesmo arquivo Markdown em disco. Cada PNG real recebeu um marcador RGB exclusivo, legível na miniatura reduzida. O intervalo começa imediatamente antes de Start-Process e termina após a primeira leitura da superfície com os 33 marcadores. Resultados de 2.412, 2.493, 3.377, 2.873 e 3.631 ms, mediana de 2.873 ms. Inclui inicialização do processo, Flutter, leitura do arquivo e sondagem dos pixels. A cache do Windows não foi esvaziada. O runner terminou com 0xC0000005 depois de gravar cada resultado. A tentativa de medir o aplicativo Release via PrintWindow em um desktop privado capturou a moldura e uma área branca, sem conteúdo Flutter, e foi excluída. A abertura pela Gallery em Release continua por medir.
+
+## Gestos após a alteração das camadas e dos encaixes
+
+No Windows Profile, o benchmark de interações repetiu a cena de 1.920 objetos em três rodadas com o editor atual. A tabela usa a mediana dos p95 de cada rodada. O TSV integral está em `cockpit/build/board-profile-review/interactions-20261114-181417.tsv`.
+
+| Gesto | Quadros | Construção (ms) | Rasterização (ms) | Intervalo entre passos (ms) | Acima de 6,25 ms por fase |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Lápis | 480 | 0,647 | 4,108 | 7,610 | 2 |
+| Zoom | 480 | 0,810 | 2,886 | 13,072 | 0 |
+| Arraste de grupo | 480 | 1,453 | 2,796 | 11,806 | 4 |
+
+Nenhuma fase dos 1.440 quadros aquecidos excedeu 16,67 ms. No primeiro quadro do processo, a construção levou 33,482 ms e a rasterização 26,227 ms. No arraste de grupo, os tempos ficaram acima dos registrados na versão bc18c5a2; as medições foram feitas em momentos diferentes. O runner terminou com 0xC0000005 após gravar as 12 séries. O ensaio usa eventos injetados e não mede o intervalo entre o movimento físico e sua apresentação no monitor.
+
+## Comparação pareada dos editores
+
+O mesmo processo Windows Profile executou o BoardView e o BoardPainter de bc18c5a2 e os da worktree atual com o mesmo modelo, tema, motor, arquivo e benchmark. Cada variante realizou três rodadas por cenário, alternando a ordem na segunda. As 24 séries estão em `cockpit/build/board-profile-review/comparison-bc18/paired.tsv`.
+
+| Gesto | Intervalo p95 anterior → atual (ms) | Construção p95 anterior → atual (ms) | Rasterização p95 anterior → atual (ms) |
+| --- | ---: | ---: | ---: |
+| Lápis | 7,344 → 7,655 | 0,486 → 0,502 | 2,692 → 2,664 |
+| Zoom | 8,580 → 13,532 | 0,593 → 0,914 | 2,210 → 3,287 |
+| Arraste de grupo | 8,381 → 9,506 | 1,327 → 1,388 | 1,795 → 2,051 |
+
+Cada célula resume a mediana dos p95 das três rodadas. Os 2.880 quadros aquecidos ficaram abaixo de 16,67 ms nas fases de construção e rasterização. Zoom e arraste apresentaram intervalos p95 maiores na variante atual nas três comparações. O intervalo mede passos injetados após o quadro anterior; não mede a latência física do ponteiro. O ensaio compara os editores completos e não isola uma função específica. O runner gravou todas as séries antes da falha nativa 0xC0000005 no encerramento.
+
+## Reaproveitamento da geometria durante o zoom
+
+Ensaio pareado com a mesma revisão do editor, alterando apenas o recorte da área visível. A variante experimental guardava um retângulo por objeto e invalidava o conjunto quando o documento mudava. O controle recalculava os limites ao atualizar a área pintada. Em três rodadas, o intervalo p95 do zoom foi de 13,900 / 13,923 / 14,030 ms no controle e 14,225 / 13,950 / 13,369 ms na variante. As medianas foram 13,923 e 13,950 ms. O cache não trouxe melhora consistente e foi retirado. Os oito testes de câmera e editor passaram na variante. A coleta concluiu as 24 séries antes da falha de encerramento do runner. Dados locais em `cockpit/build/board-profile-review/zoom-cache/paired.tsv`.
+
+## Pintura dos objetos durante o zoom
+
+Uma cópia instrumentada do editor contou chamadas a BoardPainter.paint e a visibleLayers, objetos pintados e recortes refeitos. Os contadores foram zerados depois dos 20 passos iniciais de cada rodada, antes dos 160 passos medidos. Cada rodada oscilou entre a escala inicial e pelo menos 1,4× na mesma região da cena.
+
+Nas três rodadas houve 480 consultas à área visível, zero recortes refeitos e zero chamadas a BoardPainter.paint no intervalo medido. O Flutter reutilizou a camada do desenho. O p95 de rasterização foi 3,969 / 5,842 / 3,858 ms. O intervalo p95 entre passos chegou a 18,574 / 28,431 / 19,085 ms. O cronômetro do pintor cobre somente a emissão de comandos de desenho em Dart; a transformação e a composição da camada continuam a cargo do motor. Esses resultados isolam a próxima medição no intervalo entre entregar o evento de rolagem e receber o quadro, incluindo agendamento. Não abrangem afastar o zoom até expor uma região nova. O runner gravou as três séries antes da falha de encerramento. Dados em `cockpit/build/board-profile-review/zoom-paint/zoom-182652.tsv` e no arquivo adjacente com extensão .paint.
+
+## Tempo entre o evento de zoom e o fim do quadro Flutter
+
+Três rodadas no mesmo editor Windows Profile, com 160 passos aquecidos cada. O cronômetro marcou a entrada e o retorno de handlePointerEvent, um callback transitório no início do quadro seguinte e a resolução de endOfFrame. Cada linha abaixo mostra os p95 separados. O p95 do total foi calculado com a duração integral de cada passo.
+
+| Rodada | Entrega síncrona (ms) | Do retorno ao callback inicial (ms) | Do callback ao fim do quadro (ms) | Total (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 0,117 | 7,798 | 6,988 | 13,103 |
+| 2 | 0,129 | 7,703 | 7,771 | 13,647 |
+| 3 | 0,094 | 7,602 | 7,172 | 13,605 |
+
+O intervalo síncrono de entrega é pequeno. A espera pelo início e o intervalo até o fim do quadro são ambos relevantes. Em 177 dos 480 passos a espera inicial respondeu por mais da metade do total. O segundo intervalo pode incluir trabalho e esperas do framework e do motor. endOfFrame indica conclusão no framework, não apresentação física. Os p95 de rasterização registrados pelo motor foram 3,592, 3,973 e 2,993 ms. As três séries passaram nas verificações do zoom e do arquivo antes da falha nativa de encerramento. Dados em `cockpit/build/board-profile-review/zoom-phases/zoom-183041.tsv` e no arquivo adjacente .phases.
+
+## Zoom com câmera idêntica, documento vazio ou denso
+
+O mesmo processo montou o editor atual com zero objetos ou 960 formas, 959 setas e uma miniatura Mermaid. A ordem foi vazio/denso, denso/vazio, vazio/denso. Cada rodada mediu 160 passos após aquecimento, verificou a oscilação da câmera e reabriu o arquivo para confirmar que o zoom não o modificou. As medianas dos três p95 por condição foram:
+
+| Medida | Vazio (ms) | Denso (ms) |
+| --- | ---: | ---: |
+| Evento até o fim do quadro Flutter | 7,665 | 14,477 |
+| Entrega síncrona do evento | 0,119 | 0,140 |
+| Retorno do evento até o callback inicial | 6,091 | 7,517 |
+| Callback inicial até o fim do quadro Flutter | 2,277 | 7,931 |
+| Rasterização do motor | 1,562 | 3,459 |
+
+Em todas as rodadas o zoom denso levou mais tempo. O acréscimo mais pronunciado nos intervalos observados está entre o início e o fim do quadro Flutter. Os percentis são independentes e a rasterização pode se sobrepor às outras fases. O experimento altera o conteúdo como conjunto; ainda não discrimina miniatura, vetores e texto. Foram coletados 960 quadros, nenhum acima de 16,67 ms por fase de construção ou rasterização. O runner gravou as seis séries antes do erro nativo ao encerrar. Arquivos locais em `cockpit/build/board-profile-review/zoom-density/zoom-183348.tsv` e no .phases correspondente.
+
+## Zoom com os mesmos objetos e quatro combinações de conteúdo
+
+As 16 séries mantiveram as posições e dimensões de 960 formas, 959 setas e um item Mermaid. O ensaio variou os textos das formas e a miniatura visível de 320 × 160. O item sem miniatura ficou sem fonte e sem rótulo visível. Cada combinação ocupou uma vez cada posição na ordem das quatro rodadas. Cada linha resume a mediana dos quatro p95, com 160 quadros aquecidos por série.
+
+| Cena | Rasterização (ms) | Intervalo entre passos (ms) |
+| --- | ---: | ---: |
+| Vetores | 2,302 | 12,712 |
+| Vetores e rótulos | 2,983 | 13,271 |
+| Vetores e miniatura | 2,561 | 13,157 |
+| Vetores, rótulos e miniatura | 2,996 | 13,263 |
+
+Acrescentar rótulos aos vetores elevou a rasterização nas quatro comparações por rodada. A presença da miniatura alternou entre aumentar e diminuir esse custo. Não houve fase de construção ou rasterização acima de 6,25 ms nos 2.560 quadros. O intervalo entre passos inclui o agendamento e os resultados não suportam retirar a miniatura para tornar o zoom fluido. O benchmark verificou a câmera e os arquivos em cada série e encerrou com a falha nativa já registrada depois da coleta. TSV e amostras por passo em `cockpit/build/board-profile-review/zoom-content/zoom-183825.tsv` e no .phases adjacente.
+
+## Do card da Gallery até o editor em Release
+
+Uma cópia instrumentada do Cockpit Windows Release em e5af2e13 abriu um workspace local de teste. O cronômetro começou antes do evento de clique no card Canvas Board e parou no primeiro callback pós-quadro em que o BoardView do arquivo esperado tinha tamanho positivo. O ensaio conferiu o projeto, a existência do arquivo e sua identidade Markdown. Em um processo, as três criações sucessivas levaram 44,318 ms, 35,290 ms e 39,919 ms. Os nomes foram diagram.board, diagram-2.board e diagram-3.board e os IDs foram distintos. A medida exclui o boot do Cockpit e não certifica o instante de apresentação física.
+
+Cinco outras inicializações em janela oculta não localizaram o card depois do clique sintético na aba Gallery e encerraram o ensaio antes do cronômetro. A única série completa não permite estimar a variabilidade entre processos nem inferir um problema ao clicar no card. O processo da série completa terminou com a falha nativa de encerramento já registrada. Amostra em `cockpit/build/board-review/gallery-release-open/sample-20261114-185005475/result.txt`.
+
+### Repetição em três processos Release
+
+Com o shell já pronto, o ensaio invocou o callback do HoverTap da aba Gallery e depois o do card Canvas Board. A medição inclui a criação do arquivo e termina no primeiro callback pós-quadro com o BoardView dimensionado. Ela exclui o reconhecimento do clique e a apresentação no monitor.
+
+| Processo | Primeiro documento (ms) | Segundo (ms) | Terceiro (ms) |
+| --- | ---: | ---: | ---: |
+| 1 | 28,558 | 30,018 | 35,641 |
+| 2 | 33,953 | 36,634 | 40,083 |
+| 3 | 27,372 | 35,718 | 30,006 |
+
+Cada processo abriu um workspace novo. Os nove arquivos tiveram IDs distintos e nomes sequenciais dentro de cada workspace. Os três processos gravaram o resultado antes da falha nativa ao encerrar. Evidências em `cockpit/build/board-review/gallery-release-open/control-20261114-185432509`, `control-20261114-185438598` e `control-20261114-185444603`.
+
+## Leitura de traços livres no Markdown
+
+Um documento com 50 traços de 500 pontos foi lido pelo parser compilado em Dart AOT no Windows. Cada processo descartou cinco leituras de aquecimento e mediu as 40 seguintes. Na ordem original, ajustado, ajustado, original, original, ajustado, as medianas de leitura foram 13,158, 5,059, 6,042, 10,301, 9,787 e 5,994 ms. A leitura direta das duas coordenadas eliminou o split e a conversão por iterador em cada ponto. O intervalo medido começa com o Markdown em memória e termina após a validação do documento. A medição não inclui I/O, pintura ou latência do ponteiro. Ensaio local em cockpit/build/board-review/ink_parse.dart.
+
+Abertura de um arquivo com 50 traços e 25 mil pontos pelo widget BoardView. O ensaio em flutter_tester leu o Markdown do disco, criou uma sessão e montou o editor com o tema Cockpit. Os tempos até o segundo pump foram 783,4 ms na primeira montagem e 202,8, 162,6, 95,3, 92,7 e 86,4 ms nas cinco remontagens no mesmo processo. A captura posterior identificou 24.960 pixels da cor dos traços em cada montagem. A captura ficou fora do intervalo cronometrado. O ensaio usa JIT com instrumentação de teste e não mede a apresentação no monitor nem compara versões do aplicativo. Runner local em cockpit/build/board-review/ink_open_test.dart.
+
+## Janela Release com 25 mil pontos
+
+Dois desktops Win32 privados executaram seis aberturas cada, com perfis novos, na ordem ABBAAB e BAABBA. A era a prévia mermaid-import e B era ink-contact. Todas abriram o mesmo Markdown com 50 traços de 500 amostras. O cronômetro iniciou antes de criar o processo do Cockpit e parou após o processo de UI Automation identificar o último traço pelo nome. Isso inclui inicialização do aplicativo, ativação da acessibilidade e consulta da árvore. O experimento não sincronizou com a apresentação do monitor.
+
+| Prévia | Aberturas | Mínimo | Mediana | Máximo |
+| --- | ---: | ---: | ---: | ---: |
+| A | 6 | 1,427 s | 1,505 s | 2,163 s |
+| B | 6 | 1,260 s | 1,625 s | 1,858 s |
+
+Cada abertura expôs o objeto Ink sample 49. A dispersão supera o ganho de cerca de 4 ms medido separadamente no parser. Esta amostra não demonstra redução do tempo total da janela nem isola o custo do parser. As doze observações estão em cockpit/build/board-review/ink-release-open/results.jsonl.

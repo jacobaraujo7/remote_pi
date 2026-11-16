@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/services.dart';
+import 'package:window_manager/window_manager.dart';
 
 /// Abre arquivos em **janelas de documento** próprias (plano 2.0): uma
 /// janela leve, sem rail nem panes, que renderiza o viewer certo pro caminho
@@ -9,12 +11,20 @@ import 'package:flutter/services.dart';
 /// aba": a aba fica onde está, abre uma cópia solta — sem confundir com o
 /// drag de abas entre panes.
 ///
-/// Cada janela é um engine Flutter novo (`desktop_multi_window`): o `main`
-/// detecta os argumentos e sobe [runDocumentWindow] em vez do app inteiro.
+/// Cada janela tem um engine Flutter próprio. No Windows, cada documento
+/// abre em outro processo para sobreviver ao fechamento do Cockpit de origem.
+/// O `main` detecta os argumentos e inicia apenas o editor do documento.
 /// O estado compartilhado é só o caminho; edição concorrente é resolvida pelo
 /// próprio arquivo (o viewer relê quando ele muda no disco).
 class DocumentWindows {
   DocumentWindows._();
+
+  // The Windows runner already reserves the multi_window prefix from CLI
+  // forwarding. Pass the path as its own argv entry, including spaces.
+  static const _documentProcess = 'standalone-document';
+
+  static bool isStandaloneDocument(List<String> args) =>
+      args.length == 3 && args[0] == 'multi_window' && args[1] == _documentProcess;
 
   /// Argumento que o engine da janela recebe (`main(args)` →
   /// `['multi_window', <id>, <este JSON>]`).
@@ -24,6 +34,9 @@ class DocumentWindows {
   /// `path` do JSON de argumentos, ou `null` se não é uma janela de documento.
   static String? pathFromArguments(List<String> args) {
     if (args.length < 3 || args[0] != 'multi_window') return null;
+    if (isStandaloneDocument(args)) {
+      return args[2].isNotEmpty ? args[2] : null;
+    }
     try {
       final json = jsonDecode(args[2]);
       if (json is Map && json['type'] == 'document') {
@@ -38,6 +51,16 @@ class DocumentWindows {
 
   /// Abre (e mostra) uma janela de documento para [path].
   static Future<void> open(String path) async {
+    if (Platform.isWindows) {
+      // Give the document its own engine and Win32 message loop. Shutting down
+      // a sibling engine must not destroy the document window or its renderer.
+      await Process.start(Platform.resolvedExecutable, [
+        'multi_window',
+        _documentProcess,
+        File(path).absolute.path,
+      ], mode: ProcessStartMode.detached);
+      return;
+    }
     final controller = await WindowController.create(
       WindowConfiguration(arguments: argumentsFor(path)),
     );
@@ -56,9 +79,19 @@ class DocumentWindowChannel {
   /// Título + tamanho inicial + traz pra frente (ver DocumentWindows.swift).
   static Future<void> present(
     String title, {
+    bool standaloneDocument = false,
     double width = 960,
     double height = 720,
   }) async {
+    if (standaloneDocument) {
+      await windowManager.ensureInitialized();
+      await windowManager.setTitle(title);
+      await windowManager.setSize(Size(width, height));
+      await windowManager.center();
+      await windowManager.show();
+      await windowManager.focus();
+      return;
+    }
     try {
       await _channel.invokeMethod<void>('present', {
         'title': title,

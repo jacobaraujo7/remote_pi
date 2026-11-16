@@ -62,6 +62,7 @@ class Translations$core$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$core$clipboard$en clipboard = Translations$core$clipboard$en.internal(_root);
 	late final Translations$core$bootstrapError$en bootstrapError = Translations$core$bootstrapError$en.internal(_root);
 	late final Translations$core$macosNotifications$en macosNotifications = Translations$core$macosNotifications$en.internal(_root);
 	late final Translations$core$appErrorView$en appErrorView = Translations$core$appErrorView$en.internal(_root);
@@ -507,6 +508,15 @@ class Translations$workspaceView$en {
 	/// en: 'New session ready. Paste the copied summary when the tool is ready.'
 	String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
 
+	/// en: 'New session ready'
+	String get handoffSessionReady => 'New session ready';
+
+	/// en: 'The session was created, but the summary was not copied. Select and copy the summary below to continue.'
+	String get handoffCopyUnavailable => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.';
+
+	/// en: 'Session'
+	String get handoffSessionLabel => 'Session';
+
 	/// en: 'Connections'
 	String get connections => 'Connections';
 
@@ -689,6 +699,18 @@ class Translations$orchestration$en {
 
 	/// en: 'Select a terminal in the list or graph to work in it.'
 	String get noBoxSelected => 'Select a terminal in the list or graph to work in it.';
+}
+
+// Path: core.clipboard
+class Translations$core$clipboard$en {
+	Translations$core$clipboard$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Could not copy to the clipboard. Try again.'
+	String get writeFailed => 'Could not copy to the clipboard. Try again.';
 }
 
 // Path: core.bootstrapError
@@ -1407,6 +1429,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -1763,6 +1788,18 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'No changes.'
 	String get diffNoChanges => 'No changes.';
+
+	/// en: 'Side by Side'
+	String get diffSideBySide => 'Side by Side';
+
+	/// en: 'Inline'
+	String get diffInline => 'Inline';
+
+	/// en: 'Modified content'
+	String get diffModifiedContent => 'Modified content';
+
+	/// en: 'The modified file is empty because it was deleted.'
+	String get diffDeletedContent => 'The modified file is empty because it was deleted.';
 
 	/// en: 'Could not read the diff: ${detail}'
 	String diffError({required Object detail}) => 'Could not read the diff: ${detail}';
@@ -3021,6 +3058,7 @@ class Translations$cockpit$gallery$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$cockpit$gallery$board$en board = Translations$cockpit$gallery$board$en.internal(_root);
 
 	/// en: 'Special Cockpit documents that give you a visual of what the AI agent is doing.'
 	String get intro => 'Special Cockpit documents that give you a visual of what the AI agent is doing.';
@@ -3501,6 +3539,7 @@ class Translations$settings$page$en {
 	// Translations
 	late final Translations$settings$page$header$en header = Translations$settings$page$header$en.internal(_root);
 	late final Translations$settings$page$nav$en nav = Translations$settings$page$nav$en.internal(_root);
+	late final Translations$settings$page$explorer$en explorer = Translations$settings$page$explorer$en.internal(_root);
 	late final Translations$settings$page$general$en general = Translations$settings$page$general$en.internal(_root);
 	late final Translations$settings$page$diagnostics$en diagnostics = Translations$settings$page$diagnostics$en.internal(_root);
 	late final Translations$settings$page$storage$en storage = Translations$settings$page$storage$en.internal(_root);
@@ -3815,6 +3854,189 @@ class Translations$cockpit$kanbanView$deleteColumnDialog$en {
 	String get emptyMessage => 'This column is empty.';
 }
 
+// Path: cockpit.gallery.board
+class Translations$cockpit$gallery$board$en {
+	Translations$cockpit$gallery$board$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Import or export'
+	String get fileActions => 'Import or export';
+
+	/// en: 'Export entire document'
+	String get exportDocument => 'Export entire document';
+
+	/// en: 'Export selection'
+	String get exportSelection => 'Export selection';
+
+	/// en: 'Add this board to the canvas?'
+	String get appendBoard => 'Add this board to the canvas?';
+
+	/// en: 'Fit document'
+	String get fitDocument => 'Fit document';
+
+	/// en: 'Fit selection'
+	String get fitSelection => 'Fit selection';
+
+	/// en: 'Diagram color'
+	String get diagramColor => 'Diagram color';
+
+	/// en: 'Theme default'
+	String get themeColor => 'Theme default';
+
+	/// en: 'Blue'
+	String get blue => 'Blue';
+
+	/// en: 'Green'
+	String get green => 'Green';
+
+	/// en: 'Amber'
+	String get amber => 'Amber';
+
+	/// en: 'Red'
+	String get red => 'Red';
+
+	/// en: 'Violet'
+	String get violet => 'Violet';
+
+	/// en: 'Cyan'
+	String get cyan => 'Cyan';
+
+	/// en: 'Choose a shape and click or drag to draw it.'
+	String get emptyBoard => 'Choose a shape and click or drag to draw it.';
+
+	/// en: 'Choose the first shape, or drag to the destination.'
+	String get arrowStart => 'Choose the first shape, or drag to the destination.';
+
+	/// en: 'Tab selects objects · Arrows move · Shift ×10 · C connects'
+	String get keyboardHelp => 'Tab selects objects · Arrows move · Shift ×10 · C connects';
+
+	/// en: 'Move here'
+	String get moveHere => 'Move here';
+
+	/// en: 'Click where to place the selection · Esc cancels'
+	String get moveDestination => 'Click where to place the selection · Esc cancels';
+
+	/// en: 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.'
+	String keyboardTarget({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.';
+
+	/// en: 'From ${from} to ${to}'
+	String connectorEndpoints({required Object from, required Object to}) => 'From ${from} to ${to}';
+
+	/// en: 'Choose the destination shape.'
+	String get arrowEnd => 'Choose the destination shape.';
+
+	/// en: 'Diagram types'
+	String get diagramTypes => 'Diagram types';
+
+	/// en: 'Replace the current source with this example?'
+	String get replaceSource => 'Replace the current source with this example?';
+
+	/// en: 'Group'
+	String get group => 'Group';
+
+	/// en: 'Ungroup'
+	String get ungroup => 'Ungroup';
+
+	/// en: 'Align top'
+	String get align => 'Align top';
+
+	/// en: 'Distribute horizontally'
+	String get distribute => 'Distribute horizontally';
+
+	/// en: 'Open'
+	String get openFile => 'Open';
+
+	/// en: 'Export'
+	String get exportFile => 'Export';
+
+	/// en: 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.'
+	String get importWarning => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.';
+
+	/// en: 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.'
+	String get exportWarning => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.';
+
+	/// en: 'Discard'
+	String get discard => 'Discard';
+
+	/// en: 'Open Mermaid file'
+	String get importMmd => 'Open Mermaid file';
+
+	/// en: 'Export Mermaid source'
+	String get exportMmd => 'Export Mermaid source';
+
+	/// en: 'Preview'
+	String get preview => 'Preview';
+
+	/// en: 'Apply'
+	String get apply => 'Apply';
+
+	/// en: 'Canvas Board'
+	String get title => 'Canvas Board';
+
+	/// en: 'Draw flowcharts and sketches'
+	String get description => 'Draw flowcharts and sketches';
+
+	/// en: 'Select'
+	String get select => 'Select';
+
+	/// en: 'Pan'
+	String get pan => 'Pan';
+
+	/// en: 'Pencil'
+	String get pencil => 'Pencil';
+
+	/// en: 'Text'
+	String get text => 'Text';
+
+	/// en: 'Note'
+	String get note => 'Note';
+
+	/// en: 'Process'
+	String get process => 'Process';
+
+	/// en: 'Decision'
+	String get decision => 'Decision';
+
+	/// en: 'Connector'
+	String get arrow => 'Connector';
+
+	/// en: 'Advanced'
+	String get advanced => 'Advanced';
+
+	/// en: 'Lane'
+	String get lane => 'Lane';
+
+	/// en: 'Container'
+	String get container => 'Container';
+
+	/// en: 'Service'
+	String get service => 'Service';
+
+	/// en: 'Undo'
+	String get undo => 'Undo';
+
+	/// en: 'Delete'
+	String get delete => 'Delete';
+
+	/// en: 'Label'
+	String get label => 'Label';
+
+	/// en: 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.'
+	String get labelChanged => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.';
+
+	/// en: 'This object was deleted from the file. Copy your draft before pressing Esc to close it.'
+	String get objectDeleted => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.';
+
+	/// en: 'Could not save the board'
+	String get saveError => 'Could not save the board';
+
+	/// en: 'Reload'
+	String get reload => 'Reload';
+}
+
 // Path: cockpit.gallery.dbQuery
 class Translations$cockpit$gallery$dbQuery$en {
 	Translations$cockpit$gallery$dbQuery$en.internal(this._root);
@@ -4048,6 +4270,9 @@ class Translations$settings$page$nav$en {
 
 	// Translations
 
+	/// en: 'Explorer'
+	String get explorer => 'Explorer';
+
 	/// en: 'General'
 	String get general => 'General';
 
@@ -4071,6 +4296,48 @@ class Translations$settings$page$nav$en {
 
 	/// en: 'Remote hosts'
 	String get remoteHosts => 'Remote hosts';
+}
+
+// Path: settings.page.explorer
+class Translations$settings$page$explorer$en {
+	Translations$settings$page$explorer$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'File nesting'
+	String get sectionNesting => 'File nesting';
+
+	/// en: 'Enable file nesting'
+	String get enabledTitle => 'Enable file nesting';
+
+	/// en: 'Group related files under their parent file.'
+	String get enabledDesc => 'Group related files under their parent file.';
+
+	/// en: 'Auto expand'
+	String get autoExpandTitle => 'Auto expand';
+
+	/// en: 'Open nested groups when the explorer loads.'
+	String get autoExpandDesc => 'Open nested groups when the explorer loads.';
+
+	/// en: 'New pattern'
+	String get newPattern => 'New pattern';
+
+	/// en: 'Patterns'
+	String get patternsTitle => 'Patterns';
+
+	/// en: 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:'
+	String get patternsDesc => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:';
+
+	/// en: 'Parent pattern'
+	String get parentPlaceholder => 'Parent pattern';
+
+	/// en: 'Nested files'
+	String get childrenPlaceholder => 'Nested files';
+
+	/// en: 'Remove pattern'
+	String get remove => 'Remove pattern';
 }
 
 // Path: settings.page.general
@@ -4706,6 +4973,7 @@ class Translations$settings$page$general$updateFrequency$en {
 extension on Translations {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Could not copy to the clipboard. Try again.',
 			'core.bootstrapError.title' => 'Failed to initialize Cockpit',
 			'core.bootstrapError.retry' => 'Retry',
 			'core.macosNotifications.title' => 'Enable Notifications on macOS',
@@ -4919,6 +5187,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -5035,6 +5304,10 @@ extension on Translations {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Side by Side',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Modified content',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'The modified file is empty because it was deleted.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Could not read the diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Gallery',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALLERY',
@@ -5212,14 +5485,14 @@ extension on Translations {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Move to the previous column',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Delete with the column',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'This column is empty.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => 'DATABASE',
 			'cockpit.dbPanel.edit' => 'Edit…',
 			'cockpit.dbPanel.copyName' => 'Copy name',
 			'cockpit.dbPanel.newQuery' => 'New query',
 			'cockpit.dbPanel.browseKeys' => 'Browse keys',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Delete connection',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remove "${name}" from this workspace? Any saved password is discarded. .dbq files that reference it are not touched.',
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} connections',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
@@ -5393,6 +5666,64 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Import or export',
+			'cockpit.gallery.board.exportDocument' => 'Export entire document',
+			'cockpit.gallery.board.exportSelection' => 'Export selection',
+			'cockpit.gallery.board.appendBoard' => 'Add this board to the canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Fit document',
+			'cockpit.gallery.board.fitSelection' => 'Fit selection',
+			'cockpit.gallery.board.diagramColor' => 'Diagram color',
+			'cockpit.gallery.board.themeColor' => 'Theme default',
+			'cockpit.gallery.board.blue' => 'Blue',
+			'cockpit.gallery.board.green' => 'Green',
+			'cockpit.gallery.board.amber' => 'Amber',
+			'cockpit.gallery.board.red' => 'Red',
+			'cockpit.gallery.board.violet' => 'Violet',
+			'cockpit.gallery.board.cyan' => 'Cyan',
+			'cockpit.gallery.board.emptyBoard' => 'Choose a shape and click or drag to draw it.',
+			'cockpit.gallery.board.arrowStart' => 'Choose the first shape, or drag to the destination.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selects objects · Arrows move · Shift ×10 · C connects',
+			'cockpit.gallery.board.moveHere' => 'Move here',
+			'cockpit.gallery.board.moveDestination' => 'Click where to place the selection · Esc cancels',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'From ${from} to ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Choose the destination shape.',
+			'cockpit.gallery.board.diagramTypes' => 'Diagram types',
+			'cockpit.gallery.board.replaceSource' => 'Replace the current source with this example?',
+			'cockpit.gallery.board.group' => 'Group',
+			'cockpit.gallery.board.ungroup' => 'Ungroup',
+			'cockpit.gallery.board.align' => 'Align top',
+			'cockpit.gallery.board.distribute' => 'Distribute horizontally',
+			'cockpit.gallery.board.openFile' => 'Open',
+			'cockpit.gallery.board.exportFile' => 'Export',
+			'cockpit.gallery.board.importWarning' => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.',
+			'cockpit.gallery.board.exportWarning' => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.',
+			'cockpit.gallery.board.discard' => 'Discard',
+			'cockpit.gallery.board.importMmd' => 'Open Mermaid file',
+			'cockpit.gallery.board.exportMmd' => 'Export Mermaid source',
+			'cockpit.gallery.board.preview' => 'Preview',
+			'cockpit.gallery.board.apply' => 'Apply',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Draw flowcharts and sketches',
+			'cockpit.gallery.board.select' => 'Select',
+			'cockpit.gallery.board.pan' => 'Pan',
+			'cockpit.gallery.board.pencil' => 'Pencil',
+			'cockpit.gallery.board.text' => 'Text',
+			'cockpit.gallery.board.note' => 'Note',
+			'cockpit.gallery.board.process' => 'Process',
+			'cockpit.gallery.board.decision' => 'Decision',
+			'cockpit.gallery.board.arrow' => 'Connector',
+			'cockpit.gallery.board.advanced' => 'Advanced',
+			'cockpit.gallery.board.lane' => 'Lane',
+			'cockpit.gallery.board.container' => 'Container',
+			'cockpit.gallery.board.service' => 'Service',
+			'cockpit.gallery.board.undo' => 'Undo',
+			'cockpit.gallery.board.delete' => 'Delete',
+			'cockpit.gallery.board.label' => 'Label',
+			'cockpit.gallery.board.labelChanged' => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.',
+			'cockpit.gallery.board.objectDeleted' => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.',
+			'cockpit.gallery.board.saveError' => 'Could not save the board',
+			'cockpit.gallery.board.reload' => 'Reload',
 			'cockpit.gallery.intro' => 'Special Cockpit documents that give you a visual of what the AI agent is doing.',
 			'cockpit.gallery.createErrorTitle' => 'Could not create the file',
 			'cockpit.gallery.dbQuery.title' => 'Database query',
@@ -5566,6 +5897,7 @@ extension on Translations {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
+			'settings.page.nav.explorer' => 'Explorer',
 			'settings.page.nav.general' => 'General',
 			'settings.page.nav.appearance' => 'Appearance',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -5574,6 +5906,17 @@ extension on Translations {
 			'settings.page.nav.notifications' => 'Notifications',
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.nav.remoteHosts' => 'Remote hosts',
+			'settings.page.explorer.sectionNesting' => 'File nesting',
+			'settings.page.explorer.enabledTitle' => 'Enable file nesting',
+			'settings.page.explorer.enabledDesc' => 'Group related files under their parent file.',
+			'settings.page.explorer.autoExpandTitle' => 'Auto expand',
+			'settings.page.explorer.autoExpandDesc' => 'Open nested groups when the explorer loads.',
+			'settings.page.explorer.newPattern' => 'New pattern',
+			'settings.page.explorer.patternsTitle' => 'Patterns',
+			'settings.page.explorer.patternsDesc' => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:',
+			'settings.page.explorer.parentPlaceholder' => 'Parent pattern',
+			'settings.page.explorer.childrenPlaceholder' => 'Nested files',
+			'settings.page.explorer.remove' => 'Remove pattern',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Engine',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (default)',
@@ -5656,6 +5999,8 @@ extension on Translations {
 			'settings.page.appearance.interfaceFontTitle' => 'Interface font',
 			'settings.page.appearance.interfaceFontDesc' => 'Used across the whole app. Empty = system default.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Interface size',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => 'Code font',
 			'settings.page.appearance.codeFontDesc' => 'Code and diffs. Empty = system default.',
 			'settings.page.appearance.codeSizeTitle' => 'Code size',
@@ -5732,8 +6077,6 @@ extension on Translations {
 			'settings.page.automations.harnessDiscovering' => 'Looking for installed command-line harnesses…',
 			'settings.page.automations.harnessNoneFound' => 'No supported harness was found on PATH.',
 			'settings.page.automations.harnessConfiguredUnavailable' => ({required Object harness}) => '${harness} is configured but unavailable.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.harnessChoose' => 'Choose the CLI used to generate commit messages.',
 			'settings.page.automations.harnessRefresh' => 'Refresh installed harnesses',
 			'settings.page.automations.notConfigured' => 'Not configured',
@@ -5899,6 +6242,9 @@ extension on Translations {
 			'workspaceView.handoffTitle' => 'Handoff summary',
 			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
 			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.handoffSessionReady' => 'New session ready',
+			'workspaceView.handoffCopyUnavailable' => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.',
+			'workspaceView.handoffSessionLabel' => 'Session',
 			'workspaceView.connections' => 'Connections',
 			'workspaceView.noConnections' => 'No connections',
 			'workspaceView.cancel' => 'Cancel',

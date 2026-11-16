@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/services/gallery_creates.dart';
 import '../document/open_files_channel.dart';
 import '../document/native_document_router.dart';
 import 'package:cockpit/app/cockpit/domain/entities/orchestration_presentation.dart';
@@ -215,6 +216,7 @@ class CockpitViewModel extends ChangeNotifier
         FileEditorEngine.cockpit: _openWithCockpitEditor,
         FileEditorEngine.neovim: _openWithNeovimEditor,
       }),
+      inlinePreviewAvailable: BrowserCapability.resolve().isInline,
     );
     _worktreeReconciler = WorktreeReconciler(_worktreeMgr);
     // Contexto do shell que o GitController precisa (page-scoped, mesma vida).
@@ -519,8 +521,8 @@ class CockpitViewModel extends ChangeNotifier
     );
   }
 
-  final Map<String, Future<Result<String, FileOperationError>>>
-  _orchestrationCreates = {};
+  final _pendingGalleryCreates =
+      GalleryCreates<Result<String, FileOperationError>>();
   final Map<String, Map<String, Map<String, String>>> _orchestrationBindings =
       {};
   final Map<String, String> _orchestrationLastTerminalPane = {};
@@ -1291,8 +1293,47 @@ class CockpitViewModel extends ChangeNotifier
 
   late final FileEditorFacade _fileEditorFacade;
 
-  void setFileEditorEngine(FileEditorEngine engine) =>
-      _fileEditorFacade.engine = engine;
+  void setFileEditorEngine(FileEditorEngine engine) {
+    if (_fileEditorFacade.engine == engine) return;
+    _fileEditorFacade.engine = engine;
+    // A preferência chega também durante o initState da página. Avisar no
+    // microtask seguinte evita notificar o provider no meio do build.
+    scheduleMicrotask(() {
+      if (hasListeners) notifyListeners();
+    });
+  }
+
+  bool get usesNeovimFileEditor =>
+      _fileEditorFacade.engine == FileEditorEngine.neovim;
+
+  bool canEditPreviewInNeovim(String projectId) =>
+      _projectById(projectId) != null &&
+      !_isRemoteWorkspace(projectId) &&
+      (usesNeovimFileEditor ||
+          _sessions.values.any(
+            (session) =>
+                session is NeovimSession && session.projectId == projectId,
+          ));
+
+  /// Abre a fonte no Neovim, preservando a aba de preview. Com o editor
+  /// Cockpit selecionado, usa apenas uma sessão Neovim já aberta.
+  Future<bool> editPreviewInNeovim(
+    String projectId,
+    String path, {
+    String? inPane,
+  }) async {
+    if (_projectById(projectId) == null || _isRemoteWorkspace(projectId)) {
+      return false;
+    }
+    final paneId = inPane ?? _focused[projectId];
+    if (paneId == null) return false;
+    return _enqueueNeovimOpen(
+      projectId,
+      paneId,
+      path,
+      reuseOnly: !usesNeovimFileEditor,
+    );
+  }
 
   /// Perfis descobertos, para o seletor ao lado do `+`. Já aquecidos no boot.
   List<TerminalProfile> get terminalProfiles =>
@@ -1647,8 +1688,12 @@ class CockpitViewModel extends ChangeNotifier
   /// ativo é remoto (plano 58). Remoto suporta texto/markdown/svg (o conteúdo
   /// vem como string via `fs.read`); imagem/áudio/vídeo remotos = unsupported
   /// por ora (precisariam de download; melhoria futura).
-  Future<FileView> _readFile(String path) async {
-    final host = _activeRemoteHost();
+  Future<FileView> _readFile(String path, {String? projectId}) async {
+    final owner = projectId ?? _selectedProjectId;
+    final host = remoteHostForWorkspace(owner);
+    if (host == null && owner != null && _isRemoteWorkspace(owner)) {
+      return const FileViewUnsupported();
+    }
     if (host == null) return _fileReader.read(path);
     try {
       final service = await _remoteHosts.fileServiceFor(host);
@@ -1662,7 +1707,14 @@ class CockpitViewModel extends ChangeNotifier
         return FileViewMarkdown(text);
       }
       if (ext == 'svg') return FileViewSvg(path, text);
-      return FileViewText(text, language: ext.isEmpty ? null : ext);
+      return FileViewText(
+        text,
+        language: switch (ext) {
+          'canvas' || 'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
+          '' => null,
+          _ => ext,
+        },
+      );
     } on Object catch (e) {
       // fs.read falhou (too_large, permissão, conexão) → não abre.
       DiagnosticsLog.instance.warn(
@@ -1992,6 +2044,10 @@ class CockpitViewModel extends ChangeNotifier
   /// resultante — enfiar o modo nos quatro caminhos de abertura (já aberta,
   /// remota, preview reusado, aba nova) espalharia a decisão por todos eles.
   Future<void> openFileAsSource(String path) async {
+    final projectId = _selectedProjectId;
+    if (projectId == null) return;
+    final paneId = _focused[projectId];
+    if (paneId == null) return;
     final result = await _dispatchFileOpen(
       path,
       isPreview: false,
@@ -2001,10 +2057,21 @@ class CockpitViewModel extends ChangeNotifier
         result?.outcome != FileOpenOutcome.opened) {
       return;
     }
-    for (final s in _sessions.values) {
-      if (s is FileViewerSession && s.path == path && !s.rawSource) {
-        s.toggleRawSource();
+    final tree = _trees[projectId];
+    if (tree == null) return;
+    final pane = findLeaf(tree, paneId);
+    if (pane == null) return;
+    for (final tabId in pane.tabs) {
+      final session = _sessions[tabId];
+      if (session is! FileViewerSession || session.path != path) continue;
+      if (!session.rawSource) {
+        if (FileReader.isBoard(path)) {
+          await session.switchBoardMode();
+        } else {
+          session.toggleRawSource();
+        }
       }
+      return;
     }
   }
 
@@ -2118,7 +2185,7 @@ class CockpitViewModel extends ChangeNotifier
     // lemos depois (plano 60, Wave A) — em host lento não fica "nada
     // acontecendo" antes da aba surgir. No local o read é de disco
     // (instantâneo), então segue read-first, sem skeleton.
-    if (_activeRemoteHost() != null) {
+    if (request.isRemote) {
       await _openRemoteFileLoading(
         path: path,
         projectId: projectId,
@@ -2131,7 +2198,9 @@ class CockpitViewModel extends ChangeNotifier
       return;
     }
 
-    final view = await _readFile(path);
+    final view = await _readFile(path, projectId: projectId);
+    final currentTree = _trees[projectId];
+    if (currentTree == null || findLeaf(currentTree, paneId) == null) return;
     if (view is FileViewUnsupported) return; // binário/vídeo: não abre
 
     // Se é preview e temos um candidato, reutiliza (substitui conteúdo).
@@ -2179,6 +2248,7 @@ class CockpitViewModel extends ChangeNotifier
     String paneId,
     String path, {
     int? line,
+    bool reuseOnly = false,
   }) async {
     final previous = _neovimTails[projectId] ?? Future<void>.value();
     final turn = Completer<void>();
@@ -2186,7 +2256,13 @@ class CockpitViewModel extends ChangeNotifier
     _neovimTails[projectId] = tail;
     await previous;
     try {
-      return await _openInNeovim(projectId, paneId, path, line: line);
+      return await _openInNeovim(
+        projectId,
+        paneId,
+        path,
+        line: line,
+        reuseOnly: reuseOnly,
+      );
     } finally {
       turn.complete();
       if (identical(_neovimTails[projectId], tail)) {
@@ -2200,6 +2276,7 @@ class CockpitViewModel extends ChangeNotifier
     String paneId,
     String path, {
     int? line,
+    bool reuseOnly = false,
   }) async {
     final executable = await _neovim.executable();
     if (executable == null) {
@@ -2227,6 +2304,8 @@ class CockpitViewModel extends ChangeNotifier
         return true;
       }
     }
+
+    if (reuseOnly) return false;
 
     final currentTree = _trees[projectId];
     if (currentTree == null) return false;
@@ -2454,7 +2533,7 @@ class CockpitViewModel extends ChangeNotifier
       _placeNewViewer(target, projectId, paneId, tree, isPreview: isPreview);
     }
 
-    final view = await _readFile(path);
+    final view = await _readFile(path, projectId: projectId);
     // A aba pode ter sido fechada durante o read.
     if (_sessions[target.id] != target) return;
     if (view is FileViewUnsupported) {
@@ -3087,7 +3166,7 @@ class CockpitViewModel extends ChangeNotifier
         : path;
   }
 
-  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (split, só
+  /// Abre o **diff** de um arquivo contra o HEAD numa aba de viewer (só
   /// leitura). Espelha [openFile]: reutiliza a aba de preview quando possível.
   Future<void> openDiff(
     String path, {
@@ -3151,14 +3230,15 @@ class CockpitViewModel extends ChangeNotifier
     // Reutiliza a aba de preview de diff, se houver.
     if (isPreview && previewCandidate != null) {
       previewCandidate
-        ..path = path
-        ..diff = diff
+        ..replaceDiff(diff, path)
         ..commitHash = commitHash
         ..repoRoot = commitHash == null ? null : root
         ..previousRelativePath = commitHash == null
             ? null
-            : previousRelativePath
-        ..notifyListeners();
+            : previousRelativePath;
+      unawaited(
+        previewCandidate.ensureModifiedContent(loadModifiedDiffContent),
+      );
       _trees[projectId] = updateLeaf(
         tree,
         paneId,
@@ -3215,6 +3295,34 @@ class CockpitViewModel extends ChangeNotifier
       );
     }
     notifyListeners();
+  }
+
+  /// Conteúdo integral da versão direita do diff. Carregado somente quando o
+  /// usuário escolhe Modified content; os hunks não incluem o arquivo todo.
+  Future<String> loadModifiedDiffContent(DiffViewerSession session) async {
+    final path = session.path;
+    final hash = session.commitHash;
+    final root = session.repoRoot ?? rootContaining(session.projectId, path);
+    if (hash != null) {
+      if (root == null) throw const GitContentException();
+      final object = '$hash:${_relativePath(root, path)}';
+      if (_activeRemoteHost() != null) {
+        final result = await (await _activeRemoteGit()).run(root, [
+          'show',
+          object,
+        ]);
+        if (result.code != 0) throw GitContentException(result.stderr.trim());
+        return result.stdout;
+      }
+      return _gitDiff.readCommitContent(root, hash, _relativePath(root, path));
+    }
+    if (_activeRemoteHost() != null) {
+      final host = _activeRemoteHost()!;
+      final service = await _remoteHosts.fileServiceFor(host);
+      return utf8.decode(await service.read(path), allowMalformed: true);
+    }
+    final bytes = await File(path).readAsBytes();
+    return utf8.decode(bytes, allowMalformed: true);
   }
 
   /// Abre o diff que um commit introduziu em [relativePath].
@@ -3353,13 +3461,16 @@ class CockpitViewModel extends ChangeNotifier
   Future<bool> saveFile(String sessionId, String content) async {
     final s = _sessions[sessionId];
     if (s is! FileViewerSession) return false;
-    final host = _activeRemoteHost();
+    final host = remoteHostForWorkspace(s.projectId);
+    if (host == null && _isRemoteWorkspace(s.projectId)) return false;
     if (host != null) {
       // Remoto: grava via fs.write no host e reclassifica com `_readFile`
       // (que já roteia a leitura pro serviço remoto).
       try {
         final service = await _remoteHosts.fileServiceFor(host);
-        await service.write(s.path, utf8.encode(content));
+        final bytes = utf8.encode(content);
+        if (FileReader.isBoard(s.path) && bytes.length > FileReader.boardByteLimit) return false;
+        await service.write(s.path, bytes);
       } catch (_) {
         return false; // fs.write falhou (permissão, conexão) → não salvou.
       }
@@ -3371,7 +3482,7 @@ class CockpitViewModel extends ChangeNotifier
       if (!ok) return false;
     }
     _lastEditAt[s.projectId] = DateTime.now();
-    final fresh = await _readFile(s.path);
+    final fresh = await _readFile(s.path, projectId: s.projectId);
     final cur = _sessions[sessionId];
     if (cur is FileViewerSession && fresh is! FileViewUnsupported) {
       cur.view = fresh;
@@ -3387,7 +3498,7 @@ class CockpitViewModel extends ChangeNotifier
   Future<void> reloadFile(String sessionId) async {
     final s = _sessions[sessionId];
     if (s is! FileViewerSession) return;
-    final fresh = await _readFile(s.path);
+    final fresh = await _readFile(s.path, projectId: s.projectId);
     if (fresh is FileViewUnsupported) return;
     final cur = _sessions[sessionId];
     if (cur is! FileViewerSession) return;
@@ -3535,31 +3646,14 @@ class CockpitViewModel extends ChangeNotifier
     GalleryTemplate template, {
     bool importLegacyOrchestration = false,
   }) {
-    final pid = _selectedProjectId;
-    if (template != GalleryTemplate.orchestration || pid == null) {
-      return _createFromTemplate(
+    return _pendingGalleryCreates.run(
+      _selectedProjectId,
+      template,
+      () => _createFromTemplate(
         template,
         importLegacyOrchestration: importLegacyOrchestration,
-      );
-    }
-    final pending = _orchestrationCreates[pid];
-    if (pending != null) return pending;
-    final operation = _createFromTemplate(
-      template,
-      importLegacyOrchestration: importLegacyOrchestration,
-    );
-    _orchestrationCreates[pid] = operation;
-    unawaited(
-      operation.then(
-        (_) {
-          _orchestrationCreates.remove(pid);
-        },
-        onError: (Object e, StackTrace st) {
-          _orchestrationCreates.remove(pid);
-        },
       ),
     );
-    return operation;
   }
 
   Future<Result<String, FileOperationError>> _createFromTemplate(
@@ -3568,6 +3662,7 @@ class CockpitViewModel extends ChangeNotifier
   }) async {
     final root = treeRootPath;
     final galleryProjectId = _selectedProjectId;
+    final galleryPane = _focused[galleryProjectId];
     final seed =
         template == GalleryTemplate.orchestration && galleryProjectId != null
         ? _orchestrationSeed(
@@ -3585,6 +3680,13 @@ class CockpitViewModel extends ChangeNotifier
         ? root
         : joinPath(root, template.relativeDir);
     final host = _activeRemoteHost();
+    if (galleryProjectId != null &&
+        _isRemoteWorkspace(galleryProjectId) &&
+        host == null) {
+      return const Failure(
+        FileOperationError(FileOperationErrorKind.noWorkspace),
+      );
+    }
     var taken = const <String>[];
     try {
       if (host != null) {
@@ -3664,6 +3766,17 @@ class CockpitViewModel extends ChangeNotifier
             if (b.box.tabId != null && b.box.tabId!.isNotEmpty)
               b.box.id: b.box.tabId!,
         },
+      );
+    } else if (template == GalleryTemplate.board) {
+      if (galleryProjectId == null || galleryPane == null) return Success(path);
+      await _fileEditorFacade.open(
+        FileOpenRequest(
+          path: path,
+          projectId: galleryProjectId,
+          paneId: galleryPane,
+          isRemote: host != null,
+          isPreview: false,
+        ),
       );
     } else {
       await openFile(path, isPreview: false);

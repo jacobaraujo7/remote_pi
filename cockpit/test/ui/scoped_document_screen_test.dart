@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
+import 'package:cockpit/app/cockpit/domain/entities/board_document.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_view.dart';
 import 'package:cockpit/app/cockpit/ui/document/document_window_app.dart';
 import 'package:cockpit/app/cockpit/ui/document/worktree_document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -21,8 +24,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 class _Settings extends SettingsStore {
+  AppSettings value = const AppSettings();
   @override
-  Future<AppSettings> load() async => const AppSettings();
+  Future<AppSettings> load() async => value;
   @override
   Future<void> save(AppSettings settings) async {}
 }
@@ -103,6 +107,101 @@ Future<void> _settleRead(WidgetTester tester) async {
 }
 
 void main() {
+  testWidgets('a detached document follows a return to the system language', (
+    tester,
+  ) async {
+    await tester.runAsync(() async {
+      final device = await LocaleSettings.useDeviceLocale();
+      final other = device == AppLocale.ptBr ? AppLocale.en : AppLocale.ptBr;
+      final store = _Settings()..value = AppSettings(locale: other.languageTag);
+      final controller = SettingsController(store);
+      try {
+        await controller.load();
+        expect(LocaleSettings.currentLocale, other);
+        store.value = const AppSettings();
+        await controller.load();
+        expect(LocaleSettings.currentLocale, device);
+      } finally {
+        controller.dispose();
+        await LocaleSettings.useDeviceLocale();
+      }
+    });
+  });
+  testWidgets('detached local Board writes the validated encoding to disk', (
+    tester,
+  ) async {
+    final dir = Directory.systemTemp.createTempSync('detached-board-encoding');
+    final file = File('${dir.path}/process.canvas');
+    final initial = BoardDocument([
+      const BoardItem('step', BoardKind.process, 40, 40, label: 'Aprovação'),
+    ]).encode();
+    file.writeAsBytesSync(latin1.encode(initial));
+    await tester.pumpWidget(_app(DocumentScreen(path: file.path)));
+    for (var i = 0; i < 100 && find.byType(BoardView).evaluate().isEmpty; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+    }
+    final board = tester.widget<BoardView>(find.byType(BoardView));
+    expect((board.session.view as FileViewText).encoding, latin1);
+    final edited = initial.replaceFirst('Aprovação', 'Revisão');
+    expect(await tester.runAsync(() => board.onSave(edited)), isTrue);
+    expect(file.readAsBytesSync(), latin1.encode(edited));
+    final upgraded = edited.replaceFirst('Revisão', 'Revisão ✅');
+    expect(await tester.runAsync(() => board.onSave(upgraded)), isTrue);
+    expect(file.readAsBytesSync(), utf8.encode(upgraded));
+    await tester.pumpWidget(const SizedBox());
+    dir.deleteSync(recursive: true);
+  });
+  testWidgets(
+    'remote Canvas uses its source editor and saves before returning',
+    (tester) async {
+      final files = _Files()
+        ..bytes = Uint8List.fromList(utf8.encode(BoardDocument([]).encode()));
+      final changes = _Changes();
+      FileViewerSession? session;
+      await tester.pumpWidget(
+        _app(
+          DocumentScreen(
+            path: '/source/process.canvas',
+            host: _host(files, changes),
+            onSession: (value) => session = value,
+          ),
+        ),
+      );
+      await _settleRead(tester);
+      expect(find.byType(BoardView), findsOneWidget);
+      await tester.tap(find.text(t.cockpit.paneView.openAsMarkdown));
+      await _settleRead(tester);
+      final viewer = tester.widget<FileViewer>(find.byType(FileViewer));
+      expect(viewer.allowLocalFileSystem, isFalse);
+      expect((session!.view as FileViewText).language, 'markdown');
+      final save = session!.saveDraft!;
+      final edited = BoardDocument([
+        const BoardItem('new', BoardKind.note, 0, 0, label: 'Olá'),
+      ]).encode();
+      await tester.enterText(find.byType(EditableText).first, edited);
+      await tester.pump();
+      expect(session!.dirty, isTrue);
+      final pending = Completer<bool>();
+      session!.saveDraft = () => pending.future;
+      await tester.tap(find.text(t.cockpit.paneView.openAsBoard));
+      await tester.pump();
+      expect(find.byType(FileViewer), findsOneWidget);
+      pending.complete(false);
+      await _settleRead(tester);
+      expect(find.byType(FileViewer), findsOneWidget);
+      session!.saveDraft = save;
+      await tester.tap(find.text(t.cockpit.paneView.openAsBoard));
+      await _settleRead(tester);
+      expect(find.byType(BoardView), findsOneWidget);
+      expect(utf8.decode(files.writes.single), edited);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+      await changes.controller.close();
+    },
+  );
   testWidgets(
     'menu notification queued during teardown is cancelled by dispose',
     (tester) async {

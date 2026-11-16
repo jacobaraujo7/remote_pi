@@ -1,3 +1,4 @@
+import '../../domain/contracts/file_reader.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -65,7 +66,7 @@ class WorktreeDocumentHost extends StandaloneDocumentHost {
     if (!remote) return const FileReaderImpl().read(path);
     return FileReaderImpl.fromBytes(
       path,
-      await files.read(path, maxBytes: 2 * 1024 * 1024),
+      await files.read(path, maxBytes: FileReader.readLimit(path)),
     );
   });
 

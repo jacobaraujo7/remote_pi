@@ -122,6 +122,18 @@ class FileViewerSession extends PaneItem {
     notifyListeners();
   }
 
+  /// A canvas or source editor may still own a draft when a mode is requested.
+  Future<void> switchBoardMode() async {
+    final originalMode = rawSource;
+    final originalPath = path;
+    if (dirty) {
+      final save = saveDraft;
+      if (save == null || !await save()) return;
+      if (dirty || saveDraft != save || path != originalPath) return;
+    }
+    if (originalMode == rawSource) toggleRawSource();
+  }
+
   /// `true` = o `.kanban` está sendo visto como LISTA em vez de quadro.
   /// Preferência de visualização por aba; a VM a persiste no layout, então ela
   /// sobrevive a fechar e reabrir o app.
