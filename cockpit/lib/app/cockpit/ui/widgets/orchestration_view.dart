@@ -90,18 +90,24 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   @override
   void didUpdateWidget(covariant OrchestrationView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final session = widget.session;
-    final active = widget.active;
-    final focused = widget.focused;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted ||
-          widget.session != session ||
-          widget.active != active ||
-          widget.focused != focused) {
-        return;
-      }
-      session.setPresentationActive(active && focused, visible: active);
-    });
+    if (oldWidget.session != widget.session ||
+        oldWidget.active != widget.active ||
+        oldWidget.focused != widget.focused) {
+      final session = widget.session;
+      final active = widget.active;
+      final focused = widget.focused;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.session != session ||
+            widget.active != active ||
+            widget.focused != focused) {
+          return;
+        }
+        // setPresentationActive notifies terminal listeners. Calling it from
+        // didUpdateWidget can notify while the widget tree is still building.
+        session.setPresentationActive(active && focused, visible: active);
+      });
+    }
     if (oldWidget.session != widget.session ||
         oldWidget.active != widget.active) {
       _live?.dispose();
