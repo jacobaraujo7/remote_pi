@@ -661,7 +661,7 @@ class _FileViewerState extends State<FileViewer> {
     setState(() => _saving = false);
     if (ok) {
       _baseline = content;
-      _updateDirty(false);
+      _updateDirty(ctrl.text != content);
     }
 
     // Formatador externo: roda no arquivo já gravado e relê.

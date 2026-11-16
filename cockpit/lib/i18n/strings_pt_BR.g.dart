@@ -1398,6 +1398,7 @@ class _Translations$cockpit$gallery$pt_BR extends Translations$cockpit$gallery$e
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$pt_BR board = _Translations$cockpit$gallery$board$pt_BR._(_root);
 	@override String get intro => 'Documentos especiais do Cockpit para que você tenha o visual do que o agente de IA esteja fazendo.';
 	@override String get createErrorTitle => 'Não foi possível criar o arquivo';
 	@override late final _Translations$cockpit$gallery$dbQuery$pt_BR dbQuery = _Translations$cockpit$gallery$dbQuery$pt_BR._(_root);
@@ -1754,6 +1755,73 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$pt_BR extends Translat
 	@override String get moveCards => 'Mover pra coluna anterior';
 	@override String get deleteAll => 'Apagar junto com a coluna';
 	@override String get emptyMessage => 'Esta coluna está vazia.';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$pt_BR extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => 'Importar ou exportar';
+	@override String get exportDocument => 'Exportar documento inteiro';
+	@override String get exportSelection => 'Exportar seleção';
+	@override String get appendBoard => 'Adicionar este documento ao canvas?';
+	@override String get fitDocument => 'Enquadrar documento';
+	@override String get fitSelection => 'Enquadrar seleção';
+	@override String get diagramColor => 'Cor do desenho';
+	@override String get themeColor => 'Padrão do tema';
+	@override String get blue => 'Azul';
+	@override String get green => 'Verde';
+	@override String get amber => 'Âmbar';
+	@override String get red => 'Vermelho';
+	@override String get violet => 'Violeta';
+	@override String get cyan => 'Ciano';
+	@override String get emptyBoard => 'Escolha uma forma e clique ou arraste para desenhar.';
+	@override String get arrowStart => 'Escolha a primeira forma ou arraste até o destino.';
+	@override String get keyboardHelp => 'Tab seleciona · Setas movem · Shift ×10 · C conecta';
+	@override String get moveHere => 'Mover para cá';
+	@override String get moveDestination => 'Clique onde deseja posicionar a seleção · Esc cancela';
+	@override String keyboardTarget({required Object target}) => 'Destino: ${target}. Tab troca, Enter conecta, Esc cancela.';
+	@override String connectorEndpoints({required Object from, required Object to}) => 'De ${from} para ${to}';
+	@override String get arrowEnd => 'Escolha a forma de destino.';
+	@override String get diagramTypes => 'Tipos de diagrama';
+	@override String get replaceSource => 'Substituir o código atual por este exemplo?';
+	@override String get group => 'Agrupar';
+	@override String get ungroup => 'Desagrupar';
+	@override String get align => 'Alinhar ao topo';
+	@override String get distribute => 'Distribuir horizontalmente';
+	@override String get openFile => 'Abrir';
+	@override String get exportFile => 'Exportar';
+	@override String get importWarning => 'Importar formas e conectores editáveis? Estilos, grupos e detalhes de objetos podem mudar.';
+	@override String get exportWarning => 'Exportar formas e conectores? A conversão simplifica estilos, grupos e desenhos Mermaid.';
+	@override String get discard => 'Descartar';
+	@override String get importMmd => 'Abrir arquivo Mermaid';
+	@override String get exportMmd => 'Exportar código Mermaid';
+	@override String get preview => 'Prévia';
+	@override String get apply => 'Aplicar';
+	@override String get title => 'Canvas Board';
+	@override String get description => 'Desenhe fluxogramas e esboços';
+	@override String get select => 'Selecionar';
+	@override String get pan => 'Navegar';
+	@override String get pencil => 'Lápis';
+	@override String get text => 'Texto';
+	@override String get note => 'Nota';
+	@override String get process => 'Processo';
+	@override String get decision => 'Decisão';
+	@override String get arrow => 'Conector';
+	@override String get advanced => 'Avançado';
+	@override String get lane => 'Raia';
+	@override String get container => 'Contêiner';
+	@override String get service => 'Serviço';
+	@override String get undo => 'Desfazer';
+	@override String get delete => 'Excluir';
+	@override String get label => 'Rótulo';
+	@override String get labelChanged => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.';
+	@override String get objectDeleted => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.';
+	@override String get saveError => 'Falha ao salvar o board';
+	@override String get reload => 'Recarregar';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -2883,6 +2951,64 @@ extension on TranslationsPtBr {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Áudio e vídeo abrem na janela principal do Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Arquivo não encontrado: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Importar ou exportar',
+			'cockpit.gallery.board.exportDocument' => 'Exportar documento inteiro',
+			'cockpit.gallery.board.exportSelection' => 'Exportar seleção',
+			'cockpit.gallery.board.appendBoard' => 'Adicionar este documento ao canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Enquadrar documento',
+			'cockpit.gallery.board.fitSelection' => 'Enquadrar seleção',
+			'cockpit.gallery.board.diagramColor' => 'Cor do desenho',
+			'cockpit.gallery.board.themeColor' => 'Padrão do tema',
+			'cockpit.gallery.board.blue' => 'Azul',
+			'cockpit.gallery.board.green' => 'Verde',
+			'cockpit.gallery.board.amber' => 'Âmbar',
+			'cockpit.gallery.board.red' => 'Vermelho',
+			'cockpit.gallery.board.violet' => 'Violeta',
+			'cockpit.gallery.board.cyan' => 'Ciano',
+			'cockpit.gallery.board.emptyBoard' => 'Escolha uma forma e clique ou arraste para desenhar.',
+			'cockpit.gallery.board.arrowStart' => 'Escolha a primeira forma ou arraste até o destino.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab seleciona · Setas movem · Shift ×10 · C conecta',
+			'cockpit.gallery.board.moveHere' => 'Mover para cá',
+			'cockpit.gallery.board.moveDestination' => 'Clique onde deseja posicionar a seleção · Esc cancela',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destino: ${target}. Tab troca, Enter conecta, Esc cancela.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'De ${from} para ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Escolha a forma de destino.',
+			'cockpit.gallery.board.diagramTypes' => 'Tipos de diagrama',
+			'cockpit.gallery.board.replaceSource' => 'Substituir o código atual por este exemplo?',
+			'cockpit.gallery.board.group' => 'Agrupar',
+			'cockpit.gallery.board.ungroup' => 'Desagrupar',
+			'cockpit.gallery.board.align' => 'Alinhar ao topo',
+			'cockpit.gallery.board.distribute' => 'Distribuir horizontalmente',
+			'cockpit.gallery.board.openFile' => 'Abrir',
+			'cockpit.gallery.board.exportFile' => 'Exportar',
+			'cockpit.gallery.board.importWarning' => 'Importar formas e conectores editáveis? Estilos, grupos e detalhes de objetos podem mudar.',
+			'cockpit.gallery.board.exportWarning' => 'Exportar formas e conectores? A conversão simplifica estilos, grupos e desenhos Mermaid.',
+			'cockpit.gallery.board.discard' => 'Descartar',
+			'cockpit.gallery.board.importMmd' => 'Abrir arquivo Mermaid',
+			'cockpit.gallery.board.exportMmd' => 'Exportar código Mermaid',
+			'cockpit.gallery.board.preview' => 'Prévia',
+			'cockpit.gallery.board.apply' => 'Aplicar',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Desenhe fluxogramas e esboços',
+			'cockpit.gallery.board.select' => 'Selecionar',
+			'cockpit.gallery.board.pan' => 'Navegar',
+			'cockpit.gallery.board.pencil' => 'Lápis',
+			'cockpit.gallery.board.text' => 'Texto',
+			'cockpit.gallery.board.note' => 'Nota',
+			'cockpit.gallery.board.process' => 'Processo',
+			'cockpit.gallery.board.decision' => 'Decisão',
+			'cockpit.gallery.board.arrow' => 'Conector',
+			'cockpit.gallery.board.advanced' => 'Avançado',
+			'cockpit.gallery.board.lane' => 'Raia',
+			'cockpit.gallery.board.container' => 'Contêiner',
+			'cockpit.gallery.board.service' => 'Serviço',
+			'cockpit.gallery.board.undo' => 'Desfazer',
+			'cockpit.gallery.board.delete' => 'Excluir',
+			'cockpit.gallery.board.label' => 'Rótulo',
+			'cockpit.gallery.board.labelChanged' => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.',
+			'cockpit.gallery.board.objectDeleted' => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.',
+			'cockpit.gallery.board.saveError' => 'Falha ao salvar o board',
+			'cockpit.gallery.board.reload' => 'Recarregar',
 			'cockpit.gallery.intro' => 'Documentos especiais do Cockpit para que você tenha o visual do que o agente de IA esteja fazendo.',
 			'cockpit.gallery.createErrorTitle' => 'Não foi possível criar o arquivo',
 			'cockpit.gallery.dbQuery.title' => 'Consulta de banco',
@@ -3171,6 +3297,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.exportThemeDialog' => 'Salvar tema como',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			'settings.page.appearance.themeExported' => 'Tema salvo.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Tema removido.',
 			'settings.page.appearance.fontPickerTitle' => 'Escolher uma fonte',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fontes',
@@ -3229,8 +3357,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelUnavailable' => 'A lista de modelos fica indisponível até o harness ser encontrado.',
 			'settings.page.automations.modelCliOnly' => 'Este harness usa o modelo padrão da própria CLI.',
 			'settings.page.automations.modelCliDefault' => 'Padrão da CLI',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',

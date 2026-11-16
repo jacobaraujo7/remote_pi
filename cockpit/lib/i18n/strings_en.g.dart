@@ -3000,6 +3000,7 @@ class Translations$cockpit$gallery$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$cockpit$gallery$board$en board = Translations$cockpit$gallery$board$en.internal(_root);
 
 	/// en: 'Special Cockpit documents that give you a visual of what the AI agent is doing.'
 	String get intro => 'Special Cockpit documents that give you a visual of what the AI agent is doing.';
@@ -3792,6 +3793,189 @@ class Translations$cockpit$kanbanView$deleteColumnDialog$en {
 
 	/// en: 'This column is empty.'
 	String get emptyMessage => 'This column is empty.';
+}
+
+// Path: cockpit.gallery.board
+class Translations$cockpit$gallery$board$en {
+	Translations$cockpit$gallery$board$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Import or export'
+	String get fileActions => 'Import or export';
+
+	/// en: 'Export entire document'
+	String get exportDocument => 'Export entire document';
+
+	/// en: 'Export selection'
+	String get exportSelection => 'Export selection';
+
+	/// en: 'Add this board to the canvas?'
+	String get appendBoard => 'Add this board to the canvas?';
+
+	/// en: 'Fit document'
+	String get fitDocument => 'Fit document';
+
+	/// en: 'Fit selection'
+	String get fitSelection => 'Fit selection';
+
+	/// en: 'Diagram color'
+	String get diagramColor => 'Diagram color';
+
+	/// en: 'Theme default'
+	String get themeColor => 'Theme default';
+
+	/// en: 'Blue'
+	String get blue => 'Blue';
+
+	/// en: 'Green'
+	String get green => 'Green';
+
+	/// en: 'Amber'
+	String get amber => 'Amber';
+
+	/// en: 'Red'
+	String get red => 'Red';
+
+	/// en: 'Violet'
+	String get violet => 'Violet';
+
+	/// en: 'Cyan'
+	String get cyan => 'Cyan';
+
+	/// en: 'Choose a shape and click or drag to draw it.'
+	String get emptyBoard => 'Choose a shape and click or drag to draw it.';
+
+	/// en: 'Choose the first shape, or drag to the destination.'
+	String get arrowStart => 'Choose the first shape, or drag to the destination.';
+
+	/// en: 'Tab selects objects · Arrows move · Shift ×10 · C connects'
+	String get keyboardHelp => 'Tab selects objects · Arrows move · Shift ×10 · C connects';
+
+	/// en: 'Move here'
+	String get moveHere => 'Move here';
+
+	/// en: 'Click where to place the selection · Esc cancels'
+	String get moveDestination => 'Click where to place the selection · Esc cancels';
+
+	/// en: 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.'
+	String keyboardTarget({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.';
+
+	/// en: 'From ${from} to ${to}'
+	String connectorEndpoints({required Object from, required Object to}) => 'From ${from} to ${to}';
+
+	/// en: 'Choose the destination shape.'
+	String get arrowEnd => 'Choose the destination shape.';
+
+	/// en: 'Diagram types'
+	String get diagramTypes => 'Diagram types';
+
+	/// en: 'Replace the current source with this example?'
+	String get replaceSource => 'Replace the current source with this example?';
+
+	/// en: 'Group'
+	String get group => 'Group';
+
+	/// en: 'Ungroup'
+	String get ungroup => 'Ungroup';
+
+	/// en: 'Align top'
+	String get align => 'Align top';
+
+	/// en: 'Distribute horizontally'
+	String get distribute => 'Distribute horizontally';
+
+	/// en: 'Open'
+	String get openFile => 'Open';
+
+	/// en: 'Export'
+	String get exportFile => 'Export';
+
+	/// en: 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.'
+	String get importWarning => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.';
+
+	/// en: 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.'
+	String get exportWarning => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.';
+
+	/// en: 'Discard'
+	String get discard => 'Discard';
+
+	/// en: 'Open Mermaid file'
+	String get importMmd => 'Open Mermaid file';
+
+	/// en: 'Export Mermaid source'
+	String get exportMmd => 'Export Mermaid source';
+
+	/// en: 'Preview'
+	String get preview => 'Preview';
+
+	/// en: 'Apply'
+	String get apply => 'Apply';
+
+	/// en: 'Canvas Board'
+	String get title => 'Canvas Board';
+
+	/// en: 'Draw flowcharts and sketches'
+	String get description => 'Draw flowcharts and sketches';
+
+	/// en: 'Select'
+	String get select => 'Select';
+
+	/// en: 'Pan'
+	String get pan => 'Pan';
+
+	/// en: 'Pencil'
+	String get pencil => 'Pencil';
+
+	/// en: 'Text'
+	String get text => 'Text';
+
+	/// en: 'Note'
+	String get note => 'Note';
+
+	/// en: 'Process'
+	String get process => 'Process';
+
+	/// en: 'Decision'
+	String get decision => 'Decision';
+
+	/// en: 'Connector'
+	String get arrow => 'Connector';
+
+	/// en: 'Advanced'
+	String get advanced => 'Advanced';
+
+	/// en: 'Lane'
+	String get lane => 'Lane';
+
+	/// en: 'Container'
+	String get container => 'Container';
+
+	/// en: 'Service'
+	String get service => 'Service';
+
+	/// en: 'Undo'
+	String get undo => 'Undo';
+
+	/// en: 'Delete'
+	String get delete => 'Delete';
+
+	/// en: 'Label'
+	String get label => 'Label';
+
+	/// en: 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.'
+	String get labelChanged => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.';
+
+	/// en: 'This object was deleted from the file. Copy your draft before pressing Esc to close it.'
+	String get objectDeleted => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.';
+
+	/// en: 'Could not save the board'
+	String get saveError => 'Could not save the board';
+
+	/// en: 'Reload'
+	String get reload => 'Reload';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -5365,6 +5549,64 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Import or export',
+			'cockpit.gallery.board.exportDocument' => 'Export entire document',
+			'cockpit.gallery.board.exportSelection' => 'Export selection',
+			'cockpit.gallery.board.appendBoard' => 'Add this board to the canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Fit document',
+			'cockpit.gallery.board.fitSelection' => 'Fit selection',
+			'cockpit.gallery.board.diagramColor' => 'Diagram color',
+			'cockpit.gallery.board.themeColor' => 'Theme default',
+			'cockpit.gallery.board.blue' => 'Blue',
+			'cockpit.gallery.board.green' => 'Green',
+			'cockpit.gallery.board.amber' => 'Amber',
+			'cockpit.gallery.board.red' => 'Red',
+			'cockpit.gallery.board.violet' => 'Violet',
+			'cockpit.gallery.board.cyan' => 'Cyan',
+			'cockpit.gallery.board.emptyBoard' => 'Choose a shape and click or drag to draw it.',
+			'cockpit.gallery.board.arrowStart' => 'Choose the first shape, or drag to the destination.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab selects objects · Arrows move · Shift ×10 · C connects',
+			'cockpit.gallery.board.moveHere' => 'Move here',
+			'cockpit.gallery.board.moveDestination' => 'Click where to place the selection · Esc cancels',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destination: ${target}. Tab changes it, Enter connects, Esc cancels.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'From ${from} to ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Choose the destination shape.',
+			'cockpit.gallery.board.diagramTypes' => 'Diagram types',
+			'cockpit.gallery.board.replaceSource' => 'Replace the current source with this example?',
+			'cockpit.gallery.board.group' => 'Group',
+			'cockpit.gallery.board.ungroup' => 'Ungroup',
+			'cockpit.gallery.board.align' => 'Align top',
+			'cockpit.gallery.board.distribute' => 'Distribute horizontally',
+			'cockpit.gallery.board.openFile' => 'Open',
+			'cockpit.gallery.board.exportFile' => 'Export',
+			'cockpit.gallery.board.importWarning' => 'Import editable shapes and connectors? Styles, groups and unsupported object details may change.',
+			'cockpit.gallery.board.exportWarning' => 'Export shapes and connectors? The conversion simplifies styles, groups, and Mermaid drawings.',
+			'cockpit.gallery.board.discard' => 'Discard',
+			'cockpit.gallery.board.importMmd' => 'Open Mermaid file',
+			'cockpit.gallery.board.exportMmd' => 'Export Mermaid source',
+			'cockpit.gallery.board.preview' => 'Preview',
+			'cockpit.gallery.board.apply' => 'Apply',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Draw flowcharts and sketches',
+			'cockpit.gallery.board.select' => 'Select',
+			'cockpit.gallery.board.pan' => 'Pan',
+			'cockpit.gallery.board.pencil' => 'Pencil',
+			'cockpit.gallery.board.text' => 'Text',
+			'cockpit.gallery.board.note' => 'Note',
+			'cockpit.gallery.board.process' => 'Process',
+			'cockpit.gallery.board.decision' => 'Decision',
+			'cockpit.gallery.board.arrow' => 'Connector',
+			'cockpit.gallery.board.advanced' => 'Advanced',
+			'cockpit.gallery.board.lane' => 'Lane',
+			'cockpit.gallery.board.container' => 'Container',
+			'cockpit.gallery.board.service' => 'Service',
+			'cockpit.gallery.board.undo' => 'Undo',
+			'cockpit.gallery.board.delete' => 'Delete',
+			'cockpit.gallery.board.label' => 'Label',
+			'cockpit.gallery.board.labelChanged' => 'This label changed in the file. Copy your draft before pressing Esc to load the saved text.',
+			'cockpit.gallery.board.objectDeleted' => 'This object was deleted from the file. Copy your draft before pressing Esc to close it.',
+			'cockpit.gallery.board.saveError' => 'Could not save the board',
+			'cockpit.gallery.board.reload' => 'Reload',
 			'cockpit.gallery.intro' => 'Special Cockpit documents that give you a visual of what the AI agent is doing.',
 			'cockpit.gallery.createErrorTitle' => 'Could not create the file',
 			'cockpit.gallery.dbQuery.title' => 'Database query',
@@ -5653,6 +5895,8 @@ extension on Translations {
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
 			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
 			'settings.page.appearance.fontPickerSearch' => 'Search fonts',
@@ -5711,8 +5955,6 @@ extension on Translations {
 			'settings.page.automations.modelUnavailable' => 'The model list is unavailable until the harness is found.',
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',

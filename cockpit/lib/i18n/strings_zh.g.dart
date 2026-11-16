@@ -1313,6 +1313,7 @@ class _Translations$cockpit$gallery$zh extends Translations$cockpit$gallery$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$zh board = _Translations$cockpit$gallery$board$zh._(_root);
 	@override String get intro => 'Cockpit 的特殊文档，让你直观地看到 AI 智能体在做什么。';
 	@override String get createErrorTitle => '无法创建文件';
 	@override late final _Translations$cockpit$gallery$dbQuery$zh dbQuery = _Translations$cockpit$gallery$dbQuery$zh._(_root);
@@ -1669,6 +1670,73 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$zh extends Translation
 	@override String get moveCards => '移到上一列';
 	@override String get deleteAll => '随列一起删除';
 	@override String get emptyMessage => '此列为空。';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => '导入或导出';
+	@override String get exportDocument => '导出整个文档';
+	@override String get exportSelection => '导出所选内容';
+	@override String get appendBoard => '将此文档添加到画布？';
+	@override String get fitDocument => '适应整个文档';
+	@override String get fitSelection => '适应所选对象';
+	@override String get diagramColor => '图形颜色';
+	@override String get themeColor => '主题默认';
+	@override String get blue => '蓝色';
+	@override String get green => '绿色';
+	@override String get amber => '琥珀色';
+	@override String get red => '红色';
+	@override String get violet => '紫色';
+	@override String get cyan => '青色';
+	@override String get emptyBoard => '选择形状，然后单击或拖动以绘制。';
+	@override String get arrowStart => '选择起始形状，或拖动到目标形状。';
+	@override String get keyboardHelp => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接';
+	@override String get moveHere => '移动到此处';
+	@override String get moveDestination => '点击以放置选中对象 · Esc 取消';
+	@override String keyboardTarget({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。';
+	@override String connectorEndpoints({required Object from, required Object to}) => '从 ${from} 到 ${to}';
+	@override String get arrowEnd => '选择目标形状。';
+	@override String get diagramTypes => '图表类型';
+	@override String get replaceSource => '用此示例替换当前源码？';
+	@override String get group => '组合';
+	@override String get ungroup => '取消组合';
+	@override String get align => '顶部对齐';
+	@override String get distribute => '水平分布';
+	@override String get openFile => '打开';
+	@override String get exportFile => '导出';
+	@override String get importWarning => '导入可编辑形状和连接线？样式和分组可能发生变化。';
+	@override String get exportWarning => '导出形状和连接线？将简化样式、分组和 Mermaid 绘图。';
+	@override String get discard => '放弃';
+	@override String get importMmd => '打开 Mermaid 文件';
+	@override String get exportMmd => '导出 Mermaid 源码';
+	@override String get preview => '预览';
+	@override String get apply => '应用';
+	@override String get title => 'Canvas Board';
+	@override String get description => '绘制流程图和草图';
+	@override String get select => '选择';
+	@override String get pan => '平移';
+	@override String get pencil => '铅笔';
+	@override String get text => '文本';
+	@override String get note => '便签';
+	@override String get process => '流程';
+	@override String get decision => '决策';
+	@override String get arrow => '连接线';
+	@override String get advanced => '高级';
+	@override String get lane => '泳道';
+	@override String get container => '容器';
+	@override String get service => '服务';
+	@override String get undo => '撤销';
+	@override String get delete => '删除';
+	@override String get label => '标签';
+	@override String get labelChanged => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。';
+	@override String get objectDeleted => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。';
+	@override String get saveError => '无法保存画板';
+	@override String get reload => '重新加载';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -2791,6 +2859,64 @@ extension on TranslationsZh {
 			'cockpit.browserPane.go' => '前往',
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
+			'cockpit.gallery.board.fileActions' => '导入或导出',
+			'cockpit.gallery.board.exportDocument' => '导出整个文档',
+			'cockpit.gallery.board.exportSelection' => '导出所选内容',
+			'cockpit.gallery.board.appendBoard' => '将此文档添加到画布？',
+			'cockpit.gallery.board.fitDocument' => '适应整个文档',
+			'cockpit.gallery.board.fitSelection' => '适应所选对象',
+			'cockpit.gallery.board.diagramColor' => '图形颜色',
+			'cockpit.gallery.board.themeColor' => '主题默认',
+			'cockpit.gallery.board.blue' => '蓝色',
+			'cockpit.gallery.board.green' => '绿色',
+			'cockpit.gallery.board.amber' => '琥珀色',
+			'cockpit.gallery.board.red' => '红色',
+			'cockpit.gallery.board.violet' => '紫色',
+			'cockpit.gallery.board.cyan' => '青色',
+			'cockpit.gallery.board.emptyBoard' => '选择形状，然后单击或拖动以绘制。',
+			'cockpit.gallery.board.arrowStart' => '选择起始形状，或拖动到目标形状。',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab 选择对象 · 方向键移动 · Shift ×10 · C 连接',
+			'cockpit.gallery.board.moveHere' => '移动到此处',
+			'cockpit.gallery.board.moveDestination' => '点击以放置选中对象 · Esc 取消',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => '目标：${target}。Tab 切换，Enter 连接，Esc 取消。',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => '从 ${from} 到 ${to}',
+			'cockpit.gallery.board.arrowEnd' => '选择目标形状。',
+			'cockpit.gallery.board.diagramTypes' => '图表类型',
+			'cockpit.gallery.board.replaceSource' => '用此示例替换当前源码？',
+			'cockpit.gallery.board.group' => '组合',
+			'cockpit.gallery.board.ungroup' => '取消组合',
+			'cockpit.gallery.board.align' => '顶部对齐',
+			'cockpit.gallery.board.distribute' => '水平分布',
+			'cockpit.gallery.board.openFile' => '打开',
+			'cockpit.gallery.board.exportFile' => '导出',
+			'cockpit.gallery.board.importWarning' => '导入可编辑形状和连接线？样式和分组可能发生变化。',
+			'cockpit.gallery.board.exportWarning' => '导出形状和连接线？将简化样式、分组和 Mermaid 绘图。',
+			'cockpit.gallery.board.discard' => '放弃',
+			'cockpit.gallery.board.importMmd' => '打开 Mermaid 文件',
+			'cockpit.gallery.board.exportMmd' => '导出 Mermaid 源码',
+			'cockpit.gallery.board.preview' => '预览',
+			'cockpit.gallery.board.apply' => '应用',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => '绘制流程图和草图',
+			'cockpit.gallery.board.select' => '选择',
+			'cockpit.gallery.board.pan' => '平移',
+			'cockpit.gallery.board.pencil' => '铅笔',
+			'cockpit.gallery.board.text' => '文本',
+			'cockpit.gallery.board.note' => '便签',
+			'cockpit.gallery.board.process' => '流程',
+			'cockpit.gallery.board.decision' => '决策',
+			'cockpit.gallery.board.arrow' => '连接线',
+			'cockpit.gallery.board.advanced' => '高级',
+			'cockpit.gallery.board.lane' => '泳道',
+			'cockpit.gallery.board.container' => '容器',
+			'cockpit.gallery.board.service' => '服务',
+			'cockpit.gallery.board.undo' => '撤销',
+			'cockpit.gallery.board.delete' => '删除',
+			'cockpit.gallery.board.label' => '标签',
+			'cockpit.gallery.board.labelChanged' => '文件中的文字已更改。请先复制草稿，再按 Esc 加载已保存的文字。',
+			'cockpit.gallery.board.objectDeleted' => '文件中的对象已删除。请先复制草稿，再按 Esc 关闭编辑框。',
+			'cockpit.gallery.board.saveError' => '无法保存画板',
+			'cockpit.gallery.board.reload' => '重新加载',
 			'cockpit.gallery.intro' => 'Cockpit 的特殊文档，让你直观地看到 AI 智能体在做什么。',
 			'cockpit.gallery.createErrorTitle' => '无法创建文件',
 			'cockpit.gallery.dbQuery.title' => '数据库查询',
@@ -3086,6 +3212,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.fontPickerBundled' => '内置',
 			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
 			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.fontPickerUse' => '使用',
 			'settings.page.appearance.fontPickerDefault' => '默认',
 			'settings.page.appearance.fontMissing' => '这台机器上未找到——使用回退字体。',
@@ -3144,8 +3272,6 @@ extension on TranslationsZh {
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',

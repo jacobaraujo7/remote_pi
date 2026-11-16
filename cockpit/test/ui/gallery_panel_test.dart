@@ -33,5 +33,9 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('gallery-kanban')));
     await tester.pump();
     expect(created, GalleryTemplate.kanban);
+
+    await tester.tap(find.byKey(const ValueKey('gallery-board')));
+    await tester.pump();
+    expect(created, GalleryTemplate.board);
   });
 }

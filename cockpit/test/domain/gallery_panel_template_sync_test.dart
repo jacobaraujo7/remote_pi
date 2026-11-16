@@ -13,7 +13,10 @@ void main() {
         isTrue,
         reason: 'rode o teste da raiz de cockpit/',
       );
-      expect(GalleryTemplate.panel.content, file.readAsStringSync());
+      expect(
+        GalleryTemplate.panel.content,
+        file.readAsStringSync().replaceAll('\r\n', '\n'),
+      );
     },
   );
 }

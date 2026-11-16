@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
@@ -1981,7 +1982,8 @@ class _DirViewState extends State<_DirView> {
                       : () => edit.onOpenLayout!(node.path),
                   onOpenAsSource:
                       edit.onOpenAsSource == null ||
-                          !(node.name.toLowerCase().endsWith('.kanban') ||
+                          !(FileReader.isBoard(node.name) ||
+                              node.name.toLowerCase().endsWith('.kanban') ||
                               node.name.toLowerCase().endsWith('.panel') ||
                               OrchestrationDocument.isFilePath(node.path))
                       ? null
