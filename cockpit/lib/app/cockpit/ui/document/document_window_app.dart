@@ -1,3 +1,5 @@
+import '../../domain/contracts/file_reader.dart';
+import 'package:cockpit/app/core/ui/widgets/clipboard_failure_feedback.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -15,6 +17,7 @@ import 'package:cockpit/app/cockpit/ui/session/document_host.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
 import 'package:cockpit/app/cockpit/ui/session/notebook_session.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/file_viewer.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/board_document_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/kanban_board_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/layout_preview_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/notebook_view.dart';
@@ -34,6 +37,7 @@ import 'package:cockpit/app/core/ui/settings_controller.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter_modular/flutter_modular.dart';
+import 'package:path/path.dart' as p;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 /// Entrypoint da **janela de documento** (ver [DocumentWindows]): o `main`
@@ -52,14 +56,14 @@ Future<void> runDocumentWindow(List<String> args) async {
     stderr.writeln('[document-window] ${details.exception}');
   };
   try {
-    await _boot(path);
+    await _boot(path, standaloneDocument: DocumentWindows.isStandaloneDocument(args));
   } catch (e, st) {
     stderr.writeln('[document-window] boot failed: $e\n$st');
     runApp(_BootError(path: path, error: '$e'));
   }
 }
 
-Future<void> _boot(String path) async {
+Future<void> _boot(String path, {required bool standaloneDocument}) async {
   // SEM MediaKit.ensureInitialized(): o holder nativo do media_kit é POR
   // PROCESSO; inicializar de novo no engine desta janela achava a referência
   // do engine principal e a DESCARTAVA (log "Found 1 reference(s). Disposing"),
@@ -87,7 +91,10 @@ Future<void> _boot(String path) async {
   stderr.writeln('[document-window] booted for $path');
 
   unawaited(
-    DocumentWindowChannel.present(path.split(Platform.pathSeparator).last),
+    DocumentWindowChannel.present(
+      p.basename(path),
+      standaloneDocument: standaloneDocument,
+    ),
   );
 
   runApp(
@@ -173,7 +180,7 @@ class DocumentWindowRoot extends StatelessWidget {
     final s = controller.settings;
     final theme = controller.activeTheme;
     return ShadcnApp(
-      title: path.split(Platform.pathSeparator).last,
+      title: p.basename(path),
       debugShowCheckedModeBanner: false,
       popoverHandler: const AppPopoverOverlayHandler(),
       menuHandler: const AppPopoverOverlayHandler(),
@@ -218,9 +225,11 @@ class DocumentWindowRoot extends StatelessWidget {
                     terminal: tokens.terminal,
                     child: ColoredBox(
                       color: tokens.colors.bg,
-                      child: DocumentScreen(
-                        path: path,
-                        terminalProfiles: terminalProfiles,
+                      child: ClipboardFailureFeedback(
+                        child: DocumentScreen(
+                          path: path,
+                          terminalProfiles: terminalProfiles,
+                        ),
                       ),
                     ),
                   ),
@@ -431,9 +440,14 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
       // Match native FileReaderImpl: new characters may require UTF-8.
       bytes = utf8.encode(content);
     }
-    final ok = config.host == null
-        ? await _host.writeTextAt(config.path, content)
-        : await _host.writeBytesAt(config.path, Uint8List.fromList(bytes));
+    if (FileReader.isBoard(config.path) &&
+        bytes.length > FileReader.boardByteLimit) {
+      return false;
+    }
+    final ok = await _host.writeBytesAt(
+      config.path,
+      bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+    );
     if (ok) await _load();
     return ok;
   }
@@ -484,6 +498,16 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
             tr.mediaNotSupported,
             style: context.typo.body.copyWith(color: context.colors.text3),
           ),
+        );
+      } else if (FileReader.isBoard(config.path)) {
+        body = BoardDocumentView(
+          key: ValueKey(config.path),
+          session: session,
+          active: config.active,
+          focused: config.active && config.focused,
+          allowLocalFileSystem: config.host?.remote != true,
+          showModeSwitch: true,
+          onSave: _save,
         );
       } else if (config.path.toLowerCase().endsWith('.kanban')) {
         body = KanbanBoardView(

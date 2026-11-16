@@ -20,7 +20,6 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 class FileReaderImpl implements FileReader {
   const FileReaderImpl();
 
-  static const int _maxTextBytes = 2 * 1024 * 1024;
   static const Set<String> _markdown = {'md', 'mdx', 'markdown'};
   static const Set<String> _image = {
     'png',
@@ -63,7 +62,8 @@ class FileReaderImpl implements FileReader {
     final file = File(path);
     if (!await file.exists()) return const FileViewUnsupported();
     final stat = await file.stat();
-    if (stat.type != FileSystemEntityType.file || stat.size > _maxTextBytes) {
+    if (stat.type != FileSystemEntityType.file ||
+        stat.size > FileReader.readLimit(path)) {
       return const FileViewUnsupported();
     }
 
@@ -84,7 +84,9 @@ class FileReaderImpl implements FileReader {
       if (_video.contains(ext)) return FileViewVideo(path);
       return FileViewAudio(path);
     }
-    if (bytes.length > _maxTextBytes) return const FileViewUnsupported();
+    if (bytes.length > FileReader.readLimit(path)) {
+      return const FileViewUnsupported();
+    }
     // Banco sqlite (magic header) nunca é texto útil — não abre como viewer;
     // ele aparece como conexão "detected" no painel Database (plano 51).
     if (_isSqlite(bytes)) return const FileViewUnsupported();
@@ -106,6 +108,7 @@ class FileReaderImpl implements FileReader {
     return FileViewText(
       text,
       language: switch (ext) {
+        'canvas' || 'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
         'orc' || 'orchestration' => 'json',
         '' => null,
         _ => ext,
@@ -134,6 +137,21 @@ class FileReaderImpl implements FileReader {
     String content, {
     Encoding encoding = utf8,
   }) async {
+    if (FileReader.isBoard(path)) {
+      List<int> bytes;
+      try {
+        bytes = encoding.encode(content);
+      } on ArgumentError {
+        bytes = utf8.encode(content);
+      }
+      if (bytes.length > FileReader.boardByteLimit) return false;
+      try {
+        await File(path).writeAsBytes(bytes);
+        return true;
+      } on FileSystemException {
+        return false;
+      }
+    }
     try {
       // Tenta gravar com o encoding original do arquivo.
       // Se o conteúdo tiver caracteres fora do alcance do encoding (ex.:

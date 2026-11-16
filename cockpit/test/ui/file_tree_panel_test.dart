@@ -17,8 +17,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
-  for (final extension in ['orc', 'ORC', 'orchestration']) {
-    testWidgets('opens .$extension as JSON from the file menu', (tester) async {
+  for (final (extension, action) in [
+    ('orc', 'Open as JSON'),
+    ('ORC', 'Open as JSON'),
+    ('orchestration', 'Open as JSON'),
+    ('board', 'Open as markdown'),
+    ('BOARD', 'Open as markdown'),
+  ]) {
+    testWidgets('opens .$extension with the source action from the file menu', (tester) async {
       LocaleSettings.setLocale(AppLocale.en);
       final name = 'agents.$extension';
       final path = '/workspace/$name';
@@ -61,8 +67,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(name), buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
-      expect(find.text('Open as JSON'), findsOneWidget);
-      await tester.tap(find.text('Open as JSON'));
+      expect(find.text(action), findsOneWidget);
+      await tester.tap(find.text(action));
       await tester.pumpAndSettle();
       expect(sourcePath, path);
       expect(appOpens, 0);
