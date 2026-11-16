@@ -36,6 +36,23 @@ fn main() {
             abs.display().to_string()
         ));
     }
+    // Package the actual editor codec and SVG renderer for agents working
+    // outside a Cockpit checkout.
+    let cockpit = root.parent().unwrap().parent().unwrap();
+    for rel in [
+        "tool/export_canvas.dart",
+        "lib/app/cockpit/domain/entities/board_document.dart",
+        "lib/app/cockpit/domain/entities/board_markdown.dart",
+        "lib/app/cockpit/domain/services/board_svg.dart",
+    ] {
+        let source = cockpit.join(rel);
+        println!("cargo:rerun-if-changed={}", source.display());
+        out.push_str(&format!(
+            "    ({:?}, include_bytes!({:?})),\n",
+            format!("cockpit-export/renderer/{rel}"),
+            source.display().to_string()
+        ));
+    }
     out.push_str("];\n");
     let dest = Path::new(&std::env::var("OUT_DIR").unwrap()).join("skills_gen.rs");
     fs::write(dest, out).unwrap();

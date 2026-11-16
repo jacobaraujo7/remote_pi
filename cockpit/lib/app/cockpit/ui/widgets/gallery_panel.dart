@@ -46,6 +46,7 @@ class GalleryPanel extends StatelessWidget {
   ) => switch (t) {
     GalleryTemplate.orchestration => tr.orchestration.title,
     GalleryTemplate.dbQuery => tr.dbQuery.title,
+    GalleryTemplate.board => tr.board.title,
     GalleryTemplate.kanban => tr.kanban.title,
     GalleryTemplate.layout => tr.layout.title,
     GalleryTemplate.httpRequest => tr.httpRequest.title,
@@ -62,6 +63,7 @@ class GalleryPanel extends StatelessWidget {
   ) => switch (t) {
     GalleryTemplate.orchestration => tr.orchestration.description,
     GalleryTemplate.dbQuery => tr.dbQuery.description,
+    GalleryTemplate.board => tr.board.description,
     GalleryTemplate.kanban => tr.kanban.description,
     GalleryTemplate.layout => tr.layout.description,
     GalleryTemplate.httpRequest => tr.httpRequest.description,

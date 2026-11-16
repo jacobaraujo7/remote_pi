@@ -14,6 +14,25 @@ class GitDiffReaderImpl implements GitDiffReader {
   final GitBinary _gitBinary;
 
   @override
+  Future<String> readCommitContent(
+    String repoPath,
+    String commitHash,
+    String relativePath,
+  ) async {
+    final git = await _gitBinary.resolve();
+    final result = await Process.run(git, [
+      '-C',
+      repoPath,
+      'show',
+      '$commitHash:$relativePath',
+    ], stdoutEncoding: utf8);
+    if (result.exitCode != 0) {
+      throw GitContentException(result.stderr.toString().trim());
+    }
+    return result.stdout as String;
+  }
+
+  @override
   Future<FileDiff> read(String repoPath, String absPath) async {
     try {
       final git = await _gitBinary.resolve();
@@ -21,27 +40,34 @@ class GitDiffReaderImpl implements GitDiffReader {
 
       // Untracked? `git diff HEAD` não mostra arquivo não rastreado — detecta via
       // status e lê o arquivo inteiro como adicionado.
-      final status = await Process.run(git, [
-        '-C',
-        repoPath,
-        'status',
-        '--porcelain',
-        '--',
-        rel,
-      ], stdoutEncoding: utf8);
+      final status = await Process.run(
+        git,
+        ['-C', repoPath, 'status', '--porcelain', '--', rel],
+        stdoutEncoding: utf8,
+        environment: gitReadOnlyEnvironment(),
+      );
       final statusOut = status.exitCode == 0 ? (status.stdout as String) : '';
       if (statusOut.startsWith('??')) {
         return await _untrackedDiff(absPath);
       }
 
-      final diff = await Process.run(git, [
-        '-C',
-        repoPath,
-        'diff',
-        'HEAD',
-        '--',
-        rel,
-      ], stdoutEncoding: utf8);
+      // `git diff` refreshes the index independently of optional status locks.
+      // Keep this read from competing with restore/add/rm as well.
+      final diff = await Process.run(
+        git,
+        [
+          '-C',
+          repoPath,
+          '-c',
+          'diff.autoRefreshIndex=false',
+          'diff',
+          'HEAD',
+          '--',
+          rel,
+        ],
+        stdoutEncoding: utf8,
+        environment: gitReadOnlyEnvironment(),
+      );
       if (diff.exitCode != 0) return FileDiff.unchanged(absPath);
       final out = diff.stdout as String;
       if (out.trim().isEmpty) return FileDiff.unchanged(absPath);

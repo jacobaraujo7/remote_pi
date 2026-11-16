@@ -940,6 +940,8 @@ class _RailPanel extends StatelessWidget {
               pullProject(context, project, rootPath),
           onPush: (project, rootPath) =>
               pushProject(context, project, rootPath),
+          onSwitchBranch: (project, rootPath) =>
+              switchBranch(context, project, rootPath),
           onReorder: (moved, target, before) =>
               vm.reorderWorkspace(moved, target, before: before),
           onOpenSettings: () => context.pushNamed(RoutePaths.settings),
@@ -1217,10 +1219,25 @@ class _TreePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
-    final configuredHarnessId = context
-        .watch<SettingsController>()
-        .settings
-        .automationHarnessId;
+    final panelSettings = context
+        .select<
+          SettingsController,
+          ({
+            HarnessKind? harness,
+            bool nesting,
+            bool autoExpand,
+            Map<String, String> patterns,
+          })
+        >((controller) {
+          final settings = controller.settings;
+          return (
+            harness: settings.automationHarnessId,
+            nesting: settings.fileNestingEnabled,
+            autoExpand: settings.fileNestingAutoExpand,
+            patterns: settings.fileNestingPatterns,
+          );
+        });
+    final configuredHarnessId = panelSettings.harness;
     return Stack(
       children: [
         FileTreePanel(
@@ -1229,6 +1246,9 @@ class _TreePanel extends StatelessWidget {
           width: treeWidth,
           rootPath: vm.treeRootPath,
           sourceControlViewMode: sourceControlViewMode,
+          fileNestingEnabled: panelSettings.nesting,
+          fileNestingAutoExpand: panelSettings.autoExpand,
+          fileNestingPatterns: panelSettings.patterns,
           onSourceControlViewModeChanged: context
               .read<SettingsController>()
               .setSourceControlViewMode,
@@ -1401,6 +1421,9 @@ class _TreePanel extends StatelessWidget {
                   // (treeRootPath = remotePath); local usa o
                   // path do projeto.
                   cwd: vm.treeRootPath,
+                  sourceWorkspaceCwd: vm.selectedProject!.isRemoteTerminal
+                      ? null
+                      : vm.projectById(vm.selectedProject!.parentId)?.path,
                   activeFile: vm.selectedFileInTree ?? '',
                   listHeight: tasksHeight,
                   onResizeDelta: onTasksResize,

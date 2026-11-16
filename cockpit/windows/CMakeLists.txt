@@ -142,6 +142,7 @@ endif()
 # atualizada. Mesma classe do glob do servidor logo abaixo.
 file(GLOB_RECURSE COCKPIT_CLI_SOURCES CONFIGURE_DEPENDS
   "${COCKPIT_CLI_CRATE}/src/*.rs" "${COCKPIT_CLI_CRATE}/text/*"
+  "${COCKPIT_CLI_CRATE}/skills/*"
   "${COCKPIT_CLI_CRATE}/build.rs")
 set(COCKPIT_CLI_BUILT "${COCKPIT_CLI_CRATE}/target/release/cockpit.exe")
 set(COCKPIT_CLI_EXE "${CMAKE_BINARY_DIR}/cockpit-cli.exe")

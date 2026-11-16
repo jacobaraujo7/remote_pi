@@ -1,8 +1,11 @@
 import 'package:cockpit/app/cockpit/domain/entities/file_diff.dart';
+import 'package:cockpit/app/cockpit/domain/contracts/git_diff_reader.dart';
 import 'package:cockpit/app/cockpit/ui/session/pane_item.dart';
 import 'package:path/path.dart' as p;
 
-/// Uma aba de **diff** read-only (split, estilo VSCode): mostra o arquivo em
+enum DiffViewMode { sideBySide, inline, modifiedContent }
+
+/// Uma aba de **diff** read-only: mostra o arquivo em
 /// [path] comparado com o HEAD do git. Sem ações — só visual. O conteúdo
 /// ([diff]) já vem parseado pela VM.
 class DiffViewerSession extends PaneItem {
@@ -48,6 +51,76 @@ class DiffViewerSession extends PaneItem {
   /// `true` se é aba de preview (sobrescrita ao abrir outro diff; duplo-clique
   /// fixa).
   bool isPreview;
+
+  bool _disposed = false;
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  DiffViewMode viewMode = DiffViewMode.sideBySide;
+  String? modifiedContent;
+  String? modifiedContentError;
+  bool loadingModifiedContent = false;
+
+  void setViewMode(DiffViewMode mode) {
+    if (viewMode == mode) return;
+    viewMode = mode;
+    notifyListeners();
+  }
+
+  void replaceDiff(FileDiff nextDiff, String nextPath) {
+    path = nextPath;
+    diff = nextDiff;
+    modifiedContent = null;
+    modifiedContentError = null;
+    loadingModifiedContent = false;
+    notifyListeners();
+  }
+
+  void startModifiedContentLoad() {
+    loadingModifiedContent = true;
+    modifiedContentError = null;
+    notifyListeners();
+  }
+
+  void completeModifiedContentLoad(FileDiff expectedDiff, String content) {
+    if (_disposed || !identical(diff, expectedDiff)) return;
+    modifiedContent = content;
+    loadingModifiedContent = false;
+    notifyListeners();
+  }
+
+  void failModifiedContentLoad(FileDiff expectedDiff, Object error) {
+    if (_disposed || !identical(diff, expectedDiff)) return;
+    modifiedContentError = error is GitContentException ? error.detail : '';
+    loadingModifiedContent = false;
+    notifyListeners();
+  }
+
+  Future<void> ensureModifiedContent(
+    Future<String> Function(DiffViewerSession) load,
+  ) async {
+    if (_disposed ||
+        viewMode != DiffViewMode.modifiedContent ||
+        diff.kind == FileDiffKind.deleted ||
+        diff.kind == FileDiffKind.binary ||
+        diff.kind == FileDiffKind.error ||
+        diff.kind == FileDiffKind.unchanged ||
+        modifiedContent != null ||
+        loadingModifiedContent) {
+      return;
+    }
+    final expected = diff;
+    startModifiedContentLoad();
+    try {
+      completeModifiedContentLoad(expected, await load(this));
+    } catch (error) {
+      failModifiedContentLoad(expected, error);
+    }
+  }
 
   void pin() {
     if (!isPreview) return;
