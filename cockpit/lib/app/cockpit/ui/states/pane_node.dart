@@ -205,6 +205,20 @@ List<String> reorderTabs(List<String> tabs, String tabId, int index) {
   return out;
 }
 
+/// Id of the tab neighbouring [leaf]'s active one, shifted by [delta] (+1 =
+/// next, -1 = previous), wrapping at the ends — the Ctrl+Tab / Ctrl+Shift+Tab
+/// convention of browsers and terminals. Returns `null` when there is nothing
+/// to cycle: 0 or 1 tab, or [LeafPane.active] not in [LeafPane.tabs] (an
+/// inconsistent state — don't guess a tab). Order is the visual tab-strip order
+/// (positional, like ⌘1–8), not MRU.
+String? cycleTab(LeafPane leaf, int delta) {
+  final n = leaf.tabs.length;
+  if (n < 2) return null;
+  final cur = leaf.tabs.indexOf(leaf.active);
+  if (cur < 0) return null;
+  return leaf.tabs[((cur + delta) % n + n) % n];
+}
+
 // ---- navegação direcional entre panes (atalhos ⌘⌥ + setas) ------------------
 
 /// Direção do movimento de foco entre panes.
