@@ -40,6 +40,7 @@ import type {
 import { SettingsManager, convertToPng } from "@earendil-works/pi-coding-agent";
 import { type Ed25519Keypair } from "./pairing/crypto.js";
 import { buildQRUri, qrSession, renderQRAscii, clampPairTtlMs, TOKEN_TTL_MS } from "./pairing/qr.js";
+import { projectSettingsPath } from "./state_paths.js";
 import {
   addPeer,
   getOrCreateEd25519Keypair,
@@ -1081,7 +1082,7 @@ export function _setPiForTest(pi: unknown): void {
  */
 function _persistModelDefault(provider: string, modelId: string): void {
   try {
-    const path = join(process.cwd(), ".pi", "settings.json");
+    const path = projectSettingsPath(process.cwd());
     let obj: Record<string, unknown> = {};
     try {
       const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;

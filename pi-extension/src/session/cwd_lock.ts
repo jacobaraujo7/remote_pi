@@ -1,10 +1,10 @@
 import { mkdirSync } from "node:fs";
-import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Server } from "node:net";
 import { roomIdFor } from "../rooms.js";
 import { removeStaleSock, tryBind, tryConnect } from "./leader_election.js";
 import { ipcAddress, usesNamedPipe } from "./ipc.js";
+import { userStateRoot } from "../state_paths.js";
 
 /**
  * Per-cwd singleton lock for `/remote-pi`. At most one Pi process per
@@ -36,8 +36,7 @@ import { ipcAddress, usesNamedPipe } from "./ipc.js";
  *  dir away from the developer's real `~/.pi/remote/locks` via
  *  `REMOTE_PI_HOME` — same override the daemon registry honors. */
 function locksDir(): string {
-  const root = process.env["REMOTE_PI_HOME"] || homedir();
-  return join(root, ".pi", "remote", "locks");
+  return join(userStateRoot(), "locks");
 }
 
 export interface AcquiredLock {
