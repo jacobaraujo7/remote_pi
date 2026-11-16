@@ -940,6 +940,8 @@ class _RailPanel extends StatelessWidget {
               pullProject(context, project, rootPath),
           onPush: (project, rootPath) =>
               pushProject(context, project, rootPath),
+          onSwitchBranch: (project, rootPath) =>
+              switchBranch(context, project, rootPath),
           onReorder: (moved, target, before) =>
               vm.reorderWorkspace(moved, target, before: before),
           onOpenSettings: () => context.pushNamed(RoutePaths.settings),

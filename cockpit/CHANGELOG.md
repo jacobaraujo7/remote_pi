@@ -24,6 +24,14 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.25] - 2026-11-11
+
+### Fixed
+- The notification chime no longer keeps the audio output open after it finishes. On macOS this left a CoreAudio IO thread running and `coreaudiod` busy while Cockpit was idle; the chime player and the Settings sound preview now stop as soon as the sound completes (#314, #315).
+
+### Changed
+- Shell commands run by `.panel` pages and `cockpit exec` now record correlated spawn, first-output and completion metrics with an operation id and an invocation sequence. The slow-spawn warning names the operation; commands, arguments, cwd and environment stay out of the diagnostics (#317).
+
 ## [2.1.24] - 2026-11-09
 
 ### Changed
