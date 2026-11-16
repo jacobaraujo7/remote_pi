@@ -95,16 +95,7 @@ class _OrchestrationViewState extends State<OrchestrationView> {
     if (oldWidget.session != widget.session ||
         oldWidget.active != widget.active ||
         oldWidget.focused != widget.focused) {
-      final session = widget.session;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted || widget.session != session) return;
-        // setPresentationActive notifies terminal listeners. Calling it from
-        // didUpdateWidget can notify while the widget tree is still building.
-        session.setPresentationActive(
-          widget.active && widget.focused,
-          visible: widget.active,
-        );
-      });
+      _schedulePresentationActivity();
     }
     if (oldWidget.session != widget.session ||
         oldWidget.active != widget.active) {
@@ -121,12 +112,22 @@ class _OrchestrationViewState extends State<OrchestrationView> {
   @override
   void initState() {
     super.initState();
-    widget.session.setPresentationActive(
-      widget.active && widget.focused,
-      visible: widget.active,
-    );
+    _schedulePresentationActivity();
     _timer = Timer.periodic(const Duration(seconds: 10), (_) => _refresh());
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+  }
+
+  void _schedulePresentationActivity() {
+    final session = widget.session;
+    // setActive notifies the context. During build that would dirty an
+    // already-built ListenableBuilder in the same frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || widget.session != session) return;
+      session.setPresentationActive(
+        widget.active && widget.focused,
+        visible: widget.active,
+      );
+    });
   }
 
   Future<void> _refresh() async {

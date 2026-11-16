@@ -50,6 +50,8 @@ class GitStatusReaderImpl implements GitStatusReader {
       // default (traditional) combinado com `-uall` enumeraria o conteúdo de
       // um node_modules inteiro. Mapa path→status + set de raízes ignoradas;
       // renames consomem o path antigo.
+      // O status é uma leitura: impedir o refresh opcional do index evita que
+      // ele dispute index.lock com restore/rm durante descarte em lote.
       final statusRes = await Process.run(git, [
         '-C',
         path,
@@ -58,7 +60,7 @@ class GitStatusReaderImpl implements GitStatusReader {
         '-z',
         '-uall',
         '--ignored=matching',
-      ]);
+      ], environment: gitReadOnlyEnvironment());
       final (
         files,
         stagedFiles,

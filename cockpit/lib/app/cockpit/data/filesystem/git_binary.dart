@@ -1,5 +1,11 @@
 import 'dart:io';
 
+/// Git may refresh the index while answering `status`. Read-only callers
+/// must avoid its optional lock so they can run beside restore/add/rm.
+Map<String, String> gitReadOnlyEnvironment([
+  Map<String, String>? environment,
+]) => {...?environment, 'GIT_OPTIONAL_LOCKS': '0'};
+
 /// Resolve o caminho do binário `git` por candidatos conhecidos e cacheia o
 /// resultado. O app GUI **não herda o PATH do shell** (macOS aberto pelo
 /// Finder/Dock não tem `/opt/homebrew/bin` nem `/usr/local/bin`), então não
