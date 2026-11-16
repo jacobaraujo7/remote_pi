@@ -3506,6 +3506,7 @@ class Translations$settings$page$en {
 	// Translations
 	late final Translations$settings$page$header$en header = Translations$settings$page$header$en.internal(_root);
 	late final Translations$settings$page$nav$en nav = Translations$settings$page$nav$en.internal(_root);
+	late final Translations$settings$page$explorer$en explorer = Translations$settings$page$explorer$en.internal(_root);
 	late final Translations$settings$page$general$en general = Translations$settings$page$general$en.internal(_root);
 	late final Translations$settings$page$diagnostics$en diagnostics = Translations$settings$page$diagnostics$en.internal(_root);
 	late final Translations$settings$page$storage$en storage = Translations$settings$page$storage$en.internal(_root);
@@ -4236,6 +4237,9 @@ class Translations$settings$page$nav$en {
 
 	// Translations
 
+	/// en: 'Explorer'
+	String get explorer => 'Explorer';
+
 	/// en: 'General'
 	String get general => 'General';
 
@@ -4259,6 +4263,48 @@ class Translations$settings$page$nav$en {
 
 	/// en: 'Remote hosts'
 	String get remoteHosts => 'Remote hosts';
+}
+
+// Path: settings.page.explorer
+class Translations$settings$page$explorer$en {
+	Translations$settings$page$explorer$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'File nesting'
+	String get sectionNesting => 'File nesting';
+
+	/// en: 'Enable file nesting'
+	String get enabledTitle => 'Enable file nesting';
+
+	/// en: 'Group related files under their parent file.'
+	String get enabledDesc => 'Group related files under their parent file.';
+
+	/// en: 'Auto expand'
+	String get autoExpandTitle => 'Auto expand';
+
+	/// en: 'Open nested groups when the explorer loads.'
+	String get autoExpandDesc => 'Open nested groups when the explorer loads.';
+
+	/// en: 'New pattern'
+	String get newPattern => 'New pattern';
+
+	/// en: 'Patterns'
+	String get patternsTitle => 'Patterns';
+
+	/// en: 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:'
+	String get patternsDesc => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:';
+
+	/// en: 'Parent pattern'
+	String get parentPlaceholder => 'Parent pattern';
+
+	/// en: 'Nested files'
+	String get childrenPlaceholder => 'Nested files';
+
+	/// en: 'Remove pattern'
+	String get remove => 'Remove pattern';
 }
 
 // Path: settings.page.general
@@ -5807,6 +5853,7 @@ extension on Translations {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Back',
 			'settings.page.header.title' => 'Settings',
+			'settings.page.nav.explorer' => 'Explorer',
 			'settings.page.nav.general' => 'General',
 			'settings.page.nav.appearance' => 'Appearance',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -5815,6 +5862,17 @@ extension on Translations {
 			'settings.page.nav.notifications' => 'Notifications',
 			'settings.page.nav.automations' => 'Automations',
 			'settings.page.nav.remoteHosts' => 'Remote hosts',
+			'settings.page.explorer.sectionNesting' => 'File nesting',
+			'settings.page.explorer.enabledTitle' => 'Enable file nesting',
+			'settings.page.explorer.enabledDesc' => 'Group related files under their parent file.',
+			'settings.page.explorer.autoExpandTitle' => 'Auto expand',
+			'settings.page.explorer.autoExpandDesc' => 'Open nested groups when the explorer loads.',
+			'settings.page.explorer.newPattern' => 'New pattern',
+			'settings.page.explorer.patternsTitle' => 'Patterns',
+			'settings.page.explorer.patternsDesc' => 'Parent pattern on the left; comma-separated child patterns on the right. Use * in the parent; child patterns may use:',
+			'settings.page.explorer.parentPlaceholder' => 'Parent pattern',
+			'settings.page.explorer.childrenPlaceholder' => 'Nested files',
+			'settings.page.explorer.remove' => 'Remove pattern',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Engine',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (default)',
@@ -5908,6 +5966,8 @@ extension on Translations {
 			'settings.page.appearance.terminalWeightTitle' => 'Terminal weight',
 			'settings.page.appearance.terminalWeightDesc' => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.',
 			'settings.page.appearance.terminalWeightAuto' => 'Auto (by screen)',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightLight' => 'Light',
 			'settings.page.appearance.terminalWeightNormal' => 'Normal',
 			'settings.page.appearance.terminalWeightMedium' => 'Medium',
@@ -5920,8 +5980,6 @@ extension on Translations {
 			'settings.page.appearance.deleteTheme' => 'Remove',
 			'settings.page.appearance.importThemeDialog' => 'Pick a theme file',
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
