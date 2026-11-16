@@ -713,6 +713,7 @@ class _Translations$cockpit$paneView$es extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => 'Abrir en ventana nueva';
 	@override String get rename => 'Renombrar';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar con Neovim';
 	@override String get openAsBoard => 'Abrir como tablero';
 	@override String get resetTitle => 'Restablecer título';
 	@override String get copyId => 'Copiar Id';
@@ -2488,6 +2489,7 @@ extension on TranslationsEs {
 			'cockpit.paneView.openInNewWindow' => 'Abrir en ventana nueva',
 			'cockpit.paneView.rename' => 'Renombrar',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar con Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como tablero',
 			'cockpit.paneView.resetTitle' => 'Restablecer título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2792,9 +2794,9 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 doc', other: '${n} docs', ), 
-			'cockpit.dbMongoView.refresh' => 'Actualizar',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.refresh' => 'Actualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
 			'cockpit.dbMongoView.noDocuments' => 'No hay documentos en esta colección.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Ningún documento coincide con este filtro.',
@@ -3306,9 +3308,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeExported' => 'Tema guardado.',
 			'settings.page.appearance.themeDeleted' => 'Tema eliminado.',
 			'settings.page.appearance.fontPickerTitle' => 'Elegir una fuente',
-			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
 			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
 			'settings.page.appearance.fontPickerBundled' => 'incluida',
 			'settings.page.appearance.fontPickerCustom' => '¿No está en la lista? Escribe el nombre exacto de la familia.',

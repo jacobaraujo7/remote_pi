@@ -713,6 +713,7 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openInNewWindow => 'Abrir em nova janela';
 	@override String get rename => 'Renomear';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar com Neovim';
 	@override String get openAsBoard => 'Abrir como quadro';
 	@override String get resetTitle => 'Redefinir título';
 	@override String get copyId => 'Copiar Id';
@@ -2492,6 +2493,7 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openInNewWindow' => 'Abrir em nova janela',
 			'cockpit.paneView.rename' => 'Renomear',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar com Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como quadro',
 			'cockpit.paneView.resetTitle' => 'Redefinir título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2796,9 +2798,9 @@ extension on TranslationsPtBr {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexão',
 			'cockpit.dbPanel.noConnections' => 'Nenhuma conexão ainda.',
 			'cockpit.dbPanel.passwordRequired' => 'Senha não encontrada no host. Abra esta conexão e digite-a de novo — ela fica salva na máquina que executa o banco, não nesta.',
-			'cockpit.dbMongoView.deleteDocumentTitle' => 'Excluir documento',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.deleteDocumentTitle' => 'Excluir documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Excluir o documento com _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ex.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 doc', other: '${n} docs', ), 
@@ -3310,9 +3312,9 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.deleteTheme' => 'Remover',
 			'settings.page.appearance.importThemeDialog' => 'Escolha um arquivo de tema',
 			'settings.page.appearance.exportThemeDialog' => 'Salvar tema como',
-			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			'settings.page.appearance.themeExported' => 'Tema salvo.',
 			'settings.page.appearance.themeDeleted' => 'Tema removido.',
 			'settings.page.appearance.fontPickerTitle' => 'Escolher uma fonte',

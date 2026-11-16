@@ -1408,6 +1408,9 @@ class Translations$cockpit$paneView$en {
 	/// en: 'Open as markdown'
 	String get openAsMarkdown => 'Open as markdown';
 
+	/// en: 'Edit with Neovim'
+	String get editInNeovim => 'Edit with Neovim';
+
 	/// en: 'Open as board'
 	String get openAsBoard => 'Open as board';
 
@@ -5098,6 +5101,7 @@ extension on Translations {
 			'cockpit.paneView.openInNewWindow' => 'Open in new window',
 			'cockpit.paneView.rename' => 'Rename',
 			'cockpit.paneView.openAsMarkdown' => 'Open as markdown',
+			'cockpit.paneView.editInNeovim' => 'Edit with Neovim',
 			'cockpit.paneView.openAsBoard' => 'Open as board',
 			'cockpit.paneView.resetTitle' => 'Reset Title',
 			'cockpit.paneView.copyId' => 'Copy Id',
@@ -5402,9 +5406,9 @@ extension on Translations {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
 			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
-			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
@@ -5916,9 +5920,9 @@ extension on Translations {
 			'settings.page.appearance.deleteTheme' => 'Remove',
 			'settings.page.appearance.importThemeDialog' => 'Pick a theme file',
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
-			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
 			'settings.page.appearance.fontPickerTitle' => 'Choose a font',

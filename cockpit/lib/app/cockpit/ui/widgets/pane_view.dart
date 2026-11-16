@@ -828,7 +828,13 @@ class _TabState extends State<_Tab> {
               FileReader.isBoard(viewer.path))
             AppMenuItem(
               value: 'raw-source',
-              label: viewer.rawSource ? tr.openAsBoard : tr.openAsMarkdown,
+              label: viewer.rawSource
+                  ? tr.openAsBoard
+                  : context.read<CockpitViewModel>().canEditPreviewInNeovim(
+                      viewer.projectId,
+                    )
+                  ? tr.editInNeovim
+                  : tr.openAsMarkdown,
               icon: viewer.rawSource
                   ? Icons.view_column_outlined
                   : Icons.notes_outlined,
@@ -838,7 +844,13 @@ class _TabState extends State<_Tab> {
           if (viewer.path.toLowerCase().endsWith('.ckp'))
             AppMenuItem(
               value: 'raw-source',
-              label: viewer.rawSource ? tr.openAsLayout : tr.openAsYaml,
+              label: viewer.rawSource
+                  ? tr.openAsLayout
+                  : context.read<CockpitViewModel>().canEditPreviewInNeovim(
+                      viewer.projectId,
+                    )
+                  ? tr.editInNeovim
+                  : tr.openAsYaml,
               icon: viewer.rawSource
                   ? Icons.dashboard_outlined
                   : Icons.notes_outlined,
@@ -847,7 +859,13 @@ class _TabState extends State<_Tab> {
           if (viewer.path.toLowerCase().endsWith('.panel'))
             AppMenuItem(
               value: 'raw-source',
-              label: viewer.rawSource ? tr.openAsPanel : tr.openAsHtml,
+              label: viewer.rawSource
+                  ? tr.openAsPanel
+                  : context.read<CockpitViewModel>().canEditPreviewInNeovim(
+                      viewer.projectId,
+                    )
+                  ? tr.editInNeovim
+                  : tr.openAsHtml,
               icon: viewer.rawSource
                   ? Icons.web_asset_outlined
                   : Icons.code_outlined,
@@ -964,8 +982,19 @@ class _TabState extends State<_Tab> {
       case 'raw-source':
         if (viewer != null && FileReader.isBoard(viewer.path)) {
           await viewer.switchBoardMode();
-        } else {
-          viewer?.toggleRawSource();
+        } else if (viewer != null) {
+          final vm = context.read<CockpitViewModel>();
+          if (vm.canEditPreviewInNeovim(viewer.projectId) &&
+              !viewer.rawSource) {
+            final opened = await vm.editPreviewInNeovim(
+              viewer.projectId,
+              viewer.path,
+              inPane: widget.paneId,
+            );
+            if (!opened) viewer.toggleRawSource();
+          } else {
+            viewer.toggleRawSource();
+          }
         }
       case 'rename':
         _startEditing();
@@ -1734,8 +1763,7 @@ class _PaneBodyState extends State<_PaneBody> {
       );
     }
 
-    if (item is FileViewerSession &&
-        FileReader.isBoard(item.path)) {
+    if (item is FileViewerSession && FileReader.isBoard(item.path)) {
       final vm = context.read<CockpitViewModel>();
       return BoardDocumentView(
         key: ValueKey(item.id),
@@ -1806,6 +1834,9 @@ class _PaneBodyState extends State<_PaneBody> {
     if (item is FileViewerSession &&
         item.path.toLowerCase().endsWith('.panel')) {
       final vm = context.read<CockpitViewModel>();
+      final canEditInNeovim = context.select<CockpitViewModel, bool>(
+        (vm) => vm.canEditPreviewInNeovim(item.projectId),
+      );
       return ListenableBuilder(
         listenable: item,
         builder: (context, _) => item.rawSource
@@ -1824,6 +1855,24 @@ class _PaneBodyState extends State<_PaneBody> {
                 session: item,
                 onCall: (line, cwd) =>
                     vm.runPanelCommand(line, sessionId: item.id, cwd: cwd),
+                editSourceLabel: canEditInNeovim
+                    ? context.t.cockpit.paneView.editInNeovim
+                    : null,
+                onEditSource: canEditInNeovim
+                    ? () {
+                        unawaited(
+                          vm
+                              .editPreviewInNeovim(
+                                item.projectId,
+                                item.path,
+                                inPane: widget.paneId,
+                              )
+                              .then((opened) {
+                                if (!opened) item.toggleRawSource();
+                              }),
+                        );
+                      }
+                    : null,
               ),
       );
     }

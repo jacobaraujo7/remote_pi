@@ -635,6 +635,7 @@ class _Translations$cockpit$paneView$zh extends Translations$cockpit$paneView$en
 	@override String get openInNewWindow => '在新窗口中打开';
 	@override String get rename => '重命名';
 	@override String get openAsMarkdown => '以 Markdown 打开';
+	@override String get editInNeovim => '使用 Neovim 编辑';
 	@override String get openAsBoard => '以看板打开';
 	@override String get resetTitle => '重置标题';
 	@override String get copyId => '复制 ID';
@@ -2407,6 +2408,7 @@ extension on TranslationsZh {
 			'cockpit.paneView.openInNewWindow' => '在新窗口中打开',
 			'cockpit.paneView.rename' => '重命名',
 			'cockpit.paneView.openAsMarkdown' => '以 Markdown 打开',
+			'cockpit.paneView.editInNeovim' => '使用 Neovim 编辑',
 			'cockpit.paneView.openAsBoard' => '以看板打开',
 			'cockpit.paneView.resetTitle' => '重置标题',
 			'cockpit.paneView.copyId' => '复制 ID',
@@ -2711,9 +2713,9 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.refresh' => '刷新',
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
-			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
 			'cockpit.dbMongoView.loadMore' => '加载更多',
 			'cockpit.dbMongoView.edit' => '编辑',
 			'cockpit.dbMongoView.insert' => '插入',
@@ -3225,9 +3227,9 @@ extension on TranslationsZh {
 			'settings.page.appearance.fontPickerSearch' => '搜索字体',
 			'settings.page.appearance.fontPickerEmpty' => '这台机器上没有匹配的字体。',
 			'settings.page.appearance.fontPickerBundled' => '内置',
-			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
 			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
 			'settings.page.appearance.fontPickerUse' => '使用',
 			'settings.page.appearance.fontPickerDefault' => '默认',
