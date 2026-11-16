@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:cockpit/app/cockpit/data/tasks/preview_url_scan.dart';
 import 'package:cockpit/app/cockpit/data/tasks/task_process_registry.dart';
 import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
+import 'package:cockpit/app/cockpit/data/tasks/tools/dev_tool_registry.dart';
 import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 import 'package:cockpit/app/core/data/setup/remote_pi_resolver.dart';
 import 'package:cockpit/app/core/terminal/pty_output_scheduler.dart';
@@ -22,18 +24,23 @@ import 'package:cockpit_pty/cockpit_pty.dart';
 /// isso o app GUI não acharia `flutter`/`npm`/`go` (PATH mínimo do Finder).
 /// Mesma razão e mesmas vars (`TERM`/`COLORTERM`) do terminal embutido.
 class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
-  PtyTaskRunner(this._telemetry);
+  PtyTaskRunner(this._telemetry, this._tools);
 
   /// Telemetria (plano 66): toda task alimenta a Caixa Preta por padrão. A
   /// sessão nasce antes do spawn (injeta `COCKPIT_RUN_ID`/`OTEL_*` no env),
   /// recebe cada chunk de output e fecha com o exit code.
   final TelemetryIngest _telemetry;
 
+  /// Reconhece URLs de sessão no output (DevTools) e as tira do auto-open.
+  final DevToolRegistry _tools;
+
   // Síncrono para o TaskTerminalStore assinar o stream de output antes que o
   // primeiro byte do processo possa chegar. Evita perder o prólogo de builds
   // muito rápidas e inclui o parse do terminal no orçamento do scheduler.
   final _runs = StreamController<TaskRun>.broadcast(sync: true);
   final _previews = StreamController<TaskPreviewUrl>.broadcast();
+  final _sessions = StreamController<TaskSessionUrl>.broadcast();
+  final _sessionByTask = <String, String>{};
   final _running = <String, _RunningTask>{};
   final _starting = <String>{};
   final _lastState = <String, TaskRun>{};
@@ -54,6 +61,12 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   Stream<TaskPreviewUrl> previewUrls() => _previews.stream;
 
   @override
+  Stream<TaskSessionUrl> sessionUrls() => _sessions.stream;
+
+  @override
+  String? sessionUrlOf(String taskId) => _sessionByTask[taskId];
+
+  @override
   TaskRun runOf(String taskId) =>
       _running[taskId]?.state ?? _lastState[taskId] ?? TaskRun.idleFor(taskId);
 
@@ -68,6 +81,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
+    List<String>? argsOverride,
   }) {
     final compose =
         _composeDefinitions[def.id]?.task ??
@@ -75,7 +89,12 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     if (compose != null) {
       return _startCompose(def, compose, profileName);
     }
-    return _launch(def, profileName: profileName, adHocArgs: adHocArgs);
+    return _launch(
+      def,
+      profileName: profileName,
+      adHocArgs: adHocArgs,
+      argsOverride: argsOverride,
+    );
   }
 
   @override
@@ -338,10 +357,15 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
+    List<String>? argsOverride,
     bool restarting = false,
   }) async {
     if (_running.containsKey(def.id)) return; // idempotente
     if (!_starting.add(def.id)) return; // spawn já em preparação
+
+    // A execução anterior (se houve) não empresta a URL. O botão só volta
+    // quando o output desta execução anunciar o serviço de novo.
+    _publishSession(def.id, '');
 
     // Feedback imediato: o botão troca antes dos awaits de resolução
     // (login shell / which node), que podem levar segundos.
@@ -355,11 +379,12 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
 
     final Pty pty;
     TelemetryIngestSession? telemetry;
+    var argv = const <String>[];
     try {
       final profile = profileName == null
           ? null
           : def.profiles.firstWhere((p) => p.name == profileName);
-      final argv = [...def.resolveArgs(profile), ...adHocArgs];
+      argv = argsOverride ?? [...def.resolveArgs(profile), ...adHocArgs];
       final cmdLine = _join([def.command, ...argv]);
       telemetry = await _telemetry.openTaskRun(def, command: cmdLine);
 
@@ -418,11 +443,14 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
       initial,
       isRestart: restarting,
       telemetry: telemetry,
+      adHocArgs: adHocArgs,
+      argsOverride: argsOverride,
+      launchedArgs: argv,
       onOutput: (data) {
         if (!task.out.isClosed) task.out.add(data);
         task.telemetry?.add(data);
         _detectProgress(task, data);
-        _detectPreviewUrl(task, data);
+        _observeOutput(task, data);
       },
     );
     _running[def.id] = task;
@@ -550,12 +578,20 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     if (task == null) return;
     final def = task.def;
     final profileName = task.state.profileName;
+    final adHocArgs = task.adHocArgs;
+    final argsOverride = task.argsOverride;
     await stop(taskId);
     // Aguarda o slot liberar (até ~3.5s) antes de re-spawnar.
     for (var i = 0; i < 35 && _running.containsKey(taskId); i++) {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     }
-    await _launch(def, profileName: profileName, restarting: true);
+    await _launch(
+      def,
+      profileName: profileName,
+      adHocArgs: adHocArgs,
+      argsOverride: argsOverride,
+      restarting: true,
+    );
   }
 
   @override
@@ -710,6 +746,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     _running.clear();
     await _runs.close();
     await _previews.close();
+    await _sessions.close();
   }
 
   Future<void> _stopComposeFollower(String taskId) async {
@@ -724,6 +761,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final task = _running.remove(taskId);
     if (task == null) return;
     task.ended = true;
+    _publishSession(taskId, '');
     stopWatch(taskId); // o processo morreu → nada pra recarregar
     unawaited(TaskProcessRegistry.unregister(task.pty.pid));
     final TaskRunStatus status;
@@ -776,38 +814,59 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     }
   }
 
-  /// Sequências ANSI (cores/cursor) — removidas antes de casar a URL.
-  static final _ansiRe = RegExp(r'\x1b\[[0-9;?]*[a-zA-Z]');
+  /// Guarda a URL de sessão e avisa a UI. [url] vazia derruba a anterior.
+  void _publishSession(String taskId, String url) {
+    if (url.isEmpty) {
+      _sessionByTask.remove(taskId);
+    } else {
+      _sessionByTask[taskId] = url;
+    }
+    if (!_sessions.isClosed) {
+      _sessions.add(TaskSessionUrl(taskId, url));
+    }
+  }
 
-  /// URL de dev server no output (`http://localhost:5173/`, `127.0.0.1`,
-  /// `0.0.0.0`). Path sem espaços/aspas/fechamentos.
-  static final _localUrlRe = RegExp(
-    r'''https?://(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?(?:/[^\s"'`)\]]*)?''',
-  );
+  /// A URL já fechou no texto (tem algo depois dela). No fim do chunk a porta
+  /// ou o path podem ainda estar chegando.
+  bool _sessionUrlClosed(String haystack, String url) {
+    final at = haystack.lastIndexOf(url);
+    if (at < 0) return false;
+    return at + url.length < haystack.length;
+  }
 
-  /// Primeira URL local do run → emite pro shell abrir o navegador (plano 58).
-  /// Mantém uma cauda curta do texto limpo pra URL partida entre chunks.
-  void _detectPreviewUrl(_RunningTask task, String data) {
+  /// Sessão da ferramenta + primeira URL de app. A sessão não abre sozinha e
+  /// não conta como preview; a URL do app segue o auto-open de sempre.
+  void _observeOutput(_RunningTask task, String data) {
+    if (task.ended) return;
+    final clean = data.replaceAll(previewAnsiPattern, '');
+    final haystack = joinWrappedPreviewLines(task.outputTail + clean);
+    task.outputTail = haystack.length > previewOutputTail
+        ? haystack.substring(haystack.length - previewOutputTail)
+        : haystack;
+
+    final hint = _tools.inspectOutput(
+      task.def.command,
+      task.launchedArgs,
+      haystack,
+    );
+    final session = hint?.sessionUrl;
+    if (session != null &&
+        session != task.sessionUrl &&
+        _sessionUrlClosed(haystack, session)) {
+      task.sessionUrl = session;
+      _publishSession(task.def.id, session);
+    }
+
     if (task.previewNotified) return;
     if (!task.def.shouldOpenPreview(isRestart: task.isRestart)) return;
-    final haystack = task.previewTail + data.replaceAll(_ansiRe, '');
-    final match = _localUrlRe.firstMatch(haystack);
-    if (match == null) {
-      task.previewTail = haystack.length > 256
-          ? haystack.substring(haystack.length - 256)
-          : haystack;
-      return;
-    }
-    // URL no fim do chunk pode estar incompleta (porta/path cortados) — espera
-    // o próximo chunk fechar a fronteira antes de emitir.
-    if (match.end == haystack.length) {
-      task.previewTail = haystack.substring(match.start);
-      return;
-    }
+    final url = scanPreviewUrl(
+      haystack,
+      consumed: hint?.consumedUrls ?? const [],
+    );
+    if (url == null) return;
     task.previewNotified = true;
-    task.previewTail = '';
     if (!_previews.isClosed) {
-      _previews.add(TaskPreviewUrl(task.def.id, match.group(0)!));
+      _previews.add(TaskPreviewUrl(task.def.id, url));
     }
   }
 
@@ -912,6 +971,9 @@ class _RunningTask {
     required void Function(String data) onOutput,
     this.isRestart = false,
     this.telemetry,
+    this.adHocArgs = const [],
+    this.argsOverride,
+    this.launchedArgs = const [],
   }) : coalescer = PtyOutputCoalescer(
          onFlush: onOutput,
          onAcknowledge: pty.ackRead,
@@ -933,9 +995,22 @@ class _RunningTask {
   /// start. Só o auto-open do preview olha isso (`previewOpen: "start"`).
   final bool isRestart;
 
+  /// Argv extra e substituição usados no start. O restart relança com os mesmos
+  /// — inclusive o `-d` escolhido antes do play.
+  final List<String> adHocArgs;
+  final List<String>? argsOverride;
+
+  /// Argv efetivo deste processo (`run` + `-d` + o resto). O restart relê daqui
+  /// via [argsOverride]; a sessão usa a mesma lista para saber se é `flutter run`.
+  final List<String> launchedArgs;
+
   /// Auto-open do navegador (plano 58): no máximo uma emissão por run.
   bool previewNotified = false;
 
   /// Cauda do output decodificado (sem ANSI) — cobre URL partida entre chunks.
-  String previewTail = '';
+  String outputTail = '';
+
+  /// URL de sessão já publicada nesta execução. Troca (VM Service → DevTools)
+  /// publica de novo; repetir o mesmo chunk não.
+  String? sessionUrl;
 }

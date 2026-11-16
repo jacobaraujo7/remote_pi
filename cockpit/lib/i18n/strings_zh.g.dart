@@ -557,6 +557,13 @@ class _Translations$cockpit$tasksPanel$zh extends Translations$cockpit$tasksPane
 	@override String get invalidComposeFile => '当前文件不是包含服务的有效 Compose 文件。';
 	@override String get invalidTasksJson => 'tasks.json 无效。未写入任何更改。';
 	@override String composeConflicts({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}';
+	@override String deviceTooltip({required Object name}) => '在 ${name} 上运行';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} 不可用';
+	@override String get noDevicesTooltip => '没有兼容的设备';
+	@override String get noDevicesMenu => '没有兼容的设备';
+	@override String get lookingForDevices => '正在查找设备…';
+	@override String get deviceDiscoveryFailed => '无法列出设备。仍可运行；打开此菜单可重试。';
+	@override String get openDevTools => '打开 DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -2386,6 +2393,13 @@ extension on TranslationsZh {
 			'cockpit.tasksPanel.invalidComposeFile' => '当前文件不是包含服务的有效 Compose 文件。',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json 无效。未写入任何更改。',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => '保留了与 Compose 标签冲突的非 Compose 任务：${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => '在 ${name} 上运行',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} 不可用',
+			'cockpit.tasksPanel.noDevicesTooltip' => '没有兼容的设备',
+			'cockpit.tasksPanel.noDevicesMenu' => '没有兼容的设备',
+			'cockpit.tasksPanel.lookingForDevices' => '正在查找设备…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => '无法列出设备。仍可运行；打开此菜单可重试。',
+			'cockpit.tasksPanel.openDevTools' => '打开 DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => '选择项目文件夹',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => '选择工作区文件夹',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => '工作区已重命名',
@@ -2732,6 +2746,8 @@ extension on TranslationsZh {
 			'cockpit.dbPanel.browseKeys' => '浏览键',
 			'cockpit.dbPanel.deleteConnectionTitle' => '删除连接',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => '从此工作区移除「${name}」？已保存的密码将被丢弃。引用它的 .dbq 文件不受影响。',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} 个连接',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 个连接',
 			'cockpit.dbPanel.noConnections' => '还没有连接。',
@@ -2739,8 +2755,6 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.deleteDocumentTitle' => '删除文档',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object collection, required Object id}) => '从「${collection}」中删除 _id 为 ${id} 的文档？',
 			'cockpit.dbMongoView.filterHint' => '筛选——JSON，如 {"status": "active"}',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
 			'cockpit.dbMongoView.refresh' => '刷新',
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
@@ -3246,6 +3260,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.terminalFontDesc' => '仅用于终端。留空 = 系统默认。',
 			'settings.page.appearance.terminalSizeTitle' => '终端字号',
 			'settings.page.appearance.terminalSizeDesc' => '关闭 = 跟随代码字号。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => '跟随代码字号',
 			'settings.page.appearance.terminalWeightTitle' => '终端字重',
 			'settings.page.appearance.terminalWeightDesc' => '低密度屏幕渲染笔画偏粗。Auto 会在那种屏幕上减淡，Retina 屏则不受影响。',
@@ -3253,8 +3269,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.terminalWeightLight' => '细',
 			'settings.page.appearance.terminalWeightNormal' => '常规',
 			'settings.page.appearance.terminalWeightMedium' => '中等',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightSemiBold' => '半粗',
 			'settings.page.appearance.sectionConversation' => '对话',
 			'settings.page.appearance.pinUserMessageTitle' => '固定用户消息',

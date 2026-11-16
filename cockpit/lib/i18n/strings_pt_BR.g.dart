@@ -635,6 +635,13 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get invalidComposeFile => 'O arquivo ativo não é um Compose válido com services.';
 	@override String get invalidTasksJson => 'tasks.json é inválido. Nenhuma alteração foi gravada.';
 	@override String composeConflicts({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}';
+	@override String deviceTooltip({required Object name}) => 'Executar em ${name}';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} não está disponível';
+	@override String get noDevicesTooltip => 'Nenhum dispositivo compatível';
+	@override String get noDevicesMenu => 'Nenhum dispositivo compatível';
+	@override String get lookingForDevices => 'Procurando dispositivos…';
+	@override String get deviceDiscoveryFailed => 'Não foi possível listar os dispositivos. A execução continua disponível; abra este menu para tentar novamente.';
+	@override String get openDevTools => 'Abrir DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -2471,6 +2478,13 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.invalidComposeFile' => 'O arquivo ativo não é um Compose válido com services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json é inválido. Nenhuma alteração foi gravada.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Executar em ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} não está disponível',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'Nenhum dispositivo compatível',
+			'cockpit.tasksPanel.noDevicesMenu' => 'Nenhum dispositivo compatível',
+			'cockpit.tasksPanel.lookingForDevices' => 'Procurando dispositivos…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Não foi possível listar os dispositivos. A execução continua disponível; abra este menu para tentar novamente.',
+			'cockpit.tasksPanel.openDevTools' => 'Abrir DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Escolha a pasta do projeto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Escolha a pasta do workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renomeado',
@@ -2817,6 +2831,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover pra coluna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Apagar junto com a coluna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta coluna está vazia.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => 'BANCO DE DADOS',
 			'cockpit.dbPanel.edit' => 'Editar…',
 			'cockpit.dbPanel.copyName' => 'Copiar nome',
@@ -2824,8 +2840,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbPanel.browseKeys' => 'Ver chaves',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Excluir conexão',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remover "${name}" deste workspace? Qualquer senha salva será descartada. Arquivos .dbq que fazem referência a ela não são afetados.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} conexões',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexão',
 			'cockpit.dbPanel.noConnections' => 'Nenhuma conexão ainda.',
@@ -3331,6 +3345,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.interfaceFontTitle' => 'Fonte da interface',
 			'settings.page.appearance.interfaceFontDesc' => 'Usada em todo o aplicativo. Vazio = padrão do sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamanho da interface',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => 'Fonte do código',
 			'settings.page.appearance.codeFontDesc' => 'Código e diffs. Vazio = padrão do sistema.',
 			'settings.page.appearance.codeSizeTitle' => 'Tamanho do código',
@@ -3338,8 +3354,6 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.terminalFontDesc' => 'Só o terminal. Vazio = padrão do sistema.',
 			'settings.page.appearance.terminalSizeTitle' => 'Tamanho do terminal',
 			'settings.page.appearance.terminalSizeDesc' => 'Desligado = segue o tamanho do código.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => 'Seguir o código',
 			'settings.page.appearance.terminalWeightTitle' => 'Peso do terminal',
 			'settings.page.appearance.terminalWeightDesc' => 'Telas de baixa densidade engrossam os traços. O automático afina só nelas e não mexe no Retina.',

@@ -1233,6 +1233,27 @@ class Translations$cockpit$tasksPanel$en {
 
 	/// en: 'Kept non-Compose tasks with conflicting labels: ${labels}'
 	String composeConflicts({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}';
+
+	/// en: 'Run on ${name}'
+	String deviceTooltip({required Object name}) => 'Run on ${name}';
+
+	/// en: '${name} is unavailable'
+	String deviceUnavailableTooltip({required Object name}) => '${name} is unavailable';
+
+	/// en: 'No compatible device'
+	String get noDevicesTooltip => 'No compatible device';
+
+	/// en: 'No compatible devices'
+	String get noDevicesMenu => 'No compatible devices';
+
+	/// en: 'Looking for devices…'
+	String get lookingForDevices => 'Looking for devices…';
+
+	/// en: 'Could not list devices. Run remains available; open this menu to retry.'
+	String get deviceDiscoveryFailed => 'Could not list devices. Run remains available; open this menu to retry.';
+
+	/// en: 'Open DevTools'
+	String get openDevTools => 'Open DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -5111,6 +5132,13 @@ extension on Translations {
 			'cockpit.tasksPanel.invalidComposeFile' => 'The active file is not a valid Compose file with services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json is invalid. No changes were written.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Kept non-Compose tasks with conflicting labels: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Run on ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} is unavailable',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'No compatible device',
+			'cockpit.tasksPanel.noDevicesMenu' => 'No compatible devices',
+			'cockpit.tasksPanel.lookingForDevices' => 'Looking for devices…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Could not list devices. Run remains available; open this menu to retry.',
+			'cockpit.tasksPanel.openDevTools' => 'Open DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Choose the project folder',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Choose the workspace folder',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renamed',
@@ -5457,6 +5485,8 @@ extension on Translations {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Move to the previous column',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Delete with the column',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'This column is empty.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => 'DATABASE',
 			'cockpit.dbPanel.edit' => 'Edit…',
 			'cockpit.dbPanel.copyName' => 'Copy name',
@@ -5464,8 +5494,6 @@ extension on Translations {
 			'cockpit.dbPanel.browseKeys' => 'Browse keys',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Delete connection',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remove "${name}" from this workspace? Any saved password is discarded. .dbq files that reference it are not touched.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} connections',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
@@ -5971,6 +5999,8 @@ extension on Translations {
 			'settings.page.appearance.interfaceFontTitle' => 'Interface font',
 			'settings.page.appearance.interfaceFontDesc' => 'Used across the whole app. Empty = system default.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Interface size',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => 'Code font',
 			'settings.page.appearance.codeFontDesc' => 'Code and diffs. Empty = system default.',
 			'settings.page.appearance.codeSizeTitle' => 'Code size',
@@ -5978,8 +6008,6 @@ extension on Translations {
 			'settings.page.appearance.terminalFontDesc' => 'Terminal only. Empty = system default.',
 			'settings.page.appearance.terminalSizeTitle' => 'Terminal size',
 			'settings.page.appearance.terminalSizeDesc' => 'Off = follows the code size.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => 'Follow code size',
 			'settings.page.appearance.terminalWeightTitle' => 'Terminal weight',
 			'settings.page.appearance.terminalWeightDesc' => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.',
