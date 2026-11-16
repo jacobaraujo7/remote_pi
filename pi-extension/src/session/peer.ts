@@ -12,6 +12,7 @@ import {
 } from "./envelope.js";
 import { joinOrLead, type ElectionResult } from "./leader_election.js";
 import { Broker } from "./broker.js";
+import { describeRegistrationBlocker, describeSocketOwner } from "./socket_owner.js";
 
 /**
  * Symmetric peer-in-session API. Hides whether you are leader or follower;
@@ -307,15 +308,33 @@ export class SessionPeer {
     const result: ElectionResult = await joinOrLead(this.opts.sockPath);
     if (result.role === "leader") {
       this.role = "leader";
-      this.broker = new Broker({
+      const broker = new Broker({
         server: result.server,
         auditPath: this.opts.auditPath,
       });
+      this.broker = broker;
       // Leader also registers itself as a peer so other followers see it +
       // can address it. We create a self-loopback socket via the broker's
       // internal API: easiest is to open a real client connection back to
       // our own server.
-      return this._registerAsClient();
+      try {
+        return await this._registerAsClient();
+      } catch (err) {
+        // Self-registration failed, so this process cannot act as a peer even
+        // though it now owns the broker path. Release the path rather than hold
+        // it: leaving it bound strands every later joiner behind a broker whose
+        // owner simultaneously reports "join failed".
+        //
+        // The server accepts from the moment Broker is constructed, so a fast
+        // follower may already be attached. close() destroys those sockets, and
+        // a follower that is still joined reads the drop as a leader loss and
+        // re-runs election via _onSocketClose; one already leaving stays put.
+        // Either way it recovers, whereas a stranded path never does.
+        try { await broker.close(); } catch { /* best-effort */ }
+        this.broker = null;
+        this.role = "follower";
+        throw err;
+      }
     } else {
       this.role = "follower";
       this._wireSocket(result.socket);
@@ -328,7 +347,9 @@ export class SessionPeer {
     const sock = createConnection(this.opts.sockPath);
     await new Promise<void>((resolve, reject) => {
       sock.once("connect", () => resolve());
-      sock.once("error", reject);
+      // Destroy before rejecting: a failed connect still leaves a socket object
+      // holding an fd, and nothing downstream ever sees this one.
+      sock.once("error", (err) => { sock.destroy(); reject(err); });
     });
     this._wireSocket(sock);
     return this._registerOver(sock);
@@ -345,10 +366,56 @@ export class SessionPeer {
 
   private _registerOver(sock: Socket): Promise<string> {
     return new Promise<string>((resolve, reject) => {
+      let settled = false;
       // The first inbound line MUST be the register_ack. Buffer-aware.
-      const wait = setTimeout(() => reject(new Error("register_ack timeout")), 5_000);
-      const onceListener = (raw: unknown) => {
+      //
+      // Reaching this timer means election chose the follower path against a
+      // broker that cannot answer. `tryConnect` only proves the endpoint is
+      // connectable, never that its owner is servicing anything. On POSIX an
+      // AF_UNIX connect() completes as soon as the kernel queues the connection
+      // in the listener backlog, so the owning process need not run at all; a
+      // suspended or event-loop-blocked leader still looks healthy to election.
+      //
+      // Nothing here can recover on its own, because the queued connection and
+      // the mesh both belong to that other process. Naming it saves the operator
+      // a manual walk of /proc, but diagnosis must never widen the leak this
+      // path exists to close: the deadline decides the outcome and frees the
+      // descriptor, and only the wording of the rejection is still pending. An
+      // ack arriving after that point is too late to be honoured.
+      //
+      // The deadline is installed before the helpers it calls. JavaScript runs
+      // this executor to completion before any timer callback, so `release` is
+      // always defined by the time the deadline can fire.
+      const wait = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        release();
+        void describeSocketOwner(this.opts.sockPath).then((owner) => {
+          reject(new Error(
+            `register_ack timeout after ${ACK_TIMEOUT_MS}ms: `
+            + describeRegistrationBlocker(this.opts.sockPath, owner),
+          ));
+        });
+      }, ACK_TIMEOUT_MS);
+      // Releasing is separate from rejecting because the timeout path needs the
+      // descriptor closed at the deadline while it still has a message to build.
+      const release = (): void => {
         clearTimeout(wait);
+        this._preAckListener = null;
+        // Clear the active socket before destroying it, so the close handler does
+        // not read this as a live-connection drop and start a fresh election.
+        // On the leader path this is only the self-loopback client; the broker
+        // server belongs to _joinOrLead and is closed there when we throw.
+        if (this.socket === sock) this.socket = null;
+        sock.destroy();
+      };
+      const fail = (err: Error): void => {
+        if (settled) return;
+        settled = true;
+        release();
+        reject(err);
+      };
+      const onceListener = (raw: unknown) => {
         // plan/38: a new broker returns `address_assigned` (canonical key) +
         // `name_assigned` (clean leaf). Read both with cross-fallback so we work
         // against either a new broker OR a legacy one (only `name_assigned`,
@@ -357,12 +424,15 @@ export class SessionPeer {
         const name = typeof ack?.name_assigned === "string" ? ack.name_assigned : ack?.address_assigned;
         const address = typeof ack?.address_assigned === "string" ? ack.address_assigned : ack?.name_assigned;
         if (ack && ack.type === "register_ack" && typeof name === "string" && typeof address === "string") {
+          if (settled) return;
+          settled = true;
+          clearTimeout(wait);
           this.assignedName = name;
           this.assignedAddress = address;
           this._preAckListener = null;
           resolve(name);
         } else {
-          reject(new Error(`expected register_ack, got: ${JSON.stringify(raw)}`));
+          fail(new Error(`expected register_ack, got: ${JSON.stringify(raw)}`));
         }
       };
       this._preAckListener = onceListener;
@@ -378,8 +448,7 @@ export class SessionPeer {
       try {
         sock.write(req);
       } catch (e) {
-        clearTimeout(wait);
-        reject(e as Error);
+        fail(e as Error);
       }
     });
   }
