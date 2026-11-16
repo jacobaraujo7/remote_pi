@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { IconCopy, IconCheck } from "@/components/landing/icons";
 
 type CodeBlockProps = {
@@ -18,6 +19,7 @@ type CodeBlockProps = {
  * terminal so the whole site reads as one product.
  */
 export function CodeBlock({ code, label, language, prompt = false }: CodeBlockProps) {
+  const t = useTranslations("Common");
   const [copied, setCopied] = useState(false);
   const tlabel = [label, language].filter(Boolean).join(" — ");
 
@@ -41,7 +43,7 @@ export function CodeBlock({ code, label, language, prompt = false }: CodeBlockPr
           className={`copy-btn ${copied ? "copied" : ""}`}
           onClick={copy}
         >
-          {copied ? <IconCheck /> : <IconCopy />} {copied ? "Copied" : "Copy"}
+          {copied ? <IconCheck /> : <IconCopy />} {copied ? t("copied") : t("copy")}
         </button>
       </div>
       <div className="term-body">

@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 /* Routes moved in the 2.0 reorganization (plan/63, k32): Cockpit took the root
    and Remote Pi moved under /remote-pi. Every URL that changed place is
@@ -16,6 +19,14 @@ const MOVED: { from: string; to: string }[] = [
   { from: "/tutorials/daemon", to: "/remote-pi/tutorials/daemon" },
   { from: "/tutorials/claude-mesh", to: "/remote-pi/tutorials/claude-mesh" },
 ];
+
+/* Same redirects under the non-default locales (`/pt-BR/cockpit` -> `/pt-BR`).
+   `en` is unprefixed (localePrefix: "as-needed"), so it uses the plain list. */
+const NON_DEFAULT_LOCALES = ["pt-BR", "es"];
+
+function withLocale(locale: string, path: string): string {
+  return path === "/" ? `/${locale}` : `/${locale}${path}`;
+}
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -35,6 +46,13 @@ const nextConfig: NextConfig = {
         destination: to,
         permanent: true,
       })),
+      ...NON_DEFAULT_LOCALES.flatMap((locale) =>
+        MOVED.map(({ from, to }) => ({
+          source: withLocale(locale, from),
+          destination: withLocale(locale, to),
+          permanent: true,
+        })),
+      ),
       /* `/docs` and `/tutorials` still exist, now holding Cockpit content, so
          they cannot redirect. The old Remote Pi pages behind them are reachable
          under /remote-pi, linked from both indexes. */
@@ -42,4 +60,4 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);
