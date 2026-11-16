@@ -1,6 +1,8 @@
 # Editable Gallery Canvas Board
 
-Create the document from the Gallery or write UTF-8 Markdown to a file with the `.canvas` extension. Preserve document and item IDs when revising. Generate a fresh document ID for new files (the Gallery uses 32 hexadecimal digits). Both early workspace formats (JSON v1 and Markdown v2) open directly. Saving an edit writes Markdown version 3.
+Create the document from the Gallery or write UTF-8 Markdown to a file with the `.canvas` extension. Preserve document and item IDs when revising. Generate a fresh document ID for new files (the Gallery uses 32 hexadecimal digits). Both early workspace formats (JSON v1 and Markdown v2) open directly. Documents normally save as Markdown v3. A custom line width or stacking position uses v4 and needs a v4-capable reader.
+
+In v4, optional `stroke` is a positive finite width in canvas units (the menu offers 1, 2, 4 and 8). Omit it for the theme default. Optional integer `z` orders objects from back to front across shapes, lanes, arrows and strokes. With equal or omitted positions, retain legacy layer and document order. Preserve both properties when editing unrelated objects.
 
 ```markdown
 ---

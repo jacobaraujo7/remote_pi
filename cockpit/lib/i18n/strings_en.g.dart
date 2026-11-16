@@ -3803,6 +3803,24 @@ class Translations$cockpit$gallery$board$en {
 
 	// Translations
 
+	/// en: 'Edit text'
+	String get editObjectText => 'Edit text';
+
+	/// en: 'Line width'
+	String get strokeWidth => 'Line width';
+
+	/// en: 'Width of selected lines'
+	String get selectedLineWidth => 'Width of selected lines';
+
+	/// en: 'Bring to front'
+	String get bringFront => 'Bring to front';
+
+	/// en: 'Send to back'
+	String get sendBack => 'Send to back';
+
+	/// en: 'The selection changed. Open the menu again.'
+	String get menuChanged => 'The selection changed. Open the menu again.';
+
 	/// en: 'Import or export'
 	String get fileActions => 'Import or export';
 
@@ -5549,6 +5567,12 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Edit text',
+			'cockpit.gallery.board.strokeWidth' => 'Line width',
+			'cockpit.gallery.board.selectedLineWidth' => 'Width of selected lines',
+			'cockpit.gallery.board.bringFront' => 'Bring to front',
+			'cockpit.gallery.board.sendBack' => 'Send to back',
+			'cockpit.gallery.board.menuChanged' => 'The selection changed. Open the menu again.',
 			'cockpit.gallery.board.fileActions' => 'Import or export',
 			'cockpit.gallery.board.exportDocument' => 'Export entire document',
 			'cockpit.gallery.board.exportSelection' => 'Export selection',
@@ -5889,14 +5913,14 @@ extension on Translations {
 			'settings.page.appearance.pinUserMessageTitle' => 'Pin user message',
 			'settings.page.appearance.pinUserMessageDesc' => 'The question stays fixed at the top while the answer scrolls.',
 			'settings.page.appearance.importTheme' => 'Import…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.exportTheme' => 'Export…',
 			'settings.page.appearance.deleteTheme' => 'Remove',
 			'settings.page.appearance.importThemeDialog' => 'Pick a theme file',
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
 			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
 			'settings.page.appearance.fontPickerSearch' => 'Search fonts',

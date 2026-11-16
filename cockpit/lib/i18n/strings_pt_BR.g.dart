@@ -1764,6 +1764,12 @@ class _Translations$cockpit$gallery$board$pt_BR extends Translations$cockpit$gal
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => 'Editar texto';
+	@override String get strokeWidth => 'Espessura da linha';
+	@override String get selectedLineWidth => 'Espessura das linhas selecionadas';
+	@override String get bringFront => 'Trazer para a frente';
+	@override String get sendBack => 'Enviar para trás';
+	@override String get menuChanged => 'A seleção mudou. Abra o menu novamente.';
 	@override String get fileActions => 'Importar ou exportar';
 	@override String get exportDocument => 'Exportar documento inteiro';
 	@override String get exportSelection => 'Exportar seleção';
@@ -2951,6 +2957,12 @@ extension on TranslationsPtBr {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Áudio e vídeo abrem na janela principal do Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Arquivo não encontrado: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Editar texto',
+			'cockpit.gallery.board.strokeWidth' => 'Espessura da linha',
+			'cockpit.gallery.board.selectedLineWidth' => 'Espessura das linhas selecionadas',
+			'cockpit.gallery.board.bringFront' => 'Trazer para a frente',
+			'cockpit.gallery.board.sendBack' => 'Enviar para trás',
+			'cockpit.gallery.board.menuChanged' => 'A seleção mudou. Abra o menu novamente.',
 			'cockpit.gallery.board.fileActions' => 'Importar ou exportar',
 			'cockpit.gallery.board.exportDocument' => 'Exportar documento inteiro',
 			'cockpit.gallery.board.exportSelection' => 'Exportar seleção',
@@ -3291,14 +3303,14 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.pinUserMessageTitle' => 'Fixar mensagem do usuário',
 			'settings.page.appearance.pinUserMessageDesc' => 'A pergunta fica fixa no topo enquanto a resposta rola.',
 			'settings.page.appearance.importTheme' => 'Importar…',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.exportTheme' => 'Exportar…',
 			'settings.page.appearance.deleteTheme' => 'Remover',
 			'settings.page.appearance.importThemeDialog' => 'Escolha um arquivo de tema',
 			'settings.page.appearance.exportThemeDialog' => 'Salvar tema como',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			'settings.page.appearance.themeExported' => 'Tema salvo.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Tema removido.',
 			'settings.page.appearance.fontPickerTitle' => 'Escolher uma fonte',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fontes',

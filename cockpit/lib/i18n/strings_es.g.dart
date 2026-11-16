@@ -1760,6 +1760,12 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => 'Editar texto';
+	@override String get strokeWidth => 'Grosor de línea';
+	@override String get selectedLineWidth => 'Grosor de las líneas seleccionadas';
+	@override String get bringFront => 'Traer al frente';
+	@override String get sendBack => 'Enviar al fondo';
+	@override String get menuChanged => 'La selección cambió. Vuelve a abrir el menú.';
 	@override String get fileActions => 'Importar o exportar';
 	@override String get exportDocument => 'Exportar documento completo';
 	@override String get exportSelection => 'Exportar selección';
@@ -2943,6 +2949,12 @@ extension on TranslationsEs {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Editar texto',
+			'cockpit.gallery.board.strokeWidth' => 'Grosor de línea',
+			'cockpit.gallery.board.selectedLineWidth' => 'Grosor de las líneas seleccionadas',
+			'cockpit.gallery.board.bringFront' => 'Traer al frente',
+			'cockpit.gallery.board.sendBack' => 'Enviar al fondo',
+			'cockpit.gallery.board.menuChanged' => 'La selección cambió. Vuelve a abrir el menú.',
 			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
 			'cockpit.gallery.board.exportDocument' => 'Exportar documento completo',
 			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
@@ -3287,14 +3299,14 @@ extension on TranslationsEs {
 			'settings.page.appearance.deleteTheme' => 'Eliminar',
 			'settings.page.appearance.importThemeDialog' => 'Elige un archivo de tema',
 			'settings.page.appearance.exportThemeDialog' => 'Guardar tema como',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			'settings.page.appearance.themeExported' => 'Tema guardado.',
 			'settings.page.appearance.themeDeleted' => 'Tema eliminado.',
 			'settings.page.appearance.fontPickerTitle' => 'Elegir una fuente',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
 			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.fontPickerBundled' => 'incluida',
 			'settings.page.appearance.fontPickerCustom' => '¿No está en la lista? Escribe el nombre exacto de la familia.',
 			'settings.page.appearance.fontPickerCustomHint' => 'Nombre de la familia',

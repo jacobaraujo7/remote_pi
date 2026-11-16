@@ -1679,6 +1679,12 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => '编辑文本';
+	@override String get strokeWidth => '线宽';
+	@override String get selectedLineWidth => '所选线条的宽度';
+	@override String get bringFront => '置于顶层';
+	@override String get sendBack => '置于底层';
+	@override String get menuChanged => '所选对象已更改，请重新打开菜单。';
 	@override String get fileActions => '导入或导出';
 	@override String get exportDocument => '导出整个文档';
 	@override String get exportSelection => '导出所选内容';
@@ -2859,6 +2865,12 @@ extension on TranslationsZh {
 			'cockpit.browserPane.go' => '前往',
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
+			'cockpit.gallery.board.editObjectText' => '编辑文本',
+			'cockpit.gallery.board.strokeWidth' => '线宽',
+			'cockpit.gallery.board.selectedLineWidth' => '所选线条的宽度',
+			'cockpit.gallery.board.bringFront' => '置于顶层',
+			'cockpit.gallery.board.sendBack' => '置于底层',
+			'cockpit.gallery.board.menuChanged' => '所选对象已更改，请重新打开菜单。',
 			'cockpit.gallery.board.fileActions' => '导入或导出',
 			'cockpit.gallery.board.exportDocument' => '导出整个文档',
 			'cockpit.gallery.board.exportSelection' => '导出所选内容',
@@ -3206,14 +3218,14 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeImported' => ({required Object name}) => '主题「${name}」已导入。',
 			'settings.page.appearance.themeExported' => '主题已保存。',
 			'settings.page.appearance.themeDeleted' => '主题已移除。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.fontPickerTitle' => '选择字体',
 			'settings.page.appearance.fontPickerSearch' => '搜索字体',
 			'settings.page.appearance.fontPickerEmpty' => '这台机器上没有匹配的字体。',
 			'settings.page.appearance.fontPickerBundled' => '内置',
 			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
 			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.fontPickerUse' => '使用',
 			'settings.page.appearance.fontPickerDefault' => '默认',
 			'settings.page.appearance.fontMissing' => '这台机器上未找到——使用回退字体。',
