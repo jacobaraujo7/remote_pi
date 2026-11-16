@@ -1661,7 +1661,7 @@ class CockpitViewModel extends ChangeNotifier
       return FileViewText(
         text,
         language: switch (ext) {
-          'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
+          'canvas' || 'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
           '' => null,
           _ => ext,
         },
@@ -2016,7 +2016,7 @@ class CockpitViewModel extends ChangeNotifier
       final session = _sessions[tabId];
       if (session is! FileViewerSession || session.path != path) continue;
       if (!session.rawSource) {
-        if (path.toLowerCase().endsWith('.board')) {
+        if (FileReader.isBoard(path)) {
           await session.switchBoardMode();
         } else {
           session.toggleRawSource();

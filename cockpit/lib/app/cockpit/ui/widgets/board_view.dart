@@ -14,19 +14,11 @@ import '../../domain/services/board_svg.dart' show boardRoute;
 import '../../domain/entities/file_view.dart';
 import '../../domain/services/board_editor.dart';
 import '../session/file_viewer_session.dart';
-import 'board_mermaid.dart';
-import 'board_files.dart';
 
 class BoardView extends StatefulWidget {
-  const BoardView({
-    super.key,
-    required this.session,
-    required this.onSave,
-    required this.onReload,
-  });
+  const BoardView({super.key, required this.session, required this.onSave});
   final FileViewerSession session;
   final Future<bool> Function(String) onSave;
-  final Future<void> Function() onReload;
   @override
   State<BoardView> createState() => _BoardState();
 }
@@ -1160,6 +1152,43 @@ class _BoardState extends State<BoardView> {
         icon: const Icon(Icons.more_horiz),
         onPressed: () => setState(() => advanced = !advanced),
       ),
+      if (selectedShapes.length > 1) ...[
+        IconButton(
+          tooltip: tr.group,
+          icon: const Icon(Icons.group_work_outlined),
+          onPressed: () {
+            final g = BoardDocument.newId();
+            changeSelection((i, _) => i.edited(group: g));
+          },
+        ),
+        IconButton(
+          tooltip: tr.ungroup,
+          icon: const Icon(Icons.grid_off),
+          onPressed: () => changeSelection((i, _) => i.edited(ungroup: true)),
+        ),
+        IconButton(
+          tooltip: tr.align,
+          icon: const Icon(Icons.align_vertical_top),
+          onPressed: () {
+            canvasFocus.requestFocus();
+            final y = selectedShapes.map((i) => i.y).reduce(math.min);
+            changeSelection((i, _) => i.edited(y: y));
+          },
+        ),
+        if (selectedShapes.length > 2)
+          IconButton(
+            tooltip: tr.distribute,
+            icon: const Icon(Icons.horizontal_distribute),
+            onPressed: () {
+              final xs = selectedShapes.map((i) => i.x).toList()..sort();
+              changeSelection(
+                (i, n) => i.edited(
+                  x: xs.first + n * (xs.last - xs.first) / (xs.length - 1),
+                ),
+              );
+            },
+          ),
+      ],
     ];
     return Material(
       color: colors.bg,
@@ -1179,134 +1208,6 @@ class _BoardState extends State<BoardView> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: context.typo.title.copyWith(color: colors.text),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 3,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    child: Row(
-                      children: [
-                        if (selectedShapes.length > 1) ...[
-                          IconButton(
-                            tooltip: tr.group,
-                            icon: const Icon(Icons.group_work_outlined),
-                            onPressed: () {
-                              final g = BoardDocument.newId();
-                              changeSelection((i, _) => i.edited(group: g));
-                            },
-                          ),
-                          IconButton(
-                            tooltip: tr.ungroup,
-                            icon: const Icon(Icons.grid_off),
-                            onPressed: () => changeSelection(
-                              (i, _) => i.edited(ungroup: true),
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: tr.align,
-                            icon: const Icon(Icons.align_vertical_top),
-                            onPressed: () {
-                              final y = selectedShapes
-                                  .map((i) => i.y)
-                                  .reduce(math.min);
-                              changeSelection((i, _) => i.edited(y: y));
-                            },
-                          ),
-                          if (selectedShapes.length > 2)
-                            IconButton(
-                              tooltip: tr.distribute,
-                              icon: const Icon(Icons.horizontal_distribute),
-                              onPressed: () {
-                                final xs =
-                                    selectedShapes.map((i) => i.x).toList()
-                                      ..sort();
-                                changeSelection(
-                                  (i, n) => i.edited(
-                                    x:
-                                        xs.first +
-                                        n *
-                                            (xs.last - xs.first) /
-                                            (xs.length - 1),
-                                  ),
-                                );
-                              },
-                            ),
-                        ],
-                        IconButton(
-                          tooltip: tr.undo,
-                          icon: const Icon(Icons.undo),
-                          onPressed: saving || history.isEmpty
-                              ? null
-                              : () => commit(history.last, undo: true),
-                        ),
-                        IconButton(
-                          tooltip: tr.delete,
-                          icon: const Icon(Icons.delete_outline),
-                          onPressed: saving || current == null
-                              ? null
-                              : () =>
-                                    commit(BoardEdit.remove(doc!, current.id)),
-                        ),
-                        IconButton(
-                          tooltip: tr.reload,
-                          icon: const Icon(Icons.refresh),
-                          onPressed: saving ? null : widget.onReload,
-                        ),
-                        if (doc != null)
-                          BoardFiles(
-                            document: doc!,
-                            documentPath: widget.session.path,
-                            selection: Set.of(selection),
-                            apply: commit,
-                            onError: (e) {
-                              if (mounted) setState(() => error = e);
-                            },
-                          ),
-                        TextButton(
-                          onPressed: saving || doc == null
-                              ? null
-                              : () async {
-                                  final session = widget.session;
-                                  final documentId = doc!.id;
-                                  final original =
-                                      current?.kind == BoardKind.mermaid
-                                      ? current
-                                      : null;
-                                  final text = await editMermaid(
-                                    context,
-                                    original?.label,
-                                  );
-                                  if (text == null ||
-                                      !mounted ||
-                                      session != widget.session ||
-                                      doc == null ||
-                                      doc!.id != documentId) {
-                                    return;
-                                  }
-                                  final latest = doc!.items[original?.id];
-                                  if (original != null &&
-                                      (latest == null ||
-                                          latest.kind != BoardKind.mermaid ||
-                                          (latest.label != original.label &&
-                                              latest.label != text.source))) {
-                                    setState(() => error = tr.saveError);
-                                    return;
-                                  }
-                                  final item =
-                                      latest?.edited(
-                                        label: text.source,
-                                        thumbnail: text.thumbnail,
-                                      ) ??
-                                      text.toBoardItem();
-                                  await commit(BoardEdit.replace(doc!, item));
-                                },
-                          child: const Text('Mermaid'),
-                        ),
-                      ],
-                    ),
                   ),
                 ),
               ],

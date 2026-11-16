@@ -66,9 +66,9 @@ void main() {
     () async {
       final dir = await Directory.systemTemp.createTemp('cockpit-canvas-');
       addTearDown(() => dir.delete(recursive: true));
-      final file = File('${dir.path}/process.board');
+      final file = File('${dir.path}/process.canvas');
       await File(
-        'cli/skills/cockpit-canvas/templates/approval.board',
+        'cli/skills/cockpit-canvas/templates/approval.canvas',
       ).copy(file.path);
       const watcher = DiskFileChangeWatcher(
         pollInterval: Duration(milliseconds: 100),
@@ -215,7 +215,7 @@ void main() {
     () {
       final template = GalleryTemplate.board;
       expect(BoardDocument.parse(template.content).items, isEmpty);
-      expect(template.uniqueFileName(['diagram.board']), 'diagram-2.board');
+      expect(template.uniqueFileName(['diagram.canvas']), 'diagram-2.canvas');
     },
   );
   test('deleting and restoring a shape also restores its connector', () {

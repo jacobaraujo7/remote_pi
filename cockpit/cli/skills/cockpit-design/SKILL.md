@@ -15,7 +15,7 @@ result with `cockpit open <file>` so they see it.
 |---|---|---|
 | live data, buttons that run commands, a dashboard | `.panel` | `references/panel.md` |
 | a static page, a report | `.html` (preview, JS off) | same CSS and `--ckp-*` as `.panel` |
-| editable flowcharts, architecture diagrams or Mermaid | `.board` or `.mmd` | **cockpit-canvas** |
+| editable flowcharts and architecture diagrams | `.canvas` | **cockpit-canvas** |
 | a plan, a roadmap, work in progress | `.kanban` | `references/kanban.md` |
 | findings, decisions, notes over time | `.notebook` | `references/notebook.md` |
 | terminals to open for a project | `.ckp` | `references/ckp.md` |

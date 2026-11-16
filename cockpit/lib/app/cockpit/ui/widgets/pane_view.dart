@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'stable_tab_stack.dart';
 import 'orchestration_view.dart';
 import '../../domain/entities/orchestration_document.dart';
@@ -823,7 +824,7 @@ class _TabState extends State<_Tab> {
           // Saída de emergência do editor próprio: ver e escrever o markdown
           // cru. O arquivo é o mesmo; só muda quem o desenha.
           if (viewer.path.toLowerCase().endsWith('.kanban') ||
-              viewer.path.toLowerCase().endsWith('.board'))
+              FileReader.isBoard(viewer.path))
             AppMenuItem(
               value: 'raw-source',
               label: viewer.rawSource ? tr.openAsBoard : tr.openAsMarkdown,
@@ -957,7 +958,7 @@ class _TabState extends State<_Tab> {
           );
         }
       case 'raw-source':
-        if (viewer != null && viewer.path.toLowerCase().endsWith('.board')) {
+        if (viewer != null && FileReader.isBoard(viewer.path)) {
           await viewer.switchBoardMode();
         } else {
           viewer?.toggleRawSource();
@@ -1730,7 +1731,7 @@ class _PaneBodyState extends State<_PaneBody> {
     }
 
     if (item is FileViewerSession &&
-        item.path.toLowerCase().endsWith('.board')) {
+        FileReader.isBoard(item.path)) {
       final vm = context.read<CockpitViewModel>();
       return BoardDocumentView(
         key: ValueKey(item.id),
@@ -1739,7 +1740,6 @@ class _PaneBodyState extends State<_PaneBody> {
         focused: widget.focused,
         allowLocalFileSystem: vm.canOpenInWindow(item.projectId),
         onSave: (content) => vm.saveFile(item.id, content),
-        onReload: () => vm.reloadFile(item.id),
       );
     }
     // Tab de quadro `.kanban`: colunas/cards sobre o markdown do arquivo.

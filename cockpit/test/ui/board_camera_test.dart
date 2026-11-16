@@ -56,7 +56,6 @@ void main() {
             home: Scaffold(
               child: BoardView(
                 session: session,
-                onReload: () async {},
                 onSave: (text) async {
                   session.adoptDisk(FileViewText(text));
                   return true;

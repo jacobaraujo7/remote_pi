@@ -7,7 +7,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 abstract class FileReader {
   // Board Markdown embeds PNG previews. Match the remote FileService read budget.
   static const boardByteLimit = 8 * 1024 * 1024;
-  static bool isBoard(String path) => path.toLowerCase().endsWith('.board');
+  static bool isBoard(String path) => path.toLowerCase().endsWith('.canvas') || path.toLowerCase().endsWith('.board');
   static int readLimit(String path) =>
       isBoard(path) ? boardByteLimit : 2 * 1024 * 1024;
 

@@ -1,6 +1,6 @@
 # Editable Gallery Canvas Board
 
-Create the document from the Gallery or write UTF-8 Markdown to a file with the `.board` extension. Preserve document and item IDs when revising. Generate a fresh document ID for new files (the Gallery uses 32 hexadecimal digits). Both early workspace formats (JSON v1 and Markdown v2) open directly. Saving an edit writes Markdown version 3.
+Create the document from the Gallery or write UTF-8 Markdown to a file with the `.canvas` extension. Preserve document and item IDs when revising. Generate a fresh document ID for new files (the Gallery uses 32 hexadecimal digits). Both early workspace formats (JSON v1 and Markdown v2) open directly. Saving an edit writes Markdown version 3.
 
 ```markdown
 ---
@@ -46,6 +46,6 @@ Frontmatter identifies the document version and optional ID. Each level-two head
 
 Use `process`, `decision`, `note`, `text`, `service`, `container` or `lane` for shapes. Put large lanes and containers before their contents. Give items the same optional `group` string to move them together. An `arrow` binds `from` and `to` to existing non-arrow IDs. A `stroke` stores a nonempty list under `- points:`. Indent each coordinate pair by two spaces, for example `  - 12, 36`. These are offsets from its origin. Optional `color` is RGB in "#RRGGBB" form. It colors the fill of a shape or the ink of text, strokes and arrows.
 
-For a `mermaid` section, put its source in a Mermaid fence below its properties, in place of the blockquote. Use a fence longer than backtick runs inside the source. Keep the optional base64 PNG `thumbnail` while preserving existing source. When the source changes, regenerate the thumbnail in the Mermaid editor. The optional `line-endings` property preserves CRLF and mixed line endings inside existing labels. New documents can omit it.
+Existing .board documents open in the same editor. Preserve legacy Mermaid objects and their thumbnails when updating an older document. For new drawings, use native shapes, labels and arrows. The optional `line-endings` property preserves CRLF and mixed line endings inside existing labels.
 
-Reopen the file from the tree and move a connected shape to check its endpoints. Choose Export, then the entire document or the selection. The entire document supports PNG, PDF, HTML, SVG, XML (draw.io), Markdown, draw.io, Excalidraw and Mermaid (.mmd). The selection supports PNG, PDF, HTML and SVG. The save dialog suggests the board’s filename. Keep the .board workspace file for future edits. PDF places a raster image on one A4 page. Choose SVG or HTML when readers need to search or copy native shape and connector labels. Mermaid thumbnails remain images in these exports. See the Mermaid reference for .mmd exchange.
+Reopen the file from the tree and move a connected shape to check its endpoints. Keep the editable .canvas document alongside any published illustration.

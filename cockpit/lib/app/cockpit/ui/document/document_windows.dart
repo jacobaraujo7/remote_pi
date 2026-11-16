@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -35,7 +36,7 @@ class DocumentWindows {
   static String? pathFromArguments(List<String> args) {
     if (args.length < 3 || args[0] != 'multi_window') return null;
     if (isStandaloneBoard(args)) {
-      return args[2].toLowerCase().endsWith('.board') ? args[2] : null;
+      return FileReader.isBoard(args[2]) ? args[2] : null;
     }
     try {
       final json = jsonDecode(args[2]);
@@ -51,7 +52,7 @@ class DocumentWindows {
 
   /// Abre (e mostra) uma janela de documento para [path].
   static Future<void> open(String path) async {
-    if (Platform.isWindows && path.toLowerCase().endsWith('.board')) {
+    if (Platform.isWindows && FileReader.isBoard(path)) {
       // Give the canvas its own engine and Win32 message loop. Shutting down
       // a sibling engine must not destroy the canvas window or its renderer.
       await Process.start(Platform.resolvedExecutable, [

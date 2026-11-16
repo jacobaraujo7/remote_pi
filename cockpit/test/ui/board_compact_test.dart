@@ -41,7 +41,6 @@ void main() {
                   height: 480,
                   child: BoardView(
                     session: session,
-                    onReload: () async {},
                     onSave: (text) async {
                       session.adoptDisk(FileViewText(text));
                       return true;

@@ -14,13 +14,11 @@ class BoardDocumentView extends StatelessWidget {
     required this.focused,
     required this.allowLocalFileSystem,
     required this.onSave,
-    required this.onReload,
     this.showModeSwitch = false,
   });
   final FileViewerSession session;
   final bool active, focused, allowLocalFileSystem, showModeSwitch;
   final Future<bool> Function(String) onSave;
-  final Future<void> Function() onReload;
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
@@ -34,7 +32,7 @@ class BoardDocumentView extends StatelessWidget {
               allowLocalFileSystem: allowLocalFileSystem,
               onSave: onSave,
             )
-          : BoardView(session: session, onSave: onSave, onReload: onReload);
+          : BoardView(session: session, onSave: onSave);
       if (!showModeSwitch) return editor;
       final tr = context.t.cockpit.paneView;
       return Column(

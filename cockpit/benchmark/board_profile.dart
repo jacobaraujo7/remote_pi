@@ -30,6 +30,14 @@ typedef ProfileView =
 
 Future<void> main() => runBoardProfile();
 
+// Historical baseline constructors still expect the old reload callback.
+w.Widget currentView({
+  w.Key? key,
+  required FileViewerSession session,
+  required Future<bool> Function(String) onSave,
+  required Future<void> Function() onReload,
+}) => BoardView(key: key, session: session, onSave: onSave);
+
 Future<void> runBoardProfile({ProfileView? baseline}) async {
   w.WidgetsFlutterBinding.ensureInitialized();
   final output = File(
@@ -65,7 +73,7 @@ Future<void> measure(File output, ProfileView? baseline) async {
     for (var run = 1; run <= 3; run++) {
       final variants = {
         'baseline': ?baseline,
-        'current': BoardView.new,
+        'current': currentView,
       }.entries.toList();
       for (final variant in run.isEven ? variants.reversed : variants) {
         final session = FileViewerSession(
@@ -420,7 +428,7 @@ Future<void> _measureInteractions(
       for (final scenario in (run.isEven ? scenarios.reversed : scenarios)) {
         final views = {
           'before': ?baseline,
-          'current': BoardView.new,
+          'current': currentView,
         }.entries.toList();
         for (final version in run.isEven ? views.reversed : views) {
           final count = scene == 'empty' ? 0 : 960;

@@ -496,7 +496,7 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
             style: context.typo.body.copyWith(color: context.colors.text3),
           ),
         );
-      } else if (config.path.toLowerCase().endsWith('.board')) {
+      } else if (FileReader.isBoard(config.path)) {
         body = BoardDocumentView(
           key: ValueKey(config.path),
           session: session,
@@ -505,7 +505,6 @@ class _DocumentScreenState extends State<_DocumentScreenBody>
           allowLocalFileSystem: config.host?.remote != true,
           showModeSwitch: true,
           onSave: _save,
-          onReload: _load,
         );
       } else if (config.path.toLowerCase().endsWith('.kanban')) {
         body = KanbanBoardView(

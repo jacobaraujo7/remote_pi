@@ -17,6 +17,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 const Map<String, String> _extensionOverrides = {
   'dbq': 'database',
   'board': 'excalidraw',
+  'canvas': 'excalidraw',
   'kanban': 'todo',
   'http': 'http',
   'rest': 'http',

@@ -22,7 +22,7 @@ enum GalleryTemplate {
   ),
   board(
     baseName: 'diagram',
-    extension: 'board',
+    extension: 'canvas',
     iconAsset: 'assets/file_icons/excalidraw.svg',
     content: '',
   ),

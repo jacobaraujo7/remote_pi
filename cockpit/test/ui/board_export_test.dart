@@ -106,7 +106,7 @@ void main() {
     'the swimlane template paints connectors over lanes and behind services',
     () async {
       final source = await File(
-        'cli/skills/cockpit-canvas/templates/swimlanes.board',
+        'cli/skills/cockpit-canvas/templates/swimlanes.canvas',
       ).readAsString();
       final board = BoardDocument.parse(source);
       final html = boardHtml(board);

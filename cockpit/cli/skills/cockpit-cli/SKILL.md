@@ -38,7 +38,7 @@ Flags, output shapes and edge cases of every verb: **read `references/verbs.md`*
 before using a verb for the first time.
 
 Other skills, when the task is one of these:
-- Flowcharts, Gallery Board documents, and Mermaid: **cockpit-canvas**.
+- Flowcharts and Gallery Canvas documents: **cockpit-canvas**.
 - Agent Orchestration `.orc` documents, Boxes/Graph and owned terminals:
   **cockpit-orchestration** (distinct from `.ckp` pane layouts).
 - SQL / Redis / Mongo / `.dbq` / connections: **cockpit-db**.

@@ -14,78 +14,6 @@ import 'package:flutter/material.dart' as m;
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
-  testWidgets('applying Mermaid reconciles with the latest workspace object', (
-    tester,
-  ) async {
-    const item = BoardItem(
-      'm',
-      BoardKind.mermaid,
-      40,
-      45,
-      label: 'flowchart LR\nA',
-    );
-    final initial = BoardDocument([item]).encode();
-    final session = FileViewerSession(
-      id: 'mermaid',
-      projectId: 'test',
-      path: 'diagram.board',
-      view: FileViewText(initial),
-    );
-    addTearDown(session.dispose);
-    var writes = 0;
-    await tester.pumpWidget(
-      TranslationProvider(
-        child: ShadcnApp(
-          theme: buildTheme(brightness: Brightness.dark),
-          home: Scaffold(
-            child: BoardView(
-              session: session,
-              onReload: () async {},
-              onSave: (text) async {
-                writes++;
-                session.adoptDisk(FileViewText(text));
-                return true;
-              },
-            ),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final canvas = tester.getTopLeft(find.byType(m.InteractiveViewer));
-    await tester.tapAt(canvas + const Offset(70, 65));
-    await tester.pump();
-    Future<void> applyAfter(List<BoardItem> items) async {
-      final button = tester.widget<m.TextButton>(
-        find.widgetWithText(m.TextButton, 'Mermaid'),
-      );
-      button.onPressed!();
-      session.adoptDisk(FileViewText(BoardDocument(items).encode()));
-      tester.state<NavigatorState>(find.byType(Navigator).first).pop((
-        source: 'flowchart LR\nA-->B',
-        thumbnail: null as String?,
-      ));
-      await tester.pumpAndSettle();
-    }
-
-    await applyAfter([item.edited(x: 120, color: '#E69F00')]);
-    final saved = BoardDocument.parse(
-      (session.view as FileViewText).text,
-    ).items['m']!;
-    expect(
-      (saved.x, saved.color, saved.label),
-      (120.0, '#E69F00', 'flowchart LR\nA-->B'),
-    );
-    await applyAfter([saved.edited(label: 'flowchart LR\nA-->C')]);
-    expect(writes, 1);
-    expect((session.view as FileViewText).text, contains('A-->C'));
-    await applyAfter([]);
-    expect(writes, 1);
-    expect(
-      BoardDocument.parse((session.view as FileViewText).text).items,
-      isEmpty,
-    );
-  });
   testWidgets('an open connector follows the current shapes at the pointer', (
     tester,
   ) async {
@@ -108,7 +36,6 @@ void main() {
           home: Scaffold(
             child: BoardView(
               session: session,
-              onReload: () async {},
               onSave: (source) async {
                 writes++;
                 session.adoptDisk(FileViewText(source));
@@ -187,7 +114,6 @@ void main() {
           home: Scaffold(
             child: BoardView(
               session: session,
-              onReload: () async {},
               onSave: (source) async {
                 writes++;
                 session.adoptDisk(FileViewText(source));
@@ -263,7 +189,6 @@ void main() {
           home: Scaffold(
             child: BoardView(
               session: session,
-              onReload: () async {},
               onSave: (source) async {
                 writes++;
                 session.adoptDisk(FileViewText(source));
@@ -355,7 +280,6 @@ void main() {
             home: Scaffold(
               child: BoardView(
                 session: session,
-                onReload: () async {},
                 onSave: (source) async {
                   writes++;
                   if (writes == 1) {
@@ -414,7 +338,6 @@ void main() {
             home: Scaffold(
               child: BoardView(
                 session: session,
-                onReload: () async {},
                 onSave: (source) async {
                   writes++;
                   await gate.future;
@@ -485,7 +408,9 @@ void main() {
       await tester.pumpAndSettle();
       expect(read().items[process.id]!.y, 40);
       expect(read().items[arrow.id]!.from, process.id);
-      await tester.tap(find.byTooltip('Undo'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       expect(read().items[process.id]!.y, 170);
       await tester.ensureVisible(find.byTooltip('Advanced'));
@@ -587,7 +512,9 @@ void main() {
       await tester.tap(find.text('Green'));
       await tester.pumpAndSettle();
       expect(read().items[process.id]!.color, '#64CBA7');
-      await tester.tap(find.byTooltip('Undo'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       expect(read().items[process.id]!.color, isNull);
       await tester.tapAt(object);
@@ -708,13 +635,15 @@ void main() {
                   session.adoptDisk(FileViewText(value));
                   return true;
                 },
-                onReload: () async {},
               ),
             ),
           ),
         ),
       );
       await tester.pumpAndSettle();
+      expect(find.text('Export'), findsNothing);
+      expect(find.text('Mermaid'), findsNothing);
+      expect(find.byTooltip('Undo'), findsNothing);
       await tester.tap(find.byTooltip('Process'));
       final viewer = find.byType(m.InteractiveViewer);
       await tester.tapAt(tester.getTopLeft(viewer) + const Offset(128, 128));
@@ -725,7 +654,9 @@ void main() {
         ).items.values.single.kind,
         BoardKind.process,
       );
-      await tester.tap(find.byTooltip('Undo'));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyZ);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       expect(
         BoardDocument.parse((session.view as FileViewText).text).items,

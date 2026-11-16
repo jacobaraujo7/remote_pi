@@ -308,7 +308,6 @@ flutter:
     # Plano 58 — pipeline local do preview de markdown (markdown-it +
     # sanitizador + diff de DOM + CSS por variáveis de tema). Sem rede: a
     # webview carrega só estes assets, sob CSP restritiva.
-    - assets/board/
     - assets/md_preview/
     # Plano 67 — ponte JS injetada nas abas `.panel` (window.cockpit).
     - assets/panel/

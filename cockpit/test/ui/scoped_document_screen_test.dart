@@ -131,7 +131,7 @@ void main() {
     tester,
   ) async {
     final dir = Directory.systemTemp.createTempSync('detached-board-encoding');
-    final file = File('${dir.path}/process.board');
+    final file = File('${dir.path}/process.canvas');
     final initial = BoardDocument([
       const BoardItem('step', BoardKind.process, 40, 40, label: 'Aprovação'),
     ]).encode();
@@ -164,7 +164,7 @@ void main() {
       await tester.pumpWidget(
         _app(
           DocumentScreen(
-            path: '/source/process.board',
+            path: '/source/process.canvas',
             host: _host(files, changes),
             onSession: (value) => session = value,
           ),
