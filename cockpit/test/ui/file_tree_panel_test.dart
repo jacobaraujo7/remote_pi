@@ -17,8 +17,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 void main() {
-  for (final extension in ['orc', 'ORC', 'orchestration']) {
-    testWidgets('opens .$extension as JSON from the file menu', (tester) async {
+  for (final (extension, action) in [
+    ('orc', 'Open as JSON'),
+    ('ORC', 'Open as JSON'),
+    ('orchestration', 'Open as JSON'),
+    ('board', 'Open as markdown'),
+    ('BOARD', 'Open as markdown'),
+  ]) {
+    testWidgets('opens .$extension with the source action from the file menu', (tester) async {
       LocaleSettings.setLocale(AppLocale.en);
       final name = 'agents.$extension';
       final path = '/workspace/$name';
@@ -61,8 +67,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(name), buttons: kSecondaryMouseButton);
       await tester.pumpAndSettle();
-      expect(find.text('Open as JSON'), findsOneWidget);
-      await tester.tap(find.text('Open as JSON'));
+      expect(find.text(action), findsOneWidget);
+      await tester.tap(find.text(action));
       await tester.pumpAndSettle();
       expect(sourcePath, path);
       expect(appOpens, 0);
@@ -156,6 +162,94 @@ void main() {
         ),
         isTrue,
       );
+    });
+
+    testWidgets('reveal expands nested parents for a leaf file', (
+      tester,
+    ) async {
+      const target = '/workspace/app.js.map';
+      var revealGen = 0;
+      String? revealPath;
+      Map<String, String> patterns = const {
+        '*.ts': r'${capture}.js',
+        '*.js': r'${capture}.js.map',
+      };
+      late StateSetter rebuild;
+
+      await tester.pumpWidget(
+        TranslationProvider(
+          child: ShadcnApp(
+            theme: buildTheme(brightness: Brightness.dark),
+            home: Scaffold(
+              child: StatefulBuilder(
+                builder: (context, setState) {
+                  rebuild = setState;
+                  return FileTreePanel(
+                    rootPath: '/workspace',
+                    revision: 1,
+                    revealPath: revealPath,
+                    revealGen: revealGen,
+                    fileNestingPatterns: patterns,
+                    listChildren: (_) async => const [
+                      FileNode(
+                        name: 'app.ts',
+                        path: '/workspace/app.ts',
+                        isDirectory: false,
+                      ),
+                      FileNode(
+                        name: 'app.js',
+                        path: '/workspace/app.js',
+                        isDirectory: false,
+                      ),
+                      FileNode(
+                        name: 'app.js.map',
+                        path: target,
+                        isDirectory: false,
+                      ),
+                    ],
+                    gitStatusOf: (_) => null,
+                    onOpenFile: (_) {},
+                    onOpenDiff: (_) {},
+                    isGitRepo: false,
+                    changedPaths: const [],
+                    onOpenWith: (_) {},
+                    onCreateInFolder: (_, {command}) {},
+                    onCreate: (_, _, _) async => const Success(null),
+                    onRename: (_, _) async => const Success(null),
+                    onDelete: (_) async => const Success(null),
+                    onMove: (_, _) async => const Success(null),
+                    onCopy: (_) {},
+                    onCut: (_) {},
+                    onPaste: (_) async => const Success(null),
+                    canPaste: false,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsNothing);
+
+      rebuild(() => patterns = const {});
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsOneWidget);
+      rebuild(
+        () => patterns = const {
+          '*.ts': r'${capture}.js',
+          '*.js': r'${capture}.js.map',
+        },
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsNothing);
+
+      rebuild(() {
+        revealPath = target;
+        revealGen++;
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('app.js.map'), findsOneWidget);
     });
 
     testWidgets(

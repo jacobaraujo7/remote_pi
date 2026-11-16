@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:path/path.dart' as p;
+
 import 'package:cockpit/app/cockpit/domain/contracts/terminal_scrollback_store.dart';
 import 'package:cockpit/app/core/data/setup/storage_location.dart';
+import 'package:cockpit/app/core/data/diagnostics/diagnostics_log.dart';
 
 /// [TerminalScrollbackStore] em arquivo, sob o applicationSupport do app
 /// (`.../terminal_scrollback/<projectId>/<sessionId>.log`, UTF-8). Localização
@@ -13,10 +16,16 @@ import 'package:cockpit/app/core/data/setup/storage_location.dart';
 /// Store **burra**: o ring buffer e o tracking de alt-screen vivem no
 /// [TerminalSession]; aqui só há IO. Escrita atômica via `.tmp` + `rename`.
 class FileTerminalScrollbackStore implements TerminalScrollbackStore {
-  const FileTerminalScrollbackStore();
+  const FileTerminalScrollbackStore({Directory? root, this.listDirectory})
+    : _rootOverride = root;
+
+  // Optional IO seams keep cleanup races deterministic in tests. Normal app
+  // instances still use the same storage location and on-disk format.
+  final Directory? _rootOverride;
+  final Stream<FileSystemEntity> Function(Directory)? listDirectory;
 
   Future<Directory> _root() async =>
-      Directory(await StorageLocation.scrollbackDir());
+      _rootOverride ?? Directory(await StorageLocation.scrollbackDir());
 
   File _fileIn(Directory root, String projectId, String sessionId) =>
       File('${root.path}/${_safe(projectId)}/${_safe(sessionId)}.log');
@@ -97,23 +106,69 @@ class FileTerminalScrollbackStore implements TerminalScrollbackStore {
 
   @override
   Future<void> pruneExcept(Set<String> keep) async {
-    final root = await _root();
-    if (!root.existsSync()) return;
-    // Nomes em disco são escapados por [_safe]; compara no mesmo espaço.
-    final keepSafe = keep.map(_safe).toSet();
-    await for (final projectDir in root.list()) {
-      if (projectDir is! Directory) continue;
-      await for (final entry in projectDir.list()) {
-        if (entry is! File || !entry.path.endsWith('.log')) continue;
-        final name = entry.uri.pathSegments.last; // '<sessionId>.log'
-        final sessionId = name.substring(0, name.length - '.log'.length);
-        if (keepSafe.contains(sessionId)) continue;
-        try {
-          await entry.delete();
-        } catch (_) {
-          // ignora falha individual.
+    try {
+      final root = await _root();
+      // Names on disk use the same escaping as save/load. Do not check exists
+      // first: a directory can disappear before its asynchronous listing starts.
+      final keepSafe = keep.map(_safe).toSet();
+      await for (final projectDir in _entries(root)) {
+        if (projectDir is! Directory) continue;
+        await for (final entry in _entries(projectDir)) {
+          if (entry is! File || !entry.path.endsWith('.log')) continue;
+          final name = entry.uri.pathSegments.last;
+          final sessionId = name.substring(0, name.length - '.log'.length);
+          if (keepSafe.contains(sessionId)) continue;
+          try {
+            await entry.delete();
+          } on FileSystemException catch (error) {
+            _reportPruneFailure('delete', error);
+          }
         }
       }
+    } on FileSystemException catch (error) {
+      _reportPruneFailure('root', error);
     }
+  }
+
+  Stream<FileSystemEntity> _entries(Directory directory) async* {
+    try {
+      final entries =
+          listDirectory?.call(directory) ??
+          _directoryForListing(directory).list(followLinks: false);
+      await for (final entry in entries) {
+        yield entry;
+      }
+    } on FileSystemException catch (error) {
+      // Catch each project's stream independently so a removed/inaccessible
+      // project cannot prevent cleanup of its siblings.
+      _reportPruneFailure('list', error);
+    }
+  }
+
+  Directory _directoryForListing(Directory directory) {
+    if (!Platform.isWindows) return directory;
+    final path = p.windows.normalize(directory.absolute.path);
+    // Dart file IO accepts long paths, but Windows directory enumeration can
+    // still report errno 3 without the extended-length prefix. Apply it only
+    // to enumeration: IDs and the physical cache layout remain unchanged.
+    if (path.startsWith(r'\\?\')) return Directory(path);
+    if (path.startsWith(r'\\')) {
+      return Directory(r'\\?\UNC\' + path.substring(2));
+    }
+    return Directory(r'\\?\' + path);
+  }
+
+  void _reportPruneFailure(String operation, FileSystemException error) {
+    final code = error.osError?.errorCode;
+    if (error is PathNotFoundException ||
+        code == 2 ||
+        (Platform.isWindows && code == 3)) {
+      return;
+    }
+    // Paths and exception messages may contain workspace or customer details.
+    DiagnosticsLog.instance.warn(
+      'scrollback',
+      'cache prune $operation failed (errno ${code ?? 'unknown'})',
+    );
   }
 }

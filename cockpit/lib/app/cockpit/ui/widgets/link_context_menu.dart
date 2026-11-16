@@ -1,8 +1,8 @@
 import 'dart:io';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
 import 'package:cockpit/app/core/utils/platform_kind.dart';
-import 'package:flutter/services.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/widgets.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -51,7 +51,10 @@ Future<void> showTerminalLinkMenu(
     }
     items.add(
       AppMenuItem(
-        value: () => Clipboard.setData(ClipboardData(text: target)),
+        value: () => TextClipboardService.instance.write(
+          target,
+          operation: 'link_context_menu',
+        ),
         label: tr.copyPath,
       ),
     );
@@ -64,7 +67,10 @@ Future<void> showTerminalLinkMenu(
     );
     items.add(
       AppMenuItem(
-        value: () => Clipboard.setData(ClipboardData(text: uri.toString())),
+        value: () => TextClipboardService.instance.write(
+          uri.toString(),
+          operation: 'link_context_menu',
+        ),
         label: tr.copyLink,
       ),
     );

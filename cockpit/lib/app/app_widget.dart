@@ -1,3 +1,4 @@
+import 'package:cockpit/app/core/ui/widgets/clipboard_failure_feedback.dart';
 import 'dart:io' show Platform;
 
 import 'package:cockpit/app/core/domain/entities/app_settings.dart';
@@ -96,7 +97,7 @@ class AppRoot extends StatelessWidget {
               typo: tokens.typo,
               syntax: tokens.syntax,
               terminal: tokens.terminal,
-              child: child ?? const SizedBox(),
+              child: ClipboardFailureFeedback(child: child ?? const SizedBox()),
             ),
           ),
         );
