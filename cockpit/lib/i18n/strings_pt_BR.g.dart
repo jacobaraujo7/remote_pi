@@ -3297,6 +3297,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.exportThemeDialog' => 'Salvar tema como',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Tema "${name}" importado.',
 			'settings.page.appearance.themeExported' => 'Tema salvo.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Tema removido.',
 			'settings.page.appearance.fontPickerTitle' => 'Escolher uma fonte',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fontes',
@@ -3307,8 +3309,6 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.fontPickerUse' => 'Usar',
 			'settings.page.appearance.fontPickerDefault' => 'Padrão',
 			'settings.page.appearance.fontMissing' => 'Não encontrada nesta máquina — usando o fallback.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.sectionLayout' => 'Layout',
 			'settings.page.appearance.swapPanelsTitle' => 'Inverter panes',
 			'settings.page.appearance.swapPanelsDesc' => 'Coloca os workspaces à direita e arquivos, busca, git e banco à esquerda.',
@@ -3357,8 +3357,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.modelUnavailable' => 'A lista de modelos fica indisponível até o harness ser encontrado.',
 			'settings.page.automations.modelCliOnly' => 'Este harness usa o modelo padrão da própria CLI.',
 			'settings.page.automations.modelCliDefault' => 'Padrão da CLI',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness escolhe o modelo automaticamente.',

@@ -5895,6 +5895,8 @@ extension on Translations {
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
 			'settings.page.appearance.themeExported' => 'Theme saved.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
 			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
 			'settings.page.appearance.fontPickerSearch' => 'Search fonts',
@@ -5905,8 +5907,6 @@ extension on Translations {
 			'settings.page.appearance.fontPickerUse' => 'Use',
 			'settings.page.appearance.fontPickerDefault' => 'Default',
 			'settings.page.appearance.fontMissing' => 'Not found on this machine — falling back.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.sectionLayout' => 'Layout',
 			'settings.page.appearance.swapPanelsTitle' => 'Swap side panels',
 			'settings.page.appearance.swapPanelsDesc' => 'Puts workspaces on the right and files, search, git and database on the left.',
@@ -5955,8 +5955,6 @@ extension on Translations {
 			'settings.page.automations.modelUnavailable' => 'The model list is unavailable until the harness is found.',
 			'settings.page.automations.modelCliOnly' => 'This harness uses its CLI default model.',
 			'settings.page.automations.modelCliDefault' => 'CLI default',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.modelAuto' => 'Auto',
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Search among ${count} models…',
 			'settings.page.automations.modelAutoRouted' => 'This harness routes the model automatically.',

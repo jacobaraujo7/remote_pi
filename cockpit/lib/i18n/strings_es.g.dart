@@ -3293,6 +3293,8 @@ extension on TranslationsEs {
 			'settings.page.appearance.fontPickerTitle' => 'Elegir una fuente',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
 			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.fontPickerBundled' => 'incluida',
 			'settings.page.appearance.fontPickerCustom' => '¿No está en la lista? Escribe el nombre exacto de la familia.',
 			'settings.page.appearance.fontPickerCustomHint' => 'Nombre de la familia',
@@ -3303,8 +3305,6 @@ extension on TranslationsEs {
 			'settings.page.appearance.swapPanelsTitle' => 'Invertir paneles',
 			'settings.page.appearance.swapPanelsDesc' => 'Coloca los workspaces a la derecha y archivos, búsqueda, git y base de datos a la izquierda.',
 			'settings.page.notifications.sectionTitle' => 'Notificaciones',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.notifications.enableTitle' => 'Activar notificaciones',
 			'settings.page.notifications.enableDesc' => 'Avisarme cuando un agente termine un turno y la ventana no esté enfocada.',
 			'settings.page.notifications.systemPermissionTitle' => 'Permiso del sistema',
@@ -3353,8 +3353,6 @@ extension on TranslationsEs {
 			'settings.page.automations.modelSearch' => ({required Object count}) => 'Buscar entre ${count} modelos…',
 			'settings.page.automations.modelAutoRouted' => 'Este harness elige el modelo automáticamente.',
 			'settings.page.automations.modelAccountOnly' => 'Solo se muestran los modelos disponibles en tu cuenta.',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.generateFromSourceControl' => 'Generar desde Control de versiones',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit envía solo el diff seleccionado y los asuntos de los commits recientes. Los patrones habituales de credenciales y los archivos sensibles se redactan antes de ejecutar el harness.',
 			'settings.page.automations.discoveryFailed' => 'No se pudieron descubrir los harnesses de automatización instalados.',

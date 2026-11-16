@@ -3212,6 +3212,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.fontPickerBundled' => '内置',
 			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
 			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.fontPickerUse' => '使用',
 			'settings.page.appearance.fontPickerDefault' => '默认',
 			'settings.page.appearance.fontMissing' => '这台机器上未找到——使用回退字体。',
@@ -3222,8 +3224,6 @@ extension on TranslationsZh {
 			'settings.page.notifications.enableTitle' => '启用通知',
 			'settings.page.notifications.enableDesc' => '当智能体完成一轮对话且窗口未聚焦时提醒我。',
 			'settings.page.notifications.systemPermissionTitle' => '系统权限',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.notifications.grantedDesc' => 'Cockpit 已获准发送通知。',
 			'settings.page.notifications.notGrantedDesc' => 'macOS 尚未授予通知权限。',
 			'settings.page.notifications.granted' => '已授予',
@@ -3272,8 +3272,6 @@ extension on TranslationsZh {
 			'settings.page.automations.generateFromSourceControl' => '从源代码管理生成',
 			'settings.page.automations.generateFromSourceControlDescription' => 'Cockpit 只发送选定的差异和最近的提交主题。常见凭据模式和敏感文件会在工具运行前被脱敏。',
 			'settings.page.automations.discoveryFailed' => '无法发现已安装的自动化工具。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => '模型「${model}」在 ${harness} 中已不可用。改用 CLI 默认模型——如有需要，请在设置中选择其他模型。',
 			'settings.page.automations.recommendedSuffix' => '推荐',
 			'settings.remoteHosts.title' => '远程主机',
