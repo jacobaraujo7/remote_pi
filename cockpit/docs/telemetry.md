@@ -163,3 +163,34 @@ teto de 16 KiB com `truncated` + `hint`.
 - OTLP protobuf (só JSON hoje).
 - Badge de erros na linha da task e na aba do terminal de origem.
 - Sondas ao vivo (logpoints via CDP/VM Service) e waterfall de trace.
+
+## Correlacionar operações locais de shell
+
+O wrapper compartilhado `runShellCommand` registra `spawn`,
+`shellFirstOutput` (primeiros bytes de stdout ou stderr, quando existem) e
+`shellComplete`. `durationUs` mede desde o início da invocação; a conclusão
+inclui a espera limitada para drenar os pipes. Falha de criação produz
+`spawn` e `shellComplete` com `failed: 1`; timeout inclui `timedOut: 1`.
+
+As três métricas carregam `invocation` (sequência local ao processo) e
+`operation`, um ID fechado: 0 = não especificada, 1 = comando de `.panel`,
+2 = `cockpit exec` local, 3 = benchmark. Não contêm comando, argumentos,
+cwd, saída ou ambiente. A correlação deve incluir o run do app, pois a
+sequência reinicia em cada processo. O buffer continua limitado a 256
+amostras; uma janela intensa pode descartar as mais antigas.
+
+O aviso de `slow shell spawn` mantém o limite de dois segundos e identifica
+operação/invocação. Ele mede `Process.start`, não a execução do comando ou
+isoladamente o carregamento do perfil do PowerShell.
+
+Benchmark explícito, em Windows, sem reiniciar o app:
+
+```sh
+flutter test --no-pub tool/benchmark_shell_spawn_test.dart --reporter expanded
+```
+
+São vinte operações sequenciais e vinte em grupos de quatro, com o mesmo
+perfil e comando inofensivo. Amostras e percentis de cada fase ficam em
+`build/benchmarks/shell-spawn.json`. A execução usa o perfil carregado pela
+política normal do app; não altera configurações nem atribui causa a um
+perfil/antivírus pela simples presença de latência.

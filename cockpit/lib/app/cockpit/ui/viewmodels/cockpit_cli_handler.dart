@@ -872,6 +872,7 @@ class CockpitCliHandler {
         }
         final result = await runShellCommand(
           command,
+          operation: ShellCommandOperation.cliExec,
           cwd: cwd.isEmpty ? null : cwd,
           environment: environment,
           timeout: Duration(seconds: timeout <= 0 ? 60 : timeout),

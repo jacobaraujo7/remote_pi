@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/domain/contracts/git_command_runner.dart';
 import 'package:cockpit/app/cockpit/domain/entities/project.dart';
 import 'package:cockpit/app/cockpit/domain/validators/clone_destination.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/branch_switch_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/clone_repository_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/git_process_dialog.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart';
@@ -207,6 +208,48 @@ Future<void> pushProject(
   run: (vm) => vm.gitPush(rootPath),
   title: (label) => context.t.cockpit.cockpitPage.pushTitle(label: label),
 );
+
+/// Troca a branch do workspace [project] na root [rootPath].
+///
+/// Só para workspace **raiz local**: a worktree (fork) é definida pela própria
+/// branch (nome/merge/remove dependem dela), então trocar a branch ali quebraria
+/// essas ações — pra isso o fluxo é criar outra worktree. Remoto tem caminho
+/// próprio (`handleRemoteWorkspaceAction`).
+///
+/// A branch remota sem local homônima vira uma tracking branch
+/// (`checkout -b <name> --track <remote>`); árvore suja fica a cargo do git, que
+/// recusa e mostra o erro no dialog de processo.
+Future<void> switchBranch(
+  BuildContext context,
+  Project project,
+  String rootPath,
+) async {
+  final vm = _vm(context);
+  final namespace = await vm.worktreeNamespace(project.id, rootPath: rootPath);
+  if (!context.mounted) return;
+  final current = vm.gitInfoForRootIn(project.id, rootPath)?.branch;
+  final selection = await showBranchSwitchDialog(
+    context,
+    rootName: gitOpLabel(project, rootPath),
+    currentBranch: current,
+    namespace: namespace,
+  );
+  if (selection == null || !context.mounted) return;
+  final run = vm.gitCheckout(
+    rootPath,
+    selection.name,
+    trackRemote: selection.remote,
+  );
+  await showGitProcessDialog(
+    context,
+    title: context.t.cockpit.cockpitPage.switchBranchTitle(
+      label: gitOpLabel(project, rootPath),
+    ),
+    output: run.output,
+    success: run.exitCode.then((c) => c == 0),
+  );
+  await vm.refreshGitProject(project.id);
+}
 
 /// Forma comum de sync/pull/push: roda o comando, mostra a saída ao vivo e
 /// re-lê o estado git do workspace no fim.
