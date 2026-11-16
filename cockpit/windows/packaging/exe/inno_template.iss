@@ -57,6 +57,12 @@ Root: HKCU; Subkey: "Software\Classes\Cockpit.Kanban\DefaultIcon"; ValueType: st
 Root: HKCU; Subkey: "Software\Classes\Cockpit.Kanban\shell\open\command"; ValueType: string; ValueData: """{app}\{{EXECUTABLE_NAME}}"" ""%1"""
 Root: HKCU; Subkey: "Software\Classes\.kanban"; ValueType: string; ValueData: "Cockpit.Kanban"; Flags: uninsdeletevalue
 Root: HKCU; Subkey: "Software\Classes\.kanban\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Kanban"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Canvas"; ValueType: string; ValueData: "Cockpit Canvas Board"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Canvas\DefaultIcon"; ValueType: string; ValueData: "{app}\{{EXECUTABLE_NAME}},0"
+Root: HKCU; Subkey: "Software\Classes\Cockpit.Canvas\shell\open\command"; ValueType: string; ValueData: """{app}\{{EXECUTABLE_NAME}}"" ""%1"""
+Root: HKCU; Subkey: "Software\Classes\.canvas\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Canvas"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.kanvas\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Canvas"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKCU; Subkey: "Software\Classes\.board\OpenWithProgids"; ValueType: string; ValueName: "Cockpit.Canvas"; ValueData: ""; Flags: uninsdeletevalue
 
 Root: HKCU; Subkey: "Software\Classes\Cockpit.Layout"; ValueType: string; ValueData: "Cockpit Pane Layout"; Flags: uninsdeletekey
 Root: HKCU; Subkey: "Software\Classes\Cockpit.Layout\DefaultIcon"; ValueType: string; ValueData: "{app}\{{EXECUTABLE_NAME}},0"

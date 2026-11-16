@@ -1,4 +1,3 @@
-import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -12,7 +11,7 @@ import 'package:window_manager/window_manager.dart';
 /// aba": a aba fica onde está, abre uma cópia solta — sem confundir com o
 /// drag de abas entre panes.
 ///
-/// Cada janela tem um engine Flutter próprio. No Windows, o Canvas Board
+/// Cada janela tem um engine Flutter próprio. No Windows, cada documento
 /// abre em outro processo para sobreviver ao fechamento do Cockpit de origem.
 /// O `main` detecta os argumentos e inicia apenas o editor do documento.
 /// O estado compartilhado é só o caminho; edição concorrente é resolvida pelo
@@ -22,10 +21,10 @@ class DocumentWindows {
 
   // The Windows runner already reserves the multi_window prefix from CLI
   // forwarding. Pass the path as its own argv entry, including spaces.
-  static const _boardProcess = 'standalone-board';
+  static const _documentProcess = 'standalone-document';
 
-  static bool isStandaloneBoard(List<String> args) =>
-      args.length == 3 && args[0] == 'multi_window' && args[1] == _boardProcess;
+  static bool isStandaloneDocument(List<String> args) =>
+      args.length == 3 && args[0] == 'multi_window' && args[1] == _documentProcess;
 
   /// Argumento que o engine da janela recebe (`main(args)` →
   /// `['multi_window', <id>, <este JSON>]`).
@@ -35,8 +34,8 @@ class DocumentWindows {
   /// `path` do JSON de argumentos, ou `null` se não é uma janela de documento.
   static String? pathFromArguments(List<String> args) {
     if (args.length < 3 || args[0] != 'multi_window') return null;
-    if (isStandaloneBoard(args)) {
-      return FileReader.isBoard(args[2]) ? args[2] : null;
+    if (isStandaloneDocument(args)) {
+      return args[2].isNotEmpty ? args[2] : null;
     }
     try {
       final json = jsonDecode(args[2]);
@@ -52,12 +51,12 @@ class DocumentWindows {
 
   /// Abre (e mostra) uma janela de documento para [path].
   static Future<void> open(String path) async {
-    if (Platform.isWindows && FileReader.isBoard(path)) {
-      // Give the canvas its own engine and Win32 message loop. Shutting down
-      // a sibling engine must not destroy the canvas window or its renderer.
+    if (Platform.isWindows) {
+      // Give the document its own engine and Win32 message loop. Shutting down
+      // a sibling engine must not destroy the document window or its renderer.
       await Process.start(Platform.resolvedExecutable, [
         'multi_window',
-        _boardProcess,
+        _documentProcess,
         File(path).absolute.path,
       ], mode: ProcessStartMode.detached);
       return;
@@ -80,11 +79,11 @@ class DocumentWindowChannel {
   /// Título + tamanho inicial + traz pra frente (ver DocumentWindows.swift).
   static Future<void> present(
     String title, {
-    bool standaloneBoard = false,
+    bool standaloneDocument = false,
     double width = 960,
     double height = 720,
   }) async {
-    if (standaloneBoard) {
+    if (standaloneDocument) {
       await windowManager.ensureInitialized();
       await windowManager.setTitle(title);
       await windowManager.setSize(Size(width, height));

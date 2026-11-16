@@ -75,12 +75,12 @@ void main() {
       '/tmp/board.kanban',
     );
     expect(DocumentWindows.pathFromArguments(const []), isNull);
-    for (final extension in ['CANVAS', 'BOARD']) {
+    for (final extension in ['CANVAS', 'KANVAS', 'BOARD', 'KANBAN', 'panel', 'md']) {
       final path = 'C:/Área de trabalho/Aprovação financeira.$extension';
       expect(
         DocumentWindows.pathFromArguments([
           'multi_window',
-          'standalone-board',
+          'standalone-document',
           path,
         ]),
         path,
@@ -89,7 +89,7 @@ void main() {
     expect(
       DocumentWindows.pathFromArguments([
         'multi_window',
-        'standalone-board',
+        'standalone-document',
         '',
       ]),
       isNull,
