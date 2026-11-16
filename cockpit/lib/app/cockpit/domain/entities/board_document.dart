@@ -26,6 +26,8 @@ class BoardItem {
     this.x,
     this.y, {
     this.color,
+    this.strokeWidth,
+    this.z = 0,
     this.label = '',
     this.thumbnail,
     this.group,
@@ -37,6 +39,8 @@ class BoardItem {
   });
   final String id, label;
   final String? color;
+  final double? strokeWidth;
+  final int z;
   bool get usesInkColor =>
       kind == BoardKind.text ||
       kind == BoardKind.arrow ||
@@ -85,6 +89,8 @@ class BoardItem {
         width != other.width ||
         height != other.height ||
         color != other.color ||
+        strokeWidth != other.strokeWidth ||
+        z != other.z ||
         label != other.label ||
         group != other.group ||
         from != other.from ||
@@ -109,6 +115,9 @@ class BoardItem {
     String? group,
     String? color,
     bool clearColor = false,
+    double? strokeWidth,
+    bool clearStrokeWidth = false,
+    int? z,
     bool ungroup = false,
   }) {
     final copy = BoardItem(
@@ -123,6 +132,8 @@ class BoardItem {
               ? null
               : this.thumbnail),
       color: clearColor ? null : color ?? this.color,
+      strokeWidth: clearStrokeWidth ? null : strokeWidth ?? this.strokeWidth,
+      z: z ?? this.z,
       group: ungroup ? null : group ?? this.group,
       width: width,
       height: height,
@@ -140,6 +151,8 @@ class BoardItem {
     'id': id,
     'kind': kind.name,
     if (color != null) 'color': color,
+    if (strokeWidth != null) 'stroke': strokeWidth,
+    if (z != 0) 'z': z,
     'x': x,
     'y': y,
     'width': width,
@@ -176,6 +189,8 @@ class BoardItem {
       width: number(json['width']),
       height: number(json['height']),
       color: color,
+      strokeWidth: json['stroke'] == null ? null : number(json['stroke']),
+      z: json['z'] as int? ?? 0,
       label: json['label'] as String,
       thumbnail: json['thumbnail'] as String?,
       group: json['group'] as String?,
@@ -195,6 +210,7 @@ class BoardItem {
     if (item.id.isEmpty ||
         item.width <= 0 ||
         item.height <= 0 ||
+        (item.strokeWidth != null && item.strokeWidth! <= 0) ||
         (kind == BoardKind.stroke && item.points.isEmpty)) {
       throw const FormatException('Invalid board item');
     }
@@ -218,11 +234,22 @@ class BoardDocument {
     }
   }
   final Map<String, BoardItem> items;
-  late final List<BoardItem> paintOrder = List.unmodifiable([
-    ...items.values.where((i) => i.isBackdrop),
-    ...items.values.where((i) => i.kind == BoardKind.arrow),
-    ...items.values.where((i) => !i.isBackdrop && i.kind != BoardKind.arrow),
-  ]);
+  late final List<BoardItem> paintOrder = _orderedItems();
+  List<BoardItem> _orderedItems() {
+    final legacy = [
+      ...items.values.where((i) => i.isBackdrop),
+      ...items.values.where((i) => i.kind == BoardKind.arrow),
+      ...items.values.where((i) => !i.isBackdrop && i.kind != BoardKind.arrow),
+    ];
+    if (legacy.every((item) => item.z == 0)) return List.unmodifiable(legacy);
+    final ranked = legacy.indexed.toList()
+      ..sort((a, b) {
+        final order = a.$2.z.compareTo(b.$2.z);
+        return order == 0 ? a.$1.compareTo(b.$1) : order;
+      });
+    return List.unmodifiable(ranked.map((entry) => entry.$2));
+  }
+
   final String? id;
   final String eol;
   static final _rng = Random.secure();

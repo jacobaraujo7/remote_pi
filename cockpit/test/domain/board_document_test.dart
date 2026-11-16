@@ -139,7 +139,7 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () => BoardDocument.parse(text.replaceFirst('version: 3', 'version: 4')),
+      () => BoardDocument.parse(text.replaceFirst('version: 3', 'version: 5')),
       throwsFormatException,
     );
   });

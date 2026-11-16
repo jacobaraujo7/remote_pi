@@ -83,6 +83,14 @@ Rectangle<double> boardExportBounds(
         ),
       );
     }
+    if (item.strokeWidth case final width?) {
+      rect = Rectangle(
+        rect.left - width / 2,
+        rect.top - width / 2,
+        rect.width + width,
+        rect.height + width,
+      );
+    }
     bounds = bounds?.boundingBox(rect) ?? rect;
   }
   if (bounds == null) throw const FormatException('Empty selection');
@@ -181,6 +189,7 @@ String boardSvg(
                   : 'M $ax $ay H $mid V $by H $bx m $wing -4 L $bx $by l $wing 4',
               'fill': 'none',
               'stroke': i.color ?? '#303030',
+              if (i.strokeWidth != null) 'stroke-width': '${i.strokeWidth}',
             },
           );
           text(
@@ -195,6 +204,7 @@ String boardSvg(
         final cx = i.x + i.width / 2, cy = i.y + i.height / 2;
         final attrs = {
           'stroke': '#303030',
+          if (i.strokeWidth != null) 'stroke-width': '${i.strokeWidth}',
           'fill': i.color ?? (i.kind == BoardKind.note ? '#fff3ac' : 'white'),
         };
         if (i.kind == BoardKind.stroke) {
@@ -204,7 +214,7 @@ String boardSvg(
               attributes: {
                 'cx': '${i.x}',
                 'cy': '${i.y}',
-                'r': '1',
+                'r': i.strokeWidth == null ? '1' : '${i.strokeWidth! / 2}',
                 'fill': i.color ?? '#303030',
               },
             );
@@ -218,6 +228,7 @@ String boardSvg(
                   .join(' '),
               'stroke': i.color ?? '#303030',
               'fill': 'none',
+              if (i.strokeWidth != null) 'stroke-width': '${i.strokeWidth}',
             },
           );
         } else if (i.kind == BoardKind.decision) {

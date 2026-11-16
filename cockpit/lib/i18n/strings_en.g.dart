@@ -3883,6 +3883,24 @@ class Translations$cockpit$gallery$board$en {
 
 	// Translations
 
+	/// en: 'Edit text'
+	String get editObjectText => 'Edit text';
+
+	/// en: 'Line width'
+	String get strokeWidth => 'Line width';
+
+	/// en: 'Width of selected lines'
+	String get selectedLineWidth => 'Width of selected lines';
+
+	/// en: 'Bring to front'
+	String get bringFront => 'Bring to front';
+
+	/// en: 'Send to back'
+	String get sendBack => 'Send to back';
+
+	/// en: 'The selection changed. Open the menu again.'
+	String get menuChanged => 'The selection changed. Open the menu again.';
+
 	/// en: 'Import or export'
 	String get fileActions => 'Import or export';
 
@@ -5694,6 +5712,12 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Edit text',
+			'cockpit.gallery.board.strokeWidth' => 'Line width',
+			'cockpit.gallery.board.selectedLineWidth' => 'Width of selected lines',
+			'cockpit.gallery.board.bringFront' => 'Bring to front',
+			'cockpit.gallery.board.sendBack' => 'Send to back',
+			'cockpit.gallery.board.menuChanged' => 'The selection changed. Open the menu again.',
 			'cockpit.gallery.board.fileActions' => 'Import or export',
 			'cockpit.gallery.board.exportDocument' => 'Export entire document',
 			'cockpit.gallery.board.exportSelection' => 'Export selection',
@@ -6014,14 +6038,14 @@ extension on Translations {
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
 			'settings.page.appearance.modeTitle' => 'Mode',
 			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.',
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',

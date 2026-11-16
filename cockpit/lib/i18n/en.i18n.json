@@ -815,6 +815,12 @@
     },
     "gallery": {
       "board": {
+        "editObjectText": "Edit text",
+        "strokeWidth": "Line width",
+        "selectedLineWidth": "Width of selected lines",
+        "bringFront": "Bring to front",
+        "sendBack": "Send to back",
+        "menuChanged": "The selection changed. Open the menu again.",
         "fileActions": "Import or export",
         "exportDocument": "Export entire document",
         "exportSelection": "Export selection",

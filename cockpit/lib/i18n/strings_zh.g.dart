@@ -1713,6 +1713,12 @@ class _Translations$cockpit$gallery$board$zh extends Translations$cockpit$galler
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => '编辑文本';
+	@override String get strokeWidth => '线宽';
+	@override String get selectedLineWidth => '所选线条的宽度';
+	@override String get bringFront => '置于顶层';
+	@override String get sendBack => '置于底层';
+	@override String get menuChanged => '所选对象已更改，请重新打开菜单。';
 	@override String get fileActions => '导入或导出';
 	@override String get exportDocument => '导出整个文档';
 	@override String get exportSelection => '导出所选内容';
@@ -2934,6 +2940,12 @@ extension on TranslationsZh {
 			'cockpit.browserPane.go' => '前往',
 			'cockpit.documentWindow.mediaNotSupported' => '音频和视频将在 Cockpit 主窗口中打开。',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => '未找到文件：${path}',
+			'cockpit.gallery.board.editObjectText' => '编辑文本',
+			'cockpit.gallery.board.strokeWidth' => '线宽',
+			'cockpit.gallery.board.selectedLineWidth' => '所选线条的宽度',
+			'cockpit.gallery.board.bringFront' => '置于顶层',
+			'cockpit.gallery.board.sendBack' => '置于底层',
+			'cockpit.gallery.board.menuChanged' => '所选对象已更改，请重新打开菜单。',
 			'cockpit.gallery.board.fileActions' => '导入或导出',
 			'cockpit.gallery.board.exportDocument' => '导出整个文档',
 			'cockpit.gallery.board.exportSelection' => '导出所选内容',
@@ -3261,14 +3273,14 @@ extension on TranslationsZh {
 			'settings.page.appearance.previewCode' => '代码',
 			'settings.page.appearance.previewTerminal' => '终端',
 			'settings.page.appearance.themeSystem' => '跟随系统',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeLight' => '浅色',
 			'settings.page.appearance.themeDark' => '深色',
 			'settings.page.appearance.sectionFonts' => '字体',
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',

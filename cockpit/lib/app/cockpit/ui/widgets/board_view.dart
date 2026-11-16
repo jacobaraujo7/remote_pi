@@ -4,7 +4,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:cockpit/app/core/ui/widgets/app_menu.dart';
-import 'package:flutter/gestures.dart' show kDoubleTapTimeout, kDoubleTapSlop;
+import 'package:flutter/gestures.dart'
+    show kDoubleTapTimeout, kDoubleTapSlop, kSecondaryMouseButton;
 import 'package:flutter/services.dart';
 import 'package:flutter/semantics.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
@@ -709,13 +710,34 @@ class _BoardState extends State<BoardView> {
     for (final item in doc!.paintOrder.reversed) {
       if (item.kind == BoardKind.arrow) {
         final points = route(item);
+        if (item.label.isNotEmpty &&
+            editorBounds(item, path: points).contains(p)) {
+          return item.id;
+        }
         for (var i = 1; i < points.length; i++) {
           if (Rect.fromPoints(
             points[i - 1],
             points[i],
-          ).inflate(6).contains(p)) {
+          ).inflate(6 + (item.strokeWidth ?? 0) / 2).contains(p)) {
             return item.id;
           }
+        }
+      } else if (item.kind == BoardKind.stroke) {
+        final radius = 5 + (item.strokeWidth ?? 1.5) / 2;
+        if (!itemBounds(item).inflate(radius).contains(p)) continue;
+        Offset? previous;
+        for (final sample in item.points) {
+          final end = Offset(item.x + sample.x, item.y + sample.y);
+          final start = previous ?? end;
+          final segment = end - start;
+          final relative = p - start;
+          final t = segment.distanceSquared == 0
+              ? 0.0
+              : ((relative.dx * segment.dx + relative.dy * segment.dy) /
+                        segment.distanceSquared)
+                    .clamp(0.0, 1.0);
+          if ((p - (start + segment * t)).distance <= radius) return item.id;
+          previous = end;
         }
       } else if (Rect.fromLTWH(
         item.x,
@@ -794,7 +816,208 @@ class _BoardState extends State<BoardView> {
     }
   }
 
+  Map<String, String> get swatches {
+    final tr = context.t.cockpit.gallery.board;
+    return {
+      '': tr.themeColor,
+      '#6EA8FE': tr.blue,
+      '#64CBA7': tr.green,
+      '#F4C363': tr.amber,
+      '#FA8983': tr.red,
+      '#B29AF4': tr.violet,
+      '#5CCBDC': tr.cyan,
+    };
+  }
+
+  void keyboardMenu() {
+    final item = doc?.items[selected];
+    final box = viewport.currentContext?.findRenderObject() as RenderBox?;
+    if (item == null || box == null) return;
+    revealItem(item);
+    final point = MatrixUtils.transformPoint(
+      transform.value,
+      itemBounds(item).center + sceneOrigin,
+    );
+    unawaited(objectMenu(item.id, box.localToGlobal(point)));
+  }
+
+  Future<void> objectMenu(String id, Offset position) async {
+    final original = doc!;
+    final session = widget.session;
+    if (!selection.contains(id)) setState(() => select(id));
+    final ids = selection.toSet();
+    final items = [for (final key in ids) original.items[key]!];
+    final shapes = items.where((i) => i.kind != BoardKind.arrow).toList();
+    final colored = items.where((i) => i.kind != BoardKind.mermaid).toList();
+    final lines = colored.where((i) => i.kind != BoardKind.text).toList();
+    final groups = shapes.map((i) => i.group).whereType<String>().toSet();
+    final order = original.paintOrder;
+    final tr = context.t.cockpit.gallery.board;
+    final action = await showAppMenu<String>(
+      context,
+      globalPosition: position,
+      items: [
+        if (items.length == 1 && editable(items.single))
+          AppMenuItem(
+            value: 'text',
+            label: tr.editObjectText,
+            icon: Icons.edit_outlined,
+          ),
+        if (colored.isNotEmpty)
+          AppMenuItem(
+            value: 'color',
+            label: tr.diagramColor,
+            icon: Icons.palette_outlined,
+          ),
+        if (lines.isNotEmpty)
+          AppMenuItem(
+            value: 'width',
+            label: lines.length == items.length
+                ? tr.strokeWidth
+                : tr.selectedLineWidth,
+            icon: Icons.line_weight,
+          ),
+        AppMenuItem(
+          value: 'front',
+          label: tr.bringFront,
+          icon: Icons.flip_to_front,
+          enabled: !order.reversed
+              .take(ids.length)
+              .every((i) => ids.contains(i.id)),
+        ),
+        AppMenuItem(
+          value: 'back',
+          label: tr.sendBack,
+          icon: Icons.flip_to_back,
+          enabled: !order.take(ids.length).every((i) => ids.contains(i.id)),
+        ),
+        if (shapes.length > 1)
+          AppMenuItem(
+            value: 'group',
+            label: tr.group,
+            icon: Icons.group_work_outlined,
+            enabled: groups.length != 1 || shapes.any((i) => i.group == null),
+          ),
+        if (groups.isNotEmpty)
+          AppMenuItem(
+            value: 'ungroup',
+            label: tr.ungroup,
+            icon: Icons.grid_off,
+          ),
+        const AppMenuItem<String>.divider(),
+        AppMenuItem(
+          value: 'delete',
+          label: tr.delete,
+          danger: true,
+          icon: Icons.delete_outline,
+        ),
+      ],
+    );
+    if (!mounted || widget.session != session) return;
+    String? value;
+    if (action == 'color' || action == 'width') {
+      final options = action == 'color'
+          ? swatches
+          : {
+              '': tr.themeColor,
+              for (final w in [1, 2, 4, 8]) '$w': '$w',
+            };
+      value = await showAppMenu<String>(
+        context,
+        globalPosition: position,
+        items: [
+          for (final entry in options.entries)
+            AppMenuItem(
+              value: entry.key,
+              label: entry.value,
+              selected: action == 'color'
+                  ? colored.every((i) => (i.color ?? '') == entry.key)
+                  : lines.every(
+                      (i) => i.strokeWidth == double.tryParse(entry.key),
+                    ),
+              leading: action == 'color' && entry.key.isNotEmpty
+                  ? Icon(Icons.circle, size: 16, color: swatch(entry.key))
+                  : null,
+            ),
+        ],
+      );
+    }
+    if (!mounted || widget.session != session) return;
+    canvasFocus.requestFocus();
+    if (action == null ||
+        ((action == 'color' || action == 'width') && value == null)) {
+      return;
+    }
+    final latest = doc;
+    if (latest == null || latest.id != original.id) return;
+    bool dependsOn(BoardItem i) =>
+        ids.contains(i.id) ||
+        ((action == 'group' || action == 'ungroup') &&
+            groups.contains(i.group)) ||
+        (action == 'delete' && (ids.contains(i.from) || ids.contains(i.to)));
+    final captured = original.items.values.where(dependsOn).toList();
+    if (latest.items.values.where(dependsOn).length != captured.length ||
+        captured.any((i) => latest.items[i.id]?.sameContent(i) != true)) {
+      setState(() => error = tr.menuChanged);
+      return;
+    }
+    Future<void> change(
+      Iterable<BoardItem> targets,
+      BoardItem Function(BoardItem) update,
+    ) async {
+      final after = {for (final i in targets) i.id: update(i)}
+        ..removeWhere((id, next) => latest.items[id]!.sameContent(next));
+      if (after.isNotEmpty) {
+        await commit(
+          BoardEdit({for (final id in after.keys) id: latest.items[id]}, after),
+        );
+      }
+    }
+
+    switch (action) {
+      case 'text':
+        editLabel(latest.items[id]);
+      case 'color':
+        await change(
+          colored,
+          (i) => i.edited(color: value, clearColor: value!.isEmpty),
+        );
+      case 'width':
+        await change(
+          lines,
+          (i) => i.edited(
+            strokeWidth: double.tryParse(value!),
+            clearStrokeWidth: value.isEmpty,
+          ),
+        );
+      case 'front' || 'back':
+        await commit(BoardEdit.reorder(latest, ids, front: action == 'front'));
+      case 'group':
+        final group = BoardDocument.newId();
+        await change(shapes, (i) => i.edited(group: group));
+      case 'ungroup':
+        await change(
+          captured.where((i) => groups.contains(i.group)),
+          (i) => i.edited(ungroup: true),
+        );
+      case 'delete':
+        await commit(BoardEdit.removeMany(latest, ids));
+    }
+  }
+
   void begin(PointerDownEvent e) {
+    if (e.buttons == kSecondaryMouseButton) {
+      if (doc == null || pointer != null || spacePan) return;
+      final position = e.localPosition - sceneOrigin;
+      if (editing != null) {
+        if (lastEditorBounds?.contains(position) == true || !finishLabel()) {
+          return;
+        }
+      }
+      final id = hit(position);
+      if (id != null) unawaited(objectMenu(id, e.position));
+      return;
+    }
     if (pointer != null && e.pointer != pointer) {
       cancel();
       return;
@@ -1111,15 +1334,6 @@ class _BoardState extends State<BoardView> {
         ? null
         : lastEditorBounds;
     final handleItem = doc?.items[hovered] ?? current;
-    final swatches = {
-      '': tr.themeColor,
-      '#6EA8FE': tr.blue,
-      '#64CBA7': tr.green,
-      '#F4C363': tr.amber,
-      '#FA8983': tr.red,
-      '#B29AF4': tr.violet,
-      '#5CCBDC': tr.cyan,
-    };
     final targetColor = tool == 'select' && current != null
         ? current.color
         : drawingColor;
@@ -1258,6 +1472,13 @@ class _BoardState extends State<BoardView> {
                           ? {}
                           : {
                               const SingleActivator(
+                                LogicalKeyboardKey.f10,
+                                shift: true,
+                              ): keyboardMenu,
+                              const SingleActivator(
+                                LogicalKeyboardKey.contextMenu,
+                              ): keyboardMenu,
+                              const SingleActivator(
                                 LogicalKeyboardKey.f2,
                               ): () =>
                                   editLabel(current),
@@ -1277,7 +1498,12 @@ class _BoardState extends State<BoardView> {
                                 LogicalKeyboardKey.delete,
                               ): () {
                                 if (current != null) {
-                                  commit(BoardEdit.remove(doc!, current.id));
+                                  commit(
+                                    BoardEdit.removeMany(
+                                      doc!,
+                                      selection.toSet(),
+                                    ),
+                                  );
                                 }
                               },
                             },

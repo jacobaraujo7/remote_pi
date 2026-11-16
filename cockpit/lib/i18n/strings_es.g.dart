@@ -1794,6 +1794,12 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => 'Editar texto';
+	@override String get strokeWidth => 'Grosor de línea';
+	@override String get selectedLineWidth => 'Grosor de las líneas seleccionadas';
+	@override String get bringFront => 'Traer al frente';
+	@override String get sendBack => 'Enviar al fondo';
+	@override String get menuChanged => 'La selección cambió. Vuelve a abrir el menú.';
 	@override String get fileActions => 'Importar o exportar';
 	@override String get exportDocument => 'Exportar documento completo';
 	@override String get exportSelection => 'Exportar selección';
@@ -3018,6 +3024,12 @@ extension on TranslationsEs {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Editar texto',
+			'cockpit.gallery.board.strokeWidth' => 'Grosor de línea',
+			'cockpit.gallery.board.selectedLineWidth' => 'Grosor de las líneas seleccionadas',
+			'cockpit.gallery.board.bringFront' => 'Traer al frente',
+			'cockpit.gallery.board.sendBack' => 'Enviar al fondo',
+			'cockpit.gallery.board.menuChanged' => 'La selección cambió. Vuelve a abrir el menú.',
 			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
 			'cockpit.gallery.board.exportDocument' => 'Exportar documento completo',
 			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
@@ -3342,14 +3354,14 @@ extension on TranslationsEs {
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" solo trae la variante clara, así que esto no tiene efecto.',
 			'settings.page.appearance.themeFileTitle' => 'Archivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importa un tema desde un archivo JSON, o exporta el activo.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',

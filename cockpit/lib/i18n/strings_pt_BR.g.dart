@@ -1798,6 +1798,12 @@ class _Translations$cockpit$gallery$board$pt_BR extends Translations$cockpit$gal
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => 'Editar texto';
+	@override String get strokeWidth => 'Espessura da linha';
+	@override String get selectedLineWidth => 'Espessura das linhas selecionadas';
+	@override String get bringFront => 'Trazer para a frente';
+	@override String get sendBack => 'Enviar para trás';
+	@override String get menuChanged => 'A seleção mudou. Abra o menu novamente.';
 	@override String get fileActions => 'Importar ou exportar';
 	@override String get exportDocument => 'Exportar documento inteiro';
 	@override String get exportSelection => 'Exportar seleção';
@@ -3026,6 +3032,12 @@ extension on TranslationsPtBr {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Áudio e vídeo abrem na janela principal do Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Arquivo não encontrado: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Editar texto',
+			'cockpit.gallery.board.strokeWidth' => 'Espessura da linha',
+			'cockpit.gallery.board.selectedLineWidth' => 'Espessura das linhas selecionadas',
+			'cockpit.gallery.board.bringFront' => 'Trazer para a frente',
+			'cockpit.gallery.board.sendBack' => 'Enviar para trás',
+			'cockpit.gallery.board.menuChanged' => 'A seleção mudou. Abra o menu novamente.',
 			'cockpit.gallery.board.fileActions' => 'Importar ou exportar',
 			'cockpit.gallery.board.exportDocument' => 'Exportar documento inteiro',
 			'cockpit.gallery.board.exportSelection' => 'Exportar seleção',
@@ -3346,14 +3358,14 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',
 			'settings.page.appearance.modeDesc' => 'Qual variante do tema usar.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" só traz a variante escura, então isto não tem efeito.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" só traz a variante clara, então isto não tem efeito.',
 			'settings.page.appearance.themeFileTitle' => 'Arquivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Escuro',
