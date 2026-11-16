@@ -1663,14 +1663,20 @@ class _SoundEventRowState extends State<_SoundEventRow> {
   /// Player do preview, criado no primeiro uso (re-`open` reinicia o som).
   Player? _player;
 
+  /// Para o player no fim do som: com o `keep-open=yes` do media_kit a saída
+  /// de áudio ficaria aberta enquanto a página vive (mesmo caso do chime no
+  /// `LocalNotifier`).
+  StreamSubscription<bool>? _completedSub;
+
   @override
   void dispose() {
+    _completedSub?.cancel();
     _player?.dispose();
     super.dispose();
   }
 
   Future<void> _preview(String? customPath, double volume) async {
-    final player = _player ??= Player();
+    final player = _player ??= _createPlayer();
     final media = customPath != null && File(customPath).existsSync()
         ? Media(customPath)
         : Media('asset:///assets/sounds/${widget.event.defaultAsset}');
@@ -1680,6 +1686,14 @@ class _SoundEventRowState extends State<_SoundEventRow> {
     } catch (_) {
       // preview é best-effort; o fallback pro embarcado acontece em runtime
     }
+  }
+
+  Player _createPlayer() {
+    final player = Player();
+    _completedSub = player.stream.completed.listen((done) {
+      if (done) player.stop().catchError((Object _) {});
+    });
+    return player;
   }
 
   Future<void> _choose() async {

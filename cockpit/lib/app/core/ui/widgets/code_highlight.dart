@@ -83,7 +83,7 @@ void _ensureCustomLanguages() {
 /// parse e o arquivo inteiro cairia em plaintext. Esta gramática cobre o
 /// formato de arquivo: separador `###`, variáveis `@nome = valor`,
 /// interpolação `{{nome}}`, request-line sem versão, headers, `< body.json` /
-/// `> saida.json` e o body JSON como sub-idioma.
+/// `> saida.json`, scripts `< {%`/`> {%` e o body JSON como sub-idioma.
 ///
 /// Mesma restrição do dotenv: lookahead `(?=...)` em `begin` não casa no port
 /// Dart — as regras se ancoram em `^` e usam `returnBegin`/`excludeEnd`. E
@@ -92,6 +92,11 @@ void _ensureCustomLanguages() {
 hl.Mode _httpFileMode() {
   final interpolation = hl.Mode(
     className: 'variable',
+    begin: r'\{\{[^{}\n]*\}\}',
+    relevance: 0,
+  );
+  final bodyVariable = hl.Mode(
+    className: 'http-json-variable',
     begin: r'\{\{[^{}\n]*\}\}',
     relevance: 0,
   );
@@ -153,24 +158,71 @@ hl.Mode _httpFileMode() {
           ],
         ),
       ),
+      // Continuação da URL (`?page=1` / `&size=20`) com a mesma cor do link.
+      hl.Mode(
+        className: 'string',
+        begin: r'^[ \t]*[?&]',
+        end: r'$',
+        relevance: 0,
+        contains: [interpolation],
+      ),
+      // Scripts pré/pós-request: os delimitadores mantêm a cor de metadados,
+      // enquanto o conteúdo usa a gramática JavaScript (strings, chamadas,
+      // palavras-chave). Precisa vir antes da regra genérica `< arquivo`.
+      hl.Mode(
+        className: 'http-script',
+        begin: r'^[ \t]*[<>][ \t]*\{%',
+        end: r'%\}',
+        subLanguage: ['javascript'],
+        relevance: 10,
+      ),
       // `< ./body.json` (importa body) e `> ./out.json` (salva resposta).
       hl.Mode(
         className: 'meta',
         begin: r'^[ \t]*[<>][ \t]+\S.*$',
         relevance: 0,
       ),
-      // Body JSON: começa na linha em branco seguida de `{` ou `[` e vai até o
-      // próximo separador (ou o fim do arquivo). `returnBegin` devolve o
-      // cursor para o sub-idioma ver o objeto inteiro.
+      // Body JSON: aceita os placeholders do HTTP Client em posições onde
+      // JSON puro exigiria um literal. A gramática JSON do highlight.js não
+      // reconhece `{{variavel}}` sem aspas e perde o realce nesses trechos.
       hl.Mode(
         begin: '\n[ \t]*\n[ \t]*[\\{\\[]',
         returnBegin: true,
-        end: r'^[ \t]*###',
+        end: r'^[ \t]*(?:###|[<>][ \t]*\{%)',
         returnEnd: true,
-        subLanguage: ['json'],
         relevance: 0,
+        contains: [
+          // Chaves incluem o `:` no token para evitar lookahead no begin,
+          // que não funciona no port Dart do highlight.js.
+          hl.Mode(
+            className: 'attr',
+            begin: r'"(?:\\.|[^"\\])*"[ \t]*:',
+            relevance: 0,
+          ),
+          hl.Mode(
+            className: 'string',
+            begin: '"',
+            end: '"',
+            contains: [
+              hl.Mode(begin: r'\\.', relevance: 0),
+              bodyVariable,
+            ],
+            relevance: 0,
+          ),
+          bodyVariable,
+          hl.Mode(
+            className: 'number',
+            begin: r'-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?',
+            relevance: 0,
+          ),
+          hl.Mode(
+            className: 'literal',
+            begin: r'\b(?:true|false|null)\b',
+            relevance: 0,
+          ),
+        ],
       ),
-      // Header `Nome: valor` — só o nome é `attribute`; o valor segue neutro
+      // Header `Nome: valor` — só o nome ganha estilo de header HTTP; o valor segue neutro
       // (com interpolação pintada). O begin valida a linha inteira até o `:` e
       // `returnBegin` devolve o cursor: nada de `illegal` para delimitar o
       // nome, porque `illegal` num submode aborta o highlight do arquivo
@@ -181,7 +233,7 @@ hl.Mode _httpFileMode() {
         relevance: 0,
         contains: [
           hl.Mode(
-            className: 'attribute',
+            className: 'http-header',
             begin: r'[A-Za-z][A-Za-z0-9_-]*',
             endsParent: true,
             relevance: 0,
@@ -712,20 +764,43 @@ void _flatten(
   hl.Node node,
   TextStyle? inherited,
   SyntaxColors palette,
-  List<_Leaf> out,
-) {
+  List<_Leaf> out, {
+  bool inHttpScript = false,
+}) {
+  if (node.className == 'http-script') {
+    // O container do sub-idioma inclui também os delimitadores. Colorir o
+    // container inteiro deixaria o JavaScript comum na cor de metadados.
+    for (final child in node.children ?? const <hl.Node>[]) {
+      _flatten(child, inherited, palette, out, inHttpScript: true);
+    }
+    return;
+  }
   final own = node.className == null ? null : palette.styleFor(node.className!);
   final style = own == null
       ? inherited
       : (inherited ?? const TextStyle()).merge(own);
   if (node.value != null) {
-    out.add(_Leaf(node.value!, style));
+    if (inHttpScript && node.className == null) {
+      final value = node.value!;
+      final markers = RegExp(r'^[ \t]*[<>][ \t]*\{%|%\}$');
+      var offset = 0;
+      for (final marker in markers.allMatches(value)) {
+        if (marker.start > offset) {
+          out.add(_Leaf(value.substring(offset, marker.start), style));
+        }
+        out.add(_Leaf(marker.group(0)!, palette.styleFor('http-script')));
+        offset = marker.end;
+      }
+      if (offset < value.length) out.add(_Leaf(value.substring(offset), style));
+    } else {
+      out.add(_Leaf(node.value!, style));
+    }
     return;
   }
   final children = node.children;
   if (children == null) return;
   for (final child in children) {
-    _flatten(child, style, palette, out);
+    _flatten(child, style, palette, out, inHttpScript: inHttpScript);
   }
 }
 

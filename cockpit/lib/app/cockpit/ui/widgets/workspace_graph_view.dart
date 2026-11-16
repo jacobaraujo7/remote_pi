@@ -34,9 +34,17 @@ class WorkspaceGraphView extends StatefulWidget {
     this.embedded = false,
     this.selectedBoxId,
     this.onSelectBox,
+    this.onDeselect,
+    this.onNewTerminal,
   });
 
   final bool active;
+
+  /// Tap on the canvas background (embedded mode).
+  final VoidCallback? onDeselect;
+
+  /// The "+" in the canvas tools (embedded mode).
+  final VoidCallback? onNewTerminal;
   final bool embedded;
   final String? selectedBoxId;
   final ValueChanged<String>? onSelectBox;
@@ -419,38 +427,43 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                     child: Stack(
                       children: [
                         Positioned.fill(
-                          child: RepaintBoundary(
-                            child: CustomPaint(
-                              painter: _GraphLinkPainter(
-                                positions: positions,
-                                links: widget.vm.graphLinks,
-                                temporary: temporaryLinks,
-                                observed: [
-                                  ...unresolvedLinks,
-                                  for (final event in widget.vm.graphTraffic)
-                                    if (boxes.any(
-                                          (b) => b.tabId == event.fromTabId,
-                                        ) &&
-                                        boxes.any(
-                                          (b) => b.tabId == event.toTabId,
-                                        ))
-                                      GraphLink(
-                                        from: boxes
-                                            .firstWhere(
-                                              (b) => b.tabId == event.fromTabId,
-                                            )
-                                            .id,
-                                        to: boxes
-                                            .firstWhere(
-                                              (b) => b.tabId == event.toTabId,
-                                            )
-                                            .id,
-                                      ),
-                                ],
-                                selected: selectedBoxId,
-                                normal: colors.border2,
-                                highlighted: colors.accent,
-                                temporaryColor: colors.warn,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: widget.onDeselect,
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: _GraphLinkPainter(
+                                  positions: positions,
+                                  links: widget.vm.graphLinks,
+                                  temporary: temporaryLinks,
+                                  observed: [
+                                    ...unresolvedLinks,
+                                    for (final event in widget.vm.graphTraffic)
+                                      if (boxes.any(
+                                            (b) => b.tabId == event.fromTabId,
+                                          ) &&
+                                          boxes.any(
+                                            (b) => b.tabId == event.toTabId,
+                                          ))
+                                        GraphLink(
+                                          from: boxes
+                                              .firstWhere(
+                                                (b) =>
+                                                    b.tabId == event.fromTabId,
+                                              )
+                                              .id,
+                                          to: boxes
+                                              .firstWhere(
+                                                (b) => b.tabId == event.toTabId,
+                                              )
+                                              .id,
+                                        ),
+                                  ],
+                                  selected: selectedBoxId,
+                                  normal: colors.border2,
+                                  highlighted: colors.accent,
+                                  temporaryColor: colors.warn,
+                                ),
                               ),
                             ),
                           ),
@@ -603,21 +616,40 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      OutlineButton(
-                        onPressed: () => setState(() {
-                          _linkMode = !_linkMode;
-                          _linkFrom = null;
-                        }),
-                        child: Text(
-                          _linkMode
-                              ? context.t.workspaceView.selectEndpoints
-                              : context.t.workspaceView.linkBoxes,
+                      if (widget.onNewTerminal != null) ...[
+                        AppTooltip(
+                          message: context.t.workspaceView.newTerminal,
+                          child: IconButton.outline(
+                            icon: const Icon(Icons.add, size: 16),
+                            onPressed: widget.onNewTerminal,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                      ],
+                      AppTooltip(
+                        message: _linkMode
+                            ? context.t.workspaceView.selectEndpoints
+                            : context.t.workspaceView.linkBoxes,
+                        child: IconButton.outline(
+                          icon: Icon(
+                            Icons.link,
+                            size: 16,
+                            color: _linkMode ? colors.accent : null,
+                          ),
+                          onPressed: () => setState(() {
+                            _linkMode = !_linkMode;
+                            _linkFrom = null;
+                          }),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      OutlineButton(
-                        onPressed: () => _transform.value = Matrix4.identity(),
-                        child: Text(context.t.workspaceView.zoomFit),
+                      const SizedBox(width: 6),
+                      AppTooltip(
+                        message: context.t.workspaceView.zoomFit,
+                        child: IconButton.outline(
+                          icon: const Icon(Icons.zoom_out_map, size: 16),
+                          onPressed: () =>
+                              _transform.value = Matrix4.identity(),
+                        ),
                       ),
                     ],
                   ),
@@ -631,15 +663,16 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                     style: context.typo.label.copyWith(color: colors.warn),
                   ),
                 ),
-              Positioned(
-                left: 20,
-                top: 60,
-                child: _GraphLegend(
-                  planned: colors.border2,
-                  observed: colors.accent,
-                  temporary: colors.warn,
+              if (!widget.embedded)
+                Positioned(
+                  left: 20,
+                  top: 60,
+                  child: _GraphLegend(
+                    planned: colors.border2,
+                    observed: colors.accent,
+                    temporary: colors.warn,
+                  ),
                 ),
-              ),
               if (!widget.embedded && selectedBox != null)
                 Positioned(
                   right: 20,
@@ -725,14 +758,15 @@ class _WorkspaceGraphViewState extends State<WorkspaceGraphView> {
                         widget.vm.removeGraphLink(link.from, link.to),
                   ),
                 ),
-              Positioned(
-                left: 22,
-                bottom: 16,
-                child: Text(
-                  'Arraste boxes para organizar · Arraste o fundo para navegar · Zoom com rolagem',
-                  style: context.typo.label.copyWith(color: colors.text3),
+              if (!widget.embedded)
+                Positioned(
+                  left: 22,
+                  bottom: 16,
+                  child: Text(
+                    'Arraste boxes para organizar · Arraste o fundo para navegar · Zoom com rolagem',
+                    style: context.typo.label.copyWith(color: colors.text3),
+                  ),
                 ),
-              ),
             ],
           ),
         );

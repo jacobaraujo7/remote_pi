@@ -21,9 +21,13 @@ class OrchestrationPresentation {
   double get terminalFraction => mode == OrchestrationViewMode.boxes
       ? boxesTerminalFraction
       : graphTerminalFraction;
+
+  /// [clearSelection] hides the terminal and removes the highlight; passing
+  /// [selectedBoxId] keeps the previous selection when null.
   OrchestrationPresentation copyWith({
     OrchestrationViewMode? mode,
     String? selectedBoxId,
+    bool clearSelection = false,
     List<String>? boxOrder,
     bool? inspectorOpen,
     double? inspectorWidth,
@@ -31,7 +35,7 @@ class OrchestrationPresentation {
     double? graphTerminalFraction,
   }) => OrchestrationPresentation(
     mode: mode ?? this.mode,
-    selectedBoxId: selectedBoxId ?? this.selectedBoxId,
+    selectedBoxId: clearSelection ? null : selectedBoxId ?? this.selectedBoxId,
     boxOrder: boxOrder == null ? this.boxOrder : List.unmodifiable(boxOrder),
     inspectorOpen: inspectorOpen ?? this.inspectorOpen,
     inspectorWidth: inspectorWidth ?? this.inspectorWidth,

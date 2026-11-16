@@ -1,14 +1,16 @@
 import 'package:shadcn_flutter/shadcn_flutter.dart';
-import 'package:flutter/services.dart'
-    show Clipboard, ClipboardData, LogicalKeyboardKey;
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import '../../domain/entities/workspace_graph.dart';
 import '../../ui/viewmodels/workspace_graph_context.dart';
-import '../../ui/session/terminal_session.dart';
 import '../../../core/domain/result.dart';
 import '../../../core/ui/themes/themes.dart';
+import '../../../core/ui/widgets/app_menu.dart';
 import '../../../../i18n/strings.g.dart';
 import 'workspace_box_list.dart';
 
+/// Portable configuration of one definition (what the `.orc` file stores).
+/// Session actions (start, compact, handoff) live in the terminal menu, so
+/// this body fits a centered dialog instead of a side drawer.
 class WorkspaceBoxInspector extends StatefulWidget {
   const WorkspaceBoxInspector({
     super.key,
@@ -137,86 +139,32 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
     _feedback(result);
   }
 
-  Future<void> _handoff() async {
-    final projectId = widget.projectId ?? widget.vm.selectedProjectId;
-    final boxId = widget.box.id;
-    final t = context.t.workspaceView;
-    final controller = TextEditingController(text: '${widget.box.role}\n\n');
-    String? summary;
-    try {
-      summary = await showDialog<String>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: Text(t.handoffTitle),
-          content: SizedBox(
-            width: 440,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(t.handoffHelp),
-                const SizedBox(height: 12),
-                TextField(controller: controller, maxLines: 7),
-              ],
-            ),
-          ),
-          actions: [
-            OutlineButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: Text(t.cancel),
-            ),
-            PrimaryButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: Text(t.handoff),
-            ),
-          ],
-        ),
-      );
-    } finally {
-      controller.dispose();
-    }
-    if (!mounted || summary == null || summary.isEmpty) return;
-    final result = await widget.vm.startGraphHandoff(
-      boxId,
-      workspaceId: projectId,
+  Future<void> _addLink(BuildContext anchor) async {
+    final others = widget.vm.graphBoxes
+        .where((b) => b.id != widget.box.id)
+        .toList();
+    if (others.isEmpty) return;
+    final target = await showAppMenu<String>(
+      anchor,
+      items: [
+        for (final other in others)
+          AppMenuItem(value: other.id, label: other.title),
+      ],
     );
-    if (result case Success()) {
-      await Clipboard.setData(ClipboardData(text: summary));
-      if (!mounted) return;
-      if (widget.vm.selectedProjectId == projectId) {
-        widget.vm.selectWorkspaceBox(boxId);
-      }
-      setState(() {
-        _message = t.handoffReady;
-        _error = false;
-      });
-    } else {
-      _feedback(result);
-    }
+    if (!mounted || target == null) return;
+    widget.vm.addGraphLink(widget.box.id, target);
   }
 
   @override
   Widget build(BuildContext context) {
     final t = context.t.workspaceView;
     final box = widget.box;
-    final session = widget.vm.session(box.tabId ?? '');
-    final terminal = session is TerminalSession ? session : null;
-    final runningAgent =
-        terminal != null &&
-        !terminal.hasExited &&
-        terminal.activeHarness != null;
-    final canControl =
-        terminal != null &&
-        !terminal.hasExited &&
-        !terminal.isWorking &&
-        !widget.vm.selectedRemoteDisconnected;
     final links = widget.vm.graphLinks
         .where((l) => l.from == box.id || l.to == box.id)
         .toList();
     final names = {for (final b in widget.vm.graphBoxes) b.id: b.title};
     Widget label(String text) => Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 6),
+      padding: const EdgeInsets.only(top: 14, bottom: 6),
       child: Text(
         text,
         style: context.typo.label.copyWith(color: context.colors.text3),
@@ -227,14 +175,15 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
         const SingleActivator(LogicalKeyboardKey.escape): widget.onClose,
       },
       child: ColoredBox(
-        color: context.colors.panel,
+        color: context.colors.bg,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              padding: const EdgeInsets.fromLTRB(20, 14, 10, 6),
               child: Row(
                 children: [
-                  const Icon(Icons.terminal, size: 20),
+                  const Icon(Icons.terminal, size: 18),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -251,35 +200,20 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                 ],
               ),
             ),
-            Expanded(
+            Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          size: 8,
-                          color: workspaceStatusColor(
-                            context,
-                            widget.entry.status,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          workspaceStatusLabel(context, widget.entry.status),
-                          style: context.typo.label,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
                     Text(
-                      '${context.t.orchestration.connectedCli}: ${widget.entry.tool.isEmpty ? context.t.orchestration.noCli : widget.entry.tool}',
-                      style: context.typo.label.copyWith(height: 1.4),
+                      t.portableHint,
+                      style: context.typo.label.copyWith(
+                        color: context.colors.text3,
+                        height: 1.4,
+                      ),
                     ),
-                    label(t.configuration),
+                    label(t.name),
                     TextField(
                       controller: _name,
                       placeholder: Text(t.name),
@@ -292,7 +226,7 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                       onChanged: (_) => _dirty = true,
                     ),
                     if (widget.onSuggestRole != null) ...[
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 10),
                       if (box.role.trim().isEmpty) ...[
                         Text(
                           context.t.orchestration.roleMissing,
@@ -303,17 +237,20 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                         ),
                         const SizedBox(height: 8),
                       ],
-                      OutlineButton(
-                        onPressed:
-                            _askingRole ||
-                                widget.entry.tool.isEmpty ||
-                                widget.entry.status != WorkspaceBoxStatus.idle
-                            ? null
-                            : _suggestRole,
-                        child: Text(
-                          _askingRole
-                              ? context.t.orchestration.askingRole
-                              : context.t.orchestration.askRole,
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: OutlineButton(
+                          onPressed:
+                              _askingRole ||
+                                  widget.entry.tool.isEmpty ||
+                                  widget.entry.status != WorkspaceBoxStatus.idle
+                              ? null
+                              : _suggestRole,
+                          child: Text(
+                            _askingRole
+                                ? context.t.orchestration.askingRole
+                                : context.t.orchestration.askRole,
+                          ),
                         ),
                       ),
                       if (_suggestion case final suggestion?) ...[
@@ -370,94 +307,16 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                           ),
                       ],
                     ),
-                    label(context.t.orchestration.directory),
-                    TextField(
-                      controller: _directory,
-                      onChanged: (_) => _dirty = true,
-                    ),
                     label(t.model),
                     TextField(
                       controller: _model,
                       onChanged: (_) => _dirty = true,
                     ),
-                    const SizedBox(height: 12),
-                    PrimaryButton(onPressed: _save, child: Text(t.save)),
-                    if (_message != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          _message!,
-                          style: context.typo.label.copyWith(
-                            color: _error
-                                ? context.colors.warn
-                                : context.colors.text2,
-                          ),
-                        ),
-                      ),
-                    label(t.session),
-                    Text(
-                      widget.entry.contextPercent == null
-                          ? '${t.context}: ${t.unavailable}'
-                          : '${t.context}: ${widget.entry.contextPercent!.toStringAsFixed(0)}%',
-                      style: context.typo.body.copyWith(
-                        color: context.colors.text2,
-                      ),
+                    label(context.t.orchestration.directory),
+                    TextField(
+                      controller: _directory,
+                      onChanged: (_) => _dirty = true,
                     ),
-                    const SizedBox(height: 12),
-                    if (terminal != null && !terminal.hasExited)
-                      OutlineButton(
-                        onPressed: () => widget.vm.openBoxInTerminals(box.id),
-                        child: Text(context.t.orchestration.openTerminal),
-                      )
-                    else
-                      OutlineButton(
-                        onPressed: widget.vm.selectedRemoteDisconnected
-                            ? null
-                            : () async => _feedback(
-                                await widget.vm.openBoxShell(
-                                  box.id,
-                                  workspaceId: widget.projectId,
-                                ),
-                              ),
-                        child: Text(t.startShell),
-                      ),
-                    if (!runningAgent) ...[
-                      const SizedBox(height: 8),
-                      OutlineButton(
-                        onPressed:
-                            widget.vm.selectedRemoteDisconnected ||
-                                box.harness.isEmpty
-                            ? null
-                            : () async => _feedback(
-                                await widget.vm.relaunchGraphBox(
-                                  box.id,
-                                  workspaceId: widget.projectId,
-                                ),
-                              ),
-                        child: Text(t.startCli),
-                      ),
-                    ] else ...[
-                      const SizedBox(height: 8),
-                      OutlineButton(
-                        onPressed: canControl
-                            ? () => terminal.insertText('/compact\r')
-                            : null,
-                        child: Text(t.compact),
-                      ),
-                      const SizedBox(height: 8),
-                      OutlineButton(
-                        onPressed: canControl ? _handoff : null,
-                        child: Text(t.handoff),
-                      ),
-                    ],
-                    if (box.role.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      OutlineButton(
-                        onPressed: () =>
-                            Clipboard.setData(ClipboardData(text: box.role)),
-                        child: Text(t.copyRole),
-                      ),
-                    ],
                     label(t.connections),
                     if (links.isEmpty)
                       Text(
@@ -484,6 +343,43 @@ class _WorkspaceBoxInspectorState extends State<WorkspaceBoxInspector> {
                           ),
                         ],
                       ),
+                    if (widget.vm.graphBoxes.length > 1)
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Builder(
+                          builder: (anchor) => GhostButton(
+                            onPressed: () => _addLink(anchor),
+                            child: Text(
+                              '+ ${t.addConnection}',
+                              style: TextStyle(color: context.colors.accent),
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (_message != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(
+                          _message!,
+                          style: context.typo.label.copyWith(
+                            color: _error
+                                ? context.colors.warn
+                                : context.colors.text2,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        OutlineButton(
+                          onPressed: widget.onClose,
+                          child: Text(t.cancel),
+                        ),
+                        const SizedBox(width: 8),
+                        PrimaryButton(onPressed: _save, child: Text(t.save)),
+                      ],
+                    ),
                   ],
                 ),
               ),

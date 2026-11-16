@@ -103,11 +103,11 @@ class OrchestrationContext extends ChangeNotifier
   GraphBox? graphBoxForTab(String tabId) => !terminals.contains(tabId)
       ? null
       : graphBoxes.where((b) => b.tabId == tabId).firstOrNull;
+
+  /// Null means nothing is selected: the overview fills the document and no
+  /// terminal is shown.
   GraphBox? get selectedWorkspaceBox =>
-      graphBoxes
-          .where((b) => b.id == _presentation.selectedBoxId)
-          .firstOrNull ??
-      graphBoxes.firstOrNull;
+      graphBoxes.where((b) => b.id == _presentation.selectedBoxId).firstOrNull;
 
   void _changed() {
     if (_disposed) return;
@@ -193,6 +193,21 @@ class OrchestrationContext extends ChangeNotifier
   void setWorkspaceView(OrchestrationViewMode mode) {
     terminals.releaseKeyboard();
     updatePresentation(_presentation.copyWith(mode: mode));
+  }
+
+  /// Esc, the terminal header close or a tap on the overview background.
+  void clearSelection() {
+    if (_disposed) return;
+    terminals.releaseKeyboard();
+    updatePresentation(
+      _presentation.copyWith(clearSelection: true, inspectorOpen: false),
+    );
+  }
+
+  /// The configuration dialog was dismissed; selection stays.
+  void closeInspector() {
+    if (_disposed || !_presentation.inspectorOpen) return;
+    updatePresentation(_presentation.copyWith(inspectorOpen: false));
   }
 
   @override

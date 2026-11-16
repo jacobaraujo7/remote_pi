@@ -21,13 +21,36 @@ class PasteboardTerminalClipboard implements TerminalClipboardReader {
         sequence: data['sequence'] as int?,
       );
     }
-    final files = await Pasteboard.files();
+    // O plugin lê qualquer NSURL do pasteboard e devolve só o `.path`: uma URL
+    // copiada do navegador (https://github.com/org/repo) chega aqui como
+    // "/org/repo", a importação falha e o texto nunca é colado. Só o que existe
+    // em disco é anexo; o resto cai pro texto.
+    final files = existingFiles(await Pasteboard.files());
     if (files.isNotEmpty) return TerminalClipboardContent(files: files);
     final image = await Pasteboard.image;
     if (image != null && image.isNotEmpty) {
       return TerminalClipboardContent(image: image);
     }
     return TerminalClipboardContent(text: await Pasteboard.text);
+  }
+
+  /// Mantém só os caminhos que existem em disco (arquivo, pasta ou link).
+  /// Aceita `file://` (Linux entrega URI) e caminho puro (macOS).
+  static List<String> existingFiles(List<String> candidates) => [
+    for (final c in candidates)
+      if (_exists(c)) c,
+  ];
+
+  static bool _exists(String candidate) {
+    var path = candidate;
+    if (path.startsWith('file:')) {
+      try {
+        path = Uri.parse(path).toFilePath();
+      } on FormatException {
+        return false;
+      }
+    }
+    return FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
   }
 
   @override

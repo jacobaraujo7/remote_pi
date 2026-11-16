@@ -183,10 +183,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(
-        find.text(t.workspaceView.linkBoxes),
-        kind: PointerDeviceKind.mouse,
-      );
+      await tester.tap(find.byIcon(Icons.link), kind: PointerDeviceKind.mouse);
       await tester.pump();
       await tester.tap(find.text('shared'), kind: PointerDeviceKind.mouse);
       await tester.pump(const Duration(milliseconds: 16));
@@ -567,7 +564,8 @@ void main() {
       a.context.moveGraphBox('shared', const Offset(80, 150));
       await a.controller.settle();
       expect(a.context.selectedWorkspaceBox!.id, 'second');
-      expect(b.context.selectedWorkspaceBox!.id, 'shared');
+      // Nothing was selected in the other document: no fallback to its first box.
+      expect(b.context.selectedWorkspaceBox, isNull);
       expect(b.disk, diskB);
       expect(b.saves, savedB);
       expect(a.context.graphBoxes.first.title, 'Renamed');

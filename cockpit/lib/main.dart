@@ -52,6 +52,9 @@ Future<void> main(List<String> args) async {
     // forcar novo layout. Carregue previamente todos os pesos que o terminal
     // oferece para que medida e rasterizacao usem a mesma face desde o primeiro
     // frame.
+    // Os .ttf estao em assets/google_fonts/; nunca buscar na rede (um boot
+    // offline ou atras de proxy derrubava o app na primeira fonte, issue #61).
+    GoogleFonts.config.allowRuntimeFetching = false;
     await GoogleFonts.pendingFonts([
       GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w300),
       GoogleFonts.jetBrainsMono(fontWeight: FontWeight.w400),

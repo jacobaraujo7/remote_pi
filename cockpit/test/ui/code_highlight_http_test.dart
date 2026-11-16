@@ -37,6 +37,37 @@ Future<(String, List<String>)> _paint(
   return (full.toString(), colored);
 }
 
+Future<Map<String, TextStyle?>> _styles(
+  WidgetTester tester,
+  String source, {
+  Brightness brightness = Brightness.dark,
+}) async {
+  TextSpan? span;
+  await tester.pumpWidget(
+    ShadcnApp(
+      theme: buildTheme(brightness: brightness),
+      home: Builder(
+        builder: (context) {
+          span = buildCodeSpan(
+            context,
+            source: source,
+            language: 'http',
+            baseStyle: const TextStyle(),
+          );
+          return const SizedBox();
+        },
+      ),
+    ),
+  );
+  final styles = <String, TextStyle?>{};
+  span!.visitChildren((v) {
+    final leaf = v as TextSpan;
+    styles[leaf.text!] = leaf.style;
+    return true;
+  });
+  return styles;
+}
+
 const _source = '''
 @baseUrl = https://api.example.com
 @token = abc123
@@ -61,6 +92,53 @@ PUT {{baseUrl}}/users/1
 ''';
 
 void main() {
+  testWidgets('script HTTP realça JavaScript sem engolir o próximo request', (
+    tester,
+  ) async {
+    const source = '''### Login
+< {% request.variables.set('id', '42') %}
+POST https://example.com/login
+> {%
+  client.global.set('token', response.body.token);
+%}
+### Próximo
+GET https://example.com/next
+''';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    final joined = colored.join();
+    expect(joined, contains('> {%'));
+    expect(joined, contains("'token'"));
+    expect(colored, contains('### Próximo'));
+    expect(colored, contains('GET'));
+  });
+
+  testWidgets('pós-script após body JSON usa realce JavaScript', (
+    tester,
+  ) async {
+    const source = '''POST https://example.com/login
+Content-Type: application/json
+
+{"key":"sample"}
+
+> {%
+  client.global.set('token', response.body.data.accessToken);
+%}
+''';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    expect(colored.join(), contains('> {%'));
+    expect(colored.join(), contains("'token'"));
+  });
+  testWidgets('texto JS comum não herda a cor do delimitador', (tester) async {
+    final styles = await _styles(
+      tester,
+      '> {%\n  client.global.set("token", response.body.token);\n%}',
+    );
+    final script = styles.entries.firstWhere((e) => e.key.contains('client'));
+    final delimiter = styles.entries.firstWhere((e) => e.key.contains('> {%'));
+    expect(script.value?.color, isNot(delimiter.value?.color));
+  });
   testWidgets(
     'gramática httpfile pinta separador, variáveis, verbo e headers',
     (tester) async {
@@ -85,6 +163,18 @@ void main() {
     },
   );
 
+  testWidgets('continuação da URL recebe realce e preserva variáveis', (
+    tester,
+  ) async {
+    const source =
+        'GET https://example.test/products\n    ?page={{page}}\n    &size=20';
+    final (full, colored) = await _paint(tester, source, 'http');
+    expect(full, source);
+    expect(colored.join(), contains('?page='));
+    expect(colored, contains('{{page}}'));
+    expect(colored.join(), contains('&size=20'));
+  });
+
   testWidgets(
     'body JSON é pintado como sub-idioma sem vazar para o próximo request',
     (tester) async {
@@ -97,6 +187,75 @@ void main() {
       expect(colored, contains('PUT'));
     },
   );
+
+  testWidgets('body JSON destaca chaves, valores e variáveis HTTP', (
+    tester,
+  ) async {
+    const source = '''POST https://example.test/gifts
+Content-Type: application/json
+
+{
+  "customerId": {{customerIdSap}},
+  "imageUrl": "https://cdn.example.test/image.png",
+  "customerDocument": "{{customerDocument}}",
+  "isMigrated": true,
+  "count": 12,
+  "products": {{randomGiftList}}
+}
+''';
+    for (final brightness in [Brightness.light, Brightness.dark]) {
+      final styles = await _styles(tester, source, brightness: brightness);
+      expect(styles['"customerId":']?.color, isNotNull);
+      expect(styles['"imageUrl":']?.color, styles['"customerId":']?.color);
+      expect(styles['{{customerIdSap}}']?.color, isNotNull);
+      expect(
+        styles['{{customerIdSap}}']?.color,
+        isNot(styles['"customerId":']?.color),
+      );
+      expect(
+        styles['{{randomGiftList}}']?.color,
+        styles['{{customerIdSap}}']?.color,
+      );
+      expect(
+        styles['{{customerDocument}}']?.color,
+        styles['{{customerIdSap}}']?.color,
+      );
+      expect(
+        styles['"https://cdn.example.test/image.png"']?.color,
+        isNot(styles['"customerId":']?.color),
+      );
+      expect(
+        styles['"https://cdn.example.test/image.png"']?.color,
+        isNot(styles['{{customerIdSap}}']?.color),
+      );
+      expect(styles['true']?.color, isNotNull);
+      expect(styles['12']?.color, styles['true']?.color);
+    }
+  });
+
+  testWidgets('nomes de headers HTTP ficam em itálico, valores não', (
+    tester,
+  ) async {
+    final styles = await _styles(
+      tester,
+      'GET https://example.com\n'
+      'Content-Type: application/json\n'
+      'Accept: text/plain\n'
+      'Cookie: session=abc\n',
+    );
+    for (final name in ['Content-Type', 'Accept', 'Cookie']) {
+      expect(styles[name]?.fontStyle, FontStyle.italic, reason: name);
+    }
+    for (final value in ['application/json', 'text/plain', 'session=abc']) {
+      final fragments = styles.entries.where((e) => e.key.contains(value));
+      expect(fragments, isNotEmpty, reason: value);
+      expect(
+        fragments.every((e) => e.value?.fontStyle != FontStyle.italic),
+        isTrue,
+        reason: value,
+      );
+    }
+  });
 
   testWidgets('lista de headers solta (painel de resposta) também pinta', (
     tester,

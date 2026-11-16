@@ -111,6 +111,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$confirmDialog$pt_BR confirmDialog = _Translations$cockpit$confirmDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$neovim$pt_BR neovim = _Translations$cockpit$neovim$pt_BR._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$pt_BR worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$pt_BR._(_root);
+	@override late final _Translations$cockpit$branchSwitchDialog$pt_BR branchSwitchDialog = _Translations$cockpit$branchSwitchDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$commitMessageDialog$pt_BR commitMessageDialog = _Translations$cockpit$commitMessageDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$tasksPanel$pt_BR tasksPanel = _Translations$cockpit$tasksPanel$pt_BR._(_root);
 	@override late final _Translations$cockpit$cockpitPage$pt_BR cockpitPage = _Translations$cockpit$cockpitPage$pt_BR._(_root);
@@ -258,14 +259,14 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 
 	// Translations
 	@override String get terminals => 'Terminais';
-	@override String get boxes => 'Boxes';
+	@override String get boxes => 'Lista';
 	@override String get graph => 'Grafo';
 	@override String get newTerminal => 'Novo terminal';
-	@override String get configure => 'Configurar box';
+	@override String get configure => 'Configurar terminal';
 	@override String get closeInspector => 'Fechar inspector';
 	@override String get search => 'Buscar nome ou função';
 	@override String get allStates => 'Todos os estados';
-	@override String get name => 'Box';
+	@override String get name => 'Terminal';
 	@override String get state => 'Estado';
 	@override String get tool => 'Ferramenta';
 	@override String get role => 'Função';
@@ -281,10 +282,10 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get disconnected => 'Desconectado';
 	@override String get unavailable => 'Indisponível';
 	@override String get noRole => 'Adicionar função';
-	@override String get noBoxes => 'Nenhuma box ainda';
-	@override String get noMatches => 'Nenhuma box corresponde à busca';
+	@override String get noBoxes => 'Nenhum terminal ainda';
+	@override String get noMatches => 'Nenhum terminal corresponde à busca';
 	@override String get selectBox => 'Selecione uma box para visualizar o terminal';
-	@override String get noSession => 'Esta box está sem sessão de terminal';
+	@override String get noSession => 'Este terminal não tem sessão';
 	@override String get startShell => 'Iniciar terminal';
 	@override String get openTerminal => 'Abrir em Terminais';
 	@override String get save => 'Salvar';
@@ -302,16 +303,21 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get planned => 'Conexão planejada';
 	@override String get observed => 'Atividade observada';
 	@override String get temporary => 'Subagente temporário';
-	@override String get linkBoxes => 'Ligar boxes';
+	@override String get linkBoxes => 'Ligar terminais';
 	@override String get selectEndpoints => 'Selecione origem e destino';
 	@override String get zoomFit => 'Redefinir zoom';
 	@override String get session => 'Sessão';
 	@override String get configuration => 'Configuração';
-	@override String get nameRequired => 'Informe o nome da box';
+	@override String get nameRequired => 'Informe um nome para o terminal';
 	@override String get removeLink => 'Remover conexão';
 	@override String get handoffSummary => 'Resumo';
 	@override String get copyRole => 'Copiar função';
 	@override String get showInspector => 'Mostrar inspector';
+	@override String get addConnection => 'Ligar a outro terminal';
+	@override String get actions => 'Ações';
+	@override String get closeTerminal => 'Ocultar terminal';
+	@override String get legend => 'Legenda';
+	@override String get portableHint => 'Salvo no arquivo .orc. Ações de sessão ficam no menu do terminal.';
 }
 
 // Path: terminalAttachment
@@ -362,6 +368,7 @@ class _Translations$orchestration$pt_BR extends Translations$orchestration$en {
 	@override String get roleChanged => 'O terminal ou documento mudou. Consulte novamente.';
 	@override String get roleTimeout => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.';
 	@override String get roleInvalid => 'O agente retornou uma sugestão de função inválida.';
+	@override String get noBoxSelected => 'Selecione um terminal na lista ou no grafo para trabalhar nele.';
 }
 
 // Path: core.bootstrapError
@@ -549,6 +556,23 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get back => 'Voltar';
 }
 
+// Path: cockpit.branchSwitchDialog
+class _Translations$cockpit$branchSwitchDialog$pt_BR extends Translations$cockpit$branchSwitchDialog$en {
+	_Translations$cockpit$branchSwitchDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String title({required Object label}) => 'Trocar branch — ${label}';
+	@override String subtitle({required Object current}) => 'Branch atual: ${current}';
+	@override String get search => 'Buscar branches...';
+	@override String get local => 'Branches locais';
+	@override String get remote => 'Branches remotas';
+	@override String get switchAction => 'Trocar';
+	@override String get empty => 'Nenhuma branch encontrada.';
+	@override String get current => 'atual';
+}
+
 // Path: cockpit.commitMessageDialog
 class _Translations$cockpit$commitMessageDialog$pt_BR extends Translations$cockpit$commitMessageDialog$en {
 	_Translations$cockpit$commitMessageDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
@@ -620,6 +644,7 @@ class _Translations$cockpit$cockpitPage$pt_BR extends Translations$cockpit$cockp
 	@override String syncTitle({required Object label}) => 'Sync — ${label}';
 	@override String pullTitle({required Object label}) => 'Pull — ${label}';
 	@override String pushTitle({required Object label}) => 'Push — ${label}';
+	@override String switchBranchTitle({required Object label}) => 'Trocar branch — ${label}';
 	@override String updateFromParentTitle({required Object name}) => 'Atualizar a partir do Pai — ${name}';
 	@override String mergeToParentTitle({required Object name}) => 'Merge para o Pai — ${name}';
 	@override String get worktreeMergedAndRemoved => 'Worktree mesclada e removida.';
@@ -947,18 +972,43 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	@override String get saveRequestAs => 'Salvar request como';
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
+	@override String get runAll => 'Executar todos';
+	@override String get expandToEdit => 'Expandir para editar';
+	@override String get noMatchingVariables => 'Nenhuma variável encontrada';
+	@override String get noScriptSuggestions => 'Nenhuma sugestão para esta expressão';
 	@override String get running => 'Executando…';
+	@override String get noEnvironment => 'No Environment';
+	@override String get overrideTemporary => 'Temporária';
+	@override String get overrideFile => 'Arquivo HTTP';
+	@override String get overrideEnvironment => 'Ambiente';
+	@override String get overrideGlobal => 'Global';
+	@override String get overrideRestore => 'Restaurar';
+	@override String get overrideApply => 'Aplicar';
+	@override String get overrideInvalidNumber => 'Número inválido';
+	@override String get overrideNonFiniteNumber => 'Informe um número finito';
+	@override String get overrideInvalidBoolean => 'Use true ou false';
+	@override String get overrideInvalidJson => 'JSON inválido';
+	@override String unresolvedVariableNoEnvironment({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.';
+	@override String unresolvedVariableInEnvironment({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.';
 	@override String get noRequests => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com';
 	@override String get selectRequest => 'Selecionar request';
 	@override String requestCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
 		one: '1 request',
 		other: '${n} requests',
 	);
-	@override String get runHint => 'Execute o request (⌘↵) para ver a resposta aqui.';
+	@override String get runHint => 'Execute este request para ver a resposta aqui.';
 	@override String get emptyBody => 'Corpo da resposta vazio.';
+	@override String get response => 'Resposta';
+	@override String get copyResponse => 'Copiar conteúdo';
+	@override String get saveResponse => 'Salvar resposta';
+	@override String get clearResponse => 'Limpar resposta';
 	@override String get body => 'JSON';
 	@override String get headers => 'Headers';
 	@override String get raw => 'Text';
+	@override String get tests => 'Testes';
+	@override String get script => 'Script';
+	@override String get noTests => 'Nenhum teste registrado.';
+	@override String get noScriptOutput => 'Nenhuma saída do script.';
 	@override String get truncatedSuffix => ' · truncado (resposta grande demais)';
 	@override late final _Translations$cockpit$httpView$error$pt_BR error = _Translations$cockpit$httpView$error$pt_BR._(_root);
 }
@@ -1153,6 +1203,7 @@ class _Translations$cockpit$projectsRail$pt_BR extends Translations$cockpit$proj
 	@override String get sync => 'Sincronizar';
 	@override String get pull => 'Pull';
 	@override String get push => 'Push';
+	@override String get switchBranch => 'Trocar branch…';
 	@override String get createWorktree => 'Criar worktree';
 	@override String worktreeCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
 		one: '1 worktree',
@@ -2277,6 +2328,14 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Roda git fetch para garantir que a branch base esteja confirmada antes de criar a worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Voltar',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => 'Trocar branch — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => 'Branch atual: ${current}',
+			'cockpit.branchSwitchDialog.search' => 'Buscar branches...',
+			'cockpit.branchSwitchDialog.local' => 'Branches locais',
+			'cockpit.branchSwitchDialog.remote' => 'Branches remotas',
+			'cockpit.branchSwitchDialog.switchAction' => 'Trocar',
+			'cockpit.branchSwitchDialog.empty' => 'Nenhuma branch encontrada.',
+			'cockpit.branchSwitchDialog.current' => 'atual',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage e Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit apenas de "${fileName}".',
@@ -2323,6 +2382,7 @@ extension on TranslationsPtBr {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => 'Sync — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => 'Pull — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => 'Push — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => 'Trocar branch — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => 'Atualizar a partir do Pai — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => 'Merge para o Pai — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'Worktree mesclada e removida.',
@@ -2557,15 +2617,40 @@ extension on TranslationsPtBr {
 			'cockpit.httpView.saveRequestAs' => 'Salvar request como',
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
+			'cockpit.httpView.runAll' => 'Executar todos',
+			'cockpit.httpView.expandToEdit' => 'Expandir para editar',
+			'cockpit.httpView.noMatchingVariables' => 'Nenhuma variável encontrada',
+			'cockpit.httpView.noScriptSuggestions' => 'Nenhuma sugestão para esta expressão',
 			'cockpit.httpView.running' => 'Executando…',
+			'cockpit.httpView.noEnvironment' => 'No Environment',
+			'cockpit.httpView.overrideTemporary' => 'Temporária',
+			'cockpit.httpView.overrideFile' => 'Arquivo HTTP',
+			'cockpit.httpView.overrideEnvironment' => 'Ambiente',
+			'cockpit.httpView.overrideGlobal' => 'Global',
+			'cockpit.httpView.overrideRestore' => 'Restaurar',
+			'cockpit.httpView.overrideApply' => 'Aplicar',
+			'cockpit.httpView.overrideInvalidNumber' => 'Número inválido',
+			'cockpit.httpView.overrideNonFiniteNumber' => 'Informe um número finito',
+			'cockpit.httpView.overrideInvalidBoolean' => 'Use true ou false',
+			'cockpit.httpView.overrideInvalidJson' => 'JSON inválido',
+			'cockpit.httpView.unresolvedVariableNoEnvironment' => ({required Object name}) => 'Nenhum ambiente selecionado. Não foi possível resolver a variável \'${name}\'.',
+			'cockpit.httpView.unresolvedVariableInEnvironment' => ({required Object name, required Object environment}) => 'A variável \'${name}\' não está definida no ambiente \'${environment}\'.',
 			'cockpit.httpView.noRequests' => 'Nenhum request neste arquivo — escreva um, ex.: GET https://example.com',
 			'cockpit.httpView.selectRequest' => 'Selecionar request',
 			'cockpit.httpView.requestCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 request', other: '${n} requests', ), 
-			'cockpit.httpView.runHint' => 'Execute o request (⌘↵) para ver a resposta aqui.',
+			'cockpit.httpView.runHint' => 'Execute este request para ver a resposta aqui.',
 			'cockpit.httpView.emptyBody' => 'Corpo da resposta vazio.',
+			'cockpit.httpView.response' => 'Resposta',
+			'cockpit.httpView.copyResponse' => 'Copiar conteúdo',
+			'cockpit.httpView.saveResponse' => 'Salvar resposta',
+			'cockpit.httpView.clearResponse' => 'Limpar resposta',
 			'cockpit.httpView.body' => 'JSON',
 			'cockpit.httpView.headers' => 'Headers',
 			'cockpit.httpView.raw' => 'Text',
+			'cockpit.httpView.tests' => 'Testes',
+			'cockpit.httpView.script' => 'Script',
+			'cockpit.httpView.noTests' => 'Nenhum teste registrado.',
+			'cockpit.httpView.noScriptOutput' => 'Nenhuma saída do script.',
 			'cockpit.httpView.truncatedSuffix' => ' · truncado (resposta grande demais)',
 			'cockpit.httpView.error.title' => 'Falha no request',
 			'cockpit.httpView.error.noRequest' => 'Nenhum request encontrado na posição do cursor.',
@@ -2637,6 +2722,8 @@ extension on TranslationsPtBr {
 			'cockpit.dbPanel.newQuery' => 'Nova query',
 			'cockpit.dbPanel.browseKeys' => 'Ver chaves',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Excluir conexão',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remover "${name}" deste workspace? Qualquer senha salva será descartada. Arquivos .dbq que fazem referência a ela não são afetados.',
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} conexões',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexão',
@@ -2671,8 +2758,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbConnectionDialog.connectionString' => 'Connection string',
 			'cockpit.dbConnectionDialog.invalidUrl' => 'URL de conexão inválida.',
 			'cockpit.dbConnectionDialog.sshTunnel' => 'Túnel SSH',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbConnectionDialog.sshHost' => 'Host SSH',
 			'cockpit.dbConnectionDialog.sshPort' => 'Porta SSH',
 			'cockpit.dbConnectionDialog.sshUser' => 'Usuário SSH',
@@ -2712,6 +2797,7 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.sync' => 'Sincronizar',
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
+			'cockpit.projectsRail.switchBranch' => 'Trocar branch…',
 			'cockpit.projectsRail.createWorktree' => 'Criar worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 worktree', other: '${n} worktrees', ), 
 			'cockpit.projectsRail.expandWorktrees' => 'Expandir worktrees',
@@ -3150,6 +3236,8 @@ extension on TranslationsPtBr {
 			'settings.page.automations.harnessDiscovering' => 'Procurando harnesses de linha de comando instalados…',
 			'settings.page.automations.harnessNoneFound' => 'Nenhum harness compatível foi encontrado no PATH.',
 			'settings.page.automations.harnessConfiguredUnavailable' => ({required Object harness}) => '${harness} está configurado, mas indisponível.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.automations.harnessChoose' => 'Escolha a CLI usada para gerar mensagens de commit.',
 			'settings.page.automations.harnessRefresh' => 'Atualizar harnesses instalados',
 			'settings.page.automations.notConfigured' => 'Não configurado',
@@ -3185,8 +3273,6 @@ extension on TranslationsPtBr {
 			'settings.remoteHosts.statusReconnecting' => 'Reconectando…',
 			'settings.remoteHosts.statusOffline' => 'Offline',
 			'settings.remoteHosts.statusIdle' => 'Não conectado',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.helpTitle' => 'Como funciona',
 			'settings.remoteHosts.helpBody' => 'O Cockpit conecta na sua máquina por SSH e fala com um servidor pequeno que roda os terminais, arquivos e git lá. O host precisa ter o Cockpit (desktop) ou o cockpit-server instalado e rodando, e a chave pública deste dispositivo adicionada no ~/.ssh/authorized_keys dele.',
 			'automation.error.unavailable' => ({required Object harness}) => '${harness} não está instalado ou não está no PATH.',
@@ -3280,14 +3366,14 @@ extension on TranslationsPtBr {
 			'theme.error.unknownBase' => ({required Object value}) => 'Tema base "${value}" desconhecido em "extends".',
 			'theme.error.noVariants' => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".',
 			'workspaceView.terminals' => 'Terminais',
-			'workspaceView.boxes' => 'Boxes',
+			'workspaceView.boxes' => 'Lista',
 			'workspaceView.graph' => 'Grafo',
 			'workspaceView.newTerminal' => 'Novo terminal',
-			'workspaceView.configure' => 'Configurar box',
+			'workspaceView.configure' => 'Configurar terminal',
 			'workspaceView.closeInspector' => 'Fechar inspector',
 			'workspaceView.search' => 'Buscar nome ou função',
 			'workspaceView.allStates' => 'Todos os estados',
-			'workspaceView.name' => 'Box',
+			'workspaceView.name' => 'Terminal',
 			'workspaceView.state' => 'Estado',
 			'workspaceView.tool' => 'Ferramenta',
 			'workspaceView.role' => 'Função',
@@ -3303,10 +3389,10 @@ extension on TranslationsPtBr {
 			'workspaceView.disconnected' => 'Desconectado',
 			'workspaceView.unavailable' => 'Indisponível',
 			'workspaceView.noRole' => 'Adicionar função',
-			'workspaceView.noBoxes' => 'Nenhuma box ainda',
-			'workspaceView.noMatches' => 'Nenhuma box corresponde à busca',
+			'workspaceView.noBoxes' => 'Nenhum terminal ainda',
+			'workspaceView.noMatches' => 'Nenhum terminal corresponde à busca',
 			'workspaceView.selectBox' => 'Selecione uma box para visualizar o terminal',
-			'workspaceView.noSession' => 'Esta box está sem sessão de terminal',
+			'workspaceView.noSession' => 'Este terminal não tem sessão',
 			'workspaceView.startShell' => 'Iniciar terminal',
 			'workspaceView.openTerminal' => 'Abrir em Terminais',
 			'workspaceView.save' => 'Salvar',
@@ -3324,16 +3410,21 @@ extension on TranslationsPtBr {
 			'workspaceView.planned' => 'Conexão planejada',
 			'workspaceView.observed' => 'Atividade observada',
 			'workspaceView.temporary' => 'Subagente temporário',
-			'workspaceView.linkBoxes' => 'Ligar boxes',
+			'workspaceView.linkBoxes' => 'Ligar terminais',
 			'workspaceView.selectEndpoints' => 'Selecione origem e destino',
 			'workspaceView.zoomFit' => 'Redefinir zoom',
 			'workspaceView.session' => 'Sessão',
 			'workspaceView.configuration' => 'Configuração',
-			'workspaceView.nameRequired' => 'Informe o nome da box',
+			'workspaceView.nameRequired' => 'Informe um nome para o terminal',
 			'workspaceView.removeLink' => 'Remover conexão',
 			'workspaceView.handoffSummary' => 'Resumo',
 			'workspaceView.copyRole' => 'Copiar função',
 			'workspaceView.showInspector' => 'Mostrar inspector',
+			'workspaceView.addConnection' => 'Ligar a outro terminal',
+			'workspaceView.actions' => 'Ações',
+			'workspaceView.closeTerminal' => 'Ocultar terminal',
+			'workspaceView.legend' => 'Legenda',
+			'workspaceView.portableHint' => 'Salvo no arquivo .orc. Ações de sessão ficam no menu do terminal.',
 			'terminalAttachment.importing' => ({required Object completed, required Object total}) => 'Copiando anexos: ${completed}/${total}',
 			'terminalAttachment.nativeImage' => 'Colagem da imagem solicitada ao agente.',
 			'terminalAttachment.referenced' => 'Referências locais inseridas.',
@@ -3366,6 +3457,7 @@ extension on TranslationsPtBr {
 			'orchestration.roleChanged' => 'O terminal ou documento mudou. Consulte novamente.',
 			'orchestration.roleTimeout' => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.',
 			'orchestration.roleInvalid' => 'O agente retornou uma sugestão de função inválida.',
+			'orchestration.noBoxSelected' => 'Selecione um terminal na lista ou no grafo para trabalhar nele.',
 			_ => null,
 		};
 	}

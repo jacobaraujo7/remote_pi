@@ -19,6 +19,79 @@ void main() {
     label: 'sh',
     executable: '/bin/sh',
   );
+
+  test('attachment notice clears by itself after the ttl', () async {
+    final root = Directory(
+      await (await Directory.systemTemp.createTemp(
+        'cockpit-ttl-',
+      )).resolveSymbolicLinks(),
+    );
+    final source = File(p.join(root.path, 'a.txt'))..writeAsStringSync('a');
+    final gateway = AttachmentTerminalGateway();
+    final session = TerminalSession(
+      id: 'ttl',
+      projectId: 'p',
+      workingDirectory: root.path,
+      attachmentProjectRoot: root.path,
+      gateway: gateway,
+      profile: sh,
+      attachmentFeedbackTtl: const Duration(milliseconds: 40),
+      attachmentService: TerminalAttachmentService(
+        FakeClipboard(),
+        const LocalTerminalAttachmentStore(),
+        FakePathConverter(),
+      ),
+    );
+    try {
+      await session.importDroppedPaths([source.path]);
+      expect(
+        session.attachmentFeedback?.notice,
+        TerminalAttachmentNotice.referenced,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(session.attachmentFeedback, isNull);
+    } finally {
+      await session.dispose();
+      await root.delete(recursive: true);
+    }
+  });
+
+  test('a failed notice stays longer and dispose cancels the timer', () async {
+    final root = Directory(
+      await (await Directory.systemTemp.createTemp(
+        'cockpit-ttl-fail-',
+      )).resolveSymbolicLinks(),
+    );
+    final gateway = AttachmentTerminalGateway();
+    final session = TerminalSession(
+      id: 'ttl-fail',
+      projectId: 'p',
+      workingDirectory: root.path,
+      attachmentProjectRoot: root.path,
+      gateway: gateway,
+      profile: sh,
+      attachmentFeedbackTtl: const Duration(milliseconds: 40),
+      attachmentService: TerminalAttachmentService(
+        FakeClipboard(),
+        const LocalTerminalAttachmentStore(),
+        FakePathConverter(),
+      ),
+    );
+    try {
+      await session.importDroppedPaths([p.join(root.path, 'missing.txt')]);
+      expect(
+        session.attachmentFeedback?.notice,
+        TerminalAttachmentNotice.failed,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(session.attachmentFeedback, isNotNull, reason: 'failed = 3x ttl');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(session.attachmentFeedback, isNull);
+    } finally {
+      await session.dispose();
+      await root.delete(recursive: true);
+    }
+  });
   for (final engine in TerminalEngine.values) {
     test(
       'partial batch failure keeps both successful files in ${engine.name}',

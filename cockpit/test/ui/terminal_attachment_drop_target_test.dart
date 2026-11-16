@@ -83,6 +83,9 @@ void main() {
     await tester.pump();
     expect(stores.map((s) => s.calls), [1, 0, 0]);
     expect(find.text('Local references inserted.'), findsOneWidget);
+    // O aviso some sozinho depois do ttl (6s por padrão).
+    await tester.pump(const Duration(seconds: 7));
+    expect(find.text('Local references inserted.'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
   testWidgets(
@@ -148,6 +151,7 @@ void main() {
       }
       await tester.pump();
       expect(stores.map((s) => s.calls), [0, 0]);
+      await tester.pump(const Duration(seconds: 20));
       await tester.pumpWidget(const SizedBox());
     },
   );

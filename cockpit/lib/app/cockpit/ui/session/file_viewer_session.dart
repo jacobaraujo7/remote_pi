@@ -127,6 +127,15 @@ class FileViewerSession extends PaneItem {
   /// sobrevive a fechar e reabrir o app.
   bool boardAsList = false;
 
+  /// Ambiente selecionado para a aba `.http`; `null` = No Environment.
+  String? httpEnvironment;
+
+  void setHttpEnvironment(String? value) {
+    if (value == httpEnvironment) return;
+    httpEnvironment = value;
+    notifyListeners();
+  }
+
   void setBoardAsList(bool value) {
     if (value == boardAsList) return;
     boardAsList = value;
