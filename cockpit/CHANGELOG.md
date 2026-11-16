@@ -27,6 +27,7 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
 ## [2.1.25] - 2026-11-11
 
 ### Fixed
+- Opening a new terminal tab with Ctrl+T on Windows and Linux now works when the terminal has focus; Ctrl+T is intercepted by Cockpit and no longer reaches the shell for readline transpose (#291, #292).
 - The notification chime no longer keeps the audio output open after it finishes. On macOS this left a CoreAudio IO thread running and `coreaudiod` busy while Cockpit was idle; the chime player and the Settings sound preview now stop as soon as the sound completes (#314, #315).
 
 ### Changed
