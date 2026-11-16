@@ -1,6 +1,6 @@
 ---
 name: cockpit-telemetry
-description: Find out why something failed or what a process printed without reading terminals: Cockpit keeps a per-workspace store of errors (grouped by fingerprint), JSON logs and raw lines from every task and from any command run through `cockpit telemetry <cmd>`. Use when the task is debugging a failure, checking a test or build run, watching a dev server for a regression, or instrumenting a project's logging. Also covers the app's own errors (`--app`).
+description: "Find out why something failed or what a process printed without reading terminals: Cockpit keeps a per-workspace store of errors (grouped by fingerprint), JSON logs and raw lines from every task and from any command run through `cockpit telemetry <cmd>`. Use when the task is debugging a failure, checking a test or build run, watching a dev server for a regression, or instrumenting a project's logging. Also covers the app's own errors (`--app`)."
 ---
 
 # cockpit telemetry — the error store

@@ -9,6 +9,7 @@ import 'dart:io';
 import 'package:auto_injector/auto_injector.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 import 'package:cockpit_engine/cockpit_engine.dart';
+import 'package:cockpit_protocol/cockpit_protocol.dart';
 import 'package:cockpit_server/cockpit_server.dart';
 
 Future<void> main(List<String> args) async {
@@ -45,6 +46,13 @@ Future<void> _run(List<String> args) async {
   final socketPath =
       _argValue(args, '--socket') ??
       '${Directory.systemTemp.path}/cockpit-server-$pid.sock';
+
+  // `--tcp`: transporte TCP de loopback + token (rendezvous JSON gravado no
+  // caminho do `--socket`) em vez de socket UNIX. Existe para hosts cujo SSH
+  // não faz forward de socket UNIX — o Tailscale SSH recusa o canal
+  // `direct-streamlocal@openssh.com` com "unknown channel type" —, mas aceita
+  // o forward TCP comum de `ssh -L`. O default segue sendo socket UNIX.
+  if (args.contains('--tcp')) LocalEndpoint.debugForceTcp = true;
 
   final injector = AutoInjector()
     ..addLazySingleton<TerminalService>(NativeTerminalService.new)
@@ -109,7 +117,10 @@ Future<void> _run(List<String> args) async {
   );
 
   // Saída em inglês por decisão (CLI interna não se traduz).
-  stdout.writeln('cockpit-server listening on $socketPath');
+  stdout.writeln(
+    'cockpit-server listening on $socketPath'
+    '${LocalEndpoint.usesTcp ? ' (tcp)' : ''}',
+  );
 
   // Desligamento com TETO: `close()` fecha conexões, sessões e PTYs, e
   // qualquer uma dessas etapas pode ficar presa (PTY que não reporta saída,

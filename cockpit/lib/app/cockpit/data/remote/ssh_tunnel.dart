@@ -29,17 +29,23 @@ class SshTunnel {
   /// a ponta local é TCP (Windows — ver [localPort]).
   final String localSocketPath;
 
-  /// Porta de loopback que espelha o socket remoto, no Windows.
+  /// Porta de loopback que espelha a ponta remota, quando a ponta local é TCP.
   ///
-  /// O OpenSSH do Windows não faz forward de socket UNIX na ponta LOCAL, e o
-  /// caminho nem chega a ser parseado: `-L C:\...\x.sock:/home/u/y.sock` morre
-  /// em `Bad local forwarding specification`, porque o `C:` já é um separador
-  /// pro parser. A forma suportada é `-L 127.0.0.1:<porta>:<socket remoto>` —
-  /// TCP local → UDS remoto, que o OpenSSH faz desde a 6.7. O lado REMOTO
-  /// continua sendo o socket UNIX de sempre: nada muda no host.
+  /// Dois casos exigem TCP aqui: o OpenSSH do Windows não faz forward de
+  /// socket UNIX na ponta LOCAL (o caminho nem chega a ser parseado:
+  /// `-L C:\...\x.sock:/home/u/y.sock` morre em `Bad local forwarding
+  /// specification`, porque o `C:` já é um separador pro parser); e hosts cujo
+  /// servidor SSH recusa o canal streamlocal (Tailscale SSH: "unknown channel
+  /// type: unsupported channel type") não conseguem nem abrir o forward
+  /// UNIX→UNIX — nesses o servidor remoto sobe em TCP (rendezvous, ver
+  /// `--tcp` no cockpit-server) e o forward vira `127.0.0.1:<porta>` dos dois
+  /// lados, que qualquer OpenSSH aceita. A forma suportada no Windows é
+  /// `-L 127.0.0.1:<porta>:<destino>`, TCP local → UDS remoto, que o OpenSSH
+  /// faz desde a 6.7.
   final int? localPort;
 
-  /// A ponta local é TCP (Windows) em vez de socket UNIX.
+  /// A ponta local é TCP em vez de socket UNIX (Windows, ou remoto TCP — ver
+  /// [localPort]).
   bool get usesTcpEndpoint => localPort != null;
   final String target;
 
@@ -72,8 +78,13 @@ class SshTunnel {
     String? identityFile,
     Duration timeout = const Duration(seconds: 15),
   }) async {
-    // Ponta local: socket UNIX no POSIX; porta de loopback no Windows.
-    final useTcp = Platform.isWindows;
+    // Ponta local: MESMO transporte da ponta remota. Windows sempre TCP (sem
+    // forward de socket UNIX local); host POSIX em modo `--tcp` (rendezvous
+    // TCP) também — o forward de TCP passa por qualquer servidor SSH,
+    // inclusive os que recusam streamlocal. Socket UNIX remoto num cliente
+    // Windows não ocorre na prática, mas a regra da plataforma é a mesma de
+    // antes do fallback.
+    final useTcp = Platform.isWindows || remote is TcpEndpoint;
     final localPath = useTcp
         ? ''
         : '${Directory.systemTemp.path}/cockpit-ssh-'
