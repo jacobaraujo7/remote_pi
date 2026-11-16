@@ -517,9 +517,9 @@ packages:
     dependency: "direct overridden"
     description:
       path: flutter_inappwebview_windows
-      ref: cockpit-windows-hover-1
-      resolved-ref: b1ea7adc628a0625ab4964d1eb26ff48ea941b40
-      url: "https://github.com/jacobaraujo7/flutter_inappwebview.git"
+      ref: cockpit-windows-compositor-1
+      resolved-ref: "519f948abcb38625e440a8a940c5006101a2bfb8"
+      url: "https://github.com/moregola/flutter_inappwebview.git"
     source: git
     version: "0.6.0"
   flutter_launcher_icons:
