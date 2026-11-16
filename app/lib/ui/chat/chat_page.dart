@@ -550,6 +550,34 @@ class ChatPage extends StatelessWidget {
             ),
           ),
         );
+      case VoiceHint.languageUnavailable:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Offline speech recognition is not available for your '
+              'language yet. Install its offline language pack in your '
+              "device's speech recognition settings.",
+            ),
+            duration: Duration(seconds: 6),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      case VoiceHint.noSpeech:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text("Didn't catch that — hold the mic and try again."),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      case VoiceHint.recognitionFailed:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Voice input failed — try again.'),
+            duration: Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
     }
   }
 

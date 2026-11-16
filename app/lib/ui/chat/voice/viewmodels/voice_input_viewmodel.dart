@@ -31,10 +31,19 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   SpeechAvailability? _availability;
   String? _localeId;
   StreamSubscription<double>? _levelSub;
+  StreamSubscription<SpeechFailure>? _errorSub;
   Timer? _ticker;
   Duration _elapsed = Duration.zero;
   double _level = 0;
   bool _starting = false;
+
+  /// [SpeechService.start] is in flight: a recognizer error now belongs to
+  /// this capture even though recording hasn't been shown yet.
+  bool _awaitingStart = false;
+
+  /// An error ended the capture while [_awaitingStart]; the pending start
+  /// must not enter [VoiceRecording].
+  bool _startFailed = false;
 
   /// Finalized transcripts, delivered the same way whether the session ended
   /// by user release or by the 60s cap (decision #5). The composer listens
@@ -43,6 +52,12 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
   final StreamController<String> _transcripts =
       StreamController<String>.broadcast();
   Stream<String> get transcripts => _transcripts.stream;
+
+  /// Recognizer failures that ended a recording early. The composer turns
+  /// them into a hint so the user knows why no text appeared.
+  final StreamController<SpeechFailure> _failures =
+      StreamController<SpeechFailure>.broadcast();
+  Stream<SpeechFailure> get failures => _failures.stream;
 
   /// Resolve permission + on-device locale, caching the outcome. Idempotent:
   /// once [SpeechReady] is reached it short-circuits. On failure the state is
@@ -65,9 +80,12 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     return result;
   }
 
-  /// Begin a hold-to-talk session. No-op if already starting/recording.
+  /// Begin a hold-to-talk session. No-op while starting, recording or
+  /// transcribing: the previous capture's transcript is still on its way.
   Future<void> startRecording() async {
-    if (_starting || state is VoiceRecording) return;
+    if (_starting || state is VoiceRecording || state is VoiceTranscribing) {
+      return;
+    }
     _starting = true;
     try {
       final availability = await ensureInit();
@@ -75,6 +93,7 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
 
       _elapsed = Duration.zero;
       _level = 0;
+      _errorSub ??= _service.errors.listen(_onError);
       _levelSub?.cancel();
       _levelSub = _service.soundLevel.listen((level) {
         _level = level;
@@ -83,7 +102,14 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
         }
       });
 
-      await _service.start(localeId: _localeId!, maxDuration: maxDuration);
+      _startFailed = false;
+      _awaitingStart = true;
+      try {
+        await _service.start(localeId: _localeId!, maxDuration: maxDuration);
+      } finally {
+        _awaitingStart = false;
+      }
+      if (_startFailed) return; // _onError already ended and reported it
       emit(VoiceRecording(elapsed: _elapsed, level: _level));
 
       _ticker = Timer.periodic(_tickInterval, (_) {
@@ -115,6 +141,21 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
     return text;
   }
 
+  /// The recognizer gave up while the mic is still held (or while it was
+  /// still starting): end the session now instead of recording into a dead
+  /// recognizer until release.
+  Future<void> _onError(SpeechFailure failure) async {
+    if (_awaitingStart) {
+      _startFailed = true;
+    } else if (state is! VoiceRecording) {
+      return;
+    }
+    _stopTimers();
+    emit(const VoiceIdle());
+    if (!_failures.isClosed) _failures.add(failure);
+    await _service.cancel();
+  }
+
   /// Discard the recording (slide-to-cancel). Field stays untouched (#4).
   Future<void> cancel() async {
     if (state is! VoiceRecording && state is! VoiceTranscribing) return;
@@ -139,7 +180,9 @@ class VoiceInputViewModel extends ViewModel<VoiceInputState> {
       // ignore: discarded_futures
       _service.cancel();
     }
+    _errorSub?.cancel();
     _transcripts.close();
+    _failures.close();
     super.dispose();
   }
 }

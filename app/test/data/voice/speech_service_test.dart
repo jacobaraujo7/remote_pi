@@ -16,6 +16,8 @@ class _FakeSttPlugin implements SttPlugin {
 
   SttResultCallback? _onResult;
   SttLevelCallback? _onLevel;
+  SttErrorCallback? _onError;
+  void Function()? _onDone;
 
   @override
   Future<bool> initialize() async => initializeResult;
@@ -32,11 +34,15 @@ class _FakeSttPlugin implements SttPlugin {
     required Duration listenFor,
     required SttResultCallback onResult,
     required SttLevelCallback onLevel,
+    required SttErrorCallback onError,
+    required void Function() onDone,
   }) async {
     listenedLocale = localeId;
     listenedFor = listenFor;
     _onResult = onResult;
     _onLevel = onLevel;
+    _onError = onError;
+    _onDone = onDone;
   }
 
   @override
@@ -46,9 +52,33 @@ class _FakeSttPlugin implements SttPlugin {
   Future<void> cancel() async => cancelCalls++;
 
   // Test drivers.
-  void emitResult(String words, {bool isFinal = false}) =>
-      _onResult?.call(words, isFinal);
+  void emitResult(String words, {bool isFinal = false}) => _onResult?.call(
+    words,
+    isFinal ? SttResultKind.finalResult : SttResultKind.partial,
+  );
+  void emitSegmentEnd(String words) =>
+      _onResult?.call(words, SttResultKind.segmentEnd);
   void emitLevel(double level) => _onLevel?.call(level);
+  void emitError(String msg) => _onError?.call(msg);
+  void emitDone() => _onDone?.call();
+}
+
+/// Starts a fresh capture on [plugin] through a ready service.
+Future<SpeechToTextService> _listening(
+  _FakeSttPlugin plugin, {
+  Duration finalResultTimeout = const Duration(milliseconds: 50),
+}) async {
+  final service = SpeechToTextService(
+    plugin,
+    SoundLevelScale.android,
+    finalResultTimeout,
+  );
+  await service.init(preferredLocaleId: 'en_US');
+  await service.start(
+    localeId: 'en_US',
+    maxDuration: const Duration(seconds: 60),
+  );
+  return service;
 }
 
 void main() {
@@ -229,6 +259,247 @@ void main() {
         service.dispose();
       },
     );
+  });
+
+  group('transcript across pauses and release', () {
+    test(
+      'keeps earlier segments when the recognizer resets after a pause',
+      () async {
+        // Android sends an empty partial at each pause, then starts the next
+        // segment from scratch (seen on a Galaxy, Android 16 on-device).
+        final plugin = _FakeSttPlugin();
+        final service = await _listening(plugin);
+
+        plugin.emitResult('The quick brown fox');
+        plugin.emitResult('The quick brown fox jumps over the lazy dog');
+        plugin.emitResult('');
+        plugin.emitResult('Remote Pi should');
+        plugin.emitResult('Remote Pi should turn every word I say into text');
+        plugin.emitResult(
+          ' Remote Pi should turn every word I say into text',
+          isFinal: true,
+        );
+
+        expect(
+          await service.stop(),
+          'The quick brown fox jumps over the lazy dog '
+          'Remote Pi should turn every word I say into text',
+        );
+      },
+    );
+
+    test('keeps segments the recognizer marks final mid-capture', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 5),
+      );
+
+      plugin.emitResult('first sentence', isFinal: true);
+      plugin.emitResult('second');
+
+      final text = service.stop();
+      await Future<void>.delayed(Duration.zero);
+      plugin.emitResult('second sentence', isFinal: true);
+
+      expect(await text, 'first sentence second sentence');
+    });
+
+    test(
+      'a segment end keeps the segment when the next one starts without a pause marker',
+      () async {
+        // Seen on device: no empty partial between sentences — Android closes
+        // the segment with an intermediate result, then the next segment's
+        // first partial arrives directly.
+        final plugin = _FakeSttPlugin();
+        final service = await _listening(plugin);
+
+        plugin.emitResult('The quick brown fox jumps over the lazy dog');
+        plugin.emitSegmentEnd('The quick brown fox jumps over the lazy dog');
+        plugin.emitSegmentEnd(' The quick brown fox jumps over the lazy dog');
+        plugin.emitResult('Pro');
+        plugin.emitResult('Promote pi should turn every word I say into text');
+
+        expect(
+          await service.stop(),
+          'The quick brown fox jumps over the lazy dog '
+          'Promote pi should turn every word I say into text',
+        );
+      },
+    );
+
+    test('a new segment may arrive directly as a final result', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+
+      plugin.emitSegmentEnd('first sentence');
+      plugin.emitResult('second sentence', isFinal: true);
+
+      expect(await service.stop(), 'first sentence second sentence');
+    });
+
+    test('a result that extends a closed segment updates it', () async {
+      // Seen on device: the segment end is repeated, and the final result
+      // after release restates (or completes) the same segment.
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+
+      plugin.emitSegmentEnd('Remote Pi should turn');
+      plugin.emitSegmentEnd(' Remote Pi should turn every word');
+      final stopped = service.stop();
+      plugin.emitResult(
+        ' Remote Pi should turn every word I say into text',
+        isFinal: true,
+      );
+
+      expect(await stopped, 'Remote Pi should turn every word I say into text');
+    });
+
+    test('waits for words that arrive after release', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 5),
+      );
+      plugin.emitResult('every word I');
+
+      final text = service.stop();
+      await Future<void>.delayed(Duration.zero);
+      plugin.emitResult('every word I say into text');
+      plugin.emitResult('every word I say into text', isFinal: true);
+
+      expect(await text, 'every word I say into text');
+    });
+
+    test('a done status without a final result ends the wait', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 5),
+      );
+      plugin.emitResult('hello');
+
+      final text = service.stop();
+      await Future<void>.delayed(Duration.zero);
+      plugin.emitDone();
+
+      expect(await text, 'hello');
+    });
+
+    test('returns what it has when no final result arrives in time', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+      plugin.emitResult('hello there');
+
+      expect(await service.stop(), 'hello there');
+    });
+
+    test(
+      'late results from a finished session do not leak into the next',
+      () async {
+        final plugin = _FakeSttPlugin();
+        final service = await _listening(plugin);
+        final firstSession = plugin._onResult!;
+        plugin.emitResult('first');
+        expect(await service.stop(), 'first');
+
+        await service.start(
+          localeId: 'en_US',
+          maxDuration: const Duration(seconds: 60),
+        );
+        firstSession('first and late', SttResultKind.finalResult);
+        plugin.emitResult('second');
+
+        expect(await service.stop(), 'second');
+      },
+    );
+  });
+
+  group('overlapping captures', () {
+    test(
+      'starting a new capture ends a pending stop with its own words',
+      () async {
+        final plugin = _FakeSttPlugin();
+        final service = await _listening(
+          plugin,
+          finalResultTimeout: const Duration(seconds: 10),
+        );
+        plugin.emitResult('first capture');
+        final firstStop = service.stop();
+
+        await service.start(
+          localeId: 'en_US',
+          maxDuration: const Duration(seconds: 60),
+        );
+        plugin.emitResult('second capture');
+
+        // Resolves without waiting out the timeout, with A's words only.
+        expect(
+          await firstStop.timeout(const Duration(seconds: 1)),
+          'first capture',
+        );
+        final secondStop = service.stop();
+        plugin.emitResult('second capture', isFinal: true);
+        expect(await secondStop, 'second capture');
+      },
+    );
+
+    test('cancelling a pending stop returns no text', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 10),
+      );
+      plugin.emitResult('secret words');
+      final stopped = service.stop();
+      await service.cancel();
+
+      expect(await stopped.timeout(const Duration(seconds: 1)), isEmpty);
+    });
+  });
+
+  group('recognizer errors', () {
+    test('an error while listening is reported with its kind', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(plugin);
+      final errors = <SpeechFailure>[];
+      final sub = service.errors.listen(errors.add);
+
+      plugin.emitError('error_language_not_supported');
+      plugin.emitError('error_language_unavailable');
+      plugin.emitError('error_no_match');
+      plugin.emitError('error_server_disconnected');
+      await Future<void>.delayed(Duration.zero);
+
+      expect(errors.map((e) => e.kind), [
+        SpeechFailureKind.languageUnavailable,
+        SpeechFailureKind.languageUnavailable,
+        SpeechFailureKind.noSpeech,
+        SpeechFailureKind.other,
+      ]);
+      expect(errors.last.message, 'error_server_disconnected');
+      await sub.cancel();
+    });
+
+    test('an error after release ends the wait and is not reported', () async {
+      final plugin = _FakeSttPlugin();
+      final service = await _listening(
+        plugin,
+        finalResultTimeout: const Duration(seconds: 5),
+      );
+      final errors = <SpeechFailure>[];
+      final sub = service.errors.listen(errors.add);
+      plugin.emitResult('hello');
+
+      final text = service.stop();
+      await Future<void>.delayed(Duration.zero);
+      plugin.emitError('error_client');
+
+      expect(await text, 'hello');
+      await Future<void>.delayed(Duration.zero);
+      expect(errors, isEmpty);
+      await sub.cancel();
+    });
   });
 
   group('SoundLevelScale', () {

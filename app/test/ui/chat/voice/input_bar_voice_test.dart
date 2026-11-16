@@ -15,6 +15,8 @@ class _FakeSpeechService implements SpeechService {
   SpeechAvailability availability = const SpeechReady('en_US');
   String transcript = 'hello from voice';
   final StreamController<double> _level = StreamController<double>.broadcast();
+  final StreamController<SpeechFailure> _errors =
+      StreamController<SpeechFailure>.broadcast();
 
   /// When set, `init()` blocks on this until completed — mimics the OS
   /// permission prompt holding up `startRecording` while the user lifts their
@@ -30,6 +32,8 @@ class _FakeSpeechService implements SpeechService {
   @override
   Stream<double> get soundLevel => _level.stream;
   @override
+  Stream<SpeechFailure> get errors => _errors.stream;
+  @override
   Future<void> start({
     required String localeId,
     required Duration maxDuration,
@@ -39,7 +43,12 @@ class _FakeSpeechService implements SpeechService {
   @override
   Future<void> cancel() async {}
   @override
-  void dispose() => _level.close();
+  void dispose() {
+    _level.close();
+    _errors.close();
+  }
+
+  void emitError(SpeechFailure failure) => _errors.add(failure);
 }
 
 void main() {
@@ -124,6 +133,34 @@ void main() {
     expect(find.text('hello from voice'), findsNothing);
     expect(find.byIcon(LucideIcons.mic600), findsOneWidget);
   });
+
+  for (final (kind, hint) in [
+    (SpeechFailureKind.languageUnavailable, VoiceHint.languageUnavailable),
+    (SpeechFailureKind.noSpeech, VoiceHint.noSpeech),
+    (SpeechFailureKind.other, VoiceHint.recognitionFailed),
+  ]) {
+    testWidgets('a $kind error ends the recording with the $hint hint', (
+      tester,
+    ) async {
+      await pumpBar(tester);
+      final gesture = await startHold(tester);
+      expect(find.byKey(const Key('recording-strip')), findsOneWidget);
+
+      svc.emitError(SpeechFailure(kind, 'error_code'));
+      // The error hops service → ViewModel → InputBar through async streams.
+      await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+      await tester.pump();
+
+      expect(find.byKey(const Key('recording-strip')), findsNothing);
+      expect(hints, [hint]);
+
+      await gesture.up();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('hello from voice'), findsNothing);
+      expect(find.byIcon(LucideIcons.mic600), findsOneWidget);
+    });
+  }
 
   testWidgets('a plain tap nudges with the hold-to-talk hint', (tester) async {
     await pumpBar(tester);
