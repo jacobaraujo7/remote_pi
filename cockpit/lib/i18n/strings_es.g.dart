@@ -60,6 +60,7 @@ class _Translations$core$es extends Translations$core$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$es clipboard = _Translations$core$clipboard$es._(_root);
 	@override late final _Translations$core$bootstrapError$es bootstrapError = _Translations$core$bootstrapError$es._(_root);
 	@override late final _Translations$core$macosNotifications$es macosNotifications = _Translations$core$macosNotifications$es._(_root);
 	@override late final _Translations$core$appErrorView$es appErrorView = _Translations$core$appErrorView$es._(_root);
@@ -296,6 +297,9 @@ class _Translations$workspaceView$es extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Resumen de handoff';
 	@override String get handoffHelp => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.';
 	@override String get handoffReady => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.';
+	@override String get handoffSessionReady => 'Nueva sesión preparada';
+	@override String get handoffCopyUnavailable => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.';
+	@override String get handoffSessionLabel => 'Sesión';
 	@override String get connections => 'Conexiones';
 	@override String get noConnections => 'Sin conexiones';
 	@override String get cancel => 'Cancelar';
@@ -369,6 +373,16 @@ class _Translations$orchestration$es extends Translations$orchestration$en {
 	@override String get roleTimeout => 'El agente no respondió a tiempo. Reintenta o completa la función manualmente.';
 	@override String get roleInvalid => 'El agente devolvió una función no válida.';
 	@override String get noBoxSelected => 'Selecciona un terminal en la lista o el grafo para trabajar en él.';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$es extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.';
 }
 
 // Path: core.bootstrapError
@@ -2267,6 +2281,7 @@ class _Translations$settings$page$general$updateFrequency$es extends Translation
 extension on TranslationsEs {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'No se pudo copiar al portapapeles. Inténtalo de nuevo.',
 			'core.bootstrapError.title' => 'No se pudo inicializar Cockpit',
 			'core.bootstrapError.retry' => 'Reintentar',
 			'core.macosNotifications.title' => 'Activar notificaciones en macOS',
@@ -2778,9 +2793,9 @@ extension on TranslationsEs {
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Actualizar',
-			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
 			'cockpit.dbMongoView.noDocuments' => 'No hay documentos en esta colección.',
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Ningún documento coincide con este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Cargar más',
@@ -3292,9 +3307,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeDeleted' => 'Tema eliminado.',
 			'settings.page.appearance.fontPickerTitle' => 'Elegir una fuente',
 			'settings.page.appearance.fontPickerSearch' => 'Buscar fuentes',
-			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.fontPickerEmpty' => 'No hay ninguna fuente coincidente en esta máquina.',
 			'settings.page.appearance.fontPickerBundled' => 'incluida',
 			'settings.page.appearance.fontPickerCustom' => '¿No está en la lista? Escribe el nombre exacto de la familia.',
 			'settings.page.appearance.fontPickerCustomHint' => 'Nombre de la familia',
@@ -3507,6 +3522,9 @@ extension on TranslationsEs {
 			'workspaceView.handoffTitle' => 'Resumen de handoff',
 			'workspaceView.handoffHelp' => 'Describe el estado actual y los próximos pasos. Se copiará el resumen para la nueva sesión.',
 			'workspaceView.handoffReady' => 'Nueva sesión preparada. Pega el resumen copiado cuando la herramienta esté lista.',
+			'workspaceView.handoffSessionReady' => 'Nueva sesión preparada',
+			'workspaceView.handoffCopyUnavailable' => 'Se creó la sesión, pero no se copió el resumen. Selecciona y copia el resumen de abajo para continuar.',
+			'workspaceView.handoffSessionLabel' => 'Sesión',
 			'workspaceView.connections' => 'Conexiones',
 			'workspaceView.noConnections' => 'Sin conexiones',
 			'workspaceView.cancel' => 'Cancelar',

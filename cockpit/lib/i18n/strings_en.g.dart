@@ -62,6 +62,7 @@ class Translations$core$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$core$clipboard$en clipboard = Translations$core$clipboard$en.internal(_root);
 	late final Translations$core$bootstrapError$en bootstrapError = Translations$core$bootstrapError$en.internal(_root);
 	late final Translations$core$macosNotifications$en macosNotifications = Translations$core$macosNotifications$en.internal(_root);
 	late final Translations$core$appErrorView$en appErrorView = Translations$core$appErrorView$en.internal(_root);
@@ -507,6 +508,15 @@ class Translations$workspaceView$en {
 	/// en: 'New session ready. Paste the copied summary when the tool is ready.'
 	String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
 
+	/// en: 'New session ready'
+	String get handoffSessionReady => 'New session ready';
+
+	/// en: 'The session was created, but the summary was not copied. Select and copy the summary below to continue.'
+	String get handoffCopyUnavailable => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.';
+
+	/// en: 'Session'
+	String get handoffSessionLabel => 'Session';
+
 	/// en: 'Connections'
 	String get connections => 'Connections';
 
@@ -689,6 +699,18 @@ class Translations$orchestration$en {
 
 	/// en: 'Select a terminal in the list or graph to work in it.'
 	String get noBoxSelected => 'Select a terminal in the list or graph to work in it.';
+}
+
+// Path: core.clipboard
+class Translations$core$clipboard$en {
+	Translations$core$clipboard$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'Could not copy to the clipboard. Try again.'
+	String get writeFailed => 'Could not copy to the clipboard. Try again.';
 }
 
 // Path: core.bootstrapError
@@ -4869,6 +4891,7 @@ class Translations$settings$page$general$updateFrequency$en {
 extension on Translations {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Could not copy to the clipboard. Try again.',
 			'core.bootstrapError.title' => 'Failed to initialize Cockpit',
 			'core.bootstrapError.retry' => 'Retry',
 			'core.macosNotifications.title' => 'Enable Notifications on macOS',
@@ -5380,9 +5403,9 @@ extension on Translations {
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
 			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
-			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 doc', other: '${n} docs', ), 
 			'cockpit.dbMongoView.refresh' => 'Refresh',
@@ -5894,9 +5917,9 @@ extension on Translations {
 			'settings.page.appearance.importThemeDialog' => 'Pick a theme file',
 			'settings.page.appearance.exportThemeDialog' => 'Save theme as',
 			'settings.page.appearance.themeImported' => ({required Object name}) => 'Theme "${name}" imported.',
-			'settings.page.appearance.themeExported' => 'Theme saved.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeExported' => 'Theme saved.',
 			'settings.page.appearance.themeDeleted' => 'Theme removed.',
 			'settings.page.appearance.fontPickerTitle' => 'Choose a font',
 			'settings.page.appearance.fontPickerSearch' => 'Search fonts',
@@ -6113,6 +6136,9 @@ extension on Translations {
 			'workspaceView.handoffTitle' => 'Handoff summary',
 			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
 			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.handoffSessionReady' => 'New session ready',
+			'workspaceView.handoffCopyUnavailable' => 'The session was created, but the summary was not copied. Select and copy the summary below to continue.',
+			'workspaceView.handoffSessionLabel' => 'Session',
 			'workspaceView.connections' => 'Connections',
 			'workspaceView.noConnections' => 'No connections',
 			'workspaceView.cancel' => 'Cancel',

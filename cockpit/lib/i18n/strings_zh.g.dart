@@ -58,6 +58,7 @@ class _Translations$core$zh extends Translations$core$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$zh clipboard = _Translations$core$clipboard$zh._(_root);
 	@override late final _Translations$core$bootstrapError$zh bootstrapError = _Translations$core$bootstrapError$zh._(_root);
 	@override late final _Translations$core$macosNotifications$zh macosNotifications = _Translations$core$macosNotifications$zh._(_root);
 	@override late final _Translations$core$appErrorView$zh appErrorView = _Translations$core$appErrorView$zh._(_root);
@@ -233,6 +234,9 @@ class _Translations$workspaceView$zh extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Handoff summary';
 	@override String get handoffHelp => 'Describe the current state and next steps. The summary will be copied for the new session.';
 	@override String get handoffReady => 'New session ready. Paste the copied summary when the tool is ready.';
+	@override String get handoffSessionReady => '新会话已就绪';
+	@override String get handoffCopyUnavailable => '会话已创建，但摘要未复制。请选择并复制下面的摘要以继续。';
+	@override String get handoffSessionLabel => '会话';
 	@override String get connections => 'Connections';
 	@override String get noConnections => 'No connections';
 	@override String get cancel => '取消';
@@ -291,6 +295,16 @@ class _Translations$orchestration$zh extends Translations$orchestration$en {
 	@override String get createWithoutImport => 'Create without importing';
 	@override String get importLegacy => 'Import configuration';
 	@override String get noBoxSelected => '在列表或图中选择一个终端以在其中工作。';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$zh extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => '无法复制到剪贴板。请重试。';
 }
 
 // Path: core.bootstrapError
@@ -2186,6 +2200,7 @@ class _Translations$settings$page$general$wordWrap$zh extends Translations$setti
 extension on TranslationsZh {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => '无法复制到剪贴板。请重试。',
 			'core.bootstrapError.title' => 'Cockpit 初始化失败',
 			'core.bootstrapError.retry' => '重试',
 			'core.macosNotifications.title' => '在 macOS 上启用通知',
@@ -2697,9 +2712,9 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
 			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
-			'cockpit.dbMongoView.loadMore' => '加载更多',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbMongoView.loadMore' => '加载更多',
 			'cockpit.dbMongoView.edit' => '编辑',
 			'cockpit.dbMongoView.insert' => '插入',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => '选择 SQLite 数据库',
@@ -3211,9 +3226,9 @@ extension on TranslationsZh {
 			'settings.page.appearance.fontPickerEmpty' => '这台机器上没有匹配的字体。',
 			'settings.page.appearance.fontPickerBundled' => '内置',
 			'settings.page.appearance.fontPickerCustom' => '列表里没有？输入确切的字体族名称。',
-			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.fontPickerCustomHint' => '字体族名称',
 			'settings.page.appearance.fontPickerUse' => '使用',
 			'settings.page.appearance.fontPickerDefault' => '默认',
 			'settings.page.appearance.fontMissing' => '这台机器上未找到——使用回退字体。',
@@ -3380,6 +3395,9 @@ extension on TranslationsZh {
 			'workspaceView.handoffTitle' => 'Handoff summary',
 			'workspaceView.handoffHelp' => 'Describe the current state and next steps. The summary will be copied for the new session.',
 			'workspaceView.handoffReady' => 'New session ready. Paste the copied summary when the tool is ready.',
+			'workspaceView.handoffSessionReady' => '新会话已就绪',
+			'workspaceView.handoffCopyUnavailable' => '会话已创建，但摘要未复制。请选择并复制下面的摘要以继续。',
+			'workspaceView.handoffSessionLabel' => '会话',
 			'workspaceView.connections' => 'Connections',
 			'workspaceView.noConnections' => 'No connections',
 			'workspaceView.cancel' => '取消',
