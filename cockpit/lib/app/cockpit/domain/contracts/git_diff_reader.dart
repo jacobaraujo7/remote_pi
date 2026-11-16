@@ -15,4 +15,17 @@ abstract class GitDiffReader {
     String relativePath, {
     String? previousRelativePath,
   });
+
+  /// Conteúdo completo da versão do arquivo no commit (lado direito do diff).
+  Future<String> readCommitContent(
+    String repoPath,
+    String commitHash,
+    String relativePath,
+  );
+}
+
+/// Details from a failed Git content read, formatted by the UI.
+class GitContentException implements Exception {
+  const GitContentException([this.detail = '']);
+  final String detail;
 }

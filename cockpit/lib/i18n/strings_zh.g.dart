@@ -761,6 +761,10 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => '工作树';
 	@override String get diffBinaryFile => '二进制文件——没有文本差异。';
 	@override String get diffNoChanges => '没有更改。';
+	@override String get diffSideBySide => '并排显示';
+	@override String get diffInline => '行内显示';
+	@override String get diffModifiedContent => '修改后的内容';
+	@override String get diffDeletedContent => '文件已删除，修改后的内容为空。';
 	@override String diffError({required Object detail}) => '无法读取差异：${detail}';
 	@override String get galleryTooltip => '画廊';
 	@override String get sectionGallery => '画廊';
@@ -2547,6 +2551,10 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.diffWorkingTree' => '工作树',
 			'cockpit.fileTreePanel.diffBinaryFile' => '二进制文件——没有文本差异。',
 			'cockpit.fileTreePanel.diffNoChanges' => '没有更改。',
+			'cockpit.fileTreePanel.diffSideBySide' => '并排显示',
+			'cockpit.fileTreePanel.diffInline' => '行内显示',
+			'cockpit.fileTreePanel.diffModifiedContent' => '修改后的内容',
+			'cockpit.fileTreePanel.diffDeletedContent' => '文件已删除，修改后的内容为空。',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => '无法读取差异：${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => '画廊',
 			'cockpit.fileTreePanel.sectionGallery' => '画廊',
@@ -2731,12 +2739,12 @@ extension on TranslationsZh {
 			'cockpit.dbMongoView.deleteDocumentTitle' => '删除文档',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object collection, required Object id}) => '从「${collection}」中删除 _id 为 ${id} 的文档？',
 			'cockpit.dbMongoView.filterHint' => '筛选——JSON，如 {"status": "active"}',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个文档', other: '${n} 个文档', ), 
 			'cockpit.dbMongoView.refresh' => '刷新',
 			'cockpit.dbMongoView.insertDocument' => '插入文档',
 			'cockpit.dbMongoView.noDocuments' => '此集合中没有文档。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.noDocumentsMatch' => '没有符合此筛选条件的文档。',
 			'cockpit.dbMongoView.loadMore' => '加载更多',
 			'cockpit.dbMongoView.edit' => '编辑',
@@ -3245,12 +3253,12 @@ extension on TranslationsZh {
 			'settings.page.appearance.terminalWeightLight' => '细',
 			'settings.page.appearance.terminalWeightNormal' => '常规',
 			'settings.page.appearance.terminalWeightMedium' => '中等',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightSemiBold' => '半粗',
 			'settings.page.appearance.sectionConversation' => '对话',
 			'settings.page.appearance.pinUserMessageTitle' => '固定用户消息',
 			'settings.page.appearance.pinUserMessageDesc' => '回答滚动时，问题固定在顶部。',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.importTheme' => '导入…',
 			'settings.page.appearance.exportTheme' => '导出…',
 			'settings.page.appearance.deleteTheme' => '移除',

@@ -1768,6 +1768,18 @@ class Translations$cockpit$fileTreePanel$en {
 	/// en: 'No changes.'
 	String get diffNoChanges => 'No changes.';
 
+	/// en: 'Side by Side'
+	String get diffSideBySide => 'Side by Side';
+
+	/// en: 'Inline'
+	String get diffInline => 'Inline';
+
+	/// en: 'Modified content'
+	String get diffModifiedContent => 'Modified content';
+
+	/// en: 'The modified file is empty because it was deleted.'
+	String get diffDeletedContent => 'The modified file is empty because it was deleted.';
+
 	/// en: 'Could not read the diff: ${detail}'
 	String diffError({required Object detail}) => 'Could not read the diff: ${detail}';
 
@@ -5264,6 +5276,10 @@ extension on Translations {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Working tree',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Binary file - no text diff.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'No changes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Side by Side',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Modified content',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'The modified file is empty because it was deleted.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Could not read the diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Gallery',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALLERY',
@@ -5448,12 +5464,12 @@ extension on Translations {
 			'cockpit.dbPanel.browseKeys' => 'Browse keys',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Delete connection',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remove "${name}" from this workspace? Any saved password is discarded. .dbq files that reference it are not touched.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} connections',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 connection',
 			'cockpit.dbPanel.noConnections' => 'No connections yet.',
 			'cockpit.dbPanel.passwordRequired' => 'Password not found on the host. Open this connection and enter it again — it is saved on the machine that runs the database, not on this one.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Delete document',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Delete the document with _id ${id} from "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filter — JSON, e.g. {"status": "active"}',
@@ -5962,12 +5978,12 @@ extension on Translations {
 			'settings.page.appearance.terminalFontDesc' => 'Terminal only. Empty = system default.',
 			'settings.page.appearance.terminalSizeTitle' => 'Terminal size',
 			'settings.page.appearance.terminalSizeDesc' => 'Off = follows the code size.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => 'Follow code size',
 			'settings.page.appearance.terminalWeightTitle' => 'Terminal weight',
 			'settings.page.appearance.terminalWeightDesc' => 'Low-density screens render strokes heavier. Auto lightens them there and leaves Retina untouched.',
 			'settings.page.appearance.terminalWeightAuto' => 'Auto (by screen)',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightLight' => 'Light',
 			'settings.page.appearance.terminalWeightNormal' => 'Normal',
 			'settings.page.appearance.terminalWeightMedium' => 'Medium',

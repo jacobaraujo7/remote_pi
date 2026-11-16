@@ -839,6 +839,10 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String get diffWorkingTree => 'Diretorio de trabalho';
 	@override String get diffBinaryFile => 'Arquivo binario - sem diff de texto.';
 	@override String get diffNoChanges => 'Sem alteracoes.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'Inline';
+	@override String get diffModifiedContent => 'Conteúdo modificado';
+	@override String get diffDeletedContent => 'O arquivo modificado está vazio porque foi removido.';
 	@override String diffError({required Object detail}) => 'Não foi possível ler o diff: ${detail}';
 	@override String get galleryTooltip => 'Galeria';
 	@override String get sectionGallery => 'GALERIA';
@@ -2632,6 +2636,10 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Diretorio de trabalho',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Arquivo binario - sem diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sem alteracoes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Conteúdo modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'O arquivo modificado está vazio porque foi removido.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Não foi possível ler o diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galeria',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERIA',
@@ -2816,12 +2824,12 @@ extension on TranslationsPtBr {
 			'cockpit.dbPanel.browseKeys' => 'Ver chaves',
 			'cockpit.dbPanel.deleteConnectionTitle' => 'Excluir conexão',
 			'cockpit.dbPanel.deleteConnectionMessage' => ({required Object name}) => 'Remover "${name}" deste workspace? Qualquer senha salva será descartada. Arquivos .dbq que fazem referência a ela não são afetados.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbPanel.footer' => ({required Object n}) => '.cockpit/databases.json · ${n} conexões',
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexão',
 			'cockpit.dbPanel.noConnections' => 'Nenhuma conexão ainda.',
 			'cockpit.dbPanel.passwordRequired' => 'Senha não encontrada no host. Abra esta conexão e digite-a de novo — ela fica salva na máquina que executa o banco, não nesta.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Excluir documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => 'Excluir o documento com _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ex.: {"status": "active"}',
@@ -3330,12 +3338,12 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.terminalFontDesc' => 'Só o terminal. Vazio = padrão do sistema.',
 			'settings.page.appearance.terminalSizeTitle' => 'Tamanho do terminal',
 			'settings.page.appearance.terminalSizeDesc' => 'Desligado = segue o tamanho do código.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalSizeInherit' => 'Seguir o código',
 			'settings.page.appearance.terminalWeightTitle' => 'Peso do terminal',
 			'settings.page.appearance.terminalWeightDesc' => 'Telas de baixa densidade engrossam os traços. O automático afina só nelas e não mexe no Retina.',
 			'settings.page.appearance.terminalWeightAuto' => 'Automático (pela tela)',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightLight' => 'Fino',
 			'settings.page.appearance.terminalWeightNormal' => 'Normal',
 			'settings.page.appearance.terminalWeightMedium' => 'Médio',

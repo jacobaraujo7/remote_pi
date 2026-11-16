@@ -1707,6 +1707,7 @@ class _PaneBodyState extends State<_PaneBody> {
       final vm = context.read<CockpitViewModel>();
       return DiffViewer(
         session: item,
+        loadModifiedContent: vm.loadModifiedDiffContent,
         displayPath: vm.displayPath(item.projectId, item.path),
       );
     }

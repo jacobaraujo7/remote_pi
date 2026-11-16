@@ -839,6 +839,10 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String get diffWorkingTree => 'Directorio de trabajo';
 	@override String get diffBinaryFile => 'Archivo binario - sin diff de texto.';
 	@override String get diffNoChanges => 'Sin cambios.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'En línea';
+	@override String get diffModifiedContent => 'Contenido modificado';
+	@override String get diffDeletedContent => 'El archivo modificado está vacío porque se eliminó.';
 	@override String diffError({required Object detail}) => 'No se pudo leer el diff: ${detail}';
 	@override String get galleryTooltip => 'Galería';
 	@override String get sectionGallery => 'GALERÍA';
@@ -2628,6 +2632,10 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Directorio de trabajo',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Archivo binario - sin diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sin cambios.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'En línea',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Contenido modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'El archivo modificado está vacío porque se eliminó.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'No se pudo leer el diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galería',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERÍA',
@@ -2812,12 +2820,12 @@ extension on TranslationsEs {
 			'cockpit.dbPanel.footerOne' => '.cockpit/databases.json · 1 conexión',
 			'cockpit.dbPanel.noConnections' => 'Aún no hay conexiones.',
 			'cockpit.dbPanel.passwordRequired' => 'Contraseña no encontrada en el host. Abre esta conexión y vuelve a escribirla — se guarda en la máquina que ejecuta la base de datos, no en esta.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.dbMongoView.deleteDocumentTitle' => 'Eliminar documento',
 			'cockpit.dbMongoView.deleteDocumentMessage' => ({required Object id, required Object collection}) => '¿Eliminar el documento con _id ${id} de "${collection}"?',
 			'cockpit.dbMongoView.filterHint' => 'Filtro — JSON, ej.: {"status": "active"}',
 			'cockpit.dbMongoView.docCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 doc', other: '${n} docs', ), 
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.refresh' => 'Actualizar',
 			'cockpit.dbMongoView.insertDocument' => 'Insertar documento',
 			'cockpit.dbMongoView.noDocuments' => 'No hay documentos en esta colección.',
@@ -3326,12 +3334,12 @@ extension on TranslationsEs {
 			'settings.page.appearance.terminalWeightTitle' => 'Grosor de la terminal',
 			'settings.page.appearance.terminalWeightDesc' => 'Las pantallas de baja densidad engrosan los trazos. El automático los afina solo ahí y no toca la Retina.',
 			'settings.page.appearance.terminalWeightAuto' => 'Automático (según la pantalla)',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.terminalWeightLight' => 'Fino',
 			'settings.page.appearance.terminalWeightNormal' => 'Normal',
 			'settings.page.appearance.terminalWeightMedium' => 'Medio',
 			'settings.page.appearance.terminalWeightSemiBold' => 'Seminegrita',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.sectionConversation' => 'Conversación',
 			'settings.page.appearance.pinUserMessageTitle' => 'Fijar mensaje del usuario',
 			'settings.page.appearance.pinUserMessageDesc' => 'La pregunta permanece fija arriba mientras la respuesta se desplaza.',
