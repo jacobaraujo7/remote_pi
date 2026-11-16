@@ -141,6 +141,7 @@ jobs:
         run: >-
           flutter test --no-pub
           test/data/file_terminal_scrollback_store_test.dart
+          test/data/process_tree_provider_test.dart
           test/domain/coalescing_single_flight_test.dart
           test/domain/worktree_reconciler_test.dart
           test/domain/orchestration_document_test.dart
