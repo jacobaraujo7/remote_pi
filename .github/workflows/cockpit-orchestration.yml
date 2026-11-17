@@ -64,10 +64,24 @@ jobs:
           lib/app/core/data/diagnostics/performance_diagnostics.dart
           test/core/shell_command_metrics_test.dart
       - name: Shell lifecycle diagnostics regressions
-        run: >-
-          flutter test --no-pub
-          test/core/shell_command_metrics_test.dart
-          test/core/performance_diagnostics_test.dart
+        shell: bash
+        run: |
+          # The first test builds Ghostty's native assets. Retry only transient
+          # Zig dependency downloads; test and compilation failures remain fatal.
+          set -o pipefail
+          log="$RUNNER_TEMP/shell-lifecycle-tests.log"
+          for attempt in 1 2 3; do
+            if flutter test --no-pub \
+              test/core/shell_command_metrics_test.dart \
+              test/core/performance_diagnostics_test.dart 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ] || ! grep -q 'error: HTTP response read failure:' "$log"; then
+              exit 1
+            fi
+            echo "Ghostty dependency download failed; retrying (attempt $attempt of 3)."
+            sleep 5
+          done
       - name: CLI caller routing contract
         run: cargo test --manifest-path cli/Cargo.toml
       - name: Analyze workspace presentation
