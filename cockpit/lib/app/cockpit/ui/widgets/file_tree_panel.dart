@@ -445,10 +445,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
   late bool _sourceControlTree;
   _SourceControlView _sourceControlView = _SourceControlView.changes;
 
-  /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
-  /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
-  /// pasta some de uma seção: ao reaparecer na outra, conserva o estado.
-  final Map<String, bool> _sourceControlFolderExpanded = <String, bool>{};
+  /// Expansão por seção (index/working tree) e caminho absoluto. Uma pasta
+  /// pode aparecer nas duas seções simultaneamente. Entradas são mantidas
+  /// quando ela some para restaurar o estado ao reaparecer na mesma seção.
+  final Map<(bool staged, String path), bool> _sourceControlFolderExpanded = {};
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -1354,13 +1354,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                           onStageAll: _toggleStageAll,
                           onDiscard: _discardOne,
                           onDiscardAll: _discardAll,
-                          isFolderExpanded: (path) =>
-                              _sourceControlFolderExpanded[path] ?? true,
-                          onFolderExpansionChanged: (path, expanded) =>
-                              setState(
-                                () => _sourceControlFolderExpanded[path] =
-                                    expanded,
-                              ),
+                          isFolderExpanded: (path, staged) =>
+                              _sourceControlFolderExpanded[(staged, path)] ??
+                              true,
+                          onFolderExpansionChanged: (path, staged, expanded) =>
+                              setState(() {
+                                _sourceControlFolderExpanded[(staged, path)] =
+                                    expanded;
+                              }),
                           stagedPaths: effectiveStaged,
                           unstagedPaths: effectiveUnstaged,
                           gitStatusOf: widget.gitStatusOf,
@@ -2962,8 +2963,9 @@ class _ChangedTree extends StatelessWidget {
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
-  final bool Function(String path) isFolderExpanded;
-  final void Function(String path, bool expanded) onFolderExpansionChanged;
+  final bool Function(String path, bool staged) isFolderExpanded;
+  final void Function(String path, bool staged, bool expanded)
+  onFolderExpansionChanged;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -3163,8 +3165,9 @@ class _ChangedTree extends StatelessWidget {
       onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
       onDiscardAll: onDiscardAll,
-      isExpanded: isFolderExpanded,
-      onExpansionChanged: onFolderExpansionChanged,
+      isExpanded: (path) => isFolderExpanded(path, staged),
+      onExpansionChanged: (path, expanded) =>
+          onFolderExpansionChanged(path, staged, expanded),
       staged: staged,
     );
   }
