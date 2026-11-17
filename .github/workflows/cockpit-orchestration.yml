@@ -107,6 +107,8 @@ jobs:
           lib/app/cockpit/ui/document/worktree_document_host.dart
           lib/app/cockpit/ui/document/document_window_app.dart
           lib/app/cockpit/ui/widgets/file_viewer.dart
+          lib/app/cockpit/ui/widgets/file_tree_panel.dart
+          test/ui/file_tree_drag_test.dart
           lib/app/cockpit/ui/widgets/layout_preview_view.dart
           lib/app/core/ui/menu/editor_menu_bridge.dart
           lib/app/cockpit/ui/document/standalone_document_host.dart
@@ -156,6 +158,7 @@ jobs:
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
           test/ui/file_tree_panel_test.dart
+          test/ui/file_tree_drag_test.dart
           test/ui/layout_scrollback_keys_test.dart
           test/ui/orchestration_restore_state_test.dart
           test/ui/orchestration_ownership_migration_test.dart
