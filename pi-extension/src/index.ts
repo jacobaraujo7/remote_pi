@@ -861,7 +861,7 @@ let _agentRunGeneration = 0;
 let _meshDrainScheduled = false;
 // Only the API that started this run may use its live streaming probe (#216).
 // Clear at agent_end entry: newer SDKs can report non-idle during unwind too.
-let _meshSteeringRun: { pi: ExtensionAPI; ctx: Pick<ExtensionContext, "isIdle"> } | null = null;
+let _meshSteeringRun: { pi: ExtensionAPI; ctx: Pick<ExtensionContext, "isIdle" | "signal"> } | null = null;
 
 function _queuedStateMessage(): ServerMessage {
   const first = _queuedItems[0];
@@ -2442,6 +2442,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // best-effort: every step is guarded so a partially-initialised instance
   // (e.g. shutdown lands mid-`_cmdRoot`) tears down without throwing.
   pi.on("session_shutdown", async () => {
+    if (_meshSteeringRun?.pi === pi) _meshSteeringRun = null;
     // Revoke async authority synchronously, before any teardown await. `_disposed`
     // blocks the outgoing continuation immediately; the root and candidate
     // generations keep queued work stale even if a same-module session_start
@@ -4125,16 +4126,30 @@ function _meshMessageForAgent(env: MeshEnvelope) {
   };
 }
 
+function _canSteerMeshMessages(pi: ExtensionAPI | null): boolean {
+  const run = _meshSteeringRun;
+  if (!_agentRunActive || !run || run.pi !== pi) return false;
+  try {
+    // On SDK 0.79.x isIdle() is !isStreaming. The run-scoped probe is
+    // disabled at agent_end as an additional guard for newer SDKs (#62).
+    // An aborting run may still report streaming but will not consume steer.
+    return !run.ctx.signal?.aborted && run.ctx.isIdle() === false;
+  } catch {
+    // SDK hosts may invalidate a context without emitting agent_end.
+    // Leave the FIFO intact, and never throw from the drain microtask.
+    _meshSteeringRun = null;
+    console.error("[remote-pi] mesh steering context unavailable; retaining queued messages");
+    return false;
+  }
+}
+
 function _scheduleMeshMessageDrain(): void {
   if (_meshDrainScheduled || _pendingMeshMessages.length === 0) return;
   _meshDrainScheduled = true;
   queueMicrotask(() => {
     _meshDrainScheduled = false;
     const pi = _pi;
-    // On SDK 0.79.x isIdle() is !isStreaming. The run-scoped probe is
-    // disabled at agent_end as an additional guard for newer SDKs (#62).
-    const steer = _agentRunActive && _meshSteeringRun?.pi === pi
-      && _meshSteeringRun.ctx.isIdle() === false;
+    const steer = _canSteerMeshMessages(pi);
     if ((_agentRunActive && !steer) || !pi || _pendingMeshMessages.length === 0) return;
 
     const batch = _pendingMeshMessages.splice(0);

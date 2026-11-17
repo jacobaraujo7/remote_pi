@@ -1198,6 +1198,126 @@ describe("agent-network mesh delivery", () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 5));
   });
 
+  test("steer mode retains messages when the session streaming probe has been invalidated", async () => {
+    _savedMeshDelivery = "steer";
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    harness.pi.sendMessage = sendMessage;
+    harness.handler("agent_start")({ type: "agent_start" }, {
+      isIdle: () => { throw new Error("Extension context is no longer active"); },
+    });
+    let drain: (() => void) | undefined;
+    const microtask = vi.spyOn(globalThis, "queueMicrotask").mockImplementation((callback) => { drain = callback; });
+    const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      _deliverMeshMessageToAgentForTest({ id: "invalidated", from: "/repo@peer", re: null, body: "retained" });
+      expect(drain).toBeDefined();
+      expect(() => drain!()).not.toThrow();
+      expect(sendMessage).not.toHaveBeenCalled();
+    } finally {
+      microtask.mockRestore();
+      error.mockRestore();
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ content: expect.stringContaining("invalidated") }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+    harness.handler("agent_end")({ type: "agent_end" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  });
+
+  test("steer mode holds abort-window arrivals until agent_end instead of stranding them in the SDK queue", async () => {
+    _savedMeshDelivery = "steer";
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    harness.pi.sendMessage = sendMessage;
+    const controller = new AbortController();
+    harness.handler("agent_start")({ type: "agent_start" }, { isIdle: () => false, signal: controller.signal });
+    controller.abort();
+    try {
+      _deliverMeshMessageToAgentForTest({ id: "aborting", from: "/repo@peer", re: null, body: "retained" });
+      await Promise.resolve();
+      expect(sendMessage).not.toHaveBeenCalled();
+    } finally {
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ content: expect.stringContaining("aborting") }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+    harness.handler("agent_end")({ type: "agent_end" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  });
+
+  test("steer mode drops its streaming probe synchronously on session_shutdown", async () => {
+    _savedMeshDelivery = "steer";
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    const isIdle = vi.fn(() => false);
+    harness.pi.sendMessage = sendMessage;
+    harness.handler("agent_start")({ type: "agent_start" }, { isIdle });
+    try {
+      _deliverMeshMessageToAgentForTest({ id: "shutdown", from: "/repo@peer", re: null, body: "retained" });
+      await harness.handler("session_shutdown")({ type: "session_shutdown" });
+      expect(isIdle).not.toHaveBeenCalled();
+      // Shutdown can emit the existing relay-state metadata independently.
+      expect(sendMessage.mock.calls.filter(([message]) => message.customType === "remote-pi:mesh-message"))
+        .toEqual([]);
+    } finally {
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      _setDisposedForTest(false);
+    }
+  });
+
+  test("steer mode drains idle-queued messages in order if agent_start overtakes the microtask", async () => {
+    _savedMeshDelivery = "steer";
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    harness.pi.sendMessage = sendMessage;
+    try {
+      _deliverMeshMessageToAgentForTest({ id: "overtaken-1", from: "/repo@peer", re: null, body: "first" });
+      harness.handler("agent_start")({ type: "agent_start" }, { isIdle: () => false });
+      _deliverMeshMessageToAgentForTest({ id: "overtaken-2", from: "/repo@peer", re: null, body: "second" });
+      await Promise.resolve();
+      expect(sendMessage.mock.calls.map(([message, options]) => [message.content.split("\n")[1], options])).toEqual([
+        ["first", { deliverAs: "steer" }],
+        ["second", { deliverAs: "steer" }],
+      ]);
+    } finally {
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  test("steer mode falls back to between-runs if the host supplies no streaming probe", async () => {
+    _savedMeshDelivery = "steer";
+    const harness = captureEventHarness();
+    const sendMessage = vi.fn();
+    harness.pi.sendMessage = sendMessage;
+    harness.handler("agent_start")({ type: "agent_start" });
+    try {
+      _deliverMeshMessageToAgentForTest({ id: "no-probe", from: "/repo@peer", re: null, body: "retained" });
+      await Promise.resolve();
+      expect(sendMessage).not.toHaveBeenCalled();
+    } finally {
+      harness.handler("agent_end")({ type: "agent_end" });
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    }
+    expect(sendMessage).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ content: expect.stringContaining("no-probe") }),
+      { triggerTurn: true, deliverAs: "followUp" },
+    );
+    harness.handler("agent_end")({ type: "agent_end" });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+  });
+
   test("holds messages until agent_end listeners finish and starts one turn for the batch", async () => {
     const harness = captureEventHarness();
     const sendMessage = vi.fn();
@@ -1255,7 +1375,7 @@ describe("agent-network mesh delivery", () => {
 // ── user_input mirroring (local terminal / RPC) ───────────────────────────────
 
 type AnyEvent = { type: string; [k: string]: unknown };
-type EventHandler = (event: AnyEvent, ctx?: { isIdle: () => boolean }) => unknown;
+type EventHandler = (event: AnyEvent, ctx?: { isIdle: () => boolean; signal?: AbortSignal }) => unknown;
 
 function captureEventHandler(eventName: string): EventHandler {
   let captured: EventHandler | undefined;
