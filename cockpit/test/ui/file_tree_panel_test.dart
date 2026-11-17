@@ -485,88 +485,231 @@ void main() {
       expect(find.text('app'), findsOneWidget);
     });
 
-    testWidgets('folder expansion survives stage and unstage', (tester) async {
-      const changedPath = '/workspace/lib/app/main.dart';
-      var staged = false;
+    for (final multiRoot in [false, true]) {
+      testWidgets(
+        'source control isolates section expansion (${multiRoot ? 'multi' : 'single'}-root)',
+        (tester) async {
+          LocaleSettings.setLocale(AppLocale.en);
+          await tester.binding.setSurfaceSize(const Size(1000, 1200));
+          addTearDown(() => tester.binding.setSurfaceSize(null));
+          final root = multiRoot ? '/workspace/repo' : '/workspace';
+          final firstPath = '$root/lib/app/main.dart';
+          final secondPath = '$root/lib/app/other.dart';
+          final addedPath = '$root/lib/app/new.dart';
+          const otherRootPath = '/workspace/other/lib/app/main.dart';
+          final paths = [firstPath, secondPath, if (multiRoot) otherRootPath];
+          var stagedPaths = [...paths];
+          var unstagedPaths = [...paths];
+          var revision = 1;
+          late StateSetter update;
+          String? openedDiff;
 
-      await tester.pumpWidget(
-        TranslationProvider(
-          child: ShadcnApp(
-            theme: buildTheme(brightness: Brightness.dark),
-            home: Scaffold(
-              child: StatefulBuilder(
-                builder: (context, setHostState) => FileTreePanel(
-                  rootPath: '/workspace',
-                  revision: 1,
-                  listChildren: (_) async => const [],
-                  gitStatusOf: (_) =>
-                      staged ? GitFileStatus.staged : GitFileStatus.modified,
-                  onOpenFile: (_) {},
-                  onOpenDiff: (_) {},
-                  isGitRepo: true,
-                  changedPaths: const [changedPath],
-                  stagedPaths: staged ? const [changedPath] : const [],
-                  unstagedPaths: staged ? const [] : const [changedPath],
-                  onStageFiles: (_) async {
-                    setHostState(() => staged = true);
-                    return null;
-                  },
-                  onUnstageFiles: (_) async {
-                    setHostState(() => staged = false);
-                    return null;
-                  },
-                  onOpenWith: (_) {},
-                  onCreateInFolder: (_, {command}) {},
-                  onCreate: (_, _, _) async => const Success(null),
-                  onRename: (_, _) async => const Success(null),
-                  onDelete: (_) async => const Success(null),
-                  onMove: (_, _) async => const Success(null),
-                  onCopy: (_) {},
-                  onCut: (_) {},
-                  onPaste: (_) async => const Success(null),
-                  canPaste: false,
+          await tester.pumpWidget(
+            TranslationProvider(
+              child: ShadcnApp(
+                theme: buildTheme(brightness: Brightness.dark),
+                home: Scaffold(
+                  child: StatefulBuilder(
+                    builder: (context, setHostState) {
+                      update = setHostState;
+                      return FileTreePanel(
+                        rootPath: '/workspace',
+                        roots: multiRoot
+                            ? const [
+                                WorkspaceRoot(
+                                  path: '/workspace/repo',
+                                  name: 'repo',
+                                ),
+                                WorkspaceRoot(
+                                  path: '/workspace/other',
+                                  name: 'other',
+                                ),
+                              ]
+                            : const [],
+                        revision: revision,
+                        sourceControlViewMode: SourceControlViewMode.tree,
+                        listChildren: (_) async => const [],
+                        gitStatusOf: (_) => GitFileStatus.modified,
+                        onOpenFile: (_) {},
+                        onOpenDiff: (path) => openedDiff = path,
+                        isGitRepo: true,
+                        changedPaths: {
+                          ...stagedPaths,
+                          ...unstagedPaths,
+                        }.toList(),
+                        stagedPaths: stagedPaths,
+                        unstagedPaths: unstagedPaths,
+                        onOpenWith: (_) {},
+                        onCreateInFolder: (_, {command}) {},
+                        onCreate: (_, _, _) async => const Success(null),
+                        onRename: (_, _) async => const Success(null),
+                        onDelete: (_) async => const Success(null),
+                        onMove: (_, _) async => const Success(null),
+                        onCopy: (_) {},
+                        onCut: (_) {},
+                        onPaste: (_) async => const Success(null),
+                        canPaste: false,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+          await tester.tap(find.byKey(const ValueKey('source-control-tab')));
+          await tester.pumpAndSettle();
+
+          Finder folder(String path) =>
+              find.byKey(ValueKey('source-control-folder:$path'));
+          Finder file(String path) =>
+              find.byKey(ValueKey('source-control-file:$path'));
+          expect(file(firstPath), findsNWidgets(2));
+          expect(file(secondPath), findsNWidgets(2));
+
+          // Working-tree collapse leaves the identical index subtree visible.
+          await tester.tap(folder('$root/lib').last);
+          await tester.pumpAndSettle();
+          expect(folder('$root/lib/app'), findsOneWidget);
+          expect(file(firstPath), findsOneWidget);
+          expect(file(secondPath), findsOneWidget);
+          if (multiRoot) expect(file(otherRootPath), findsNWidgets(2));
+
+          // Nested index folders also have their own state.
+          await tester.tap(folder('$root/lib/app'));
+          await tester.pumpAndSettle();
+          expect(file(firstPath), findsNothing);
+          await tester.tap(folder('$root/lib').last);
+          await tester.pumpAndSettle();
+          expect(folder('$root/lib/app'), findsNWidgets(2));
+          expect(file(firstPath), findsOneWidget);
+          expect(file(secondPath), findsOneWidget);
+
+          // Refreshes update files without changing either section's state.
+          update(() {
+            stagedPaths = [...paths, addedPath];
+            unstagedPaths = [...paths, addedPath];
+            revision++;
+          });
+          await tester.pumpAndSettle();
+          expect(file(addedPath), findsOneWidget);
+          await tester.tap(file(addedPath));
+          await tester.pumpAndSettle();
+          expect(openedDiff, addedPath);
+
+          // The state owner survives rebuilding the trees in list/tree mode.
+          final toggle = find
+              .byKey(const ValueKey('source-control-view-toggle'))
+              .first;
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          await tester.tap(toggle);
+          await tester.pumpAndSettle();
+          expect(file(firstPath), findsOneWidget);
+          expect(file(addedPath), findsOneWidget);
+
+          // Temporarily removing a section must not discard or transfer its state.
+          update(() => stagedPaths = []);
+          await tester.pumpAndSettle();
+          expect(file(firstPath), findsOneWidget);
+          update(() => stagedPaths = [...paths, addedPath]);
+          await tester.pumpAndSettle();
+          expect(file(firstPath), findsOneWidget);
+          await tester.tap(folder('$root/lib/app').first);
+          await tester.pumpAndSettle();
+          expect(file(firstPath), findsNWidgets(2));
+          expect(file(secondPath), findsNWidgets(2));
+          expect(file(addedPath), findsNWidgets(2));
+          if (multiRoot) expect(file(otherRootPath), findsNWidgets(2));
+        },
+      );
+    }
+
+    testWidgets(
+      'each section remembers folder expansion across stage and unstage',
+      (tester) async {
+        const changedPath = '/workspace/lib/app/main.dart';
+        var staged = false;
+
+        await tester.pumpWidget(
+          TranslationProvider(
+            child: ShadcnApp(
+              theme: buildTheme(brightness: Brightness.dark),
+              home: Scaffold(
+                child: StatefulBuilder(
+                  builder: (context, setHostState) => FileTreePanel(
+                    rootPath: '/workspace',
+                    revision: 1,
+                    listChildren: (_) async => const [],
+                    gitStatusOf: (_) =>
+                        staged ? GitFileStatus.staged : GitFileStatus.modified,
+                    onOpenFile: (_) {},
+                    onOpenDiff: (_) {},
+                    isGitRepo: true,
+                    changedPaths: const [changedPath],
+                    stagedPaths: staged ? const [changedPath] : const [],
+                    unstagedPaths: staged ? const [] : const [changedPath],
+                    onStageFiles: (_) async {
+                      setHostState(() => staged = true);
+                      return null;
+                    },
+                    onUnstageFiles: (_) async {
+                      setHostState(() => staged = false);
+                      return null;
+                    },
+                    onOpenWith: (_) {},
+                    onCreateInFolder: (_, {command}) {},
+                    onCreate: (_, _, _) async => const Success(null),
+                    onRename: (_, _) async => const Success(null),
+                    onDelete: (_) async => const Success(null),
+                    onMove: (_, _) async => const Success(null),
+                    onCopy: (_) {},
+                    onCut: (_) {},
+                    onPaste: (_) async => const Success(null),
+                    canPaste: false,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const ValueKey('source-control-tab')));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('source-control-view-toggle')),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const ValueKey('source-control-tab')));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('source-control-view-toggle')),
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('lib'));
-      await tester.pumpAndSettle();
-      expect(find.text('app'), findsNothing);
+        await tester.tap(find.text('lib'));
+        await tester.pumpAndSettle();
+        expect(find.text('app'), findsNothing);
 
-      final folder = find.byKey(
-        const ValueKey('source-control-folder:/workspace/lib'),
-      );
-      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
-      await mouse.addPointer(location: tester.getCenter(folder));
-      await mouse.moveTo(tester.getCenter(folder));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('STAGED CHANGES (1)'), findsOneWidget);
-      expect(find.text('app'), findsNothing);
+        final folder = find.byKey(
+          const ValueKey('source-control-folder:/workspace/lib'),
+        );
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: tester.getCenter(folder));
+        await mouse.moveTo(tester.getCenter(folder));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('STAGED CHANGES (1)'), findsOneWidget);
+        expect(find.text('app'), findsOneWidget);
 
-      await mouse.moveTo(Offset.zero);
-      await mouse.moveTo(tester.getCenter(folder));
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('CHANGES (1)'), findsOneWidget);
-      expect(find.text('app'), findsNothing);
-    });
+        await mouse.moveTo(Offset.zero);
+        await mouse.moveTo(tester.getCenter(folder));
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const ValueKey('toggle-stage-folder:/workspace/lib')),
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('CHANGES (1)'), findsOneWidget);
+        expect(find.text('app'), findsNothing);
+      },
+    );
 
     testWidgets(
       'staged automation action follows amend picker and shows loading',
