@@ -112,14 +112,18 @@ class DiskFileChangeWatcher
   /// pasta: o FSEvents reporta o caminho resolvido (`/tmp` → `/private/tmp`,
   /// pasta por symlink), e aí a comparação literal falharia.
   static bool Function(String) _fileMatcher(String path, String parent) {
-    final name = path.substring(parent.length);
+    // Callers may use mixed separators on Windows; OS events use native paths.
+    final normalized = p.normalize(path);
+    final name = p.basename(normalized);
     String? resolved;
     try {
-      resolved = '${Directory(parent).resolveSymbolicLinksSync()}$name';
+      resolved = p.join(Directory(parent).resolveSymbolicLinksSync(), name);
     } on FileSystemException {
       resolved = null; // pasta ainda não existe: fica só o literal
     }
-    return (p) => p == path || p == resolved;
+    return (eventPath) =>
+        p.equals(eventPath, normalized) ||
+        (resolved != null && p.equals(eventPath, resolved));
   }
 
   static String _fileSignature(String path) {
