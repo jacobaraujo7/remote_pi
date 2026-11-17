@@ -1,5 +1,11 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+
+import 'package:cockpit/app/cockpit/domain/services/content_search_paths.dart';
+import 'package:path/path.dart' as p;
+import 'package:crypto/crypto.dart';
 
 import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 
@@ -21,10 +27,12 @@ import 'package:cockpit/app/cockpit/domain/contracts/file_change_watcher.dart';
 /// cada entrada) mudou desde o último aviso. Isso descarta o evento atrasado
 /// que o FSEvents entrega sobre uma escrita anterior ao `listen`, e o evento
 /// de metadado sem mudança de conteúdo.
-class DiskFileChangeWatcher implements FileChangeWatcher {
+class DiskFileChangeWatcher
+    implements FileChangeWatcher, TreeFileChangeWatcher {
   const DiskFileChangeWatcher({
     this.debounce = const Duration(milliseconds: 120),
     this.pollInterval = const Duration(seconds: 2),
+    this.treePollInterval = const Duration(seconds: 10),
     this.retryMin = const Duration(seconds: 1),
     this.retryMax = const Duration(seconds: 30),
   });
@@ -32,6 +40,7 @@ class DiskFileChangeWatcher implements FileChangeWatcher {
   /// Junta a rajada de eventos de um save num aviso só.
   final Duration debounce;
   final Duration pollInterval;
+  final Duration treePollInterval;
   final Duration retryMin;
   final Duration retryMax;
 
@@ -53,6 +62,51 @@ class DiskFileChangeWatcher implements FileChangeWatcher {
     signature: () => _folderSignature(path),
     config: this,
   ).stream;
+
+  @override
+  Stream<void> watchTree(String path) => _DiskWatch(
+    dir: path,
+    recursive: true,
+    matches: (eventPath) {
+      final relative = p.relative(eventPath, from: path);
+      final parts = p.split(relative);
+      return parts
+              .take(parts.length - 1)
+              .every(contentSearchIncludesDirectory) &&
+          parts.last != '.DS_Store';
+    },
+    // Metadata only, outside the UI isolate. The poll covers inactive contexts,
+    // dropped OS events, and platforms without recursive native watches.
+    signature: () => Isolate.run(() => _treeSignature(path)),
+    config: DiskFileChangeWatcher(
+      debounce: debounce,
+      pollInterval: treePollInterval,
+      retryMin: retryMin,
+      retryMax: retryMax,
+    ),
+  ).stream;
+
+  static String _treeSignature(String path) {
+    final parts = <String>[];
+    final pending = <Directory>[Directory(path)];
+    while (pending.isNotEmpty) {
+      final dir = pending.removeLast();
+      try {
+        for (final entity in dir.listSync(followLinks: false)) {
+          final name = p.basename(entity.path);
+          if (entity is Directory && contentSearchIncludesDirectory(name)) {
+            pending.add(entity);
+          } else if (entity is File && name != '.DS_Store') {
+            parts.add('${entity.path}|${_fileSignature(entity.path)}');
+          }
+        }
+      } on FileSystemException {
+        parts.add('${dir.path}|unavailable');
+      }
+    }
+    parts.sort();
+    return sha256.convert(utf8.encode(parts.join('\n'))).toString();
+  }
 
   /// Casa o evento com o arquivo pelo caminho pedido OU pelo caminho real da
   /// pasta: o FSEvents reporta o caminho resolvido (`/tmp` → `/private/tmp`,
@@ -95,13 +149,15 @@ class _DiskWatch {
     required this.matches,
     required this.signature,
     required this.config,
+    this.recursive = false,
   }) : _backoff = config.retryMin {
     _controller = StreamController<void>(onListen: _start, onCancel: _stop);
   }
 
   final String dir;
   final bool Function(String path) matches;
-  final String Function() signature;
+  final FutureOr<String> Function() signature;
+  final bool recursive;
   final DiskFileChangeWatcher config;
 
   late final StreamController<void> _controller;
@@ -114,9 +170,11 @@ class _DiskWatch {
   Duration _backoff;
   String? _sig;
   bool _closed = false;
+  bool _checking = false;
 
-  void _start() {
-    _sig = signature();
+  Future<void> _start() async {
+    _sig = await signature();
+    if (_closed) return;
     _arm();
     _poll = Timer.periodic(config.pollInterval, (_) => _check());
   }
@@ -124,12 +182,14 @@ class _DiskWatch {
   void _arm() {
     if (_closed) return;
     try {
-      _sub = Directory(dir).watch().listen(
-        _onEvent,
-        onError: (Object _) => _rearmLater(),
-        onDone: _rearmLater,
-        cancelOnError: true,
-      );
+      _sub = Directory(dir)
+          .watch(recursive: recursive)
+          .listen(
+            _onEvent,
+            onError: (Object _) => _rearmLater(),
+            onDone: _rearmLater,
+            cancelOnError: true,
+          );
     } on FileSystemException {
       _rearmLater();
     }
@@ -168,12 +228,17 @@ class _DiskWatch {
     _emitIfChanged();
   }
 
-  void _emitIfChanged() {
-    if (_closed) return;
-    final sig = signature();
-    if (sig == _sig) return;
-    _sig = sig;
-    _controller.add(null);
+  Future<void> _emitIfChanged() async {
+    if (_closed || _checking) return;
+    _checking = true;
+    try {
+      final sig = await signature();
+      if (_closed || sig == _sig) return;
+      _sig = sig;
+      _controller.add(null);
+    } finally {
+      _checking = false;
+    }
   }
 
   Future<void> _stop() async {

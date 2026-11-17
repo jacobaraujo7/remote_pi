@@ -30,6 +30,55 @@ void main() {
     tmpFile.renameSync(path);
   }
 
+  test(
+    'tree observes nested content, atomic replacement, addition and deletion',
+    () async {
+      final nested = Directory('${tmp.path}/lib/nested')
+        ..createSync(recursive: true);
+      final file = File('${nested.path}/source.dart')
+        ..writeAsStringSync('before');
+      const watcher = DiskFileChangeWatcher(
+        debounce: Duration(milliseconds: 30),
+        treePollInterval: Duration(milliseconds: 150),
+      );
+      final events = _Events(watcher.watchTree(tmp.path));
+      await settle();
+      file.writeAsStringSync('after with new content');
+      await events.next();
+      atomicWrite(file.path, 'atomic update');
+      await events.next();
+      final added = File('${nested.path}/added.dart')..writeAsStringSync('new');
+      await events.next();
+      await added.delete();
+      await events.next();
+      await events.cancel();
+    },
+  );
+
+  test(
+    'tree ignores build and hidden directories and stops on cancellation',
+    () async {
+      final nested = Directory('${tmp.path}/lib')..createSync();
+      final ignored = Directory('${tmp.path}/build')..createSync();
+      final git = Directory('${tmp.path}/.git')..createSync();
+      const watcher = DiskFileChangeWatcher(
+        debounce: Duration(milliseconds: 30),
+        treePollInterval: Duration(milliseconds: 100),
+      );
+      var hits = 0;
+      final subscription = watcher.watchTree(tmp.path).listen((_) => hits++);
+      await settle();
+      File('${ignored.path}/output').writeAsStringSync('ignored');
+      File('${git.path}/index').writeAsStringSync('ignored');
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(hits, 0);
+      await subscription.cancel();
+      File('${nested.path}/source').writeAsStringSync('after cancellation');
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(hits, 0);
+    },
+  );
+
   test('escrita no lugar avisa', () async {
     final f = File('${tmp.path}/board.kanban')..writeAsStringSync('v0');
     final it = _Events(eventsOnly.watchFile(f.path));

@@ -1219,6 +1219,7 @@ class _TreePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
+    final searchProjectId = vm.selectedProjectId;
     final panelSettings = context
         .select<
           SettingsController,
@@ -1381,8 +1382,9 @@ class _TreePanel extends StatelessWidget {
               ? null
               : ContentSearchPanel(
                   fill: true,
-                  search: vm.searchContent,
-                  onOpenResult: vm.openSearchResult,
+                  controller: vm.searchStateFor(vm.selectedProject!.id),
+                  onOpenResult: (relative, line) =>
+                      vm.openSearchResultIn(searchProjectId!, relative, line),
                   focusSignal: searchFocusSignal,
                 ),
           searchFocusSignal: searchFocusSignal,

@@ -23,3 +23,9 @@ abstract class FileChangeWatcher {
   /// criado, apagado, renomeado ou gravado). Não desce em subpastas.
   Stream<void> watchFolder(String path);
 }
+
+/// Optional recursive capability for find-in-files caches. Implementations
+/// observe content changes, additions, moves and deletions in searchable folders.
+abstract interface class TreeFileChangeWatcher {
+  Stream<void> watchTree(String path);
+}

@@ -57,6 +57,32 @@ jobs:
           fi
       - name: Resolve versioned dependencies
         run: flutter pub get
+      - name: Analyze sidebar and Search state
+        run: >-
+          flutter analyze --no-pub
+          lib/app/cockpit/ui/states/sidebar_panel.dart
+          lib/app/cockpit/ui/viewmodels/content_search_controller.dart
+          lib/app/cockpit/ui/widgets/content_search_panel.dart
+          lib/app/cockpit/ui/widgets/file_tree_panel.dart
+          lib/app/cockpit/data/filesystem/content_searcher_impl.dart
+          lib/app/cockpit/data/filesystem/disk_file_change_watcher.dart
+          lib/app/cockpit/domain/contracts/file_change_watcher.dart
+          lib/app/cockpit/domain/services/content_search_paths.dart
+          test/ui/sidebar_panel_persistence_test.dart
+          test/ui/content_search_controller_test.dart
+          test/ui/content_search_panel_test.dart
+          test/ui/worktrees_toggle_test.dart
+          test/data/content_searcher_impl_test.dart
+          test/data/disk_file_change_watcher_test.dart
+      - name: Sidebar and Search navigation regressions
+        run: >-
+          flutter test --no-pub
+          test/ui/sidebar_panel_persistence_test.dart
+          test/ui/content_search_controller_test.dart
+          test/ui/content_search_panel_test.dart
+          test/ui/worktrees_toggle_test.dart
+          test/data/content_searcher_impl_test.dart
+          test/data/disk_file_change_watcher_test.dart
       - name: Analyze shell lifecycle diagnostics
         run: >-
           flutter analyze --no-pub

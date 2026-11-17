@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/ui/viewmodels/content_search_controller.dart';
 import 'package:cockpit/app/cockpit/ui/states/sidebar_panel.dart';
 import 'package:cockpit/app/cockpit/domain/services/gallery_creates.dart';
 import '../document/open_files_channel.dart';
@@ -547,6 +548,40 @@ class CockpitViewModel extends ChangeNotifier
     };
     _savedLayouts[id] = doc;
     if (!isSystemTerminal(id)) unawaited(_layoutStore.save(id, doc));
+  }
+
+  /// Same stable project identity as the active sidebar panel, but session-only.
+  final Map<String, ContentSearchController> _contentSearchStates = {};
+
+  ContentSearchController searchStateFor(String projectId) {
+    final project = _projectById(projectId)!;
+    final root = project.path;
+    final previous = _contentSearchStates[projectId];
+    if (previous != null && previous.root == root) return previous;
+    previous?.dispose();
+    final watcher = _fileChanges;
+    return _contentSearchStates[projectId] = ContentSearchController(
+      root: root,
+      changes:
+          !project.isRemoteTerminal &&
+              root.isNotEmpty &&
+              watcher is TreeFileChangeWatcher
+          ? (watcher as TreeFileChangeWatcher).watchTree(root)
+          : null,
+      search:
+          (term, {caseSensitive = false, wholeWord = false, regex = false}) =>
+              root.isEmpty || project.isRemoteTerminal
+              ? const Stream<FileMatches>.empty()
+              : _contentSearcher.search(
+                  ContentQuery(
+                    root: root,
+                    term: term,
+                    caseSensitive: caseSensitive,
+                    wholeWord: wholeWord,
+                    regex: regex,
+                  ),
+                ),
+    );
   }
 
   /// Ambiente HTTP escolhido por arquivo, inclusive para abas já fechadas.
@@ -3467,6 +3502,26 @@ class CockpitViewModel extends ChangeNotifier
     await openFile(abs, revealLine: line);
   }
 
+  Future<void> openSearchResultIn(
+    String projectId,
+    String relative,
+    int line,
+  ) async {
+    // A late click from a panel being unmounted must not open a relative path
+    // in the next workspace. Results belong to the controller's captured root.
+    if (_selectedProjectId != projectId) return;
+    final state = _contentSearchStates[projectId];
+    if (state == null || state.root != _projectById(projectId)?.path) return;
+    if (!state.results.any(
+      (file) =>
+          file.relativePath == relative &&
+          file.matches.any((match) => match.lineNumber == line),
+    )) {
+      return;
+    }
+    await openSearchResult(relative, line);
+  }
+
   /// `true` se [path] está **dentro** do workspace [projectId] (ele mesmo ou
   /// descendente). Usado pra desligar o LSP em arquivos externos abertos por
   /// drag&drop do SO (fora do workspace → sem language server).
@@ -4839,6 +4894,7 @@ class CockpitViewModel extends ChangeNotifier
     _focused.remove(id);
     _savedLayouts.remove(id);
     _sidebarPanels.remove(id);
+    _contentSearchStates.remove(id)?.dispose();
     _worktreesExpanded.remove(id);
     git.forget(id);
     _saveTimers.remove(id)?.cancel();
@@ -8428,6 +8484,10 @@ class CockpitViewModel extends ChangeNotifier
 
   @override
   void dispose() {
+    for (final search in _contentSearchStates.values) {
+      search.dispose();
+    }
+    _contentSearchStates.clear();
     _nativeDocumentsDisposed = true;
     _detachNativeOrchestration?.call();
     _detachNativeOrchestration = null;
