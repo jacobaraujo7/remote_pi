@@ -76,7 +76,8 @@ jobs:
               test/core/performance_diagnostics_test.dart 2>&1 | tee "$log"; then
               exit 0
             fi
-            if [ "$attempt" -eq 3 ] || ! grep -q 'error: HTTP response read failure:' "$log"; then
+            if [ "$attempt" -eq 3 ] || ! grep -Eq \
+              'build\.zig\.zon:[0-9]+:[0-9]+: error: (HTTP response read failure:|unable to unpack tarball to temporary directory: ReadFailed)' "$log"; then
               exit 1
             fi
             echo "Ghostty dependency download failed; retrying (attempt $attempt of 3)."
