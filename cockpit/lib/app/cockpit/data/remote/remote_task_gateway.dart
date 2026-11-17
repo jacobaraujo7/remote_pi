@@ -69,6 +69,14 @@ class RemoteTaskRunner implements TaskRunnerGateway {
   @override
   Stream<TaskPreviewUrl> previewUrls() => const Stream<TaskPreviewUrl>.empty();
 
+  // A URL de DevTools impressa no host aponta para o loopback de lá. Não
+  // oferecemos a ação — o mesmo corte do seletor de device.
+  @override
+  Stream<TaskSessionUrl> sessionUrls() => const Stream<TaskSessionUrl>.empty();
+
+  @override
+  String? sessionUrlOf(String taskId) => null;
+
   @override
   TaskRun runOf(String taskId) =>
       _running[taskId]?.state ?? _lastState[taskId] ?? TaskRun.idleFor(taskId);
@@ -82,6 +90,7 @@ class RemoteTaskRunner implements TaskRunnerGateway {
     TaskDefinition def, {
     String? profileName,
     List<String> adHocArgs = const [],
+    List<String>? argsOverride,
   }) async {
     if (_running.containsKey(def.id)) return; // idempotente
     _emit(
@@ -97,7 +106,7 @@ class RemoteTaskRunner implements TaskRunnerGateway {
             (p) => p.name == profileName,
             orElse: () => def.profiles.first,
           );
-    final argv = [...def.resolveArgs(profile), ...adHocArgs];
+    final argv = argsOverride ?? [...def.resolveArgs(profile), ...adHocArgs];
     final cmdLine = _join([def.command, ...argv]);
 
     final TerminalService terminal;
@@ -129,6 +138,8 @@ class RemoteTaskRunner implements TaskRunnerGateway {
     final task = _RemoteRunning(
       def: def,
       sessionId: info.id,
+      adHocArgs: adHocArgs,
+      argsOverride: argsOverride,
       state: TaskRun(
         taskId: def.id,
         status: TaskRunStatus.running,
@@ -177,9 +188,16 @@ class RemoteTaskRunner implements TaskRunnerGateway {
     if (task == null) return;
     final def = task.def;
     final profileName = task.state.profileName;
+    final adHocArgs = task.adHocArgs;
+    final argsOverride = task.argsOverride;
     await stop(taskId);
     await Future<void>.delayed(const Duration(milliseconds: 150));
-    await start(def, profileName: profileName);
+    await start(
+      def,
+      profileName: profileName,
+      adHocArgs: adHocArgs,
+      argsOverride: argsOverride,
+    );
   }
 
   @override
@@ -256,10 +274,16 @@ class _RemoteRunning {
     required this.def,
     required this.sessionId,
     required this.state,
+    required this.adHocArgs,
+    required this.argsOverride,
   });
 
   final TaskDefinition def;
   final String sessionId;
+
+  /// Argv do start. O restart relança com o mesmo device.
+  final List<String> adHocArgs;
+  final List<String>? argsOverride;
   TaskRun state;
   final out = StreamController<String>.broadcast(sync: true);
   StreamSubscription<PtyEvent>? sub;

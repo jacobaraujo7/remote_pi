@@ -16,7 +16,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 2.1.25+123
+version: 2.1.26+124
 
 environment:
   sdk: ^3.12.0
@@ -90,6 +90,7 @@ dependencies:
   flutter_modular: ^7.1.0
 
   # Plano 37 — seleção de pasta (NSOpenPanel no macOS) para abrir um projeto.
+  xml: ^7.0.1
   file_picker: ^8.1.2
 
   # Plano 51 — senha de conexão no cofre nativo do SO (Keychain / Credential
@@ -248,6 +249,7 @@ dependencies:
   sqlite3: ^3.6.0
   sqlite3_flutter_libs: ^0.6.0+eol
   vm_service: ^15.3.0
+  pdf: ^3.13.1
 
 dev_dependencies:
   flutter_test:
@@ -424,13 +426,10 @@ dependency_overrides:
       url: https://github.com/jacobaraujo7/libghostty.git
       ref: cockpit-pin-flterm-upstream-2026-10e
       path: packages/libghostty
-  # Hover no WebView2 (Windows): o plugin 0.6.0 reenvia só MOVE ao
-  # CompositionController, nunca LEAVE, e um method call por pixel. Fork pinado
-  # em TAG (regra acima) com Leave no onExit + coalescência por frame + guard do
-  # null deref no callHandler (plano 70). Remover quando o upstream publicar
-  # (PR aberto a partir da branch cockpit/windows-hover do fork).
+  # A tag inclui as correções de hover e libera o compositor WebView2 ao
+  # fechar o último gerenciador (jacobaraujo7/flutter_inappwebview#1).
   flutter_inappwebview_windows:
     git:
-      url: https://github.com/jacobaraujo7/flutter_inappwebview.git
-      ref: cockpit-windows-hover-1
+      url: https://github.com/moregola/flutter_inappwebview.git
+      ref: cockpit-windows-compositor-1
       path: flutter_inappwebview_windows

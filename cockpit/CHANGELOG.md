@@ -24,6 +24,28 @@ As versões seguem o `version:` do `pubspec.yaml` (SSOT). O campo `notes` do
     linhas não-vazias — o começo da seção deve fazer sentido sozinho.
 -->
 
+## [2.1.26] - 2026-11-16
+
+### Added
+- Canvas Board in the Gallery: editable `.canvas` diagrams (lanes, processes, decisions, notes, arrows) drawn natively, with the `cockpit-canvas`, `cockpit-drawing-attachments` and `cockpit-export` skills for agents (#334).
+- Git diff view modes: side by side, inline and modified content (#273).
+- Configurable file nesting in the Explorer (Settings, Explorer tab) (#294).
+- Flutter tasks pick a device per task and expose DevTools from the Tasks panel (#281).
+- Task console: copy, clear, import `tasks.json` from the workspace and a per-line context menu (#192).
+- Branch switching from the workspace context menu (#324).
+- Reveal a tab's file or working directory in Finder, Explorer or the file manager from the tab menu (#300).
+
+### Fixed
+- Windows self-update now installs: Cockpit quits when WinSparkle asks, and the installer force-closes leftovers and relaunches the app (#331).
+- Markdown, HTML, SVG, panel, kanban and layout files open in their preview first, with an explicit "Edit with Neovim" action (#267).
+- Clipboard copies and cuts no longer lose their outcome when the system clipboard is busy; failures are reported in the UI (#318).
+- Batch discard no longer races on `index.lock` (#293).
+- Scrollback pruning is safe again (#316).
+- The Ghostty view is arbitrated between tabs, fixing stale rendering when switching (#309).
+
+### Changed
+- Regression tests for historical process, CLI and pane failures (#319).
+
 ## [2.1.25] - 2026-11-11
 
 ### Fixed

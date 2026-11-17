@@ -14,6 +14,9 @@ void main() {
   final runner = HttpRequestRunnerImpl();
 
   setUpAll(() async {
+    // O flutter_test_config inicializa o binding, que instala um HttpClient
+    // falso (responde 400 a tudo). Este teste fala com um servidor real.
+    HttpOverrides.global = null;
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     base = 'http://127.0.0.1:${server.port}';
     server.listen((req) async {

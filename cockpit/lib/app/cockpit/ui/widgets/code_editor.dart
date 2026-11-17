@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/scm_line_decorations.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_comment.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/editor_indent.dart';
@@ -31,7 +32,6 @@ import 'package:flutter/rendering.dart' show RenderEditable;
 import 'package:flutter/services.dart'
     show
         Clipboard,
-        ClipboardData,
         HardwareKeyboard,
         KeyDownEvent,
         LogicalKeyboardKey,
@@ -1007,9 +1007,16 @@ class _CodeEditorState extends State<CodeEditor> {
           ? KeyEventResult.handled
           : KeyEventResult.ignored;
     }
+    // Editing is synchronous, like a normal cut. The clipboard result is
+    // advisory: window feedback reports a failure without dropping later typing.
     _lineClipboard = cut.clipboard;
-    unawaited(Clipboard.setData(ClipboardData(text: cut.clipboard)));
     ctrl.value = cut.value;
+    unawaited(
+      TextClipboardService.instance.write(
+        cut.clipboard,
+        operation: 'code_editor',
+      ),
+    );
     return KeyEventResult.handled;
   }
 

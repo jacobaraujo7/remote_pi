@@ -60,6 +60,7 @@ class _Translations$core$pt_BR extends Translations$core$en {
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$core$clipboard$pt_BR clipboard = _Translations$core$clipboard$pt_BR._(_root);
 	@override late final _Translations$core$bootstrapError$pt_BR bootstrapError = _Translations$core$bootstrapError$pt_BR._(_root);
 	@override late final _Translations$core$macosNotifications$pt_BR macosNotifications = _Translations$core$macosNotifications$pt_BR._(_root);
 	@override late final _Translations$core$appErrorView$pt_BR appErrorView = _Translations$core$appErrorView$pt_BR._(_root);
@@ -111,6 +112,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	@override late final _Translations$cockpit$confirmDialog$pt_BR confirmDialog = _Translations$cockpit$confirmDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$neovim$pt_BR neovim = _Translations$cockpit$neovim$pt_BR._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$pt_BR worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$pt_BR._(_root);
+	@override late final _Translations$cockpit$branchSwitchDialog$pt_BR branchSwitchDialog = _Translations$cockpit$branchSwitchDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$commitMessageDialog$pt_BR commitMessageDialog = _Translations$cockpit$commitMessageDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$tasksPanel$pt_BR tasksPanel = _Translations$cockpit$tasksPanel$pt_BR._(_root);
 	@override late final _Translations$cockpit$cockpitPage$pt_BR cockpitPage = _Translations$cockpit$cockpitPage$pt_BR._(_root);
@@ -295,6 +297,9 @@ class _Translations$workspaceView$pt_BR extends Translations$workspaceView$en {
 	@override String get handoffTitle => 'Resumo de handoff';
 	@override String get handoffHelp => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.';
 	@override String get handoffReady => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.';
+	@override String get handoffSessionReady => 'Nova sessão preparada';
+	@override String get handoffCopyUnavailable => 'A sessão foi criada, mas o resumo não foi copiado. Selecione e copie o resumo abaixo para continuar.';
+	@override String get handoffSessionLabel => 'Sessão';
 	@override String get connections => 'Conexões';
 	@override String get noConnections => 'Sem conexões';
 	@override String get cancel => 'Cancelar';
@@ -368,6 +373,16 @@ class _Translations$orchestration$pt_BR extends Translations$orchestration$en {
 	@override String get roleTimeout => 'O agente não retornou uma sugestão a tempo. Tente novamente ou preencha a função manualmente.';
 	@override String get roleInvalid => 'O agente retornou uma sugestão de função inválida.';
 	@override String get noBoxSelected => 'Selecione um terminal na lista ou no grafo para trabalhar nele.';
+}
+
+// Path: core.clipboard
+class _Translations$core$clipboard$pt_BR extends Translations$core$clipboard$en {
+	_Translations$core$clipboard$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get writeFailed => 'Não foi possível copiar para a área de transferência. Tente novamente.';
 }
 
 // Path: core.bootstrapError
@@ -555,6 +570,23 @@ class _Translations$cockpit$worktreeCreateDialog$pt_BR extends Translations$cock
 	@override String get back => 'Voltar';
 }
 
+// Path: cockpit.branchSwitchDialog
+class _Translations$cockpit$branchSwitchDialog$pt_BR extends Translations$cockpit$branchSwitchDialog$en {
+	_Translations$cockpit$branchSwitchDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String title({required Object label}) => 'Trocar branch — ${label}';
+	@override String subtitle({required Object current}) => 'Branch atual: ${current}';
+	@override String get search => 'Buscar branches...';
+	@override String get local => 'Branches locais';
+	@override String get remote => 'Branches remotas';
+	@override String get switchAction => 'Trocar';
+	@override String get empty => 'Nenhuma branch encontrada.';
+	@override String get current => 'atual';
+}
+
 // Path: cockpit.commitMessageDialog
 class _Translations$cockpit$commitMessageDialog$pt_BR extends Translations$cockpit$commitMessageDialog$en {
 	_Translations$cockpit$commitMessageDialog$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
@@ -597,12 +629,26 @@ class _Translations$cockpit$tasksPanel$pt_BR extends Translations$cockpit$tasksP
 	@override String get sectionTasks => 'TAREFAS';
 	@override String get noTasks => 'Nenhuma tarefa detectada neste projeto.';
 	@override String get createTasksJson => 'Criar tasks.json';
+	@override String get importWorkspaceTasks => 'Importar do workspace';
+	@override String get importingTasks => 'Importando tasks…';
+	@override String get importSourceMissing => 'O workspace de origem não possui um arquivo de tasks.';
+	@override String get importFailed => 'Não foi possível importar as tasks. Tente novamente.';
+	@override String get copy => 'Copiar';
+	@override String get copyAll => 'Copiar tudo';
+	@override String get clearConsole => 'Limpar console';
 	@override String get generateComposeTasks => 'Gerar tasks do Compose';
 	@override String get selectComposeEngine => 'Escolha uma engine Compose';
 	@override String get noComposeEngine => 'Docker Compose ou Podman Compose não foi encontrado.';
 	@override String get invalidComposeFile => 'O arquivo ativo não é um Compose válido com services.';
 	@override String get invalidTasksJson => 'tasks.json é inválido. Nenhuma alteração foi gravada.';
 	@override String composeConflicts({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}';
+	@override String deviceTooltip({required Object name}) => 'Executar em ${name}';
+	@override String deviceUnavailableTooltip({required Object name}) => '${name} não está disponível';
+	@override String get noDevicesTooltip => 'Nenhum dispositivo compatível';
+	@override String get noDevicesMenu => 'Nenhum dispositivo compatível';
+	@override String get lookingForDevices => 'Procurando dispositivos…';
+	@override String get deviceDiscoveryFailed => 'Não foi possível listar os dispositivos. A execução continua disponível; abra este menu para tentar novamente.';
+	@override String get openDevTools => 'Abrir DevTools';
 }
 
 // Path: cockpit.cockpitPage
@@ -619,6 +665,7 @@ class _Translations$cockpit$cockpitPage$pt_BR extends Translations$cockpit$cockp
 	@override String syncTitle({required Object label}) => 'Sync — ${label}';
 	@override String pullTitle({required Object label}) => 'Pull — ${label}';
 	@override String pushTitle({required Object label}) => 'Push — ${label}';
+	@override String switchBranchTitle({required Object label}) => 'Trocar branch — ${label}';
 	@override String updateFromParentTitle({required Object name}) => 'Atualizar a partir do Pai — ${name}';
 	@override String mergeToParentTitle({required Object name}) => 'Merge para o Pai — ${name}';
 	@override String get worktreeMergedAndRemoved => 'Worktree mesclada e removida.';
@@ -680,6 +727,7 @@ class _Translations$cockpit$paneView$pt_BR extends Translations$cockpit$paneView
 	@override String get openInNewWindow => 'Abrir em nova janela';
 	@override String get rename => 'Renomear';
 	@override String get openAsMarkdown => 'Abrir como markdown';
+	@override String get editInNeovim => 'Editar com Neovim';
 	@override String get openAsBoard => 'Abrir como quadro';
 	@override String get resetTitle => 'Redefinir título';
 	@override String get copyId => 'Copiar Id';
@@ -805,6 +853,10 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String get diffWorkingTree => 'Diretorio de trabalho';
 	@override String get diffBinaryFile => 'Arquivo binario - sem diff de texto.';
 	@override String get diffNoChanges => 'Sem alteracoes.';
+	@override String get diffSideBySide => 'Lado a lado';
+	@override String get diffInline => 'Inline';
+	@override String get diffModifiedContent => 'Conteúdo modificado';
+	@override String get diffDeletedContent => 'O arquivo modificado está vazio porque foi removido.';
 	@override String diffError({required Object detail}) => 'Não foi possível ler o diff: ${detail}';
 	@override String get galleryTooltip => 'Galeria';
 	@override String get sectionGallery => 'GALERIA';
@@ -1178,6 +1230,7 @@ class _Translations$cockpit$projectsRail$pt_BR extends Translations$cockpit$proj
 	@override String get sync => 'Sincronizar';
 	@override String get pull => 'Pull';
 	@override String get push => 'Push';
+	@override String get switchBranch => 'Trocar branch…';
 	@override String get createWorktree => 'Criar worktree';
 	@override String worktreeCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
 		one: '1 worktree',
@@ -1379,6 +1432,7 @@ class _Translations$cockpit$gallery$pt_BR extends Translations$cockpit$gallery$e
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$gallery$board$pt_BR board = _Translations$cockpit$gallery$board$pt_BR._(_root);
 	@override String get intro => 'Documentos especiais do Cockpit para que você tenha o visual do que o agente de IA esteja fazendo.';
 	@override String get createErrorTitle => 'Não foi possível criar o arquivo';
 	@override late final _Translations$cockpit$gallery$dbQuery$pt_BR dbQuery = _Translations$cockpit$gallery$dbQuery$pt_BR._(_root);
@@ -1589,6 +1643,7 @@ class _Translations$settings$page$pt_BR extends Translations$settings$page$en {
 	// Translations
 	@override late final _Translations$settings$page$header$pt_BR header = _Translations$settings$page$header$pt_BR._(_root);
 	@override late final _Translations$settings$page$nav$pt_BR nav = _Translations$settings$page$nav$pt_BR._(_root);
+	@override late final _Translations$settings$page$explorer$pt_BR explorer = _Translations$settings$page$explorer$pt_BR._(_root);
 	@override late final _Translations$settings$page$general$pt_BR general = _Translations$settings$page$general$pt_BR._(_root);
 	@override late final _Translations$settings$page$diagnostics$pt_BR diagnostics = _Translations$settings$page$diagnostics$pt_BR._(_root);
 	@override late final _Translations$settings$page$storage$pt_BR storage = _Translations$settings$page$storage$pt_BR._(_root);
@@ -1735,6 +1790,73 @@ class _Translations$cockpit$kanbanView$deleteColumnDialog$pt_BR extends Translat
 	@override String get moveCards => 'Mover pra coluna anterior';
 	@override String get deleteAll => 'Apagar junto com a coluna';
 	@override String get emptyMessage => 'Esta coluna está vazia.';
+}
+
+// Path: cockpit.gallery.board
+class _Translations$cockpit$gallery$board$pt_BR extends Translations$cockpit$gallery$board$en {
+	_Translations$cockpit$gallery$board$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get fileActions => 'Importar ou exportar';
+	@override String get exportDocument => 'Exportar documento inteiro';
+	@override String get exportSelection => 'Exportar seleção';
+	@override String get appendBoard => 'Adicionar este documento ao canvas?';
+	@override String get fitDocument => 'Enquadrar documento';
+	@override String get fitSelection => 'Enquadrar seleção';
+	@override String get diagramColor => 'Cor do desenho';
+	@override String get themeColor => 'Padrão do tema';
+	@override String get blue => 'Azul';
+	@override String get green => 'Verde';
+	@override String get amber => 'Âmbar';
+	@override String get red => 'Vermelho';
+	@override String get violet => 'Violeta';
+	@override String get cyan => 'Ciano';
+	@override String get emptyBoard => 'Escolha uma forma e clique ou arraste para desenhar.';
+	@override String get arrowStart => 'Escolha a primeira forma ou arraste até o destino.';
+	@override String get keyboardHelp => 'Tab seleciona · Setas movem · Shift ×10 · C conecta';
+	@override String get moveHere => 'Mover para cá';
+	@override String get moveDestination => 'Clique onde deseja posicionar a seleção · Esc cancela';
+	@override String keyboardTarget({required Object target}) => 'Destino: ${target}. Tab troca, Enter conecta, Esc cancela.';
+	@override String connectorEndpoints({required Object from, required Object to}) => 'De ${from} para ${to}';
+	@override String get arrowEnd => 'Escolha a forma de destino.';
+	@override String get diagramTypes => 'Tipos de diagrama';
+	@override String get replaceSource => 'Substituir o código atual por este exemplo?';
+	@override String get group => 'Agrupar';
+	@override String get ungroup => 'Desagrupar';
+	@override String get align => 'Alinhar ao topo';
+	@override String get distribute => 'Distribuir horizontalmente';
+	@override String get openFile => 'Abrir';
+	@override String get exportFile => 'Exportar';
+	@override String get importWarning => 'Importar formas e conectores editáveis? Estilos, grupos e detalhes de objetos podem mudar.';
+	@override String get exportWarning => 'Exportar formas e conectores? A conversão simplifica estilos, grupos e desenhos Mermaid.';
+	@override String get discard => 'Descartar';
+	@override String get importMmd => 'Abrir arquivo Mermaid';
+	@override String get exportMmd => 'Exportar código Mermaid';
+	@override String get preview => 'Prévia';
+	@override String get apply => 'Aplicar';
+	@override String get title => 'Canvas Board';
+	@override String get description => 'Desenhe fluxogramas e esboços';
+	@override String get select => 'Selecionar';
+	@override String get pan => 'Navegar';
+	@override String get pencil => 'Lápis';
+	@override String get text => 'Texto';
+	@override String get note => 'Nota';
+	@override String get process => 'Processo';
+	@override String get decision => 'Decisão';
+	@override String get arrow => 'Conector';
+	@override String get advanced => 'Avançado';
+	@override String get lane => 'Raia';
+	@override String get container => 'Contêiner';
+	@override String get service => 'Serviço';
+	@override String get undo => 'Desfazer';
+	@override String get delete => 'Excluir';
+	@override String get label => 'Rótulo';
+	@override String get labelChanged => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.';
+	@override String get objectDeleted => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.';
+	@override String get saveError => 'Falha ao salvar o board';
+	@override String get reload => 'Recarregar';
 }
 
 // Path: cockpit.gallery.dbQuery
@@ -1891,6 +2013,7 @@ class _Translations$settings$page$nav$pt_BR extends Translations$settings$page$n
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get explorer => 'Explorer';
 	@override String get general => 'Geral';
 	@override String get appearance => 'Aparência';
 	@override String get terminal => 'Terminal';
@@ -1899,6 +2022,26 @@ class _Translations$settings$page$nav$pt_BR extends Translations$settings$page$n
 	@override String get notifications => 'Notificações';
 	@override String get automations => 'Automações';
 	@override String get remoteHosts => 'Hosts remotos';
+}
+
+// Path: settings.page.explorer
+class _Translations$settings$page$explorer$pt_BR extends Translations$settings$page$explorer$en {
+	_Translations$settings$page$explorer$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get sectionNesting => 'Aninhamento de arquivos';
+	@override String get enabledTitle => 'Ativar aninhamento';
+	@override String get enabledDesc => 'Agrupa arquivos relacionados sob o arquivo principal.';
+	@override String get autoExpandTitle => 'Expandir automaticamente';
+	@override String get autoExpandDesc => 'Abre os grupos aninhados ao carregar o explorer.';
+	@override String get newPattern => 'Novo padrão';
+	@override String get patternsTitle => 'Patterns';
+	@override String get patternsDesc => 'Pattern do arquivo principal à esquerda; patterns dos filhos separados por vírgula à direita. Use * no principal; os filhos podem usar:';
+	@override String get parentPlaceholder => 'Pattern principal';
+	@override String get childrenPlaceholder => 'Arquivos aninhados';
+	@override String get remove => 'Remover pattern';
 }
 
 // Path: settings.page.general
@@ -2184,6 +2327,7 @@ class _Translations$settings$page$general$updateFrequency$pt_BR extends Translat
 extension on TranslationsPtBr {
 	dynamic _flatMapFunction(String path) {
 		return switch (path) {
+			'core.clipboard.writeFailed' => 'Não foi possível copiar para a área de transferência. Tente novamente.',
 			'core.bootstrapError.title' => 'Falha ao inicializar o Cockpit',
 			'core.bootstrapError.retry' => 'Tentar novamente',
 			'core.macosNotifications.title' => 'Ativar notificações no macOS',
@@ -2302,6 +2446,14 @@ extension on TranslationsPtBr {
 			'cockpit.worktreeCreateDialog.fetchRemoteDesc' => 'Roda git fetch para garantir que a branch base esteja confirmada antes de criar a worktree.',
 			'cockpit.worktreeCreateDialog.searchBranch' => 'Buscar branch...',
 			'cockpit.worktreeCreateDialog.back' => 'Voltar',
+			'cockpit.branchSwitchDialog.title' => ({required Object label}) => 'Trocar branch — ${label}',
+			'cockpit.branchSwitchDialog.subtitle' => ({required Object current}) => 'Branch atual: ${current}',
+			'cockpit.branchSwitchDialog.search' => 'Buscar branches...',
+			'cockpit.branchSwitchDialog.local' => 'Branches locais',
+			'cockpit.branchSwitchDialog.remote' => 'Branches remotas',
+			'cockpit.branchSwitchDialog.switchAction' => 'Trocar',
+			'cockpit.branchSwitchDialog.empty' => 'Nenhuma branch encontrada.',
+			'cockpit.branchSwitchDialog.current' => 'atual',
 			'cockpit.commitMessageDialog.commitTitle' => 'Commit',
 			'cockpit.commitMessageDialog.stageAndCommitTitle' => 'Stage e Commit',
 			'cockpit.commitMessageDialog.scopeNote' => ({required Object fileName}) => 'Commit apenas de "${fileName}".',
@@ -2328,12 +2480,26 @@ extension on TranslationsPtBr {
 			'cockpit.tasksPanel.sectionTasks' => 'TAREFAS',
 			'cockpit.tasksPanel.noTasks' => 'Nenhuma tarefa detectada neste projeto.',
 			'cockpit.tasksPanel.createTasksJson' => 'Criar tasks.json',
+			'cockpit.tasksPanel.importWorkspaceTasks' => 'Importar do workspace',
+			'cockpit.tasksPanel.importingTasks' => 'Importando tasks…',
+			'cockpit.tasksPanel.importSourceMissing' => 'O workspace de origem não possui um arquivo de tasks.',
+			'cockpit.tasksPanel.importFailed' => 'Não foi possível importar as tasks. Tente novamente.',
+			'cockpit.tasksPanel.copy' => 'Copiar',
+			'cockpit.tasksPanel.copyAll' => 'Copiar tudo',
+			'cockpit.tasksPanel.clearConsole' => 'Limpar console',
 			'cockpit.tasksPanel.generateComposeTasks' => 'Gerar tasks do Compose',
 			'cockpit.tasksPanel.selectComposeEngine' => 'Escolha uma engine Compose',
 			'cockpit.tasksPanel.noComposeEngine' => 'Docker Compose ou Podman Compose não foi encontrado.',
 			'cockpit.tasksPanel.invalidComposeFile' => 'O arquivo ativo não é um Compose válido com services.',
 			'cockpit.tasksPanel.invalidTasksJson' => 'tasks.json é inválido. Nenhuma alteração foi gravada.',
 			'cockpit.tasksPanel.composeConflicts' => ({required Object labels}) => 'Tasks não Compose com rótulos conflitantes foram mantidas: ${labels}',
+			'cockpit.tasksPanel.deviceTooltip' => ({required Object name}) => 'Executar em ${name}',
+			'cockpit.tasksPanel.deviceUnavailableTooltip' => ({required Object name}) => '${name} não está disponível',
+			'cockpit.tasksPanel.noDevicesTooltip' => 'Nenhum dispositivo compatível',
+			'cockpit.tasksPanel.noDevicesMenu' => 'Nenhum dispositivo compatível',
+			'cockpit.tasksPanel.lookingForDevices' => 'Procurando dispositivos…',
+			'cockpit.tasksPanel.deviceDiscoveryFailed' => 'Não foi possível listar os dispositivos. A execução continua disponível; abra este menu para tentar novamente.',
+			'cockpit.tasksPanel.openDevTools' => 'Abrir DevTools',
 			'cockpit.cockpitPage.chooseProjectFolderDialogTitle' => 'Escolha a pasta do projeto',
 			'cockpit.cockpitPage.chooseWorkspaceFolderDialogTitle' => 'Escolha a pasta do workspace',
 			'cockpit.cockpitPage.workspaceRenamedTitle' => 'Workspace renomeado',
@@ -2341,6 +2507,7 @@ extension on TranslationsPtBr {
 			'cockpit.cockpitPage.syncTitle' => ({required Object label}) => 'Sync — ${label}',
 			'cockpit.cockpitPage.pullTitle' => ({required Object label}) => 'Pull — ${label}',
 			'cockpit.cockpitPage.pushTitle' => ({required Object label}) => 'Push — ${label}',
+			'cockpit.cockpitPage.switchBranchTitle' => ({required Object label}) => 'Trocar branch — ${label}',
 			'cockpit.cockpitPage.updateFromParentTitle' => ({required Object name}) => 'Atualizar a partir do Pai — ${name}',
 			'cockpit.cockpitPage.mergeToParentTitle' => ({required Object name}) => 'Merge para o Pai — ${name}',
 			'cockpit.cockpitPage.worktreeMergedAndRemoved' => 'Worktree mesclada e removida.',
@@ -2381,6 +2548,7 @@ extension on TranslationsPtBr {
 			'cockpit.paneView.openInNewWindow' => 'Abrir em nova janela',
 			'cockpit.paneView.rename' => 'Renomear',
 			'cockpit.paneView.openAsMarkdown' => 'Abrir como markdown',
+			'cockpit.paneView.editInNeovim' => 'Editar com Neovim',
 			'cockpit.paneView.openAsBoard' => 'Abrir como quadro',
 			'cockpit.paneView.resetTitle' => 'Redefinir título',
 			'cockpit.paneView.copyId' => 'Copiar Id',
@@ -2497,6 +2665,10 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.diffWorkingTree' => 'Diretorio de trabalho',
 			'cockpit.fileTreePanel.diffBinaryFile' => 'Arquivo binario - sem diff de texto.',
 			'cockpit.fileTreePanel.diffNoChanges' => 'Sem alteracoes.',
+			'cockpit.fileTreePanel.diffSideBySide' => 'Lado a lado',
+			'cockpit.fileTreePanel.diffInline' => 'Inline',
+			'cockpit.fileTreePanel.diffModifiedContent' => 'Conteúdo modificado',
+			'cockpit.fileTreePanel.diffDeletedContent' => 'O arquivo modificado está vazio porque foi removido.',
 			'cockpit.fileTreePanel.diffError' => ({required Object detail}) => 'Não foi possível ler o diff: ${detail}',
 			'cockpit.fileTreePanel.galleryTooltip' => 'Galeria',
 			'cockpit.fileTreePanel.sectionGallery' => 'GALERIA',
@@ -2667,6 +2839,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.noComments' => 'Nenhum comentário ainda',
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
@@ -2696,8 +2870,6 @@ extension on TranslationsPtBr {
 			'cockpit.dbMongoView.noDocumentsMatch' => 'Nenhum documento corresponde a este filtro.',
 			'cockpit.dbMongoView.loadMore' => 'Carregar mais',
 			'cockpit.dbMongoView.edit' => 'Editar',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbMongoView.insert' => 'Inserir',
 			'cockpit.dbConnectionDialog.chooseFileTitle' => 'Escolher banco SQLite',
 			'cockpit.dbConnectionDialog.file' => 'Arquivo',
@@ -2756,6 +2928,7 @@ extension on TranslationsPtBr {
 			'cockpit.projectsRail.sync' => 'Sincronizar',
 			'cockpit.projectsRail.pull' => 'Pull',
 			'cockpit.projectsRail.push' => 'Push',
+			'cockpit.projectsRail.switchBranch' => 'Trocar branch…',
 			'cockpit.projectsRail.createWorktree' => 'Criar worktree',
 			'cockpit.projectsRail.worktreeCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 worktree', other: '${n} worktrees', ), 
 			'cockpit.projectsRail.expandWorktrees' => 'Expandir worktrees',
@@ -2855,6 +3028,64 @@ extension on TranslationsPtBr {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Áudio e vídeo abrem na janela principal do Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Arquivo não encontrado: ${path}',
+			'cockpit.gallery.board.fileActions' => 'Importar ou exportar',
+			'cockpit.gallery.board.exportDocument' => 'Exportar documento inteiro',
+			'cockpit.gallery.board.exportSelection' => 'Exportar seleção',
+			'cockpit.gallery.board.appendBoard' => 'Adicionar este documento ao canvas?',
+			'cockpit.gallery.board.fitDocument' => 'Enquadrar documento',
+			'cockpit.gallery.board.fitSelection' => 'Enquadrar seleção',
+			'cockpit.gallery.board.diagramColor' => 'Cor do desenho',
+			'cockpit.gallery.board.themeColor' => 'Padrão do tema',
+			'cockpit.gallery.board.blue' => 'Azul',
+			'cockpit.gallery.board.green' => 'Verde',
+			'cockpit.gallery.board.amber' => 'Âmbar',
+			'cockpit.gallery.board.red' => 'Vermelho',
+			'cockpit.gallery.board.violet' => 'Violeta',
+			'cockpit.gallery.board.cyan' => 'Ciano',
+			'cockpit.gallery.board.emptyBoard' => 'Escolha uma forma e clique ou arraste para desenhar.',
+			'cockpit.gallery.board.arrowStart' => 'Escolha a primeira forma ou arraste até o destino.',
+			'cockpit.gallery.board.keyboardHelp' => 'Tab seleciona · Setas movem · Shift ×10 · C conecta',
+			'cockpit.gallery.board.moveHere' => 'Mover para cá',
+			'cockpit.gallery.board.moveDestination' => 'Clique onde deseja posicionar a seleção · Esc cancela',
+			'cockpit.gallery.board.keyboardTarget' => ({required Object target}) => 'Destino: ${target}. Tab troca, Enter conecta, Esc cancela.',
+			'cockpit.gallery.board.connectorEndpoints' => ({required Object from, required Object to}) => 'De ${from} para ${to}',
+			'cockpit.gallery.board.arrowEnd' => 'Escolha a forma de destino.',
+			'cockpit.gallery.board.diagramTypes' => 'Tipos de diagrama',
+			'cockpit.gallery.board.replaceSource' => 'Substituir o código atual por este exemplo?',
+			'cockpit.gallery.board.group' => 'Agrupar',
+			'cockpit.gallery.board.ungroup' => 'Desagrupar',
+			'cockpit.gallery.board.align' => 'Alinhar ao topo',
+			'cockpit.gallery.board.distribute' => 'Distribuir horizontalmente',
+			'cockpit.gallery.board.openFile' => 'Abrir',
+			'cockpit.gallery.board.exportFile' => 'Exportar',
+			'cockpit.gallery.board.importWarning' => 'Importar formas e conectores editáveis? Estilos, grupos e detalhes de objetos podem mudar.',
+			'cockpit.gallery.board.exportWarning' => 'Exportar formas e conectores? A conversão simplifica estilos, grupos e desenhos Mermaid.',
+			'cockpit.gallery.board.discard' => 'Descartar',
+			'cockpit.gallery.board.importMmd' => 'Abrir arquivo Mermaid',
+			'cockpit.gallery.board.exportMmd' => 'Exportar código Mermaid',
+			'cockpit.gallery.board.preview' => 'Prévia',
+			'cockpit.gallery.board.apply' => 'Aplicar',
+			'cockpit.gallery.board.title' => 'Canvas Board',
+			'cockpit.gallery.board.description' => 'Desenhe fluxogramas e esboços',
+			'cockpit.gallery.board.select' => 'Selecionar',
+			'cockpit.gallery.board.pan' => 'Navegar',
+			'cockpit.gallery.board.pencil' => 'Lápis',
+			'cockpit.gallery.board.text' => 'Texto',
+			'cockpit.gallery.board.note' => 'Nota',
+			'cockpit.gallery.board.process' => 'Processo',
+			'cockpit.gallery.board.decision' => 'Decisão',
+			'cockpit.gallery.board.arrow' => 'Conector',
+			'cockpit.gallery.board.advanced' => 'Avançado',
+			'cockpit.gallery.board.lane' => 'Raia',
+			'cockpit.gallery.board.container' => 'Contêiner',
+			'cockpit.gallery.board.service' => 'Serviço',
+			'cockpit.gallery.board.undo' => 'Desfazer',
+			'cockpit.gallery.board.delete' => 'Excluir',
+			'cockpit.gallery.board.label' => 'Rótulo',
+			'cockpit.gallery.board.labelChanged' => 'Este texto mudou no arquivo. Copie seu rascunho antes de pressionar Esc para carregar o texto salvo.',
+			'cockpit.gallery.board.objectDeleted' => 'Este objeto foi excluído do arquivo. Copie seu rascunho antes de pressionar Esc para fechá-lo.',
+			'cockpit.gallery.board.saveError' => 'Falha ao salvar o board',
+			'cockpit.gallery.board.reload' => 'Recarregar',
 			'cockpit.gallery.intro' => 'Documentos especiais do Cockpit para que você tenha o visual do que o agente de IA esteja fazendo.',
 			'cockpit.gallery.createErrorTitle' => 'Não foi possível criar o arquivo',
 			'cockpit.gallery.dbQuery.title' => 'Consulta de banco',
@@ -3028,6 +3259,7 @@ extension on TranslationsPtBr {
 			'settings.language.simplifiedChinese' => '简体中文',
 			'settings.page.header.back' => 'Voltar',
 			'settings.page.header.title' => 'Configurações',
+			'settings.page.nav.explorer' => 'Explorer',
 			'settings.page.nav.general' => 'Geral',
 			'settings.page.nav.appearance' => 'Aparência',
 			'settings.page.nav.terminal' => 'Terminal',
@@ -3036,6 +3268,17 @@ extension on TranslationsPtBr {
 			'settings.page.nav.notifications' => 'Notificações',
 			'settings.page.nav.automations' => 'Automações',
 			'settings.page.nav.remoteHosts' => 'Hosts remotos',
+			'settings.page.explorer.sectionNesting' => 'Aninhamento de arquivos',
+			'settings.page.explorer.enabledTitle' => 'Ativar aninhamento',
+			'settings.page.explorer.enabledDesc' => 'Agrupa arquivos relacionados sob o arquivo principal.',
+			'settings.page.explorer.autoExpandTitle' => 'Expandir automaticamente',
+			'settings.page.explorer.autoExpandDesc' => 'Abre os grupos aninhados ao carregar o explorer.',
+			'settings.page.explorer.newPattern' => 'Novo padrão',
+			'settings.page.explorer.patternsTitle' => 'Patterns',
+			'settings.page.explorer.patternsDesc' => 'Pattern do arquivo principal à esquerda; patterns dos filhos separados por vírgula à direita. Use * no principal; os filhos podem usar:',
+			'settings.page.explorer.parentPlaceholder' => 'Pattern principal',
+			'settings.page.explorer.childrenPlaceholder' => 'Arquivos aninhados',
+			'settings.page.explorer.remove' => 'Remover pattern',
 			'settings.page.general.sectionEditor' => 'Editor',
 			'settings.page.general.editorEngineTitle' => 'Motor',
 			'settings.page.general.editorEngineCockpit' => 'Cockpit (padrão)',
@@ -3110,6 +3353,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeFileTitle' => 'Arquivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
@@ -3210,8 +3455,6 @@ extension on TranslationsPtBr {
 			'settings.page.automations.discoveryFailed' => 'Não foi possível descobrir os harnesses de automação instalados.',
 			'settings.page.automations.staleModel' => ({required Object model, required Object harness}) => 'O modelo "${model}" não está mais disponível para ${harness}. Usando o padrão da CLI; escolha outro modelo em Configurações se precisar.',
 			'settings.page.automations.recommendedSuffix' => 'Recomendado',
-			_ => null,
-		} ?? switch (path) {
 			'settings.remoteHosts.title' => 'Hosts remotos',
 			'settings.remoteHosts.description' => 'Máquinas que você acessa por SSH. Adicionar um host aqui é o mesmo que adicionar pelo menu "+" do workspace.',
 			'settings.remoteHosts.empty' => 'Nenhum host remoto ainda.',
@@ -3361,6 +3604,9 @@ extension on TranslationsPtBr {
 			'workspaceView.handoffTitle' => 'Resumo de handoff',
 			'workspaceView.handoffHelp' => 'Descreva o estado atual e os próximos passos. O resumo será copiado para a nova sessão.',
 			'workspaceView.handoffReady' => 'Nova sessão preparada. Cole o resumo copiado quando a ferramenta estiver pronta.',
+			'workspaceView.handoffSessionReady' => 'Nova sessão preparada',
+			'workspaceView.handoffCopyUnavailable' => 'A sessão foi criada, mas o resumo não foi copiado. Selecione e copie o resumo abaixo para continuar.',
+			'workspaceView.handoffSessionLabel' => 'Sessão',
 			'workspaceView.connections' => 'Conexões',
 			'workspaceView.noConnections' => 'Sem conexões',
 			'workspaceView.cancel' => 'Cancelar',
