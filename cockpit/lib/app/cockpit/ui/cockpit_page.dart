@@ -1241,8 +1241,10 @@ class _TreePanel extends StatelessWidget {
     return Stack(
       children: [
         FileTreePanel(
-          // Pasta do workspace; reseta ao trocar de workspace.
-          key: ValueKey(vm.treeRootPath),
+          // Reset filesystem-local state, restoring navigation by stable project ID.
+          key: ValueKey((vm.selectedProjectId, vm.treeRootPath)),
+          activePanel: vm.sidebarPanel,
+          onPanelChanged: vm.setSidebarPanel,
           width: treeWidth,
           rootPath: vm.treeRootPath,
           sourceControlViewMode: sourceControlViewMode,

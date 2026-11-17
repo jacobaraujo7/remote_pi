@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/ui/states/sidebar_panel.dart';
 import 'package:cockpit/app/cockpit/domain/services/gallery_creates.dart';
 import '../document/open_files_channel.dart';
 import '../document/native_document_router.dart';
@@ -505,6 +506,48 @@ class CockpitViewModel extends ChangeNotifier
   /// reconstruído quando selecionado). `null` = projeto sem layout salvo.
   final Map<String, Map<String, dynamic>?> _savedLayouts =
       <String, Map<String, dynamic>?>{};
+
+  final Map<String, SidebarPanel> _sidebarPanels = {};
+
+  SidebarPanel sidebarPanelFor(String projectId) =>
+      _sidebarPanels[projectId] ?? sidebarPanelOf(_savedLayouts[projectId]);
+
+  SidebarPanel get sidebarPanel => _selectedProjectId == null
+      ? SidebarPanel.files
+      : sidebarPanelFor(_selectedProjectId!);
+
+  void setSidebarPanel(SidebarPanel panel) {
+    final id = _selectedProjectId;
+    if (id == null || sidebarPanelFor(id) == panel) return;
+    _rememberSidebarPanel(id, panel);
+    notifyListeners();
+  }
+
+  void _rememberSidebarPanel(String id, SidebarPanel panel) {
+    if (sidebarPanelFor(id) == panel) return;
+    _sidebarPanels[id] = panel;
+    final activation = _projectActivations[id];
+    if (activation != null) {
+      // A click during lazy restore must not overwrite an unread layout.
+      unawaited(activation.then((_) => _persistSidebarPanel(id)));
+      return;
+    }
+    _persistSidebarPanel(id);
+  }
+
+  void _persistSidebarPanel(String id) {
+    if (_projectById(id) == null) return;
+    // Enter the existing store immediately so window-close flushAll includes
+    // this choice. Preserve other fields even without an initialized pane tree.
+    final layout = _serializeLayout(id);
+    final doc = <String, dynamic>{
+      ...?_savedLayouts[id],
+      ...layout,
+      kSidebarPanelKey: sidebarPanelFor(id).name,
+    };
+    _savedLayouts[id] = doc;
+    if (!isSystemTerminal(id)) unawaited(_layoutStore.save(id, doc));
+  }
 
   /// Ambiente HTTP escolhido por arquivo, inclusive para abas já fechadas.
   final Map<String, Map<String, String>> _httpEnvironments = {};
@@ -2404,6 +2447,7 @@ class CockpitViewModel extends ChangeNotifier
     _selectedFileInTree = path;
     _treeRevealPath = path;
     _treeRevealGen++;
+    _rememberSidebarPanel(session.projectId, SidebarPanel.files);
     notifyListeners();
   }
 
@@ -4794,6 +4838,7 @@ class CockpitViewModel extends ChangeNotifier
     }
     _focused.remove(id);
     _savedLayouts.remove(id);
+    _sidebarPanels.remove(id);
     _worktreesExpanded.remove(id);
     git.forget(id);
     _saveTimers.remove(id)?.cancel();
@@ -5789,6 +5834,7 @@ class CockpitViewModel extends ChangeNotifier
       _selectedFileInTree = sel.path;
       _treeRevealPath = sel.path;
       _treeRevealGen++;
+      _rememberSidebarPanel(sel.projectId, SidebarPanel.files);
     }
     notifyListeners();
   }
@@ -7941,6 +7987,7 @@ class CockpitViewModel extends ChangeNotifier
       // Toggle de worktrees do rail (V37) — mora no mesmo doc do layout, então
       // sobrevive à sessão sem inventar outro store.
       kWorktreesExpandedKey: worktreesExpanded(projectId),
+      kSidebarPanelKey: sidebarPanelFor(projectId).name,
       'presentation': presentationFor(projectId).toJson(),
       'graph': {
         'boxes': [
