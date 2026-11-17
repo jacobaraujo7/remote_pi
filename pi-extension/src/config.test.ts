@@ -1,11 +1,36 @@
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   isValidRelayUrl,
   isWebSocketScheme,
   toWebSocketUrl,
   toHttpUrl,
   kDefaultRelayUrl,
+  loadConfig,
+  saveConfig,
 } from "./config.js";
+
+describe("mesh delivery config", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  test("loads steer from the existing per-user config file", () => {
+    const read = vi.spyOn(fs, "readFileSync").mockReturnValue('{"relay":"https://example.test","meshDelivery":"steer"}');
+    expect(loadConfig()).toEqual({ relay: "https://example.test", meshDelivery: "steer" });
+    expect(read).toHaveBeenCalledWith(path.join(os.homedir(), ".pi", "remote", "config.json"), "utf8");
+  });
+
+  test("saving a relay preserves meshDelivery and unrelated existing fields", () => {
+    vi.spyOn(fs, "readFileSync").mockReturnValue('{"meshDelivery":"steer","other":"keep"}');
+    vi.spyOn(fs, "mkdirSync").mockImplementation(() => undefined);
+    const write = vi.spyOn(fs, "writeFileSync").mockImplementation(() => undefined);
+    saveConfig({ relay: "https://example.test" });
+    expect(JSON.parse(String(write.mock.calls[0]![1]))).toEqual({
+      meshDelivery: "steer", other: "keep", relay: "https://example.test",
+    });
+  });
+});
 
 describe("isValidRelayUrl (strict http(s):// only)", () => {
   test("accepts http://", () => {
