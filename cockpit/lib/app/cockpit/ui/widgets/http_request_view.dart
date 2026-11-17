@@ -6,6 +6,7 @@ import 'package:cockpit/app/cockpit/domain/entities/file_view.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
+import 'package:cockpit/app/cockpit/domain/services/http_curl.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_script_session.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_code_navigation.dart';
 import 'package:cockpit/app/cockpit/ui/session/file_viewer_session.dart';
@@ -95,6 +96,8 @@ class _HttpRequestViewState extends State<HttpRequestView> {
   /// Conteúdo do disco como o conhecemos (baseline de dirty/discard).
   late String _baseline;
   bool _starting = false;
+  bool _curlCopied = false;
+  Timer? _curlCopiedTimer;
 
   /// Estado de view (resposta, split, aba) — mora no [HttpViewModel] para
   /// sobreviver ao re-mount quando a tab muda de pane.
@@ -125,6 +128,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
       language: 'http',
     );
     _text.addListener(_onEdited);
+    _foldedText.addListener(_onFoldedSelectionChanged);
     widget.session.addListener(_onSession);
     widget.session.saveDraft = _save;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -145,6 +149,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
 
   @override
   void dispose() {
+    _curlCopiedTimer?.cancel();
     _menuBridge?.clear(this);
     for (final watch in _environmentWatches) {
       unawaited(watch.cancel());
@@ -155,6 +160,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     if (widget.session.saveDraft == _save) widget.session.saveDraft = null;
     _text.removeListener(_onEdited);
     _text.dispose();
+    _foldedText.removeListener(_onFoldedSelectionChanged);
     _foldedText.dispose();
     _focus.dispose();
     super.dispose();
@@ -847,6 +853,47 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     return index < 0 ? 0 : index;
   }
 
+  void _onFoldedSelectionChanged() {
+    if (mounted && _foldedStarts.isNotEmpty) setState(() {});
+  }
+
+  int _curlRequestIndex(HttpDocument doc) {
+    final display = _foldedStarts.isEmpty ? _text : _foldedText;
+    if (!display.selection.isValid) return -1;
+    return HttpCurl.requestIndexAtLine(doc, _cursorLine);
+  }
+
+  Future<void> _copyCurl() async {
+    final doc = _doc;
+    final index = _curlRequestIndex(doc);
+    if (index < 0) return;
+    final request = doc.resolveRequest(
+      doc.requests[index],
+      environment: _catalog.valuesFor(widget.session.httpEnvironment),
+      globals: HttpScriptSession.shared.globals,
+      requestVariables: index < _view.outcomes.length
+          ? _view.outcomes[index].requestVariables
+          : const {},
+      overrides: _view.runtimeValuesFor(widget.session.httpEnvironment),
+    );
+    await Clipboard.setData(
+      ClipboardData(
+        text: HttpCurl.generate(
+          request,
+          baseDir: widget.session.scratch
+              ? ''
+              : widget.session.workingDirectory,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    _curlCopiedTimer?.cancel();
+    setState(() => _curlCopied = true);
+    _curlCopiedTimer = Timer(const Duration(seconds: 2), () {
+      if (mounted) setState(() => _curlCopied = false);
+    });
+  }
+
   void _runCurrent() {
     final doc = _doc;
     if (doc.requests.isNotEmpty) unawaited(_run(_currentRequestIndex(doc)));
@@ -1093,6 +1140,7 @@ class _HttpRequestViewState extends State<HttpRequestView> {
     final tr = context.t.cockpit.httpView;
     final doc = _doc;
     final empty = doc.requests.isEmpty;
+    final canCopyCurl = _curlRequestIndex(doc) >= 0;
     final runBg = empty ? colors.panel3 : colors.accent;
     final runFg = onColor(runBg);
     return Container(
@@ -1153,6 +1201,42 @@ class _HttpRequestViewState extends State<HttpRequestView> {
                     Icons.keyboard_arrow_down,
                     size: 13,
                     color: colors.text3,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          AppTooltip(
+            message: _curlCopied
+                ? context.t.cockpit.dbQueryView.copied
+                : tr.copyCurl,
+            child: HoverTap(
+              key: const ValueKey('http-copy-curl'),
+              onTap: canCopyCurl ? () => unawaited(_copyCurl()) : null,
+              color: colors.panel3,
+              hoverColor: colors.accent.withValues(alpha: 0.2),
+              borderRadius: const BorderRadius.all(Radius.circular(4)),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _curlCopied ? Icons.check : Icons.copy,
+                    size: 13,
+                    color: _curlCopied
+                        ? colors.ok
+                        : canCopyCurl
+                        ? colors.text2
+                        : colors.text3,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'cURL',
+                    style: typo.label.copyWith(
+                      fontSize: 11,
+                      color: canCopyCurl ? colors.text2 : colors.text3,
+                    ),
                   ),
                 ],
               ),

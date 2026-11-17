@@ -447,6 +447,7 @@
       "copy": "Copiar"
     },
     "httpView": {
+      "copyCurl": "Copiar como cURL",
       "saveRequestAs": "Guardar request como",
       "couldNotSave": "No se pudo guardar",
       "run": "Ejecutar",

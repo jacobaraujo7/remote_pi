@@ -865,6 +865,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => '复制为 cURL';
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
@@ -2486,6 +2487,7 @@ extension on TranslationsZh {
 			'cockpit.dbQueryView.saved' => '已保存',
 			'cockpit.dbQueryView.copied' => '已复制',
 			'cockpit.dbQueryView.copy' => '复制',
+			'cockpit.httpView.copyCurl' => '复制为 cURL',
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
@@ -2609,9 +2611,9 @@ extension on TranslationsZh {
 			'cockpit.dbConnectionDialog.name' => '名称',
 			'cockpit.dbConnectionDialog.password' => '密码',
 			'cockpit.dbConnectionDialog.savePassword' => '保存密码',
-			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.dbConnectionDialog.allowWrites' => '允许写入（智能体）',
 			'cockpit.dbConnectionDialog.allowWritesHint' => '关闭 = 智能体只能通过 CLI 读取',
 			'cockpit.dbConnectionDialog.visibleToAgents' => '对智能体可见',
 			'cockpit.dbConnectionDialog.visibleToAgentsHint' => '关闭 = 对 CLI 隐藏，仅在 GUI 中可用',
@@ -3123,9 +3125,9 @@ extension on TranslationsZh {
 			'settings.remoteHosts.edit' => '编辑',
 			'settings.remoteHosts.reconnect' => '重新连接',
 			'settings.remoteHosts.remove' => '移除',
-			'settings.remoteHosts.removeTitle' => '移除主机',
 			_ => null,
 		} ?? switch (path) {
+			'settings.remoteHosts.removeTitle' => '移除主机',
 			'settings.remoteHosts.removeMessage' => ({required Object name}) => '移除「${name}」及其全部工作区？主机本身不会删除任何内容。',
 			'settings.remoteHosts.workspacesCount' => ({required Object count}) => '${count} 个工作区',
 			'settings.remoteHosts.deviceKeyTitle' => '本设备的密钥',
