@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/tasks/tasks_json_loader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 
 void main() {
   late Directory tmp;
@@ -38,8 +39,8 @@ void main() {
     final tasks = await const TasksJsonLoader().load(tmp.path);
     final app = tasks.firstWhere((t) => t.label == 'app');
     final api = tasks.firstWhere((t) => t.label == 'api');
-    expect(app.cwd, '${tmp.path}/app');
-    expect(api.cwd, '${tmp.path}/backend');
+    expect(app.cwd, joinPath(tmp.path, 'app'));
+    expect(api.cwd, joinPath(tmp.path, 'backend'));
     expect(app.id, 'json:app');
     expect(app.source, TaskSource.manual);
   });
@@ -53,7 +54,10 @@ void main() {
     ''');
     final tasks = await const TasksJsonLoader().load(tmp.path);
     // "run" sem cwd → herda o default top-level "app".
-    expect(tasks.firstWhere((t) => t.label == 'run').cwd, '${tmp.path}/app');
+    expect(
+      tasks.firstWhere((t) => t.label == 'run').cwd,
+      joinPath(tmp.path, 'app'),
+    );
     // "root" com cwd vazio → raiz do workspace.
     expect(tasks.firstWhere((t) => t.label == 'root').cwd, tmp.path);
   });
@@ -84,6 +88,61 @@ void main() {
     expect(t.profiles.single.args, ['--flavor', 'dev']);
     expect(t.profiles.single.env, {'X': '1'});
   });
+
+  test(
+    'task env is inherited and profiles override only matching keys',
+    () async {
+      await write('''{
+      "tasks": [{
+        "label": "api", "command": "npm",
+        "env": {"API_URL": "https://api.example.com", "LOG_LEVEL": "info"},
+        "profiles": [
+          {"name": "development", "env": {"API_URL": "http://localhost:3000"}},
+          {"name": "production", "env": {"LOG_LEVEL": "error"}},
+          {"name": "inherited"}
+        ]
+      }]
+    }''');
+      final task = (await const TasksJsonLoader().load(tmp.path)).single;
+      expect(task.resolveEnv(task.profiles[0]), {
+        'API_URL': 'http://localhost:3000',
+        'LOG_LEVEL': 'info',
+      });
+      expect(task.resolveEnv(task.profiles[1]), {
+        'API_URL': 'https://api.example.com',
+        'LOG_LEVEL': 'error',
+      });
+      expect(task.resolveEnv(task.profiles[2]), task.env);
+      final resolved = task.resolveEnv(null);
+      expect(resolved, task.env);
+      resolved['LOG_LEVEL'] = 'changed';
+      expect(task.env['LOG_LEVEL'], 'info');
+      expect(task.profiles[0].env, {'API_URL': 'http://localhost:3000'});
+    },
+  );
+
+  test(
+    'absent, empty and invalid env retain existing tolerant behavior',
+    () async {
+      await write('''{"tasks": [
+      {"label": "absent", "command": "npm"},
+      {"label": "empty", "command": "npm", "env": {}, "profiles": [{"name": "empty", "env": {}}]},
+      {"label": "invalid", "command": "npm", "env": [], "profiles": [{"name": "invalid", "env": false}]},
+      {"label": "legacy", "command": "npm", "profiles": [{"name": "dev", "env": {"PORT": "3000"}}]}
+    ]}''');
+      final tasks = await const TasksJsonLoader().load(tmp.path);
+      for (final task in tasks.take(3)) {
+        expect(task.resolveEnv(null), isEmpty);
+        for (final profile in task.profiles) {
+          expect(task.resolveEnv(profile), isEmpty);
+        }
+      }
+      expect(tasks.last.resolveEnv(tasks.last.profiles.single), {
+        'PORT': '3000',
+      });
+      expect(tasks.last.resolveEnv(null), isEmpty);
+    },
+  );
 
   test('platforms filtra pelo SO do host (string ou lista)', () async {
     await write('''

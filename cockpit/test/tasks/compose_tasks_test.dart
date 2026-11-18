@@ -5,6 +5,9 @@ import 'package:cockpit/app/cockpit/data/tasks/compose_tasks.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/core/data/jsonc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
+
+String native(String path) => path.replaceAll('/', Platform.pathSeparator);
 
 void main() {
   group('ComposeFileParser', () {
@@ -15,7 +18,7 @@ void main() {
     tearDown(() => tmp.delete(recursive: true));
 
     test('accepts a non-empty services map', () async {
-      final file = File('${tmp.path}/compose.yaml')
+      final file = File(joinPath(tmp.path, 'compose.yaml'))
         ..writeAsStringSync(
           'services:\n  api:\n    image: api\n  custom-name: {}\n',
         );
@@ -24,9 +27,9 @@ void main() {
     });
 
     test('rejects invalid, empty, and outside files', () async {
-      final invalid = File('${tmp.path}/bad.yml')
+      final invalid = File(joinPath(tmp.path, 'bad.yml'))
         ..writeAsStringSync('services: [');
-      final empty = File('${tmp.path}/empty.yaml')
+      final empty = File(joinPath(tmp.path, 'empty.yaml'))
         ..writeAsStringSync('services: {}');
       final outside = File('${Directory.systemTemp.path}/outside-compose.yaml')
         ..writeAsStringSync('services:\n  api: {}');
@@ -46,10 +49,10 @@ void main() {
     });
 
     test('uses an including parent as the execution file', () async {
-      final childDir = Directory('${tmp.path}/docker')..createSync();
-      final child = File('${childDir.path}/compose.yaml')
+      final childDir = Directory(joinPath(tmp.path, 'docker'))..createSync();
+      final child = File(joinPath(childDir.path, 'compose.yaml'))
         ..writeAsStringSync('services:\n  api: {}\n');
-      final parent = File('${tmp.path}/compose.yaml')
+      final parent = File(joinPath(tmp.path, 'compose.yaml'))
         ..writeAsStringSync(
           'include:\n  - path: docker/compose.yaml\n    project_directory: .\n',
         );
@@ -65,9 +68,9 @@ void main() {
   test('generator creates canonical profiles for integrated engine', () {
     final map = const ComposeTaskGenerator().taskMap(
       ComposeEngine.docker,
-      '/repo/infra/compose.yml',
+      native('/repo/infra/compose.yml'),
       'api',
-      '/repo',
+      native('/repo'),
     );
     expect(map['command'], 'docker');
     expect(map['args'], ['compose', '-f', 'compose.yml']);
@@ -90,7 +93,7 @@ void main() {
     ) => TaskDefinition(
       id: 'json:api',
       label: 'api',
-      cwd: '/repo',
+      cwd: native('/repo'),
       command: command,
       args: args,
       profiles: [TaskProfile(name: 'up', args: profile)],
@@ -144,20 +147,20 @@ void main() {
 }''';
       final generated = const ComposeTaskGenerator().taskMap(
         ComposeEngine.docker,
-        '/repo/compose.yml',
+        native('/repo/compose.yml'),
         'manual',
-        '/repo',
+        native('/repo'),
       );
       final added = const ComposeTaskGenerator().taskMap(
         ComposeEngine.docker,
-        '/repo/compose.yml',
+        native('/repo/compose.yml'),
         'api',
-        '/repo',
+        native('/repo'),
       );
       final result = const ComposeTasksJsonMerger().merge(source, [
         generated,
         added,
-      ], '/repo');
+      ], native('/repo'));
       expect(result.conflicts, ['manual']);
       expect(result.content, contains('// keep this comment'));
       final decoded = jsonDecode(stripJsonc(result.content)) as Map;
@@ -168,7 +171,11 @@ void main() {
 
   test('invalid JSONC is not mergeable', () {
     expect(
-      () => const ComposeTasksJsonMerger().merge('{bad', const [], '/repo'),
+      () => const ComposeTasksJsonMerger().merge(
+        '{bad',
+        const [],
+        native('/repo'),
+      ),
       throwsFormatException,
     );
   });
@@ -177,35 +184,39 @@ void main() {
     final generator = const ComposeTaskGenerator();
     final oldApi = generator.taskMap(
       ComposeEngine.docker,
-      '/repo/compose.yml',
+      native('/repo/compose.yml'),
       'api',
-      '/repo',
+      native('/repo'),
     );
+    oldApi['env'] = {'API_URL': 'https://api.example.com', 'LOG_LEVEL': 'info'};
+    (oldApi['profiles'] as List).first['env'] = {'LOG_LEVEL': 'debug'};
     // Simulates a valid manual edit until the next explicit regeneration.
     (oldApi['profiles'] as List).first['args'] = ['up', 'api'];
     final removed = generator.taskMap(
       ComposeEngine.docker,
-      '/repo/compose.yml',
+      native('/repo/compose.yml'),
       'old-worker',
-      '/repo',
+      native('/repo'),
     );
     final source = const JsonEncoder.withIndent(' ').convert({
       'tasks': [oldApi, removed],
     });
     final freshApi = generator.taskMap(
       ComposeEngine.docker,
-      '/repo/compose.yml',
+      native('/repo/compose.yml'),
       'api',
-      '/repo',
+      native('/repo'),
     );
     final result = const ComposeTasksJsonMerger().merge(source, [
       freshApi,
-    ], '/repo');
+    ], native('/repo'));
     final tasks =
         (jsonDecode(stripJsonc(result.content)) as Map)['tasks'] as List;
     expect(tasks, hasLength(2));
     final api = tasks.cast<Map>().singleWhere((t) => t['label'] == 'api');
     expect((api['profiles'] as List).first['args'], ['up', '-d', 'api']);
+    expect(api['env'], oldApi['env']);
+    expect((api['profiles'] as List).first['env'], {'LOG_LEVEL': 'debug'});
     expect(tasks.cast<Map>().any((t) => t['label'] == 'old-worker'), isTrue);
   });
 
@@ -215,21 +226,21 @@ void main() {
       'tasks': [
         generator.taskMap(
           ComposeEngine.docker,
-          '/repo/a/compose.yml',
+          native('/repo/a/compose.yml'),
           'api',
-          '/repo',
+          native('/repo'),
         ),
       ],
     });
     final other = generator.taskMap(
       ComposeEngine.podman,
-      '/repo/b/compose.yml',
+      native('/repo/b/compose.yml'),
       'api',
-      '/repo',
+      native('/repo'),
     );
     final result = const ComposeTasksJsonMerger().merge(source, [
       other,
-    ], '/repo');
+    ], native('/repo'));
     expect(result.conflicts, ['api']);
     expect(result.content, contains('docker'));
     expect(result.content, isNot(contains('podman')));
@@ -238,10 +249,10 @@ void main() {
   test('regeneration migrates an included child to its parent file', () async {
     final tmp = await Directory.systemTemp.createTemp('compose_include_merge');
     addTearDown(() => tmp.delete(recursive: true));
-    final childDir = Directory('${tmp.path}/docker')..createSync();
-    final child = File('${childDir.path}/compose.yaml')
+    final childDir = Directory(joinPath(tmp.path, 'docker'))..createSync();
+    final child = File(joinPath(childDir.path, 'compose.yaml'))
       ..writeAsStringSync('services:\n  api: {}\n');
-    final parent = File('${tmp.path}/compose.yaml')
+    final parent = File(joinPath(tmp.path, 'compose.yaml'))
       ..writeAsStringSync('include:\n  - path: docker/compose.yaml\n');
     final generator = const ComposeTaskGenerator();
     final source = jsonEncode({
