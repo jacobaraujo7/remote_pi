@@ -181,6 +181,8 @@ void main() {
       'api',
       '/repo',
     );
+    oldApi['env'] = {'API_URL': 'https://api.example.com', 'LOG_LEVEL': 'info'};
+    (oldApi['profiles'] as List).first['env'] = {'LOG_LEVEL': 'debug'};
     // Simulates a valid manual edit until the next explicit regeneration.
     (oldApi['profiles'] as List).first['args'] = ['up', 'api'];
     final removed = generator.taskMap(
@@ -206,6 +208,8 @@ void main() {
     expect(tasks, hasLength(2));
     final api = tasks.cast<Map>().singleWhere((t) => t['label'] == 'api');
     expect((api['profiles'] as List).first['args'], ['up', '-d', 'api']);
+    expect(api['env'], oldApi['env']);
+    expect((api['profiles'] as List).first['env'], {'LOG_LEVEL': 'debug'});
     expect(tasks.cast<Map>().any((t) => t['label'] == 'old-worker'), isTrue);
   });
 

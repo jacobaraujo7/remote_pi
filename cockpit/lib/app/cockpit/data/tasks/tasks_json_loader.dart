@@ -77,6 +77,7 @@ class TasksJsonLoader {
       cwd: cwd,
       command: command,
       args: _strList(m['args']),
+      env: _strMap(m['env']),
       kind: _kind(m['kind']),
       source: TaskSource.manual,
       profiles: _profiles(m['profiles']),

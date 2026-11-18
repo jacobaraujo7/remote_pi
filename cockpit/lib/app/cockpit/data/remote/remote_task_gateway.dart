@@ -121,7 +121,7 @@ class RemoteTaskRunner implements TaskRunnerGateway {
           executable: '/bin/sh',
           arguments: ['-lc', 'exec $cmdLine'],
           workingDirectory: def.cwd.isEmpty ? null : def.cwd,
-          environment: {'TERM': 'xterm-256color'},
+          environment: {...def.resolveEnv(profile), 'TERM': 'xterm-256color'},
         ),
       );
     } catch (e) {
