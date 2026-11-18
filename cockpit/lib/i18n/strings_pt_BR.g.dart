@@ -995,6 +995,7 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => 'Copiar como cURL';
 	@override String get saveRequestAs => 'Salvar request como';
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
@@ -2743,6 +2744,7 @@ extension on TranslationsPtBr {
 			'cockpit.dbQueryView.saved' => 'salvo',
 			'cockpit.dbQueryView.copied' => 'Copiado',
 			'cockpit.dbQueryView.copy' => 'Copiar',
+			'cockpit.httpView.copyCurl' => 'Copiar como cURL',
 			'cockpit.httpView.saveRequestAs' => 'Salvar request como',
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
@@ -2837,9 +2839,9 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.noComments' => 'Nenhum comentário ainda',
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
-			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Apagar “${name}”?',
@@ -3351,9 +3353,9 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeFileTitle' => 'Arquivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
-			'settings.page.appearance.previewTerminal' => 'Terminal',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Escuro',

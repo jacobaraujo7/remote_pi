@@ -44,3 +44,21 @@ FILE EXAMPLE:
   ### Body from a file
   PUT {{baseUrl}}/users/1
   < ./body.json
+
+JAVASCRIPT SCRIPTS:
+  Use < {% ... %} for inline pre-request code and > {% ... %} for inline
+  response handlers. External JavaScript files use the same client, request,
+  console and response APIs:
+
+  ### Request with external scripts
+  < ./scripts/prepare.js
+  GET https://api.example.com/users/{{id}}
+  > ./scripts/check-response.js
+
+  Paths are relative to the .http file; absolute paths and quoted paths with
+  spaces are supported. Multiple scripts run in declaration order, sharing
+  the JavaScript scope within each phase. Files are read again on every run.
+  Pre-request file references go before the HTTP verb; < file after the verb
+  imports the request body. Inline and external scripts share the existing
+  2 second execution limit per phase. A pre-request error prevents sending;
+  a response handler error retains the HTTP response.

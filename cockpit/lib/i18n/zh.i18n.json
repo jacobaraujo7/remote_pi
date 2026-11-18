@@ -480,6 +480,7 @@
       "copy": "复制"
     },
     "httpView": {
+      "copyCurl": "复制为 cURL",
       "saveRequestAs": "请求另存为",
       "couldNotSave": "无法保存",
       "run": "运行",

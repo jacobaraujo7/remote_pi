@@ -2110,6 +2110,9 @@ class Translations$cockpit$httpView$en {
 
 	// Translations
 
+	/// en: 'Copy as cURL'
+	String get copyCurl => 'Copy as cURL';
+
 	/// en: 'Save request as'
 	String get saveRequestAs => 'Save request as';
 
@@ -5411,6 +5414,7 @@ extension on Translations {
 			'cockpit.dbQueryView.saved' => 'saved',
 			'cockpit.dbQueryView.copied' => 'Copied',
 			'cockpit.dbQueryView.copy' => 'Copy',
+			'cockpit.httpView.copyCurl' => 'Copy as cURL',
 			'cockpit.httpView.saveRequestAs' => 'Save request as',
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
@@ -5505,9 +5509,9 @@ extension on Translations {
 			'cockpit.kanbanView.noComments' => 'No comments yet',
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
-			'cockpit.kanbanView.startBoard' => 'Start a board',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.startBoard' => 'Start a board',
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Delete “${name}”?',
@@ -6019,9 +6023,9 @@ extension on Translations {
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
-			'settings.page.appearance.previewTerminal' => 'Terminal',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',

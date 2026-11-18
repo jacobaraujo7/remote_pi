@@ -1,37 +1,70 @@
+import 'package:cockpit/app/cockpit/ui/widgets/http_pair_editing.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/http_script_completion.dart';
 import 'package:flutter/services.dart';
 
-/// Fecha `< {%`/`> {%` e indenta Enter dentro de um bloco de script HTTP.
+/// Fecha delimitadores e pares JavaScript e indenta blocos de script HTTP.
 /// A transformação passa pelo TextField para participar do undo/redo normal.
 class HttpScriptEditingFormatter extends TextInputFormatter {
-  const HttpScriptEditingFormatter();
+  const HttpScriptEditingFormatter() : memory = null;
+
+  HttpScriptEditingFormatter.live() : memory = HttpAutocloseMemory();
+
+  final HttpAutocloseMemory? memory;
 
   static final _openLine = RegExp(r'^[ \t]*[<>][ \t]*\{%$');
-  static final _open = RegExp(r'^[ \t]*[<>][ \t]*\{%', multiLine: true);
+  static const _pairs = {
+    '(': ')',
+    '[': ']',
+    '{': '}',
+    "'": "'",
+    '"': '"',
+    '`': '`',
+  };
 
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) {
+    final retained = memory?.retain(oldValue, newValue);
+    if (retained != null) return retained;
+    final plain = newValue;
+    oldValue = HttpPairEditing.beforeCommittedQuote(oldValue, newValue);
     if (!oldValue.selection.isValid ||
-        !oldValue.selection.isCollapsed ||
         !newValue.selection.isValid ||
         !newValue.selection.isCollapsed ||
-        newValue.composing.isValid) {
+        !newValue.composing.isCollapsed) {
       return newValue;
     }
-    final offset = oldValue.selection.baseOffset;
+    final offset = oldValue.selection.start;
+    final end = oldValue.selection.end;
     final caret = newValue.selection.baseOffset;
-    if (caret != offset + 1 ||
-        newValue.text.length != oldValue.text.length + 1 ||
-        newValue.text.substring(0, offset) !=
-            oldValue.text.substring(0, offset) ||
-        newValue.text.substring(caret) != oldValue.text.substring(offset)) {
+    final context = HttpScriptCompletion.contextAt(oldValue.text, offset);
+    if (context != null) {
+      final paired = HttpPairEditing.pairs(
+        oldValue,
+        newValue,
+        pairs: _pairs,
+        context: context,
+        allowSelection:
+            HttpScriptCompletion.contextAt(oldValue.text, end) != null &&
+            !oldValue.text.substring(offset, end).contains('%}'),
+      );
+      if (paired != null) {
+        memory?.remember(plain, paired);
+        return paired;
+      }
+    }
+
+    if (!oldValue.selection.isCollapsed ||
+        !HttpPairEditing.isInsertion(oldValue, newValue)) {
       return newValue;
     }
 
     final inserted = newValue.text[offset];
-    final lineStart = newValue.text.lastIndexOf('\n', offset - 1) + 1;
+    final lineStart = offset == 0
+        ? 0
+        : newValue.text.lastIndexOf('\n', offset - 1) + 1;
     final before = newValue.text.substring(lineStart, caret);
     if (inserted == '%' &&
         _openLine.hasMatch(before) &&
@@ -42,7 +75,8 @@ class HttpScriptEditingFormatter extends TextInputFormatter {
       );
     }
 
-    if (inserted != '\n' || !_insideScript(oldValue.text, offset)) {
+    if (context == null) return newValue;
+    if (inserted != '\n' || context.quote != null || context.comment) {
       return newValue;
     }
     final oldLineStart = oldValue.text.lastIndexOf('\n', offset - 1) + 1;
@@ -61,31 +95,19 @@ class HttpScriptEditingFormatter extends TextInputFormatter {
             trimmed.endsWith('[')
         ? '  '
         : '';
-    final indent = '$baseIndent$extra';
-    final closingOnLine = lineAfter.trimLeft().startsWith('%}');
-    final suffix = closingOnLine ? '$indent\n$baseIndent' : indent;
-    return TextEditingValue(
-      text: newValue.text.replaceRange(caret, caret, suffix),
-      selection: TextSelection.collapsed(offset: caret + indent.length),
+    final closingBracket = trimmed.isEmpty
+        ? null
+        : _pairs[trimmed[trimmed.length - 1]];
+    final closingOnLine =
+        lineAfter.trimLeft().startsWith('%}') ||
+        extra.isNotEmpty &&
+            closingBracket != null &&
+            lineAfter.trimLeft().startsWith(closingBracket);
+    return HttpPairEditing.indent(
+      newValue,
+      baseIndent: baseIndent,
+      increase: extra.isNotEmpty,
+      splitClosing: closingOnLine,
     );
-  }
-
-  static bool _insideScript(String source, int offset) {
-    var cursor = 0;
-    var active = false;
-    while (cursor < offset) {
-      if (!active) {
-        final matches = _open.allMatches(source, cursor).iterator;
-        if (!matches.moveNext() || matches.current.start >= offset) break;
-        active = true;
-        cursor = matches.current.end;
-      } else {
-        final close = source.indexOf('%}', cursor);
-        if (close < 0 || close >= offset) break;
-        active = false;
-        cursor = close + 2;
-      }
-    }
-    return active;
   }
 }

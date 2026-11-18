@@ -917,6 +917,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => '复制为 cURL';
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
@@ -2658,6 +2659,7 @@ extension on TranslationsZh {
 			'cockpit.dbQueryView.saved' => '已保存',
 			'cockpit.dbQueryView.copied' => '已复制',
 			'cockpit.dbQueryView.copy' => '复制',
+			'cockpit.httpView.copyCurl' => '复制为 cURL',
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
@@ -2752,9 +2754,9 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => '此列有 ${count}。请选择它们的去向。',
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
-			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -3266,9 +3268,9 @@ extension on TranslationsZh {
 			'settings.page.appearance.sectionFonts' => '字体',
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
-			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',

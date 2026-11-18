@@ -3,6 +3,32 @@ import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dar
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('referências JavaScript abrem o arquivo relativo ou absoluto', () {
+    for (final path in [
+      'scripts/pre request.js',
+      '../post.mjs',
+      '/shared/check.js',
+    ]) {
+      final source = '> "$path"';
+      final target = HttpCodeNavigation.linkAt(
+        displayText: source,
+        offset: source.indexOf(path) + 2,
+        sourceText: source,
+        sourcePath: '/api/requests.http',
+        sourceLine: 0,
+        environment: null,
+        catalog: const HttpEnvironmentCatalog({}),
+      );
+      expect(target?.path, switch (path) {
+        '../post.mjs' => '/post.mjs',
+        '/shared/check.js' => path,
+        _ => '/api/$path',
+      });
+      expect(target?.line, 1);
+      expect(source.substring(target!.start, target.end), path);
+    }
+  });
+
   const source =
       '@local = https://local.test\n'
       'GET {{host}}/users\n'

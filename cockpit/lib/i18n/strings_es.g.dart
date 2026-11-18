@@ -995,6 +995,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => 'Copiar como cURL';
 	@override String get saveRequestAs => 'Guardar request como';
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
@@ -2739,6 +2740,7 @@ extension on TranslationsEs {
 			'cockpit.dbQueryView.saved' => 'guardado',
 			'cockpit.dbQueryView.copied' => 'Copiado',
 			'cockpit.dbQueryView.copy' => 'Copiar',
+			'cockpit.httpView.copyCurl' => 'Copiar como cURL',
 			'cockpit.httpView.saveRequestAs' => 'Guardar request como',
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
@@ -2833,9 +2835,9 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.couldNotSave' => 'No se pudo guardar el tablero',
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
-			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -3347,9 +3349,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
-			'settings.page.appearance.sectionFonts' => 'Fuentes',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.sectionFonts' => 'Fuentes',
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',
