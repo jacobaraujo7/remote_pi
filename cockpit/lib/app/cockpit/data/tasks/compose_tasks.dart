@@ -96,8 +96,9 @@ class ComposeFileParser {
           : item is YamlMap
           ? item['path']
           : null;
-      if (raw is String && File(resolveCwd(base, raw)).absolute.path == child) {
-        return true;
+      if (raw is String) {
+        final path = Platform.isWindows ? raw.replaceAll('/', r'\') : raw;
+        if (File(resolveCwd(base, path)).absolute.path == child) return true;
       }
     }
     return false;
