@@ -220,7 +220,10 @@ class _FixedDiscovery implements TaskDiscovery {
   final List<TaskDefinition> tasks;
 
   @override
-  Future<List<TaskDefinition>> discover(String cwd) async => tasks;
+  Future<List<TaskDefinition>> discover(
+    String cwd, {
+    String? workspaceId,
+  }) async => tasks;
 }
 
 class _MemoryDevices implements DeviceSelectionStore {

@@ -24,7 +24,13 @@ import 'package:cockpit_pty/cockpit_pty.dart';
 /// isso o app GUI não acharia `flutter`/`npm`/`go` (PATH mínimo do Finder).
 /// Mesma razão e mesmas vars (`TERM`/`COLORTERM`) do terminal embutido.
 class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
-  PtyTaskRunner(this._telemetry, this._tools);
+  PtyTaskRunner(
+    this._telemetry,
+    this._tools, {
+    this.composeResolver = const ComposeEngineResolver(),
+  });
+
+  final ComposeEngineResolver composeResolver;
 
   /// Telemetria (plano 66): toda task alimenta a Caixa Preta por padrão. A
   /// sessão nasce antes do spawn (injeta `COCKPIT_RUN_ID`/`OTEL_*` no env),
@@ -98,8 +104,24 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   }
 
   @override
-  Future<void> reconcileDefinitions(List<TaskDefinition> definitions) async {
-    _composeDefinitions.clear();
+  Future<void> reconcileDefinitions(
+    List<TaskDefinition> definitions, {
+    String? projectRoot,
+    String? workspaceId,
+  }) async {
+    final root = projectRoot ?? definitions.firstOrNull?.projectRoot;
+    final workspace = workspaceId ?? definitions.firstOrNull?.workspaceId;
+    final ids = definitions.map((def) => def.id).toSet();
+    // Reload removes only stale entries from the root being rediscovered.
+    // Keep active entries so stop/restart remains available after config edits.
+    _composeDefinitions.removeWhere(
+      (id, entry) =>
+          entry.def.workspaceId == workspace &&
+          entry.def.projectRoot == root &&
+          !ids.contains(id) &&
+          !_composeActive.contains(id) &&
+          !_starting.contains(id),
+    );
     for (final def in definitions) {
       var compose = const ComposeTaskRecognizer().recognize(def);
       if (compose != null) {
@@ -161,12 +183,14 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
             .add(e.key);
       }
       for (final group in grouped.values) {
-        final running = await const ComposeEngineResolver().runningServices(
+        final running = await composeResolver.runningServices(
           group.task.engine,
           group.task.file,
         );
         for (final id in group.ids) {
-          final service = _composeDefinitions[id]!.task.service;
+          final entry = _composeDefinitions[id];
+          if (entry == null) continue;
+          final service = entry.task.service;
           final active = running.contains(service);
           if (active && _composeActive.add(id)) {
             _emit(
@@ -524,7 +548,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     // Garante SIGKILL se não morrer em 3s.
     unawaited(
       Future<void>.delayed(const Duration(seconds: 3), () {
-        if (_running.containsKey(taskId)) {
+        if (identical(_running[taskId], task)) {
           try {
             task.pty.kill(ProcessSignal.sigkill);
           } on Object catch (_) {
@@ -630,28 +654,30 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final dir = Directory(root);
     if (!dir.existsSync()) return null;
     try {
-      return dir.watch(recursive: true).listen(
-        (event) {
-          if (!_matchesWatch(def.cwd, w, event.path)) return;
-          _watchDebounce[def.id]?.cancel();
-          _watchDebounce[def.id] = Timer(
-            Duration(milliseconds: w.debounceMs),
-            () => _dispatchWatch(def, w),
+      return dir
+          .watch(recursive: true)
+          .listen(
+            (event) {
+              if (!_matchesWatch(def.cwd, w, event.path)) return;
+              _watchDebounce[def.id]?.cancel();
+              _watchDebounce[def.id] = Timer(
+                Duration(milliseconds: w.debounceMs),
+                () => _dispatchWatch(def, w),
+              );
+            },
+            // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
+            // de deixar o erro vazar (uncaught) e o watch morrer.
+            onError: (Object e) {
+              DiagnosticsLog.instance.warn('task', 'watch $root: $e');
+              Timer(const Duration(seconds: 2), () {
+                final current = _watchers[def.id];
+                if (current == null) return; // stopWatch nesse meio tempo
+                final again = _watchDir(def, w, root);
+                if (again != null) current.add(again);
+              });
+            },
+            cancelOnError: true,
           );
-        },
-        // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
-        // de deixar o erro vazar (uncaught) e o watch morrer.
-        onError: (Object e) {
-          DiagnosticsLog.instance.warn('task', 'watch $root: $e');
-          Timer(const Duration(seconds: 2), () {
-            final current = _watchers[def.id];
-            if (current == null) return; // stopWatch nesse meio tempo
-            final again = _watchDir(def, w, root);
-            if (again != null) current.add(again);
-          });
-        },
-        cancelOnError: true,
-      );
     } on FileSystemException {
       // FS sem suporte a watch recursivo → silencioso (sem reload automático).
       return null;
@@ -731,7 +757,11 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     for (final id in _watchers.keys.toList()) {
       stopWatch(id);
     }
-    for (final task in _running.values) {
+    // Exit callbacks can run at every await below. Detach the slots first so
+    // they cannot mutate the iteration or finish an already disposed output.
+    final running = _running.values.toList();
+    _running.clear();
+    for (final task in running) {
       task.stopping = true;
       try {
         task.pty.kill(ProcessSignal.sigkill);
