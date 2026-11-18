@@ -4122,7 +4122,13 @@ function _scheduleMeshMessageDrain(): void {
   queueMicrotask(() => {
     _meshDrainScheduled = false;
     const pi = _pi;
-    if (_agentRunActive || !pi || _pendingMeshMessages.length === 0) return;
+    if (_agentRunActive || !pi || _pendingMeshMessages.length === 0) {
+      if (_agentRunActive && pi && _pendingMeshMessages.length > 0) {
+        // A run is active: re-schedule the drain instead of stranding messages.
+        setTimeout(_scheduleMeshMessageDrain, 2000);
+      }
+      return;
+    }
 
     const batch = _pendingMeshMessages.splice(0);
     let delivered = 0;
