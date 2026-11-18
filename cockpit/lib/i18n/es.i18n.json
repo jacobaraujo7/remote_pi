@@ -403,7 +403,16 @@
       "preview": "Vista previa",
       "source": "Código fuente",
       "reload": "Recargar",
-      "mermaidError": "Error en el diagrama"
+      "mermaidError": "Error en el diagrama",
+      "exportPdf": "Descargar PDF",
+      "exportPdfDialogTitle": "Guardar como PDF",
+      "pdfSaved": "${name} guardado",
+      "openPdf": "Abrir",
+      "pdfError": {
+        "notReady": "La vista previa aún no está lista. Inténtalo de nuevo en un momento.",
+        "renderFailed": "No se pudo preparar el documento para el PDF.",
+        "writeFailed": "No se pudo crear el archivo PDF."
+      }
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Elegir foto del workspace",

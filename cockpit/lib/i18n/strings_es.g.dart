@@ -884,6 +884,11 @@ class _Translations$cockpit$fileViewer$es extends Translations$cockpit$fileViewe
 	@override String get source => 'Código fuente';
 	@override String get reload => 'Recargar';
 	@override String get mermaidError => 'Error en el diagrama';
+	@override String get exportPdf => 'Descargar PDF';
+	@override String get exportPdfDialogTitle => 'Guardar como PDF';
+	@override String pdfSaved({required Object name}) => '${name} guardado';
+	@override String get openPdf => 'Abrir';
+	@override late final _Translations$cockpit$fileViewer$pdfError$es pdfError = _Translations$cockpit$fileViewer$pdfError$es._(_root);
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -1753,6 +1758,18 @@ class _Translations$theme$error$es extends Translations$theme$error$en {
 	@override String badColor({required Object value, required Object field}) => '"${value}" en "${field}" no es un color. Usa #RGB, #RRGGBB o #RRGGBBAA.';
 	@override String unknownBase({required Object value}) => 'Tema base "${value}" desconocido en "extends".';
 	@override String get noVariants => 'El tema no declara ningún variant. Añade "dark", "light" o ambos en "variants".';
+}
+
+// Path: cockpit.fileViewer.pdfError
+class _Translations$cockpit$fileViewer$pdfError$es extends Translations$cockpit$fileViewer$pdfError$en {
+	_Translations$cockpit$fileViewer$pdfError$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get notReady => 'La vista previa aún no está lista. Inténtalo de nuevo en un momento.';
+	@override String get renderFailed => 'No se pudo preparar el documento para el PDF.';
+	@override String get writeFailed => 'No se pudo crear el archivo PDF.';
 }
 
 // Path: cockpit.httpView.error
@@ -2683,6 +2700,13 @@ extension on TranslationsEs {
 			'cockpit.fileViewer.source' => 'Código fuente',
 			'cockpit.fileViewer.reload' => 'Recargar',
 			'cockpit.fileViewer.mermaidError' => 'Error en el diagrama',
+			'cockpit.fileViewer.exportPdf' => 'Descargar PDF',
+			'cockpit.fileViewer.exportPdfDialogTitle' => 'Guardar como PDF',
+			'cockpit.fileViewer.pdfSaved' => ({required Object name}) => '${name} guardado',
+			'cockpit.fileViewer.openPdf' => 'Abrir',
+			'cockpit.fileViewer.pdfError.notReady' => 'La vista previa aún no está lista. Inténtalo de nuevo en un momento.',
+			'cockpit.fileViewer.pdfError.renderFailed' => 'No se pudo preparar el documento para el PDF.',
+			'cockpit.fileViewer.pdfError.writeFailed' => 'No se pudo crear el archivo PDF.',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Elegir foto del workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configuración del workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nombre del workspace',
@@ -2828,6 +2852,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.comments' => 'Comentarios',
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escribe un comentario',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
 			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			'cockpit.kanbanView.notABoard' => 'Este archivo aún no tiene columnas ## — se abre como markdown.',
@@ -2835,8 +2861,6 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.couldNotSave' => 'No se pudo guardar el tablero',
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
@@ -3342,6 +3366,8 @@ extension on TranslationsEs {
 			'settings.page.appearance.modeDesc' => 'Qué variante del tema usar.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" solo trae la variante oscura, así que esto no tiene efecto.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" solo trae la variante clara, así que esto no tiene efecto.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeFileTitle' => 'Archivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importa un tema desde un archivo JSON, o exporta el activo.',
 			'settings.page.appearance.previewCode' => 'Código',
@@ -3349,8 +3375,6 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',

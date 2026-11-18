@@ -203,3 +203,99 @@ input[type="checkbox"] {
 .ckp-mermaid-error > pre:last-child {
   margin: 0;
 }
+
+/* Exportação PDF (plano 73). O PDF sai SEMPRE na paleta clara, seja qual for
+   o tema do app: é o que se imprime e o que se manda pra alguém, e texto
+   claro sobre fundo escuro gasta toner e vira ilegível em impressora. As
+   variáveis da tela entram como estilo inline no `:root` (setTheme); só
+   `!important` de folha vence inline. A paleta espelha a que o Dart passa ao
+   `preparePrint` pros diagramas (PRINT_THEME em web_markdown_preview.dart). */
+.ckp-mermaid-print {
+  display: none;
+}
+@media print {
+  :root {
+    --ckp-bg: #ffffff !important;
+    --ckp-text: #1f2328 !important;
+    --ckp-text-muted: #59636e !important;
+    --ckp-border: #d1d9e0 !important;
+    --ckp-code-bg: #f6f8fa !important;
+    --ckp-link: #0969da !important;
+  }
+  html,
+  body {
+    background: #ffffff;
+  }
+  /* As margens da página vêm do sistema de impressão (NSPrintInfo). */
+  #content {
+    padding: 0;
+  }
+  /* Bloco que cabe numa página não é partido ao meio. Bloco maior que a
+     página é partido mesmo (não há como evitar). */
+  pre,
+  table,
+  tr,
+  img,
+  blockquote,
+  .ckp-keep,
+  .ckp-mermaid,
+  .ckp-mermaid-error,
+  table.ckp-frontmatter {
+    break-inside: avoid;
+  }
+  /* Título órfão: o WebKit ignora `break-after` na impressão; o preparePrint
+     (preview.js) agrupa título + bloco seguinte num `.ckp-keep` (acima). */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+  /* Papel não rola: o que rolava de lado na tela quebra linha (código) ou
+     encolhe (tabela, diagrama) pra caber na largura da página. */
+  pre,
+  table,
+  .ckp-mermaid {
+    overflow: visible;
+  }
+  pre,
+  pre code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  table {
+    display: table;
+    width: 100%;
+  }
+  thead {
+    display: table-header-group;
+  }
+  td,
+  th {
+    overflow-wrap: anywhere;
+  }
+  /* Diagrama: a cópia na paleta clara (preparePrint) substitui a da tela. */
+  .ckp-mermaid-has-print > svg {
+    display: none;
+  }
+  .ckp-mermaid-print {
+    display: block;
+  }
+  /* O mermaid emite width=100% + max-width natural; o min-width do preview.js
+     (que forçava rolagem lateral na tela) sairia cortado no papel. Altura
+     limitada a uma página A4 útil: diagrama alto encolhe em vez de partir. */
+  .ckp-mermaid svg {
+    min-width: 0 !important;
+    max-height: 250mm;
+    height: auto;
+  }
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  a {
+    text-decoration: underline;
+  }
+}

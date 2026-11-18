@@ -203,6 +203,8 @@
     busy: false,
     seq: 0, // ids únicos pro mermaid.render
     strings: { mermaidError: "Diagram error" },
+    printing: false, // exportação PDF em curso: a fila fica parada
+    idle: [], // resolvers de whenIdle(), chamados quando a fila esvazia
   };
 
   /* morphdom: container de diagrama já desenhado NÃO é tocado — senão cada
@@ -229,9 +231,12 @@
     return mermaidState.gen + ":" + h;
   }
 
-  function mermaidConfig() {
+  // `vars` (opcional) sobrepõe as variáveis do tema — a exportação PDF
+  // (plano 73) desenha com a paleta clara de impressão sem tocar na tela.
+  function mermaidConfig(vars) {
     var css = getComputedStyle(document.documentElement);
     function v(name, fallback) {
+      if (vars && vars[name]) return vars[name];
       var x = css.getPropertyValue(name).trim();
       return x || fallback;
     }
@@ -424,7 +429,8 @@
      resultado de conteúdo que já mudou (hash fora do documento) nunca é
      aplicado — fica só no cache até a poda. */
   function pumpMermaid() {
-    if (mermaidState.busy || !ensureMermaid()) return;
+    if (mermaidState.printing) return;
+    if (mermaidState.busy || !ensureMermaid()) return flushIdle();
     var els = document.querySelectorAll("#content .ckp-mermaid");
     var present = {};
     for (var i = 0; i < els.length; i++) {
@@ -449,6 +455,122 @@
     // Tudo em dia: poda o cache (cada tecla num diagrama gera um hash novo).
     prune(mermaidState.svg, present);
     prune(mermaidState.err, present);
+    flushIdle();
+  }
+
+  function flushIdle() {
+    // busy = ainda tem render em voo (ele chama pumpMermaid de novo ao fim).
+    if (mermaidState.busy) return;
+    var waiters = mermaidState.idle;
+    mermaidState.idle = [];
+    for (var i = 0; i < waiters.length; i++) waiters[i]();
+  }
+
+  /* Promise que resolve quando todo diagrama do documento já foi desenhado
+     (ou falhou). Sem diagrama, ou sem o motor (ainda não injetado), resolve
+     na hora — quem exporta injeta o motor antes de chamar. */
+  function whenIdle() {
+    return new Promise(function (resolve) {
+      mermaidState.idle.push(resolve);
+      pumpMermaid();
+    });
+  }
+
+  /* ---------- Exportação PDF (plano 73) ---------- */
+
+  /* O PDF sai sempre na paleta clara (o `@media print` do CSS troca as
+     variáveis), mas o SVG do mermaid tem as cores do tema da TELA embutidas.
+     Então, sem mexer no que o usuário vê: cada diagrama desenhado ganha uma
+     cópia `.ckp-mermaid-print` renderizada com a paleta de impressão, que só
+     aparece no `@media print` (a do tema some ali). `finishPrint` remove as
+     cópias e devolve a fila ao normal. */
+  /* Título órfão no pé da página: o WebKit ignora `break-after: avoid` na
+     impressão. Então o título e o bloco indivisível logo depois dele
+     (diagrama, código, tabela, citação, imagem) vão juntos para um wrapper
+     `.ckp-keep` com `break-inside: avoid` (CSS de print) — se não couberem no
+     resto da página, descem juntos. `finishPrint` desfaz. */
+  var KEEP_NEXT = "pre, table, blockquote, .ckp-mermaid, .ckp-mermaid-failed";
+  function keepHeadings() {
+    var hs = document.querySelectorAll(
+      "#content > h1, #content > h2, #content > h3, #content > h4, #content > h5, #content > h6",
+    );
+    for (var i = 0; i < hs.length; i++) {
+      var h = hs[i];
+      var next = h.nextElementSibling;
+      if (!next) continue;
+      var lone = next.tagName === "P" && next.children.length === 1 &&
+        next.firstElementChild.tagName === "IMG" && !next.textContent.trim();
+      if (!lone && !next.matches(KEEP_NEXT)) continue;
+      var wrap = document.createElement("div");
+      wrap.className = "ckp-keep";
+      h.parentNode.insertBefore(wrap, h);
+      wrap.appendChild(h);
+      wrap.appendChild(next);
+    }
+  }
+
+  function unkeepHeadings() {
+    var ws = document.querySelectorAll("#content .ckp-keep");
+    for (var i = 0; i < ws.length; i++) {
+      var w = ws[i];
+      while (w.firstChild) w.parentNode.insertBefore(w.firstChild, w);
+      w.remove();
+    }
+  }
+
+  function preparePrint(vars) {
+    return whenIdle().then(function () {
+      mermaidState.printing = true;
+      keepHeadings();
+      var m = window.mermaid;
+      var els = document.querySelectorAll("#content .ckp-mermaid[data-ckp-done]");
+      if (!m || !els.length) return;
+      m.initialize(mermaidConfig(vars));
+      mermaidState.ready = false; // a fila reinicializa com o tema da tela
+      var chain = Promise.resolve();
+      Array.prototype.forEach.call(els, function (el) {
+        var h = el.getAttribute("data-src-hash");
+        if (!(h in mermaidState.svg)) return; // caixa de erro: sai como está
+        var src = mermaidState.src[h] || "";
+        chain = chain.then(function () {
+          var id = "ckp-mmd-" + ++mermaidState.seq;
+          return Promise.resolve()
+            .then(function () {
+              return m.render(id, src);
+            })
+            .then(
+              function (out) {
+                var copy = document.createElement("div");
+                copy.className = "ckp-mermaid-print";
+                // mesmo motivo do apply(): SVG do mermaid strict, sem DOMPurify
+                copy.innerHTML = out.svg;
+                el.appendChild(copy);
+                el.classList.add("ckp-mermaid-has-print");
+              },
+              function () {
+                // sem cópia, o diagrama da tela vai pro PDF mesmo
+              },
+            )
+            .then(function () {
+              cleanupRender(id);
+            });
+        });
+      });
+      return chain;
+    });
+  }
+
+  function finishPrint() {
+    unkeepHeadings();
+    var copies = document.querySelectorAll(".ckp-mermaid-print");
+    for (var i = 0; i < copies.length; i++) copies[i].remove();
+    var marked = document.querySelectorAll(".ckp-mermaid-has-print");
+    for (var j = 0; j < marked.length; j++) {
+      marked[j].classList.remove("ckp-mermaid-has-print");
+    }
+    mermaidState.printing = false;
+    mermaidState.ready = false;
+    pumpMermaid();
   }
 
   function prune(cache, keep) {
@@ -500,6 +622,18 @@
       for (var i = 0; i < labels.length; i++) {
         labels[i].textContent = mermaidState.strings.mermaidError;
       }
+    },
+    // Exportação PDF (plano 73): o Dart chama preparePrint(paleta clara) e
+    // espera a promise, gera o PDF (a impressão usa o `@media print`) e chama
+    // finishPrint() em qualquer desfecho.
+    preparePrint: function (vars) {
+      return preparePrint(vars || {}).then(function () {
+        return true;
+      });
+    },
+    finishPrint: function () {
+      finishPrint();
+      return true;
     },
     // Chamado pelo Dart logo depois de injetar o mermaid.min.js.
     mermaidLoaded: function () {

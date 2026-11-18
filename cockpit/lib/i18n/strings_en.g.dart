@@ -1884,6 +1884,20 @@ class Translations$cockpit$fileViewer$en {
 
 	/// en: 'Diagram error'
 	String get mermaidError => 'Diagram error';
+
+	/// en: 'Download PDF'
+	String get exportPdf => 'Download PDF';
+
+	/// en: 'Save as PDF'
+	String get exportPdfDialogTitle => 'Save as PDF';
+
+	/// en: 'Saved ${name}'
+	String pdfSaved({required Object name}) => 'Saved ${name}';
+
+	/// en: 'Open'
+	String get openPdf => 'Open';
+
+	late final Translations$cockpit$fileViewer$pdfError$en pdfError = Translations$cockpit$fileViewer$pdfError$en.internal(_root);
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -3815,6 +3829,24 @@ class Translations$theme$error$en {
 	String get noVariants => 'The theme declares no variant. Add "dark", "light" or both under "variants".';
 }
 
+// Path: cockpit.fileViewer.pdfError
+class Translations$cockpit$fileViewer$pdfError$en {
+	Translations$cockpit$fileViewer$pdfError$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'The preview isn't ready yet. Try again in a moment.'
+	String get notReady => 'The preview isn\'t ready yet. Try again in a moment.';
+
+	/// en: 'Could not prepare the document for the PDF.'
+	String get renderFailed => 'Could not prepare the document for the PDF.';
+
+	/// en: 'Could not create the PDF file.'
+	String get writeFailed => 'Could not create the PDF file.';
+}
+
 // Path: cockpit.httpView.error
 class Translations$cockpit$httpView$error$en {
 	Translations$cockpit$httpView$error$en.internal(this._root);
@@ -5357,6 +5389,13 @@ extension on Translations {
 			'cockpit.fileViewer.source' => 'Source',
 			'cockpit.fileViewer.reload' => 'Reload',
 			'cockpit.fileViewer.mermaidError' => 'Diagram error',
+			'cockpit.fileViewer.exportPdf' => 'Download PDF',
+			'cockpit.fileViewer.exportPdfDialogTitle' => 'Save as PDF',
+			'cockpit.fileViewer.pdfSaved' => ({required Object name}) => 'Saved ${name}',
+			'cockpit.fileViewer.openPdf' => 'Open',
+			'cockpit.fileViewer.pdfError.notReady' => 'The preview isn\'t ready yet. Try again in a moment.',
+			'cockpit.fileViewer.pdfError.renderFailed' => 'Could not prepare the document for the PDF.',
+			'cockpit.fileViewer.pdfError.writeFailed' => 'Could not create the PDF file.',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Choose workspace photo',
 			'cockpit.workspaceSettingsDialog.title' => 'Workspace settings',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Workspace name',
@@ -5502,6 +5541,8 @@ extension on Translations {
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
@@ -5509,8 +5550,6 @@ extension on Translations {
 			'cockpit.kanbanView.noComments' => 'No comments yet',
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => 'Start a board',
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
@@ -6016,6 +6055,8 @@ extension on Translations {
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeTitle' => 'Mode',
 			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
@@ -6023,8 +6064,6 @@ extension on Translations {
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',

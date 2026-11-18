@@ -403,7 +403,16 @@
       "preview": "预览",
       "source": "源代码",
       "reload": "重新加载",
-      "mermaidError": "图表错误"
+      "mermaidError": "图表错误",
+      "exportPdf": "下载 PDF",
+      "exportPdfDialogTitle": "另存为 PDF",
+      "pdfSaved": "已保存 ${name}",
+      "openPdf": "打开",
+      "pdfError": {
+        "notReady": "预览尚未就绪，请稍后再试。",
+        "renderFailed": "无法为 PDF 准备文档。",
+        "writeFailed": "无法创建 PDF 文件。"
+      }
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "选择工作区照片",
