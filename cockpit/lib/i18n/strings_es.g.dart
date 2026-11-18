@@ -883,6 +883,7 @@ class _Translations$cockpit$fileViewer$es extends Translations$cockpit$fileViewe
 	@override String get preview => 'Vista previa';
 	@override String get source => 'Código fuente';
 	@override String get reload => 'Recargar';
+	@override String get mermaidError => 'Error en el diagrama';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -2681,6 +2682,7 @@ extension on TranslationsEs {
 			'cockpit.fileViewer.preview' => 'Vista previa',
 			'cockpit.fileViewer.source' => 'Código fuente',
 			'cockpit.fileViewer.reload' => 'Recargar',
+			'cockpit.fileViewer.mermaidError' => 'Error en el diagrama',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Elegir foto del workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configuración del workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nombre del workspace',
@@ -2833,9 +2835,9 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.couldNotSave' => 'No se pudo guardar el tablero',
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
-			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -3347,9 +3349,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
-			'settings.page.appearance.sectionFonts' => 'Fuentes',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.sectionFonts' => 'Fuentes',
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',

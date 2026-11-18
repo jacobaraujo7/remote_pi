@@ -160,3 +160,46 @@ hr {
 input[type="checkbox"] {
   accent-color: var(--ckp-link, #4da3ff);
 }
+/* Mermaid (plano 72): diagrama centralizado; o SVG nunca passa da largura do
+   pane — diagrama largo (flowchart LR) rola de lado DENTRO do container. */
+.ckp-mermaid {
+  margin: 16px 0;
+  overflow-x: auto;
+  overscroll-behavior: contain; /* mesmo motivo do `pre` */
+  text-align: center;
+}
+.ckp-mermaid > svg {
+  /* O mermaid emite `width="100%"` + `max-width: <largura natural>px` inline:
+     o SVG encolhe junto com o pane. O preview.js põe um `min-width` (fração da
+     largura natural) pra texto não virar formiga: abaixo dele, rola de lado. */
+  height: auto;
+}
+/* Fallback (motor ainda carregando / Linux sem webview não passa por aqui):
+   o código do diagrama, alinhado como qualquer bloco de código. */
+.ckp-mermaid > pre {
+  text-align: left;
+}
+.ckp-mermaid-error {
+  text-align: left;
+  border: 1px solid var(--ckp-border, #333);
+  border-left: 3px solid #e5534b;
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.ckp-mermaid-error-label {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.ckp-mermaid-error-message {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 0 8px;
+  color: var(--ckp-text-muted, #9a9a9a);
+  font-family: var(--ckp-mono, ui-monospace, monospace);
+  font-size: 0.85em;
+  white-space: pre-wrap;
+}
+.ckp-mermaid-error > pre:last-child {
+  margin: 0;
+}
