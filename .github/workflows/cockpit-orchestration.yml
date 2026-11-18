@@ -36,7 +36,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, macos-15-intel]
+        # O Zig 0.16 do Ghostty usa Clang anterior ao mínimo exigido pelo
+        # MSVC do Visual Studio 2026 presente no windows-latest.
+        os: [windows-2022, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
