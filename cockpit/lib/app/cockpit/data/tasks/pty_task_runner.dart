@@ -163,16 +163,26 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
       final grouped =
           <
             String,
-            ({ComposeTask task, Map<String, String> env, List<String> ids})
+            ({
+              ComposeTask task,
+              Map<String, String> env,
+              String command,
+              List<String> ids,
+            })
           >{};
       for (final e in _composeDefinitions.entries) {
         final env = _composeEnv(e.value.def);
         final key =
-            '${e.value.task.engine.name}:${e.value.task.file}:${jsonEncode(env)}';
+            '${e.value.def.command}:${e.value.task.engine.name}:${e.value.task.file}:${jsonEncode(env)}';
         grouped
             .putIfAbsent(
               key,
-              () => (task: e.value.task, env: env, ids: <String>[]),
+              () => (
+                task: e.value.task,
+                env: env,
+                command: e.value.def.command,
+                ids: <String>[],
+              ),
             )
             .ids
             .add(e.key);
@@ -182,6 +192,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
           group.task.engine,
           group.task.file,
           environment: group.env,
+          executable: group.command,
         );
         for (final id in group.ids) {
           final service = _composeDefinitions[id]!.task.service;
@@ -314,7 +325,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final Process process;
     try {
       process = await Process.start(
-        task.engine.command,
+        entry.def.command,
         [
           ...task.engine.prefix,
           '-f',
@@ -514,7 +525,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
       );
       final task = compose.task;
       final result = await Process.run(
-        task.engine.command,
+        compose.def.command,
         [...task.engine.prefix, '-f', task.file, 'stop', task.service],
         workingDirectory: File(task.file).parent.path,
         environment: {
@@ -573,7 +584,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         ),
       );
       final result = await Process.run(
-        task.engine.command,
+        compose.def.command,
         [...task.engine.prefix, '-f', task.file, 'restart', task.service],
         workingDirectory: File(task.file).parent.path,
         environment: {

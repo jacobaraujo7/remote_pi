@@ -31,7 +31,6 @@ esac
           'API_URL': 'https://api.example.com',
           'LOG_LEVEL': 'info',
           'CAPTURE': capture.path,
-          'PATH': '${tmp.path}:${Platform.environment['PATH']}',
         },
         profiles: const [
           TaskProfile(

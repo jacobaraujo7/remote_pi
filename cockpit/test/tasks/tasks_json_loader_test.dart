@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/tasks/tasks_json_loader.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 
 void main() {
   late Directory tmp;
@@ -38,8 +39,8 @@ void main() {
     final tasks = await const TasksJsonLoader().load(tmp.path);
     final app = tasks.firstWhere((t) => t.label == 'app');
     final api = tasks.firstWhere((t) => t.label == 'api');
-    expect(app.cwd, '${tmp.path}/app');
-    expect(api.cwd, '${tmp.path}/backend');
+    expect(app.cwd, joinPath(tmp.path, 'app'));
+    expect(api.cwd, joinPath(tmp.path, 'backend'));
     expect(app.id, 'json:app');
     expect(app.source, TaskSource.manual);
   });
@@ -53,7 +54,10 @@ void main() {
     ''');
     final tasks = await const TasksJsonLoader().load(tmp.path);
     // "run" sem cwd → herda o default top-level "app".
-    expect(tasks.firstWhere((t) => t.label == 'run').cwd, '${tmp.path}/app');
+    expect(
+      tasks.firstWhere((t) => t.label == 'run').cwd,
+      joinPath(tmp.path, 'app'),
+    );
     // "root" com cwd vazio → raiz do workspace.
     expect(tasks.firstWhere((t) => t.label == 'root').cwd, tmp.path);
   });

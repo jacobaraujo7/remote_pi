@@ -123,20 +123,21 @@ class ComposeEngineResolver {
     ComposeEngine engine,
     String file, {
     Map<String, String> environment = const {},
+    String? executable,
   }) async {
     final cwd = File(file).parent.path;
     final base = [...engine.prefix, '-f', file, 'ps', '--services'];
     ProcessResult result;
     try {
       result = await Process.run(
-        engine.command,
+        executable ?? engine.command,
         [...base, '--status', 'running'],
         workingDirectory: cwd,
         environment: environment,
       );
       if (result.exitCode != 0) {
         result = await Process.run(
-          engine.command,
+          executable ?? engine.command,
           base,
           workingDirectory: cwd,
           environment: environment,
