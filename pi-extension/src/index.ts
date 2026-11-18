@@ -116,6 +116,7 @@ import { spawnSync } from "node:child_process";
 import { hostname, tmpdir } from "node:os";
 import {
   kDefaultRelayUrl,
+  loadConfig,
   resolveRelayUrl,
   saveConfig,
   isValidRelayUrl,
@@ -858,6 +859,9 @@ let _pendingMeshMessages: MeshEnvelope[] = [];
 let _agentRunActive = false;
 let _agentRunGeneration = 0;
 let _meshDrainScheduled = false;
+// Only the API that started this run may use its live streaming probe (#216).
+// Clear at agent_end entry: newer SDKs can report non-idle during unwind too.
+let _meshSteeringRun: { pi: ExtensionAPI; ctx: Pick<ExtensionContext, "isIdle" | "signal"> } | null = null;
 
 function _queuedStateMessage(): ServerMessage {
   const first = _queuedItems[0];
@@ -2074,6 +2078,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   applied.add(pi);
 
   _pi = pi;
+  const steerMesh = loadConfig().meshDelivery === "steer";
 
   // Plan/57 — bridge @eko24ive/pi-ask clarification flows to the paired app.
   // Inert when pi-ask isn't installed (no events fire) or the SDK exposes no
@@ -2169,9 +2174,11 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
     });
   });
 
-  pi.on("agent_start", () => {
+  pi.on("agent_start", (_event, ctx) => {
     _agentRunActive = true;
     _agentRunGeneration += 1;
+    _meshSteeringRun = steerMesh && typeof ctx?.isIdle === "function" ? { pi, ctx } : null;
+    if (_meshSteeringRun) _scheduleMeshMessageDrain();
   });
 
   pi.on("message_start", (event) => {
@@ -2249,6 +2256,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   });
 
   pi.on("agent_end", () => {
+    if (_meshSteeringRun?.pi === pi) _meshSteeringRun = null;
     // Buffer is fed by `message_end`; here we only finalize the outbound
     // turn signal to every connected owner. No buffer mutation.
     if (_anyPeerActive() && _currentTurnId) {
@@ -2434,6 +2442,7 @@ const extension: ExtensionFactory = (pi: ExtensionAPI): void => {
   // best-effort: every step is guarded so a partially-initialised instance
   // (e.g. shutdown lands mid-`_cmdRoot`) tears down without throwing.
   pi.on("session_shutdown", async () => {
+    if (_meshSteeringRun?.pi === pi) _meshSteeringRun = null;
     // Revoke async authority synchronously, before any teardown await. `_disposed`
     // blocks the outgoing continuation immediately; the root and candidate
     // generations keep queued work stale even if a same-module session_start
@@ -4096,8 +4105,9 @@ function _wakeAgent(
  * Wake: we inject a CUSTOM message (role:"custom"), not a user message. The
  * SDK's `convertToLlm` maps custom → a user-role LLM message, so the agent
  * still sees + replies to it, but `message_end` does NOT buffer role:"custom",
- * so it never replays as `user_input` on session_sync. Mesh messages are held
- * until the current `agent_end` listeners finish, then appended as one batch
+ * so it never replays as `user_input` on session_sync. With meshDelivery=steer,
+ * streaming runs receive the FIFO as steering custom messages. Otherwise messages
+ * are held until the current `agent_end` listeners finish, then appended as one batch
  * before a single turn starts. This avoids calling `prompt()` during the gap
  * where Pi has stopped streaming but the current agent run is still active.
  * `id` lets the LLM echo it via
@@ -4116,13 +4126,31 @@ function _meshMessageForAgent(env: MeshEnvelope) {
   };
 }
 
+function _canSteerMeshMessages(pi: ExtensionAPI | null): boolean {
+  const run = _meshSteeringRun;
+  if (!_agentRunActive || !run || run.pi !== pi) return false;
+  try {
+    // On SDK 0.79.x isIdle() is !isStreaming. The run-scoped probe is
+    // disabled at agent_end as an additional guard for newer SDKs (#62).
+    // An aborting run may still report streaming but will not consume steer.
+    return !run.ctx.signal?.aborted && run.ctx.isIdle() === false;
+  } catch {
+    // SDK hosts may invalidate a context without emitting agent_end.
+    // Leave the FIFO intact, and never throw from the drain microtask.
+    _meshSteeringRun = null;
+    console.error("[remote-pi] mesh steering context unavailable; retaining queued messages");
+    return false;
+  }
+}
+
 function _scheduleMeshMessageDrain(): void {
   if (_meshDrainScheduled || _pendingMeshMessages.length === 0) return;
   _meshDrainScheduled = true;
   queueMicrotask(() => {
     _meshDrainScheduled = false;
     const pi = _pi;
-    if (_agentRunActive || !pi || _pendingMeshMessages.length === 0) return;
+    const steer = _canSteerMeshMessages(pi);
+    if ((_agentRunActive && !steer) || !pi || _pendingMeshMessages.length === 0) return;
 
     const batch = _pendingMeshMessages.splice(0);
     let delivered = 0;
@@ -4132,14 +4160,16 @@ function _scheduleMeshMessageDrain(): void {
         const isLast = index === batch.length - 1;
         pi.sendMessage(
           _meshMessageForAgent(env),
-          isLast
-            ? { triggerTurn: true, deliverAs: "followUp" }
-            : { triggerTurn: false },
+          steer
+            ? { deliverAs: "steer" }
+            : isLast
+              ? { triggerTurn: true, deliverAs: "followUp" }
+              : { triggerTurn: false },
         );
         delivered += 1;
       });
     } catch (err) {
-      _agentRunActive = false;
+      if (!steer) _agentRunActive = false;
       _pendingMeshMessages = [...batch.slice(delivered), ..._pendingMeshMessages];
       const detail = err instanceof Error ? err.message : String(err);
       console.error(`[remote-pi] queued mesh delivery failed: ${detail}`);

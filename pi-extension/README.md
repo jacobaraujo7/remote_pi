@@ -595,10 +595,36 @@ with a `[<cwd>]` prefix, so a single log stream shows every agent.
 | Path | Scope | What's in it |
 |---|---|---|
 | `<cwd>/.pi/remote-pi/config.json` | Per-directory | `agent_name`, `session_name`, `auto_start_relay` |
-| `~/.pi/remote/config.json` | Per-user | `relay` URL |
+| `~/.pi/remote/config.json` | Per-user | `relay` URL, optional `meshDelivery` |
 | `~/.pi/remote/peers.json` | Per-machine | Paired mobile devices |
 | `~/.pi/remote/sessions/<name>/` | Per-session | Broker socket + `audit.jsonl` |
 | `~/.pi/remote/skills/agent-network/SKILL.md` | Per-user | Agent skill the LLM reads |
+
+### Mesh delivery timing
+
+Mesh messages default to `"between-runs"`: they wait until the current run's
+`agent_end` listeners finish, then drain in FIFO order with one new turn per
+batch. Existing installations keep this behavior.
+
+To receive mesh messages during a streaming run, add the following field to
+`~/.pi/remote/config.json`, preserving any existing fields, then restart Pi:
+
+```json
+{ "meshDelivery": "steer" }
+```
+
+`"steer"` sends visible `remote-pi:mesh-message` custom messages through Pi's
+steering queue at the next tool/turn boundary, not in the middle of a tool call.
+This intentionally lets peer messages affect ongoing work and may cause another
+model call. It does not steer hidden status events. Idle and non-streaming
+unwind windows still use the deferred FIFO batch with one triggered turn. If a
+streaming continuation starts first, older queued messages are steered before
+new arrivals. Reply correlation and app tool-timeline events are unchanged.
+
+The setting is read when the extension loads. Set `"meshDelivery"` to
+`"between-runs"`, or remove it, to restore the default. Unrecognized values
+also use the default. This option does not fix the separate multi-session
+binding issue [#216](https://github.com/jacobaraujo7/remote_pi/issues/216).
 
 Override the relay for a single run without persisting:
 

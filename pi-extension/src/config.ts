@@ -14,7 +14,11 @@ const CONFIG_FILE = path.join(CONFIG_DIR, "config.json");
  */
 export const kDefaultRelayUrl = "https://relay-rp1.jacobmoura.work";
 
-export type RemotePiConfig = { relay?: string };
+export type RemotePiConfig = {
+  relay?: string;
+  /** Opt in to mid-run mesh steering. Missing/invalid values use between-runs. */
+  meshDelivery?: "between-runs" | "steer";
+};
 
 export function loadConfig(): RemotePiConfig {
   try {
