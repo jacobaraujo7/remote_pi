@@ -68,12 +68,12 @@ Escopo: macOS (alvo principal) e Windows se a API existir no plugin. Linux
 - [x] Diálogo de salvar + feedback de sucesso/erro traduzido
 - [x] i18n nos 4 locales
 - [ ] `flutter analyze` + `flutter test` (analyze ok; test: 2322 ok, 11 falhas fora do código tocado — 9 por dylib quickjs não carregar no runner local)
-- [ ] E2E manual no macOS
+- [x] E2E manual no macOS
 
 > Implementado 2026-11-18: macOS via `printCurrentPage` + `NSPrintOperation`
 > (A4, save sem painel), paleta clara forçada no print, Mermaid redesenhado
 > numa cópia só de impressão; escrita via tmp + rename atômico. Windows sem
-> botão (fork do plugin não expõe PDF). E2E no app pendente.
+> botão (fork do plugin não expõe PDF). E2E no app ok (2026-11-18).
 
 ## Próximos planos
 
