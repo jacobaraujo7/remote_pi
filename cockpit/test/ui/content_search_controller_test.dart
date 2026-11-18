@@ -146,13 +146,28 @@ void main() {
   );
 
   testWidgets(
-    'file changes invalidate hidden results and refresh only on return',
+    'hidden Search cancels observation and validates once on return',
     (tester) async {
       final changes = StreamController<void>.broadcast();
+      var revision = 0;
+      var observed = 0;
+      var validations = 0;
+      final resumableChanges = Stream<void>.multi((listener) {
+        validations++;
+        if (observed != revision) {
+          observed = revision;
+          listener.add(null);
+        }
+        final subscription = changes.stream.listen((_) {
+          observed = revision;
+          listener.add(null);
+        });
+        listener.onCancel = subscription.cancel;
+      });
       var calls = 0;
       final state = ContentSearchController(
         root: '/workspace',
-        changes: changes.stream,
+        changes: resumableChanges,
         search:
             (term, {caseSensitive = false, wholeWord = false, regex = false}) {
               calls++;
@@ -166,13 +181,32 @@ void main() {
       await tester.pump(const Duration(milliseconds: 201));
       await tester.pump();
       expect(state.results.single.relativePath, 'deleted.dart');
+      expect(changes.hasListener, isTrue);
+      // Multiple mounts share one observation; only the final detach stops it.
+      state.attach();
       state.detach();
-      changes.add(null);
+      expect(changes.hasListener, isTrue);
+      state.detach();
       await tester.pump();
-      expect(state.results, isEmpty);
-      await tester.pump(const Duration(seconds: 1));
+      expect(changes.hasListener, isFalse);
+      for (var i = 0; i < 3; i++) {
+        state.attach();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(calls, 1, reason: 'unchanged signature must reuse the results');
+        state.detach();
+        await tester.pump();
+      }
+      final checked = validations;
+      revision++;
+      changes.add(null);
+      await tester.pump(const Duration(minutes: 5));
+      expect(state.results.single.relativePath, 'deleted.dart');
+      expect(validations, checked, reason: 'no work while hidden');
       expect(calls, 1);
       state.attach();
+      await tester.pump();
+      expect(state.results, isEmpty);
+      expect(validations, checked + 1);
       await tester.pump(const Duration(milliseconds: 201));
       await tester.pump();
       expect(calls, 2);
@@ -189,6 +223,32 @@ void main() {
       unawaited(changes.close());
     },
   );
+
+  testWidgets('hiding during debounce defers the draft until Search returns', (
+    tester,
+  ) async {
+    var calls = 0;
+    final state = ContentSearchController(
+      root: '/workspace',
+      search:
+          (term, {caseSensitive = false, wholeWord = false, regex = false}) {
+            calls++;
+            return Stream.value(result('file.dart'));
+          },
+    );
+    state.attach();
+    state.query.text = 'draft';
+    state.detach();
+    await tester.pump(const Duration(minutes: 1));
+    expect(calls, 0);
+    expect(state.query.text, 'draft');
+    state.attach();
+    await tester.pump(const Duration(milliseconds: 201));
+    await tester.pump();
+    expect(calls, 1);
+    state.detach();
+    state.dispose();
+  });
 
   testWidgets(
     'invalid regex state survives navigation and new sessions are empty',
@@ -244,6 +304,7 @@ void main() {
               return scan.stream;
             },
       );
+      state.attach();
       state.query.text = 'needle';
       await tester.pump(const Duration(milliseconds: 201));
       state.query.text = 'pending';

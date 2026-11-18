@@ -44,6 +44,7 @@ class ContentSearchController extends ChangeNotifier {
   StreamSubscription<FileMatches>? _subscription;
   StreamSubscription<void>? _watch;
   int _generation = 0;
+  int _watchGeneration = 0;
   int _views = 0;
   bool _disposed = false;
   bool _dirty = false;
@@ -51,10 +52,34 @@ class ContentSearchController extends ChangeNotifier {
 
   void attach() {
     _views++;
+    _startWatch();
     if (_dirty) _schedule();
   }
 
-  void detach() => _views--;
+  void detach() {
+    if (--_views == 0) {
+      _stopWatch();
+      _debounce?.cancel();
+    }
+  }
+
+  void _startWatch() {
+    if (_views == 0 || _watch != null || _term.trim().isEmpty) return;
+    final generation = ++_watchGeneration;
+    // watchTree is re-listenable: its first snapshot compares with the last
+    // active signature, without keeping a watcher or poll alive while hidden.
+    _watch = changes?.listen((_) {
+      if (!_disposed && _views > 0 && generation == _watchGeneration) {
+        _filesChanged();
+      }
+    });
+  }
+
+  void _stopWatch() {
+    _watchGeneration++;
+    unawaited(_watch?.cancel());
+    _watch = null;
+  }
 
   void _onQueryChanged() {
     if (_term == query.text) return; // caret/selection changes aren't searches
@@ -62,6 +87,11 @@ class ContentSearchController extends ChangeNotifier {
     _collapsed.clear();
     scrollOffset = 0;
     scrollRevision++;
+    if (_term.trim().isEmpty) {
+      _stopWatch();
+    } else {
+      _startWatch();
+    }
     _invalidate();
     _schedule();
   }
@@ -117,15 +147,14 @@ class ContentSearchController extends ChangeNotifier {
     _dirty = false;
     searching = _term.trim().isNotEmpty;
     if (!searching) {
-      unawaited(_watch?.cancel());
-      _watch = null;
+      _stopWatch();
       _collapsed.clear();
       scrollOffset = 0;
       notifyListeners();
       return;
     }
     // Start before the scan so modifications during a scan invalidate it too.
-    _watch ??= changes?.listen((_) => _filesChanged());
+    _startWatch();
     notifyListeners();
     try {
       _subscription =
@@ -165,7 +194,7 @@ class ContentSearchController extends ChangeNotifier {
     _generation++;
     _debounce?.cancel();
     unawaited(_subscription?.cancel());
-    unawaited(_watch?.cancel());
+    _stopWatch();
     query.dispose();
     super.dispose();
   }

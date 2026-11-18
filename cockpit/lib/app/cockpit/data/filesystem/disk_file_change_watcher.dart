@@ -33,6 +33,10 @@ class DiskFileChangeWatcher
     this.debounce = const Duration(milliseconds: 120),
     this.pollInterval = const Duration(seconds: 2),
     this.treePollInterval = const Duration(seconds: 10),
+    this.treeSafetyPollInterval = const Duration(seconds: 60),
+    this.recursiveWatchSupported,
+    this.directoryWatch,
+    this.treeSnapshot,
     this.retryMin = const Duration(seconds: 1),
     this.retryMax = const Duration(seconds: 30),
   });
@@ -40,7 +44,18 @@ class DiskFileChangeWatcher
   /// Junta a rajada de eventos de um save num aviso só.
   final Duration debounce;
   final Duration pollInterval;
+
+  /// Fallback for platforms/filesystems without a healthy recursive watch.
   final Duration treePollInterval;
+
+  /// Safety net for missed events while the recursive native watch is healthy.
+  final Duration treeSafetyPollInterval;
+  final bool? recursiveWatchSupported;
+
+  /// Filesystem adapters, injectable for deterministic watcher lifecycle tests.
+  final Stream<FileSystemEvent> Function(String path, bool recursive)?
+  directoryWatch;
+  final FutureOr<String> Function(String path)? treeSnapshot;
   final Duration retryMin;
   final Duration retryMax;
 
@@ -64,27 +79,48 @@ class DiskFileChangeWatcher
   ).stream;
 
   @override
-  Stream<void> watchTree(String path) => _DiskWatch(
-    dir: path,
-    recursive: true,
-    matches: (eventPath) {
-      final relative = p.relative(eventPath, from: path);
-      final parts = p.split(relative);
-      return parts
-              .take(parts.length - 1)
-              .every(contentSearchIncludesDirectory) &&
-          parts.last != '.DS_Store';
-    },
-    // Metadata only, outside the UI isolate. The poll covers inactive contexts,
-    // dropped OS events, and platforms without recursive native watches.
-    signature: () => Isolate.run(() => _treeSignature(path)),
-    config: DiskFileChangeWatcher(
-      debounce: debounce,
-      pollInterval: treePollInterval,
-      retryMin: retryMin,
-      retryMax: retryMax,
-    ),
-  ).stream;
+  Stream<void> watchTree(String path) {
+    String? lastSignature;
+    var subscribedBefore = false;
+    return Stream<void>.multi((listener) {
+      // A cancelled initial snapshot leaves no trustworthy baseline. On a
+      // subsequent attach, invalidate conservatively instead of trusting it.
+      final previous = lastSignature ?? (subscribedBefore ? '' : null);
+      subscribedBefore = true;
+      final watch = _DiskWatch(
+        dir: path,
+        recursive: true,
+        initialSignature: previous,
+        onSignature: (signature) => lastSignature = signature,
+        safetyPollInterval: treeSafetyPollInterval,
+        matches: (eventPath) {
+          final relative = p.relative(eventPath, from: path);
+          final parts = p.split(relative);
+          return parts
+                  .take(parts.length - 1)
+                  .every(contentSearchIncludesDirectory) &&
+              parts.last != '.DS_Store';
+        },
+        // One baseline per attach; no polling or isolate while unsubscribed.
+        signature: () => treeSnapshot?.call(path) ?? _snapshotTree(path),
+        config: DiskFileChangeWatcher(
+          debounce: debounce,
+          pollInterval: treePollInterval,
+          retryMin: retryMin,
+          retryMax: retryMax,
+          recursiveWatchSupported: recursiveWatchSupported,
+          directoryWatch: directoryWatch,
+        ),
+      );
+      final subscription = watch.stream.listen(listener.add);
+      listener.onCancel = subscription.cancel;
+    });
+  }
+
+  // Keep the isolate closure outside the listener scope so it captures only
+  // the path, never a native subscription/controller or filesystem adapter.
+  static Future<String> _snapshotTree(String path) =>
+      Isolate.run(() => _treeSignature(path));
 
   static String _treeSignature(String path) {
     final parts = <String>[];
@@ -154,6 +190,9 @@ class _DiskWatch {
     required this.signature,
     required this.config,
     this.recursive = false,
+    this.initialSignature,
+    this.onSignature,
+    this.safetyPollInterval,
   }) : _backoff = config.retryMin {
     _controller = StreamController<void>(onListen: _start, onCancel: _stop);
   }
@@ -162,6 +201,9 @@ class _DiskWatch {
   final bool Function(String path) matches;
   final FutureOr<String> Function() signature;
   final bool recursive;
+  final String? initialSignature;
+  final void Function(String)? onSignature;
+  final Duration? safetyPollInterval;
   final DiskFileChangeWatcher config;
 
   late final StreamController<void> _controller;
@@ -177,40 +219,66 @@ class _DiskWatch {
   bool _checking = false;
 
   Future<void> _start() async {
-    _sig = await signature();
+    final sig = await signature();
     if (_closed) return;
+    _sig = sig;
+    onSignature?.call(sig);
     _arm();
-    _poll = Timer.periodic(config.pollInterval, (_) => _check());
+    if (initialSignature != null && sig != initialSignature) {
+      _controller.add(null);
+    }
   }
 
-  void _arm() {
-    if (_closed) return;
+  bool _arm() {
+    if (_closed) return false;
     try {
-      _sub = Directory(dir)
-          .watch(recursive: recursive)
-          .listen(
-            _onEvent,
-            onError: (Object _) => _rearmLater(),
-            onDone: _rearmLater,
-            cancelOnError: true,
-          );
+      final supportsRecursive =
+          config.recursiveWatchSupported ??
+          (Platform.isMacOS || Platform.isWindows);
+      final events =
+          config.directoryWatch?.call(dir, recursive) ??
+          Directory(dir).watch(recursive: recursive && supportsRecursive);
+      _sub = events.listen(
+        _onEvent,
+        onError: (Object _) => _rearmLater(),
+        onDone: _rearmLater,
+        cancelOnError: true,
+      );
+      _setPollInterval(
+        recursive && supportsRecursive
+            ? safetyPollInterval ?? config.pollInterval
+            : config.pollInterval,
+      );
+      return true;
     } on FileSystemException {
       _rearmLater();
+    } on UnsupportedError {
+      _rearmLater();
     }
+    return false;
+  }
+
+  Duration? _activePollInterval;
+
+  void _setPollInterval(Duration interval) {
+    if (_activePollInterval == interval && _poll != null) return;
+    _activePollInterval = interval;
+    _poll?.cancel();
+    _poll = Timer.periodic(interval, (_) => _check());
   }
 
   /// O stream do SO morreu: tenta de novo com backoff exponencial e, ao
   /// voltar, confere se algo mudou enquanto estava cego.
   void _rearmLater() {
     if (_closed) return;
+    _setPollInterval(config.pollInterval);
     unawaited(_sub?.cancel());
     _sub = null;
     _retry?.cancel();
     _retry = Timer(_backoff, () {
       final next = _backoff * 2;
       _backoff = next > config.retryMax ? config.retryMax : next;
-      _arm();
-      _check();
+      if (_arm()) _check();
     });
   }
 
@@ -239,6 +307,7 @@ class _DiskWatch {
       final sig = await signature();
       if (_closed || sig == _sig) return;
       _sig = sig;
+      onSignature?.call(sig);
       _controller.add(null);
     } finally {
       _checking = false;
