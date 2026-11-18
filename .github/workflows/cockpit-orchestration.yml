@@ -57,6 +57,19 @@ jobs:
           fi
       - name: Resolve versioned dependencies
         run: flutter pub get
+      - name: Analyze HTTP response scrolling
+        run: >-
+          flutter analyze --no-pub --no-fatal-infos
+          lib/app/cockpit/ui/widgets/code_editor.dart
+          lib/app/cockpit/ui/widgets/http_response_code_view.dart
+          test/ui/http_response_code_view_test.dart
+      - name: HTTP response scrolling regressions
+        run: >-
+          flutter test --no-pub
+          test/ui/http_response_code_view_test.dart
+          test/ui/http_fold_scroll_test.dart
+          test/ui/code_editor_selection_scroll_test.dart
+          test/ui/code_editor_reveal_test.dart
       - name: Analyze shell lifecycle diagnostics
         run: >-
           flutter analyze --no-pub

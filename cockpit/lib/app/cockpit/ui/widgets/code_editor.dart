@@ -28,7 +28,7 @@ import 'package:flutter/material.dart'
         SystemMouseCursors,
         TextField,
         TextInputType;
-import 'package:flutter/rendering.dart' show RenderEditable;
+import 'package:flutter/rendering.dart' show RenderEditable, ScrollDirection;
 import 'package:flutter/services.dart'
     show
         Clipboard,
@@ -1892,12 +1892,25 @@ class _CodeEditorState extends State<CodeEditor> {
     );
     // Sem quebra não há scroll horizontal — nem a barra dele.
     if (wrap) return column;
-    return Scrollbar(
-      controller: _horizontal,
-      thumbVisibility: true,
-      scrollbarOrientation: ScrollbarOrientation.bottom,
-      notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
-      child: column,
+    return NotificationListener<UserScrollNotification>(
+      onNotification: (notification) {
+        // A seleção da resposta não deve desfazer a navegação manual pela
+        // barra ou pelo trackpad. O pin só protege contra o showOnScreen
+        // automático do campo, que não emite UserScrollNotification.
+        if (widget.readOnly &&
+            notification.metrics.axis == Axis.horizontal &&
+            notification.direction != ScrollDirection.idle) {
+          _pinned = false;
+        }
+        return false;
+      },
+      child: Scrollbar(
+        controller: _horizontal,
+        thumbVisibility: true,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+        child: column,
+      ),
     );
   }
 }
