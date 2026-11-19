@@ -36,7 +36,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, macos-15-intel]
+        # Zig 0.16 (libghostty) cannot compile against the VS 2026 STL
+        # shipped by windows-latest, which now requires Clang 22+.
+        os: [windows-2022, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
