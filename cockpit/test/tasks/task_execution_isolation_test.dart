@@ -20,6 +20,7 @@ import 'package:cockpit/app/cockpit/domain/entities/task_run.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/dev_tool.dart';
 import 'package:cockpit/app/cockpit/ui/viewmodels/tasks_viewmodel.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 import 'tasks_workspace_import_test.dart' show IdleTaskRunner, NoDevices;
 import '../session/task_terminal_store_run_ordering_test.dart'
@@ -314,7 +315,7 @@ void main() {
         await File(
           file,
         ).writeAsString('services:\n  api:\n    image: example\n');
-        resolver.active.add(file);
+        resolver.active.add(p.normalize(file));
         final def = TaskDefinition(
           id: 'compose:api',
           label: 'api',
@@ -331,7 +332,7 @@ void main() {
       for (final def in defs) {
         expect(runner.runOf(def.id).status, TaskRunStatus.running);
       }
-      resolver.active.remove('${roots.first}/compose.yaml');
+      resolver.active.remove(p.normalize('${roots.first}/compose.yaml'));
       await runner.reconcileDefinitions([], projectRoot: roots.last);
       expect(runner.runOf(defs.first.id).status, TaskRunStatus.stopped);
       for (final def in defs.skip(1)) {
