@@ -13,6 +13,7 @@ import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { _restartSupervisorCommand } from "./commands.js";
 
 const _convertToPngMock = vi.hoisted(() => vi.fn(async () => null));
 
@@ -206,7 +207,7 @@ vi.mock("./mesh/self_revoke.js", async (importOriginal) => {
 });
 
 // Import AFTER mocks
-const indexModule = await import("./index.js");
+const indexModule = await import("./extension.js");
 const {
   default: extension,
   _getState,
@@ -227,7 +228,6 @@ const {
   _hasActivePeerForTest,
   _getActivePeerCountForTest,
   _checkSelfRevokeForTest,
-  _restartSupervisorCommand,
   _setDisposedForTest,
   _resetAutoInitedForTest,
   _setAutoInitedForTest,

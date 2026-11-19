@@ -9,7 +9,7 @@ import { ipcAddress } from "./ipc.js";
 import { SessionPeer } from "./peer.js";
 import { envelope, type Envelope } from "./envelope.js";
 import { BrokerRemote } from "./broker_remote.js";
-import { probeListPeers } from "../index.js";
+import { probeListPeers } from "../commands.js";
 import { composeAddress, sanitizeMeshName, type PeerInfo, type RemoteRouter } from "./broker.js";
 import { migrateAgentName } from "./local_config.js";
 
