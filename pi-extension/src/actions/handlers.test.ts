@@ -279,11 +279,11 @@ describe("handleModelSet", () => {
 // ── list_models ────────────────────────────────────────────────────────────
 
 describe("handleListModels", () => {
-  test("returns wire-shaped catalog with current echo when ctx.getModel is set", () => {
+  test("returns wire-shaped catalog with current echo when ctx.getModel is set", async () => {
     const reg = fakeRegistry([sampleModel]);
     const ctx: ActionCtx = { getModel: () => sampleModel };
     const sender = makeSender();
-    handleListModels(ctx, reg, sender, { type: "list_models", id: "r5" });
+    await handleListModels(ctx, reg, sender, { type: "list_models", id: "r5" });
     const reply = sender.sent[0];
     expect(reply.type).toBe("models_list");
     if (reply.type !== "models_list") throw new Error("type guard");
@@ -301,17 +301,17 @@ describe("handleListModels", () => {
     expect(reply.current).toEqual(reply.models[0]);
   });
 
-  test("omits `current` when ctx.getModel is undefined", () => {
+  test("omits `current` when ctx.getModel is undefined", async () => {
     const reg = fakeRegistry([sampleModel]);
     const sender = makeSender();
-    handleListModels(null, reg, sender, { type: "list_models", id: "r5" });
+    await handleListModels(null, reg, sender, { type: "list_models", id: "r5" });
     const reply = sender.sent[0];
     expect(reply.type).toBe("models_list");
     if (reply.type !== "models_list") throw new Error("type guard");
     expect(reply.current).toBeUndefined();
   });
 
-  test("prefers ctx.modelRegistry over the fallback registry", () => {
+  test("prefers ctx.modelRegistry over the fallback registry", async () => {
     const fallback = fakeRegistry([sampleModel]);
     const liveModel: SdkModelLike = {
       id: "gpt-oss-20b",
@@ -323,7 +323,7 @@ describe("handleListModels", () => {
     const live = fakeRegistry([liveModel]);
     const ctx: ActionCtx = { modelRegistry: live };
     const sender = makeSender();
-    handleListModels(ctx, fallback, sender, { type: "list_models", id: "r5" });
+    await handleListModels(ctx, fallback, sender, { type: "list_models", id: "r5" });
     const reply = sender.sent[0];
     expect(reply.type).toBe("models_list");
     if (reply.type !== "models_list") throw new Error("type guard");
@@ -339,20 +339,95 @@ describe("handleListModels", () => {
     ]);
   });
 
-  test("registry refresh failure surfaces as error envelope", () => {
+  test("registry refresh failure surfaces as error envelope", async () => {
     const reg: ActionModelRegistry = {
       refresh: () => { throw new Error("models.json malformed"); },
       getAvailable: () => [],
       find: () => undefined,
     };
     const sender = makeSender();
-    handleListModels(null, reg, sender, { type: "list_models", id: "r5" });
+    await handleListModels(null, reg, sender, { type: "list_models", id: "r5" });
     expect(sender.sent[0]).toMatchObject({
       type: "error",
       in_reply_to: "r5",
       code: "internal_error",
       message: expect.stringContaining("models.json malformed"),
     });
+  });
+});
+
+describe("asynchronous registry refresh", () => {
+  function delayedRegistry(): ActionModelRegistry {
+    let ready = false;
+    return {
+      refresh: async () => {
+        await Promise.resolve();
+        ready = true;
+        // Modern Pi returns a result object, not just Promise<void>.
+        return { aborted: false, errors: new Map() };
+      },
+      getAvailable: () => ready ? [sampleModel] : [],
+      find: () => ready ? sampleModel : undefined,
+    };
+  }
+
+  test("list_models awaits asynchronous live refresh before reading the catalog", async () => {
+    const sender = makeSender();
+    const live = delayedRegistry();
+    await handleListModels({ modelRegistry: live }, fakeRegistry([]), sender,
+      { type: "list_models", id: "async-list" });
+    expect(sender.sent).toHaveLength(1);
+    expect(sender.sent[0]).toMatchObject({
+      type: "models_list", in_reply_to: "async-list",
+      models: [wireFromModel(sampleModel)],
+    });
+  });
+
+  test("model_set awaits asynchronous live refresh before finding the model", async () => {
+    const sender = makeSender();
+    const models: SdkModelLike[] = [];
+    const persisted: string[] = [];
+    await handleModelSet(fakePi({ setModel: async model => { models.push(model); return true; } }),
+      { modelRegistry: delayedRegistry() }, fakeRegistry([]), sender,
+      { type: "model_set", id: "async-set", provider: sampleModel.provider, model_id: sampleModel.id },
+      (_provider, id) => persisted.push(id));
+    expect(models).toEqual([sampleModel]);
+    expect(persisted).toEqual([sampleModel.id]);
+    expect(sender.sent).toEqual([
+      { type: "action_ok", in_reply_to: "async-set", action: "model_set" },
+    ]);
+  });
+
+  function rejectingRegistry(): ActionModelRegistry {
+    return {
+      refresh: async () => { throw new Error("async refresh failed"); },
+      getAvailable: () => { throw new Error("catalog must not be read"); },
+      find: () => { throw new Error("catalog must not be searched"); },
+    };
+  }
+
+  test("list_models catches refresh rejection in the existing error envelope", async () => {
+    const sender = makeSender();
+    await handleListModels(null, rejectingRegistry(), sender,
+      { type: "list_models", id: "failed-list" });
+    expect(sender.sent).toEqual([{
+      type: "error", in_reply_to: "failed-list", code: "internal_error",
+      message: "async refresh failed",
+    }]);
+  });
+
+  test("model_set catches refresh rejection without setting or persisting", async () => {
+    const sender = makeSender();
+    let effects = 0;
+    await handleModelSet(fakePi({ setModel: async () => { effects++; return true; } }),
+      null, rejectingRegistry(), sender,
+      { type: "model_set", id: "failed-set", provider: sampleModel.provider, model_id: sampleModel.id },
+      () => { effects++; });
+    expect(effects).toBe(0);
+    expect(sender.sent).toEqual([{
+      type: "action_error", in_reply_to: "failed-set", action: "model_set",
+      error: "async refresh failed",
+    }]);
   });
 });
 
