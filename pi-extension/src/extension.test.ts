@@ -4477,6 +4477,8 @@ describe("remote-pi:name-assigned event", () => {
     expect(ev).toBeDefined();
     expect(ev!.display).toBe(false);
     expect(ev!.details).toMatchObject({ changed: false });
+    const call = sendMessage.mock.calls.find((c) => c[0]?.customType === "remote-pi:name-assigned");
+    expect(call?.[1]).toEqual({ triggerTurn: false });
     expect(typeof ev!.details!["requested"]).toBe("string");
     // No collision in this isolated broker → assigned === requested.
     expect(ev!.details!["assigned"]).toBe(ev!.details!["requested"]);
@@ -4562,6 +4564,10 @@ describe("relay control channel + relay-state event", () => {
     expect(ev).toBeDefined();
     expect(ev!.display).toBe(false);
     expect(ev!.details).toMatchObject({ status: "disconnected", connected: false });
+    // Pure-data events are stripped from LLM context, so they must never start
+    // or extend a turn (a mid-stream steer would leave a trailing assistant message).
+    const call = sendMessage.mock.calls.find((c) => c[0]?.customType === "remote-pi:relay-state");
+    expect(call?.[1]).toEqual({ triggerTurn: false });
   });
 
   test("relay:on → relay up + 'connected'; relay:off → relay down + 'disconnected'", async () => {
