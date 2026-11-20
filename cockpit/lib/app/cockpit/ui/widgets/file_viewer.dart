@@ -26,6 +26,10 @@ import 'package:cockpit/app/core/ui/widgets/code_highlight.dart';
 import 'package:cockpit/app/core/ui/widgets/selectable_scroll.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/media_view.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/web_markdown_preview.dart';
+import 'package:cockpit/app/cockpit/ui/pdf_export_error_message.dart';
+import 'package:cockpit/app/core/domain/result.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart' as launcher;
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
@@ -85,6 +89,12 @@ class FileViewer extends StatefulWidget {
 class _FileViewerState extends State<FileViewer> {
   /// Modo de edição ligado (texto) / fonte exibida (markdown). Desligado = ver.
   bool _editing = false;
+
+  /// Ponte com o preview webview de markdown (exportar PDF, plano 73).
+  final _markdownPreview = WebMarkdownPreviewController();
+
+  /// Exportação PDF em curso (desabilita o botão até terminar).
+  bool _exportingPdf = false;
   bool _dirty = false;
   bool _saving = false;
   String _baseline = '';
@@ -952,6 +962,82 @@ class _FileViewerState extends State<FileViewer> {
     _recomputeFind(reveal: true);
   }
 
+  /// "Baixar PDF" do preview de markdown (plano 73): diálogo nativo de salvar
+  /// (sugere `<arquivo>.pdf` na pasta do `.md`) → PDF da página renderizada →
+  /// toast com "Abrir" (sucesso) ou com o erro traduzido. Cancelar não faz nada.
+  Future<void> _exportPdf() async {
+    final tr = context.t.cockpit.fileViewer;
+    final source = File(widget.session.path);
+    final name = source.uri.pathSegments.last;
+    final dot = name.lastIndexOf('.');
+    final base = dot > 0 ? name.substring(0, dot) : name;
+    final picked = await FilePicker.platform.saveFile(
+      dialogTitle: tr.exportPdfDialogTitle,
+      fileName: '$base.pdf',
+      initialDirectory: source.parent.path,
+      type: FileType.custom,
+      allowedExtensions: const ['pdf'],
+    );
+    if (picked == null || !mounted) return;
+    final path = picked.toLowerCase().endsWith('.pdf') ? picked : '$picked.pdf';
+    setState(() => _exportingPdf = true);
+    final result = await _markdownPreview.exportPdf(path);
+    if (!mounted) return;
+    setState(() => _exportingPdf = false);
+    switch (result) {
+      case Success():
+        _pdfToast(
+          tr.pdfSaved(name: File(path).uri.pathSegments.last),
+          openPath: path,
+        );
+      case Failure(:final error):
+        _pdfToast(pdfExportErrorMessage(context, error), isError: true);
+    }
+  }
+
+  void _pdfToast(String message, {String? openPath, bool isError = false}) {
+    final colors = context.colors;
+    final openLabel = context.t.cockpit.fileViewer.openPdf;
+    showToast(
+      context: context,
+      location: ToastLocation.bottomRight,
+      builder: (context, overlay) => SurfaceCard(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isError ? Icons.error_outline : Icons.check_circle_outline,
+                size: 18,
+                color: isError ? colors.error : colors.ok,
+              ),
+              const SizedBox(width: 10),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Text(
+                  message,
+                  style: context.typo.label.copyWith(color: colors.text),
+                ),
+              ),
+              if (openPath != null) ...[
+                const SizedBox(width: 12),
+                OutlineButton(
+                  size: ButtonSize.small,
+                  onPressed: () {
+                    overlay.close();
+                    unawaited(launcher.launchUrl(Uri.file(openPath)));
+                  },
+                  child: Text(openLabel),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Raiz do workspace — limite de leitura do preview via webview.
   String get _workspaceRoot =>
       documentHostOf(context).projectRootOf(widget.session.projectId) ?? '';
@@ -992,6 +1078,7 @@ class _FileViewerState extends State<FileViewer> {
                   // escorrega ao rolar com Interface size != 14.
                   : _webPreview
                   ? WebMarkdownPreview(
+                      controller: _markdownPreview,
                       text: text,
                       docDir: File(widget.session.path).parent.path,
                       workspaceRoot: _workspaceRoot,
@@ -1067,6 +1154,16 @@ class _FileViewerState extends State<FileViewer> {
             onReload: _isHtml && _webPreview && !editingNow
                 ? () => setState(() => _htmlReload++)
                 : null,
+            // Só o preview webview de markdown, na plataforma que imprime.
+            onExportPdf:
+                widget.session.view is FileViewMarkdown &&
+                    !widget.session.loading &&
+                    _webPreview &&
+                    WebMarkdownPreviewController.supportsPdf &&
+                    !editingNow
+                ? _exportPdf
+                : null,
+            exportingPdf: _exportingPdf,
           ),
         ],
       ),
@@ -1192,6 +1289,8 @@ class _Toolbar extends StatelessWidget {
     required this.saving,
     required this.onToggle,
     this.onReload,
+    this.onExportPdf,
+    this.exportingPdf = false,
   });
 
   /// Conteúdo à esquerda da barra (o breadcrumb do caminho).
@@ -1213,6 +1312,12 @@ class _Toolbar extends StatelessWidget {
   /// Recarrega o render a partir do disco (preview de `.html`). `null` esconde
   /// o botão.
   final VoidCallback? onReload;
+
+  /// Baixa o preview de markdown como PDF (plano 73). `null` esconde o botão.
+  final VoidCallback? onExportPdf;
+
+  /// Exportação em curso: o botão vira um indicador de progresso.
+  final bool exportingPdf;
 
   @override
   Widget build(BuildContext context) {
@@ -1250,6 +1355,28 @@ class _Toolbar extends StatelessWidget {
                   width: 24,
                   height: 24,
                   child: Icon(Icons.refresh, size: 15, color: colors.text2),
+                ),
+              ),
+            ),
+          if (onExportPdf != null)
+            AppTooltip(
+              message: context.t.cockpit.fileViewer.exportPdf,
+              child: HoverTap(
+                borderRadius: BorderRadius.circular(5),
+                onTap: exportingPdf ? null : onExportPdf,
+                child: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: exportingPdf
+                      ? const Padding(
+                          padding: EdgeInsets.all(5),
+                          child: CircularProgressIndicator(size: 14),
+                        )
+                      : Icon(
+                          Icons.picture_as_pdf_outlined,
+                          size: 15,
+                          color: colors.text2,
+                        ),
                 ),
               ),
             ),

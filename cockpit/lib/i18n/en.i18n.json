@@ -402,7 +402,17 @@
       "couldNotLoadImage": "Could not load the image.",
       "preview": "Preview",
       "source": "Source",
-      "reload": "Reload"
+      "reload": "Reload",
+      "mermaidError": "Diagram error",
+      "exportPdf": "Download PDF",
+      "exportPdfDialogTitle": "Save as PDF",
+      "pdfSaved": "Saved ${name}",
+      "openPdf": "Open",
+      "pdfError": {
+        "notReady": "The preview isn't ready yet. Try again in a moment.",
+        "renderFailed": "Could not prepare the document for the PDF.",
+        "writeFailed": "Could not create the PDF file."
+      }
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Choose workspace photo",

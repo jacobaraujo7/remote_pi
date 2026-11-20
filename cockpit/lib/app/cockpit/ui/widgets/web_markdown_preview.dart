@@ -3,12 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cockpit/app/cockpit/domain/exceptions/pdf_export_error.dart';
 import 'package:cockpit/app/cockpit/ui/widgets/webview_chrome.dart';
+import 'package:cockpit/app/core/domain/result.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/app/core/ui/widgets/unzoomed_native_view.dart';
+import 'package:cockpit/i18n/strings.g.dart';
 import 'package:flutter/foundation.dart' show mapEquals;
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show PlatformException, rootBundle;
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:url_launcher/url_launcher.dart' as launcher;
@@ -18,13 +21,24 @@ import 'package:url_launcher/url_launcher.dart' as launcher;
 /// Tema entra por CSS variables ([_themeVars]); troca de tema re-injeta sem
 /// re-render. Imagens relativas do documento passam pelo scheme controlado
 /// `ckp-res:`, que só serve arquivos dentro de [workspaceRoot].
+///
+/// Fences ```` ```mermaid ```` viram diagrama (plano 72). O motor (~3.5 MB) é
+/// injetado **sob demanda**: o `setContent` da página devolve `true` quando o
+/// documento tem diagrama e `window.mermaid` não existe, e só então o bundle
+/// entra via `evaluateJavascript` (não passa pela CSP de `<script>` do
+/// documento: WKWebView avalia direto no page world, WebView2 via CDP
+/// `Runtime.evaluate`). `.md` sem diagrama nunca carrega o script.
 class WebMarkdownPreview extends StatefulWidget {
   const WebMarkdownPreview({
     super.key,
     required this.text,
     required this.docDir,
     required this.workspaceRoot,
+    this.controller,
   });
+
+  /// Ações sobre a página já renderizada (exportar PDF, plano 73).
+  final WebMarkdownPreviewController? controller;
 
   final String text;
 
@@ -38,9 +52,45 @@ class WebMarkdownPreview extends StatefulWidget {
   State<WebMarkdownPreview> createState() => _WebMarkdownPreviewState();
 }
 
+/// Ponte do dono do preview (o FileViewer) para ações sobre a página que está
+/// na tela. Criado e descartado pelo dono; o preview se liga enquanto montado.
+class WebMarkdownPreviewController {
+  _WebMarkdownPreviewState? _state;
+
+  /// Exportar PDF existe nesta plataforma? Só macOS: o WKWebView imprime via
+  /// `NSPrintOperation` (paginado, texto selecionável). O fork Windows do
+  /// plugin (`flutter_inappwebview_windows`) não implementa `createPdf` nem
+  /// `printCurrentPage`, e não expõe o CDP (`Page.printToPDF`) ao Dart.
+  static bool get supportsPdf => Platform.isMacOS;
+
+  /// Gera o PDF do documento renderizado em [path] (A4, paleta clara de
+  /// impressão, diagramas Mermaid incluídos).
+  Future<Result<void, PdfExportError>> exportPdf(String path) async {
+    final state = _state;
+    if (state == null || !state.mounted) {
+      return const Failure(PdfExportError(PdfExportErrorKind.notReady));
+    }
+    return state._exportPdf(path);
+  }
+}
+
 class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
   InAppWebViewController? _web;
   bool _loaded = false;
+
+  /// Paleta clara do PDF — a mesma do `@media print` do `preview.css`; aqui
+  /// vai pros diagramas Mermaid, que embutem as cores no SVG.
+  static const _printTheme = {
+    '--ckp-bg': '#ffffff',
+    '--ckp-text': '#1f2328',
+    '--ckp-text-muted': '#59636e',
+    '--ckp-border': '#d1d9e0',
+    '--ckp-code-bg': '#f6f8fa',
+    '--ckp-link': '#0969da',
+  };
+
+  /// Margem da página do PDF, em pontos (≈ 18 mm).
+  static const _printMargin = 51.0;
 
   /// Esqueleto composto (ver [_composePage]), ainda com o placeholder do tema.
   String? _page;
@@ -55,6 +105,16 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
 
   /// Último tema injetado na página, pra não reinjetar igual a cada rebuild.
   Map<String, String>? _pushedTheme;
+
+  /// Últimos rótulos traduzidos injetados (troca de idioma em runtime).
+  Map<String, String>? _pushedStrings;
+
+  /// Injeção do Mermaid nesta página, em curso ou feita (uma vez por load).
+  Future<void>? _mermaidInjection;
+
+  /// Bundle do Mermaid, lido do asset uma vez por processo e só quando algum
+  /// documento precisa dele.
+  static Future<String>? _mermaidJs;
 
   /// Página montada uma vez por processo: esqueleto + CSS + os três motores JS
   /// inlined sob nonce (a CSP não deixa a página pedir nada além de imagem).
@@ -96,6 +156,7 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
   @override
   void initState() {
     super.initState();
+    widget.controller?._state = this;
     _composePage().then((page) {
       if (mounted) setState(() => _page = page);
     });
@@ -141,8 +202,18 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
       vars.entries.map((e) => '${e.key}: ${e.value};').join(' ');
 
   @override
+  void dispose() {
+    if (widget.controller?._state == this) widget.controller?._state = null;
+    super.dispose();
+  }
+
+  @override
   void didUpdateWidget(WebMarkdownPreview old) {
     super.didUpdateWidget(old);
+    if (old.controller != widget.controller) {
+      if (old.controller?._state == this) old.controller?._state = null;
+      widget.controller?._state = this;
+    }
     if (old.text != widget.text || old.docDir != widget.docDir) _push();
   }
 
@@ -153,10 +224,46 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
     // `didUpdateWidget` não dispara e o preview ficava com as cores do tema
     // anterior até ser reaberto.
     final vars = _themeVars(context);
-    if (mapEquals(vars, _pushedTheme)) return;
-    _pushedTheme = vars;
-    unawaited(_pushTheme(vars));
+    if (!mapEquals(vars, _pushedTheme)) {
+      _pushedTheme = vars;
+      unawaited(_pushTheme(vars));
+    }
+    // Troca de idioma também chega por aqui (TranslationProvider).
+    final strings = _strings(context);
+    if (!mapEquals(strings, _pushedStrings)) {
+      _pushedStrings = strings;
+      unawaited(_pushStrings(strings));
+    }
   }
+
+  /// Rótulos que a página exibe (a frase nasce aqui, via `context.t`; a
+  /// mensagem de erro do Mermaid em si é texto de terceiro e vai crua).
+  Map<String, String> _strings(BuildContext context) => {
+    'mermaidError': context.t.cockpit.fileViewer.mermaidError,
+  };
+
+  Future<void> _pushStrings(Map<String, String> strings) async {
+    final web = _web;
+    if (web == null || !_loaded || !mounted) return;
+    await web.evaluateJavascript(
+      source: 'window.__cockpit.setStrings(${jsonEncode(strings)});',
+    );
+  }
+
+  /// Injeta o `mermaid.min.js` na página atual (uma vez) e manda desenhar os
+  /// diagramas que ficaram no placeholder.
+  Future<void> _injectMermaid() => _mermaidInjection ??= () async {
+    final js = await (_mermaidJs ??= rootBundle.loadString(
+      'assets/md_preview/mermaid.min.js',
+    ));
+    final web = _web;
+    if (web == null || !mounted) return;
+    // O `;` antes protege contra o bundle terminar sem ponto e vírgula; o
+    // retorno final é um bool (serializável), não o objeto do mermaid.
+    await web.evaluateJavascript(
+      source: '$js\n;window.__cockpit.mermaidLoaded();',
+    );
+  }();
 
   /// Só as variáveis de cor — o conteúdo não precisa ser reenviado numa troca
   /// de tema (o CSS reage sozinho às variáveis).
@@ -187,17 +294,147 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
     if (web == null || !_loaded || !mounted) return;
     final vars = _themeVars(context);
     _pushedTheme = vars;
+    final strings = _strings(context);
+    _pushedStrings = strings;
     final theme = jsonEncode(vars);
     final text = jsonEncode(widget.text);
     final dir = jsonEncode(widget.docDir);
-    await web.evaluateJavascript(
+    final needsMermaid = await web.evaluateJavascript(
       source:
           'window.__cockpit.setTheme($theme);'
-          'window.__cockpit.setContent($text, $dir);'
+          'window.__cockpit.setStrings(${jsonEncode(strings)});'
           // Windows: rolagem pela página (ver [_windowsScroll]). Na mesma
           // chamada do conteúdo e com guarda: nunca pode impedir o render.
-          '${Platform.isWindows ? 'if (window.__cockpit.captureScroll) window.__cockpit.captureScroll();' : ''}',
+          '${Platform.isWindows ? 'if (window.__cockpit.captureScroll) window.__cockpit.captureScroll();' : ''}'
+          // Por último: o valor da expressão é o retorno da chamada — `true`
+          // quando há diagrama e o motor ainda não foi injetado.
+          'window.__cockpit.setContent($text, $dir);',
     );
+    if (needsMermaid == true && mounted) await _injectMermaid();
+  }
+
+  /// Exportação PDF (plano 73): espera os diagramas, troca-os pela versão na
+  /// paleta de impressão (só no `@media print`, a tela não muda) e imprime a
+  /// página num arquivo via `NSPrintOperation` (disposition `save`).
+  ///
+  /// Por que não `createPdf`: o `WKWebView.createPDF` gera **uma página
+  /// longa** do tamanho do conteúdo, sem quebra. A operação de impressão
+  /// pagina de verdade (A4 + margens), respeita `@media print` e
+  /// `break-inside`, e o texto sai selecionável.
+  Future<Result<void, PdfExportError>> _exportPdf(String path) async {
+    final web = _web;
+    if (web == null || !_loaded) {
+      return const Failure(PdfExportError(PdfExportErrorKind.notReady));
+    }
+    try {
+      // Documento com diagrama e motor ainda não injetado (o `_push` pode
+      // estar no meio): injeta antes, senão o PDF sai com o código cru.
+      final needsMermaid = await web.evaluateJavascript(
+        source:
+            '!!document.querySelector("#content .ckp-mermaid") && '
+            '!window.mermaid',
+      );
+      if (needsMermaid == true) await _injectMermaid();
+      if (!mounted) {
+        return const Failure(PdfExportError(PdfExportErrorKind.notReady));
+      }
+      final prepared = await web.callAsyncJavaScript(
+        functionBody: 'return await window.__cockpit.preparePrint(vars);',
+        arguments: {'vars': _printTheme},
+      );
+      if (prepared == null || prepared.error != null) {
+        return Failure(
+          PdfExportError(
+            PdfExportErrorKind.renderFailed,
+            detail: prepared?.error,
+          ),
+        );
+      }
+      return await _printTo(web, path);
+    } on PlatformException catch (e) {
+      return Failure(
+        PdfExportError(PdfExportErrorKind.writeFailed, detail: e.message),
+      );
+    } finally {
+      if (mounted) {
+        unawaited(
+          web.evaluateJavascript(
+            source:
+                'window.__cockpit.finishPrint && window.__cockpit.finishPrint();',
+          ),
+        );
+      }
+    }
+  }
+
+  /// Imprime num temporário **na mesma pasta** do destino
+  /// (`.<nome>.tmp-<rand>`) e só no sucesso faz `rename` por cima do destino:
+  /// mesmo volume, então a troca é atômica e o arquivo antigo (sobrescrita
+  /// confirmada no diálogo) fica intacto em qualquer falha ou timeout. O
+  /// temporário é apagado em todo desfecho que não seja o rename.
+  Future<Result<void, PdfExportError>> _printTo(
+    InAppWebViewController web,
+    String path,
+  ) async {
+    final target = File(path);
+    final name = target.uri.pathSegments.last;
+    final rand = List.generate(
+      8,
+      (_) => Random.secure().nextInt(36).toRadixString(36),
+    ).join();
+    final tmp = File(
+      '${target.parent.path}${Platform.pathSeparator}.$name.tmp-$rand',
+    );
+    PrintJobController? job;
+    try {
+      job = await web.printCurrentPage(
+        settings: PrintJobSettings(
+          // Controller no Dart = callback de conclusão (onComplete).
+          handledByClient: true,
+          jobDisposition: PrintJobDisposition.SAVE,
+          jobSavingURL: WebUri.uri(Uri.file(tmp.path)),
+          showsPrintPanel: false,
+          showsProgressPanel: false,
+          paperName: 'iso-a4',
+          orientation: PrintJobOrientation.PORTRAIT,
+          headerAndFooter: false,
+          margins: const EdgeInsets.all(_printMargin),
+          jobName: name,
+        ),
+      );
+      if (job == null) {
+        return const Failure(PdfExportError(PdfExportErrorKind.writeFailed));
+      }
+      final done = Completer<(bool, String?)>();
+      job.onComplete = (completed, error) async {
+        if (!done.isCompleted) done.complete((completed, error));
+      };
+      final (completed, error) = await done.future.timeout(
+        const Duration(minutes: 2),
+        // Sem conclusão em 2 min = falha: o temporário pode estar pela metade.
+        onTimeout: () => (false, 'timeout'),
+      );
+      if (!completed || !await tmp.exists()) {
+        return Failure(
+          PdfExportError(PdfExportErrorKind.writeFailed, detail: error),
+        );
+      }
+      await tmp.rename(target.path);
+      return const Success(null);
+    } on FileSystemException catch (e) {
+      return Failure(
+        PdfExportError(PdfExportErrorKind.writeFailed, detail: e.message),
+      );
+    } finally {
+      job?.dispose();
+      // Depois do rename o temporário não existe mais; em qualquer outro
+      // desfecho (falha, timeout, exceção da plataforma) ele sai daqui.
+      try {
+        if (await tmp.exists()) await tmp.delete();
+      } on FileSystemException {
+        // Melhor esforço: não mascara o resultado da exportação.
+      }
+    }
   }
 
   /// Serve `ckp-res://local/<path url-encoded>` — só arquivos dentro do
@@ -271,6 +508,8 @@ class _WebMarkdownPreviewState extends State<WebMarkdownPreview> {
                 WebViewPointerRelay.register(web, context, contentZoom);
               },
               onLoadStop: (web, _) {
+                // Página (re)carregada = contexto JS novo, sem o mermaid.
+                _mermaidInjection = null;
                 if (mounted) setState(() => _loaded = true);
                 _push();
               },

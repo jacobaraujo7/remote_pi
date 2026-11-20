@@ -883,6 +883,12 @@ class _Translations$cockpit$fileViewer$pt_BR extends Translations$cockpit$fileVi
 	@override String get preview => 'Pré-visualização';
 	@override String get source => 'Código-fonte';
 	@override String get reload => 'Recarregar';
+	@override String get mermaidError => 'Erro no diagrama';
+	@override String get exportPdf => 'Baixar PDF';
+	@override String get exportPdfDialogTitle => 'Salvar como PDF';
+	@override String pdfSaved({required Object name}) => '${name} salvo';
+	@override String get openPdf => 'Abrir';
+	@override late final _Translations$cockpit$fileViewer$pdfError$pt_BR pdfError = _Translations$cockpit$fileViewer$pdfError$pt_BR._(_root);
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -1756,6 +1762,18 @@ class _Translations$theme$error$pt_BR extends Translations$theme$error$en {
 	@override String badColor({required Object value, required Object field}) => '"${value}" em "${field}" não é uma cor. Use #RGB, #RRGGBB ou #RRGGBBAA.';
 	@override String unknownBase({required Object value}) => 'Tema base "${value}" desconhecido em "extends".';
 	@override String get noVariants => 'O tema não declara nenhum variant. Adicione "dark", "light" ou os dois em "variants".';
+}
+
+// Path: cockpit.fileViewer.pdfError
+class _Translations$cockpit$fileViewer$pdfError$pt_BR extends Translations$cockpit$fileViewer$pdfError$en {
+	_Translations$cockpit$fileViewer$pdfError$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get notReady => 'A pré-visualização ainda não está pronta. Tente de novo em instantes.';
+	@override String get renderFailed => 'Não foi possível preparar o documento para o PDF.';
+	@override String get writeFailed => 'Não foi possível criar o arquivo PDF.';
 }
 
 // Path: cockpit.httpView.error
@@ -2685,6 +2703,14 @@ extension on TranslationsPtBr {
 			'cockpit.fileViewer.preview' => 'Pré-visualização',
 			'cockpit.fileViewer.source' => 'Código-fonte',
 			'cockpit.fileViewer.reload' => 'Recarregar',
+			'cockpit.fileViewer.mermaidError' => 'Erro no diagrama',
+			'cockpit.fileViewer.exportPdf' => 'Baixar PDF',
+			'cockpit.fileViewer.exportPdfDialogTitle' => 'Salvar como PDF',
+			'cockpit.fileViewer.pdfSaved' => ({required Object name}) => '${name} salvo',
+			'cockpit.fileViewer.openPdf' => 'Abrir',
+			'cockpit.fileViewer.pdfError.notReady' => 'A pré-visualização ainda não está pronta. Tente de novo em instantes.',
+			'cockpit.fileViewer.pdfError.renderFailed' => 'Não foi possível preparar o documento para o PDF.',
+			'cockpit.fileViewer.pdfError.writeFailed' => 'Não foi possível criar o arquivo PDF.',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Escolher foto do workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configurações do workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nome do workspace',
@@ -2830,6 +2856,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.emptyColumn' => 'Sem cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
 			'cockpit.kanbanView.comments' => 'Comentários',
 			'cockpit.kanbanView.addComment' => 'Adicionar comentário',
@@ -2838,8 +2866,6 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
 			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Apagar “${name}”?',
@@ -3344,6 +3370,8 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeTitle' => 'Modo',
 			'settings.page.appearance.modeDesc' => 'Qual variante do tema usar.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" só traz a variante escura, então isto não tem efeito.',
@@ -3352,8 +3380,6 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Escuro',

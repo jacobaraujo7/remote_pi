@@ -402,7 +402,17 @@
       "couldNotLoadImage": "Não foi possível carregar a imagem.",
       "preview": "Pré-visualização",
       "source": "Código-fonte",
-      "reload": "Recarregar"
+      "reload": "Recarregar",
+      "mermaidError": "Erro no diagrama",
+      "exportPdf": "Baixar PDF",
+      "exportPdfDialogTitle": "Salvar como PDF",
+      "pdfSaved": "${name} salvo",
+      "openPdf": "Abrir",
+      "pdfError": {
+        "notReady": "A pré-visualização ainda não está pronta. Tente de novo em instantes.",
+        "renderFailed": "Não foi possível preparar o documento para o PDF.",
+        "writeFailed": "Não foi possível criar o arquivo PDF."
+      }
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Escolher foto do workspace",

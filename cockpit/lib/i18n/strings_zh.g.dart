@@ -805,6 +805,12 @@ class _Translations$cockpit$fileViewer$zh extends Translations$cockpit$fileViewe
 	@override String get preview => '预览';
 	@override String get source => '源代码';
 	@override String get reload => '重新加载';
+	@override String get mermaidError => '图表错误';
+	@override String get exportPdf => '下载 PDF';
+	@override String get exportPdfDialogTitle => '另存为 PDF';
+	@override String pdfSaved({required Object name}) => '已保存 ${name}';
+	@override String get openPdf => '打开';
+	@override late final _Translations$cockpit$fileViewer$pdfError$zh pdfError = _Translations$cockpit$fileViewer$pdfError$zh._(_root);
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -1671,6 +1677,18 @@ class _Translations$theme$error$zh extends Translations$theme$error$en {
 	@override String badColor({required Object field, required Object value}) => '「${field}」处的「${value}」不是颜色。请使用 #RGB、#RRGGBB 或 #RRGGBBAA。';
 	@override String unknownBase({required Object value}) => '「extends」中的基础主题「${value}」未知。';
 	@override String get noVariants => '主题未声明任何变体。请在「variants」下添加「dark」「light」或两者。';
+}
+
+// Path: cockpit.fileViewer.pdfError
+class _Translations$cockpit$fileViewer$pdfError$zh extends Translations$cockpit$fileViewer$pdfError$en {
+	_Translations$cockpit$fileViewer$pdfError$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get notReady => '预览尚未就绪，请稍后再试。';
+	@override String get renderFailed => '无法为 PDF 准备文档。';
+	@override String get writeFailed => '无法创建 PDF 文件。';
 }
 
 // Path: cockpit.httpView.error
@@ -2600,6 +2618,14 @@ extension on TranslationsZh {
 			'cockpit.fileViewer.preview' => '预览',
 			'cockpit.fileViewer.source' => '源代码',
 			'cockpit.fileViewer.reload' => '重新加载',
+			'cockpit.fileViewer.mermaidError' => '图表错误',
+			'cockpit.fileViewer.exportPdf' => '下载 PDF',
+			'cockpit.fileViewer.exportPdfDialogTitle' => '另存为 PDF',
+			'cockpit.fileViewer.pdfSaved' => ({required Object name}) => '已保存 ${name}',
+			'cockpit.fileViewer.openPdf' => '打开',
+			'cockpit.fileViewer.pdfError.notReady' => '预览尚未就绪，请稍后再试。',
+			'cockpit.fileViewer.pdfError.renderFailed' => '无法为 PDF 准备文档。',
+			'cockpit.fileViewer.pdfError.writeFailed' => '无法创建 PDF 文件。',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => '选择工作区照片',
 			'cockpit.workspaceSettingsDialog.title' => '工作区设置',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => '工作区名称',
@@ -2745,6 +2771,8 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.noComments' => '暂无评论',
 			'cockpit.kanbanView.closeDetail' => '关闭',
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => '创建看板',
 			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
@@ -2753,8 +2781,6 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -3259,6 +3285,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeFileTitle' => '主题文件',
 			'settings.page.appearance.themeFileDesc' => '从 JSON 文件导入主题，或导出当前主题。',
 			'settings.page.appearance.previewCode' => '代码',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.previewTerminal' => '终端',
 			'settings.page.appearance.themeSystem' => '跟随系统',
 			'settings.page.appearance.themeLight' => '浅色',
@@ -3267,8 +3295,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',
