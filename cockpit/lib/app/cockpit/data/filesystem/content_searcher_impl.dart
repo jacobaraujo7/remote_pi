@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/domain/services/content_search_paths.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -78,25 +79,6 @@ class _SearchError {
 
 // ---- corpo que roda no Isolate ---------------------------------------------
 
-/// Pastas ruidosas/pesadas puladas no walk (espelha [FileSearcherImpl]).
-const Set<String> _ignoredDirs = <String>{
-  'node_modules',
-  'build',
-  '.dart_tool',
-  '.next',
-  'dist',
-  'out',
-  'Pods',
-  'DerivedData',
-  '.gradle',
-  '.venv',
-  'venv',
-  '__pycache__',
-  'target',
-  'vendor',
-  'coverage',
-};
-
 /// Limites de segurança (evitam payloads/varreduras gigantes na UI).
 const int _maxFilesWithMatches = 2000;
 const int _maxTotalMatches = 10000;
@@ -140,7 +122,7 @@ void _searchEntry(_SearchArgs args) {
     for (final entity in entries) {
       final name = entity.path.split(Platform.pathSeparator).last;
       if (entity is Directory) {
-        if (name.startsWith('.') || _ignoredDirs.contains(name)) continue;
+        if (!contentSearchIncludesDirectory(name)) continue;
         stack.add(entity);
       } else if (entity is File) {
         if (name == '.DS_Store') continue; // lixo do Finder (macOS)

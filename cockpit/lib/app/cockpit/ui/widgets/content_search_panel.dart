@@ -1,6 +1,5 @@
-import 'dart:async';
-
 import 'package:cockpit/app/cockpit/domain/entities/content_search.dart';
+import 'package:cockpit/app/cockpit/ui/viewmodels/content_search_controller.dart';
 import 'package:cockpit/app/core/ui/file_icons/file_icons.dart';
 import 'package:cockpit/app/core/ui/themes/themes.dart';
 import 'package:cockpit/i18n/strings.g.dart';
@@ -10,15 +9,6 @@ import 'package:flutter/services.dart';
 import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
-/// Assinatura da busca por conteúdo (injetada pela página → VM).
-typedef ContentSearchFn =
-    Stream<FileMatches> Function(
-      String term, {
-      bool caseSensitive,
-      bool wholeWord,
-      bool regex,
-    });
-
 /// Painel de **find-in-files** fixado no rodapé da coluna de arquivos
 /// (Cmd+Shift+F). Campo + toggles Aa/ab/.* e resultados agrupados por arquivo,
 /// com highlight dos matches. Clicar numa linha abre o arquivo na linha (via
@@ -26,7 +16,7 @@ typedef ContentSearchFn =
 class ContentSearchPanel extends StatefulWidget {
   const ContentSearchPanel({
     super.key,
-    required this.search,
+    required this.controller,
     required this.onOpenResult,
     required this.focusSignal,
     this.fill = false,
@@ -35,7 +25,7 @@ class ContentSearchPanel extends StatefulWidget {
     this.onResizeEnd,
   });
 
-  final ContentSearchFn search;
+  final ContentSearchController controller;
 
   /// Abre o resultado: caminho relativo + linha (base 1).
   final void Function(String relativePath, int line) onOpenResult;
@@ -63,32 +53,65 @@ class ContentSearchPanel extends StatefulWidget {
 }
 
 class _ContentSearchPanelState extends State<ContentSearchPanel> {
-  final TextEditingController _ctrl = TextEditingController();
+  ContentSearchController get _state => widget.controller;
+  TextEditingController get _ctrl => _state.query;
   final FocusNode _focus = FocusNode();
+  late ScrollController _scroll;
+  int _scrollRevision = 0;
 
-  bool _caseSensitive = false;
-  bool _wholeWord = false;
-  bool _regex = false;
+  void _createScroll() {
+    _scrollRevision = _state.scrollRevision;
+    _scroll = ScrollController(
+      initialScrollOffset: _state.scrollOffset,
+      keepScrollOffset: false,
+    );
+    _scroll.addListener(_saveScroll);
+  }
 
-  Timer? _debounce;
-  StreamSubscription<FileMatches>? _sub;
-  final List<FileMatches> _results = <FileMatches>[];
-  final Set<String> _collapsed = <String>{};
-  bool _searching = false;
-  bool _invalidRegex = false;
+  void _listen() {
+    _createScroll();
+    _state.attach();
+    _state.addListener(_changed);
+    widget.focusSignal.addListener(_onFocusSignal);
+  }
+
+  void _saveScroll() => _state.scrollOffset = _scroll.offset;
+  void _changed() {
+    if (!mounted) return;
+    if (_scrollRevision != _state.scrollRevision) {
+      _scroll.dispose();
+      _createScroll();
+    }
+    setState(() {});
+  }
 
   @override
   void initState() {
     super.initState();
-    widget.focusSignal.addListener(_onFocusSignal);
+    _listen();
+  }
+
+  @override
+  void didUpdateWidget(ContentSearchPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.controller != widget.controller) {
+      oldWidget.controller.removeListener(_changed);
+      oldWidget.controller.detach();
+      _scroll.dispose();
+      oldWidget.focusSignal.removeListener(_onFocusSignal);
+      _listen();
+    } else if (oldWidget.focusSignal != widget.focusSignal) {
+      oldWidget.focusSignal.removeListener(_onFocusSignal);
+      widget.focusSignal.addListener(_onFocusSignal);
+    }
   }
 
   @override
   void dispose() {
     widget.focusSignal.removeListener(_onFocusSignal);
-    _debounce?.cancel();
-    _sub?.cancel();
-    _ctrl.dispose();
+    _state.removeListener(_changed);
+    _state.detach();
+    _scroll.dispose();
     _focus.dispose();
     super.dispose();
   }
@@ -100,55 +123,6 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
       extentOffset: _ctrl.text.length,
     );
   }
-
-  void _onQueryChanged() {
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 200), _runSearch);
-  }
-
-  void _toggle(void Function() mutate) {
-    setState(mutate);
-    _runSearch(); // toggle re-dispara já (sem debounce)
-  }
-
-  void _runSearch() {
-    _sub?.cancel();
-    final term = _ctrl.text;
-    setState(() {
-      _results.clear();
-      _collapsed.clear();
-      _invalidRegex = false;
-      _searching = term.trim().isNotEmpty;
-    });
-    if (term.trim().isEmpty) return;
-
-    _sub = widget
-        .search(
-          term,
-          caseSensitive: _caseSensitive,
-          wholeWord: _wholeWord,
-          regex: _regex,
-        )
-        .listen(
-          (file) {
-            if (!mounted) return;
-            setState(() => _results.add(file));
-          },
-          onError: (_) {
-            if (!mounted) return;
-            setState(() {
-              _invalidRegex = _regex;
-              _searching = false;
-            });
-          },
-          onDone: () {
-            if (!mounted) return;
-            setState(() => _searching = false);
-          },
-        );
-  }
-
-  int get _totalMatches => _results.fold(0, (sum, f) => sum + f.matchCount);
 
   @override
   Widget build(BuildContext context) {
@@ -234,12 +208,12 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                '$_totalMatches in ${_results.length}',
+                '${_state.totalMatches} in ${_state.results.length}',
                 style: typo.label.copyWith(fontSize: 10.5, color: colors.text3),
               ),
             ),
           const Spacer(),
-          if (_searching)
+          if (_state.searching)
             const SizedBox(
               width: 12,
               height: 12,
@@ -261,7 +235,7 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
               bindings: {
                 const SingleActivator(LogicalKeyboardKey.escape): () {
                   _ctrl.clear();
-                  _runSearch();
+                  _state.runSearch();
                 },
               },
               child: TextField(
@@ -279,11 +253,10 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
                   color: colors.text,
                 ),
                 border: Border.all(
-                  color: _invalidRegex ? colors.error : colors.border,
+                  color: _state.invalidRegex ? colors.error : colors.border,
                 ),
                 borderRadius: BorderRadius.circular(6),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                onChanged: (_) => _onQueryChanged(),
               ),
             ),
           ),
@@ -291,21 +264,22 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
           _OptionToggle(
             label: 'Aa',
             tooltip: context.t.cockpit.contentSearch.matchCase,
-            active: _caseSensitive,
-            onTap: () => _toggle(() => _caseSensitive = !_caseSensitive),
+            active: _state.caseSensitive,
+            onTap: () =>
+                _state.setOptions(caseSensitive: !_state.caseSensitive),
           ),
           _OptionToggle(
             label: 'ab',
             tooltip: context.t.cockpit.contentSearch.wholeWord,
-            active: _wholeWord,
+            active: _state.wholeWord,
             underline: true,
-            onTap: () => _toggle(() => _wholeWord = !_wholeWord),
+            onTap: () => _state.setOptions(wholeWord: !_state.wholeWord),
           ),
           _OptionToggle(
             label: '.*',
             tooltip: context.t.cockpit.contentSearch.useRegex,
-            active: _regex,
-            onTap: () => _toggle(() => _regex = !_regex),
+            active: _state.regex,
+            onTap: () => _state.setOptions(regex: !_state.regex),
           ),
         ],
       ),
@@ -314,14 +288,14 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
 
   Widget _resultsList(BuildContext context) {
     final colors = context.colors;
-    if (_results.isEmpty) {
+    if (_state.results.isEmpty) {
       final hasQuery = _ctrl.text.trim().isNotEmpty;
       final String message;
-      if (_invalidRegex) {
+      if (_state.invalidRegex) {
         message = context.t.cockpit.contentSearch.invalidRegex;
       } else if (!hasQuery) {
         message = context.t.cockpit.contentSearch.typeToSearch;
-      } else if (_searching) {
+      } else if (_state.searching) {
         message = context.t.cockpit.contentSearch.searching;
       } else {
         message = context.t.cockpit.contentSearch.noResults;
@@ -333,24 +307,28 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
           child: Text(
             message,
             style: context.typo.label.copyWith(
-              color: _invalidRegex ? colors.error : colors.text4,
+              color: _state.invalidRegex ? colors.error : colors.text4,
             ),
           ),
         ),
       );
     }
     return ListView.builder(
+      // A new query must not absorb the previous ScrollPosition when results
+      // arrive before the next frame. Returning to the same query keeps it.
+      key: ValueKey((_state, _state.scrollRevision)),
+      controller: _scroll,
       shrinkWrap: true,
       padding: const EdgeInsets.only(bottom: 8),
-      itemCount: _results.length,
-      itemBuilder: (context, i) => _fileGroup(context, _results[i]),
+      itemCount: _state.results.length,
+      itemBuilder: (context, i) => _fileGroup(context, _state.results[i]),
     );
   }
 
   Widget _fileGroup(BuildContext context, FileMatches file) {
     final colors = context.colors;
     final typo = context.typo;
-    final collapsed = _collapsed.contains(file.relativePath);
+    final collapsed = _state.isCollapsed(file.relativePath);
     final name = file.relativePath.split('/').last;
     final dir = file.relativePath.contains('/')
         ? file.relativePath.substring(0, file.relativePath.lastIndexOf('/'))
@@ -362,13 +340,7 @@ class _ContentSearchPanelState extends State<ContentSearchPanel> {
         HoverTap(
           hoverColor: colors.panel,
           borderRadius: BorderRadius.circular(5),
-          onTap: () => setState(() {
-            if (collapsed) {
-              _collapsed.remove(file.relativePath);
-            } else {
-              _collapsed.add(file.relativePath);
-            }
-          }),
+          onTap: () => _state.toggleCollapsed(file.relativePath),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
