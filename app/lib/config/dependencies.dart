@@ -168,8 +168,13 @@ Future<void> setupDependencies() async {
   );
   // Plan 29 — voice input. New instance per chat mount; reuses the shared
   // SpeechService singleton (which it stops/cancels but never disposes).
+  // The locale provider re-reads the persisted Settings preference on every
+  // init so a language change applies on the next hold-to-talk.
   _injector.addViewModel<VoiceInputViewModel>(
-    () => VoiceInputViewModel(_injector.get<SpeechService>()),
+    () => VoiceInputViewModel(
+      _injector.get<SpeechService>(),
+      preferredLocale: () => _injector.get<Preferences>().sttLocale,
+    ),
   );
   // Plan 30 — image attachment. New instance per chat mount; resolves model
   // vision via the shared ActionsRepository catalogue cache.
