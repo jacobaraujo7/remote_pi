@@ -14,6 +14,20 @@ import { fileURLToPath } from "node:url";
 import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
+const piSubagentEnvKeys = [
+  "PI_SUBAGENT_CHILD",
+  "PI_SUBAGENT_RUN_ID",
+  "PI_SUBAGENT_CHILD_AGENT",
+  "PI_SUBAGENT_PARENT_SESSION",
+] as const;
+
+beforeEach(() => {
+  for (const key of piSubagentEnvKeys) vi.stubEnv(key, undefined);
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
 const _convertToPngMock = vi.hoisted(() => vi.fn(async () => null));
 
 // ── Mock RelayClient ──────────────────────────────────────────────────────────
@@ -1059,7 +1073,7 @@ describe("agent-network mesh delivery", () => {
 // ── user_input mirroring (local terminal / RPC) ───────────────────────────────
 
 type AnyEvent = { type: string; [k: string]: unknown };
-type EventHandler = (event: AnyEvent) => unknown;
+type EventHandler = (event: AnyEvent, ctx?: unknown) => unknown;
 
 function captureEventHandler(eventName: string): EventHandler {
   let captured: EventHandler | undefined;
@@ -4776,6 +4790,96 @@ describe("session_start auto-init skips relay in print/-p mode (#44)", () => {
     await new Promise<void>((r) => setTimeout(r, 20));
 
     expect(_hasMeshNodeForTest()).toBe(true);
+  });
+});
+
+describe("session_start auto-init with pi-subagents markers", () => {
+  const savedArgv = process.argv;
+  let cwd: string;
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    _knownPeers.length = 0;
+    _defaultConnectImpl = async () => undefined;
+    _setDisposedForTest(false);
+    await captureHandler("remote-pi stop")("", makeMockCtx());
+    _resetCwdLockForTest();
+    _resetAutoInitedForTest();
+    relayRef.current = null;
+    relayInstances.length = 0;
+    process.argv = ["node", "pi"];
+    vi.stubEnv("REMOTE_PI_DAEMON", undefined);
+    vi.stubEnv("REMOTE_PI_DIRECT_CONFIG", undefined);
+    cwd = mkdtempSync(join(tmpdir(), "remote-pi-child-start-"));
+    const { saveLocalConfig } = await import("./session/local_config.js");
+    saveLocalConfig(cwd, { agent_name: "TestAgent", auto_start_relay: true });
+  });
+
+  afterEach(async () => {
+    await captureEventHandler("session_shutdown")({ type: "session_shutdown" });
+    _setDisposedForTest(false);
+    _resetAutoInitedForTest();
+    vi.restoreAllMocks();
+    process.argv = savedArgv;
+    rmSync(cwd, { recursive: true, force: true });
+  });
+
+  const childMarkers = [
+    ["PI_SUBAGENT_CHILD", "1"],
+    ["PI_SUBAGENT_RUN_ID", "test-run"],
+    ["PI_SUBAGENT_CHILD_AGENT", "test-agent"],
+  ] as const;
+
+  describe.each([false, true])("daemon=%s", (isDaemon) => {
+    beforeEach(() => {
+      if (isDaemon) {
+        vi.stubEnv("REMOTE_PI_DAEMON", "1");
+        vi.spyOn(process, "cwd").mockReturnValue(cwd);
+      }
+    });
+
+    test.each(childMarkers)("%s=%s suppresses fresh-session mesh and relay startup", async (key, value) => {
+      vi.stubEnv(key, value);
+      captureEventHandler("session_start")({ type: "session_start" }, makeMockCtx(cwd));
+
+      // Startup is fire-and-forget. Observe a bounded window rather than letting
+      // an immediate idle assertion pass before an unwanted async join finishes.
+      const noStartup = new Error("No automatic startup observed");
+      await expect(vi.waitFor(() => {
+        if (!_hasMeshNodeForTest() && relayInstances.length === 0) throw noStartup;
+      }, { timeout: 100, interval: 10 })).rejects.toBe(noStartup);
+      expect(_getState()).toBe("idle");
+      expect(_hasMeshNodeForTest()).toBe(false);
+      expect(relayInstances).toHaveLength(0);
+    });
+
+    test.each([
+      ["unmarked", {}],
+      ["parent metadata only", { PI_SUBAGENT_PARENT_SESSION: "parent-session" }],
+      ["empty markers", { PI_SUBAGENT_CHILD: "", PI_SUBAGENT_RUN_ID: "", PI_SUBAGENT_CHILD_AGENT: "" }],
+      ["child flag is zero", { PI_SUBAGENT_CHILD: "0" }],
+      ["child flag is not one", { PI_SUBAGENT_CHILD: "true" }],
+    ] as const)("%s still auto-starts the mesh and relay", async (_label, markers) => {
+      for (const [key, value] of Object.entries(markers)) vi.stubEnv(key, value);
+      captureEventHandler("session_start")({ type: "session_start" }, makeMockCtx(cwd));
+
+      await vi.waitFor(() => {
+        expect(_hasMeshNodeForTest()).toBe(true);
+        expect(_getState()).toBe("started");
+        expect(relayInstances).toHaveLength(1);
+      });
+    });
+  });
+
+  test("an explicitly marked child can still start Remote Pi manually", async () => {
+    for (const [key, value] of childMarkers) vi.stubEnv(key, value);
+    const ctx = makeMockCtx(cwd);
+    captureEventHandler("session_start")({ type: "session_start" }, ctx);
+    await captureHandler("remote-pi")("", ctx);
+
+    expect(_hasMeshNodeForTest()).toBe(true);
+    expect(_getState()).toBe("started");
+    expect(relayInstances).toHaveLength(1);
   });
 });
 
