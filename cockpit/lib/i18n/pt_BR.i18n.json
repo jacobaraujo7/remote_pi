@@ -402,7 +402,8 @@
       "couldNotLoadImage": "Não foi possível carregar a imagem.",
       "preview": "Pré-visualização",
       "source": "Código-fonte",
-      "reload": "Recarregar"
+      "reload": "Recarregar",
+      "mermaidError": "Erro no diagrama"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Escolher foto do workspace",
