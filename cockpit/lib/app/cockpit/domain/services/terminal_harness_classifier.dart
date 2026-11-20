@@ -98,6 +98,8 @@ abstract class TerminalHarnessClassifier {
   static bool _checkCodex(List<String> args) {
     const adminSubcommandsOrModes = {
       'exec',
+      'app-server',
+      'exec-server',
       'auth',
       'config',
       'version',

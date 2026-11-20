@@ -12,6 +12,8 @@ class SessionAnchor {
   final int? Function() rootPid;
   final String? wslDistro;
   final void Function(HarnessKind? newHarness) onHarnessChanged;
+  final void Function(HarnessKind? kind, ProcessSnapshot? process)?
+  onProcessChanged;
   bool visible;
   DateTime lastActivity;
 
@@ -20,6 +22,7 @@ class SessionAnchor {
     required this.rootPid,
     this.wslDistro,
     required this.onHarnessChanged,
+    this.onProcessChanged,
     this.visible = false,
     DateTime? lastActivity,
   }) : lastActivity = lastActivity ?? DateTime.fromMillisecondsSinceEpoch(0);
@@ -91,12 +94,15 @@ class TerminalHarnessMonitor {
     required int? Function() rootPid,
     String? wslDistro,
     required void Function(HarnessKind? newHarness) onHarnessChanged,
+    void Function(HarnessKind? kind, ProcessSnapshot? process)?
+    onProcessChanged,
   }) {
     _anchors[sessionId] = SessionAnchor(
       sessionId: sessionId,
       rootPid: rootPid,
       wslDistro: wslDistro,
       onHarnessChanged: onHarnessChanged,
+      onProcessChanged: onProcessChanged,
     );
 
     if (_timer == null && _anchors.isNotEmpty) {
@@ -194,6 +200,25 @@ class TerminalHarnessMonitor {
     _timer = null;
   }
 
+  /// A click must await a fresh snapshot even when the periodic poll is busy.
+  /// Failure to inspect the process cannot authorize a fork of stale identity.
+  Future<bool> refreshSession(String sessionId) async {
+    final anchor = _anchors[sessionId];
+    final rootPid = anchor?.rootPid();
+    if (anchor == null || rootPid == null) return false;
+    try {
+      final source = anchor.wslDistro == null
+          ? provider
+          : _resolveWslProvider(anchor.wslDistro!);
+      final snapshots = await source.getProcessSnapshots(rootPids: [rootPid]);
+      if (!identical(_anchors[sessionId], anchor)) return false;
+      _evaluateAnchor(anchor, snapshots);
+      return true;
+    } on Object {
+      return false;
+    }
+  }
+
   Future<void> poll() async {
     if (_inFlight || _anchors.isEmpty) {
       if (_inFlight) _pendingPoll = true;
@@ -287,16 +312,18 @@ class TerminalHarnessMonitor {
   void _evaluateAnchor(SessionAnchor anchor, List<ProcessSnapshot> snapshots) {
     final rootPid = anchor.rootPid();
     if (rootPid == null) {
+      anchor.onProcessChanged?.call(null, null);
       _updateHarness(anchor, null);
       return;
     }
 
-    final harness = ProcessTreeResolver.resolve(
+    final resolved = ProcessTreeResolver.resolveProcess(
       rootPid: rootPid,
       snapshots: snapshots,
     );
 
-    _updateHarness(anchor, harness);
+    anchor.onProcessChanged?.call(resolved?.kind, resolved?.process);
+    _updateHarness(anchor, resolved?.kind);
   }
 
   void _updateHarness(SessionAnchor anchor, HarnessKind? newHarness) {

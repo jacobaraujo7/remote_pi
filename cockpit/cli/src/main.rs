@@ -13,6 +13,8 @@
 //! O subcomando `hook` absorve o antigo binário `cockpit-hook`: um binário só,
 //! um protocolo só, uma assinatura só. Ver `hook.rs`.
 
+#[cfg(unix)]
+mod codex_launcher;
 mod commands;
 mod flags;
 mod hook;
@@ -30,6 +32,14 @@ const VERSION: &str = concat!(env!("CARGO_PKG_VERSION"), "r");
 const HELP: &str = include_str!("../text/help.txt");
 
 fn main() {
+    #[cfg(unix)]
+    if std::env::args_os().next().is_some_and(|arg| {
+        std::path::Path::new(&arg)
+            .file_name()
+            .is_some_and(|name| name == "codex" || name == "cockpit-codex")
+    }) {
+        codex_launcher::run(std::env::args_os().skip(1).collect());
+    }
     let argv: Vec<String> = std::env::args().skip(1).collect();
     if argv.is_empty() {
         eprint!("{HELP}");

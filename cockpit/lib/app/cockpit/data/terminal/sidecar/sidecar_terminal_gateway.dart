@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/data/hooks/codex_terminal_launcher.dart';
 import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
@@ -103,12 +104,16 @@ class SidecarTerminalGateway implements TerminalGateway {
     }
 
     try {
+      final invocation = CodexTerminalLauncher.configure(
+        profile,
+        _terminalEnv(extraEnv),
+      );
       final info = await service.open(
         PtySpawnSpec(
           executable: profile.executable,
-          arguments: profile.args,
+          arguments: invocation.arguments,
           workingDirectory: dir.path.isEmpty ? null : dir.path,
-          environment: _terminalEnv(extraEnv),
+          environment: invocation.environment,
           rows: rows,
           columns: columns,
           flowControlled: true,

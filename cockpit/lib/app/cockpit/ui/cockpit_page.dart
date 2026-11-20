@@ -1360,7 +1360,7 @@ class _TreePanel extends StatelessWidget {
               if (HarnessCatalog.getSpec(h.id) case final spec?)
                 TreeAgentLauncher(
                   label: spec.label,
-                  command: spec.primaryEntryPoint,
+                  command: spec.terminalCommand,
                   assetPath: spec.assetPath,
                   monochrome: spec.isMonochrome,
                 ),

@@ -8,8 +8,21 @@ void main() {
       // Com um id do Codex isso morre em "No conversation found with session ID".
       const id = '019ff255-62c9-7ba1-8481-63c8803ef51e';
       expect(AgentHarness.claude.resumeCommand(id), 'claude --resume $id');
-      expect(AgentHarness.codex.resumeCommand(id), 'codex resume $id');
+      expect(
+        AgentHarness.codex.resumeCommand(id),
+        'codex resume $id --no-daemon',
+      );
     });
+  });
+
+  test('Codex launches and restores use the terminal-specific server', () {
+    expect(AgentHarness.codex.launchCommand, 'codex --no-daemon');
+    expect(
+      AgentHarness.codex.resumeCommand('latest'),
+      'codex resume --last --no-daemon',
+    );
+    expect(AgentHarness.claude.launchCommand, 'claude');
+    expect(AgentHarness.pi.launchCommand, 'pi');
   });
 
   group('AgentHarness.fromWire', () {

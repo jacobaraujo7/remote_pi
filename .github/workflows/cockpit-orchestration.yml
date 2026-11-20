@@ -150,6 +150,35 @@ jobs:
           lib/app/cockpit/ui/cockpit_page.dart
           lib/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart
           lib/app/cockpit/ui/viewmodels/file_ops_controller.dart
+      - name: Analyze agent forks and scoped Codex launcher
+        run: >-
+          flutter analyze --no-pub
+          lib/app/cockpit/domain/entities/agent_fork.dart
+          lib/app/cockpit/domain/contracts/agent_fork_gateway.dart
+          lib/app/cockpit/data/terminal/local_agent_fork_gateway.dart
+          lib/app/cockpit/data/hooks/codex_terminal_launcher.dart
+          lib/app/cockpit/data/hooks/pi_hook_installer_impl.dart
+          lib/app/cockpit/ui/widgets/agent_fork_builder.dart
+          test/data/codex_terminal_launcher_test.dart
+          test/data/local_agent_fork_gateway_test.dart
+          test/data/pi_hook_installer_test.dart
+          test/ui/agent_fork_session_test.dart
+          test/ui/agent_fork_builder_test.dart
+      - name: Agent fork and scoped shell regressions
+        run: >-
+          flutter test --no-pub
+          test/data/codex_terminal_launcher_test.dart
+          test/data/local_agent_fork_gateway_test.dart
+          test/data/pi_hook_installer_test.dart
+          test/data/cli_short_alias_test.dart
+          test/data/isolated_hook_installation_test.dart
+          test/core/workspace_env_test.dart
+          test/domain/agent_harness_test.dart
+          test/domain/terminal_harness_classifier_test.dart
+          test/domain/process_tree_resolver_test.dart
+          test/domain/terminal_harness_monitor_test.dart
+          test/ui/agent_fork_session_test.dart
+          test/ui/agent_fork_builder_test.dart
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub

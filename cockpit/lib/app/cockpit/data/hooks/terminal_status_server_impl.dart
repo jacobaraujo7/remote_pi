@@ -230,6 +230,13 @@ class TerminalStatusServerImpl implements TerminalStatusServer {
           paneId: paneId,
           status: status,
           event: ev.isEmpty ? null : ev,
+          processIds: decoded['pids'] is List
+              ? (decoded['pids'] as List)
+                    .whereType<int>()
+                    .where((p) => p > 0)
+                    .take(32)
+                    .toList()
+              : const [],
           sessionId: sid.isEmpty ? null : sid,
           transcriptPath: tx.isEmpty ? null : tx,
           harness: hn.isEmpty ? null : hn,

@@ -103,6 +103,20 @@
     "noResults": "Sin resultados"
   },
   "cockpit": {
+    "agentFork": {
+      "privateServerRequired": "Esta sesión se inició sin la integración de Cockpit. Abre una pestaña de terminal nueva e inicia Codex normalmente para habilitar fork.",
+      "notSaved": "Esta conversación aún no se ha guardado. Envía un mensaje antes de crear un fork.",
+      "label": "Fork en una pestaña nueva",
+      "identifying": "Esperando la identificación de la conversación. Si acabas de abrir Codex, envía el primer mensaje.",
+      "checking": "Comprobando compatibilidad con fork…",
+      "unavailable": "La integración de fork aún no está disponible para este agente.",
+      "incompatible": "Esta instalación del agente no ofrece un comando de fork compatible.",
+      "unsupportedHost": "Fork aún no está disponible para este host o perfil de terminal.",
+      "staleSession": "La sesión original del agente ya no está disponible.",
+      "busy": "Creando fork…",
+      "launchFailed": "No se pudo abrir el fork en otra pestaña.",
+      "errorTitle": "No se pudo bifurcar la conversación"
+    },
     "confirmDialog": {
       "unsavedChangesTitle": "Cambios sin guardar",
       "unsavedChangesMessage": "“${fileName}” tiene cambios sin guardar. ¿Guardarlos antes de cerrar?",

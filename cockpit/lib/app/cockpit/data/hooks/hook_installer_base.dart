@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/data/hooks/codex_terminal_launcher.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -148,6 +149,10 @@ abstract class HookInstallerBase implements HookInstaller {
     );
     if (path == null) return null;
     await ensureShortAlias(dir, destName);
+    await _serialized(
+      '$dir/cockpit-codex',
+      () => CodexTerminalLauncher.install(dir, destName),
+    );
     if (isolatedRuntime) return path;
     try {
       await Process.run(path, <String>['install-skill']);

@@ -11,7 +11,8 @@ import 'package:cockpit/app/core/domain/result.dart';
 /// badge / chime.
 ///
 /// Implementações: `ClaudeHookInstallerImpl` (`~/.claude/settings.json`) e
-/// `CodexHookInstallerImpl` (`~/.codex/hooks.json` + trust no `config.toml`).
+/// `CodexHookInstallerImpl` (`~/.codex/hooks.json` + trust no `config.toml`) e
+/// `PiHookInstallerImpl` (`~/.pi/agent/extensions/cockpit-status.ts`).
 abstract class HookInstaller {
   /// Garante CLI copiada e entries presentes. Idempotente: re-rodar não duplica
   /// nem mexe em hooks de terceiros. Falha é não-fatal (logada).

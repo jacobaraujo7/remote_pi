@@ -40,7 +40,8 @@ void main() {
     test('chaves perigosas nunca entram, mesmo válidas sintaticamente', () {
       final env = parseWorkspaceEnv(
         'PATH=/evil\nLD_PRELOAD=x.so\nDYLD_INSERT_LIBRARIES=y\n'
-        'LD_WHATEVER=z\nSHELL=/bin/evil\nAPI_TOKEN=ok\n',
+        'LD_WHATEVER=z\nSHELL=/bin/evil\nAPI_TOKEN=ok\n'
+        'COCKPIT_CODEX_LAUNCHER=/evil\nCOCKPIT_ZSH_PROXY_DIR=/evil\n',
       );
       expect(env, {'API_TOKEN': 'ok'});
       expect(isBlockedWorkspaceEnvKey('PATH'), isTrue);

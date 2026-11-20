@@ -103,6 +103,20 @@
     "noResults": "No results"
   },
   "cockpit": {
+    "agentFork": {
+      "privateServerRequired": "This session was started without Cockpit integration. Open a new terminal tab and start Codex normally to enable fork.",
+      "notSaved": "This conversation has not been saved yet. Send a message before creating a fork.",
+      "label": "Fork into a new tab",
+      "identifying": "Waiting for the conversation identity. If you just opened Codex, send the first message.",
+      "checking": "Checking fork support…",
+      "unavailable": "Fork integration is not available for this agent yet.",
+      "incompatible": "This agent installation does not provide a compatible fork command.",
+      "unsupportedHost": "Fork is not available for this host or terminal profile yet.",
+      "staleSession": "The original agent session is no longer available.",
+      "busy": "Creating a fork…",
+      "launchFailed": "Could not open the fork in a new tab.",
+      "errorTitle": "Could not fork the conversation"
+    },
     "confirmDialog": {
       "unsavedChangesTitle": "Unsaved changes",
       "unsavedChangesMessage": "“${fileName}” has unsaved changes. Save them before closing?",

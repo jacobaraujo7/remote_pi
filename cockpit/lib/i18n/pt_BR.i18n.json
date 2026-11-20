@@ -103,6 +103,20 @@
     "noResults": "Nenhum resultado"
   },
   "cockpit": {
+    "agentFork": {
+      "privateServerRequired": "Esta sessão foi iniciada sem a integração do Cockpit. Abra uma nova aba de terminal e inicie o Codex normalmente para habilitar fork.",
+      "notSaved": "Esta conversa ainda não foi salva. Envie uma mensagem antes de criar um fork.",
+      "label": "Fork em nova aba",
+      "identifying": "Aguardando a identificação da conversa. Se acabou de abrir o Codex, envie a primeira mensagem.",
+      "checking": "Verificando suporte a fork…",
+      "unavailable": "A integração de fork ainda não está disponível para este agente.",
+      "incompatible": "Esta instalação do agente não oferece um comando de fork compatível.",
+      "unsupportedHost": "O fork ainda não está disponível para este host ou perfil de terminal.",
+      "staleSession": "A sessão original do agente não está mais disponível.",
+      "busy": "Criando fork…",
+      "launchFailed": "Não foi possível abrir o fork em outra aba.",
+      "errorTitle": "Não foi possível ramificar a conversa"
+    },
     "confirmDialog": {
       "unsavedChangesTitle": "Alterações não salvas",
       "unsavedChangesMessage": "“${fileName}” tem alterações não salvas. Salvar antes de fechar?",

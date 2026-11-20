@@ -138,3 +138,86 @@ lib/app/cockpit/data/hooks/claude_hook_installer_impl.dart
 lib/app/cockpit/data/hooks/codex_hook_installer_impl.dart
 lib/app/bootstrapper.dart                         # roda os dois no boot, não-fatal
 ```
+
+
+## Fork em nova aba
+
+A barra da pane mostra **Fork em nova aba** quando a aba ativa contém um
+agente reconhecido. O botão desaparece quando o agente encerra; abas ocultas
+continuam executando normalmente. O fork usa a mesma pasta, perfil e engine
+na mesma pane, seleciona a nova aba e mantém o terminal original intacto.
+
+A disponibilidade é conservadora e específica por agente:
+
+| Agente | Integração desta entrega |
+|---|---|
+| Claude Code | `claude --resume <id> --fork-session` |
+| Codex CLI | `codex fork <id> --no-daemon` |
+| Pi | `pi --fork <caminho exato do transcript>` |
+| OpenCode e GitHub Copilot CLI | Desabilitado: falta vínculo validado entre a sessão do servidor/API e a aba |
+| Cursor Agent e Agy | Desabilitado: o `/fork` interativo não é um mecanismo externo seguro |
+
+Nos três primeiros, o Cockpit verifica a opção na ajuda do executável antes
+de habilitar a ação. Esta entrega habilita hosts locais POSIX com perfis
+`sh`, `bash`, `zsh` ou `fish` (também PowerShell em POSIX). Windows, WSL,
+hosts remotos e outros perfis permanecem desabilitados com explicação.
+Não há fallback para a sessão mais recente nem leitura do texto do terminal.
+
+O envelope dos hooks aceita `pids`, uma lista de inteiros positivos com a
+ancestralidade do helper, encerrada no agente mais próximo. O monitor liga
+essa lista ao PID do agente em foreground. A identidade usada pelo fork é
+separada do ID persistido para restore: hooks antigos sem `pids` continuam
+atualizando status, mas não habilitam fork. Antes de abrir a nova aba, uma
+inspeção fresca confirma que o processo e a conversa continuam sendo os mesmos.
+
+No Pi, o bootstrap instala `~/.pi/agent/extensions/cockpit-status.ts`, sem
+alterar extensões do usuário. A extensão usa `session_start`, `agent_start`,
+`agent_end` e `session_shutdown` para reportar status, ID, transcript salvo e
+PID pelo transporte autenticado existente. Fora de um terminal do Cockpit,
+é inerte. Uma conversa efêmera/ainda não salva não habilita o botão. O caminho
+exato permite ramificar sessões guardadas em diretórios personalizados.
+Instalações isoladas continuam sem modificar hooks/extensões globais.
+
+É necessário reconstruir o app e sua CLI embarcada para usar o novo envelope;
+sessões anteriores podem precisar ser reiniciadas. O fork não cria worktree
+nem copia permissões temporárias que o CLI não restaure por conta própria.
+Erros de inicialização ficam visíveis na nova aba para diagnóstico.
+
+
+### Codex e servidor compartilhado
+
+Desde o servidor compartilhado, hooks do Codex executam no app-server e
+herdam o ambiente do primeiro cliente, sem um vínculo confiável com a aba
+que está exibindo a conversa. Por isso iniciar simplesmente `codex` pode
+não fornecer identidade de fork nesta aba. O botão explica que é necessário
+abrir uma nova aba de terminal, em vez de aguardar indefinidamente.
+
+Abertura pelo menu da pasta, boxes do grafo, restore e forks criados pelo
+Cockpit passam `--no-daemon`. Esse modo usa um servidor privado da sessão;
+não encerra nem altera o servidor compartilhado de outros clientes. O
+monitor e o helper ignoram processos `codex app-server`/`exec-server` como
+agente interativo e continuam até o TUI correto. Sessões já abertas no modo
+compartilhado precisam ser relançadas; o Cockpit não interrompe a conversa.
+
+
+### Comando normal, integração automática
+
+Nos terminais locais do Cockpit, basta digitar `codex`, `codex resume` ou
+`codex fork`: o app fornece um launcher privado `cockpit-codex` ao shell,
+que acrescenta o modo de servidor privado quando o executável instalado
+suporta essa opção. Não é preciso incluir flags no comando digitado.
+
+A função exportada do Bash, os proxies de startup do Zsh e o init-command do
+Fish mantêm essa integração mesmo quando um gerenciador como mise reorganiza
+o PATH. Os arquivos de configuração do usuário são lidos normalmente e não
+são editados. A configuração do shell muda somente no processo da aba; o
+launcher é materializado junto da CLI do app e não se registra como um Codex
+instalado no PATH. Ambos os backends locais, sidecar e PTY in-process, usam
+a mesma preparação. Hosts SSH/WSL não recebem caminhos ou configuração local.
+
+O launcher busca o Codex real, ignora aliases que apontem para ele próprio e
+usa exec para preservar PID, terminal, argumentos, sinais e status de saída.
+Comandos não interativos, ajuda/versão, modo remoto explícito e a opção já
+informada pelo usuário são repassados sem alteração. Fora das abas do
+Cockpit, o comando Codex continua usando seu comportamento normal. Abas que
+já estavam abertas antes dessa integração precisam ser reabertas uma vez.

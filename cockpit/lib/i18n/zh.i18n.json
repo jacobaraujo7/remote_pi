@@ -103,6 +103,20 @@
     "noResults": "无结果"
   },
   "cockpit": {
+    "agentFork": {
+      "privateServerRequired": "此会话启动时未启用 Cockpit 集成。请打开新的终端标签页并正常启动 Codex，以启用分叉。",
+      "notSaved": "此对话尚未保存。请先发送一条消息再创建分叉。",
+      "label": "在新标签页中分叉",
+      "identifying": "正在等待对话标识。如果刚刚启动 Codex，请先发送第一条消息。",
+      "checking": "正在检查分叉支持…",
+      "unavailable": "此代理尚不支持分叉集成。",
+      "incompatible": "此代理版本不提供兼容的分叉命令。",
+      "unsupportedHost": "此主机或终端配置尚不支持分叉。",
+      "staleSession": "原代理会话已不可用。",
+      "busy": "正在创建分叉…",
+      "launchFailed": "无法在新标签页中打开分叉。",
+      "errorTitle": "无法分叉对话"
+    },
     "confirmDialog": {
       "unsavedChangesTitle": "未保存的更改",
       "unsavedChangesMessage": "「${fileName}」有未保存的更改。关闭前要保存吗？",

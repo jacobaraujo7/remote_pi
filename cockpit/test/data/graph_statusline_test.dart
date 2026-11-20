@@ -7,6 +7,12 @@ import 'package:cockpit/app/cockpit/domain/contracts/terminal_status_server.dart
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  late Directory statusDirectory;
+  setUp(() async {
+    statusDirectory = await Directory.systemTemp.createTemp('graph-status-');
+  });
+  tearDown(() => statusDirectory.delete(recursive: true));
+
   test(
     'Claude status line is installed without replacing user config',
     () async {
@@ -18,7 +24,10 @@ void main() {
       var settings =
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       expect((settings['statusLine'] as Map)['command'], 'cockpit statusline');
-      expect((settings['hooks'] as Map).keys, containsAll(['SubagentStart', 'SubagentStop']));
+      expect(
+        (settings['hooks'] as Map).keys,
+        containsAll(['SubagentStart', 'SubagentStop']),
+      );
       settings['statusLine'] = {'type': 'command', 'command': 'my-status'};
       await file.writeAsString(jsonEncode(settings));
       await installer.writeConfig(home: home.path, command: 'cockpit hook');
@@ -29,7 +38,9 @@ void main() {
 
   test('metric payload preserves turn state channel', () async {
     final updates = <ClaudeStatusUpdate>[];
-    final server = TerminalStatusServerImpl();
+    final server = TerminalStatusServerImpl(
+      configurationDirectory: statusDirectory.path,
+    );
     await server.start(updates.add);
     addTearDown(server.stop);
     final env = server.hookEnv;
@@ -65,7 +76,9 @@ void main() {
 
   test('subagent lifecycle keeps identity and parent tab', () async {
     final updates = <ClaudeStatusUpdate>[];
-    final server = TerminalStatusServerImpl();
+    final server = TerminalStatusServerImpl(
+      configurationDirectory: statusDirectory.path,
+    );
     await server.start(updates.add);
     addTearDown(server.stop);
     final env = server.hookEnv;
@@ -97,7 +110,9 @@ void main() {
 
   test('Claude message metadata reaches graph without message body', () async {
     final updates = <ClaudeStatusUpdate>[];
-    final server = TerminalStatusServerImpl();
+    final server = TerminalStatusServerImpl(
+      configurationDirectory: statusDirectory.path,
+    );
     await server.start(updates.add);
     addTearDown(server.stop);
     final env = server.hookEnv;
