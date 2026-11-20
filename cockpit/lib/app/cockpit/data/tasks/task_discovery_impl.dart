@@ -21,7 +21,10 @@ class TaskDiscoveryImpl implements TaskDiscovery {
   final TasksJsonLoader _jsonLoader;
 
   @override
-  Future<List<TaskDefinition>> discover(String cwd) async {
+  Future<List<TaskDefinition>> discover(
+    String cwd, {
+    String? workspaceId,
+  }) async {
     if (cwd.isEmpty) return const [];
     final detected = await Future.wait(
       _adapters.map((a) async {
@@ -42,6 +45,8 @@ class TaskDiscoveryImpl implements TaskDiscovery {
     for (final t in manual) {
       byId[t.id] = t;
     }
-    return byId.values.toList();
+    return byId.values
+        .map((task) => task.scopedTo(cwd, workspaceId: workspaceId))
+        .toList();
   }
 }

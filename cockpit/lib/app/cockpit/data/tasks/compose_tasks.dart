@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/core/data/jsonc.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 enum ComposeEngine { docker, dockerLegacy, podman, podmanLegacy }
@@ -35,8 +36,8 @@ class ComposeFileParser {
   Future<ComposeFile?> parse(String path, String workspace) async {
     final lower = path.toLowerCase();
     if (!(lower.endsWith('.yaml') || lower.endsWith('.yml'))) return null;
-    final normalizedRoot = Directory(workspace).absolute.path;
-    final normalizedPath = File(path).absolute.path;
+    final normalizedRoot = p.normalize(Directory(workspace).absolute.path);
+    final normalizedPath = p.normalize(File(path).absolute.path);
     if (normalizedPath != normalizedRoot &&
         !normalizedPath.startsWith(
           '$normalizedRoot${Platform.pathSeparator}',
@@ -96,7 +97,8 @@ class ComposeFileParser {
           : item is YamlMap
           ? item['path']
           : null;
-      if (raw is String && File(resolveCwd(base, raw)).absolute.path == child) {
+      if (raw is String &&
+          p.normalize(File(resolveCwd(base, raw)).absolute.path) == child) {
         return true;
       }
     }
@@ -295,6 +297,8 @@ class ComposeTaskGenerator {
   }
 
   String _relative(String path, String base) {
+    path = p.normalize(path);
+    base = p.normalize(base);
     final prefix = base.endsWith(Platform.pathSeparator)
         ? base
         : '$base${Platform.pathSeparator}';

@@ -128,9 +128,12 @@ class CockpitCliHandler {
     ctx,
     String taskId,
   ) async {
-    final defs = await ctx.discovery.discover(ctx.root);
+    final defs = await ctx.discovery.discover(
+      ctx.root,
+      workspaceId: ctx.project.id,
+    );
     for (final d in defs) {
-      if (d.id == taskId) return d;
+      if (d.id == taskId || d.localId == taskId) return d;
     }
     return null;
   }
@@ -545,9 +548,9 @@ class CockpitCliHandler {
           }
           final now = DateTime.now();
           var name = NotebookNote.fileNameFor(title, now);
-          final taken = (await _vm.listChildren(dir))
-              .map((e) => e.name)
-              .toSet();
+          final taken = (await _vm.listChildren(
+            dir,
+          )).map((e) => e.name).toSet();
           var i = 2;
           while (taken.contains(name)) {
             name = NotebookNote.fileNameFor('$title $i', now);
@@ -984,7 +987,10 @@ class CockpitCliHandler {
             'no workspace to list tasks for',
           );
         }
-        final defs = await ctx.discovery.discover(ctx.root);
+        final defs = await ctx.discovery.discover(
+          ctx.root,
+          workspaceId: ctx.project.id,
+        );
         final tasks = defs
             .map(
               (d) => <String, dynamic>{
@@ -1086,7 +1092,9 @@ class CockpitCliHandler {
         if (taskId.isEmpty) {
           return const CockpitCommandResult.fail('missing task id');
         }
-        final term = _taskTerms.existingTerminal(taskId);
+        final ctx = _taskContext(c);
+        final def = ctx == null ? null : await _findTask(ctx, taskId);
+        final term = _taskTerms.existingTerminal(def?.id ?? taskId);
         if (term == null) {
           return CockpitCommandResult.fail(
             'no output recorded for task "$taskId" (never ran this boot?)',
