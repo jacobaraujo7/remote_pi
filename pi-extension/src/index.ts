@@ -744,7 +744,14 @@ function _attachBridgeIfReady(): void {
   }
   void _meshNode
     .attachBridge({ relay: _relay, relayUrl: _relayUrl, keypair: _cachedEd25519 })
-    .catch(() => { /* best-effort — UDS mesh works regardless */ });
+    .catch((error: unknown) => {
+      // Not fatal — the UDS mesh works regardless — but swallowing this made a
+      // cross-PC outage invisible for as long as it lasted (see MeshNode's
+      // `_scheduleBridgeAttachRetry`, which now also retries the attach).
+      console.warn(
+        `[remote-pi] event=mesh_bridge_attach_failed reason=${String(error)}`,
+      );
+    });
 }
 
 /**
