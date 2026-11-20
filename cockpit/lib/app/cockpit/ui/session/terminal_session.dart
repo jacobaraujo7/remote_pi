@@ -1,3 +1,5 @@
+import 'package:cockpit/app/cockpit/domain/services/terminal_harness_normalizer.dart';
+import 'package:cockpit/app/cockpit/domain/entities/agent_fork.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -188,6 +190,37 @@ class TerminalSession extends PaneItem {
       sessionId: id,
       rootPid: () => _gateway.rootProcessId,
       wslDistro: profile.wslDistro,
+      onProcessChanged: (kind, process) {
+        final pid = process?.pid;
+        if (agentProcessId == pid && _forkProcessHarness == kind) return;
+        agentProcessId = pid;
+        _forkProcessHarness = kind;
+        final invocation = process == null
+            ? null
+            : TerminalHarnessNormalizer.normalize(
+                executable: process.executable,
+                argv: process.argv,
+              );
+        _codexPrivateServer =
+            kind == HarnessKind.codex &&
+            invocation?.harnessArgs.contains('--no-daemon') == true;
+        // A pending startup hook is usable only if it belongs to this exact
+        // foreground process. A persisted restore hint never enables fork.
+        if (_conversationIdentity != null &&
+            (_conversationIdentity!.harness != kind ||
+                !_conversationIdentity!.processIds.contains(pid))) {
+          _conversationIdentity = null;
+        }
+        final pending = _pendingConversationIdentity;
+        if (pending != null &&
+            pending.harness == kind &&
+            pending.processIds.contains(pid) &&
+            !_endedConversationProcesses.contains((pending.sessionId, pid!))) {
+          _conversationIdentity = pending;
+          _pendingConversationIdentity = null;
+        }
+        notifyListeners();
+      },
       onHarnessChanged: (newHarness) {
         if (_activeHarness != newHarness) {
           _activeHarness = newHarness;
@@ -319,6 +352,69 @@ class TerminalSession extends PaneItem {
   /// sempre `claude --resume <id>` — que falha com "No conversation found" se o
   /// id veio do Codex.
   AgentHarness agentHarness = AgentHarness.claude;
+
+  int? agentProcessId;
+  HarnessKind? _forkProcessHarness;
+  bool _codexPrivateServer = false;
+
+  /// Shared-daemon hooks cannot identify the terminal client. Never infer a
+  /// conversation from that daemon's environment or process ancestry.
+  bool get codexNeedsPrivateServer =>
+      _forkProcessHarness == HarnessKind.codex &&
+      !_codexPrivateServer &&
+      conversationIdentity == null;
+  AgentConversationIdentity? _conversationIdentity;
+  AgentConversationIdentity? _pendingConversationIdentity;
+  final Set<(String, int)> _endedConversationProcesses = {};
+  AgentConversationIdentity? get conversationIdentity =>
+      hasExited ? null : _conversationIdentity;
+
+  void observeConversationIdentity(
+    AgentConversationIdentity identity, {
+    required String? event,
+  }) {
+    if (_disposed || hasExited) return;
+    if (event == 'SessionEnd') {
+      if (_conversationIdentity?.sessionId == identity.sessionId &&
+          identity.processIds.contains(agentProcessId)) {
+        if (_endedConversationProcesses.length >= 64) {
+          _endedConversationProcesses.remove(_endedConversationProcesses.first);
+        }
+        _endedConversationProcesses.add((identity.sessionId, agentProcessId!));
+        _conversationIdentity = null;
+        notifyListeners();
+      }
+      final pending = _pendingConversationIdentity;
+      if (pending?.sessionId == identity.sessionId &&
+          pending!.processIds.last == identity.processIds.lastOrNull) {
+        _pendingConversationIdentity = null;
+      }
+      return;
+    }
+    if (identity.sessionId.isEmpty ||
+        identity.processIds.isEmpty ||
+        _endedConversationProcesses.contains((
+          identity.sessionId,
+          agentProcessId ?? -1,
+        ))) {
+      return;
+    }
+    if (_forkProcessHarness == identity.harness &&
+        identity.processIds.contains(agentProcessId)) {
+      final old = _conversationIdentity;
+      if (old?.sessionId == identity.sessionId &&
+          old?.harness == identity.harness &&
+          old?.transcriptPath == identity.transcriptPath) {
+        return;
+      }
+      _conversationIdentity = identity;
+      notifyListeners();
+    } else if (event == 'SessionStart') {
+      // Startup commonly arrives before the asynchronous process poll.
+      _pendingConversationIdentity = identity;
+      _kickHarnessMonitor(burst: true);
+    }
+  }
 
   bool _unseen = false;
   @override

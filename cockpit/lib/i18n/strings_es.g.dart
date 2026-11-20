@@ -109,6 +109,7 @@ class _Translations$cockpit$es extends Translations$cockpit$en {
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$agentFork$es agentFork = _Translations$cockpit$agentFork$es._(_root);
 	@override late final _Translations$cockpit$confirmDialog$es confirmDialog = _Translations$cockpit$confirmDialog$es._(_root);
 	@override late final _Translations$cockpit$neovim$es neovim = _Translations$cockpit$neovim$es._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$es worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$es._(_root);
@@ -505,6 +506,27 @@ class _Translations$core$menu$es extends Translations$core$menu$en {
 	@override String get quit => 'Salir';
 	@override String get minimize => 'Minimizar';
 	@override String get zoom => 'Zoom';
+}
+
+// Path: cockpit.agentFork
+class _Translations$cockpit$agentFork$es extends Translations$cockpit$agentFork$en {
+	_Translations$cockpit$agentFork$es._(TranslationsEs root) : this._root = root, super.internal(root);
+
+	final TranslationsEs _root; // ignore: unused_field
+
+	// Translations
+	@override String get privateServerRequired => 'Esta sesión se inició sin la integración de Cockpit. Abre una pestaña de terminal nueva e inicia Codex normalmente para habilitar fork.';
+	@override String get notSaved => 'Esta conversación aún no se ha guardado. Envía un mensaje antes de crear un fork.';
+	@override String get label => 'Fork en una pestaña nueva';
+	@override String get identifying => 'Esperando la identificación de la conversación. Si acabas de abrir Codex, envía el primer mensaje.';
+	@override String get checking => 'Comprobando compatibilidad con fork…';
+	@override String get unavailable => 'La integración de fork aún no está disponible para este agente.';
+	@override String get incompatible => 'Esta instalación del agente no ofrece un comando de fork compatible.';
+	@override String get unsupportedHost => 'Fork aún no está disponible para este host o perfil de terminal.';
+	@override String get staleSession => 'La sesión original del agente ya no está disponible.';
+	@override String get busy => 'Creando fork…';
+	@override String get launchFailed => 'No se pudo abrir el fork en otra pestaña.';
+	@override String get errorTitle => 'No se pudo bifurcar la conversación';
 }
 
 // Path: cockpit.confirmDialog
@@ -2405,6 +2427,18 @@ extension on TranslationsEs {
 			'common.copyCode' => 'Copiar código',
 			'common.search' => 'Buscar',
 			'common.noResults' => 'Sin resultados',
+			'cockpit.agentFork.privateServerRequired' => 'Esta sesión se inició sin la integración de Cockpit. Abre una pestaña de terminal nueva e inicia Codex normalmente para habilitar fork.',
+			'cockpit.agentFork.notSaved' => 'Esta conversación aún no se ha guardado. Envía un mensaje antes de crear un fork.',
+			'cockpit.agentFork.label' => 'Fork en una pestaña nueva',
+			'cockpit.agentFork.identifying' => 'Esperando la identificación de la conversación. Si acabas de abrir Codex, envía el primer mensaje.',
+			'cockpit.agentFork.checking' => 'Comprobando compatibilidad con fork…',
+			'cockpit.agentFork.unavailable' => 'La integración de fork aún no está disponible para este agente.',
+			'cockpit.agentFork.incompatible' => 'Esta instalación del agente no ofrece un comando de fork compatible.',
+			'cockpit.agentFork.unsupportedHost' => 'Fork aún no está disponible para este host o perfil de terminal.',
+			'cockpit.agentFork.staleSession' => 'La sesión original del agente ya no está disponible.',
+			'cockpit.agentFork.busy' => 'Creando fork…',
+			'cockpit.agentFork.launchFailed' => 'No se pudo abrir el fork en otra pestaña.',
+			'cockpit.agentFork.errorTitle' => 'No se pudo bifurcar la conversación',
 			'cockpit.confirmDialog.unsavedChangesTitle' => 'Cambios sin guardar',
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tiene cambios sin guardar. ¿Guardarlos antes de cerrar?',
 			'cockpit.confirmDialog.dontSave' => 'No guardar',
@@ -2822,6 +2856,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.emptyColumn' => 'Sin tarjetas',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 tarjeta', other: '${n} tarjetas', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Escribe una nota',
 			'cockpit.kanbanView.comments' => 'Comentarios',
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
@@ -2834,8 +2870,6 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -3336,6 +3370,8 @@ extension on TranslationsEs {
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeTitle' => 'Modo',
 			'settings.page.appearance.modeDesc' => 'Qué variante del tema usar.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" solo trae la variante oscura, así que esto no tiene efecto.',
@@ -3348,8 +3384,6 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',

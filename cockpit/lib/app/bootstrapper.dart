@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/data/hooks/pi_hook_installer_impl.dart';
 import 'dart:async';
 import 'package:cockpit/app/cockpit/ui/services/orchestration_controller.dart';
 import 'dart:io' show Platform;
@@ -201,12 +202,20 @@ class _CockpitBootstrapperState extends State<CockpitBootstrapper> {
         // Hooks do Cockpit nos harnesses suportados (idempotente) pra sessões
         // de agente nas abas reportarem status de turno: Claude Code em
         // ~/.claude/settings.json, Codex CLI em ~/.codex/hooks.json (+ trust no
-        // config.toml). Não-fatal e independentes. Desktop-only (mobile não tem
-        // ~/.claude nem ~/.codex, plano 59).
+        // config.toml), Pi via extensão de lifecycle/identidade. Não-fatal e
+        // independentes. Desktop-only (mobile não configura CLIs locais).
         if (!isMobilePlatform) {
+          // Shell startup needs the scoped launcher before the first PTY is
+          // created (especially Zsh, whose startup files are proxied).
+          try {
+            await const CodexHookInstallerImpl().ensureCli();
+          } on Object catch (error) {
+            debugPrint('[hook] terminal launcher unavailable: $error');
+          }
           for (final installer in const <HookInstaller>[
             ClaudeHookInstallerImpl(),
             CodexHookInstallerImpl(),
+            PiHookInstallerImpl(),
           ]) {
             unawaited(
               installer.ensureInstalled().then((r) {

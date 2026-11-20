@@ -107,6 +107,7 @@ class _Translations$cockpit$zh extends Translations$cockpit$en {
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$agentFork$zh agentFork = _Translations$cockpit$agentFork$zh._(_root);
 	@override late final _Translations$cockpit$confirmDialog$zh confirmDialog = _Translations$cockpit$confirmDialog$zh._(_root);
 	@override late final _Translations$cockpit$neovim$zh neovim = _Translations$cockpit$neovim$zh._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$zh worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$zh._(_root);
@@ -427,6 +428,27 @@ class _Translations$core$menu$zh extends Translations$core$menu$en {
 	@override String get minimize => '最小化';
 	@override String get zoom => '缩放';
 	@override String get toggleWordWrap => '切换自动换行';
+}
+
+// Path: cockpit.agentFork
+class _Translations$cockpit$agentFork$zh extends Translations$cockpit$agentFork$en {
+	_Translations$cockpit$agentFork$zh._(TranslationsZh root) : this._root = root, super.internal(root);
+
+	final TranslationsZh _root; // ignore: unused_field
+
+	// Translations
+	@override String get privateServerRequired => '此会话启动时未启用 Cockpit 集成。请打开新的终端标签页并正常启动 Codex，以启用分叉。';
+	@override String get notSaved => '此对话尚未保存。请先发送一条消息再创建分叉。';
+	@override String get label => '在新标签页中分叉';
+	@override String get identifying => '正在等待对话标识。如果刚刚启动 Codex，请先发送第一条消息。';
+	@override String get checking => '正在检查分叉支持…';
+	@override String get unavailable => '此代理尚不支持分叉集成。';
+	@override String get incompatible => '此代理版本不提供兼容的分叉命令。';
+	@override String get unsupportedHost => '此主机或终端配置尚不支持分叉。';
+	@override String get staleSession => '原代理会话已不可用。';
+	@override String get busy => '正在创建分叉…';
+	@override String get launchFailed => '无法在新标签页中打开分叉。';
+	@override String get errorTitle => '无法分叉对话';
 }
 
 // Path: cockpit.confirmDialog
@@ -2324,6 +2346,18 @@ extension on TranslationsZh {
 			'common.copyCode' => '复制代码',
 			'common.search' => '搜索',
 			'common.noResults' => '无结果',
+			'cockpit.agentFork.privateServerRequired' => '此会话启动时未启用 Cockpit 集成。请打开新的终端标签页并正常启动 Codex，以启用分叉。',
+			'cockpit.agentFork.notSaved' => '此对话尚未保存。请先发送一条消息再创建分叉。',
+			'cockpit.agentFork.label' => '在新标签页中分叉',
+			'cockpit.agentFork.identifying' => '正在等待对话标识。如果刚刚启动 Codex，请先发送第一条消息。',
+			'cockpit.agentFork.checking' => '正在检查分叉支持…',
+			'cockpit.agentFork.unavailable' => '此代理尚不支持分叉集成。',
+			'cockpit.agentFork.incompatible' => '此代理版本不提供兼容的分叉命令。',
+			'cockpit.agentFork.unsupportedHost' => '此主机或终端配置尚不支持分叉。',
+			'cockpit.agentFork.staleSession' => '原代理会话已不可用。',
+			'cockpit.agentFork.busy' => '正在创建分叉…',
+			'cockpit.agentFork.launchFailed' => '无法在新标签页中打开分叉。',
+			'cockpit.agentFork.errorTitle' => '无法分叉对话',
 			'cockpit.confirmDialog.unsavedChangesTitle' => '未保存的更改',
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '「${fileName}」有未保存的更改。关闭前要保存吗？',
 			'cockpit.confirmDialog.dontSave' => '不保存',
@@ -2741,6 +2775,8 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.notesPlaceholder' => '写个备注',
 			'cockpit.kanbanView.comments' => '评论',
 			'cockpit.kanbanView.addComment' => '添加评论',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.commentPlaceholder' => '写条评论',
 			'cockpit.kanbanView.noComments' => '暂无评论',
 			'cockpit.kanbanView.closeDetail' => '关闭',
@@ -2753,8 +2789,6 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -3255,6 +3289,8 @@ extension on TranslationsZh {
 			'settings.page.appearance.modeTitle' => '模式',
 			'settings.page.appearance.modeDesc' => '使用主题的哪个变体。',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '「${theme}」只有深色变体，此项不生效。',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '「${theme}」只有浅色变体，此项不生效。',
 			'settings.page.appearance.themeFileTitle' => '主题文件',
 			'settings.page.appearance.themeFileDesc' => '从 JSON 文件导入主题，或导出当前主题。',
@@ -3267,8 +3303,6 @@ extension on TranslationsZh {
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',

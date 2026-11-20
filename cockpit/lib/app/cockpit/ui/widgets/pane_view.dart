@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/ui/widgets/agent_fork_builder.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'stable_tab_stack.dart';
@@ -555,20 +556,27 @@ class _TabStripState extends State<_TabStrip> {
             ),
             if (widget.vm.showTerminalProfilePicker)
               _TabProfilePicker(vm: widget.vm),
-            _PaneTools(
-              onSplitRight: () => widget.onSplit(SplitDir.vertical),
-              onSplitDown: () => widget.onSplit(SplitDir.horizontal),
-              // Terminal na raiz do workspace, nesta pane (kebab mobile).
-              onOpenTerminal: () => widget.vm.newTerminalTab(
-                cwd: widget.vm.treeRootPath,
-                inPane: widget.pane.id,
-              ),
-              // Sem webview na plataforma (Linux) o botão nem aparece — regra
-              // de "zero UI órfã" do plano 58.
-              onOpenBrowser: BrowserCapability.resolve().isInline
-                  ? () => widget.vm.openWebBrowser('', inPane: widget.pane.id)
+            AgentForkBuilder(
+              vm: widget.vm,
+              source: widget.vm.session(pane.active) is TerminalSession
+                  ? widget.vm.session(pane.active) as TerminalSession
                   : null,
-              onClosePane: () => _confirmClosePane(context),
+              builder: (context, fork) => _PaneTools(
+                fork: fork,
+                onSplitRight: () => widget.onSplit(SplitDir.vertical),
+                onSplitDown: () => widget.onSplit(SplitDir.horizontal),
+                // Terminal na raiz do workspace, nesta pane (kebab mobile).
+                onOpenTerminal: () => widget.vm.newTerminalTab(
+                  cwd: widget.vm.treeRootPath,
+                  inPane: widget.pane.id,
+                ),
+                // Sem webview na plataforma (Linux) o botão nem aparece — regra
+                // de "zero UI órfã" do plano 58.
+                onOpenBrowser: BrowserCapability.resolve().isInline
+                    ? () => widget.vm.openWebBrowser('', inPane: widget.pane.id)
+                    : null,
+                onClosePane: () => _confirmClosePane(context),
+              ),
             ),
           ],
         ),
@@ -1451,6 +1459,7 @@ class _TabProfilePicker extends StatelessWidget {
 
 class _PaneTools extends StatelessWidget {
   const _PaneTools({
+    required this.fork,
     required this.onSplitRight,
     required this.onSplitDown,
     required this.onOpenTerminal,
@@ -1458,6 +1467,7 @@ class _PaneTools extends StatelessWidget {
     required this.onClosePane,
   });
 
+  final AgentForkAction fork;
   final VoidCallback onSplitRight;
   final VoidCallback onSplitDown;
 
@@ -1486,6 +1496,15 @@ class _PaneTools extends StatelessWidget {
             value: onOpenBrowser!,
             label: tr.openBrowser,
             icon: Icons.public,
+          ),
+        if (fork.visible)
+          AppMenuItem(
+            value: fork.onInvoke ?? () {},
+            enabled: fork.onInvoke != null,
+            label: fork.problem == null
+                ? ctx.t.cockpit.agentFork.label
+                : '${ctx.t.cockpit.agentFork.label} — ${agentForkProblemMessage(ctx, fork.problem!)}',
+            icon: Icons.fork_right,
           ),
         AppMenuItem(
           value: onSplitRight,
@@ -1558,6 +1577,34 @@ class _PaneTools extends StatelessWidget {
               Icon(Icons.public, size: spacing, color: iconColor),
               tr.openBrowser,
               onOpenBrowser!,
+            ),
+          if (fork.visible)
+            AppTooltip(
+              message: fork.problem == null
+                  ? context.t.cockpit.agentFork.label
+                  : agentForkProblemMessage(context, fork.problem!),
+              child: Semantics(
+                label: context.t.cockpit.agentFork.label,
+                button: true,
+                enabled: fork.onInvoke != null,
+                child: HoverTap(
+                  borderRadius: BorderRadius.circular(5),
+                  onTap: fork.onInvoke,
+                  child: SizedBox(
+                    width: spacing,
+                    height: spacing,
+                    child: fork.busy
+                        ? const CircularProgressIndicator(strokeWidth: 1.5)
+                        : Icon(
+                            Icons.fork_right,
+                            size: spacing,
+                            color: fork.onInvoke == null
+                                ? colors.text4
+                                : iconColor,
+                          ),
+                  ),
+                ),
+              ),
             ),
           btn(
             _SplitterScreenIcon(

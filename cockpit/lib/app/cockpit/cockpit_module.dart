@@ -1,3 +1,5 @@
+import 'package:cockpit/app/cockpit/domain/contracts/agent_fork_gateway.dart';
+import 'package:cockpit/app/cockpit/data/terminal/local_agent_fork_gateway.dart';
 import 'package:cockpit_core/cockpit_core.dart';
 import 'dart:io';
 
@@ -276,6 +278,7 @@ Future<Module> buildCockpitModule({
           (ProcessTreeProvider provider) =>
               CockpitTerminalHarnessMonitor(provider, windowActivity),
         )
+        ..addLazySingleton<AgentForkGateway>(LocalAgentForkGateway.new)
         ..addLazySingleton<TerminalStatusServer>(TerminalStatusServerImpl.new)
         // Telemetria (plano 66): um store por workspace no cache local, parser
         // único compartilhado por task/wrapper, ingest resolve pelo cwd.

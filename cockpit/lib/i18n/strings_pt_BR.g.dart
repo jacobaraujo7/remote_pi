@@ -109,6 +109,7 @@ class _Translations$cockpit$pt_BR extends Translations$cockpit$en {
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override late final _Translations$cockpit$agentFork$pt_BR agentFork = _Translations$cockpit$agentFork$pt_BR._(_root);
 	@override late final _Translations$cockpit$confirmDialog$pt_BR confirmDialog = _Translations$cockpit$confirmDialog$pt_BR._(_root);
 	@override late final _Translations$cockpit$neovim$pt_BR neovim = _Translations$cockpit$neovim$pt_BR._(_root);
 	@override late final _Translations$cockpit$worktreeCreateDialog$pt_BR worktreeCreateDialog = _Translations$cockpit$worktreeCreateDialog$pt_BR._(_root);
@@ -505,6 +506,27 @@ class _Translations$core$menu$pt_BR extends Translations$core$menu$en {
 	@override String get quit => 'Sair';
 	@override String get minimize => 'Minimizar';
 	@override String get zoom => 'Zoom';
+}
+
+// Path: cockpit.agentFork
+class _Translations$cockpit$agentFork$pt_BR extends Translations$cockpit$agentFork$en {
+	_Translations$cockpit$agentFork$pt_BR._(TranslationsPtBr root) : this._root = root, super.internal(root);
+
+	final TranslationsPtBr _root; // ignore: unused_field
+
+	// Translations
+	@override String get privateServerRequired => 'Esta sessão foi iniciada sem a integração do Cockpit. Abra uma nova aba de terminal e inicie o Codex normalmente para habilitar fork.';
+	@override String get notSaved => 'Esta conversa ainda não foi salva. Envie uma mensagem antes de criar um fork.';
+	@override String get label => 'Fork em nova aba';
+	@override String get identifying => 'Aguardando a identificação da conversa. Se acabou de abrir o Codex, envie a primeira mensagem.';
+	@override String get checking => 'Verificando suporte a fork…';
+	@override String get unavailable => 'A integração de fork ainda não está disponível para este agente.';
+	@override String get incompatible => 'Esta instalação do agente não oferece um comando de fork compatível.';
+	@override String get unsupportedHost => 'O fork ainda não está disponível para este host ou perfil de terminal.';
+	@override String get staleSession => 'A sessão original do agente não está mais disponível.';
+	@override String get busy => 'Criando fork…';
+	@override String get launchFailed => 'Não foi possível abrir o fork em outra aba.';
+	@override String get errorTitle => 'Não foi possível ramificar a conversa';
 }
 
 // Path: cockpit.confirmDialog
@@ -2409,6 +2431,18 @@ extension on TranslationsPtBr {
 			'common.copyCode' => 'Copiar código',
 			'common.search' => 'Buscar',
 			'common.noResults' => 'Nenhum resultado',
+			'cockpit.agentFork.privateServerRequired' => 'Esta sessão foi iniciada sem a integração do Cockpit. Abra uma nova aba de terminal e inicie o Codex normalmente para habilitar fork.',
+			'cockpit.agentFork.notSaved' => 'Esta conversa ainda não foi salva. Envie uma mensagem antes de criar um fork.',
+			'cockpit.agentFork.label' => 'Fork em nova aba',
+			'cockpit.agentFork.identifying' => 'Aguardando a identificação da conversa. Se acabou de abrir o Codex, envie a primeira mensagem.',
+			'cockpit.agentFork.checking' => 'Verificando suporte a fork…',
+			'cockpit.agentFork.unavailable' => 'A integração de fork ainda não está disponível para este agente.',
+			'cockpit.agentFork.incompatible' => 'Esta instalação do agente não oferece um comando de fork compatível.',
+			'cockpit.agentFork.unsupportedHost' => 'O fork ainda não está disponível para este host ou perfil de terminal.',
+			'cockpit.agentFork.staleSession' => 'A sessão original do agente não está mais disponível.',
+			'cockpit.agentFork.busy' => 'Criando fork…',
+			'cockpit.agentFork.launchFailed' => 'Não foi possível abrir o fork em outra aba.',
+			'cockpit.agentFork.errorTitle' => 'Não foi possível ramificar a conversa',
 			'cockpit.confirmDialog.unsavedChangesTitle' => 'Alterações não salvas',
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” tem alterações não salvas. Salvar antes de fechar?',
 			'cockpit.confirmDialog.dontSave' => 'Não salvar',
@@ -2826,6 +2860,8 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.deleteCard' => 'Apagar card',
 			'cockpit.kanbanView.advance' => 'Passar pra próxima coluna',
 			'cockpit.kanbanView.advanceHold' => 'Mover para a próxima coluna (segurar: mover para a última)',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.advanceBack' => 'Voltar uma coluna',
 			'cockpit.kanbanView.emptyColumn' => 'Sem cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
@@ -2838,8 +2874,6 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
 			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Apagar “${name}”?',
@@ -3340,6 +3374,8 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.noWslMessage' => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.',
 			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
 			'settings.page.appearance.themeTitle' => 'Tema',
@@ -3352,8 +3388,6 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Escuro',

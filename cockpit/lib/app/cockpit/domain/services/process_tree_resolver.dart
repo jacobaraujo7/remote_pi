@@ -11,6 +11,11 @@ abstract class ProcessTreeResolver {
   static HarnessKind? resolve({
     required int rootPid,
     required List<ProcessSnapshot> snapshots,
+  }) => resolveProcess(rootPid: rootPid, snapshots: snapshots)?.kind;
+
+  static ({HarnessKind kind, ProcessSnapshot process})? resolveProcess({
+    required int rootPid,
+    required List<ProcessSnapshot> snapshots,
   }) {
     if (snapshots.isEmpty) return null;
 
@@ -38,7 +43,7 @@ abstract class ProcessTreeResolver {
     // Build paths from rootPid down to leaf nodes
     final paths = _buildAncestryPaths(rootPid, descendantPids, procMap);
 
-    HarnessKind? deepestHarness;
+    ({HarnessKind kind, ProcessSnapshot process})? deepestHarness;
     int maxDepth = -1;
 
     for (final path in paths) {
@@ -61,7 +66,7 @@ abstract class ProcessTreeResolver {
         if (kind != null) {
           if (currentDepth >= maxDepth) {
             maxDepth = currentDepth;
-            deepestHarness = kind;
+            deepestHarness = (kind: kind, process: proc);
           }
         }
         currentDepth++;

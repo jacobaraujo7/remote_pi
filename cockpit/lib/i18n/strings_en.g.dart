@@ -157,6 +157,7 @@ class Translations$cockpit$en {
 	final Translations _root; // ignore: unused_field
 
 	// Translations
+	late final Translations$cockpit$agentFork$en agentFork = Translations$cockpit$agentFork$en.internal(_root);
 	late final Translations$cockpit$confirmDialog$en confirmDialog = Translations$cockpit$confirmDialog$en.internal(_root);
 	late final Translations$cockpit$neovim$en neovim = Translations$cockpit$neovim$en.internal(_root);
 	late final Translations$cockpit$worktreeCreateDialog$en worktreeCreateDialog = Translations$cockpit$worktreeCreateDialog$en.internal(_root);
@@ -951,6 +952,51 @@ class Translations$core$menu$en {
 
 	/// en: 'Zoom'
 	String get zoom => 'Zoom';
+}
+
+// Path: cockpit.agentFork
+class Translations$cockpit$agentFork$en {
+	Translations$cockpit$agentFork$en.internal(this._root);
+
+	final Translations _root; // ignore: unused_field
+
+	// Translations
+
+	/// en: 'This session was started without Cockpit integration. Open a new terminal tab and start Codex normally to enable fork.'
+	String get privateServerRequired => 'This session was started without Cockpit integration. Open a new terminal tab and start Codex normally to enable fork.';
+
+	/// en: 'This conversation has not been saved yet. Send a message before creating a fork.'
+	String get notSaved => 'This conversation has not been saved yet. Send a message before creating a fork.';
+
+	/// en: 'Fork into a new tab'
+	String get label => 'Fork into a new tab';
+
+	/// en: 'Waiting for the conversation identity. If you just opened Codex, send the first message.'
+	String get identifying => 'Waiting for the conversation identity. If you just opened Codex, send the first message.';
+
+	/// en: 'Checking fork support…'
+	String get checking => 'Checking fork support…';
+
+	/// en: 'Fork integration is not available for this agent yet.'
+	String get unavailable => 'Fork integration is not available for this agent yet.';
+
+	/// en: 'This agent installation does not provide a compatible fork command.'
+	String get incompatible => 'This agent installation does not provide a compatible fork command.';
+
+	/// en: 'Fork is not available for this host or terminal profile yet.'
+	String get unsupportedHost => 'Fork is not available for this host or terminal profile yet.';
+
+	/// en: 'The original agent session is no longer available.'
+	String get staleSession => 'The original agent session is no longer available.';
+
+	/// en: 'Creating a fork…'
+	String get busy => 'Creating a fork…';
+
+	/// en: 'Could not open the fork in a new tab.'
+	String get launchFailed => 'Could not open the fork in a new tab.';
+
+	/// en: 'Could not fork the conversation'
+	String get errorTitle => 'Could not fork the conversation';
 }
 
 // Path: cockpit.confirmDialog
@@ -5077,6 +5123,18 @@ extension on Translations {
 			'common.copyCode' => 'Copy code',
 			'common.search' => 'Search',
 			'common.noResults' => 'No results',
+			'cockpit.agentFork.privateServerRequired' => 'This session was started without Cockpit integration. Open a new terminal tab and start Codex normally to enable fork.',
+			'cockpit.agentFork.notSaved' => 'This conversation has not been saved yet. Send a message before creating a fork.',
+			'cockpit.agentFork.label' => 'Fork into a new tab',
+			'cockpit.agentFork.identifying' => 'Waiting for the conversation identity. If you just opened Codex, send the first message.',
+			'cockpit.agentFork.checking' => 'Checking fork support…',
+			'cockpit.agentFork.unavailable' => 'Fork integration is not available for this agent yet.',
+			'cockpit.agentFork.incompatible' => 'This agent installation does not provide a compatible fork command.',
+			'cockpit.agentFork.unsupportedHost' => 'Fork is not available for this host or terminal profile yet.',
+			'cockpit.agentFork.staleSession' => 'The original agent session is no longer available.',
+			'cockpit.agentFork.busy' => 'Creating a fork…',
+			'cockpit.agentFork.launchFailed' => 'Could not open the fork in a new tab.',
+			'cockpit.agentFork.errorTitle' => 'Could not fork the conversation',
 			'cockpit.confirmDialog.unsavedChangesTitle' => 'Unsaved changes',
 			'cockpit.confirmDialog.unsavedChangesMessage' => ({required Object fileName}) => '“${fileName}” has unsaved changes. Save them before closing?',
 			'cockpit.confirmDialog.dontSave' => 'Don\'t save',
@@ -5494,6 +5552,8 @@ extension on Translations {
 			'cockpit.kanbanView.deleteCard' => 'Delete card',
 			'cockpit.kanbanView.advance' => 'Move to next column',
 			'cockpit.kanbanView.advanceHold' => 'Move to next column (hold: move to last column)',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.advanceBack' => 'Move back a column',
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
@@ -5506,8 +5566,6 @@ extension on Translations {
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
 			'cockpit.kanbanView.startBoard' => 'Start a board',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Delete “${name}”?',
@@ -6008,6 +6066,8 @@ extension on Translations {
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
@@ -6020,8 +6080,6 @@ extension on Translations {
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',

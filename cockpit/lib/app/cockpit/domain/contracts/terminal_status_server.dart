@@ -16,6 +16,7 @@ class ClaudeStatusUpdate {
     this.graphRecipient,
     this.graphSelfName,
     this.eventAt,
+    this.processIds = const [],
   });
 
   /// Id da aba (vem do env `COCKPIT_PANE_ID` injetado na PTV — roteamento).
@@ -55,6 +56,9 @@ class ClaudeStatusUpdate {
   /// Claude ListAgents address for the terminal's own session.
   final String? graphSelfName;
   final DateTime? eventAt;
+
+  /// Agent/hook process ancestry, used only for exact fork identity binding.
+  final List<int> processIds;
 }
 
 /// Harness que roda numa aba de terminal. O Cockpit precisa distinguir para
@@ -70,6 +74,10 @@ enum AgentHarness {
   /// Nome no wire (payload do hook) e no layout persistido.
   final String wire;
 
+  /// Per-terminal Codex servers preserve the hook's terminal provenance.
+  String get launchCommand =>
+      this == AgentHarness.codex ? 'codex --no-daemon' : wire;
+
   /// Comando que reata a sessão [sessionId] num shell novo.
   String resumeCommand(String sessionId) => switch (this) {
     AgentHarness.claude =>
@@ -78,8 +86,8 @@ enum AgentHarness {
           : 'claude --resume $sessionId',
     AgentHarness.codex =>
       sessionId == 'latest' || sessionId.isEmpty
-          ? 'codex resume --last'
-          : 'codex resume $sessionId',
+          ? 'codex resume --last --no-daemon'
+          : 'codex resume $sessionId --no-daemon',
     AgentHarness.pi =>
       sessionId == 'latest' || sessionId.isEmpty
           ? 'pi -c'

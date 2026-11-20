@@ -1,3 +1,5 @@
+import 'package:cockpit/app/cockpit/domain/contracts/agent_fork_gateway.dart';
+import 'package:cockpit/app/cockpit/domain/entities/agent_fork.dart';
 import 'package:cockpit/app/cockpit/domain/services/gallery_creates.dart';
 import '../document/open_files_channel.dart';
 import '../document/native_document_router.dart';
@@ -210,6 +212,7 @@ class CockpitViewModel extends ChangeNotifier
     this._telemetryStores,
     this._telemetryIngest,
     this._taskDevices,
+    this._agentForkGateway,
   ) {
     _fileEditorFacade = FileEditorFacade(
       FileEditorRegistry({
@@ -324,6 +327,7 @@ class CockpitViewModel extends ChangeNotifier
   final LayoutLoader _layoutLoader;
   final RemoteHostsController _remoteHosts;
   final TerminalHarnessMonitor _harnessMonitor;
+  final AgentForkGateway _agentForkGateway;
   final NeovimGateway _neovim;
   final FileSystemReader _fileSystem;
   final TerminalGatewayFactory _terminalFactory;
@@ -868,7 +872,10 @@ class CockpitViewModel extends ChangeNotifier
           tabId: value,
         );
         final modelArg = model.isEmpty ? '' : ' --model $model';
-        _typeWhenReady(value, '$harness$modelArg');
+        _typeWhenReady(
+          value,
+          '${AgentHarness.fromWire(harness).launchCommand}$modelArg',
+        );
         _queueGraphRole(value, role, harness);
         _scheduleSave(project.id);
         notifyListeners();
@@ -1010,7 +1017,7 @@ class CockpitViewModel extends ChangeNotifier
       return null;
     }
     final modelArg = box.model.isEmpty ? '' : ' --model ${box.model}';
-    return '$harness$modelArg';
+    return '${AgentHarness.fromWire(harness).launchCommand}$modelArg';
   }
 
   @override
@@ -1710,7 +1717,8 @@ class CockpitViewModel extends ChangeNotifier
       return FileViewText(
         text,
         language: switch (ext) {
-          'canvas' || 'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
+          'canvas' ||
+          'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
           '' => null,
           _ => ext,
         },
@@ -3469,7 +3477,10 @@ class CockpitViewModel extends ChangeNotifier
       try {
         final service = await _remoteHosts.fileServiceFor(host);
         final bytes = utf8.encode(content);
-        if (FileReader.isBoard(s.path) && bytes.length > FileReader.boardByteLimit) return false;
+        if (FileReader.isBoard(s.path) &&
+            bytes.length > FileReader.boardByteLimit) {
+          return false;
+        }
         await service.write(s.path, bytes);
       } catch (_) {
         return false; // fs.write falhou (permissão, conexão) → não salvou.
@@ -5943,6 +5954,98 @@ class CockpitViewModel extends ChangeNotifier
     notifyListeners();
   }
 
+  final Set<String> _forkingAgentTabs = {};
+
+  AgentForkProblem? agentForkProblem(TerminalSession source) {
+    if (source.hasExited || source.activeHarness == null) {
+      return AgentForkProblem.staleSession;
+    }
+    if (!_agentForkGateway.supports(source.activeHarness!)) {
+      return AgentForkProblem.unavailable;
+    }
+    if (source.attachmentsRemote ||
+        source.profile.wslDistro != null ||
+        Platform.isWindows) {
+      return AgentForkProblem.unsupportedHost;
+    }
+    if (source.codexNeedsPrivateServer) {
+      return AgentForkProblem.privateServerRequired;
+    }
+    if (source.conversationIdentity == null ||
+        source.conversationIdentity!.harness != source.activeHarness) {
+      return AgentForkProblem.identifying;
+    }
+    return null;
+  }
+
+  Future<Result<AgentForkLaunch, AgentForkFailure>> prepareAgentFork(
+    TerminalSession source,
+  ) async {
+    final problem = agentForkProblem(source);
+    if (problem != null) return Failure(AgentForkFailure(problem));
+    return _agentForkGateway.prepare(
+      identity: source.conversationIdentity!,
+      profile: source.profile,
+    );
+  }
+
+  Future<Result<String, AgentForkFailure>> forkAgentInNewTab(
+    String tabId,
+  ) async {
+    final source = session(tabId);
+    if (source is! TerminalSession ||
+        leafOfTab(source.projectId, tabId) == null) {
+      return const Failure(AgentForkFailure(AgentForkProblem.staleSession));
+    }
+    if (!_forkingAgentTabs.add(tabId)) {
+      return const Failure(AgentForkFailure(AgentForkProblem.busy));
+    }
+    final identity = source.conversationIdentity;
+    final processId = source.agentProcessId;
+    try {
+      final launch = await prepareAgentFork(source);
+      if (launch case Failure(:final error)) return Failure(error);
+      // Refresh foreground detection after the capability probe: a CLI can
+      // exit while its --help is running, even without a lifecycle hook.
+      final inspected = await _harnessMonitor.refreshSession(tabId);
+      final paneId = leafOfTab(source.projectId, tabId);
+      if (!inspected ||
+          !identical(session(tabId), source) ||
+          source.hasExited ||
+          paneId == null ||
+          source.agentProcessId != processId ||
+          !identical(source.conversationIdentity, identity) ||
+          agentForkProblem(source) != null) {
+        return const Failure(AgentForkFailure(AgentForkProblem.staleSession));
+      }
+      if (_selectedProjectId != source.projectId) {
+        selectProject(source.projectId);
+      }
+      final created = newTerminalTab(
+        cwd: source.currentDirectory ?? source.workingDirectory,
+        workspaceId: source.projectId,
+        inPane: paneId,
+        profile: source.profile,
+        engine: source.terminal.engine,
+        startupCommand: (launch as Success<AgentForkLaunch, AgentForkFailure>)
+            .value
+            .command,
+      );
+      return switch (created) {
+        Success(:final value) => Success(value),
+        Failure(:final error) => Failure(
+          AgentForkFailure(AgentForkProblem.launchFailed, detail: error),
+        ),
+      };
+    } on FileSystemException catch (error) {
+      return Failure(
+        AgentForkFailure(AgentForkProblem.launchFailed, detail: error.message),
+      );
+    } finally {
+      _forkingAgentTabs.remove(tabId);
+    }
+  }
+
   /// Cria uma aba de **terminal** com [cwd] absoluto — usada pela CLI interna
   /// (`cockpit new-tab`), que não passa pelo dialog nem por subpasta relativa.
   /// [inPane] ancora a criação numa folha específica (a da tab emissora);
@@ -5961,6 +6064,8 @@ class CockpitViewModel extends ChangeNotifier
     String? graphBoxId,
     String? workspaceId,
     bool takeFocus = true,
+    TerminalProfile? profile,
+    TerminalEngine? engine,
   }) {
     final projectId = workspaceId ?? _selectedProjectId;
     final tree = projectId == null ? null : _trees[projectId];
@@ -5978,6 +6083,8 @@ class CockpitViewModel extends ChangeNotifier
       title: title ?? _sanitizeName(_basename(cwd)),
       startupCommand: startupCommand,
       graphBoxId: graphBoxId,
+      profile: profile,
+      engine: engine,
     );
     if (title != null && title.trim().isNotEmpty) {
       s.setManualLabel(title);
@@ -7192,6 +7299,30 @@ class CockpitViewModel extends ChangeNotifier
       }
       return;
     }
+    if (u.sessionId != null && u.harness != null) {
+      final kind = switch (u.harness) {
+        'claude' => HarnessKind.claudeCode,
+        'codex' => HarnessKind.codex,
+        'pi' => HarnessKind.pi,
+        _ => null,
+      };
+      if (kind != null) {
+        s.observeConversationIdentity(
+          AgentConversationIdentity(
+            harness: kind,
+            sessionId: u.sessionId!,
+            transcriptPath: u.transcriptPath,
+            processIds: u.processIds,
+          ),
+          event: u.event,
+        );
+      }
+    }
+    if (u.processIds.isNotEmpty &&
+        s.agentProcessId != null &&
+        !u.processIds.contains(s.agentProcessId)) {
+      return;
+    }
     if (u.event == 'SessionEnd') {
       final removedChildren = _graphSubagents.clearOwner(s.id);
       final peers = _graphUnresolvedPeers[s.projectId];
@@ -7293,6 +7424,8 @@ class CockpitViewModel extends ChangeNotifier
     final existing = Platform.environment['PATH'] ?? '';
     return <String, String>{
       'PATH': existing.isEmpty ? binDir : '$binDir$sep$existing',
+      if (!Platform.isWindows)
+        'COCKPIT_CODEX_LAUNCHER': '$binDir/cockpit-codex',
     };
   }
 

@@ -31,6 +31,12 @@ class HarnessSpec {
     required this.isMonochrome,
   });
 
+  /// Interactive terminals need a private Codex server so hooks identify
+  /// their own tab rather than the first client of a shared daemon.
+  String get terminalCommand => kind == HarnessKind.codex
+      ? '$primaryEntryPoint --no-daemon'
+      : primaryEntryPoint;
+
   /// All entry point names that can trigger this harness.
   List<String> get allEntryPoints => [primaryEntryPoint, ...aliases];
 }

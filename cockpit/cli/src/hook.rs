@@ -150,6 +150,7 @@ fn try_run(harness: &str, decoded: &Value) -> Option<()> {
         // comando certo (`claude --resume <id>` vs `codex resume <id>`) — o
         // session-id sozinho não diz de quem é.
         "hn": harness,
+        "pids": process_ancestors(),
         "aid": str_field(decoded, "agent_id"),
         "at": str_field(decoded, "agent_type"),
     });
@@ -208,6 +209,106 @@ fn try_run(harness: &str, decoded: &Value) -> Option<()> {
     s.write_all(line.as_bytes()).ok()?;
     let _ = s.flush();
     Some(())
+}
+
+/// Capture ancestry while the short-lived hook is alive. The desktop matches
+/// it to its foreground process snapshot; a session ID alone can be stale.
+fn process_ancestors() -> Vec<u32> {
+    #[cfg(target_os = "linux")]
+    {
+        let mut result = Vec::new();
+        let mut pid = std::process::id();
+        for _ in 0..32 {
+            if pid <= 1 || result.contains(&pid) {
+                break;
+            }
+            result.push(pid);
+            // Do not include the source agent above a nested/background agent.
+            // Its SessionStart belongs to the child, even if it inherited the
+            // source terminal's Cockpit environment.
+            if let Ok(command) = std::fs::read_to_string(format!("/proc/{pid}/cmdline")) {
+                if is_agent_command(&command.replace('\0', " ")) {
+                    break;
+                }
+            }
+            let status = match std::fs::read_to_string(format!("/proc/{pid}/status")) {
+                Ok(s) => s,
+                Err(_) => break,
+            };
+            pid = status
+                .lines()
+                .find_map(|line| {
+                    line.strip_prefix("PPid:")
+                        .and_then(|value| value.trim().parse().ok())
+                })
+                .unwrap_or(0);
+        }
+        result
+    }
+    #[cfg(all(unix, not(target_os = "linux")))]
+    {
+        let mut result = Vec::new();
+        if let Ok(output) = std::process::Command::new("/bin/ps")
+            .args(["-axo", "pid=,ppid=,command="])
+            .output()
+        {
+            let text = String::from_utf8_lossy(&output.stdout);
+            let parents: std::collections::HashMap<u32, (u32, String)> = text
+                .lines()
+                .filter_map(|line| {
+                    let mut fields = line.split_whitespace();
+                    let pid = fields.next()?.parse().ok()?;
+                    let ppid = fields.next()?.parse().ok()?;
+                    Some((pid, (ppid, fields.collect::<Vec<_>>().join(" "))))
+                })
+                .collect();
+            let mut pid = std::process::id();
+            for _ in 0..32 {
+                if pid <= 1 || result.contains(&pid) {
+                    break;
+                }
+                result.push(pid);
+                match parents.get(&pid) {
+                    Some((parent, command)) => {
+                        if is_agent_command(command) {
+                            break;
+                        }
+                        pid = *parent;
+                    }
+                    None => break,
+                }
+            }
+        }
+        result
+    }
+    #[cfg(not(unix))]
+    Vec::new()
+}
+
+#[cfg(any(unix, test))]
+fn is_agent_command(command: &str) -> bool {
+    let mut words = command.split_whitespace();
+    let executable = words.next().unwrap_or("");
+    let name = std::path::Path::new(executable)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    if name == "codex" {
+        // In private-server mode an app-server child may sit between the hook
+        // and the TUI. Keep walking until the actual interactive process.
+        return !words.any(|word| matches!(word, "app-server" | "exec-server"));
+    }
+    if matches!(name, "claude" | "pi") {
+        return true;
+    }
+    if matches!(name, "node" | "bun" | "deno") {
+        let script = words.find(|word| !word.starts_with('-')).unwrap_or("");
+        return script.contains("/claude-code/")
+            || script.contains("/pi-coding-agent/")
+            || script.ends_with("/codex.js")
+            || script.ends_with("/claude.js");
+    }
+    false
 }
 
 /// ListAgents identifies the current Claude session in its first line. Only
@@ -306,6 +407,29 @@ pub fn status_for(event: &str, json: &Value) -> Option<&'static str> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn identity_ancestry_stops_at_agent_not_its_shell_command() {
+        assert!(super::is_agent_command("/usr/bin/claude --resume chat"));
+        assert!(super::is_agent_command(
+            "node /usr/lib/node_modules/@anthropic-ai/claude-code/cli.js"
+        ));
+        assert!(!super::is_agent_command("/bin/bash -c claude"));
+        assert!(!super::is_agent_command("cockpit hook --harness claude"));
+        assert!(super::is_agent_command("/usr/bin/codex --no-daemon"));
+        assert!(!super::is_agent_command(
+            "/usr/bin/codex app-server --listen stdio://"
+        ));
+        assert!(!super::is_agent_command("/usr/bin/codex exec-server"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn identity_ancestry_is_bounded_and_starts_at_the_hook() {
+        let ancestors = super::process_ancestors();
+        assert_eq!(ancestors.first(), Some(&std::process::id()));
+        assert!(ancestors.len() <= 32);
+    }
+
     use super::*;
 
     #[test]

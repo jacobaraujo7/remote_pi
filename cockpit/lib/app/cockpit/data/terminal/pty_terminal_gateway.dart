@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/data/hooks/codex_terminal_launcher.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -38,11 +39,15 @@ class PtyTerminalGateway implements TerminalGateway {
     // pasta do workspace e o terminal ainda abre, no ancestral mais próximo.
     final dir = resolveSpawnDirectory(workingDirectory);
     _resolvedDirectory = dir;
+    final invocation = CodexTerminalLauncher.configure(
+      profile,
+      _terminalEnv(extraEnv),
+    );
     _pty = Pty.start(
       profile.executable,
-      arguments: profile.args,
+      arguments: invocation.arguments,
       workingDirectory: dir.path.isEmpty ? null : dir.path,
-      environment: _terminalEnv(extraEnv),
+      environment: invocation.environment,
       rows: rows,
       columns: columns,
       // Backpressure: a thread nativa só lê o próximo chunk depois de
