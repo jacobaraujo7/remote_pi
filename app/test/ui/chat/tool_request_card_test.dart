@@ -33,6 +33,268 @@ const _editToolWithHunk = ToolEvent(
 );
 
 void main() {
+  group('Subagent workflows', () {
+    testWidgets('renders live scripted workflow child inventory', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'script',
+        toolCallId: 'script',
+        tool: 'subagent',
+        args: {'workflow': './review.js'},
+        details: {
+          'mode': 'workflow',
+          'results': [
+            {
+              'index': 0,
+              'workflowKey': 'scan',
+              'agent': 'scout',
+              'exitCode': 0,
+              'finalOutput': 'Scout report',
+            },
+          ],
+          'workflowChildren': {
+            'version': 1,
+            'workflowState': 'running',
+            'children': [
+              {'childId': 'scan', 'state': 'completed'},
+              {'childId': 'review', 'agent': 'reviewer', 'state': 'running'},
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('scout · completed'), findsOneWidget);
+      expect(find.text('reviewer · running'), findsOneWidget);
+      await tester.tap(find.text('Child output'));
+      await tester.pumpAndSettle();
+      expect(find.text('Scout report'), findsOneWidget);
+    });
+
+    testWidgets('names finished live children when inventory omits agent', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'inventory',
+        toolCallId: 'inventory',
+        tool: 'subagent',
+        args: {'workflow': './review.js'},
+        details: {
+          'workflowChildren': {
+            'children': [
+              {'childId': 'scout', 'state': 'completed'},
+              {'childId': 'reviewer', 'agent': 'reviewer', 'state': 'running'},
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('scout · completed'), findsOneWidget);
+      expect(find.text('reviewer · running'), findsOneWidget);
+    });
+
+    testWidgets('keeps script results with repeated child-local indexes', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'script-done',
+        toolCallId: 'script-done',
+        tool: 'subagent',
+        args: {'workflow': './review.js'},
+        status: ToolEventStatus.completed,
+        details: {
+          'results': [
+            {
+              'index': 0,
+              'workflowKey': 'scan',
+              'agent': 'scout',
+              'exitCode': 0,
+              'finalOutput': 'Scout report',
+            },
+            {
+              'index': 0,
+              'workflowKey': 'review',
+              'agent': 'reviewer',
+              'exitCode': 0,
+              'finalOutput': 'Review report',
+            },
+          ],
+          'workflowChildren': {
+            'children': [
+              {'childId': 'scan', 'agent': 'scout', 'state': 'completed'},
+              {'childId': 'review', 'agent': 'reviewer', 'state': 'completed'},
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('scout · completed'), findsOneWidget);
+      expect(find.text('reviewer · completed'), findsOneWidget);
+      expect(find.text('Child output'), findsNWidgets(2));
+    });
+
+    testWidgets('renders queued chain steps and live child activity', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'workflow',
+        toolCallId: 'workflow',
+        tool: 'subagent',
+        args: {
+          'chain': [
+            {'agent': 'scout', 'task': 'Find files'},
+            {'agent': 'reviewer', 'task': 'Review code'},
+          ],
+        },
+        details: {
+          'mode': 'chain',
+          'progress': [
+            {
+              'index': 0,
+              'agent': 'scout',
+              'status': 'running',
+              'currentTool': 'read',
+              'recentOutput': ['Inspecting files'],
+            },
+          ],
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('Chain workflow'), findsOneWidget);
+      expect(find.text('scout · running'), findsOneWidget);
+      expect(find.text('reviewer · pending'), findsOneWidget);
+      expect(find.text('Tool: read'), findsOneWidget);
+      expect(find.text('Inspecting files'), findsOneWidget);
+      expect(find.text('RUNNING'), findsOneWidget);
+    });
+
+    testWidgets('shows child failure and expandable final output', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'workflow',
+        toolCallId: 'workflow',
+        tool: 'subagent',
+        args: {'workflow': 'review'},
+        status: ToolEventStatus.completed,
+        result: 'Workflow summary',
+        details: {
+          'mode': 'workflow',
+          'results': [
+            {
+              'index': 4,
+              'agent': 'reviewer',
+              'exitCode': 1,
+              'error': 'Review failed',
+              'finalOutput': 'Child report',
+            },
+          ],
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('Workflow: review'), findsOneWidget);
+      expect(find.text('reviewer · failed'), findsOneWidget);
+      expect(find.text('Review failed'), findsOneWidget);
+      await tester.tap(find.text('Child output'));
+      await tester.pumpAndSettle();
+      expect(find.text('Child report'), findsOneWidget);
+      await tester.tap(find.text('Workflow output'));
+      await tester.pumpAndSettle();
+      expect(find.text('Workflow summary'), findsOneWidget);
+    });
+
+    testWidgets('background snapshots show nested states on narrow screens', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'run',
+        toolCallId: 'run',
+        tool: 'subagent',
+        args: {'workflow': 'parallel-review'},
+        details: {
+          'runs': [
+            {
+              'id': 'r1',
+              'label': 'Review',
+              'state': 'running',
+              'children': [
+                {'id': 'r2', 'agent': 'reviewer', 'state': 'complete'},
+                {'id': 'r3', 'agent': 'scout', 'state': 'paused'},
+              ],
+            },
+          ],
+        },
+      );
+      await tester.pumpWidget(
+        _wrap(
+          const Center(
+            child: SizedBox(width: 280, child: ToolRequestCard(tool: tool)),
+          ),
+        ),
+      );
+      expect(find.text('Review · running'), findsOneWidget);
+      expect(find.text('reviewer · complete'), findsOneWidget);
+      expect(find.text('scout · paused'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('older text-only subagent results remain visible', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'old',
+        toolCallId: 'old',
+        tool: 'subagent',
+        args: {'agent': 'worker', 'task': 'Do work'},
+        status: ToolEventStatus.completed,
+        result: 'Legacy report',
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('worker · unknown'), findsOneWidget);
+      await tester.tap(find.text('Workflow output'));
+      await tester.pumpAndSettle();
+      expect(find.text('Legacy report'), findsOneWidget);
+    });
+
+    testWidgets('reads older child messages without exposing thinking', (
+      tester,
+    ) async {
+      const tool = ToolEvent(
+        id: 'legacy-child',
+        toolCallId: 'legacy-child',
+        tool: 'subagent',
+        args: {},
+        status: ToolEventStatus.completed,
+        details: {
+          'results': [
+            {
+              'index': 0,
+              'agent': 'worker',
+              'exitCode': 0,
+              'execution': {'status': 'completed'},
+              'progress': {'status': 'running'},
+              'messages': [
+                {
+                  'role': 'assistant',
+                  'content': [
+                    {'type': 'thinking', 'thinking': 'Private reasoning'},
+                    {'type': 'text', 'text': 'Legacy child report'},
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      );
+      await tester.pumpWidget(_wrap(const ToolRequestCard(tool: tool)));
+      expect(find.text('worker · completed'), findsOneWidget);
+      await tester.tap(find.text('Child output'));
+      await tester.pumpAndSettle();
+      expect(find.text('Legacy child report'), findsOneWidget);
+      expect(find.text('Private reasoning'), findsNothing);
+    });
+  });
+
   group('ToolRequestCard (informational)', () {
     testWidgets('shows tool name and command', (tester) async {
       await tester.pumpWidget(_wrap(const ToolRequestCard(tool: _bashTool)));
