@@ -18,6 +18,7 @@ import {
   isOnPath,
   launchdPlistPath,
   linkCliBinaries,
+  nonSystemdScriptPath,
   renderTemplate,
   systemdUnitPath,
   unlinkCliBinaries,
@@ -225,6 +226,10 @@ describe.skipIf(posixOnly)("paths", () => {
 
   test("launchdPlistPath lives under ~/Library/LaunchAgents/", () => {
     expect(launchdPlistPath()).toMatch(/Library\/LaunchAgents\/dev\.remotepi\.supervisord\.plist$/);
+  });
+
+  test("nonSystemdScriptPath lives under ~/.pi/remote/start-supervisord.sh", () => {
+    expect(nonSystemdScriptPath("/tmp/fakehome")).toBe("/tmp/fakehome/.pi/remote/start-supervisord.sh");
   });
 });
 
