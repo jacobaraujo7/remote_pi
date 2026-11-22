@@ -1,7 +1,7 @@
 import { ChildProcess, execFileSync, spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { basename, delimiter, dirname, join } from "node:path";
 import type { DaemonState } from "./control_protocol.js";
 import { defaultAgentName, loadLocalConfig, type LocalConfig } from "../session/local_config.js";
 
@@ -19,12 +19,16 @@ import { defaultAgentName, loadLocalConfig, type LocalConfig } from "../session/
  *   - Exit/crash fires `exit` event with `{code, signal, isCrash}` so the
  *     supervisor can decide whether to auto-restart.
  *
+ * The child is `pi` by default, or `omp` (oh-my-pi) when that is the agent
+ * on the machine — see `resolveDefaultAgentBin` (issue #170).
+ *
  * Each `RpcChild` instance maps 1:1 to a registry entry (single cwd).
  * The supervisor owns the map of these and addresses them by `id`.
  */
 
 export interface RpcChildOptions {
-  /** Path to the `pi` binary. Defaults to "pi" (must be on PATH). */
+  /** Path to the agent binary (`pi` or `omp`). Defaults to auto-detecting
+   *  via `REMOTE_PI_AGENT_BIN` / PATH (see `resolveDefaultAgentBin`). */
   piBin?: string;
   /** Absolute path to the remote-pi `dist/index.js` to load as -e. */
   extensionPath: string;
@@ -60,9 +64,83 @@ export const EXIT_DAEMON_FRESH_SESSION = 42;
  *  Windows — picking it yields `spawn … ENOENT` and the daemon shows "crashed". */
 const WIN_EXECUTABLE_EXTS = [".exe", ".cmd", ".bat", ".com"];
 
+/** Which agent CLI a daemon child runs (issue #170). `omp` is oh-my-pi, a
+ *  hard fork of pi with the same RPC surface but different CLI flags and a
+ *  `~/.omp` state root. */
+export type AgentBackend = "pi" | "omp";
+
+/** `stat`-based executable check: a regular file with an exec bit (POSIX) or
+ *  any regular file (Windows has no exec bit). Pure + reusable for PATH scans. */
+function _isExecutableFile(path: string, plat: NodeJS.Platform): boolean {
+  try {
+    const st = statSync(path);
+    return st.isFile() && (plat === "win32" || (st.mode & 0o111) !== 0);
+  } catch {
+    return false;
+  }
+}
+
+/** Resolve a bare command name to an existing executable on `envPath` (or
+ *  `process.env.PATH`), honoring Windows `PATHEXT` suffixes. Returns null when
+ *  no PATH entry has a runnable match — used to detect which agent backend is
+ *  installed WITHOUT spawning anything. */
+function _resolveExecutablePath(
+  command: string,
+  plat: NodeJS.Platform = process.platform,
+  envPath: string = process.env["PATH"] ?? "",
+): string | null {
+  if (command.includes("\\") || command.includes("/")) {
+    return _isExecutableFile(command, plat) ? command : null;
+  }
+  const dirs = envPath.split(delimiter).filter(Boolean);
+  if (plat === "win32") {
+    const pathext = (process.env["PATHEXT"] ?? ".COM;.EXE;.BAT;.CMD")
+      .split(";")
+      .map((ext) => ext.trim().toLowerCase())
+      .filter(Boolean);
+    for (const dir of dirs) {
+      for (const ext of pathext) {
+        const candidate = join(dir, command + ext);
+        if (_isExecutableFile(candidate, plat)) return candidate;
+      }
+    }
+    return null;
+  }
+  for (const dir of dirs) {
+    const candidate = join(dir, command);
+    if (_isExecutableFile(candidate, plat)) return candidate;
+  }
+  return null;
+}
+
 /**
- * Resolve the `pi` executable for `spawn` (plan/40, decision C). On Windows a
- * bare `pi` is actually `pi.cmd`/`pi.ps1`, and `spawn` won't find it without an
+ * Default agent binary for daemon children (issue #170): an explicit
+ * `REMOTE_PI_AGENT_BIN` wins (any value — a full path is passed through);
+ * otherwise `pi` is preferred for backwards compatibility, falling back to
+ * `omp` when only oh-my-pi is installed. When neither is found we still say
+ * `pi` so `spawn` surfaces the ENOENT honestly instead of failing earlier
+ * with a less actionable error.
+ */
+export function resolveDefaultAgentBin(
+  plat: NodeJS.Platform = process.platform,
+  envPath: string = process.env["PATH"] ?? "",
+): string {
+  const explicit = process.env["REMOTE_PI_AGENT_BIN"]?.trim();
+  if (explicit) return explicit;
+  if (_resolveExecutablePath("pi", plat, envPath)) return "pi";
+  if (_resolveExecutablePath("omp", plat, envPath)) return "omp";
+  return "pi";
+}
+
+/** Backend implied by a resolved binary path: a basename starting with `omp`
+ *  (covers `omp`, `omp.exe`, `omp.cmd`) runs oh-my-pi; anything else is pi. */
+export function backendForBin(piBin: string): AgentBackend {
+  return basename(piBin).toLowerCase().startsWith("omp") ? "omp" : "pi";
+}
+
+/**
+ * Resolve the `pi`/`omp` executable for `spawn` (plan/40, decision C). On
+ * Windows a bare `pi` is actually `pi.cmd`/`pi.ps1`, and `spawn` won't find it without an
  * extension → resolve the real path via `where` (rather than `shell:true`,
  * which risks shell injection). An explicit path or an already-suffixed name is
  * used as-is. POSIX returns the name unchanged. Best-effort: if `where` fails,
@@ -169,7 +247,7 @@ function parseGetStateResponse(line: string): { id?: string; isStreaming?: boole
 }
 
 /**
- * CLI args for the daemon's `pi --mode rpc` child.
+ * CLI args for the daemon's `--mode rpc` child.
  *
  * `--continue` is the key bit: it resumes the **most recent** session for the
  * cwd (`SessionManager.continueRecent`, non-interactive — unlike `--resume`
@@ -179,33 +257,33 @@ function parseGetStateResponse(line: string): { id?: string; isStreaming?: boole
  * it over to a fresh one, which the next restart then continues. First boot
  * (no prior session) just creates the first one.
  *
- * `--name <sessionName>`, when given, pins the session's display name to the
- * daemon's identity (its `agent_name`) so every restart shows up under the
- * same stable name in the picker/app instead of an auto-generated one. The
- * daemon's name is set at registration (`remote-pi create <cwd> --name "…"`).
- * Omitted when no name resolves, so the arg list stays minimal.
+ * The trust/approval flag is mandatory for a daemon (pi ≥0.79 project trust):
+ * RPC mode is non-interactive, so without an override the agent resolves an
+ * untrusted project folder (any folder with `.pi/` or CLAUDE.md/AGENTS.md) to
+ * NOT trusted and silently skips its `.pi/settings.json`
+ * (model/provider/keys), instructions, resources and project extensions — the
+ * daemon then comes up with no model and fails on the first turn. The operator
+ * already authorized this folder by registering/launching a daemon in it, so
+ * trust-for-this-run is the correct non-interactive stance. The flag spelling
+ * differs per backend (issue #170): pi takes `--approve`, while oh-my-pi
+ * renamed it to `--auto-approve`.
  *
- * `--approve` is mandatory for a daemon (pi ≥0.79 project trust): RPC mode is
- * non-interactive, so without an override Pi resolves an untrusted project
- * folder (any folder with `.pi/` or CLAUDE.md/AGENTS.md) to NOT trusted and
- * silently skips its `.pi/settings.json` (model/provider/keys), instructions,
- * resources and project extensions — the daemon then comes up with no model
- * and fails on the first turn. The operator already authorized this folder by
- * registering/launching a daemon in it, so `--approve` (trust-for-this-run) is
- * the correct non-interactive stance. (Does NOT affect the separate "extension
- * loaded twice" conflict, which comes from the extension being BOTH installed
- * in ~/.pi/agent/extensions or cwd/.pi/extensions AND passed via `-e`.)
+ * The session's display name is NOT set via CLI here: oh-my-pi has no
+ * `--name` flag, so `spawn()` pins the name over the RPC stream with
+ * `set_session_name` — one path that works for both backends. (Does NOT
+ * affect the separate "extension loaded twice" conflict, which comes from the
+ * extension being BOTH installed in ~/.pi/agent/extensions or
+ * cwd/.pi/extensions AND passed via `-e`.)
  */
 export function rpcSpawnArgs(
   extensionPath: string,
-  sessionName?: string,
+  backend: AgentBackend = "pi",
   useContinue = true,
 ): string[] {
   return [
     "--mode", "rpc",
-    "--approve",
+    backend === "omp" ? "--auto-approve" : "--approve",
     ...(useContinue ? ["--continue"] : []),
-    ...(sessionName ? ["--name", sessionName] : []),
     "-e", extensionPath,
   ];
 }
@@ -255,7 +333,12 @@ export class RpcChild extends EventEmitter {
     this._busy = false;
     this._state = "starting";
 
-    const piTarget = resolvePiSpawn(this.opts.piBin ?? "pi");
+    // Detect the backend from the *unresolved* bin name: on Windows
+    // `resolvePiSpawn` may return `node.exe` as the command (with the agent's
+    // cli.js in prefixArgs), which would defeat basename detection.
+    const agentBin = this.opts.piBin ?? resolveDefaultAgentBin();
+    const piTarget = resolvePiSpawn(agentBin);
+    const backend = backendForBin(agentBin);
     // Name the (single) daemon session after the daemon's configured identity,
     // so it shows up stably instead of an auto-generated name on each restart.
     // Prefer the supervisor-injected config; fall back to the on-disk file.
@@ -264,8 +347,8 @@ export class RpcChild extends EventEmitter {
     const useContinue = !this.forceFreshSessionOnNextSpawn;
     this.forceFreshSessionOnNextSpawn = false;
     // On Windows `prefixArgs` carries pi's cli.js (we spawn node directly); on
-    // POSIX it's empty and `command` is `pi` itself.
-    const args = [...piTarget.prefixArgs, ...rpcSpawnArgs(this.opts.extensionPath, sessionName, useContinue)];
+    // POSIX it's empty and `command` is the agent binary itself.
+    const args = [...piTarget.prefixArgs, ...rpcSpawnArgs(this.opts.extensionPath, backend, useContinue)];
     const env: NodeJS.ProcessEnv = {
       ...process.env,
       ...this.opts.env,
@@ -305,6 +388,18 @@ export class RpcChild extends EventEmitter {
       );
       this.emit("exit", { code: null, signal: null, isCrash: true });
     });
+
+    // Pin the session's display name over the RPC stream. oh-my-pi has no
+    // `--name` CLI flag (issue #170), so both backends take the same path:
+    // `set_session_name` is queued on stdin and applied once the child starts
+    // consuming RPC commands. Best-effort — a failed rename (child died
+    // before reading stdin, unknown command on an older agent) must not fail
+    // the spawn; the session just keeps its auto-generated name.
+    try {
+      child.stdin?.write(
+        JSON.stringify({ id: "session-name", type: "set_session_name", name: sessionName }) + "\n",
+      );
+    } catch { /* best-effort — see above */ }
 
     this.emit("spawn", { pid: child.pid });
   }

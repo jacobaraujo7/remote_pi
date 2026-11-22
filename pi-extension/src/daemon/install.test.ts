@@ -63,6 +63,8 @@ describe("findTemplate", () => {
     expect(content).toContain("[Service]");
     expect(content).toContain("{NODE}");
     expect(content).toContain("{SUPERVISOR}");
+    expect(content).toContain("{AGENT_BIN}");
+    expect(content).toContain("{STATE_PREFIX}");
   });
 
   test("launchd template file exists on disk", () => {
@@ -73,6 +75,8 @@ describe("findTemplate", () => {
     expect(content).toContain("dev.remotepi.supervisord");
     expect(content).toContain("{NODE}");
     expect(content).toContain("{SUPERVISOR}");
+    expect(content).toContain("{AGENT_BIN}");
+    expect(content).toContain("{STATE_PREFIX}");
   });
 
   test("task-scheduler (Windows) template file exists on disk (plan/40)", () => {
@@ -104,6 +108,8 @@ describe("findTemplate", () => {
     expect(content).toContain("cmd /c");
     expect(content).toContain("{NODE}");
     expect(content).toContain("{SUPERVISOR}");
+    expect(content).toContain("{AGENT_BIN}");
+    expect(content).toContain("{STATE_PREFIX}");
     expect(content).toContain("{LOG}");
   });
 });
@@ -112,6 +118,8 @@ describe("renderTemplate", () => {
   const vars = {
     node: "/usr/local/bin/node",
     supervisor: "/Users/x/dist/bin/supervisord.js",
+    agentBin: "/opt/homebrew/bin/pi",
+    statePrefix: ".pi",
     home: "/Users/x",
     user: "jacob",
     path: "/usr/local/bin:/usr/bin:/bin",
@@ -124,11 +132,15 @@ describe("renderTemplate", () => {
     const out = renderTemplate(tpl, vars);
     expect(out).not.toContain("{NODE}");
     expect(out).not.toContain("{SUPERVISOR}");
+    expect(out).not.toContain("{AGENT_BIN}");
+    expect(out).not.toContain("{STATE_PREFIX}");
     expect(out).not.toContain("{HOME}");
     expect(out).not.toContain("{PATH}");
     expect(out).not.toContain("{USER}");
     expect(out).toContain(vars.node);
     expect(out).toContain(vars.supervisor);
+    expect(out).toContain(`Environment="REMOTE_PI_AGENT_BIN=${vars.agentBin}"`);
+    expect(out).toContain(`Environment="REMOTE_PI_STATE_PREFIX=${vars.statePrefix}"`);
     expect(out).toContain(vars.home);
     expect(out).toContain(vars.path);
   });
@@ -138,11 +150,16 @@ describe("renderTemplate", () => {
     const out = renderTemplate(tpl, vars);
     expect(out).not.toContain("{NODE}");
     expect(out).not.toContain("{SUPERVISOR}");
+    expect(out).not.toContain("{AGENT_BIN}");
+    expect(out).not.toContain("{STATE_PREFIX}");
     expect(out).not.toContain("{HOME}");
     expect(out).not.toContain("{PATH}");
+    expect(out).not.toContain("{LOG}");
     expect(out).toContain(`<string>${vars.node}</string>`);
     expect(out).toContain(`<string>${vars.supervisor}</string>`);
-    expect(out).toContain(`<string>${vars.home}/.pi/remote/supervisord.log</string>`);
+    expect(out).toContain(`<string>${vars.agentBin}</string>`);
+    expect(out).toContain(`<string>${vars.statePrefix}</string>`);
+    expect(out).toContain(`<string>${vars.logPath}</string>`);
   });
 
   test("global replacement (multiple occurrences of same placeholder)", () => {
@@ -166,24 +183,28 @@ describe("renderTemplate", () => {
     expect(out).not.toContain("{SUPERVISOR}");
   });
 
-  test("substitutes {NODE}/{SUPERVISOR}/{LOG} in the vbs-launcher template", () => {
+  test("substitutes {NODE}/{SUPERVISOR}/{AGENT_BIN}/{STATE_PREFIX}/{LOG} in the vbs-launcher template", () => {
     const tpl = readFileSync(findTemplate("vbs-launcher"), "utf8");
     const out = renderTemplate(tpl, vars);
     expect(out).not.toContain("{NODE}");
     expect(out).not.toContain("{SUPERVISOR}");
+    expect(out).not.toContain("{AGENT_BIN}");
+    expect(out).not.toContain("{STATE_PREFIX}");
     expect(out).not.toContain("{LOG}");
     expect(out).toContain(vars.node);
     expect(out).toContain(vars.supervisor);
+    expect(out).toContain(vars.agentBin);
+    expect(out).toContain(vars.statePrefix);
     expect(out).toContain(vars.logPath);
   });
 });
 
 describe("vbsLauncherPath", () => {
-  test("is absolute and ends with the launcher .vbs under ~/.pi/remote", () => {
+  test("is absolute and ends with the launcher .vbs under the state root", () => {
     const p = vbsLauncherPath();
     expect(isAbsolute(p)).toBe(true);
     expect(p.endsWith("RemotePiSupervisorLauncher.vbs")).toBe(true);
-    expect(p.endsWith(join(".pi", "remote", "RemotePiSupervisorLauncher.vbs"))).toBe(true);
+    expect(p.endsWith(join("remote", "RemotePiSupervisorLauncher.vbs"))).toBe(true);
   });
 });
 
@@ -236,6 +257,13 @@ describe("defaultRenderVars", () => {
     expect(isAbsolute(vars.home)).toBe(true);
     expect(vars.user.length).toBeGreaterThan(0);
     expect(vars.path.length).toBeGreaterThan(0);
+    // Backend pinning (issue #170): a non-empty agent bin and a matching
+    // state namespace (.omp iff the resolved bin is an omp binary).
+    expect(vars.agentBin.length).toBeGreaterThan(0);
+    expect([".pi", ".omp"]).toContain(vars.statePrefix);
+    expect(vars.statePrefix).toBe(
+      basename(vars.agentBin).toLowerCase().startsWith("omp") ? ".omp" : ".pi",
+    );
   });
 });
 
