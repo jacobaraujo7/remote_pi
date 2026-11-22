@@ -23,6 +23,12 @@ export interface LocalConfig {
    * configs without this field are treated as `true` for backward compat.
    */
   auto_start_relay?: boolean;
+  /**
+   * Opt-in (default false). While this agent is mid-run, steer inbound
+   * agent-network messages into the running agent, so it reads them as soon
+   * as its current tool calls finish instead of after the whole run ends.
+   */
+  steer_mesh_messages?: boolean;
   // `workspace?`/`worktree?` were removed (plan/38, reescrito 2026-06-08): the
   // mesh identity is `(cwd, nome)`, with `cwd` subsuming folder + worktree
   // disambiguation. Neither axis is derived anymore, so the config fields are
@@ -97,6 +103,7 @@ function parseLocalConfig(raw: string): LocalConfig | null {
     if (migrated) cfg.agent_name = migrated;
   }
   if (typeof src["auto_start_relay"] === "boolean") cfg.auto_start_relay = src["auto_start_relay"];
+  if (typeof src["steer_mesh_messages"] === "boolean") cfg.steer_mesh_messages = src["steer_mesh_messages"];
   return cfg;
 }
 

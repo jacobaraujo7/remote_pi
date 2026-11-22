@@ -237,6 +237,7 @@ const {
   _handleControl,
   _routeClientMessageFrom,
   _deliverMeshMessageToAgentForTest,
+  _setSteerMeshMessagesForTest,
   CTRL_PREFIX,
 } = indexModule;
 const { acquireCwdLock } = await import("./session/cwd_lock.js");
@@ -1054,6 +1055,203 @@ describe("agent-network mesh delivery", () => {
     harness.handler("agent_end")({ type: "agent_end" });
     await new Promise<void>((resolve) => setTimeout(resolve, 5));
   });
+
+  describe("with steer_mesh_messages", () => {
+    const envelope = (id: string) => ({ id, from: "/work/repo@reviewer", re: null, body: { status: id } });
+    const steered = (...ids: string[]) => [
+      expect.objectContaining({
+        customType: "remote-pi:mesh-message",
+        content: expect.stringMatching(new RegExp(ids.join("[\\s\\S]*\\n\\n\\[agent-network\\][\\s\\S]*"))),
+      }),
+      { triggerTurn: true, deliverAs: "steer" },
+    ];
+    const settle = () => new Promise<void>((resolve) => setTimeout(resolve, 5));
+
+    /** A running agent whose turn_end context the test controls, opted in unless told otherwise. */
+    function runningSession(opts: { steer?: boolean; ctx?: Record<string, unknown> } = {}) {
+      const sendMessage = vi.fn();
+      const harness = captureEventHarness({ sendMessage });
+      const session = { streaming: true, userQueued: false, run: new AbortController() };
+      const ctx = {
+        ...makeMockCtx(),
+        isIdle: () => !session.streaming,
+        hasPendingMessages: () => session.userQueued,
+        get signal() { return session.run.signal; },
+        ...opts.ctx,
+      };
+      _setSteerMeshMessagesForTest(opts.steer ?? true);
+      harness.handler("agent_start")({ type: "agent_start" });
+      const turnEnd = (stopReason = "toolUse", extra: Record<string, unknown> = {}) => harness.handler("turn_end")(
+        { type: "turn_end", turnIndex: 0, message: { role: "assistant", stopReason }, toolResults: [], ...extra },
+        ctx,
+      );
+      /** Ends the run the way the #62 drain expects: agent_end, then the drained turn's own agent_end. */
+      const endRun = async () => {
+        harness.handler("agent_end")({ type: "agent_end" });
+        await settle();
+        harness.handler("agent_end")({ type: "agent_end" });
+        await settle();
+      };
+      return { sendMessage, session, turnEnd, endRun };
+    }
+
+    /** Ends the run and expects the waiting message to drain the usual way. */
+    async function expectUsualDrain(run: ReturnType<typeof runningSession>, id: string) {
+      await run.endRun();
+      expect(run.sendMessage.mock.calls.at(-1)).toEqual([
+        expect.objectContaining({ content: expect.stringContaining(id) }),
+        { triggerTurn: true, deliverAs: "followUp" },
+      ]);
+    }
+
+    afterEach(() => {
+      _setSteerMeshMessagesForTest(false);
+    });
+
+    test.each(["toolUse", "stop"])("steers waiting messages at the next turn boundary as one message (%s)", async (stopReason) => {
+      // One message, so Pi's default steeringMode "one-at-a-time" cannot leave
+      // part of the batch in its own queue, where Escape would discard it.
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope(`${stopReason}-1`));
+      _deliverMeshMessageToAgentForTest(envelope(`${stopReason}-2`));
+      await Promise.resolve();
+      expect(run.sendMessage).not.toHaveBeenCalled();
+
+      run.turnEnd(stopReason);
+
+      expect(run.sendMessage.mock.calls).toEqual([steered(`${stopReason}-1`, `${stopReason}-2`)]);
+      await run.endRun();
+      expect(run.sendMessage).toHaveBeenCalledTimes(1);
+    });
+
+    test("steers a message that arrives after a steer at the following boundary", async () => {
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope("first-1"));
+      run.turnEnd();
+      _deliverMeshMessageToAgentForTest(envelope("second-1"));
+      run.turnEnd();
+
+      expect(run.sendMessage.mock.calls).toEqual([steered("first-1"), steered("second-1")]);
+      await run.endRun();
+      expect(run.sendMessage).toHaveBeenCalledTimes(2);
+    });
+
+    test.each(["aborted", "error"])("keeps messages waiting past a turn that ended with %s", async (stopReason) => {
+      // Pi goes straight to agent_end after such a turn, without reading steering.
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope(`${stopReason}-1`));
+
+      run.turnEnd(stopReason);
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, `${stopReason}-1`);
+    });
+
+    test("keeps messages waiting when Pi is no longer streaming", async () => {
+      const run = runningSession();
+      run.session.streaming = false;
+      _deliverMeshMessageToAgentForTest(envelope("gap-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "gap-1");
+    });
+
+    test("keeps messages waiting when the run is being aborted", async () => {
+      // Escape during a tool call still ends that turn normally, but the next
+      // response is aborted, so steering would be read and never answered.
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope("escape-1"));
+      run.session.run.abort();
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "escape-1");
+    });
+
+    test("keeps messages waiting while the user has messages queued", async () => {
+      // Pi would read the user's steering first and leave ours in its queue.
+      const run = runningSession();
+      run.session.userQueued = true;
+      _deliverMeshMessageToAgentForTest(envelope("behind-user-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "behind-user-1");
+    });
+
+    test("keeps messages waiting while Pi previews other queued messages (Pi 0.99+)", async () => {
+      // Newer Pi lists what the agent reads next, including other extensions' steering.
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope("behind-custom-1"));
+
+      run.turnEnd("toolUse", { context: { pendingMessages: [{ role: "custom", customType: "other" }] } });
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "behind-custom-1");
+    });
+
+    test("steers when Pi previews nothing queued (Pi 0.99+)", async () => {
+      const run = runningSession();
+      _deliverMeshMessageToAgentForTest(envelope("preview-empty-1"));
+
+      run.turnEnd("toolUse", { context: { pendingMessages: [] } });
+
+      expect(run.sendMessage.mock.calls).toEqual([steered("preview-empty-1")]);
+      await run.endRun();
+    });
+
+    test("keeps messages waiting when the session context is stale", async () => {
+      const run = runningSession({ ctx: { isIdle: () => { throw new Error("stale ctx"); } } });
+      _deliverMeshMessageToAgentForTest(envelope("stale-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "stale-1");
+    });
+
+    test("keeps messages waiting when the turn belongs to another runtime", async () => {
+      const run = runningSession();
+      const current = { sendMessage: vi.fn(), sendUserMessage: () => undefined };
+      _setPiForTest(current);
+      _deliverMeshMessageToAgentForTest(envelope("other-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      expect(current.sendMessage).not.toHaveBeenCalled();
+      await run.endRun();
+      expect(current.sendMessage).toHaveBeenCalledWith(
+        expect.objectContaining({ content: expect.stringContaining("other-1") }),
+        { triggerTurn: true, deliverAs: "followUp" },
+      );
+    });
+
+    test("requeues a message Pi refuses to steer, so it is not lost", async () => {
+      const run = runningSession();
+      run.sendMessage.mockImplementationOnce(() => { throw new Error("session replaced"); });
+      _deliverMeshMessageToAgentForTest(envelope("refused-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).toHaveBeenCalledTimes(1);
+      await expectUsualDrain(run, "refused-1");
+    });
+
+    test("leaves delivery unchanged when not opted in", async () => {
+      const run = runningSession({ steer: false });
+      _deliverMeshMessageToAgentForTest(envelope("default-1"));
+
+      run.turnEnd();
+
+      expect(run.sendMessage).not.toHaveBeenCalled();
+      await expectUsualDrain(run, "default-1");
+    });
+  });
 });
 
 // ── user_input mirroring (local terminal / RPC) ───────────────────────────────
@@ -1076,7 +1274,7 @@ function captureEventHandler(eventName: string): EventHandler {
   return captured;
 }
 
-function captureEventHarness(): {
+function captureEventHarness(opts: { sendMessage?: (...args: unknown[]) => unknown } = {}): {
   handler: (eventName: string) => EventHandler;
   emitBus: (channel: string, data: unknown) => void;
   busListenerCount: (channel: string) => number;
@@ -1103,7 +1301,7 @@ function captureEventHarness(): {
     registerTool: () => undefined, registerShortcut: () => undefined,
     registerFlag: () => undefined, getFlag: () => undefined,
     registerMessageRenderer: () => undefined,
-    sendMessage: () => undefined, sendUserMessage: () => undefined,
+    sendMessage: opts.sendMessage ?? (() => undefined), sendUserMessage: () => undefined,
   } as unknown as ExtensionAPI;
   (extension as ExtensionFactory)(pi);
   return {
