@@ -570,6 +570,7 @@ class _BoardState extends State<BoardView> {
       } else if (editing != null && editing!.label == label.text) {
         editing = null;
       }
+      selection.removeWhere((id) => doc?.items.containsKey(id) != true);
       if (doc?.items.containsKey(selected) != true) {
         selected = null;
         selection.clear();

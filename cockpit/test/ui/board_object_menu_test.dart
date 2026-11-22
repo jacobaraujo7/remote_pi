@@ -118,6 +118,18 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
       await tester.pumpAndSettle();
       expect(saved().items.keys, ['a', 'b']);
+      await tester.tapAt(origin + const Offset(60, 60));
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.tapAt(origin + const Offset(250, 60));
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      session.adoptDisk(
+        FileViewText(BoardDocument([saved().items['b']!], id: doc.id).encode()),
+      );
+      await tester.pumpAndSettle();
+      await right(const Offset(250, 60));
+      expect(tester.takeException(), isNull);
+      await choose('Delete');
+      expect(saved().items, isEmpty);
     },
   );
 }
