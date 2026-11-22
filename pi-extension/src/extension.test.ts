@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { getCapabilities, setCapabilities } from "@earendil-works/pi-tui";
-import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import { SessionManager, type ExtensionAPI, type ExtensionContext, type ExtensionFactory } from "@earendil-works/pi-coding-agent";
 
 const _convertToPngMock = vi.hoisted(() => vi.fn(async () => null));
 
@@ -1059,7 +1059,7 @@ describe("agent-network mesh delivery", () => {
 // ── user_input mirroring (local terminal / RPC) ───────────────────────────────
 
 type AnyEvent = { type: string; [k: string]: unknown };
-type EventHandler = (event: AnyEvent) => unknown;
+type EventHandler = (event: AnyEvent, ctx?: Partial<ExtensionContext>) => unknown;
 
 function captureEventHandler(eventName: string): EventHandler {
   let captured: EventHandler | undefined;
@@ -1073,7 +1073,7 @@ function captureEventHandler(eventName: string): EventHandler {
   } as unknown as ExtensionAPI;
   (extension as ExtensionFactory)(pi);
   if (!captured) throw new Error(`event "${eventName}" handler not registered`);
-  return captured;
+  return (event, ctx) => captured!(event, { sessionManager: SessionManager.inMemory(), ...ctx });
 }
 
 function captureEventHarness(): {
@@ -1110,7 +1110,7 @@ function captureEventHarness(): {
     handler(eventName: string) {
       const h = handlers.get(eventName);
       if (!h) throw new Error(`event "${eventName}" handler not registered`);
-      return h;
+      return (event, ctx) => h(event, { sessionManager: SessionManager.inMemory(), ...ctx });
     },
     emitBus(channel: string, data: unknown) {
       (pi.events as unknown as { emit: (channel: string, data: unknown) => void }).emit(channel, data);
@@ -5466,6 +5466,172 @@ describe("cumulative buffer", () => {
     await stop("", makeMockCtx());
     _setMessageBufferForTest([]);
     _setSessionStartedAtForTest(null);
+  });
+
+  function syncRestoredHistory(limit?: number) {
+    const sendsBefore = relayRef.current!.send.mock.calls.length;
+    routeClientMessage(
+      { type: "session_sync", id: "restored-history", ...(limit === undefined ? {} : { limit }) },
+      { abort: () => undefined },
+    );
+    const sent = relayRef.current!.send.mock.calls.slice(sendsBefore).map((c) => decodeSentCt(c[0] as string));
+    return sent.find((message) => message.inner.type === "session_history")!.inner;
+  }
+
+  function savedAssistant(timestamp: number) {
+    return {
+      role: "assistant" as const,
+      content: [
+        { type: "text" as const, text: "saved reply" },
+        { type: "toolCall" as const, id: "saved-tool", name: "read", arguments: { path: "example.txt" } },
+      ],
+      api: "anthropic-messages" as const,
+      provider: "anthropic",
+      model: "test-model",
+      usage: {
+        input: 10, output: 5, cacheRead: 0, cacheWrite: 0, totalTokens: 15,
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+      },
+      stopReason: "toolUse" as const,
+      timestamp,
+    };
+  }
+
+  test("restores a saved active branch before any new messages, including tools and compaction", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "remote-pi-history-"));
+    try {
+      const saved = SessionManager.create(dir, dir);
+      const root = saved.appendMessage({ role: "user", content: "saved prompt", timestamp: 100 });
+      saved.appendMessage(savedAssistant(200));
+      saved.appendMessage({
+        role: "toolResult", toolCallId: "saved-tool", toolName: "read",
+        content: [{ type: "text", text: "saved output" }], isError: false, timestamp: 300,
+      });
+      const kept = saved.appendMessage({ role: "user", content: "kept prompt", timestamp: 400 });
+      const compactId = saved.appendCompaction("saved summary", kept, 12345);
+      const compactTs = Date.parse(saved.getEntry(compactId)!.timestamp);
+      const leaf = saved.getLeafId()!;
+      saved.appendMessage({ role: "user", content: "abandoned branch", timestamp: 500 });
+      saved.branch(leaf);
+      saved.appendCustomEntry("test-state", { ignored: true });
+      saved.appendCustomMessageEntry("remote-pi", "internal message", false);
+      saved.appendModelChange("anthropic", "test-model");
+      const restored = SessionManager.open(saved.getSessionFile()!);
+      const branchBefore = structuredClone(restored.getBranch());
+      captureEventHandler("session_start")(
+        { type: "session_start", reason: "startup" }, { sessionManager: restored },
+      );
+      await _pairForTest("peer-restored-file");
+
+      expect(syncRestoredHistory()).toMatchObject({
+        eos: true,
+        truncated: false,
+        events: [
+          { type: "user_input", text: "saved prompt", ts: 100 },
+          { type: "agent_message", text: "saved reply", ts: 200, in_reply_to: "sync_100" },
+          { type: "tool_request", tool_call_id: "saved-tool", tool: "read", ts: 200 },
+          { type: "tool_result", tool_call_id: "saved-tool", result: "saved output", ts: 300 },
+          { type: "user_input", text: "kept prompt", ts: 400 },
+          { type: "compaction", summary: "saved summary", tokens_before: 12345, ts: compactTs },
+        ],
+      });
+      expect(restored.getBranch()).toEqual(branchBefore);
+      expect(restored.getBranch().some((entry) => entry.id === root)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("restoration replaces the buffer on reload and subsequent live messages appear once", async () => {
+    const sessionManager = SessionManager.inMemory();
+    sessionManager.appendMessage({ role: "user", content: "saved prompt", timestamp: 100 });
+    const onStart = captureEventHandler("session_start");
+    onStart({ type: "session_start", reason: "resume" }, { sessionManager });
+    await _pairForTest("peer-restored-live");
+    const message = savedAssistant(200);
+    captureEventHandler("message_end")({ type: "message_end", message });
+    sessionManager.appendMessage(message);
+    expect(syncRestoredHistory().events).toHaveLength(3);
+    onStart({ type: "session_start", reason: "reload" }, { sessionManager });
+    expect(syncRestoredHistory().events).toHaveLength(3);
+    const next = { role: "user" as const, content: "new prompt", timestamp: 300 };
+    captureEventHandler("message_end")({ type: "message_end", message: next });
+    sessionManager.appendMessage(next);
+    expect(syncRestoredHistory().events).toMatchObject([
+      { text: "saved prompt" }, { text: "saved reply" }, { type: "tool_request" }, { text: "new prompt" },
+    ]);
+  });
+
+  test.each(["startup", "new"])("%s with an empty branch clears prior history", async (reason) => {
+    captureEventHandler("message_end")({
+      type: "message_end", message: { role: "user", content: "previous session", timestamp: 100 },
+    });
+    const sessionManager = SessionManager.inMemory();
+    sessionManager.appendModelChange("anthropic", "test-model");
+    captureEventHandler("session_start")({ type: "session_start", reason }, { sessionManager });
+    await _pairForTest(`peer-empty-${reason}`);
+    expect(syncRestoredHistory()).toMatchObject({ events: [], truncated: false, eos: true });
+  });
+
+  test.each(["resume", "fork"])("%s replaces previous history with only the selected branch", async (reason) => {
+    const sessionManager = SessionManager.inMemory();
+    const root = sessionManager.appendMessage({ role: "user", content: "shared", timestamp: 100 });
+    sessionManager.appendMessage({ role: "user", content: "other branch", timestamp: 200 });
+    const onStart = captureEventHandler("session_start");
+    onStart({ type: "session_start", reason: "startup" }, { sessionManager });
+    sessionManager.branch(root);
+    const selected = sessionManager.appendMessage({ role: "user", content: "selected branch", timestamp: 300 });
+    if (reason === "fork") {
+      sessionManager.createBranchedSession(selected);
+    }
+    onStart({ type: "session_start", reason }, { sessionManager });
+    await _pairForTest(`peer-branch-${reason}`);
+    expect(syncRestoredHistory().events).toMatchObject([{ text: "shared" }, { text: "selected branch" }]);
+  });
+
+  test("resuming a different session does not retain the outgoing session's messages", async () => {
+    const outgoing = SessionManager.inMemory();
+    outgoing.appendMessage({ role: "user", content: "outgoing session", timestamp: 100 });
+    const incoming = SessionManager.inMemory();
+    incoming.appendMessage({ role: "user", content: "incoming session", timestamp: 200 });
+    const onStart = captureEventHandler("session_start");
+    onStart({ type: "session_start", reason: "startup" }, { sessionManager: outgoing });
+    onStart({ type: "session_start", reason: "resume" }, { sessionManager: incoming });
+    await _pairForTest("peer-switch-history");
+    expect(syncRestoredHistory().events).toMatchObject([{ text: "incoming session" }]);
+  });
+
+  test("tree navigation rebuilds the active path and supports an empty root", async () => {
+    const sessionManager = SessionManager.inMemory();
+    const root = sessionManager.appendMessage({ role: "user", content: "shared", timestamp: 100 });
+    sessionManager.appendMessage({ role: "user", content: "old branch", timestamp: 200 });
+    captureEventHandler("session_start")({ type: "session_start", reason: "startup" }, { sessionManager });
+    await _pairForTest("peer-tree-history");
+    const onTree = captureEventHandler("session_tree");
+    sessionManager.branch(root);
+    onTree({ type: "session_tree" }, { sessionManager });
+    expect(syncRestoredHistory().events).toMatchObject([{ text: "shared" }]);
+    sessionManager.resetLeaf();
+    onTree({ type: "session_tree" }, { sessionManager });
+    expect(syncRestoredHistory().events).toEqual([]);
+  });
+
+  test("restored history keeps the existing server and client event caps", async () => {
+    const sessionManager = SessionManager.inMemory();
+    for (let i = 0; i < 35; i++) {
+      sessionManager.appendMessage({ role: "user", content: `saved ${i}`, timestamp: i });
+    }
+    captureEventHandler("session_start")({ type: "session_start", reason: "resume" }, { sessionManager });
+    await _pairForTest("peer-restored-cap");
+    vi.stubEnv("REMOTE_PI_SYNC_LIMIT", "30");
+    try {
+      expect(syncRestoredHistory(100).events).toHaveLength(30);
+      expect(syncRestoredHistory(2)).toMatchObject({
+        truncated: true, eos: true, events: [{ text: "saved 33" }, { text: "saved 34" }],
+      });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   test("3 turns via message_end → session_sync returns 6 events (no overwrite)", async () => {
