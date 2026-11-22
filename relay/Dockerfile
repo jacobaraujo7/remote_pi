@@ -17,7 +17,10 @@ RUN cargo build --release
 # ── Runtime stage ──────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
 
+# `apt-get upgrade` so the packages the base image already carries pick up Debian security fixes on
+# every rebuild - the base tag is only republished every few weeks.
 RUN apt-get update && \
+    apt-get upgrade -y && \
     apt-get install -y --no-install-recommends ca-certificates curl && \
     rm -rf /var/lib/apt/lists/*
 
