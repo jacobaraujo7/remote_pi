@@ -821,6 +821,12 @@
     },
     "gallery": {
       "board": {
+        "editObjectText": "Editar texto",
+        "strokeWidth": "Grosor de línea",
+        "selectedLineWidth": "Grosor de las líneas seleccionadas",
+        "bringFront": "Traer al frente",
+        "sendBack": "Enviar al fondo",
+        "menuChanged": "La selección cambió. Vuelve a abrir el menú.",
         "fileActions": "Importar o exportar",
         "exportDocument": "Exportar documento completo",
         "exportSelection": "Exportar selección",

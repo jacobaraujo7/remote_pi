@@ -29,7 +29,9 @@ class _CanvasMarkdown {
   static String write(BoardDocument doc) {
     final lines = [
       '---',
-      'version: 3',
+      doc.items.values.any((i) => i.z != 0 || i.strokeWidth != null)
+          ? 'version: 4'
+          : 'version: 3',
       if (doc.id != null) 'id: ${_inline(doc.id!)}',
       '---',
       '',
@@ -46,6 +48,8 @@ class _CanvasMarkdown {
         '- width: ${item.width}',
         '- height: ${item.height}',
         if (item.color != null) '- color: ${item.color}',
+        if (item.strokeWidth != null) '- stroke: ${item.strokeWidth}',
+        if (item.z != 0) '- z: ${item.z}',
         if (item.group != null) '- group: ${_inline(item.group!)}',
         if (item.from != null) '- from: ${_inline(item.from!)}',
         if (item.to != null) '- to: ${_inline(item.to!)}',
@@ -95,7 +99,7 @@ class _CanvasMarkdown {
     }
     if (lines.first != '---' ||
         index >= lines.length ||
-        header['version'] != '3') {
+        !const {'3', '4'}.contains(header['version'])) {
       throw const FormatException('Unsupported board version');
     }
     index++;
@@ -129,6 +133,10 @@ class _CanvasMarkdown {
           }
           if (_strings.contains(key)) {
             fields[key] = _restoreInline(entry.value);
+          } else if (header['version'] == '4' && key == 'stroke') {
+            fields[key] = double.parse(entry.value);
+          } else if (header['version'] == '4' && key == 'z') {
+            fields[key] = int.parse(entry.value);
           } else if (_numbers.contains(key)) {
             fields[key] = double.parse(entry.value);
           } else if (key == 'points' && entry.value.isEmpty) {

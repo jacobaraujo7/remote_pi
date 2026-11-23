@@ -3907,6 +3907,24 @@ class Translations$cockpit$gallery$board$en {
 
 	// Translations
 
+	/// en: 'Edit text'
+	String get editObjectText => 'Edit text';
+
+	/// en: 'Line width'
+	String get strokeWidth => 'Line width';
+
+	/// en: 'Width of selected lines'
+	String get selectedLineWidth => 'Width of selected lines';
+
+	/// en: 'Bring to front'
+	String get bringFront => 'Bring to front';
+
+	/// en: 'Send to back'
+	String get sendBack => 'Send to back';
+
+	/// en: 'The selection changed. Open the menu again.'
+	String get menuChanged => 'The selection changed. Open the menu again.';
+
 	/// en: 'Import or export'
 	String get fileActions => 'Import or export';
 
@@ -5725,6 +5743,12 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Edit text',
+			'cockpit.gallery.board.strokeWidth' => 'Line width',
+			'cockpit.gallery.board.selectedLineWidth' => 'Width of selected lines',
+			'cockpit.gallery.board.bringFront' => 'Bring to front',
+			'cockpit.gallery.board.sendBack' => 'Send to back',
+			'cockpit.gallery.board.menuChanged' => 'The selection changed. Open the menu again.',
 			'cockpit.gallery.board.fileActions' => 'Import or export',
 			'cockpit.gallery.board.exportDocument' => 'Export entire document',
 			'cockpit.gallery.board.exportSelection' => 'Export selection',
@@ -6038,14 +6062,14 @@ extension on Translations {
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
 			'settings.page.appearance.sectionTheme' => 'Theme',
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
 			'settings.page.appearance.modeTitle' => 'Mode',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.',
