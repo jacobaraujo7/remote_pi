@@ -570,7 +570,41 @@ class SyncService extends Service {
               ),
         );
 
-      case ToolResult(:final toolCallId, :final result, :final error):
+      case ToolUpdate(
+        :final toolCallId,
+        :final tool,
+        :final args,
+        :final result,
+        :final details,
+      ):
+        // Progress changes the existing row, never finishes the tool/turn.
+        // ignore: discarded_futures
+        _upsert(MsgRole.tool, toolCallId, (seq, existing) {
+          final base =
+              existing?.tool ??
+              ToolEventData(toolCallId: toolCallId, tool: tool, args: args);
+          if (base.status != ToolEventStatus.pending &&
+              base.status != ToolEventStatus.allowed) {
+            return existing!;
+          }
+          return (existing ??
+                  MessageRecord(
+                    id: toolCallId,
+                    seq: seq,
+                    role: MsgRole.tool,
+                    ts: DateTime.now(),
+                  ))
+              .copyWith(
+                tool: base.copyWith(result: result, details: details),
+              );
+        });
+
+      case ToolResult(
+        :final toolCallId,
+        :final result,
+        :final error,
+        :final details,
+      ):
         // ignore: discarded_futures
         _upsert(MsgRole.tool, toolCallId, (seq, existing) {
           final base =
@@ -590,6 +624,7 @@ class SyncService extends Service {
                       : ToolEventStatus.completed,
                   result: result,
                   error: error,
+                  details: details,
                 ),
               );
         });
@@ -801,7 +836,12 @@ class SyncService extends Service {
               ),
             ),
           );
-        case ToolResultEvt(:final toolCallId, :final result, :final error):
+        case ToolResultEvt(
+          :final toolCallId,
+          :final result,
+          :final error,
+          :final details,
+        ):
           final idx = out.lastIndexWhere(
             (m) => m.role == MsgRole.tool && m.tool?.toolCallId == toolCallId,
           );
@@ -814,6 +854,7 @@ class SyncService extends Service {
                 status: status,
                 result: result,
                 error: error,
+                details: details,
               ),
             );
           } else {
@@ -829,6 +870,7 @@ class SyncService extends Service {
                   status: status,
                   result: result,
                   error: error,
+                  details: details,
                 ),
               ),
             );

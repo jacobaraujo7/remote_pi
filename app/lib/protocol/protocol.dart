@@ -764,6 +764,7 @@ sealed class ServerMessage {
       'agent_chunk' => AgentChunk.fromJson(json),
       'agent_done' => AgentDone.fromJson(json),
       'tool_request' => ToolRequest.fromJson(json),
+      'tool_update' => ToolUpdate.fromJson(json),
       'tool_result' => ToolResult.fromJson(json),
       'error' => ErrorMessage.fromJson(json),
       'cancelled' => Cancelled.fromJson(json),
@@ -842,12 +843,38 @@ class ToolResult extends ServerMessage {
   final String toolCallId;
   final dynamic result;
   final String? error;
-  ToolResult({required this.toolCallId, this.result, this.error});
+  final Map<String, dynamic>? details;
+  ToolResult({required this.toolCallId, this.result, this.error, this.details});
 
   factory ToolResult.fromJson(Map<String, dynamic> j) => ToolResult(
     toolCallId: j['tool_call_id'] as String,
     result: j['result'],
     error: j['error'] as String?,
+    details: (j['details'] as Map?)?.cast<String, dynamic>(),
+  );
+}
+
+class ToolUpdate extends ServerMessage {
+  final String toolCallId;
+  final String tool;
+  final dynamic args;
+  final dynamic result;
+  final Map<String, dynamic>? details;
+
+  ToolUpdate({
+    required this.toolCallId,
+    required this.tool,
+    required this.args,
+    this.result,
+    this.details,
+  });
+
+  factory ToolUpdate.fromJson(Map<String, dynamic> j) => ToolUpdate(
+    toolCallId: j['tool_call_id'] as String,
+    tool: j['tool'] as String,
+    args: j['args'],
+    result: j['result'],
+    details: (j['details'] as Map?)?.cast<String, dynamic>(),
   );
 }
 
@@ -1177,6 +1204,7 @@ sealed class SessionHistoryEvent {
         toolCallId: j['tool_call_id'] as String,
         result: j['result'],
         error: j['error'] as String?,
+        details: (j['details'] as Map?)?.cast<String, dynamic>(),
       ),
       'agent_message' => AgentMessageEvt(
         ts: ts,
@@ -1227,11 +1255,13 @@ class ToolResultEvt extends SessionHistoryEvent {
   final String toolCallId;
   final dynamic result;
   final String? error;
+  final Map<String, dynamic>? details;
   const ToolResultEvt({
     required super.ts,
     required this.toolCallId,
     this.result,
     this.error,
+    this.details,
   });
 }
 

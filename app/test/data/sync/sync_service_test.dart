@@ -581,6 +581,126 @@ void main() {
   });
 
   test(
+    'workflow progress updates one persisted row without completing it',
+    () async {
+      final s = await setup();
+      s.ch.push(
+        ToolRequest(
+          toolCallId: 'workflow',
+          tool: 'subagent',
+          args: {'workflow': 'review'},
+        ),
+      );
+      await _settle();
+      final initial = messages(s.epk).single.toChatMessage();
+      final details = {
+        'mode': 'workflow',
+        'results': [
+          {'index': 0, 'agent': 'reviewer', 'status': 'running'},
+        ],
+      };
+      s.ch.push(
+        ToolUpdate(
+          toolCallId: 'workflow',
+          tool: 'subagent',
+          args: {},
+          result: 'Reviewing',
+          details: details,
+        ),
+      );
+      await _settle();
+      var row = messages(s.epk).single;
+      expect(row.tool!.status, ToolEventStatus.pending);
+      expect(row.tool!.result, 'Reviewing');
+      expect(row.tool!.details, details);
+      expect(
+        row.toChatMessage(),
+        isNot(initial),
+        reason: 'progress must invalidate the ViewModel state',
+      );
+      expect(
+        (MessageRecord.fromJson(row.toJson()).toChatMessage() as ToolEvent)
+            .details,
+        details,
+      );
+
+      s.ch.push(
+        ToolResult(
+          toolCallId: 'workflow',
+          result: 'Reviewed',
+          details: details,
+        ),
+      );
+      await _settle();
+      s.ch.push(
+        ToolUpdate(
+          toolCallId: 'workflow',
+          tool: 'subagent',
+          args: {},
+          result: 'Stale progress',
+        ),
+      );
+      await _settle();
+      row = messages(s.epk).single;
+      expect(row.tool!.status, ToolEventStatus.completed);
+      expect(row.tool!.result, 'Reviewed');
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
+  test(
+    'reconnect progress can create a missing tool row and replay details',
+    () async {
+      final s = await setup();
+      final details = {
+        'mode': 'parallel',
+        'results': [
+          {'index': 3, 'agent': 'scout', 'exitCode': 0},
+        ],
+      };
+      s.ch.push(
+        ToolUpdate(
+          toolCallId: 'replay',
+          tool: 'subagent',
+          args: {'agent': 'scout'},
+          details: details,
+        ),
+      );
+      await _settle();
+      expect(messages(s.epk).single.tool!.tool, 'subagent');
+      s.ch.push(
+        SessionHistory(
+          inReplyTo: 'sync',
+          sessionStartedAt: 0,
+          eos: true,
+          truncated: false,
+          events: [
+            const ToolRequestEvt(
+              ts: 1,
+              toolCallId: 'replay',
+              tool: 'subagent',
+              args: {},
+            ),
+            ToolResultEvt(
+              ts: 2,
+              toolCallId: 'replay',
+              result: 'Found files',
+              details: details,
+            ),
+          ],
+        ),
+      );
+      await _settle();
+      final row = messages(s.epk).single;
+      expect(row.tool!.details, details);
+      expect(row.tool!.status, ToolEventStatus.completed);
+      s.conn.dispose();
+      s.sync.dispose();
+    },
+  );
+
+  test(
     'sequential: text → tool → text renders in chronological order',
     () async {
       final s = await setup();
