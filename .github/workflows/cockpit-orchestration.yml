@@ -36,7 +36,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, macos-15-intel]
+        # Zig 0.16 (libghostty) cannot compile against the VS 2026 STL
+        # shipped by windows-latest, which now requires Clang 22+.
+        os: [windows-2022, macos-latest, macos-15-intel]
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
@@ -64,12 +66,35 @@ jobs:
           lib/app/core/data/diagnostics/performance_diagnostics.dart
           test/core/shell_command_metrics_test.dart
       - name: Shell lifecycle diagnostics regressions
-        run: >-
-          flutter test --no-pub
-          test/core/shell_command_metrics_test.dart
-          test/core/performance_diagnostics_test.dart
+        shell: bash
+        run: |
+          # The first test builds Ghostty's native assets. Retry only transient
+          # Zig dependency downloads; test and compilation failures remain fatal.
+          set -o pipefail
+          log="$RUNNER_TEMP/shell-lifecycle-tests.log"
+          for attempt in 1 2 3; do
+            if flutter test --no-pub \
+              test/core/shell_command_metrics_test.dart \
+              test/core/performance_diagnostics_test.dart 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ] || ! grep -Eq \
+              'build\.zig\.zon:[0-9]+:[0-9]+: error: (HTTP response read failure:|unable to unpack tarball to temporary directory: ReadFailed)' "$log"; then
+              exit 1
+            fi
+            echo "Ghostty dependency download failed; retrying (attempt $attempt of 3)."
+            sleep 5
+          done
       - name: CLI caller routing contract
         run: cargo test --manifest-path cli/Cargo.toml
+      - name: Task execution isolation regressions
+        run: >-
+          flutter test --no-pub
+          test/tasks
+          test/session/task_terminal_store_run_ordering_test.dart
+          test/session/task_terminal_store_json_log_test.dart
+          test/ui/tasks_panel_import_test.dart
+          test/ui/task_console_interaction_test.dart
       - name: Analyze workspace presentation
         run: >-
           flutter analyze --no-pub
@@ -107,6 +132,8 @@ jobs:
           lib/app/cockpit/ui/document/worktree_document_host.dart
           lib/app/cockpit/ui/document/document_window_app.dart
           lib/app/cockpit/ui/widgets/file_viewer.dart
+          lib/app/cockpit/ui/widgets/file_tree_panel.dart
+          test/ui/file_tree_drag_test.dart
           lib/app/cockpit/ui/widgets/layout_preview_view.dart
           lib/app/core/ui/menu/editor_menu_bridge.dart
           lib/app/cockpit/ui/document/standalone_document_host.dart
@@ -140,6 +167,9 @@ jobs:
           lib/app/cockpit/ui/cockpit_page.dart
           lib/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart
           lib/app/cockpit/ui/viewmodels/file_ops_controller.dart
+          lib/app/cockpit/ui/widgets/file_tree_panel.dart
+          lib/app/cockpit/ui/widgets/dotnet_solution_tree.dart
+          lib/app/cockpit/domain/dotnet
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
@@ -156,6 +186,10 @@ jobs:
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
           test/ui/file_tree_panel_test.dart
+          test/ui/dotnet_solution_panel_test.dart
+          test/domain/dotnet_solution_parser_test.dart
+          test/domain/dotnet_solution_cache_test.dart
+          test/ui/file_tree_drag_test.dart
           test/ui/layout_scrollback_keys_test.dart
           test/ui/orchestration_restore_state_test.dart
           test/ui/orchestration_ownership_migration_test.dart

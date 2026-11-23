@@ -866,6 +866,15 @@ class _Translations$cockpit$fileTreePanel$pt_BR extends Translations$cockpit$fil
 	@override String get importAction => 'Copiar';
 	@override String get couldNotImportTitle => 'Não foi possível copiar';
 	@override String openInAgent({required Object harness}) => 'Abrir no ${harness}';
+	@override String get solutionTooltip => 'Solução';
+	@override String get explorerTooltip => 'Explorer';
+	@override String get switchSolution => 'Trocar solução';
+	@override String get loadingSolution => 'Carregando solução…';
+	@override String get solutionLoadFailed => 'Não foi possível ler a solução.';
+	@override String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n,
+		one: '1 projeto',
+		other: '${n} projetos',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -2678,6 +2687,12 @@ extension on TranslationsPtBr {
 			'cockpit.fileTreePanel.importAction' => 'Copiar',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Não foi possível copiar',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Abrir no ${harness}',
+			'cockpit.fileTreePanel.solutionTooltip' => 'Solução',
+			'cockpit.fileTreePanel.explorerTooltip' => 'Explorer',
+			'cockpit.fileTreePanel.switchSolution' => 'Trocar solução',
+			'cockpit.fileTreePanel.loadingSolution' => 'Carregando solução…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => 'Não foi possível ler a solução.',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 projeto', other: '${n} projetos', ), 
 			'cockpit.fileViewer.saveAs' => 'Salvar como',
 			'cockpit.fileViewer.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.fileViewer.untitledDefaultName' => 'sem-titulo.txt',
@@ -2833,14 +2848,14 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
 			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.comments' => 'Comentários',
 			'cockpit.kanbanView.addComment' => 'Adicionar comentário',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escreva um comentário',
 			'cockpit.kanbanView.noComments' => 'Nenhum comentário ainda',
 			'cockpit.kanbanView.closeDetail' => 'Fechar',
 			'cockpit.kanbanView.notABoard' => 'Este arquivo ainda não tem colunas ## — ele abre como markdown.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => 'Começar um quadro',
 			'cockpit.kanbanView.couldNotSave' => 'Não deu pra salvar o quadro',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Não reconhecido pelo parser — arrasta inteiro, sem edição inline.',
@@ -3347,14 +3362,14 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeDesc' => 'Qual variante do tema usar.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" só traz a variante escura, então isto não tem efeito.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" só traz a variante clara, então isto não tem efeito.',
 			'settings.page.appearance.themeFileTitle' => 'Arquivo de tema',
 			'settings.page.appearance.themeFileDesc' => 'Importe um tema de um arquivo JSON, ou exporte o tema ativo.',
 			'settings.page.appearance.previewCode' => 'Código',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',
 			'settings.page.appearance.themeLight' => 'Claro',

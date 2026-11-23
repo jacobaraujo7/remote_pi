@@ -417,6 +417,7 @@ class _CockpitPageState extends State<CockpitPage> {
       return (
         discovery: RemoteTaskDiscovery(
           () => _vm.remoteHosts.fileServiceFor(host),
+          hostId: host.id,
         ),
         runner: runner,
       );
@@ -1287,6 +1288,8 @@ class _TreePanel extends StatelessWidget {
           revision: vm.fileTreeRevision,
           selectedPath: vm.selectedFileInTree,
           listChildren: vm.listChildren,
+          loadDotnetSolution: vm.loadDotnetSolution,
+          watchSolutionFile: vm.watchSolutionFile,
           gitStatusOf: vm.gitStatusForPath,
           onOpenFile: (path) {
             vm.openFile(path, isPreview: false);
@@ -1417,6 +1420,7 @@ class _TreePanel extends StatelessWidget {
           tasksPanel: vm.selectedProject == null
               ? null
               : TasksPanel(
+                  workspaceId: vm.selectedProjectId,
                   // Remoto: a raiz é a pasta do host
                   // (treeRootPath = remotePath); local usa o
                   // path do projeto.
