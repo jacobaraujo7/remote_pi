@@ -1,3 +1,19 @@
+## [2.1.27] - 2026-11-23
+
+### Added
+- Markdown preview renders Mermaid diagrams (#347).
+- Explorer shows .NET solutions (.sln) with their projects (#355).
+- Tasks accept per-task environment variables in tasks.json (#346).
+- HTTP files: better request editing, copy as cURL and a scrollable Result pane (#337).
+- Canvas Board objects can be edited from the context menu (#353).
+
+### Fixed
+- Sidebar panel and Search state are kept per workspace and worktree; Search watchers pause while hidden (#340).
+- Ctrl+T opens a new terminal tab on Windows and Linux (#292).
+- Task runs are isolated per workspace and project (#349).
+- Explorer no longer starts accidental drags on click (#339).
+- Folder expansion is tracked per Git section (staged, unstaged, untracked) (#338).
+
 # Changelog — Remote Pi Cockpit
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/).
