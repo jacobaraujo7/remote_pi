@@ -117,6 +117,7 @@ não executa tasks automaticamente. Essa opção está disponível apenas localm
 |--------------------|----------|-------------|-------------|-----------|
 | `label`            | string   | **sim**     | —           | Nome curto exibido na lista. |
 | `command`          | string   | **sim**     | —           | Executável base (ex.: `npm`, `flutter`). |
+| `env`              | object<string,str> | não | `{}` | Variáveis comuns da task, usadas mesmo sem profile. O `env` do profile sobrescreve chaves iguais. |
 | `args`             | string[] | não         | `[]`        | Args base, antes do profile. |
 | `cwd`              | string   | não         | raiz/topo   | Pasta de execução, **relativa à pasta do `tasks.json`**. Omitido → herda o `cwd` top-level, senão a raiz. Absoluto também aceito. |
 | `platforms`        | string \| string[] | não | todos  | SOs onde a task é **visível**: `macos`, `windows`, `linux`. Omitido → todos. Ex.: `"platforms": "windows"` ou `["windows", "linux"]`. |
@@ -175,7 +176,35 @@ dart-define do Flutter entram como `args`.
 |--------|--------------------|-------------|-----------|
 | `name` | string             | **sim**     | Nome exibido (ex.: `dev`, `prod`, `web`). Use nomes únicos. |
 | `args` | string[]           | não         | Args concatenados **após** os `args` da task. |
-| `env`  | object<string,str> | não         | Variáveis mescladas no ambiente do processo. |
+| `env`  | object<string,str> | não         | Variáveis mescladas sobre o `env` da task e o ambiente do processo; chaves iguais do profile têm precedência. |
+
+### Variáveis de ambiente
+
+O `env` fica diretamente na task (não no topo do arquivo). Vale na execução
+local e remota, inclusive quando a task é executada sem profile. Todos os
+profiles herdam essas variáveis e podem sobrescrever chaves específicas:
+
+```json
+{
+  "tasks": [{
+    "label": "api",
+    "command": "npm",
+    "args": ["run", "dev"],
+    "env": {
+      "API_URL": "https://api.example.com",
+      "LOG_LEVEL": "info"
+    },
+    "profiles": [
+      { "name": "development", "env": { "API_URL": "http://localhost:3000" } },
+      { "name": "production", "env": { "LOG_LEVEL": "error" } }
+    ]
+  }]
+}
+```
+
+Com `development`, `LOG_LEVEL` continua `info`. Com `production`, `API_URL`
+continua `https://api.example.com`. Tasks que usam apenas `profiles[].env`
+continuam funcionando. Use strings para os valores, inclusive portas e flags.
 
 ## Validação no editor (JSON Schema)
 

@@ -187,8 +187,8 @@ class HttpTabState extends ChangeNotifier {
     for (var i = 0; i < next.length; i++) {
       final before = matchedRequest[i];
       if (before != null &&
-          (before.preScript != next[i].preScript ||
-              before.postScript != next[i].postScript)) {
+          (!listEquals(before.preScripts, next[i].preScripts) ||
+              !listEquals(before.postScripts, next[i].postScripts))) {
         outcomes[i].requestVariables = const {};
       }
     }

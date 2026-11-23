@@ -24,7 +24,13 @@ import 'package:cockpit_pty/cockpit_pty.dart';
 /// isso o app GUI não acharia `flutter`/`npm`/`go` (PATH mínimo do Finder).
 /// Mesma razão e mesmas vars (`TERM`/`COLORTERM`) do terminal embutido.
 class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
-  PtyTaskRunner(this._telemetry, this._tools);
+  PtyTaskRunner(
+    this._telemetry,
+    this._tools, {
+    this.composeResolver = const ComposeEngineResolver(),
+  });
+
+  final ComposeEngineResolver composeResolver;
 
   /// Telemetria (plano 66): toda task alimenta a Caixa Preta por padrão. A
   /// sessão nasce antes do spawn (injeta `COCKPIT_RUN_ID`/`OTEL_*` no env),
@@ -51,6 +57,11 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   final _composeOutput = <String, StreamController<String>>{};
   final _composeFollowers = <String, Process>{};
   final _composeActive = <String>{};
+  final _composeProfiles = <String, String>{};
+
+  Map<String, String> _composeEnv(TaskDefinition def) => def.resolveEnv(
+    def.profiles.where((p) => p.name == _composeProfiles[def.id]).firstOrNull,
+  );
   Timer? _composePoll;
   bool _composePolling = false;
 
@@ -98,8 +109,24 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   }
 
   @override
-  Future<void> reconcileDefinitions(List<TaskDefinition> definitions) async {
-    _composeDefinitions.clear();
+  Future<void> reconcileDefinitions(
+    List<TaskDefinition> definitions, {
+    String? projectRoot,
+    String? workspaceId,
+  }) async {
+    final root = projectRoot ?? definitions.firstOrNull?.projectRoot;
+    final workspace = workspaceId ?? definitions.firstOrNull?.workspaceId;
+    final ids = definitions.map((def) => def.id).toSet();
+    // Reload removes only stale entries from the root being rediscovered.
+    // Keep active entries so stop/restart remains available after config edits.
+    _composeDefinitions.removeWhere(
+      (id, entry) =>
+          entry.def.workspaceId == workspace &&
+          entry.def.projectRoot == root &&
+          !ids.contains(id) &&
+          !_composeActive.contains(id) &&
+          !_starting.contains(id),
+    );
     for (final def in definitions) {
       var compose = const ComposeTaskRecognizer().recognize(def);
       if (compose != null) {
@@ -124,6 +151,9 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         );
       }
     }
+    _composeProfiles.removeWhere(
+      (id, _) => !_composeDefinitions.containsKey(id),
+    );
     await _pollCompose();
     _composePoll?.cancel();
     if (_composeDefinitions.isNotEmpty) {
@@ -152,21 +182,44 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     if (_composePolling) return;
     _composePolling = true;
     try {
-      final grouped = <String, ({ComposeTask task, List<String> ids})>{};
+      final grouped =
+          <
+            String,
+            ({
+              ComposeTask task,
+              Map<String, String> env,
+              String command,
+              List<String> ids,
+            })
+          >{};
       for (final e in _composeDefinitions.entries) {
-        final key = '${e.value.task.engine.name}:${e.value.task.file}';
+        final env = _composeEnv(e.value.def);
+        final key =
+            '${e.value.def.command}:${e.value.task.engine.name}:${e.value.task.file}:${jsonEncode(env)}';
         grouped
-            .putIfAbsent(key, () => (task: e.value.task, ids: <String>[]))
+            .putIfAbsent(
+              key,
+              () => (
+                task: e.value.task,
+                env: env,
+                command: e.value.def.command,
+                ids: <String>[],
+              ),
+            )
             .ids
             .add(e.key);
       }
       for (final group in grouped.values) {
-        final running = await const ComposeEngineResolver().runningServices(
+        final running = await composeResolver.runningServices(
           group.task.engine,
           group.task.file,
+          environment: group.env,
+          executable: group.command,
         );
         for (final id in group.ids) {
-          final service = _composeDefinitions[id]!.task.service;
+          final entry = _composeDefinitions[id];
+          if (entry == null) continue;
+          final service = entry.task.service;
           final active = running.contains(service);
           if (active && _composeActive.add(id)) {
             _emit(
@@ -201,6 +254,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         .where((p) => p.name == profileName)
         .firstOrNull;
     if (profile == null) return;
+    _composeProfiles[def.id] = profile.name;
     _starting.add(def.id);
     final out = _composeOutput.putIfAbsent(
       def.id,
@@ -226,7 +280,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         workingDirectory: File(task.file).parent.path,
         environment: {
           ...await envWithNodeOnPath(),
-          ...profile.env,
+          ...def.resolveEnv(profile),
           ...?telemetry?.childEnvironment,
         },
       );
@@ -294,16 +348,21 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final task = entry.task;
     final Process process;
     try {
-      process = await Process.start(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'logs',
-        '--tail',
-        '200',
-        '--follow',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      process = await Process.start(
+        entry.def.command,
+        [
+          ...task.engine.prefix,
+          '-f',
+          task.file,
+          'logs',
+          '--tail',
+          '200',
+          '--follow',
+          task.service,
+        ],
+        workingDirectory: File(task.file).parent.path,
+        environment: {...await envWithNodeOnPath(), ..._composeEnv(entry.def)},
+      );
     } catch (e) {
       _composeOutput
           .putIfAbsent(taskId, () => StreamController<String>.broadcast())
@@ -390,7 +449,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
 
       final env = {
         ...await envWithNodeOnPath(),
-        if (profile != null) ...profile.env,
+        ...def.resolveEnv(profile),
         ...?telemetry?.childEnvironment,
         // TERM fora do Windows: no PowerShell nativo o TERM quebra o auto-load
         // do PSReadLine e o ConPTY já entrega o VT (ver pty_terminal_gateway).
@@ -489,13 +548,15 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         ),
       );
       final task = compose.task;
-      final result = await Process.run(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'stop',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      final result = await Process.run(
+        compose.def.command,
+        [...task.engine.prefix, '-f', task.file, 'stop', task.service],
+        workingDirectory: File(task.file).parent.path,
+        environment: {
+          ...await envWithNodeOnPath(),
+          ..._composeEnv(compose.def),
+        },
+      );
       await _stopComposeFollower(taskId);
       _composeActive.remove(taskId);
       _emit(
@@ -524,7 +585,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     // Garante SIGKILL se não morrer em 3s.
     unawaited(
       Future<void>.delayed(const Duration(seconds: 3), () {
-        if (_running.containsKey(taskId)) {
+        if (identical(_running[taskId], task)) {
           try {
             task.pty.kill(ProcessSignal.sigkill);
           } on Object catch (_) {
@@ -546,13 +607,15 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
           status: TaskRunStatus.starting,
         ),
       );
-      final result = await Process.run(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'restart',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      final result = await Process.run(
+        compose.def.command,
+        [...task.engine.prefix, '-f', task.file, 'restart', task.service],
+        workingDirectory: File(task.file).parent.path,
+        environment: {
+          ...await envWithNodeOnPath(),
+          ..._composeEnv(compose.def),
+        },
+      );
       await _stopComposeFollower(taskId);
       if (result.exitCode == 0) {
         _emit(
@@ -630,28 +693,30 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final dir = Directory(root);
     if (!dir.existsSync()) return null;
     try {
-      return dir.watch(recursive: true).listen(
-        (event) {
-          if (!_matchesWatch(def.cwd, w, event.path)) return;
-          _watchDebounce[def.id]?.cancel();
-          _watchDebounce[def.id] = Timer(
-            Duration(milliseconds: w.debounceMs),
-            () => _dispatchWatch(def, w),
+      return dir
+          .watch(recursive: true)
+          .listen(
+            (event) {
+              if (!_matchesWatch(def.cwd, w, event.path)) return;
+              _watchDebounce[def.id]?.cancel();
+              _watchDebounce[def.id] = Timer(
+                Duration(milliseconds: w.debounceMs),
+                () => _dispatchWatch(def, w),
+              );
+            },
+            // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
+            // de deixar o erro vazar (uncaught) e o watch morrer.
+            onError: (Object e) {
+              DiagnosticsLog.instance.warn('task', 'watch $root: $e');
+              Timer(const Duration(seconds: 2), () {
+                final current = _watchers[def.id];
+                if (current == null) return; // stopWatch nesse meio tempo
+                final again = _watchDir(def, w, root);
+                if (again != null) current.add(again);
+              });
+            },
+            cancelOnError: true,
           );
-        },
-        // Overflow/handle fechado: rearma a pasta depois de uma folga em vez
-        // de deixar o erro vazar (uncaught) e o watch morrer.
-        onError: (Object e) {
-          DiagnosticsLog.instance.warn('task', 'watch $root: $e');
-          Timer(const Duration(seconds: 2), () {
-            final current = _watchers[def.id];
-            if (current == null) return; // stopWatch nesse meio tempo
-            final again = _watchDir(def, w, root);
-            if (again != null) current.add(again);
-          });
-        },
-        cancelOnError: true,
-      );
     } on FileSystemException {
       // FS sem suporte a watch recursivo → silencioso (sem reload automático).
       return null;
@@ -722,6 +787,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   @override
   Future<void> disposeAll() async {
     _composePoll?.cancel();
+    _composeProfiles.clear();
     for (final id in _composeFollowers.keys.toList()) {
       await _stopComposeFollower(id);
     }
@@ -731,7 +797,11 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     for (final id in _watchers.keys.toList()) {
       stopWatch(id);
     }
-    for (final task in _running.values) {
+    // Exit callbacks can run at every await below. Detach the slots first so
+    // they cannot mutate the iteration or finish an already disposed output.
+    final running = _running.values.toList();
+    _running.clear();
+    for (final task in running) {
       task.stopping = true;
       try {
         task.pty.kill(ProcessSignal.sigkill);

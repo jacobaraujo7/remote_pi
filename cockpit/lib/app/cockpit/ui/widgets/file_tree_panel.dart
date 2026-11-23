@@ -1,6 +1,12 @@
 import 'package:cockpit/app/cockpit/ui/states/sidebar_panel.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
+import 'dart:async';
 import 'dart:io' show Platform;
+
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution.dart';
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution_cache.dart';
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution_detector.dart';
+import 'package:cockpit/app/cockpit/ui/widgets/dotnet_solution_tree.dart';
 
 import 'package:cockpit/app/core/utils/text_clipboard.dart';
 import 'package:cockpit/app/cockpit/domain/entities/file_node.dart';
@@ -34,7 +40,15 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show
+        GestureDisposition,
+        GestureMultiDragStartCallback,
+        HitTestResult,
+        ImmediateMultiDragGestureRecognizer,
+        MultiDragPointerState,
+        PointerDeviceKind,
+        PointerDownEvent;
 import 'package:flutter/rendering.dart' show RenderMetaData;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -160,6 +174,8 @@ class FileTreePanel extends StatefulWidget {
     this.commitMessageGeneratorLabel,
     this.revealPath,
     this.revealGen = 0,
+    this.loadDotnetSolution,
+    this.watchSolutionFile,
   });
 
   /// Controlled by the workspace VM in the shell; standalone users may keep
@@ -381,6 +397,14 @@ class FileTreePanel extends StatefulWidget {
   /// Largura do painel (arrastável pela página — não persistido).
   final double width;
 
+  /// Lê e analisa uma solução. `null` deixa o toggle oculto até a detecção,
+  /// e o primeiro acerto fica no cache pra não reparsear ao alternar.
+  final Future<DotnetSolutionSnapshot?> Function(String path)?
+  loadDotnetSolution;
+
+  /// Avisa quando a solução ou um projeto muda no disco.
+  final Stream<void> Function(String path)? watchSolutionFile;
+
   @override
   State<FileTreePanel> createState() => _FileTreePanelState();
 }
@@ -396,6 +420,16 @@ class _PendingCreate {
 
 class _FileTreePanelState extends State<FileTreePanel> {
   int _localRefresh = 0;
+  List<DotnetSolutionRef> _solutions = const [];
+  bool _solutionMode = false;
+  String? _activeSolution;
+  DotnetSolutionSnapshot? _solution;
+  bool _solutionLoading = false;
+  bool _solutionFailed = false;
+  int _detectGen = 0;
+  int _loadGen = 0;
+  final List<StreamSubscription<void>> _solutionWatches = [];
+  Timer? _solutionReload;
 
   /// Geração do "Collapse all" (botão do cabeçalho, como no VS Code). Cada
   /// [_Folder] fecha ao ver uma geração nova — o estado de expansão é local a
@@ -447,10 +481,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
   late bool _sourceControlTree;
   _SourceControlView _sourceControlView = _SourceControlView.changes;
 
-  /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
-  /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
-  /// pasta some de uma seção: ao reaparecer na outra, conserva o estado.
-  final Map<String, bool> _sourceControlFolderExpanded = <String, bool>{};
+  /// Expansão por seção (index/working tree) e caminho absoluto. Uma pasta
+  /// pode aparecer nas duas seções simultaneamente. Entradas são mantidas
+  /// quando ela some para restaurar o estado ao reaparecer na mesma seção.
+  final Map<(bool staged, String path), bool> _sourceControlFolderExpanded = {};
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -474,6 +508,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
     _sourceControlTree =
         widget.sourceControlViewMode == SourceControlViewMode.tree;
     widget.searchFocusSignal?.addListener(_onSearchFocusRequested);
+    _solutionMode = DotnetSolutionCache.instance.solutionMode(widget.rootPath);
+    _detectSolutions();
   }
 
   @override
@@ -488,13 +524,28 @@ class _FileTreePanelState extends State<FileTreePanel> {
           widget.sourceControlViewMode == SourceControlViewMode.tree;
     }
     // Novo pedido de reveal (seleção de tab FileView): calcula os ancestrais do
-    // alvo e publica o set pros folders expandirem.
+    // alvo e publica o set pros folders expandirem. Não sai do modo Solution:
+    // abrir um item de lá também revela o arquivo, e a view lógica fica.
     if (widget.revealGen != oldWidget.revealGen &&
         widget.revealGen != _revealGen) {
       _revealGen = widget.revealGen;
       _revealExpand = _ancestorDirs(widget.revealPath);
       _localTab = SidebarPanel.files;
       setState(() {});
+    }
+    if (oldWidget.rootPath != widget.rootPath) {
+      _solutionMode = DotnetSolutionCache.instance.solutionMode(
+        widget.rootPath,
+      );
+      _solutions = const [];
+      _solution = null;
+      _solutionFailed = false;
+      _activeSolution = null;
+      _cancelSolutionWatches();
+      _detectSolutions();
+    } else if (oldWidget.revision != widget.revision) {
+      _detectSolutions();
+      if (_solutionMode) _loadSolution(refresh: true);
     }
   }
 
@@ -503,7 +554,249 @@ class _FileTreePanelState extends State<FileTreePanel> {
     widget.searchFocusSignal?.removeListener(_onSearchFocusRequested);
     _treeFocus.dispose();
     _commitMessage.dispose();
+    _solutionReload?.cancel();
+    _cancelSolutionWatches();
     super.dispose();
+  }
+
+  Future<void> _detectSolutions() async {
+    final gen = ++_detectGen;
+    final root = widget.rootPath;
+    List<DotnetSolutionRef> found;
+    try {
+      found = await detectDotnetSolutions(root, widget.listChildren);
+    } on Object {
+      found = const [];
+    }
+    if (!mounted || gen != _detectGen || widget.rootPath != root) return;
+    final cache = DotnetSolutionCache.instance;
+    var active = cache.activeSolution(root);
+    if (active == null || !found.any((ref) => ref.path == active)) {
+      active = found.isEmpty ? null : found.first.path;
+      if (active != null) cache.setActiveSolution(root, active);
+    }
+    final previous = _activeSolution;
+    setState(() {
+      _solutions = found;
+      _activeSolution = active;
+      if (found.isEmpty) _solutionMode = false;
+    });
+    if (_solutionMode &&
+        active != null &&
+        (previous != active || _solution == null)) {
+      _loadSolution(refresh: false);
+    }
+  }
+
+  void _toggleSolutionMode() {
+    final next = !_solutionMode;
+    DotnetSolutionCache.instance.setSolutionMode(widget.rootPath, next);
+    setState(() {
+      _solutionMode = next;
+      _solutionFailed = false;
+    });
+    if (next) _loadSolution(refresh: false);
+  }
+
+  Future<void> _loadSolution({required bool refresh}) async {
+    final path = _activeSolution;
+    final root = widget.rootPath;
+    if (path == null) return;
+    final cache = DotnetSolutionCache.instance;
+    if (!refresh) {
+      final cached = cache.peek(path);
+      if (cached != null) {
+        if (!mounted) return;
+        setState(() {
+          _solution = cached;
+          _solutionLoading = false;
+          _solutionFailed = false;
+        });
+        _watchSolution(cached);
+        return;
+      }
+    }
+    final gen = ++_loadGen;
+    if (_solution == null && mounted) {
+      setState(() {
+        _solutionLoading = true;
+        _solutionFailed = false;
+      });
+    }
+    final loader = widget.loadDotnetSolution;
+    if (loader == null) {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _solutionLoading = false;
+        _solutionFailed = _solution == null;
+      });
+      return;
+    }
+    try {
+      final snap = await loader(path);
+      if (!mounted || gen != _loadGen || widget.rootPath != root) return;
+      if (snap == null) {
+        setState(() {
+          _solutionLoading = false;
+          _solutionFailed = _solution == null;
+        });
+        return;
+      }
+      cache.putModel(path, snap.fingerprint, snap);
+      setState(() {
+        _solution = snap;
+        _solutionLoading = false;
+        _solutionFailed = false;
+      });
+      _watchSolution(snap);
+    } on Object {
+      if (!mounted || gen != _loadGen) return;
+      setState(() {
+        _solutionLoading = false;
+        _solutionFailed = _solution == null;
+      });
+    }
+  }
+
+  void _watchSolution(DotnetSolutionSnapshot snap) {
+    _cancelSolutionWatches();
+    final watch = widget.watchSolutionFile;
+    if (watch == null) return;
+    for (final path in <String>{snap.path, ...snap.projectPaths}) {
+      _solutionWatches.add(
+        watch(path).listen((_) {
+          _solutionReload?.cancel();
+          _solutionReload = Timer(const Duration(milliseconds: 200), () {
+            if (mounted && _solutionMode) _loadSolution(refresh: true);
+          });
+        }),
+      );
+    }
+  }
+
+  void _cancelSolutionWatches() {
+    for (final sub in _solutionWatches) {
+      sub.cancel();
+    }
+    _solutionWatches.clear();
+  }
+
+  Future<void> _showSolutionSwitcher() async {
+    final choice = await showAppMenu<String>(
+      context,
+      items: [
+        for (final ref in _solutions)
+          AppMenuItem(
+            value: ref.path,
+            label: ref.name,
+            selected: ref.path == _activeSolution,
+          ),
+      ],
+    );
+    if (!mounted || choice == null || choice == _activeSolution) return;
+    DotnetSolutionCache.instance.setActiveSolution(widget.rootPath, choice);
+    _cancelSolutionWatches();
+    setState(() {
+      _activeSolution = choice;
+      _solution = null;
+      _solutionFailed = false;
+    });
+    _loadSolution(refresh: false);
+  }
+
+  void _showSolutionNodeMenu(
+    BuildContext context,
+    Offset position,
+    String path,
+    String name,
+    bool isFolder,
+  ) {
+    final parent = _parentPath(path);
+    _showNodeMenu(
+      context,
+      position,
+      _Row(
+        depth: 0,
+        isFolder: isFolder,
+        name: name,
+        path: path,
+        rootPath: widget.rootPath,
+        gitStatus: widget.gitStatusOf(path),
+        onDoubleTap: isFolder ? null : () => widget.onOpenFile(path),
+        onOpenWith: () => widget.onOpenWith(path),
+        onOpenInWindow: widget.onOpenInWindow == null
+            ? null
+            : () => widget.onOpenInWindow!(path),
+        onOpenLayout:
+            widget.onOpenLayout == null || !name.toLowerCase().endsWith('.ckp')
+            ? null
+            : () => widget.onOpenLayout!(path),
+        onOpenAsSource:
+            widget.onOpenAsSource == null ||
+                !(FileReader.isBoard(name) ||
+                    name.toLowerCase().endsWith('.kanban') ||
+                    name.toLowerCase().endsWith('.panel') ||
+                    OrchestrationDocument.isFilePath(path))
+            ? null
+            : () => widget.onOpenAsSource!(path),
+        onShowDiff: isFolder ? null : () => widget.onOpenDiff(path),
+        onCreateInFolder: isFolder ? widget.onCreateInFolder : null,
+        agentLaunchers: isFolder ? widget.agentLaunchers : const [],
+        onNewFile: isFolder ? () => _startCreate(path, false) : null,
+        onNewFolder: isFolder ? () => _startCreate(path, true) : null,
+        onStartRename: () => _startRename(path),
+        onCommitRename: (next) => _commitRename(path, next),
+        onCancelRename: _cancelRename,
+        onDelete: () => _requestDelete(path),
+        onCopy: () => widget.onCopy(path),
+        onCut: () => widget.onCut(path),
+        onPaste: () => _requestPaste(isFolder ? path : parent),
+        canPaste: widget.canPaste,
+      ),
+    );
+  }
+
+  String _parentPath(String path) {
+    final slash = path.lastIndexOf('/');
+    if (slash <= 0) return widget.rootPath;
+    return path.substring(0, slash);
+  }
+
+  Widget _solutionBody() {
+    final tr = context.t.cockpit.fileTreePanel;
+    if (_solutionLoading && _solution == null) {
+      return Center(
+        child: Text(
+          tr.loadingSolution,
+          key: const ValueKey('solution-loading'),
+          style: context.typo.label.copyWith(color: context.colors.text3),
+        ),
+      );
+    }
+    if ((_solutionFailed || widget.loadDotnetSolution == null) &&
+        _solution == null) {
+      return Center(
+        child: Text(
+          tr.solutionLoadFailed,
+          key: const ValueKey('solution-load-error'),
+          textAlign: TextAlign.center,
+          style: context.typo.label.copyWith(color: context.colors.text3),
+        ),
+      );
+    }
+    final snap = _solution;
+    if (snap == null) return const SizedBox.shrink();
+    return DotnetSolutionTree(
+      snapshot: snap,
+      refreshToken: widget.revision + _localRefresh,
+      collapseGen: _collapseGen,
+      selectedPath: widget.selectedPath ?? _selectedPath,
+      listChildren: widget.listChildren,
+      onOpenFile: widget.onOpenFile,
+      onTapFile: widget.onTapFile,
+      onSelectFile: widget.onSelectFile,
+      onNodeMenu: _showSolutionNodeMenu,
+    );
   }
 
   /// Botão-direito num arquivo do Source Control: View Diff + Unstage OU
@@ -972,6 +1265,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   Future<void> _requestMove(String path, String targetDir) async {
+    // Um drop na pasta atual não move nada (inclusive quando a própria linha
+    // recusa o drop e o alvo da raiz o recebe).
+    if (p.dirname(path) == targetDir) return;
     final name = path.split('/').where((p) => p.isNotEmpty).last;
     final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
     final tr = context.t.cockpit.fileTreePanel;
@@ -1257,9 +1553,29 @@ class _FileTreePanelState extends State<FileTreePanel> {
             _PanelHeader(
               title: context.t.cockpit.fileTreePanel.sectionFiles,
               actions: [
+                if (_solutions.isNotEmpty)
+                  _PanelHeaderAction(
+                    key: const ValueKey('solution-mode-toggle'),
+                    mark: (color) => _SolutionMark(color: color),
+                    tooltip: _solutionMode
+                        ? context.t.cockpit.fileTreePanel.explorerTooltip
+                        : context.t.cockpit.fileTreePanel.solutionTooltip,
+                    selected: _solutionMode,
+                    onTap: _toggleSolutionMode,
+                  ),
+                if (_solutionMode && _solutions.length > 1)
+                  _PanelHeaderAction(
+                    key: const ValueKey('solution-switcher'),
+                    icon: Icons.swap_horiz,
+                    tooltip: context.t.cockpit.fileTreePanel.switchSolution,
+                    onTap: () {
+                      _showSolutionSwitcher();
+                    },
+                  ),
                 // "New file/folder": pasta/arquivo selecionado, senão a raiz
-                // do workspace.
-                if (_headerCreateTarget()?.isNotEmpty ?? false) ...[
+                // do workspace. No modo Solution a árvore é lógica.
+                if (!_solutionMode &&
+                    (_headerCreateTarget()?.isNotEmpty ?? false)) ...[
                   _PanelHeaderAction(
                     icon: Icons.note_add_outlined,
                     tooltip: context.t.cockpit.fileTreePanel.newFile,
@@ -1279,7 +1595,11 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 _PanelHeaderAction(
                   icon: Icons.refresh,
                   tooltip: context.t.cockpit.fileTreePanel.refreshTooltip,
-                  onTap: () => setState(() => _localRefresh++),
+                  onTap: () {
+                    setState(() => _localRefresh++);
+                    _detectSolutions();
+                    if (_solutionMode) _loadSolution(refresh: true);
+                  },
                 ),
               ],
             ),
@@ -1355,13 +1675,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                           onStageAll: _toggleStageAll,
                           onDiscard: _discardOne,
                           onDiscardAll: _discardAll,
-                          isFolderExpanded: (path) =>
-                              _sourceControlFolderExpanded[path] ?? true,
-                          onFolderExpansionChanged: (path, expanded) =>
-                              setState(
-                                () => _sourceControlFolderExpanded[path] =
-                                    expanded,
-                              ),
+                          isFolderExpanded: (path, staged) =>
+                              _sourceControlFolderExpanded[(staged, path)] ??
+                              true,
+                          onFolderExpansionChanged: (path, staged, expanded) =>
+                              setState(() {
+                                _sourceControlFolderExpanded[(staged, path)] =
+                                    expanded;
+                              }),
                           stagedPaths: effectiveStaged,
                           unstagedPaths: effectiveUnstaged,
                           gitStatusOf: widget.gitStatusOf,
@@ -1390,6 +1711,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
                             }
                           },
                         )
+                : _solutionMode && _solutions.isNotEmpty
+                ? _solutionBody()
                 : DropTarget(
                     // Drop NATIVO do SO (Finder/Explorer/GTK): a pasta sob o
                     // cursor recebe; o espaço vazio manda pra raiz.
@@ -2963,8 +3286,9 @@ class _ChangedTree extends StatelessWidget {
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
-  final bool Function(String path) isFolderExpanded;
-  final void Function(String path, bool expanded) onFolderExpansionChanged;
+  final bool Function(String path, bool staged) isFolderExpanded;
+  final void Function(String path, bool staged, bool expanded)
+  onFolderExpansionChanged;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -3164,8 +3488,9 @@ class _ChangedTree extends StatelessWidget {
       onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
       onDiscardAll: onDiscardAll,
-      isExpanded: isFolderExpanded,
-      onExpansionChanged: onFolderExpansionChanged,
+      isExpanded: (path) => isFolderExpanded(path, staged),
+      onExpansionChanged: (path, expanded) =>
+          onFolderExpansionChanged(path, staged, expanded),
       staged: staged,
     );
   }
@@ -3765,30 +4090,48 @@ class _PanelHeader extends StatelessWidget {
 class _PanelHeaderAction extends StatelessWidget {
   const _PanelHeaderAction({
     super.key,
-    required this.icon,
+    this.icon,
     required this.tooltip,
     required this.onTap,
     this.selected = false,
-  });
-  final IconData icon;
+    this.mark,
+  }) : assert(icon != null || mark != null);
+  final IconData? icon;
   final String tooltip;
   final VoidCallback onTap;
   final bool selected;
 
+  /// Desenho no lugar do [icon], na mesma cor de ativo/inativo.
+  final Widget Function(Color color)? mark;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final color = selected ? colors.text : colors.text3;
     return AppTooltip(
       message: tooltip,
       child: HoverTap(
         onTap: onTap,
         padding: const EdgeInsets.all(3),
-        child: Icon(
-          icon,
-          size: 14,
-          color: selected ? colors.text : colors.text3,
-        ),
+        child: mark?.call(color) ?? Icon(icon!, size: 14, color: color),
       ),
+    );
+  }
+}
+
+/// Logo do Visual Studio, na cor do header. O SVG original é roxo.
+class _SolutionMark extends StatelessWidget {
+  const _SolutionMark({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return SvgPicture.asset(
+      'assets/file_icons/visualstudio.svg',
+      width: 14,
+      height: 14,
+      colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
     );
   }
 }
@@ -3834,7 +4177,7 @@ class _HeaderIcon extends StatelessWidget {
 
 /// Chip que segue o cursor ao arrastar um arquivo do painel pro input.
 /// Torna um nó da árvore arrastável (mover pra outra pasta / citar no
-/// composer). No DESKTOP o arraste é imediato; no MOBILE só após long-press,
+/// composer). No DESKTOP o mouse precisa se deslocar; no MOBILE só após long-press,
 /// pra um swipe de scroll por toque não virar drag-drop (plano 60, Wave B1).
 class _NodeDraggable extends StatelessWidget {
   const _NodeDraggable({
@@ -3857,12 +4200,68 @@ class _NodeDraggable extends StatelessWidget {
         child: child,
       );
     }
-    return Draggable<String>(
+    return _MouseThresholdDraggable(
       data: path,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: _FileChip(name: name),
       child: child,
     );
+  }
+}
+
+/// O limiar padrão do Flutter para mouse é só 1 pixel lógico. Uma pequena
+/// tremida ao clicar não deve ganhar a arena do tap e virar uma movimentação.
+/// Mantém o Draggable (feedback, alvos e payload) e os demais dispositivos;
+/// não exige espera por tempo nem acumula distância de movimentos de ida/volta.
+class _MouseThresholdDraggable extends Draggable<String> {
+  const _MouseThresholdDraggable({
+    required super.data,
+    required super.dragAnchorStrategy,
+    required super.feedback,
+    required super.child,
+  });
+
+  @override
+  ImmediateMultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) => _MouseThresholdDragRecognizer()..onStart = onStart;
+}
+
+class _MouseThresholdDragRecognizer
+    extends ImmediateMultiDragGestureRecognizer {
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) {
+      return super.createNewPointerState(event);
+    }
+    return _MouseThresholdPointerState(
+      event.position,
+      event.kind,
+      gestureSettings,
+    );
+  }
+}
+
+class _MouseThresholdPointerState extends MultiDragPointerState {
+  _MouseThresholdPointerState(
+    super.initialPosition,
+    super.kind,
+    super.gestureSettings,
+  );
+
+  // Pixels lógicos: tolera jitter sem atrasar arrastes deliberados.
+  static const double _dragThreshold = 8;
+
+  @override
+  void checkForResolutionAfterMove() {
+    if (pendingDelta!.distance > _dragThreshold) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
   }
 }
 

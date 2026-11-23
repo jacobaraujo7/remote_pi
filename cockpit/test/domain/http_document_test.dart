@@ -27,6 +27,61 @@ PUT {{baseUrl}}/users/1
 ''';
 
 void main() {
+  test('scripts externos e inline mantêm ordem sem contaminar o body', () {
+    final doc = HttpDocument.parse('''
+### Upload
+< "scripts/pre request.js"
+< {% request.variables.set('id', 42); %}
+< ./another.cjs
+POST https://example.test/{{id}}
+Content-Type: application/json
+
+{"id": 1}
+> ./scripts/check.mjs
+> {% client.log(response.status); %}
+> './scripts/last check.js'
+### Next
+GET https://example.test/next
+''');
+    final request = doc.requests.first;
+    expect(request.startLine, 0);
+    expect(request.preScripts, [
+      (code: null, path: 'scripts/pre request.js'),
+      (code: "request.variables.set('id', 42);", path: null),
+      (code: null, path: './another.cjs'),
+    ]);
+    expect(request.postScripts.map((s) => s.path), [
+      './scripts/check.mjs',
+      null,
+      './scripts/last check.js',
+    ]);
+    expect(request.body, '{"id": 1}');
+    expect(request.bodyFile, isNull);
+    final resolved = doc.resolveRequest(
+      request,
+      requestVariables: {'id': '42'},
+    );
+    expect(resolved.preScripts, request.preScripts);
+    expect(resolved.postScripts, request.postScripts);
+    expect(doc.requests.last.preScripts, isEmpty);
+    expect(doc.requests.last.postScripts, isEmpty);
+  });
+
+  test('pre-request externo faz parte da faixa antes do verbo', () {
+    final doc = HttpDocument.parse('< ./pre.js\nGET https://example.test');
+    expect(doc.requests.single.startLine, 0);
+    expect(doc.requests.single.requestLine, 1);
+  });
+
+  test('importação de body JavaScript após o verbo continua sendo body', () {
+    final request = HttpDocument.parse(
+      'POST https://example.test\n< ./body.js',
+    ).requests.single;
+    expect(request.bodyFile, './body.js');
+    expect(request.preScripts, isEmpty);
+    expect(request.postScripts, isEmpty);
+  });
+
   group('parse', () {
     final doc = HttpDocument.parse(_source);
 
@@ -214,10 +269,9 @@ GET https://example.test/other?limit={{pageLimit}}
       },
     );
     expect(
-      HttpDocument.parse(source).interpolate(
-        '{{pageLimit}}',
-        requestVariables: {'pageLimit': '7'},
-      ),
+      HttpDocument.parse(
+        source,
+      ).interpolate('{{pageLimit}}', requestVariables: {'pageLimit': '7'}),
       '7',
     );
     expect(missing.map((item) => item.name), ['pageLimit']);

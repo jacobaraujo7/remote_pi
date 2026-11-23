@@ -866,6 +866,15 @@ class _Translations$cockpit$fileTreePanel$es extends Translations$cockpit$fileTr
 	@override String get importAction => 'Copiar';
 	@override String get couldNotImportTitle => 'No se pudo copiar';
 	@override String openInAgent({required Object harness}) => 'Abrir en ${harness}';
+	@override String get solutionTooltip => 'Solución';
+	@override String get explorerTooltip => 'Explorador';
+	@override String get switchSolution => 'Cambiar solución';
+	@override String get loadingSolution => 'Cargando solución…';
+	@override String get solutionLoadFailed => 'No se pudo leer la solución.';
+	@override String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n,
+		one: '1 proyecto',
+		other: '${n} proyectos',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -883,6 +892,7 @@ class _Translations$cockpit$fileViewer$es extends Translations$cockpit$fileViewe
 	@override String get preview => 'Vista previa';
 	@override String get source => 'Código fuente';
 	@override String get reload => 'Recargar';
+	@override String get mermaidError => 'Error en el diagrama';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -995,6 +1005,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => 'Copiar como cURL';
 	@override String get saveRequestAs => 'Guardar request como';
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
@@ -1794,6 +1805,12 @@ class _Translations$cockpit$gallery$board$es extends Translations$cockpit$galler
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get editObjectText => 'Editar texto';
+	@override String get strokeWidth => 'Grosor de línea';
+	@override String get selectedLineWidth => 'Grosor de las líneas seleccionadas';
+	@override String get bringFront => 'Traer al frente';
+	@override String get sendBack => 'Enviar al fondo';
+	@override String get menuChanged => 'La selección cambió. Vuelve a abrir el menú.';
 	@override String get fileActions => 'Importar o exportar';
 	@override String get exportDocument => 'Exportar documento completo';
 	@override String get exportSelection => 'Exportar selección';
@@ -2673,6 +2690,12 @@ extension on TranslationsEs {
 			'cockpit.fileTreePanel.importAction' => 'Copiar',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'No se pudo copiar',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Abrir en ${harness}',
+			'cockpit.fileTreePanel.solutionTooltip' => 'Solución',
+			'cockpit.fileTreePanel.explorerTooltip' => 'Explorador',
+			'cockpit.fileTreePanel.switchSolution' => 'Cambiar solución',
+			'cockpit.fileTreePanel.loadingSolution' => 'Cargando solución…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => 'No se pudo leer la solución.',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('es'))(n, one: '1 proyecto', other: '${n} proyectos', ), 
 			'cockpit.fileViewer.saveAs' => 'Guardar como',
 			'cockpit.fileViewer.couldNotSave' => 'No se pudo guardar',
 			'cockpit.fileViewer.untitledDefaultName' => 'sin-titulo.txt',
@@ -2681,6 +2704,7 @@ extension on TranslationsEs {
 			'cockpit.fileViewer.preview' => 'Vista previa',
 			'cockpit.fileViewer.source' => 'Código fuente',
 			'cockpit.fileViewer.reload' => 'Recargar',
+			'cockpit.fileViewer.mermaidError' => 'Error en el diagrama',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Elegir foto del workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configuración del workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nombre del workspace',
@@ -2739,6 +2763,7 @@ extension on TranslationsEs {
 			'cockpit.dbQueryView.saved' => 'guardado',
 			'cockpit.dbQueryView.copied' => 'Copiado',
 			'cockpit.dbQueryView.copy' => 'Copiar',
+			'cockpit.httpView.copyCurl' => 'Copiar como cURL',
 			'cockpit.httpView.saveRequestAs' => 'Guardar request como',
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
@@ -2826,6 +2851,8 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.comments' => 'Comentarios',
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escribe un comentario',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
 			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			'cockpit.kanbanView.notABoard' => 'Este archivo aún no tiene columnas ## — se abre como markdown.',
@@ -2834,8 +2861,6 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.unrecognizedBlock' => 'No reconocido por el analizador — se arrastra entero, sin edición en línea.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '¿Eliminar «${name}»?',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => 'Esta columna tiene ${count}. Elige qué pasa con ellas.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => 'Mover a la columna anterior',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => 'Eliminar junto con la columna',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => 'Esta columna está vacía.',
@@ -3018,6 +3043,12 @@ extension on TranslationsEs {
 			'cockpit.browserPane.go' => 'Ir',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio y video se abren en la ventana principal de Cockpit.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'Archivo no encontrado: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Editar texto',
+			'cockpit.gallery.board.strokeWidth' => 'Grosor de línea',
+			'cockpit.gallery.board.selectedLineWidth' => 'Grosor de las líneas seleccionadas',
+			'cockpit.gallery.board.bringFront' => 'Traer al frente',
+			'cockpit.gallery.board.sendBack' => 'Enviar al fondo',
+			'cockpit.gallery.board.menuChanged' => 'La selección cambió. Vuelve a abrir el menú.',
 			'cockpit.gallery.board.fileActions' => 'Importar o exportar',
 			'cockpit.gallery.board.exportDocument' => 'Exportar documento completo',
 			'cockpit.gallery.board.exportSelection' => 'Exportar selección',
@@ -3334,6 +3365,8 @@ extension on TranslationsEs {
 			'settings.page.terminal.closeOnExitTitle' => 'Cerrar la pestaña cuando el shell termine',
 			'settings.page.terminal.closeOnExitDesc' => 'Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',
@@ -3348,8 +3381,6 @@ extension on TranslationsEs {
 			'settings.page.appearance.themeLight' => 'Claro',
 			'settings.page.appearance.themeDark' => 'Oscuro',
 			'settings.page.appearance.sectionFonts' => 'Fuentes',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.interfaceFontTitle' => 'Fuente de la interfaz',
 			'settings.page.appearance.interfaceFontDesc' => 'Se usa en toda la aplicación. Vacío = predeterminado del sistema.',
 			'settings.page.appearance.interfaceSizeTitle' => 'Tamaño de la interfaz',

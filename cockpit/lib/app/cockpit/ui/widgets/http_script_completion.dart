@@ -61,10 +61,21 @@ class HttpScriptCompletion {
   static bool insideBlock(String source, int caret) =>
       _blockAt(source, caret) != null;
 
+  /// Estado léxico compartilhado pelo autocomplete e pelo fechamento de pares.
+  static ({String? quote, bool comment, bool escaped})? contextAt(
+    String source,
+    int caret,
+  ) {
+    final block = _blockAt(source, caret);
+    if (block == null || caret < block.codeStart) return null;
+    return _lexicalState(source, block.codeStart, caret);
+  }
+
   static HttpScriptSlot? slotAt(String source, int caret) {
     final block = _blockAt(source, caret);
     if (block == null || caret < block.codeStart) return null;
-    if (_inStringOrComment(source, block.codeStart, caret)) return null;
+    final state = _lexicalState(source, block.codeStart, caret);
+    if (state.quote != null || state.comment) return null;
 
     final code = source.substring(block.codeStart, caret);
     final match = _chain.firstMatch(code);
@@ -285,7 +296,11 @@ class HttpScriptCompletion {
     );
   }
 
-  static bool _inStringOrComment(String source, int start, int end) {
+  static ({String? quote, bool comment, bool escaped}) _lexicalState(
+    String source,
+    int start,
+    int end,
+  ) {
     String? quote;
     var lineComment = false;
     var blockComment = false;
@@ -318,6 +333,10 @@ class HttpScriptCompletion {
         quote = char;
       }
     }
-    return quote != null || lineComment || blockComment;
+    return (
+      quote: quote,
+      comment: lineComment || blockComment,
+      escaped: escaped,
+    );
   }
 }

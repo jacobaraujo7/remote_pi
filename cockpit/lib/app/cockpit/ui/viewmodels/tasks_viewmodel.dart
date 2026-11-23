@@ -60,6 +60,7 @@ class TasksViewModel extends ChangeNotifier {
   Timer? _reloadDebounce;
 
   String _cwd = '';
+  String? _workspaceId;
   String? _sourceWorkspaceCwd;
   int _contextVersion = 0;
   bool _importing = false;
@@ -126,15 +127,21 @@ class TasksViewModel extends ChangeNotifier {
   TaskRun stateOf(String taskId) => _states[taskId] ?? _runner.runOf(taskId);
 
   /// (Re)carrega as tasks do projeto em [cwd]. No-op se já é o cwd corrente.
-  Future<void> loadFor(String cwd, {String? sourceWorkspaceCwd}) async {
+  Future<void> loadFor(
+    String cwd, {
+    String? sourceWorkspaceCwd,
+    String? workspaceId,
+  }) async {
     final remote = remoteContextFor?.call(cwd);
     if (cwd == _cwd &&
+        workspaceId == _workspaceId &&
         sourceWorkspaceCwd == _sourceWorkspaceCwd &&
         identical(remote?.runner, _remote?.runner)) {
       return;
     }
     _contextVersion++;
     _cwd = cwd;
+    _workspaceId = workspaceId;
     _sourceWorkspaceCwd = sourceWorkspaceCwd;
     _importNotice = null;
     _importing = false;
@@ -159,13 +166,15 @@ class TasksViewModel extends ChangeNotifier {
     notifyListeners();
     final found = cwd.isEmpty
         ? const <TaskDefinition>[]
-        : await _discovery.discover(cwd);
+        : await _discovery.discover(cwd, workspaceId: _workspaceId);
     if (_closed || version != _contextVersion) return;
     _tasks = found;
     final reconciled = _runner;
     if (reconciled is ReconciledTaskRunnerGateway) {
       await (reconciled as ReconciledTaskRunnerGateway).reconcileDefinitions(
         found,
+        projectRoot: cwd,
+        workspaceId: _workspaceId,
       );
     }
     // Remoto: o tasks.json vive no host — não dá pra `File.existsSync` aqui;

@@ -217,6 +217,22 @@ GET https://example.test/users?limit={{pageLimit}}
     expect(state.outcomes.single.requestVariables, isEmpty);
   });
 
+  test(
+    'trocar arquivo de script invalida variáveis e edições cosméticas preservam',
+    () {
+      const source = '< ./pre.js\nGET https://example.test/{{id}}\n> ./post.js';
+      final state = HttpTabState()..syncSource(source, 1);
+      state.outcomes.single.requestVariables = {'id': '42'};
+      state.syncSource('$source\n# comment', 1);
+      expect(state.outcomes.single.requestVariables, {'id': '42'});
+      state.syncSource(source.replaceFirst('pre.js', 'other.js'), 1);
+      expect(state.outcomes.single.requestVariables, isEmpty);
+      state.outcomes.single.requestVariables = {'id': '43'};
+      state.syncSource(source.replaceFirst('post.js', 'other.js'), 1);
+      expect(state.outcomes.single.requestVariables, isEmpty);
+    },
+  );
+
   group('HttpResponseResult', () {
     test('JSON válido vira corpo indentado', () {
       expect(_result('{"a":1}').prettyJson, '{\n  "a": 1\n}');
