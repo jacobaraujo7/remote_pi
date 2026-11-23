@@ -621,9 +621,11 @@ jobs:
           version: 0.16.0
 
       - name: Deps de sistema (GTK, ninja, rpmbuild, libmpv)
-        # Medido: 55s no amd64, 1m08s no arm64. Passar de 10min aqui não é
-        # lentidão, é pendura — lista de pacotes fixa, nada a compilar.
-        timeout-minutes: 10
+        # Medido: 55s no amd64, 1m08s no arm64 em dia normal. Em 2026-11-23 o
+        # mirror ec2 do Ubuntu levou mais de 10min só baixando os ~260 pacotes
+        # (duas vezes seguidas, sem pendura: Get: avançando até o teto). O
+        # update tem teto próprio por tentativa; aqui o teto cobre o install.
+        timeout-minutes: 25
         env:
           # `needrestart` do ubuntu-24.04 abre prompt interativo no install e
           # é uma das formas clássicas de pendurar o passo.
