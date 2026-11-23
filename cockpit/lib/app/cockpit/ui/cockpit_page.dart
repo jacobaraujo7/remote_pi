@@ -1245,6 +1245,7 @@ class _TreePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<CockpitViewModel>();
+    final searchProjectId = vm.selectedProjectId;
     final panelSettings = context
         .select<
           SettingsController,
@@ -1267,8 +1268,10 @@ class _TreePanel extends StatelessWidget {
     return Stack(
       children: [
         FileTreePanel(
-          // Pasta do workspace; reseta ao trocar de workspace.
-          key: ValueKey(vm.treeRootPath),
+          // Reset filesystem-local state, restoring navigation by stable project ID.
+          key: ValueKey((vm.selectedProjectId, vm.treeRootPath)),
+          activePanel: vm.sidebarPanel,
+          onPanelChanged: vm.setSidebarPanel,
           width: treeWidth,
           rootPath: vm.treeRootPath,
           sourceControlViewMode: sourceControlViewMode,
@@ -1407,8 +1410,9 @@ class _TreePanel extends StatelessWidget {
               ? null
               : ContentSearchPanel(
                   fill: true,
-                  search: vm.searchContent,
-                  onOpenResult: vm.openSearchResult,
+                  controller: vm.searchStateFor(vm.selectedProject!.id),
+                  onOpenResult: (relative, line) =>
+                      vm.openSearchResultIn(searchProjectId!, relative, line),
                   focusSignal: searchFocusSignal,
                 ),
           searchFocusSignal: searchFocusSignal,

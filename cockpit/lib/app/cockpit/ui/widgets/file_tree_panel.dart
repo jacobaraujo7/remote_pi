@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/ui/states/sidebar_panel.dart';
 import 'package:cockpit/app/cockpit/domain/contracts/file_reader.dart';
 import 'dart:async';
 import 'dart:io' show Platform;
@@ -109,6 +110,8 @@ class FileTreePanel extends StatefulWidget {
     required this.rootPath,
     required this.revision,
     this.selectedPath,
+    this.activePanel,
+    this.onPanelChanged,
     required this.listChildren,
     required this.gitStatusOf,
     required this.onOpenFile,
@@ -174,6 +177,11 @@ class FileTreePanel extends StatefulWidget {
     this.loadDotnetSolution,
     this.watchSolutionFile,
   });
+
+  /// Controlled by the workspace VM in the shell; standalone users may keep
+  /// the selection local by omitting these properties.
+  final SidebarPanel? activePanel;
+  final ValueChanged<SidebarPanel>? onPanelChanged;
 
   /// "Revelar na árvore": arquivo-alvo + geração. Quando [revealGen] muda, a
   /// árvore expande a root e os folders ancestrais de [revealPath] (uma vez) e
@@ -401,18 +409,6 @@ class FileTreePanel extends StatefulWidget {
   State<FileTreePanel> createState() => _FileTreePanelState();
 }
 
-/// Aba ativa do painel direito: árvore de arquivos, busca por conteúdo,
-/// source control ou conexões de banco (plano 51). Ordem visual no header:
-/// Files · Search · Source Control · Database.
-enum _RightPaneTab {
-  files,
-  search,
-  sourceControl,
-  database,
-  gallery,
-  telemetry,
-}
-
 enum _SourceControlView { changes, history }
 
 /// Intenção de criação inline pendente: dentro de [parentPath], arquivo ou pasta.
@@ -472,7 +468,13 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   /// Aba ativa do painel: árvore de arquivos, busca ou source control.
-  _RightPaneTab _tab = _RightPaneTab.files;
+  SidebarPanel _localTab = SidebarPanel.files;
+  SidebarPanel get _tab => widget.activePanel ?? _localTab;
+
+  void _selectPanel(SidebarPanel panel) {
+    setState(() => _localTab = panel);
+    widget.onPanelChanged?.call(panel);
+  }
 
   /// Source Control começa no default global e pode alternar temporariamente
   /// sem afetar a árvore principal de arquivos.
@@ -528,7 +530,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
         widget.revealGen != _revealGen) {
       _revealGen = widget.revealGen;
       _revealExpand = _ancestorDirs(widget.revealPath);
-      _tab = _RightPaneTab.files;
+      _localTab = SidebarPanel.files;
       setState(() {});
     }
     if (oldWidget.rootPath != widget.rootPath) {
@@ -1041,8 +1043,8 @@ class _FileTreePanelState extends State<FileTreePanel> {
 
   /// Cmd+Shift+F: revela a aba de busca (o campo é focado pelo próprio painel).
   void _onSearchFocusRequested() {
-    if (widget.searchPanel != null && _tab != _RightPaneTab.search) {
-      setState(() => _tab = _RightPaneTab.search);
+    if (widget.searchPanel != null && _tab != SidebarPanel.search) {
+      _selectPanel(SidebarPanel.search);
     }
   }
 
@@ -1456,29 +1458,29 @@ class _FileTreePanelState extends State<FileTreePanel> {
     // Se a condição da aba ativa sumiu, cai de volta pra Files.
     final hasSearch = widget.searchPanel != null;
     var tab = _tab;
-    if (tab == _RightPaneTab.sourceControl && !widget.isGitRepo) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.sourceControl && !widget.isGitRepo) {
+      tab = SidebarPanel.files;
     }
-    if (tab == _RightPaneTab.search && !hasSearch) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.search && !hasSearch) {
+      tab = SidebarPanel.files;
     }
     final hasDatabase = widget.databasePanel != null;
-    if (tab == _RightPaneTab.database && !hasDatabase) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.database && !hasDatabase) {
+      tab = SidebarPanel.files;
     }
     final hasGallery = widget.galleryPanel != null;
-    if (tab == _RightPaneTab.gallery && !hasGallery) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.gallery && !hasGallery) {
+      tab = SidebarPanel.files;
     }
     final hasTelemetry = widget.telemetryPanel != null;
-    if (tab == _RightPaneTab.telemetry && !hasTelemetry) {
-      tab = _RightPaneTab.files;
+    if (tab == SidebarPanel.telemetry && !hasTelemetry) {
+      tab = SidebarPanel.files;
     }
-    final scMode = tab == _RightPaneTab.sourceControl;
-    final searchMode = tab == _RightPaneTab.search;
-    final dbMode = tab == _RightPaneTab.database;
-    final galleryMode = tab == _RightPaneTab.gallery;
-    final telemetryMode = tab == _RightPaneTab.telemetry;
+    final scMode = tab == SidebarPanel.sourceControl;
+    final searchMode = tab == SidebarPanel.search;
+    final dbMode = tab == SidebarPanel.database;
+    final galleryMode = tab == SidebarPanel.gallery;
+    final telemetryMode = tab == SidebarPanel.telemetry;
 
     return Container(
       width: widget.width,
@@ -1499,15 +1501,15 @@ class _FileTreePanelState extends State<FileTreePanel> {
                 _HeaderIcon(
                   icon: Icons.folder_outlined,
                   tooltip: context.t.cockpit.fileTreePanel.filesTooltip,
-                  selected: tab == _RightPaneTab.files,
-                  onTap: () => setState(() => _tab = _RightPaneTab.files),
+                  selected: tab == SidebarPanel.files,
+                  onTap: () => _selectPanel(SidebarPanel.files),
                 ),
                 if (hasSearch)
                   _HeaderIcon(
                     icon: Icons.search,
                     tooltip: context.t.cockpit.fileTreePanel.searchTooltip,
                     selected: searchMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.search),
+                    onTap: () => _selectPanel(SidebarPanel.search),
                   ),
                 if (widget.isGitRepo)
                   _HeaderIcon(
@@ -1516,8 +1518,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     tooltip:
                         context.t.cockpit.fileTreePanel.sourceControlTooltip,
                     selected: scMode,
-                    onTap: () =>
-                        setState(() => _tab = _RightPaneTab.sourceControl),
+                    onTap: () => _selectPanel(SidebarPanel.sourceControl),
                   ),
                 if (hasDatabase)
                   _HeaderIcon(
@@ -1525,7 +1526,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.storage,
                     tooltip: context.t.cockpit.fileTreePanel.databaseTooltip,
                     selected: dbMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.database),
+                    onTap: () => _selectPanel(SidebarPanel.database),
                   ),
                 if (hasTelemetry)
                   _HeaderIcon(
@@ -1533,7 +1534,7 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.monitor_heart_outlined,
                     tooltip: context.t.cockpit.telemetry.tooltip,
                     selected: telemetryMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.telemetry),
+                    onTap: () => _selectPanel(SidebarPanel.telemetry),
                   ),
                 if (hasGallery)
                   _HeaderIcon(
@@ -1541,14 +1542,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                     icon: Icons.auto_awesome_mosaic_outlined,
                     tooltip: context.t.cockpit.fileTreePanel.galleryTooltip,
                     selected: galleryMode,
-                    onTap: () => setState(() => _tab = _RightPaneTab.gallery),
+                    onTap: () => _selectPanel(SidebarPanel.gallery),
                   ),
               ],
             ),
           ),
           // Título da aba ativa + ações contextuais ao lado, no padrão do
           // painel Database (a barra de tabs acima fica só com as tabs).
-          if (widget.rootPath.isNotEmpty && tab == _RightPaneTab.files)
+          if (widget.rootPath.isNotEmpty && tab == SidebarPanel.files)
             _PanelHeader(
               title: context.t.cockpit.fileTreePanel.sectionFiles,
               actions: [
