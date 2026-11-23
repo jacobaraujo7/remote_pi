@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { IconCopy, IconCheck } from "@/components/landing/icons";
 
 /**
@@ -9,6 +10,8 @@ import { IconCopy, IconCheck } from "@/components/landing/icons";
  * the card width. Mirrors the copy-button affordance used in CodeBlock.
  */
 export function ShaCopy({ sha256 }: { sha256: string }) {
+  const t = useTranslations("Common");
+  const tw = useTranslations("DownloadWidgets.sha");
   const [copied, setCopied] = useState(false);
 
   const copy = () => {
@@ -30,9 +33,9 @@ export function ShaCopy({ sha256 }: { sha256: string }) {
         type="button"
         className={`copy-btn ${copied ? "copied" : ""}`}
         onClick={copy}
-        aria-label="Copy SHA-256 checksum"
+        aria-label={tw("copyAria")}
       >
-        {copied ? <IconCheck /> : <IconCopy />} {copied ? "Copied" : "Copy"}
+        {copied ? <IconCheck /> : <IconCopy />} {copied ? t("copied") : t("copy")}
       </button>
     </div>
   );

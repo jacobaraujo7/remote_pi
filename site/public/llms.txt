@@ -1,0 +1,42 @@
+# Remote Pi Cockpit
+
+> Cockpit is a terminal that grew an IDE around your coding agents: real multiplexed terminals for Claude Code, Codex, Pi or any CLI agent, on your machine or on any host over SSH, with a code viewer, diagnostics, git, worktrees and databases. Free and open source for macOS, Windows and Linux, with a mobile client for Android. Remote Pi, the sibling project, drives Pi agents from your phone, keeps them running 24/7 and links machines into a mesh.
+
+## Cockpit
+
+- [Cockpit](https://remote-pi.jacobmoura.work/): What Cockpit is, what 2.0 brings (remote workspaces over SSH, sessions that outlive the client, one-curl Linux hosts, mobile client, notebooks, .http requests, kanban, secrets) and the built-in `cockpit` CLI that lets an agent drive the app.
+- [Cockpit reference](https://remote-pi.jacobmoura.work/docs): Full reference for the app and its internal CLI: tabs, `.ckp` pane layouts, Task Run, databases, notebooks, `.http` tabs, `.env.cockpit`, themes, turn status hooks and remote hosts over SSH.
+- [Download](https://remote-pi.jacobmoura.work/download): Signed builds for macOS, Windows and Linux (.deb, .rpm), the Android APK, SHA-256 for every file, and the one-line `cockpit-server` installer for a Linux host.
+
+## Cockpit tutorials
+
+- [Tutorials](https://remote-pi.jacobmoura.work/tutorials): Index of the hands-on Cockpit guides.
+- [Layouts and tasks](https://remote-pi.jacobmoura.work/tutorials/cockpit-layouts): Commit a `.ckp` layout and a `.cockpit/tasks.json` so every worktree opens ready to work.
+- [An agent team in Cockpit](https://remote-pi.jacobmoura.work/tutorials/cockpit-team): Run an orchestrator and worker agents as terminal tabs, coordinated with the internal `cockpit` CLI.
+- [Telemetry](https://remote-pi.jacobmoura.work/tutorials/cockpit-telemetry): Let agents query grouped errors and JSON logs with one CLI instead of reading terminal output.
+
+## Remote Pi
+
+- [Remote Pi](https://remote-pi.jacobmoura.work/remote-pi): Pair your phone once, then drive any Pi coding agent from it, keep a fleet running 24/7 and link every machine into one mesh. Open source, self-hostable.
+- [Remote Pi docs](https://remote-pi.jacobmoura.work/remote-pi/docs): The relay, protocol and security, the command reference, configuration files and troubleshooting.
+- [Download the app](https://remote-pi.jacobmoura.work/remote-pi/download): Phone app on the App Store and Google Play, plus the direct Android APK with its SHA-256.
+- [Why Pi](https://remote-pi.jacobmoura.work/remote-pi/why): Why remote-pi keeps Pi alive 24/7 and puts it in your pocket, and when an all-in-one platform fits better.
+
+## Remote Pi tutorials
+
+- [Tutorials](https://remote-pi.jacobmoura.work/remote-pi/tutorials): Index of the Remote Pi guides.
+- [Getting started](https://remote-pi.jacobmoura.work/remote-pi/tutorials/getting-started): Install Pi, add the Remote Pi plugin and pair your phone for the first time.
+- [Daemon mode](https://remote-pi.jacobmoura.work/remote-pi/tutorials/daemon): Promote a folder to a 24/7 background agent that survives logout.
+- [Local mesh](https://remote-pi.jacobmoura.work/remote-pi/tutorials/mesh-local): Connect agents on one machine through the local broker.
+- [Remote mesh](https://remote-pi.jacobmoura.work/remote-pi/tutorials/mesh-remote): Route messages between agents on different machines through the relay.
+- [Claude in the mesh](https://remote-pi.jacobmoura.work/remote-pi/tutorials/claude-mesh): Put Claude Code on the agent mesh as a named peer next to Pi.
+
+## GitHub
+
+- [remote_pi](https://github.com/jacobaraujo7/remote_pi): Source code, issues and the open protocol, MIT licensed.
+- [Protocol](https://github.com/jacobaraujo7/remote_pi/blob/main/PROTOCOL.md): The harness-agnostic wire protocol connecting phone, relay and Pi-side agents.
+
+## Optional
+
+- [Privacy Policy](https://remote-pi.jacobmoura.work/privacy)
+- [Terms of Service](https://remote-pi.jacobmoura.work/terms)

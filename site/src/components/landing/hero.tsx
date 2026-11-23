@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, Fragment } from "react";
+import { useTranslations } from "next-intl";
 import {
   IconDownload,
   IconGithub,
@@ -72,16 +73,6 @@ type ChatItem =
   | { type: "tool"; kind: string; cmd: string }
   | { type: "md"; text: string };
 
-const CHAT_ITEMS: ChatItem[] = [
-  { type: "user", text: "hello" },
-  { type: "tool", kind: "READ", cmd: "$ path=~/.pi/skills/agent-network/SKILL.md" },
-  { type: "tool", kind: "BASH", cmd: '$ find ~/.pi -name "pair*" -o -name "join*" | head -20' },
-  {
-    type: "md",
-    text: "This is a Pi Agent Network pairing code. `Frontend` is asking to connect to this machine — processing the link now.",
-  },
-];
-
 function parseSegs(text: string) {
   return text
     .split(/(`[^`]+`)/g)
@@ -147,16 +138,27 @@ function ToolCard({ kind, cmd }: { kind: string; cmd: string }) {
 }
 
 function PhoneHero() {
+  const t = useTranslations("Hero");
+  const chatItems: ChatItem[] = useMemo(
+    () => [
+      { type: "user", text: t("demoUserMessage") },
+      { type: "tool", kind: "READ", cmd: "$ path=~/.pi/skills/agent-network/SKILL.md" },
+      { type: "tool", kind: "BASH", cmd: '$ find ~/.pi -name "pair*" -o -name "join*" | head -20' },
+      { type: "md", text: t("demoMdMessage") },
+    ],
+    [t],
+  );
+
   const [step, setStep] = useState(1);
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      const id = setTimeout(() => setStep(CHAT_ITEMS.length), 0);
+      const id = setTimeout(() => setStep(chatItems.length), 0);
       return () => clearTimeout(id);
     }
     let timer: ReturnType<typeof setTimeout>;
     let s = 1;
     const durFor = (idx: number) => {
-      const it = CHAT_ITEMS[idx];
+      const it = chatItems[idx];
       if (!it) return 1400;
       if (it.type === "md") return it.text.length * 24 + 2600;
       if (it.type === "tool") return 1300;
@@ -164,7 +166,7 @@ function PhoneHero() {
     };
     const advance = () => {
       timer = setTimeout(() => {
-        if (s >= CHAT_ITEMS.length) {
+        if (s >= chatItems.length) {
           s = 1;
           setStep(1);
         } else {
@@ -176,17 +178,17 @@ function PhoneHero() {
     };
     advance();
     return () => clearTimeout(timer);
-  }, []);
+  }, [chatItems]);
 
-  const shown = CHAT_ITEMS.slice(0, step);
+  const shown = chatItems.slice(0, step);
 
   return (
     <div className="phone-stage">
       <div className="float-chip c1">
-        <span className="led" /> 4 agents · 1 mesh
+        <span className="led" /> {t("demoAgentsMesh")}
       </div>
       <div className="float-chip c3">
-        <span className="led" /> daemon · answers at 3am
+        <span className="led" /> {t("demoDaemon")}
       </div>
 
       <div className="phone">
@@ -205,11 +207,11 @@ function PhoneHero() {
               <IconChevronLeft />
             </span>
             <div className="ab-title">
-              <div className="t">Frontend</div>
+              <div className="t">{t("demoChatTitle")}</div>
               <div className="sub">
-                <span className="host">MacBook</span>
+                <span className="host">{t("demoChatHost")}</span>
                 <span className="dot" />
-                <span className="state">working…</span>
+                <span className="state">{t("demoChatState")}</span>
               </div>
             </div>
           </div>
@@ -226,7 +228,7 @@ function PhoneHero() {
             <span className="clip">
               <IconPaperclip />
             </span>
-            <span className="field">Waiting for response…</span>
+            <span className="field">{t("demoWaiting")}</span>
             <span className="stop">
               <IconStop />
             </span>
@@ -238,25 +240,23 @@ function PhoneHero() {
 }
 
 export function Hero() {
+  const t = useTranslations("Hero");
   return (
     <section className="hero">
       <HeroMesh />
       <div className="wrap">
         <div className="hero-grid">
           <div className="hero-copy">
-            <span className="eyebrow">Open source · self-hostable</span>
+            <span className="eyebrow">{t("eyebrow")}</span>
             <h1>
-              Your agents,
+              {t("titleLine1")}
               <br />
-              in your <span className="pocket">pocket.</span>
+              {t("titleLine2")} <span className="pocket">{t("titlePocket")}</span>
             </h1>
-            <p className="hero-sub">
-              Pair your phone once — then drive any agent, keep a fleet running
-              24/7, and link every machine into one mesh.
-            </p>
+            <p className="hero-sub">{t("sub")}</p>
             <div className="hero-cta">
               <a className="btn btn-primary" href="#install">
-                <IconDownload /> Install
+                <IconDownload /> {t("install")}
               </a>
               <a
                 className="btn btn-ghost"
@@ -264,13 +264,13 @@ export function Hero() {
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                <IconGithub /> GitHub
+                <IconGithub /> {t("github")}
               </a>
             </div>
             <div className="hero-meta">
-              <span>one command to install</span>
-              <span>no accounts</span>
-              <span>MIT licensed</span>
+              <span>{t("metaInstall")}</span>
+              <span>{t("metaAccounts")}</span>
+              <span>{t("metaLicense")}</span>
             </div>
           </div>
           <PhoneHero />

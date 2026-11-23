@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import {
   IconApple,
   IconWindows,
@@ -43,9 +44,12 @@ type Offer = {
   note?: string;
 };
 
+type Translate = ReturnType<typeof useTranslations<"DownloadWidgets.picker">>;
+
 function buildOffer(
   detected: Detected,
   artifacts: CockpitArtifact[],
+  t: Translate,
 ): Offer | null {
   const of = (
     platform: string,
@@ -63,11 +67,11 @@ function buildOffer(
     const dmg = of("macos", "dmg");
     if (!dmg) return null;
     return {
-      title: "Download for your Mac",
+      title: t("macTitle"),
       icon: <IconApple />,
-      detail: `Universal build, Apple Silicon and Intel · ${formatBytes(dmg.size)} · macOS 12.0 or later`,
+      detail: t("macDetail", { size: formatBytes(dmg.size) }),
       primary: dmg,
-      primaryLabel: "Download .dmg",
+      primaryLabel: t("macPrimary"),
     };
   }
 
@@ -75,15 +79,12 @@ function buildOffer(
     const exe = of("windows", "exe");
     if (!exe) return null;
     return {
-      title: "Download for Windows",
+      title: t("winTitle"),
       icon: <IconWindows />,
-      detail: `64-bit installer · ${formatBytes(exe.size)} · Windows 10 or 11`,
+      detail: t("winDetail", { size: formatBytes(exe.size) }),
       primary: exe,
-      primaryLabel: "Download installer",
-      note:
-        detected.arch === "arm64"
-          ? "Cockpit ships an x64 build only. It runs on Windows on ARM through emulation."
-          : undefined,
+      primaryLabel: t("winPrimary"),
+      note: detected.arch === "arm64" ? t("winArmNote") : undefined,
     };
   }
 
@@ -91,12 +92,12 @@ function buildOffer(
     const apk = of("android", "apk", "arm64");
     if (!apk) return null;
     return {
-      title: "Download for Android",
+      title: t("androidTitle"),
       icon: <IconAndroid />,
-      detail: `arm64 phones and tablets · ${formatBytes(apk.size)}`,
+      detail: t("androidDetail", { size: formatBytes(apk.size) }),
       primary: apk,
-      primaryLabel: "Download .apk",
-      note: "The mobile app is a client: it connects over SSH to a host running cockpit-server.",
+      primaryLabel: t("androidPrimary"),
+      note: t("androidNote"),
     };
   }
 
@@ -110,16 +111,22 @@ function buildOffer(
   const primary = deb ?? rpm!;
   const secondary = deb && rpm ? rpm : undefined;
   return {
-    title: "Download for Linux",
+    title: t("linuxTitle"),
     icon: <IconLinux />,
-    detail: `${arch === "arm64" ? "arm64 / aarch64" : "x86_64 / amd64"} · ${formatBytes(primary.size)} · GTK3, libmpv, libsecret and ALSA`,
+    detail: t("linuxDetail", {
+      arch: arch === "arm64" ? "arm64 / aarch64" : "x86_64 / amd64",
+      size: formatBytes(primary.size),
+    }),
     primary,
-    primaryLabel: `Download .${primary.format}`,
+    primaryLabel: t("linuxPrimary", { format: primary.format }),
     secondary,
-    secondaryLabel: secondary ? `.${secondary.format} instead` : undefined,
+    secondaryLabel: secondary
+      ? t("linuxSecondary", { format: secondary.format })
+      : undefined,
   };
 }
 
+/* Platform names are proper nouns: not translated. */
 const FALLBACK_LINKS = [
   { href: "#macos", label: "macOS", icon: <IconApple /> },
   { href: "#windows", label: "Windows", icon: <IconWindows /> },
@@ -136,29 +143,35 @@ export function PlatformPicker({
   live: boolean;
   version: string;
 }) {
-  const [offer, setOffer] = useState<Offer | null>(null);
+  const t = useTranslations("DownloadWidgets.picker");
+  const [detected, setDetected] = useState<Detected | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    detectPlatform().then((detected) => {
-      if (cancelled || !detected) return;
-      setOffer(buildOffer(detected, artifacts));
+    detectPlatform().then((result) => {
+      if (cancelled || !result) return;
+      setDetected(result);
     });
     return () => {
       cancelled = true;
     };
-  }, [artifacts]);
+  }, []);
+
+  const offer = useMemo(
+    () => (detected ? buildOffer(detected, artifacts, t) : null),
+    [detected, artifacts, t],
+  );
 
   /* First paint (and every JS-less visit) lands here. */
   if (!offer) {
     return (
       <div className="dl-hero dl-hero-plain">
         <div className="dl-hero-copy">
-          <span className="dl-hero-eyebrow">Version {version}</span>
-          <h2>Choose your platform</h2>
-          <p>Every build below comes with its size and its SHA-256.</p>
+          <span className="dl-hero-eyebrow">{t("version", { version })}</span>
+          <h2>{t("choose")}</h2>
+          <p>{t("chooseLede")}</p>
         </div>
-        <nav className="dl-hero-links" aria-label="Jump to a platform">
+        <nav className="dl-hero-links" aria-label={t("jumpAria")}>
           {FALLBACK_LINKS.map((l) => (
             <a className="dl-hero-link" href={l.href} key={l.href}>
               <span className="dl-hero-link-icon">{l.icon}</span>
@@ -169,7 +182,7 @@ export function PlatformPicker({
             <span className="dl-hero-link-icon">
               <IconLinux />
             </span>
-            Linux host
+            {t("linuxHost")}
           </a>
         </nav>
       </div>
@@ -181,7 +194,7 @@ export function PlatformPicker({
       <div className="dl-hero-main">
         <span className="dl-hero-icon">{offer.icon}</span>
         <div className="dl-hero-copy">
-          <span className="dl-hero-eyebrow">Version {version}</span>
+          <span className="dl-hero-eyebrow">{t("version", { version })}</span>
           <h2>{offer.title}</h2>
           <p>{offer.detail}</p>
         </div>
@@ -193,7 +206,7 @@ export function PlatformPicker({
           </a>
         ) : (
           <span className="btn dl-btn-off" aria-disabled="true">
-            <IconDownload /> Not published yet
+            <IconDownload /> {t("notPublished")}
           </span>
         )}
         {offer.secondary && live ? (
@@ -205,8 +218,10 @@ export function PlatformPicker({
       <p className="dl-hero-file">{artifactFileName(offer.primary)}</p>
       {offer.note ? <p className="dl-hero-note">{offer.note}</p> : null}
       <p className="dl-hero-alt">
-        Not your system? <a href="#platforms">See every build</a>, or put Cockpit
-        on a <a href="#vps">Linux host</a>.
+        {t.rich("notYours", {
+          all: (c) => <a href="#platforms">{c}</a>,
+          host: (c) => <a href="#vps">{c}</a>,
+        })}
       </p>
     </div>
   );

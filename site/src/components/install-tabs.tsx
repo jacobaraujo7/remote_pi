@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { CodeBlock } from "./code-block";
 
 const CURL = "curl -fsSL https://remote-pi.jacobmoura.work/install.sh | bash";
@@ -9,6 +10,7 @@ const HAVE_PI = `pi install npm:remote-pi
 /remote-pi pair`;
 
 type Tab = {
+  tab: string;
   label: string;
   code: string;
   note: string;
@@ -31,19 +33,22 @@ type InstallTabsProps = {
  * Pi" adds the plugin to an existing Pi.
  */
 export function InstallTabs({ curlReady = true }: InstallTabsProps) {
+  const t = useTranslations("InstallTabs");
   const tabs: Record<string, Tab> = {
-    "No Pi yet": {
-      label: "bash — one command",
+    fresh: {
+      tab: t("tabFresh"),
+      label: t("labelFresh"),
       code: CURL,
       prompt: true,
       disabled: !curlReady,
-      note: "Installs Pi, the Remote Pi plugin, and the always-on supervisor, then prints the pairing step. No sudo — everything lands in your home directory.",
+      note: t("noteFresh"),
     },
-    "Already have Pi": {
-      label: "pi — three commands",
+    hasPi: {
+      tab: t("tabHasPi"),
+      label: t("labelHasPi"),
       code: HAVE_PI,
       prompt: false,
-      note: "Run them in order: install the plugin, run the setup wizard, then show the pairing QR. Each is explained below.",
+      note: t("noteHasPi"),
     },
   };
   const keys = Object.keys(tabs);
@@ -54,20 +59,20 @@ export function InstallTabs({ curlReady = true }: InstallTabsProps) {
 
   return (
     <div className="install-card" style={{ marginTop: 22 }}>
-      <div className="tabs" role="tablist" aria-label="Install Remote Pi">
-        {keys.map((t) => (
+      <div className="tabs" role="tablist" aria-label={t("aria")}>
+        {keys.map((k) => (
           <button
-            key={t}
+            key={k}
             type="button"
             role="tab"
-            aria-selected={t === active}
-            aria-disabled={tabs[t].disabled || undefined}
-            disabled={tabs[t].disabled}
-            className={`tab ${t === active ? "active" : ""}`}
-            onClick={() => !tabs[t].disabled && setActive(t)}
+            aria-selected={k === active}
+            aria-disabled={tabs[k].disabled || undefined}
+            disabled={tabs[k].disabled}
+            className={`tab ${k === active ? "active" : ""}`}
+            onClick={() => !tabs[k].disabled && setActive(k)}
           >
-            {t}
-            {tabs[t].disabled ? " · soon" : ""}
+            {tabs[k].tab}
+            {tabs[k].disabled ? t("soon") : ""}
           </button>
         ))}
       </div>
