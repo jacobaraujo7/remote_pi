@@ -293,6 +293,11 @@ contexto pras próximas waves:
 - **Dep nova (plano 58, 2026-08-09)**: `flutter_inappwebview` ^6.1.5 — navegador
   embutido + preview de markdown/HTML via webview (WKWebView/WebView2; sem
   implementação Linux, fallback = browser do SO via `url_launcher`).
+- **Dep nova (plano 72, 2026-11-18)**: **Mermaid 11.17.2** (MIT), vendorizado
+  em `cockpit/assets/md_preview/mermaid.min.js` (npm `dist/mermaid.min.js`,
+  IIFE self-contained que define `globalThis.mermaid`; sha256 do original
+  `b581ed7d…390eb8`). Não é pacote pub: é asset JS do preview de markdown
+  via webview, injetado sob demanda só quando o `.md` tem fence `mermaid`.
 
 ## Trade-offs explícitos
 

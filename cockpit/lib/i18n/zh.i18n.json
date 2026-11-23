@@ -392,7 +392,16 @@
       "importMessage": "将 ${count} 项复制到「${dest}」？",
       "importAction": "复制",
       "couldNotImportTitle": "无法复制",
-      "openInAgent": "在 ${harness} 中打开"
+      "openInAgent": "在 ${harness} 中打开",
+      "solutionTooltip": "解决方案",
+      "explorerTooltip": "资源管理器",
+      "switchSolution": "切换解决方案",
+      "loadingSolution": "正在加载解决方案…",
+      "solutionLoadFailed": "无法读取解决方案。",
+      "projectCount": {
+        "one": "1 个项目",
+        "other": "${n} 个项目"
+      }
     },
     "fileViewer": {
       "saveAs": "另存为",
@@ -402,7 +411,8 @@
       "couldNotLoadImage": "无法加载图片。",
       "preview": "预览",
       "source": "源代码",
-      "reload": "重新加载"
+      "reload": "重新加载",
+      "mermaidError": "图表错误"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "选择工作区照片",
@@ -809,6 +819,12 @@
     },
     "gallery": {
       "board": {
+        "editObjectText": "编辑文本",
+        "strokeWidth": "线宽",
+        "selectedLineWidth": "所选线条的宽度",
+        "bringFront": "置于顶层",
+        "sendBack": "置于底层",
+        "menuChanged": "所选对象已更改，请重新打开菜单。",
         "fileActions": "导入或导出",
         "exportDocument": "导出整个文档",
         "exportSelection": "导出所选内容",

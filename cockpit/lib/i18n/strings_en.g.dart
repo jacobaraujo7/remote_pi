@@ -1848,6 +1848,27 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Open in ${harness}'
 	String openInAgent({required Object harness}) => 'Open in ${harness}';
+
+	/// en: 'Solution'
+	String get solutionTooltip => 'Solution';
+
+	/// en: 'Explorer'
+	String get explorerTooltip => 'Explorer';
+
+	/// en: 'Switch solution'
+	String get switchSolution => 'Switch solution';
+
+	/// en: 'Loading solution…'
+	String get loadingSolution => 'Loading solution…';
+
+	/// en: 'Couldn't read the solution.'
+	String get solutionLoadFailed => 'Couldn\'t read the solution.';
+
+	/// en: '(one) {1 project} (other) {${n} projects}'
+	String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n,
+		one: '1 project',
+		other: '${n} projects',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -1881,6 +1902,9 @@ class Translations$cockpit$fileViewer$en {
 
 	/// en: 'Reload'
 	String get reload => 'Reload';
+
+	/// en: 'Diagram error'
+	String get mermaidError => 'Diagram error';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -3886,6 +3910,24 @@ class Translations$cockpit$gallery$board$en {
 
 	// Translations
 
+	/// en: 'Edit text'
+	String get editObjectText => 'Edit text';
+
+	/// en: 'Line width'
+	String get strokeWidth => 'Line width';
+
+	/// en: 'Width of selected lines'
+	String get selectedLineWidth => 'Width of selected lines';
+
+	/// en: 'Bring to front'
+	String get bringFront => 'Bring to front';
+
+	/// en: 'Send to back'
+	String get sendBack => 'Send to back';
+
+	/// en: 'The selection changed. Open the menu again.'
+	String get menuChanged => 'The selection changed. Open the menu again.';
+
 	/// en: 'Import or export'
 	String get fileActions => 'Import or export';
 
@@ -5348,6 +5390,12 @@ extension on Translations {
 			'cockpit.fileTreePanel.importAction' => 'Copy',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Could not copy',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Open in ${harness}',
+			'cockpit.fileTreePanel.solutionTooltip' => 'Solution',
+			'cockpit.fileTreePanel.explorerTooltip' => 'Explorer',
+			'cockpit.fileTreePanel.switchSolution' => 'Switch solution',
+			'cockpit.fileTreePanel.loadingSolution' => 'Loading solution…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => 'Couldn\'t read the solution.',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 project', other: '${n} projects', ), 
 			'cockpit.fileViewer.saveAs' => 'Save as',
 			'cockpit.fileViewer.couldNotSave' => 'Could not save',
 			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
@@ -5356,6 +5404,7 @@ extension on Translations {
 			'cockpit.fileViewer.preview' => 'Preview',
 			'cockpit.fileViewer.source' => 'Source',
 			'cockpit.fileViewer.reload' => 'Reload',
+			'cockpit.fileViewer.mermaidError' => 'Diagram error',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Choose workspace photo',
 			'cockpit.workspaceSettingsDialog.title' => 'Workspace settings',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Workspace name',
@@ -5502,6 +5551,8 @@ extension on Translations {
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
@@ -5509,8 +5560,6 @@ extension on Translations {
 			'cockpit.kanbanView.noComments' => 'No comments yet',
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.startBoard' => 'Start a board',
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
@@ -5698,6 +5747,12 @@ extension on Translations {
 			'cockpit.browserPane.go' => 'Go',
 			'cockpit.documentWindow.mediaNotSupported' => 'Audio and video open in the main Cockpit window.',
 			'cockpit.documentWindow.fileNotFound' => ({required Object path}) => 'File not found: ${path}',
+			'cockpit.gallery.board.editObjectText' => 'Edit text',
+			'cockpit.gallery.board.strokeWidth' => 'Line width',
+			'cockpit.gallery.board.selectedLineWidth' => 'Width of selected lines',
+			'cockpit.gallery.board.bringFront' => 'Bring to front',
+			'cockpit.gallery.board.sendBack' => 'Send to back',
+			'cockpit.gallery.board.menuChanged' => 'The selection changed. Open the menu again.',
 			'cockpit.gallery.board.fileActions' => 'Import or export',
 			'cockpit.gallery.board.exportDocument' => 'Export entire document',
 			'cockpit.gallery.board.exportSelection' => 'Export selection',
@@ -6010,6 +6065,8 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
@@ -6023,8 +6080,6 @@ extension on Translations {
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',

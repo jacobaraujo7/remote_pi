@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+
 // Entidades da feature **Task Run**. Imutáveis, sem IO/UI. O executor é
 // GENÉRICO: conhece só `command`/`args`/`env`. Nada de stack (flavor,
 // dart-define, NODE_ENV) mora aqui — isso vira `args`/`env` gerados pelos
@@ -110,11 +114,15 @@ enum TaskPreviewOpen { always, start, never }
 /// Definição estática de uma task (detectada ou do JSON). Tudo aqui é genérico.
 class TaskDefinition {
   const TaskDefinition({
-    required this.id,
+    required String id,
+    this.projectRoot,
+    this.workspaceId,
+    this.hostId,
     required this.label,
     required this.cwd,
     required this.command,
     this.args = const [],
+    this.env = const {},
     this.kind = TaskKind.oneShot,
     this.source = TaskSource.detected,
     this.profiles = const [],
@@ -125,10 +133,49 @@ class TaskDefinition {
     this.previewUrl,
     this.previewOpen = TaskPreviewOpen.always,
     this.telemetryEnabled = true,
-  });
+  }) : localId = id;
 
   /// Identidade estável dentro de um projeto (ex.: `"npm:dev"`, `"flutter:run"`).
-  final String id;
+  final String localId;
+
+  /// Discovery root, independent of a task's overridden working directory.
+  final String? projectRoot;
+
+  /// Workspace UUID; isolates the same folder opened in different realms.
+  final String? workspaceId;
+
+  /// Remote host identity; null means the local machine.
+  final String? hostId;
+
+  /// Shared runtime key for runners, state, watches, profiles and terminals.
+  /// Hash a JSON tuple so delimiters cannot collide and persisted scrollback
+  /// filenames stay bounded even for long worktree paths.
+  String get id => projectRoot == null
+      ? localId
+      : 'task-v1-${sha256.convert(utf8.encode(jsonEncode([hostId, workspaceId, projectRoot, localId])))}';
+
+  /// Qualify once at the discovery boundary, after project-local merging.
+  TaskDefinition scopedTo(String root, {String? hostId, String? workspaceId}) =>
+      TaskDefinition(
+        id: localId,
+        projectRoot: root,
+        workspaceId: workspaceId,
+        hostId: hostId,
+        label: label,
+        cwd: cwd,
+        command: command,
+        args: args,
+        kind: kind,
+        source: source,
+        profiles: profiles,
+        interactiveKeys: interactiveKeys,
+        watch: watch,
+        progressPatterns: progressPatterns,
+        previewEnabled: previewEnabled,
+        previewUrl: previewUrl,
+        previewOpen: previewOpen,
+        telemetryEnabled: telemetryEnabled,
+      );
 
   /// Rótulo curto exibido na lista (ex.: "dev", "app", "build").
   final String label;
@@ -142,6 +189,9 @@ class TaskDefinition {
 
   /// Args base (ex.: `["run", "dev"]`), antes do profile.
   final List<String> args;
+
+  /// Variáveis comuns a todas as execuções; o profile pode sobrescrevê-las.
+  final Map<String, String> env;
 
   final TaskKind kind;
   final TaskSource source;
@@ -184,6 +234,13 @@ class TaskDefinition {
       TaskPreviewOpen.never => false,
     };
   }
+
+  /// Ambiente da task: valores do profile prevalecem, sem alterar os mapas.
+  /// Sem profile, usa apenas as variáveis comuns da task.
+  Map<String, String> resolveEnv(TaskProfile? profile) => {
+    ...env,
+    if (profile != null) ...profile.env,
+  };
 
   /// Linha de comando final (preview na UI e execução): base + args do profile.
   List<String> resolveArgs(TaskProfile? profile) => [

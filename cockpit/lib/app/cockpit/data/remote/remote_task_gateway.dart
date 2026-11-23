@@ -15,22 +15,30 @@ import 'package:cockpit_remote/cockpit_remote.dart';
 /// [TasksJsonLoader]. Sem auto-detecção por adapters (que varreria o FS do
 /// host) — no remoto as tasks vêm só do JSON, definido explicitamente.
 class RemoteTaskDiscovery implements TaskDiscovery {
-  RemoteTaskDiscovery(this._filesProvider);
+  RemoteTaskDiscovery(this._filesProvider, {required this.hostId});
+
+  final String hostId;
 
   /// Resolve o serviço de arquivos do host (conecta por SSH se preciso).
   final Future<RemoteFileService> Function() _filesProvider;
   final _loader = TasksJsonLoader();
 
   @override
-  Future<List<TaskDefinition>> discover(String cwd) async {
+  Future<List<TaskDefinition>> discover(
+    String cwd, {
+    String? workspaceId,
+  }) async {
     if (cwd.isEmpty) return const [];
     try {
       final files = await _filesProvider();
       final bytes = await files.read('$cwd/.cockpit/tasks.json');
-      return _loader.parseContent(
-        utf8.decode(bytes, allowMalformed: true),
-        cwd,
-      );
+      return _loader
+          .parseContent(utf8.decode(bytes, allowMalformed: true), cwd)
+          .map(
+            (task) =>
+                task.scopedTo(cwd, hostId: hostId, workspaceId: workspaceId),
+          )
+          .toList();
     } catch (_) {
       return const []; // arquivo ausente/ilegível → sem tasks
     }
@@ -121,7 +129,7 @@ class RemoteTaskRunner implements TaskRunnerGateway {
           executable: '/bin/sh',
           arguments: ['-lc', 'exec $cmdLine'],
           workingDirectory: def.cwd.isEmpty ? null : def.cwd,
-          environment: {'TERM': 'xterm-256color'},
+          environment: {...def.resolveEnv(profile), 'TERM': 'xterm-256color'},
         ),
       );
     } catch (e) {

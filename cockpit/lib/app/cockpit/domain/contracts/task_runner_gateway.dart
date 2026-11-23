@@ -88,6 +88,11 @@ abstract class TaskRunnerGateway {
 /// processes not parented by Cockpit. Keeping it separate preserves source
 /// compatibility for third-party and remote [TaskRunnerGateway] implementors.
 abstract interface class ReconciledTaskRunnerGateway {
-  Future<void> reconcileDefinitions(List<TaskDefinition> definitions);
+  /// Update only this discovery root; other projects remain monitored.
+  Future<void> reconcileDefinitions(
+    List<TaskDefinition> definitions, {
+    String? projectRoot,
+    String? workspaceId,
+  });
   Future<void> attachOutput(String taskId);
 }

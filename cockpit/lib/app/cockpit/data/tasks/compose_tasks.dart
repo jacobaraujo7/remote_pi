@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:cockpit/app/cockpit/data/tasks/project_paths.dart';
 import 'package:cockpit/app/cockpit/domain/entities/task_definition.dart';
 import 'package:cockpit/app/core/data/jsonc.dart';
+import 'package:path/path.dart' as p;
 import 'package:yaml/yaml.dart';
 
 enum ComposeEngine { docker, dockerLegacy, podman, podmanLegacy }
@@ -35,8 +36,8 @@ class ComposeFileParser {
   Future<ComposeFile?> parse(String path, String workspace) async {
     final lower = path.toLowerCase();
     if (!(lower.endsWith('.yaml') || lower.endsWith('.yml'))) return null;
-    final normalizedRoot = Directory(workspace).absolute.path;
-    final normalizedPath = File(path).absolute.path;
+    final normalizedRoot = p.normalize(Directory(workspace).absolute.path);
+    final normalizedPath = p.normalize(File(path).absolute.path);
     if (normalizedPath != normalizedRoot &&
         !normalizedPath.startsWith(
           '$normalizedRoot${Platform.pathSeparator}',
@@ -96,7 +97,8 @@ class ComposeFileParser {
           : item is YamlMap
           ? item['path']
           : null;
-      if (raw is String && File(resolveCwd(base, raw)).absolute.path == child) {
+      if (raw is String &&
+          p.normalize(File(resolveCwd(base, raw)).absolute.path) == child) {
         return true;
       }
     }
@@ -119,33 +121,45 @@ class ComposeEngineResolver {
     return out;
   }
 
-  Future<Set<String>> runningServices(ComposeEngine engine, String file) async {
+  Future<Set<String>> runningServices(
+    ComposeEngine engine,
+    String file, {
+    Map<String, String> environment = const {},
+    String? executable,
+  }) async {
     final cwd = File(file).parent.path;
     final base = [...engine.prefix, '-f', file, 'ps', '--services'];
     ProcessResult result;
     try {
-      result = await Process.run(engine.command, [
-        ...base,
-        '--status',
-        'running',
-      ], workingDirectory: cwd);
+      result = await Process.run(
+        executable ?? engine.command,
+        [...base, '--status', 'running'],
+        workingDirectory: cwd,
+        environment: environment,
+      );
       if (result.exitCode != 0) {
-        result = await Process.run(engine.command, base, workingDirectory: cwd);
+        result = await Process.run(
+          executable ?? engine.command,
+          base,
+          workingDirectory: cwd,
+          environment: environment,
+        );
       }
     } catch (_) {
-      return _runningFromLabels(engine, file);
+      return _runningFromLabels(engine, file, environment);
     }
     final direct = result.exitCode == 0
         ? LineSplitter.split(
             '${result.stdout}',
           ).map((e) => e.trim()).where((e) => e.isNotEmpty).toSet()
         : <String>{};
-    return {...direct, ...await _runningFromLabels(engine, file)};
+    return {...direct, ...await _runningFromLabels(engine, file, environment)};
   }
 
   Future<Set<String>> _runningFromLabels(
     ComposeEngine engine,
     String file,
+    Map<String, String> environment,
   ) async {
     final runtime = engine.isDocker ? 'docker' : 'podman';
     try {
@@ -155,7 +169,7 @@ class ComposeEngineResolver {
         'label=com.docker.compose.service',
         '--format',
         '{{.Label "com.docker.compose.project.working_dir"}}\t{{.Label "com.docker.compose.project.config_files"}}\t{{.Label "com.docker.compose.service"}}',
-      ]);
+      ], environment: environment);
       if (result.exitCode != 0) return const {};
       final target = File(file).absolute.path;
       final targetDir = File(target).parent.path;
@@ -295,6 +309,8 @@ class ComposeTaskGenerator {
   }
 
   String _relative(String path, String base) {
+    path = p.normalize(path);
+    base = p.normalize(base);
     final prefix = base.endsWith(Platform.pathSeparator)
         ? base
         : '$base${Platform.pathSeparator}';
@@ -397,7 +413,25 @@ class ComposeTasksJsonMerger {
           matched = true;
           break;
         }
-        replacements[i] = _pretty(next, spans[i].indent);
+        // Synchronizing generated commands must retain user environment config.
+        final previous = rawTasks[i] as Map;
+        final previousProfiles = previous['profiles'] as List? ?? const [];
+        final updated = <String, Object?>{
+          ...next,
+          if (previous.containsKey('env')) 'env': previous['env'],
+          'profiles': [
+            for (final profile in next['profiles'] as List)
+              {
+                ...profile as Map,
+                for (final old in previousProfiles)
+                  if (old is Map &&
+                      old['name'] == profile['name'] &&
+                      old.containsKey('env'))
+                    'env': old['env'],
+              },
+          ],
+        };
+        replacements[i] = _pretty(updated, spans[i].indent);
         matched = true;
         break;
       }
