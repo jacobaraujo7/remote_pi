@@ -28,6 +28,9 @@ class _FakeSpeechService implements SpeechService {
   }
 
   @override
+  Future<List<String>> locales() async => const ['en_US'];
+
+  @override
   Stream<double> get soundLevel => _level.stream;
   @override
   Future<void> start({

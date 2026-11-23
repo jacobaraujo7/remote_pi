@@ -67,7 +67,7 @@ class _BlinkingCursor extends AnimatedWidget {
       key: const Key('streaming-cursor'),
       width: 7,
       height: 14,
-      margin: const EdgeInsets.only(left: 3, bottom: 1),
+      margin: const EdgeInsetsDirectional.only(start: 3, bottom: 1),
       color: visible ? context.colors.accent : Colors.transparent,
     );
   }

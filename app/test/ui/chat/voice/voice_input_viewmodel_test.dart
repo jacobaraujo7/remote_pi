@@ -17,12 +17,20 @@ class _FakeSpeechService implements SpeechService {
   int startCalls = 0;
   int stopCalls = 0;
   int cancelCalls = 0;
+  int initCalls = 0;
+  List<String?> initPreferred = [];
   String? startedLocale;
   Duration? startedMax;
 
   @override
-  Future<SpeechAvailability> init({String? preferredLocaleId}) async =>
-      availability;
+  Future<SpeechAvailability> init({String? preferredLocaleId}) async {
+    initCalls++;
+    initPreferred.add(preferredLocaleId);
+    return availability;
+  }
+
+  @override
+  Future<List<String>> locales() async => const ['en_US', 'pt_BR'];
 
   @override
   Stream<double> get soundLevel => _level.stream;
@@ -192,6 +200,41 @@ void main() {
         expect(vm.state, isA<VoiceIdle>());
         vm.dispose();
       });
+    });
+  });
+
+  group('preferred locale (Settings pin)', () {
+    test('null provider → init() called without a preference (system default)',
+        () async {
+      final svc = _FakeSpeechService();
+      final vm = VoiceInputViewModel(svc);
+      await vm.ensureInit();
+      expect(svc.initCalls, 1);
+      expect(svc.initPreferred.single, isNull);
+      vm.dispose();
+    });
+
+    test('provider value is forwarded to init()', () async {
+      final svc = _FakeSpeechService();
+      final vm = VoiceInputViewModel(svc, preferredLocale: () => 'he_IL');
+      await vm.ensureInit();
+      expect(svc.initPreferred.single, 'he_IL');
+      vm.dispose();
+    });
+
+    test('cached availability is reused while the preference is unchanged',
+        () async {
+      final svc = _FakeSpeechService();
+      var pinned = 'he_IL';
+      final vm = VoiceInputViewModel(svc, preferredLocale: () => pinned);
+      await vm.ensureInit();
+      await vm.ensureInit();
+      expect(svc.initCalls, 1);
+      pinned = 'pt_BR';
+      await vm.ensureInit();
+      expect(svc.initCalls, 2);
+      expect(svc.initPreferred.last, 'pt_BR');
+      vm.dispose();
     });
   });
 }
