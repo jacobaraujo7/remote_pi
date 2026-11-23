@@ -39,7 +39,15 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show
+        GestureDisposition,
+        GestureMultiDragStartCallback,
+        HitTestResult,
+        ImmediateMultiDragGestureRecognizer,
+        MultiDragPointerState,
+        PointerDeviceKind,
+        PointerDownEvent;
 import 'package:flutter/rendering.dart' show RenderMetaData;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -471,10 +479,10 @@ class _FileTreePanelState extends State<FileTreePanel> {
   late bool _sourceControlTree;
   _SourceControlView _sourceControlView = _SourceControlView.changes;
 
-  /// Expansão das pastas do Source Control, chaveada pelo caminho absoluto e
-  /// compartilhada entre Changes/Staged. Não removemos entradas quando uma
-  /// pasta some de uma seção: ao reaparecer na outra, conserva o estado.
-  final Map<String, bool> _sourceControlFolderExpanded = <String, bool>{};
+  /// Expansão por seção (index/working tree) e caminho absoluto. Uma pasta
+  /// pode aparecer nas duas seções simultaneamente. Entradas são mantidas
+  /// quando ela some para restaurar o estado ao reaparecer na mesma seção.
+  final Map<(bool staged, String path), bool> _sourceControlFolderExpanded = {};
 
   /// Criação inline em andamento (uma de cada vez).
   _PendingCreate? _pending;
@@ -1255,6 +1263,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   Future<void> _requestMove(String path, String targetDir) async {
+    // Um drop na pasta atual não move nada (inclusive quando a própria linha
+    // recusa o drop e o alvo da raiz o recebe).
+    if (p.dirname(path) == targetDir) return;
     final name = path.split('/').where((p) => p.isNotEmpty).last;
     final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
     final tr = context.t.cockpit.fileTreePanel;
@@ -1663,13 +1674,14 @@ class _FileTreePanelState extends State<FileTreePanel> {
                           onStageAll: _toggleStageAll,
                           onDiscard: _discardOne,
                           onDiscardAll: _discardAll,
-                          isFolderExpanded: (path) =>
-                              _sourceControlFolderExpanded[path] ?? true,
-                          onFolderExpansionChanged: (path, expanded) =>
-                              setState(
-                                () => _sourceControlFolderExpanded[path] =
-                                    expanded,
-                              ),
+                          isFolderExpanded: (path, staged) =>
+                              _sourceControlFolderExpanded[(staged, path)] ??
+                              true,
+                          onFolderExpansionChanged: (path, staged, expanded) =>
+                              setState(() {
+                                _sourceControlFolderExpanded[(staged, path)] =
+                                    expanded;
+                              }),
                           stagedPaths: effectiveStaged,
                           unstagedPaths: effectiveUnstaged,
                           gitStatusOf: widget.gitStatusOf,
@@ -3273,8 +3285,9 @@ class _ChangedTree extends StatelessWidget {
   final Future<void> Function(List<String> paths, bool staged) onStageAll;
   final Future<void> Function(String absPath) onDiscard;
   final Future<void> Function(List<String> paths) onDiscardAll;
-  final bool Function(String path) isFolderExpanded;
-  final void Function(String path, bool expanded) onFolderExpansionChanged;
+  final bool Function(String path, bool staged) isFolderExpanded;
+  final void Function(String path, bool staged, bool expanded)
+  onFolderExpansionChanged;
   final List<String> stagedPaths;
   final List<String> unstagedPaths;
   final GitFileStatus? Function(String absolutePath) gitStatusOf;
@@ -3474,8 +3487,9 @@ class _ChangedTree extends StatelessWidget {
       onStageAll: (paths) => onStageAll(paths, staged),
       onDiscard: onDiscard,
       onDiscardAll: onDiscardAll,
-      isExpanded: isFolderExpanded,
-      onExpansionChanged: onFolderExpansionChanged,
+      isExpanded: (path) => isFolderExpanded(path, staged),
+      onExpansionChanged: (path, expanded) =>
+          onFolderExpansionChanged(path, staged, expanded),
       staged: staged,
     );
   }
@@ -4162,7 +4176,7 @@ class _HeaderIcon extends StatelessWidget {
 
 /// Chip que segue o cursor ao arrastar um arquivo do painel pro input.
 /// Torna um nó da árvore arrastável (mover pra outra pasta / citar no
-/// composer). No DESKTOP o arraste é imediato; no MOBILE só após long-press,
+/// composer). No DESKTOP o mouse precisa se deslocar; no MOBILE só após long-press,
 /// pra um swipe de scroll por toque não virar drag-drop (plano 60, Wave B1).
 class _NodeDraggable extends StatelessWidget {
   const _NodeDraggable({
@@ -4185,12 +4199,68 @@ class _NodeDraggable extends StatelessWidget {
         child: child,
       );
     }
-    return Draggable<String>(
+    return _MouseThresholdDraggable(
       data: path,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: _FileChip(name: name),
       child: child,
     );
+  }
+}
+
+/// O limiar padrão do Flutter para mouse é só 1 pixel lógico. Uma pequena
+/// tremida ao clicar não deve ganhar a arena do tap e virar uma movimentação.
+/// Mantém o Draggable (feedback, alvos e payload) e os demais dispositivos;
+/// não exige espera por tempo nem acumula distância de movimentos de ida/volta.
+class _MouseThresholdDraggable extends Draggable<String> {
+  const _MouseThresholdDraggable({
+    required super.data,
+    required super.dragAnchorStrategy,
+    required super.feedback,
+    required super.child,
+  });
+
+  @override
+  ImmediateMultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) => _MouseThresholdDragRecognizer()..onStart = onStart;
+}
+
+class _MouseThresholdDragRecognizer
+    extends ImmediateMultiDragGestureRecognizer {
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) {
+      return super.createNewPointerState(event);
+    }
+    return _MouseThresholdPointerState(
+      event.position,
+      event.kind,
+      gestureSettings,
+    );
+  }
+}
+
+class _MouseThresholdPointerState extends MultiDragPointerState {
+  _MouseThresholdPointerState(
+    super.initialPosition,
+    super.kind,
+    super.gestureSettings,
+  );
+
+  // Pixels lógicos: tolera jitter sem atrasar arrastes deliberados.
+  static const double _dragThreshold = 8;
+
+  @override
+  void checkForResolutionAfterMove() {
+    if (pendingDelta!.distance > _dragThreshold) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
   }
 }
 
