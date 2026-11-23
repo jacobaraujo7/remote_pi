@@ -411,7 +411,8 @@
       "couldNotLoadImage": "无法加载图片。",
       "preview": "预览",
       "source": "源代码",
-      "reload": "重新加载"
+      "reload": "重新加载",
+      "mermaidError": "图表错误"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "选择工作区照片",

@@ -814,6 +814,7 @@ class _Translations$cockpit$fileViewer$zh extends Translations$cockpit$fileViewe
 	@override String get preview => '预览';
 	@override String get source => '源代码';
 	@override String get reload => '重新加载';
+	@override String get mermaidError => '图表错误';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -2615,6 +2616,7 @@ extension on TranslationsZh {
 			'cockpit.fileViewer.preview' => '预览',
 			'cockpit.fileViewer.source' => '源代码',
 			'cockpit.fileViewer.reload' => '重新加载',
+			'cockpit.fileViewer.mermaidError' => '图表错误',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => '选择工作区照片',
 			'cockpit.workspaceSettingsDialog.title' => '工作区设置',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => '工作区名称',
@@ -2761,9 +2763,9 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.closeDetail' => '关闭',
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
 			'cockpit.kanbanView.startBoard' => '创建看板',
-			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '删除「${name}」？',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => '此列有 ${count}。请选择它们的去向。',
@@ -3275,9 +3277,9 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeFileDesc' => '从 JSON 文件导入主题，或导出当前主题。',
 			'settings.page.appearance.previewCode' => '代码',
 			'settings.page.appearance.previewTerminal' => '终端',
-			'settings.page.appearance.themeSystem' => '跟随系统',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeSystem' => '跟随系统',
 			'settings.page.appearance.themeLight' => '浅色',
 			'settings.page.appearance.themeDark' => '深色',
 			'settings.page.appearance.sectionFonts' => '字体',

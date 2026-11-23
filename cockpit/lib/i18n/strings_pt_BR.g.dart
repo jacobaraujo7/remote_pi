@@ -892,6 +892,7 @@ class _Translations$cockpit$fileViewer$pt_BR extends Translations$cockpit$fileVi
 	@override String get preview => 'Pré-visualização';
 	@override String get source => 'Código-fonte';
 	@override String get reload => 'Recarregar';
+	@override String get mermaidError => 'Erro no diagrama';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -2700,6 +2701,7 @@ extension on TranslationsPtBr {
 			'cockpit.fileViewer.preview' => 'Pré-visualização',
 			'cockpit.fileViewer.source' => 'Código-fonte',
 			'cockpit.fileViewer.reload' => 'Recarregar',
+			'cockpit.fileViewer.mermaidError' => 'Erro no diagrama',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Escolher foto do workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configurações do workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nome do workspace',
@@ -2846,9 +2848,9 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
 			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
-			'cockpit.kanbanView.comments' => 'Comentários',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.comments' => 'Comentários',
 			'cockpit.kanbanView.addComment' => 'Adicionar comentário',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escreva um comentário',
 			'cockpit.kanbanView.noComments' => 'Nenhum comentário ainda',
@@ -3360,9 +3362,9 @@ extension on TranslationsPtBr {
 			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Cores do app, realce de código e paleta do terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',
-			'settings.page.appearance.modeDesc' => 'Qual variante do tema usar.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.modeDesc' => 'Qual variante do tema usar.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" só traz a variante escura, então isto não tem efeito.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" só traz a variante clara, então isto não tem efeito.',
 			'settings.page.appearance.themeFileTitle' => 'Arquivo de tema',

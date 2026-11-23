@@ -411,7 +411,8 @@
       "couldNotLoadImage": "Could not load the image.",
       "preview": "Preview",
       "source": "Source",
-      "reload": "Reload"
+      "reload": "Reload",
+      "mermaidError": "Diagram error"
     },
     "workspaceSettingsDialog": {
       "choosePhotoTitle": "Choose workspace photo",

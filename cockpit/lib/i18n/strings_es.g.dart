@@ -892,6 +892,7 @@ class _Translations$cockpit$fileViewer$es extends Translations$cockpit$fileViewe
 	@override String get preview => 'Vista previa';
 	@override String get source => 'Código fuente';
 	@override String get reload => 'Recargar';
+	@override String get mermaidError => 'Error en el diagrama';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -2696,6 +2697,7 @@ extension on TranslationsEs {
 			'cockpit.fileViewer.preview' => 'Vista previa',
 			'cockpit.fileViewer.source' => 'Código fuente',
 			'cockpit.fileViewer.reload' => 'Recargar',
+			'cockpit.fileViewer.mermaidError' => 'Error en el diagrama',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Elegir foto del workspace',
 			'cockpit.workspaceSettingsDialog.title' => 'Configuración del workspace',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Nombre del workspace',
@@ -2842,9 +2844,9 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escribe un comentario',
 			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
-			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			'cockpit.kanbanView.notABoard' => 'Este archivo aún no tiene columnas ## — se abre como markdown.',
 			'cockpit.kanbanView.startBoard' => 'Empezar un tablero',
 			'cockpit.kanbanView.couldNotSave' => 'No se pudo guardar el tablero',
@@ -3356,9 +3358,9 @@ extension on TranslationsEs {
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" solo trae la variante oscura, así que esto no tiene efecto.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" solo trae la variante clara, así que esto no tiene efecto.',
 			'settings.page.appearance.themeFileTitle' => 'Archivo de tema',
-			'settings.page.appearance.themeFileDesc' => 'Importa un tema desde un archivo JSON, o exporta el activo.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeFileDesc' => 'Importa un tema desde un archivo JSON, o exporta el activo.',
 			'settings.page.appearance.previewCode' => 'Código',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
 			'settings.page.appearance.themeSystem' => 'Sistema',

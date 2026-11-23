@@ -1902,6 +1902,9 @@ class Translations$cockpit$fileViewer$en {
 
 	/// en: 'Reload'
 	String get reload => 'Reload';
+
+	/// en: 'Diagram error'
+	String get mermaidError => 'Diagram error';
 }
 
 // Path: cockpit.workspaceSettingsDialog
@@ -5380,6 +5383,7 @@ extension on Translations {
 			'cockpit.fileViewer.preview' => 'Preview',
 			'cockpit.fileViewer.source' => 'Source',
 			'cockpit.fileViewer.reload' => 'Reload',
+			'cockpit.fileViewer.mermaidError' => 'Diagram error',
 			'cockpit.workspaceSettingsDialog.choosePhotoTitle' => 'Choose workspace photo',
 			'cockpit.workspaceSettingsDialog.title' => 'Workspace settings',
 			'cockpit.workspaceSettingsDialog.namePlaceholder' => 'Workspace name',
@@ -5526,9 +5530,9 @@ extension on Translations {
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
-			'cockpit.kanbanView.comments' => 'Comments',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
 			'cockpit.kanbanView.commentPlaceholder' => 'Write a comment',
 			'cockpit.kanbanView.noComments' => 'No comments yet',
@@ -6040,9 +6044,9 @@ extension on Translations {
 			'settings.page.appearance.themeTitle' => 'Theme',
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
 			'settings.page.appearance.modeTitle' => 'Mode',
-			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.',
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
