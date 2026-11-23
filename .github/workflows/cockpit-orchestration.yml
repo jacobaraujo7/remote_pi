@@ -150,6 +150,9 @@ jobs:
           lib/app/cockpit/ui/cockpit_page.dart
           lib/app/cockpit/ui/viewmodels/cockpit_viewmodel.dart
           lib/app/cockpit/ui/viewmodels/file_ops_controller.dart
+          lib/app/cockpit/ui/widgets/file_tree_panel.dart
+          lib/app/cockpit/ui/widgets/dotnet_solution_tree.dart
+          lib/app/cockpit/domain/dotnet
       - name: Native terminal lifecycle and workspace regressions
         run: >-
           flutter test --no-pub
@@ -166,6 +169,9 @@ jobs:
           test/domain/orchestration_document_test.dart
           test/ui/orchestration_controller_test.dart
           test/ui/file_tree_panel_test.dart
+          test/ui/dotnet_solution_panel_test.dart
+          test/domain/dotnet_solution_parser_test.dart
+          test/domain/dotnet_solution_cache_test.dart
           test/ui/layout_scrollback_keys_test.dart
           test/ui/orchestration_restore_state_test.dart
           test/ui/orchestration_ownership_migration_test.dart

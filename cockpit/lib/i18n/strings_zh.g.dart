@@ -788,6 +788,15 @@ class _Translations$cockpit$fileTreePanel$zh extends Translations$cockpit$fileTr
 	@override String get importAction => '复制';
 	@override String get couldNotImportTitle => '无法复制';
 	@override String openInAgent({required Object harness}) => '在 ${harness} 中打开';
+	@override String get solutionTooltip => '解决方案';
+	@override String get explorerTooltip => '资源管理器';
+	@override String get switchSolution => '切换解决方案';
+	@override String get loadingSolution => '正在加载解决方案…';
+	@override String get solutionLoadFailed => '无法读取解决方案。';
+	@override String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n,
+		one: '1 个项目',
+		other: '${n} 个项目',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -2592,6 +2601,12 @@ extension on TranslationsZh {
 			'cockpit.fileTreePanel.importAction' => '复制',
 			'cockpit.fileTreePanel.couldNotImportTitle' => '无法复制',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => '在 ${harness} 中打开',
+			'cockpit.fileTreePanel.solutionTooltip' => '解决方案',
+			'cockpit.fileTreePanel.explorerTooltip' => '资源管理器',
+			'cockpit.fileTreePanel.switchSolution' => '切换解决方案',
+			'cockpit.fileTreePanel.loadingSolution' => '正在加载解决方案…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => '无法读取解决方案。',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('zh'))(n, one: '1 个项目', other: '${n} 个项目', ), 
 			'cockpit.fileViewer.saveAs' => '另存为',
 			'cockpit.fileViewer.couldNotSave' => '无法保存',
 			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
@@ -2747,14 +2762,14 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
 			'cockpit.kanbanView.startBoard' => '创建看板',
 			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '删除「${name}」？',
 			'cockpit.kanbanView.deleteColumnDialog.message' => ({required Object count}) => '此列有 ${count}。请选择它们的去向。',
 			'cockpit.kanbanView.deleteColumnDialog.moveCards' => '移到上一列',
 			'cockpit.kanbanView.deleteColumnDialog.deleteAll' => '随列一起删除',
 			'cockpit.kanbanView.deleteColumnDialog.emptyMessage' => '此列为空。',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.dbPanel.sectionDatabase' => '数据库',
 			'cockpit.dbPanel.edit' => '编辑…',
 			'cockpit.dbPanel.copyName' => '复制名称',
@@ -3261,14 +3276,14 @@ extension on TranslationsZh {
 			'settings.page.appearance.previewCode' => '代码',
 			'settings.page.appearance.previewTerminal' => '终端',
 			'settings.page.appearance.themeSystem' => '跟随系统',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.themeLight' => '浅色',
 			'settings.page.appearance.themeDark' => '深色',
 			'settings.page.appearance.sectionFonts' => '字体',
 			'settings.page.appearance.interfaceFontTitle' => '界面字体',
 			'settings.page.appearance.interfaceFontDesc' => '整个应用通用。留空 = 系统默认。',
 			'settings.page.appearance.interfaceSizeTitle' => '界面字号',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.codeFontTitle' => '代码字体',
 			'settings.page.appearance.codeFontDesc' => '用于代码和差异。留空 = 系统默认。',
 			'settings.page.appearance.codeSizeTitle' => '代码字号',

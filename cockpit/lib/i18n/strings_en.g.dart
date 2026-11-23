@@ -1848,6 +1848,27 @@ class Translations$cockpit$fileTreePanel$en {
 
 	/// en: 'Open in ${harness}'
 	String openInAgent({required Object harness}) => 'Open in ${harness}';
+
+	/// en: 'Solution'
+	String get solutionTooltip => 'Solution';
+
+	/// en: 'Explorer'
+	String get explorerTooltip => 'Explorer';
+
+	/// en: 'Switch solution'
+	String get switchSolution => 'Switch solution';
+
+	/// en: 'Loading solution…'
+	String get loadingSolution => 'Loading solution…';
+
+	/// en: 'Couldn't read the solution.'
+	String get solutionLoadFailed => 'Couldn\'t read the solution.';
+
+	/// en: '(one) {1 project} (other) {${n} projects}'
+	String projectCount({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n,
+		one: '1 project',
+		other: '${n} projects',
+	);
 }
 
 // Path: cockpit.fileViewer
@@ -5345,6 +5366,12 @@ extension on Translations {
 			'cockpit.fileTreePanel.importAction' => 'Copy',
 			'cockpit.fileTreePanel.couldNotImportTitle' => 'Could not copy',
 			'cockpit.fileTreePanel.openInAgent' => ({required Object harness}) => 'Open in ${harness}',
+			'cockpit.fileTreePanel.solutionTooltip' => 'Solution',
+			'cockpit.fileTreePanel.explorerTooltip' => 'Explorer',
+			'cockpit.fileTreePanel.switchSolution' => 'Switch solution',
+			'cockpit.fileTreePanel.loadingSolution' => 'Loading solution…',
+			'cockpit.fileTreePanel.solutionLoadFailed' => 'Couldn\'t read the solution.',
+			'cockpit.fileTreePanel.projectCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 project', other: '${n} projects', ), 
 			'cockpit.fileViewer.saveAs' => 'Save as',
 			'cockpit.fileViewer.couldNotSave' => 'Could not save',
 			'cockpit.fileViewer.untitledDefaultName' => 'untitled.txt',
@@ -5500,14 +5527,14 @@ extension on Translations {
 			'cockpit.kanbanView.notes' => 'Note',
 			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
+			_ => null,
+		} ?? switch (path) {
 			'cockpit.kanbanView.addComment' => 'Add comment',
 			'cockpit.kanbanView.commentPlaceholder' => 'Write a comment',
 			'cockpit.kanbanView.noComments' => 'No comments yet',
 			'cockpit.kanbanView.closeDetail' => 'Close',
 			'cockpit.kanbanView.notABoard' => 'This file has no ## columns yet — it opens as markdown.',
 			'cockpit.kanbanView.startBoard' => 'Start a board',
-			_ => null,
-		} ?? switch (path) {
 			'cockpit.kanbanView.couldNotSave' => 'Could not save the board',
 			'cockpit.kanbanView.unrecognizedBlock' => 'Not recognized by the parser — drags whole, no inline editing.',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => 'Delete “${name}”?',
@@ -6014,14 +6041,14 @@ extension on Translations {
 			'settings.page.appearance.themeDesc' => 'App colors, code highlighting and terminal palette.',
 			'settings.page.appearance.modeTitle' => 'Mode',
 			'settings.page.appearance.modeDesc' => 'Which variant of the theme to use.',
+			_ => null,
+		} ?? switch (path) {
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '"${theme}" only ships a dark variant, so this has no effect.',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '"${theme}" only ships a light variant, so this has no effect.',
 			'settings.page.appearance.themeFileTitle' => 'Theme file',
 			'settings.page.appearance.themeFileDesc' => 'Import a theme from a JSON file, or export the active one.',
 			'settings.page.appearance.previewCode' => 'Code',
 			'settings.page.appearance.previewTerminal' => 'Terminal',
-			_ => null,
-		} ?? switch (path) {
 			'settings.page.appearance.themeSystem' => 'System',
 			'settings.page.appearance.themeLight' => 'Light',
 			'settings.page.appearance.themeDark' => 'Dark',
