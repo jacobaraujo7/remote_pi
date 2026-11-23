@@ -490,6 +490,7 @@
       "copy": "Copy"
     },
     "httpView": {
+      "copyCurl": "Copy as cURL",
       "saveRequestAs": "Save request as",
       "couldNotSave": "Could not save",
       "run": "Run",

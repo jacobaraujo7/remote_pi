@@ -1005,6 +1005,7 @@ class _Translations$cockpit$httpView$es extends Translations$cockpit$httpView$en
 	final TranslationsEs _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => 'Copiar como cURL';
 	@override String get saveRequestAs => 'Guardar request como';
 	@override String get couldNotSave => 'No se pudo guardar';
 	@override String get run => 'Ejecutar';
@@ -2762,6 +2763,7 @@ extension on TranslationsEs {
 			'cockpit.dbQueryView.saved' => 'guardado',
 			'cockpit.dbQueryView.copied' => 'Copiado',
 			'cockpit.dbQueryView.copy' => 'Copiar',
+			'cockpit.httpView.copyCurl' => 'Copiar como cURL',
 			'cockpit.httpView.saveRequestAs' => 'Guardar request como',
 			'cockpit.httpView.couldNotSave' => 'No se pudo guardar',
 			'cockpit.httpView.run' => 'Ejecutar',
@@ -2849,9 +2851,9 @@ extension on TranslationsEs {
 			'cockpit.kanbanView.comments' => 'Comentarios',
 			'cockpit.kanbanView.addComment' => 'Añadir comentario',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escribe un comentario',
-			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.noComments' => 'Aún no hay comentarios',
 			'cockpit.kanbanView.closeDetail' => 'Cerrar',
 			'cockpit.kanbanView.notABoard' => 'Este archivo aún no tiene columnas ## — se abre como markdown.',
 			'cockpit.kanbanView.startBoard' => 'Empezar un tablero',
@@ -3363,9 +3365,9 @@ extension on TranslationsEs {
 			'settings.page.terminal.closeOnExitTitle' => 'Cerrar la pestaña cuando el shell termine',
 			'settings.page.terminal.closeOnExitDesc' => 'Cuando un shell termina por sí solo (exit, Ctrl-D), cierra su pestaña en lugar de dejar un terminal muerto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
-			'settings.page.appearance.themeTitle' => 'Tema',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.themeTitle' => 'Tema',
 			'settings.page.appearance.themeDesc' => 'Colores de la app, resaltado de código y paleta del terminal.',
 			'settings.page.appearance.modeTitle' => 'Modo',
 			'settings.page.appearance.modeDesc' => 'Qué variante del tema usar.',

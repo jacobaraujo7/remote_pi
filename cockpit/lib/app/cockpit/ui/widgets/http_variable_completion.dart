@@ -1,3 +1,4 @@
+import 'package:cockpit/app/cockpit/ui/widgets/http_script_completion.dart';
 import 'package:flutter/services.dart';
 
 /// Par de chaves de variável sob o cursor, com offsets UTF-16 do conteúdo.
@@ -65,7 +66,14 @@ class HttpVariableBraceFormatter extends TextInputFormatter {
   ) {
     if (!newValue.selection.isValid ||
         !newValue.selection.isCollapsed ||
-        newValue.composing.isValid) {
+        !newValue.composing.isCollapsed) {
+      return newValue;
+    }
+    if (oldValue.selection.isValid &&
+        HttpScriptCompletion.insideBlock(
+          oldValue.text,
+          oldValue.selection.start,
+        )) {
       return newValue;
     }
     final caret = newValue.selection.baseOffset;
@@ -84,7 +92,11 @@ class HttpVariableBraceFormatter extends TextInputFormatter {
       return newValue;
     }
     return TextEditingValue(
-      text: newValue.text.replaceRange(caret, caret, '}}'),
+      text: newValue.text.replaceRange(
+        caret,
+        caret,
+        newValue.text.substring(caret).startsWith('}') ? '}' : '}}',
+      ),
       selection: TextSelection.collapsed(offset: caret),
     );
   }

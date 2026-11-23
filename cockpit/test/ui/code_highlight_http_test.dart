@@ -92,6 +92,26 @@ PUT {{baseUrl}}/users/1
 ''';
 
 void main() {
+  testWidgets(
+    'referência externa após body JSON mantém o realce dos próximos requests',
+    (tester) async {
+      const source = '''POST https://example.test/users
+Content-Type: application/json
+
+{"name": "Ana"}
+> ./scripts/check.js
+### Next
+< "scripts/pre request.js"
+GET https://example.test/next
+''';
+      final (full, colored) = await _paint(tester, source, 'http');
+      expect(full, source);
+      expect(colored.join(), contains('> ./scripts/check.js'));
+      expect(colored.join(), contains('< "scripts/pre request.js"'));
+      expect(colored.join(), contains('GET'));
+    },
+  );
+
   testWidgets('script HTTP realça JavaScript sem engolir o próximo request', (
     tester,
   ) async {

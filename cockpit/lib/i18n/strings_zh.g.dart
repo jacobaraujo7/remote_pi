@@ -927,6 +927,7 @@ class _Translations$cockpit$httpView$zh extends Translations$cockpit$httpView$en
 	final TranslationsZh _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => '复制为 cURL';
 	@override String get saveRequestAs => '请求另存为';
 	@override String get couldNotSave => '无法保存';
 	@override String get run => '运行';
@@ -2681,6 +2682,7 @@ extension on TranslationsZh {
 			'cockpit.dbQueryView.saved' => '已保存',
 			'cockpit.dbQueryView.copied' => '已复制',
 			'cockpit.dbQueryView.copy' => '复制',
+			'cockpit.httpView.copyCurl' => '复制为 cURL',
 			'cockpit.httpView.saveRequestAs' => '请求另存为',
 			'cockpit.httpView.couldNotSave' => '无法保存',
 			'cockpit.httpView.run' => '运行',
@@ -2768,9 +2770,9 @@ extension on TranslationsZh {
 			'cockpit.kanbanView.noComments' => '暂无评论',
 			'cockpit.kanbanView.closeDetail' => '关闭',
 			'cockpit.kanbanView.notABoard' => '此文件还没有 ## 列——将以 Markdown 打开。',
-			'cockpit.kanbanView.startBoard' => '创建看板',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.startBoard' => '创建看板',
 			'cockpit.kanbanView.couldNotSave' => '无法保存看板',
 			'cockpit.kanbanView.unrecognizedBlock' => '解析器无法识别——只能整体拖动，不支持内联编辑。',
 			'cockpit.kanbanView.deleteColumnDialog.title' => ({required Object name}) => '删除「${name}」？',
@@ -3282,9 +3284,9 @@ extension on TranslationsZh {
 			'settings.page.appearance.themeTitle' => '主题',
 			'settings.page.appearance.themeDesc' => '应用颜色、代码高亮和终端配色。',
 			'settings.page.appearance.modeTitle' => '模式',
-			'settings.page.appearance.modeDesc' => '使用主题的哪个变体。',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.appearance.modeDesc' => '使用主题的哪个变体。',
 			'settings.page.appearance.modeOnlyDark' => ({required Object theme}) => '「${theme}」只有深色变体，此项不生效。',
 			'settings.page.appearance.modeOnlyLight' => ({required Object theme}) => '「${theme}」只有浅色变体，此项不生效。',
 			'settings.page.appearance.themeFileTitle' => '主题文件',

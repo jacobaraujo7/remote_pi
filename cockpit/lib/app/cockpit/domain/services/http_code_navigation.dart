@@ -1,5 +1,6 @@
 import 'package:cockpit/app/cockpit/domain/entities/http_document.dart';
 import 'package:cockpit/app/cockpit/domain/services/http_environment_catalog.dart';
+import 'package:path/path.dart' as p;
 
 class HttpCodeLink {
   const HttpCodeLink(this.start, this.end, {this.path, this.line, this.url});
@@ -11,8 +12,9 @@ class HttpCodeLink {
   final String? url;
 }
 
-/// Resolve apenas referências de variáveis e verbos HTTP. Cabeçalhos não são
-/// links, mesmo quando o editor genérico reconheceria a palavra sob o mouse.
+/// Resolve arquivos JavaScript, referências de variáveis e verbos HTTP.
+/// Cabeçalhos não são links, mesmo quando o editor genérico reconheceria a
+/// palavra sob o mouse.
 class HttpCodeNavigation {
   static final _inline = RegExp(r'^\s*@([A-Za-z_][A-Za-z0-9_.-]*)\s*=');
   static final _method = RegExp(
@@ -38,6 +40,20 @@ class HttpCodeNavigation {
     final line = displayText.substring(start, end);
     if (line.trimLeft().startsWith('#') || line.trimLeft().startsWith('//')) {
       return null;
+    }
+
+    final scriptFile = HttpDocument.scriptFileAtLine(line);
+    if (scriptFile != null) {
+      final from = start + line.indexOf(scriptFile.path);
+      final to = from + scriptFile.path.length;
+      if (offset >= from && offset < to) {
+        return HttpCodeLink(
+          from,
+          to,
+          path: p.normalize(p.join(p.dirname(sourcePath), scriptFile.path)),
+          line: 1,
+        );
+      }
     }
 
     for (final match in HttpDocument.interpolation.allMatches(line)) {

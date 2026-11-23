@@ -2134,6 +2134,9 @@ class Translations$cockpit$httpView$en {
 
 	// Translations
 
+	/// en: 'Copy as cURL'
+	String get copyCurl => 'Copy as cURL';
+
 	/// en: 'Save request as'
 	String get saveRequestAs => 'Save request as';
 
@@ -5460,6 +5463,7 @@ extension on Translations {
 			'cockpit.dbQueryView.saved' => 'saved',
 			'cockpit.dbQueryView.copied' => 'Copied',
 			'cockpit.dbQueryView.copy' => 'Copy',
+			'cockpit.httpView.copyCurl' => 'Copy as cURL',
 			'cockpit.httpView.saveRequestAs' => 'Save request as',
 			'cockpit.httpView.couldNotSave' => 'Could not save',
 			'cockpit.httpView.run' => 'Run',
@@ -5547,9 +5551,9 @@ extension on Translations {
 			'cockpit.kanbanView.emptyColumn' => 'No cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('en'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Note',
-			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.notesPlaceholder' => 'Write a note',
 			'cockpit.kanbanView.comments' => 'Comments',
 			'cockpit.kanbanView.addComment' => 'Add comment',
 			'cockpit.kanbanView.commentPlaceholder' => 'Write a comment',
@@ -6061,9 +6065,9 @@ extension on Translations {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Which shell new terminal tabs open. The arrow next to + still opens any other one, just for that tab.',
 			'settings.page.terminal.noWslMessage' => 'No WSL distros found. Install one (wsl.exe --install) and restart Cockpit to see it listed here.',
-			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.terminal.sectionBehavior' => 'Behavior',
 			'settings.page.terminal.closeOnExitTitle' => 'Close tab when the shell exits',
 			'settings.page.terminal.closeOnExitDesc' => 'When a shell ends on its own (exit, Ctrl-D), close its tab instead of leaving a dead terminal.',
 			'settings.page.appearance.sectionTheme' => 'Theme',

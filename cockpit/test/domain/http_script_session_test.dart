@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
@@ -36,6 +37,135 @@ class _Transport implements HttpRequestRunner {
 }
 
 void main() {
+  test(
+    'executa arquivos grandes relativos e absolutos com a API e escopo compartilhados',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('http-script-');
+      addTearDown(() => dir.delete(recursive: true));
+      await Directory('${dir.path}/scripts').create();
+      final preFile = File('${dir.path}/scripts/pre request.js');
+      await preFile.writeAsString(
+        [
+          'const prefix = request.environment.get("prefix");',
+          for (var i = 0; i < 3000; i++) 'const value$i = $i;',
+          'request.variables.set("id", prefix + value2999);',
+          'client.log("large script");',
+        ].join('\n'),
+      );
+      final postFile = File('${dir.path}/scripts/post.js');
+      await postFile.writeAsString('''
+client.global.set('token', response.body.token);
+client.test('external status', () => client.assert(response.status === 200));
+client.log(response.headers.valueOf('content-type'));
+''');
+      final doc = HttpDocument.parse('''
+< "scripts/pre request.js"
+< {% request.variables.set('suffix', prefix); %}
+GET https://example.test/{{id}}/{{suffix}}
+> ${postFile.path}
+> {% client.log(client.global.get('token')); %}
+''');
+      final transport = _Transport();
+      final session = HttpScriptSession();
+      final result = await session.run(
+        transport,
+        doc,
+        doc.requests.single,
+        baseDir: dir.path,
+        environment: {'prefix': 'item-'},
+      );
+      expect(result.failed, isFalse);
+      expect(transport.sent.single.url, 'https://example.test/item-2999/item-');
+      expect(result.tests.single.passed, isTrue);
+      expect(result.logs, ['large script', 'application/json', 'abc']);
+      expect(session.globals['token'], 'abc');
+
+      // Cada execução lê a versão atual do arquivo, sem cache de código.
+      await preFile.writeAsString(
+        'const prefix = "updated"; request.variables.set("id", prefix);',
+      );
+      final rerun = await session.run(
+        transport,
+        doc,
+        doc.requests.single,
+        baseDir: dir.path,
+      );
+      expect(rerun.failed, isFalse);
+      expect(transport.sent.last.url, 'https://example.test/updated/updated');
+    },
+  );
+
+  test(
+    'arquivo ausente falha na fase correta e preserva a resposta do pós-request',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('http-script-errors-');
+      addTearDown(() => dir.delete(recursive: true));
+      final doc = HttpDocument.parse('''
+### Missing pre
+< ./missing-pre.js
+GET https://example.test/pre
+### Missing post
+GET https://example.test/post
+> ./missing-post.js
+''');
+      final transport = _Transport();
+      final session = HttpScriptSession();
+      final pre = await session.run(
+        transport,
+        doc,
+        doc.requests.first,
+        baseDir: dir.path,
+      );
+      expect(
+        pre.scriptError,
+        allOf(startsWith('Pre-request:'), contains('missing-pre.js')),
+      );
+      expect(transport.sent, isEmpty);
+      final post = await session.run(
+        transport,
+        doc,
+        doc.requests.last,
+        baseDir: dir.path,
+      );
+      expect(
+        post.scriptError,
+        allOf(startsWith('Post-request:'), contains('missing-post.js')),
+      );
+      expect(post.response?.statusCode, 200);
+      expect(transport.sent, hasLength(1));
+    },
+  );
+
+  test(
+    'erro JavaScript externo identifica o arquivo e interrompe scripts seguintes',
+    () async {
+      final dir = await Directory.systemTemp.createTemp('http-script-errors-');
+      addTearDown(() => dir.delete(recursive: true));
+      await File(
+        '${dir.path}/broken.js',
+      ).writeAsString('client.log("before"); throw new Error("stop here");');
+      final doc = HttpDocument.parse('''
+< ./broken.js
+< {% request.variables.set('unexpected', 'ran'); %}
+GET https://example.test/pre
+''');
+      final transport = _Transport();
+      final result = await HttpScriptSession().run(
+        transport,
+        doc,
+        doc.requests.single,
+        baseDir: dir.path,
+      );
+      expect(
+        result.scriptError,
+        allOf(contains('broken.js'), contains('stop here')),
+      );
+      expect(result.logs, ['before']);
+      expect(result.variables, isNot(contains('unexpected')));
+      expect(transport.sent, isEmpty);
+    },
+  );
+
   test('parser keeps scripts separate from body and file import', () {
     final doc = HttpDocument.parse('''
 ### Upload
@@ -49,8 +179,11 @@ Content-Type: application/json
     final request = doc.requests.single;
     expect(request.body, '{"id": 1}');
     expect(request.bodyFile, isNull);
-    expect(request.preScript, contains("request.variables.set('id', '2')"));
-    expect(request.postScript, contains('response.status'));
+    expect(
+      request.preScripts.single.code,
+      contains("request.variables.set('id', '2')"),
+    );
+    expect(request.postScripts.single.code, contains('response.status'));
   });
 
   test('pre, post, tests and globals chain across requests', () async {

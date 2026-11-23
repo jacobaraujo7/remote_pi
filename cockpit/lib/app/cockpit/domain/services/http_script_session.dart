@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:isolate';
 
 import 'package:cockpit/app/cockpit/domain/contracts/http_request_runner.dart';
@@ -8,6 +9,7 @@ import 'package:cockpit/app/cockpit/domain/entities/http_response_result.dart';
 import 'package:cockpit/app/cockpit/domain/exceptions/http_request_error.dart';
 import 'package:cockpit/app/core/domain/result.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import 'package:quickjs_engine/quickjs_engine.dart';
 
 class HttpScriptTest {
@@ -72,11 +74,12 @@ class HttpScriptSession extends ChangeNotifier {
     final logs = <String>[];
     final tests = <HttpScriptTest>[];
 
-    if (request.preScript != null) {
+    if (request.preScripts.isNotEmpty) {
       final pre = await _execute(
-        request.preScript!,
+        request.preScripts,
         _globals,
         vars,
+        baseDir: baseDir,
         environment: scriptEnvironment,
         overrides: overrides,
       );
@@ -115,7 +118,7 @@ class HttpScriptSession extends ChangeNotifier {
           tests: tests,
         );
       case Success(:final value):
-        if (request.postScript != null) {
+        if (request.postScripts.isNotEmpty) {
           Object? body = value.bodyText;
           try {
             body = jsonDecode(value.bodyText);
@@ -123,9 +126,10 @@ class HttpScriptSession extends ChangeNotifier {
             // Corpo textual permanece uma string.
           }
           final post = await _execute(
-            request.postScript!,
+            request.postScripts,
             _globals,
             vars,
+            baseDir: baseDir,
             environment: scriptEnvironment,
             overrides: overrides,
             response: {
@@ -169,17 +173,51 @@ typedef _ScriptResult = ({
 });
 
 Future<_ScriptResult> _execute(
-  String script,
+  List<HttpScriptSource> sources,
   Map<String, String> globals,
   Map<String, String> variables, {
+  required String baseDir,
   Map<String, String> environment = const {},
   Map<String, String> overrides = const {},
   Map<String, Object?>? response,
 }) async {
+  final scripts = <({String code, String sourceUrl})>[];
+  String? scriptPath;
+  try {
+    for (final source in sources) {
+      final path = source.path;
+      if (path == null) {
+        scripts.add((code: source.code!, sourceUrl: 'request.http'));
+      } else {
+        final resolved = p.normalize(p.join(baseDir, path));
+        scriptPath = resolved;
+        scripts.add((
+          code: await File(resolved).readAsString(),
+          sourceUrl: resolved,
+        ));
+      }
+    }
+  } on FileSystemException catch (error) {
+    return (
+      globals: globals,
+      variables: variables,
+      logs: <String>[],
+      tests: <HttpScriptTest>[],
+      error: '$error',
+    );
+  } on FormatException catch (error) {
+    return (
+      globals: globals,
+      variables: variables,
+      logs: <String>[],
+      tests: <HttpScriptTest>[],
+      error: '$scriptPath: $error',
+    );
+  }
   final port = ReceivePort();
   final isolate = await Isolate.spawn(_scriptWorker, [
     port.sendPort,
-    script,
+    scripts,
     globals,
     variables,
     environment,
@@ -219,7 +257,7 @@ Future<_ScriptResult> _execute(
 
 void _scriptWorker(List<dynamic> args) {
   final send = args[0] as SendPort;
-  final script = args[1] as String;
+  final scripts = args[1] as List<({String code, String sourceUrl})>;
   final globals = args[2] as Map<String, String>;
   final variables = args[3] as Map<String, String>;
   final environment = args[4] as Map<String, String>;
@@ -271,8 +309,14 @@ void _scriptWorker(List<dynamic> args) {
     ''';
     final setupResult = js.evaluate(setup);
     if (setupResult.isError) throw StateError(setupResult.stringResult);
-    final runResult = js.evaluate(script, sourceUrl: 'request.http');
-    final error = runResult.isError ? runResult.stringResult : null;
+    String? error;
+    for (final script in scripts) {
+      final runResult = js.evaluate(script.code, sourceUrl: script.sourceUrl);
+      if (runResult.isError) {
+        error = '${script.sourceUrl}: ${runResult.stringResult}';
+        break;
+      }
+    }
     final snapshot = js.evaluate('''
       const __results = __state.tests.map(test => {
         try { test.fn(); return {name: test.name, passed: true}; }

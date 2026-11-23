@@ -1005,6 +1005,7 @@ class _Translations$cockpit$httpView$pt_BR extends Translations$cockpit$httpView
 	final TranslationsPtBr _root; // ignore: unused_field
 
 	// Translations
+	@override String get copyCurl => 'Copiar como cURL';
 	@override String get saveRequestAs => 'Salvar request como';
 	@override String get couldNotSave => 'Não foi possível salvar';
 	@override String get run => 'Executar';
@@ -2766,6 +2767,7 @@ extension on TranslationsPtBr {
 			'cockpit.dbQueryView.saved' => 'salvo',
 			'cockpit.dbQueryView.copied' => 'Copiado',
 			'cockpit.dbQueryView.copy' => 'Copiar',
+			'cockpit.httpView.copyCurl' => 'Copiar como cURL',
 			'cockpit.httpView.saveRequestAs' => 'Salvar request como',
 			'cockpit.httpView.couldNotSave' => 'Não foi possível salvar',
 			'cockpit.httpView.run' => 'Executar',
@@ -2853,9 +2855,9 @@ extension on TranslationsPtBr {
 			'cockpit.kanbanView.emptyColumn' => 'Sem cards',
 			'cockpit.kanbanView.cardCount' => ({required num n}) => (_root.$meta.cardinalResolver ?? PluralResolvers.cardinal('pt'))(n, one: '1 card', other: '${n} cards', ), 
 			'cockpit.kanbanView.notes' => 'Nota',
-			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
 			_ => null,
 		} ?? switch (path) {
+			'cockpit.kanbanView.notesPlaceholder' => 'Escreva uma nota',
 			'cockpit.kanbanView.comments' => 'Comentários',
 			'cockpit.kanbanView.addComment' => 'Adicionar comentário',
 			'cockpit.kanbanView.commentPlaceholder' => 'Escreva um comentário',
@@ -3367,9 +3369,9 @@ extension on TranslationsPtBr {
 			'settings.page.terminal.shellTitle' => 'Shell',
 			'settings.page.terminal.shellDesc' => 'Qual shell novas abas de terminal abrem. A seta ao lado do + ainda abre qualquer outro, só para aquela aba.',
 			'settings.page.terminal.noWslMessage' => 'Nenhuma distro WSL encontrada. Instale uma (wsl.exe --install) e reinicie o Cockpit para vê-la listada aqui.',
-			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			_ => null,
 		} ?? switch (path) {
+			'settings.page.terminal.sectionBehavior' => 'Comportamento',
 			'settings.page.terminal.closeOnExitTitle' => 'Fechar a aba quando o shell encerrar',
 			'settings.page.terminal.closeOnExitDesc' => 'Quando um shell termina sozinho (exit, Ctrl-D), fecha a aba em vez de deixar um terminal morto.',
 			'settings.page.appearance.sectionTheme' => 'Tema',
