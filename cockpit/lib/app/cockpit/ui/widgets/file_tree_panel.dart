@@ -33,7 +33,15 @@ import 'package:cockpit/app/core/ui/widgets/app_tooltip.dart';
 import 'package:cockpit/app/core/ui/widgets/hover_tap.dart';
 import 'package:cockpit/i18n/strings.g.dart';
 import 'package:desktop_drop/desktop_drop.dart';
-import 'package:flutter/gestures.dart' show HitTestResult;
+import 'package:flutter/gestures.dart'
+    show
+        GestureDisposition,
+        GestureMultiDragStartCallback,
+        HitTestResult,
+        ImmediateMultiDragGestureRecognizer,
+        MultiDragPointerState,
+        PointerDeviceKind,
+        PointerDownEvent;
 import 'package:flutter/rendering.dart' show RenderMetaData;
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -970,6 +978,9 @@ class _FileTreePanelState extends State<FileTreePanel> {
   }
 
   Future<void> _requestMove(String path, String targetDir) async {
+    // Um drop na pasta atual não move nada (inclusive quando a própria linha
+    // recusa o drop e o alvo da raiz o recebe).
+    if (p.dirname(path) == targetDir) return;
     final name = path.split('/').where((p) => p.isNotEmpty).last;
     final destName = targetDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
     final tr = context.t.cockpit.fileTreePanel;
@@ -3836,7 +3847,7 @@ class _HeaderIcon extends StatelessWidget {
 
 /// Chip que segue o cursor ao arrastar um arquivo do painel pro input.
 /// Torna um nó da árvore arrastável (mover pra outra pasta / citar no
-/// composer). No DESKTOP o arraste é imediato; no MOBILE só após long-press,
+/// composer). No DESKTOP o mouse precisa se deslocar; no MOBILE só após long-press,
 /// pra um swipe de scroll por toque não virar drag-drop (plano 60, Wave B1).
 class _NodeDraggable extends StatelessWidget {
   const _NodeDraggable({
@@ -3859,12 +3870,68 @@ class _NodeDraggable extends StatelessWidget {
         child: child,
       );
     }
-    return Draggable<String>(
+    return _MouseThresholdDraggable(
       data: path,
       dragAnchorStrategy: pointerDragAnchorStrategy,
       feedback: _FileChip(name: name),
       child: child,
     );
+  }
+}
+
+/// O limiar padrão do Flutter para mouse é só 1 pixel lógico. Uma pequena
+/// tremida ao clicar não deve ganhar a arena do tap e virar uma movimentação.
+/// Mantém o Draggable (feedback, alvos e payload) e os demais dispositivos;
+/// não exige espera por tempo nem acumula distância de movimentos de ida/volta.
+class _MouseThresholdDraggable extends Draggable<String> {
+  const _MouseThresholdDraggable({
+    required super.data,
+    required super.dragAnchorStrategy,
+    required super.feedback,
+    required super.child,
+  });
+
+  @override
+  ImmediateMultiDragGestureRecognizer createRecognizer(
+    GestureMultiDragStartCallback onStart,
+  ) => _MouseThresholdDragRecognizer()..onStart = onStart;
+}
+
+class _MouseThresholdDragRecognizer
+    extends ImmediateMultiDragGestureRecognizer {
+  @override
+  MultiDragPointerState createNewPointerState(PointerDownEvent event) {
+    if (event.kind != PointerDeviceKind.mouse) {
+      return super.createNewPointerState(event);
+    }
+    return _MouseThresholdPointerState(
+      event.position,
+      event.kind,
+      gestureSettings,
+    );
+  }
+}
+
+class _MouseThresholdPointerState extends MultiDragPointerState {
+  _MouseThresholdPointerState(
+    super.initialPosition,
+    super.kind,
+    super.gestureSettings,
+  );
+
+  // Pixels lógicos: tolera jitter sem atrasar arrastes deliberados.
+  static const double _dragThreshold = 8;
+
+  @override
+  void checkForResolutionAfterMove() {
+    if (pendingDelta!.distance > _dragThreshold) {
+      resolve(GestureDisposition.accepted);
+    }
+  }
+
+  @override
+  void accepted(GestureMultiDragStartCallback starter) {
+    starter(initialPosition);
   }
 }
 
