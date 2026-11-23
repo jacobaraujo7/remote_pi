@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { registerAgentTools } from "./tools.js";
+import { registerAgentTools, resolveAgentToolNames } from "./tools.js";
 import { MeshTransportError, type SessionPeer, type AckResult } from "./peer.js";
 import type { ToolDefinition } from "@earendil-works/pi-coding-agent";
 
@@ -460,5 +460,52 @@ describe("agent_request tool (deprecated, still functional)", () => {
     expect(result.details).toMatchObject({
       error: expect.stringContaining("cannot agent_request to yourself"),
     });
+  });
+});
+
+describe("REMOTE_PI_TOOL_PREFIX (tool name prefix)", () => {
+  test("unset → default tool names", () => {
+    expect(resolveAgentToolNames({})).toEqual({
+      send: "agent_send",
+      request: "agent_request",
+      listPeers: "list_peers",
+    });
+  });
+
+  test("valid prefix → all three tools prefixed", () => {
+    expect(resolveAgentToolNames({ REMOTE_PI_TOOL_PREFIX: "rpi_" })).toEqual({
+      send: "rpi_agent_send",
+      request: "rpi_agent_request",
+      listPeers: "rpi_list_peers",
+    });
+  });
+
+  test("invalid prefix → ignored with a warning, defaults kept", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(resolveAgentToolNames({ REMOTE_PI_TOOL_PREFIX: "bad-prefix!" }).listPeers)
+      .toBe("list_peers");
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  test("registerAgentTools registers prefixed names and cross-references them", async () => {
+    const { pi, tools } = makeMockPi();
+    const peer = makeMockPeer({
+      request: vi.fn().mockResolvedValue({
+        from: "broker", to: "orq", id: "r1", body: { peers: ["orq", "backend"] },
+      }),
+    });
+    registerAgentTools(pi, () => peer, resolveAgentToolNames({ REMOTE_PI_TOOL_PREFIX: "rpi_" }));
+
+    expect([...tools.keys()].sort()).toEqual(
+      ["rpi_agent_request", "rpi_agent_send", "rpi_list_peers"],
+    );
+    const list = tools.get("rpi_list_peers")!;
+    expect(list.promptSnippet).toContain("rpi_agent_send");
+    expect(list.description).not.toMatch(/(?<!rpi_)agent_send/);
+
+    // Broker wire protocol is unchanged.
+    await list.execute(TOOL_CALL_ID, {}, undefined, undefined, {} as never);
+    expect(peer.request).toHaveBeenCalledWith("broker", { type: "list_peers" }, 2_000);
   });
 });
