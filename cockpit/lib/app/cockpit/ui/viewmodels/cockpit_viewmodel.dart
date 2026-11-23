@@ -1,3 +1,5 @@
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution.dart';
+import 'package:cockpit/app/cockpit/domain/dotnet/dotnet_solution_cache.dart';
 import 'package:cockpit/app/cockpit/domain/services/gallery_creates.dart';
 import '../document/open_files_channel.dart';
 import '../document/native_document_router.dart';
@@ -1658,6 +1660,24 @@ class CockpitViewModel extends ChangeNotifier
     }
   }
 
+  /// Analisa a solução só quando o Explorer pede. Fingerprint igual não
+  /// reparseia.
+  Future<DotnetSolutionSnapshot?> loadDotnetSolution(String path) {
+    return loadCachedDotnetSolution(
+      cache: DotnetSolutionCache.instance,
+      path: path,
+      read: readTextAt,
+    );
+  }
+
+  /// Mudança na solução ou num projeto. Remoto não tem watch de arquivo.
+  Stream<void> watchSolutionFile(String path) {
+    if (_activeRemoteHost() != null || path.isEmpty) {
+      return const Stream<void>.empty();
+    }
+    return _fileChanges.watchFile(path);
+  }
+
   /// Raiz da árvore de arquivos do workspace ativo: a pasta remota quando é um
   /// host remoto, senão o path local. Vazio = sem árvore (Cockpit/sem seleção).
   String get treeRootPath {
@@ -1710,7 +1730,8 @@ class CockpitViewModel extends ChangeNotifier
       return FileViewText(
         text,
         language: switch (ext) {
-          'canvas' || 'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
+          'canvas' ||
+          'board' => text.trimLeft().startsWith('{') ? 'json' : 'markdown',
           '' => null,
           _ => ext,
         },
@@ -3469,7 +3490,10 @@ class CockpitViewModel extends ChangeNotifier
       try {
         final service = await _remoteHosts.fileServiceFor(host);
         final bytes = utf8.encode(content);
-        if (FileReader.isBoard(s.path) && bytes.length > FileReader.boardByteLimit) return false;
+        if (FileReader.isBoard(s.path) &&
+            bytes.length > FileReader.boardByteLimit) {
+          return false;
+        }
         await service.write(s.path, bytes);
       } catch (_) {
         return false; // fs.write falhou (permissão, conexão) → não salvou.

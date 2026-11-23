@@ -392,7 +392,16 @@
       "importMessage": "Copiar ${count} itens para “${dest}”?",
       "importAction": "Copiar",
       "couldNotImportTitle": "Não foi possível copiar",
-      "openInAgent": "Abrir no ${harness}"
+      "openInAgent": "Abrir no ${harness}",
+      "solutionTooltip": "Solução",
+      "explorerTooltip": "Explorer",
+      "switchSolution": "Trocar solução",
+      "loadingSolution": "Carregando solução…",
+      "solutionLoadFailed": "Não foi possível ler a solução.",
+      "projectCount": {
+        "one": "1 projeto",
+        "other": "${n} projetos"
+      }
     },
     "fileViewer": {
       "saveAs": "Salvar como",

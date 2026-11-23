@@ -392,7 +392,16 @@
       "importMessage": "将 ${count} 项复制到「${dest}」？",
       "importAction": "复制",
       "couldNotImportTitle": "无法复制",
-      "openInAgent": "在 ${harness} 中打开"
+      "openInAgent": "在 ${harness} 中打开",
+      "solutionTooltip": "解决方案",
+      "explorerTooltip": "资源管理器",
+      "switchSolution": "切换解决方案",
+      "loadingSolution": "正在加载解决方案…",
+      "solutionLoadFailed": "无法读取解决方案。",
+      "projectCount": {
+        "one": "1 个项目",
+        "other": "${n} 个项目"
+      }
     },
     "fileViewer": {
       "saveAs": "另存为",

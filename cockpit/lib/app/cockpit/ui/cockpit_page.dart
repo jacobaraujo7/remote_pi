@@ -1288,6 +1288,8 @@ class _TreePanel extends StatelessWidget {
           revision: vm.fileTreeRevision,
           selectedPath: vm.selectedFileInTree,
           listChildren: vm.listChildren,
+          loadDotnetSolution: vm.loadDotnetSolution,
+          watchSolutionFile: vm.watchSolutionFile,
           gitStatusOf: vm.gitStatusForPath,
           onOpenFile: (path) {
             vm.openFile(path, isPreview: false);
