@@ -59,6 +59,17 @@ jobs:
           fi
       - name: Resolve versioned dependencies
         run: flutter pub get
+      - name: Analyze task environment support
+        run: >-
+          flutter analyze --no-pub
+          lib/app/cockpit/data/remote/remote_task_gateway.dart
+          lib/app/cockpit/data/tasks/compose_tasks.dart
+          lib/app/cockpit/data/tasks/pty_task_runner.dart
+          lib/app/cockpit/data/tasks/tasks_json_loader.dart
+          lib/app/cockpit/domain/entities/task_definition.dart
+          test/tasks
+      - name: Task environment and lifecycle regressions
+        run: flutter test --no-pub test/tasks
       - name: Analyze shell lifecycle diagnostics
         run: >-
           flutter analyze --no-pub

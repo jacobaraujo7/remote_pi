@@ -121,33 +121,45 @@ class ComposeEngineResolver {
     return out;
   }
 
-  Future<Set<String>> runningServices(ComposeEngine engine, String file) async {
+  Future<Set<String>> runningServices(
+    ComposeEngine engine,
+    String file, {
+    Map<String, String> environment = const {},
+    String? executable,
+  }) async {
     final cwd = File(file).parent.path;
     final base = [...engine.prefix, '-f', file, 'ps', '--services'];
     ProcessResult result;
     try {
-      result = await Process.run(engine.command, [
-        ...base,
-        '--status',
-        'running',
-      ], workingDirectory: cwd);
+      result = await Process.run(
+        executable ?? engine.command,
+        [...base, '--status', 'running'],
+        workingDirectory: cwd,
+        environment: environment,
+      );
       if (result.exitCode != 0) {
-        result = await Process.run(engine.command, base, workingDirectory: cwd);
+        result = await Process.run(
+          executable ?? engine.command,
+          base,
+          workingDirectory: cwd,
+          environment: environment,
+        );
       }
     } catch (_) {
-      return _runningFromLabels(engine, file);
+      return _runningFromLabels(engine, file, environment);
     }
     final direct = result.exitCode == 0
         ? LineSplitter.split(
             '${result.stdout}',
           ).map((e) => e.trim()).where((e) => e.isNotEmpty).toSet()
         : <String>{};
-    return {...direct, ...await _runningFromLabels(engine, file)};
+    return {...direct, ...await _runningFromLabels(engine, file, environment)};
   }
 
   Future<Set<String>> _runningFromLabels(
     ComposeEngine engine,
     String file,
+    Map<String, String> environment,
   ) async {
     final runtime = engine.isDocker ? 'docker' : 'podman';
     try {
@@ -157,7 +169,7 @@ class ComposeEngineResolver {
         'label=com.docker.compose.service',
         '--format',
         '{{.Label "com.docker.compose.project.working_dir"}}\t{{.Label "com.docker.compose.project.config_files"}}\t{{.Label "com.docker.compose.service"}}',
-      ]);
+      ], environment: environment);
       if (result.exitCode != 0) return const {};
       final target = File(file).absolute.path;
       final targetDir = File(target).parent.path;
@@ -401,7 +413,25 @@ class ComposeTasksJsonMerger {
           matched = true;
           break;
         }
-        replacements[i] = _pretty(next, spans[i].indent);
+        // Synchronizing generated commands must retain user environment config.
+        final previous = rawTasks[i] as Map;
+        final previousProfiles = previous['profiles'] as List? ?? const [];
+        final updated = <String, Object?>{
+          ...next,
+          if (previous.containsKey('env')) 'env': previous['env'],
+          'profiles': [
+            for (final profile in next['profiles'] as List)
+              {
+                ...profile as Map,
+                for (final old in previousProfiles)
+                  if (old is Map &&
+                      old['name'] == profile['name'] &&
+                      old.containsKey('env'))
+                    'env': old['env'],
+              },
+          ],
+        };
+        replacements[i] = _pretty(updated, spans[i].indent);
         matched = true;
         break;
       }

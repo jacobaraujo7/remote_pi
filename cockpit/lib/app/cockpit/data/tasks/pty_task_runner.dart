@@ -57,6 +57,11 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   final _composeOutput = <String, StreamController<String>>{};
   final _composeFollowers = <String, Process>{};
   final _composeActive = <String>{};
+  final _composeProfiles = <String, String>{};
+
+  Map<String, String> _composeEnv(TaskDefinition def) => def.resolveEnv(
+    def.profiles.where((p) => p.name == _composeProfiles[def.id]).firstOrNull,
+  );
   Timer? _composePoll;
   bool _composePolling = false;
 
@@ -146,6 +151,9 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         );
       }
     }
+    _composeProfiles.removeWhere(
+      (id, _) => !_composeDefinitions.containsKey(id),
+    );
     await _pollCompose();
     _composePoll?.cancel();
     if (_composeDefinitions.isNotEmpty) {
@@ -174,11 +182,30 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     if (_composePolling) return;
     _composePolling = true;
     try {
-      final grouped = <String, ({ComposeTask task, List<String> ids})>{};
+      final grouped =
+          <
+            String,
+            ({
+              ComposeTask task,
+              Map<String, String> env,
+              String command,
+              List<String> ids,
+            })
+          >{};
       for (final e in _composeDefinitions.entries) {
-        final key = '${e.value.task.engine.name}:${e.value.task.file}';
+        final env = _composeEnv(e.value.def);
+        final key =
+            '${e.value.def.command}:${e.value.task.engine.name}:${e.value.task.file}:${jsonEncode(env)}';
         grouped
-            .putIfAbsent(key, () => (task: e.value.task, ids: <String>[]))
+            .putIfAbsent(
+              key,
+              () => (
+                task: e.value.task,
+                env: env,
+                command: e.value.def.command,
+                ids: <String>[],
+              ),
+            )
             .ids
             .add(e.key);
       }
@@ -186,6 +213,8 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         final running = await composeResolver.runningServices(
           group.task.engine,
           group.task.file,
+          environment: group.env,
+          executable: group.command,
         );
         for (final id in group.ids) {
           final entry = _composeDefinitions[id];
@@ -225,6 +254,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         .where((p) => p.name == profileName)
         .firstOrNull;
     if (profile == null) return;
+    _composeProfiles[def.id] = profile.name;
     _starting.add(def.id);
     final out = _composeOutput.putIfAbsent(
       def.id,
@@ -250,7 +280,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         workingDirectory: File(task.file).parent.path,
         environment: {
           ...await envWithNodeOnPath(),
-          ...profile.env,
+          ...def.resolveEnv(profile),
           ...?telemetry?.childEnvironment,
         },
       );
@@ -318,16 +348,21 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
     final task = entry.task;
     final Process process;
     try {
-      process = await Process.start(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'logs',
-        '--tail',
-        '200',
-        '--follow',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      process = await Process.start(
+        entry.def.command,
+        [
+          ...task.engine.prefix,
+          '-f',
+          task.file,
+          'logs',
+          '--tail',
+          '200',
+          '--follow',
+          task.service,
+        ],
+        workingDirectory: File(task.file).parent.path,
+        environment: {...await envWithNodeOnPath(), ..._composeEnv(entry.def)},
+      );
     } catch (e) {
       _composeOutput
           .putIfAbsent(taskId, () => StreamController<String>.broadcast())
@@ -414,7 +449,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
 
       final env = {
         ...await envWithNodeOnPath(),
-        if (profile != null) ...profile.env,
+        ...def.resolveEnv(profile),
         ...?telemetry?.childEnvironment,
         // TERM fora do Windows: no PowerShell nativo o TERM quebra o auto-load
         // do PSReadLine e o ConPTY já entrega o VT (ver pty_terminal_gateway).
@@ -513,13 +548,15 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
         ),
       );
       final task = compose.task;
-      final result = await Process.run(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'stop',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      final result = await Process.run(
+        compose.def.command,
+        [...task.engine.prefix, '-f', task.file, 'stop', task.service],
+        workingDirectory: File(task.file).parent.path,
+        environment: {
+          ...await envWithNodeOnPath(),
+          ..._composeEnv(compose.def),
+        },
+      );
       await _stopComposeFollower(taskId);
       _composeActive.remove(taskId);
       _emit(
@@ -570,13 +607,15 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
           status: TaskRunStatus.starting,
         ),
       );
-      final result = await Process.run(task.engine.command, [
-        ...task.engine.prefix,
-        '-f',
-        task.file,
-        'restart',
-        task.service,
-      ], workingDirectory: File(task.file).parent.path);
+      final result = await Process.run(
+        compose.def.command,
+        [...task.engine.prefix, '-f', task.file, 'restart', task.service],
+        workingDirectory: File(task.file).parent.path,
+        environment: {
+          ...await envWithNodeOnPath(),
+          ..._composeEnv(compose.def),
+        },
+      );
       await _stopComposeFollower(taskId);
       if (result.exitCode == 0) {
         _emit(
@@ -748,6 +787,7 @@ class PtyTaskRunner implements TaskRunnerGateway, ReconciledTaskRunnerGateway {
   @override
   Future<void> disposeAll() async {
     _composePoll?.cancel();
+    _composeProfiles.clear();
     for (final id in _composeFollowers.keys.toList()) {
       await _stopComposeFollower(id);
     }

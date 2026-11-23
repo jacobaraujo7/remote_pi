@@ -30,6 +30,11 @@
           "items": { "type": "string" },
           "description": "Args base, antes do profile."
         },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Variáveis comuns da task, herdadas por todos os profiles. O env do profile tem precedência."
+        },
         "cwd": {
           "type": "string",
           "description": "Pasta de execução relativa à pasta do tasks.json (ou absoluta). Omitido = default top-level / raiz."

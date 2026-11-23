@@ -618,8 +618,10 @@ class _ComposeResolver extends ComposeEngineResolver {
   @override
   Future<Set<String>> runningServices(
     ComposeEngine engine,
-    String file,
-  ) async => active.contains(file) ? {'api'} : {};
+    String file, {
+    Map<String, String> environment = const {},
+    String? executable,
+  }) async => active.contains(file) ? {'api'} : {};
 }
 
 class _RemoteFiles extends Fake implements RemoteFileService {

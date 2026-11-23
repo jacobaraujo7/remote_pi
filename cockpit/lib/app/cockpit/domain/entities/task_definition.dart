@@ -122,6 +122,7 @@ class TaskDefinition {
     required this.cwd,
     required this.command,
     this.args = const [],
+    this.env = const {},
     this.kind = TaskKind.oneShot,
     this.source = TaskSource.detected,
     this.profiles = const [],
@@ -189,6 +190,9 @@ class TaskDefinition {
   /// Args base (ex.: `["run", "dev"]`), antes do profile.
   final List<String> args;
 
+  /// Variáveis comuns a todas as execuções; o profile pode sobrescrevê-las.
+  final Map<String, String> env;
+
   final TaskKind kind;
   final TaskSource source;
 
@@ -230,6 +234,13 @@ class TaskDefinition {
       TaskPreviewOpen.never => false,
     };
   }
+
+  /// Ambiente da task: valores do profile prevalecem, sem alterar os mapas.
+  /// Sem profile, usa apenas as variáveis comuns da task.
+  Map<String, String> resolveEnv(TaskProfile? profile) => {
+    ...env,
+    if (profile != null) ...profile.env,
+  };
 
   /// Linha de comando final (preview na UI e execução): base + args do profile.
   List<String> resolveArgs(TaskProfile? profile) => [
